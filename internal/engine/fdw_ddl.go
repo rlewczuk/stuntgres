@@ -101,6 +101,7 @@ func foreignMappingAuthority(view access.View, env access.Environment, server *c
 	}
 	return sqlError("42501", "must be owner of foreign server "+server.Name())
 }
+
 // foreignValidatorJob builds the validation of options against wrapper's
 // validator. It also returns the validator procedure the job depends on; it
 // is nil when the wrapper has no validator.

@@ -79,13 +79,8 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		t.Mu.Unlock()
 		return nil, err
 	}
-	var participant *foreignParticipant
-	for _, p := range ownerExtensionOrZero(t).foreign.participants {
-		if p.key == key {
-			participant = p
-			break
-		}
-	}
+	foreign := ownerExtensionOrZero(t).foreign
+	participant := foreign.participant(key)
 	marks := t.Savepoints // Borrowed immutable roots under retained owner admission.
 	t.Mu.Unlock()
 	if participant == nil {
@@ -126,8 +121,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		t.Mu.Lock()
 		err = t.Validate(s.txRef)
 		if err == nil {
-			x := ownerExtensionOf(t)
-			x.foreign.participants = append(x.foreign.participants, participant)
+			ownerExtensionOf(t).foreign.enlist(participant)
 		}
 		t.Mu.Unlock()
 		if err != nil {
@@ -199,39 +193,83 @@ func rollbackForeign(ctx context.Context, participants []*foreignParticipant) er
 	}
 	return first
 }
+
+// commitForeign commits the owner's participants after validating ref.
 func commitForeign(t *session.TransactionOwner, ctx context.Context, ref ids.TxRef) error {
 	t.Mu.Lock()
 	err := t.Validate(ref)
-	participants := ownerExtensionOrZero(t).foreign.participants // Admission excludes enrollment/disposal.
+	foreign := ownerExtensionOrZero(t).foreign // Admission excludes enrollment/disposal.
 	t.Mu.Unlock()
 	if err != nil {
 		return err
 	}
-	for _, p := range participants {
+	return foreign.commit(ctx)
+}
+func foreignPending(t *session.TransactionOwner) bool {
+	foreign := ownerExtensionOrZero(t).foreign
+	return foreign.pending()
+}
+func foreignSavepoint(t *session.TransactionOwner, ctx context.Context, kind int, id uint64) error {
+	foreign := ownerExtensionOrZero(t).foreign
+	return foreign.savepoint(ctx, kind, id)
+}
+func foreignMarkName(id uint64) string { return fmt.Sprintf("stuntgres_sql_%d", id) }
+
+// participant returns the enlisted participant for key, or nil.
+func (f *foreignTransaction) participant(key foreignParticipantKey) *foreignParticipant {
+	for _, p := range f.participants {
+		if p.key == key {
+			return p
+		}
+	}
+	return nil
+}
+func (f *foreignTransaction) enlist(p *foreignParticipant) {
+	f.participants = append(f.participants, p)
+}
+func (f *foreignTransaction) hasParticipants() bool { return len(f.participants) != 0 }
+
+// retire moves the participants to cleanup.
+func (f *foreignTransaction) retire() {
+	f.cleanup = append(f.cleanup, f.participants...)
+	f.participants = nil
+}
+
+// takeCleanup returns and clears the retired participants.
+func (f *foreignTransaction) takeCleanup() []*foreignParticipant {
+	cleanup := f.cleanup
+	f.cleanup = nil
+	return cleanup
+}
+
+// commit commits every open participant once. A failed Commit has an unknown
+// outcome: it is never retried or compensated, and the rest roll back.
+func (f *foreignTransaction) commit(ctx context.Context) error {
+	for _, p := range f.participants {
 		if p.closed {
 			continue
 		}
-		// A failed Commit has unknown outcome, never retry or compensate it.
 		p.closed = true
 		if err := p.tx.Commit(ctx); err != nil {
-			_ = rollbackForeign(ctx, participants)
+			_ = rollbackForeign(ctx, f.participants)
 			return exec.ForeignCallbackError(err)
 		}
 	}
 	return nil
 }
-func foreignPending(t *session.TransactionOwner) bool {
-	for _, p := range ownerExtensionOrZero(t).foreign.participants {
+func (f *foreignTransaction) pending() bool {
+	for _, p := range f.participants {
 		if !p.closed {
 			return true
 		}
 	}
 	return false
 }
-func foreignMarkName(id uint64) string { return fmt.Sprintf("stuntgres_sql_%d", id) }
 
-func foreignSavepoint(t *session.TransactionOwner, ctx context.Context, kind int, id uint64) error {
-	for _, p := range ownerExtensionOrZero(t).foreign.participants {
+// savepoint sets (kind 0), rolls back to (1) or releases (2) mark id in every
+// participant; a failure rolls every participant back.
+func (f *foreignTransaction) savepoint(ctx context.Context, kind int, id uint64) error {
+	for _, p := range f.participants {
 		if p.closed {
 			return errors.New("stuntgres: foreign transaction is already disposed")
 		}
@@ -239,7 +277,7 @@ func foreignSavepoint(t *session.TransactionOwner, ctx context.Context, kind int
 			return sqlError("0A000", "foreign transaction does not support savepoints")
 		}
 	}
-	for _, p := range ownerExtensionOrZero(t).foreign.participants {
+	for _, p := range f.participants {
 		sp := p.tx.(catalog.ForeignTransactionSavepoints)
 		var err error
 		switch kind {
@@ -251,7 +289,7 @@ func foreignSavepoint(t *session.TransactionOwner, ctx context.Context, kind int
 			err = sp.Release(ctx, foreignMarkName(id))
 		}
 		if err != nil {
-			_ = rollbackForeign(ctx, ownerExtensionOrZero(t).foreign.participants)
+			_ = rollbackForeign(ctx, f.participants)
 			return exec.ForeignCallbackError(err)
 		}
 	}

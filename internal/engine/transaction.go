@@ -908,8 +908,8 @@ func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]storage.RowVersio
 func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope *StatementScope) error {
 	t.Mu.Lock()
 	x := ownerExtensionOf(t)
-	cursors, participants := x.cursorCleanup, x.foreign.cleanup
-	x.cursorCleanup, x.foreign.cleanup = nil, nil
+	cursors, participants := x.cursorCleanup, x.foreign.takeCleanup()
+	x.cursorCleanup = nil
 	t.Mu.Unlock()
 	wire := scope != nil && (scope.protocolOrZero().command || scope.protocolOrZero().simple)
 	var err error

@@ -189,7 +189,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.Command++
 		}
 	}
-	if t.State == session.TxImplicit && err != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
+	if t.State == session.TxImplicit && err != nil && ownerHasForeign(t) {
 		t.Mu.Unlock()
 		s.foreignUnlocked()
 		_ = disposeSQLCursors(s.op.Context(), payloadOf(t.Session).cursors.endTransaction(t.Ref))
@@ -201,7 +201,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.Mu.Lock()
 	}
 	if len(s.foreignTablesOrZero().holdPromotions) != 0 {
-		if err != nil && !published && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
+		if err != nil && !published && ownerHasForeign(t) {
 			t.Mu.Unlock()
 			err = s.discardForeignHoldPromotions(err)
 			t.Mu.Lock()

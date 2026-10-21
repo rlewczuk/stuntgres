@@ -125,7 +125,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	if err == nil && t.AccessedTemporary {
 		err = sqlError("0A000", "cannot PREPARE a transaction that has operated on temporary objects")
 	}
-	if err == nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
+	if err == nil && ownerHasForeign(t) {
 		err = sqlError("0A000", "cannot PREPARE a transaction that has operated on foreign tables")
 	}
 	if err == nil && (len(t.NotificationActions) != 0 || len(t.NotificationEvents) != 0) {
