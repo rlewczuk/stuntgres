@@ -49,6 +49,54 @@ ordinary-role errors and native control replay. These are expected observations,
 not a claim of executed verification. Root owns selected dual-mode proof,
 whole-project quickcheck and post-integration finalcheck.
 
+### Information-schema user mappings
+
+The complete untagged `TestReferenceInfoUserMappings` scenarios prescribe the
+three-column `sql_identifier`/NAME projection, nullable catalog/domain metadata
+and populated/empty direct, prepared and held results. Actual named/PUBLIC
+mappings use independent database names; options never add columns or leak
+secrets. Visibility is inherited server ownership OR effective server USAGE,
+not mapping ownership: authorized readers see other roles and PUBLIC too.
+The matrix includes inherited/PUBLIC grants, SET-only membership, wrapper-USAGE
+independence, hidden servers and held grant/revoke/role transitions.
+Lifecycle covers mapping creation/drop, unconditional server rename,
+rollback/savepoint restoration and server CASCADE. PostgreSQL role rename updates
+the exact held rows; native actual Prepare asserts the complete existing
+`ERROR`/`0A000`/`statement is unsupported`/Position 1 diagnostic and unchanged rows,
+then continues the same lifecycle with its original role name. A producer unit
+independently replaces the role descriptor at the same PrincipalRef, proving
+current-name resolution while retaining the old root, rows and mapping descriptors.
+Lifecycle and Smoke assert the complete PostgreSQL single-PUBLIC-dependency
+CASCADE NOTICE versus explicitly zero native notices, then exact empty held rows.
+Diagnostics retain exact PostgreSQL English records and SQLSTATE for missing
+columns and protected base-catalog reads. No adjacent role DDL or notice emission
+implementation is introduced.
+
+Run each selected command with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceInfoUserMappings(Shape|Visibility|Lifecycle|Diagnostics|Smoke)$'
+make check REFERENCE=1 RUN='^TestReferenceInfoUserMappings(Shape|Visibility|Lifecycle|Diagnostics|Smoke)$'
+make check RUN='^TestReferenceFDW(MetadataLifecycle|Security|MappingOwnership|SourceSecurity)$'
+make check REFERENCE=1 RUN='^TestReferenceFDW(MetadataLifecycle|Security|MappingOwnership|SourceSecurity)$'
+make check RUN='^TestReferenceInfoSQLIdentifier(Metadata|Identity)$'
+make check REFERENCE=1 RUN='^TestReferenceInfoSQLIdentifier(Metadata|Identity)$'
+```
+
+Standalone feature smoke:
+
+```sh
+make check RUN='^TestReferenceInfoUserMappingsSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceInfoUserMappingsSmoke$'
+```
+
+Expected exit zero with quiet package summaries. Assertions exercise exact
+identity rows without options, held empty→all→empty grant/revoke transitions,
+rollback restoration and committed CASCADE retirement. Setup is metadata-only:
+no foreign provider, remote connection or external FDW service is involved.
+This feature neither adds `user_mapping_options` nor changes existing
+`pg_user_mappings` option redaction or SQL/MED native-control boundaries.
+
 ### Extension removal
 
 The nine new removal definitions independently specify PostgreSQL18.6

@@ -1,7 +1,8 @@
 # internal/engine/pgcatalog
 
 Row producers for the system relations: the `pg_catalog` tables and views and
-the two `information_schema` views (`table_privileges`, `data_type_privileges`).
+the `information_schema` views `table_privileges`, `data_type_privileges` and
+`user_mappings`.
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
@@ -122,6 +123,22 @@ engine-seeded catalog.
   reads unpublished definition state).
 
 ## Testing
+
+`info_user_mappings.go` emits only real mapping identities from the captured
+catalog and paired roles. Server inherited-owner OR effective-USAGE authority
+exposes all attached mappings. It wraps inline NAME payloads in the genuine
+`sql_identifier` domain; source metadata remains available for empty results.
+Successful empty captures return a nonnil empty row slice so the executor
+recognizes an anonymous source, not an absent physical source.
+It never copies options or reuses `ForeignServerVisible`, which governs the
+distinct `pg_user_mappings` option-redaction path.
+
+```sh
+make check RUN='^TestInfoUserMappingsProducer$'
+make check RUN='^TestReferenceInfoUserMappings(Shape|Visibility|Lifecycle|Diagnostics|Smoke)$'
+make check REFERENCE=1 RUN='^TestReferenceInfoUserMappings(Shape|Visibility|Lifecycle|Diagnostics|Smoke)$'
+```
+
 
 Package units run without an engine:
 

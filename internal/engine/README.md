@@ -268,8 +268,17 @@ descriptor metadata. Producer units reach producers through the real
 wrapper. Engine-free units are in the
 [`pgcatalog` README](pgcatalog/README.md#testing).
 
+`TestInfoUserMappingsProducer` additionally exercises the domain-typed
+information-schema mapping projection through the real registry: actual metadata,
+PUBLIC spelling, identity rather than diagnostic role names, immutable same-principal
+role-descriptor name replacement with unchanged mappings and retained old roots/rows,
+inherited owner and effective server USAGE, denied/empty boundaries, malformed
+captures and unchanged cancellation errors. Public shape, privilege, lifecycle and smoke
+contracts are in [catalogs Testing](../../reference/catalogs/README.md#information-schema-user-mappings).
+
 ```sh
 make check RUN='^(TestCatalogSourceProducerCoverage|TestCatalogSourceInputProvenance|TestCatalogSourceRuntimeCapture|TestCatalogSourceSpecMetadata)$'
+make check RUN='^TestInfoUserMappingsProducer$'
 make check RUN='^(TestPGAttributeCapture|TestPGTypeCaptureOwnership|TestDataTypePrivilegesCapture|TestPgClassACLTranslation)$'
 make check RUN='^(TestPGIndexesCaptureRetentionAndStableColumnACL|TestPGIndexesSourceInvokerAndFreshAuthorization|TestPGParameterACLSnapshot|TestPGParameterACLCancellation)$'
 make check RUN='^(TestReferencePGAttributeSmoke|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime|TestReferenceDataTypePrivilegesKindsAndTemp)$'

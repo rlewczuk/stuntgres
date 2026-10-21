@@ -68,6 +68,7 @@ var producers = [...]Registration{
 	{16200, captureTablePrivileges},
 	{16201, captureDataTypePrivileges},
 	{16202, capturePGSettings},
+	{InfoUserMappingsOID, captureInfoUserMappings},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

@@ -591,6 +591,35 @@ Restore has a restricted parameter-free replay boundary, not general script
 execution. It does not import temporary objects, transaction controls, shared
 role effects or arbitrary CTE/RETURNING history. See [fixture contracts](FIXTURES.md).
 
+## Information-schema user mappings
+
+`information_schema.user_mappings` has exactly `authorization_identifier`,
+`foreign_server_catalog`, and `foreign_server_name`, all genuine nullable
+`information_schema.sql_identifier` domains over NAME. Valid mapping rows have
+three non-NULL identity values; no mappings or no accessible servers yield zero
+rows with the same metadata. PUBLIC is spelled uppercase. Server names follow
+supported `ALTER SERVER ... RENAME` and transactional changes; role names resolve
+the current captured role descriptor, not the mapping's diagnostic name.
+Native `ALTER ROLE ... RENAME` SQL remains unsupported (`0A000`, `statement is
+unsupported`, Position 1); PostgreSQL performs that rename.
+
+Inherited server-owner authority OR effective server USAGE (direct, inherited or
+PUBLIC) exposes every mapping on that server, not just the caller's mapping.
+Mapping ownership and wrapper USAGE are not independent read gates. SET-only
+membership counts only after the effective role changes. Held prepared execution
+recaptures authority and rows; no permissions or row cache is introduced.
+
+There are no option columns: secret-bearing mapping options do not affect the
+projection. Existing `pg_catalog.pg_user_mappings` option redaction is separate
+and unchanged; `information_schema.user_mapping_options` is outside this feature.
+Reads use actual SQL/MED metadata without invoking a provider or promising remote
+connectivity. Existing SQL/MED Dump restrictions remain unchanged.
+The lifecycle tests also pin the existing notice boundary: server CASCADE retires
+actual mappings on both backends, but native emits no CASCADE notices on this
+SQL/MED path. PostgreSQL emits the complete dependency NOTICE (a single PUBLIC
+mapping in these scenarios). This read-view feature does not change notice emission.
+See [selected proof and smoke](../reference/catalogs/README.md#information-schema-user-mappings).
+
 ## Foreign metadata and scans
 
 SQL/MED wrapper/server/user-mapping/foreign-table metadata, ordered column/table

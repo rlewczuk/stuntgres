@@ -85,6 +85,13 @@ func (r engineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 func (r engineCatalogRuntime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {
 	a := r.auth
 	switch oid {
+	case pgcatalog.InfoUserMappingsOID:
+		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
+			return fmt.Errorf("stuntgres: invalid user_mappings capture")
+		}
+		if _, err := a.Object(ref); err != nil {
+			return err
+		}
 	case pgcatalog.DataTypePrivilegesOID:
 		if view.Owner() == nil || view.State() == nil || roles != a.Roles || a.Owner != view.Owner() || a.Catalog != view || a.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != oid || view.Get(ref.Address) != source {
 			return fmt.Errorf("stuntgres: invalid data_type_privileges capture")

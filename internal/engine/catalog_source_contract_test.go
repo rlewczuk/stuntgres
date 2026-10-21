@@ -106,6 +106,16 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			if len(source.Anonymous) == 0 {
 				t.Fatal("real fixture missing from producer", d.Name())
 			}
+		case pgcatalog.InfoUserMappingsOID:
+			if len(source.Anonymous) != 1 {
+				t.Fatal("actual information-schema mapping missing")
+			}
+			for i, want := range []string{"postgres", op.Session.DatabaseName, "producer_contract_server"} {
+				got := infoUserMappingsUnitText(t, source.Anonymous[0][i])
+				if got != want {
+					t.Fatal("mapping coherent capture", i, got, want)
+				}
+			}
 		case pgcatalog.UserMappingsOID:
 			if len(source.Anonymous) != 1 || source.Anonymous[0][5].IsNull() || source.Anonymous[0][5].ArrayLen() != 1 {
 				t.Fatal("fresh mapping disclosure lost")
@@ -191,6 +201,17 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 		done()
 		t.Fatal("mixed input/runtime roles admitted", err)
 	}
+	d = view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserMappingsOID})
+	mixed.Ref, mixed.Source = e.catalog.Domain.Ref(view.Epoch(), d.Address()), d
+	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoUserMappingsOID)
+	if !ok {
+		done()
+		t.Fatal("missing user_mappings producer")
+	}
+	if got, err := produce(mixed); got != nil || err == nil {
+		done()
+		t.Fatal("mixed user_mappings roles admitted", err)
+	}
 	done()
 	retained := append([]sqltype.Value(nil), rows[0]...)
 	if err := e.Reset(t.Context()); err != nil {
@@ -213,6 +234,48 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 }
 
 func TestCatalogSourceRuntimeCapture(t *testing.T) {
+	t.Run("user_mappings_database_frontier", func(t *testing.T) {
+		f := newDefaultUnitFixture(t)
+		state := catalog.CloneState(f.e.catalog.state)
+		server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 20300}, ObjectName: "capture_server", ObjectRevision: 1, Owner: f.owner}
+		mapping := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 20301}, ObjectName: catalog.ForeignMappingName(server.Address(), f.reader), ObjectRevision: 1, Server: server.Address(), MappedRole: f.reader}
+		state.SetDescriptor(server.Address(), server)
+		state.SetDescriptor(mapping.Address(), mapping)
+		f.e.catalog.state = state
+		f.op.Session.DatabaseName = "physical_capture_database"
+		scope, err := f.e.StartStatement(f.op)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := scope.Finish(nil); err != nil {
+				t.Error(err)
+			}
+		}()
+		f.e.mu.Lock()
+		err = f.e.captureCommentSnapshotLocked(scope)
+		f.e.mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		view := scope.inquiry.commentCatalog
+		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserMappingsOID})
+		f.e.mu.Lock()
+		source, err := f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), d.Address()), d.Owner, plan.RowMark{}, nil, nil)
+		if err != nil || source == nil {
+			t.Fatal("coherent mapping source", err)
+		}
+		defer source.Close()
+		if len(source.Anonymous) != 1 {
+			t.Fatal("actual mapping capture", source.Anonymous)
+		}
+		for i, want := range []string{"default_reader", "physical_capture_database", "capture_server"} {
+			got := infoUserMappingsUnitText(t, source.Anonymous[0][i])
+			if got != want {
+				t.Fatal("paired physical capture", i, got, want)
+			}
+		}
+	})
 	t.Run("cursor_and_settings_dispatch", func(t *testing.T) {
 		s := cursorUnitSetup(t)
 		e := engineOf(s)
@@ -380,6 +443,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 		{1418, []string{"oid", "umuser", "umserver", "umoptions"}, []sqltype.ID{26, 26, 26, 1009}, []bool{false, false, false, true}, []uint32{0, 0, 0, 950}, []int32{-1, -1, -1, -1}},
 		{16200, []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}, []sqltype.ID{19, 19, 19, 19, 19, 1043, 1043, 1043}, []bool{true, true, true, true, true, true, true, true}, []uint32{950, 950, 950, 950, 950, 950, 950, 950}, []int32{-1, -1, -1, -1, -1, -1, 7, 7}},
 		{16201, []string{"object_catalog", "object_schema", "object_name", "object_type", "dtd_identifier"}, []sqltype.ID{19, 19, 19, 1043, 19}, []bool{true, true, true, true, true}, []uint32{950, 950, 950, 950, 950}, []int32{-1, -1, -1, -1, -1}},
+		{16203, []string{"authorization_identifier", "foreign_server_catalog", "foreign_server_name"}, []sqltype.ID{13248, 13248, 13248}, []bool{true, true, true}, []uint32{950, 950, 950}, []int32{-1, -1, -1}},
 	} {
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fixture.oid})
 		if len(d.Columns) != len(fixture.names) {

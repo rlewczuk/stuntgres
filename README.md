@@ -14,6 +14,23 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Information-schema user mappings — change note
+
+`information_schema.user_mappings` exposes actual SQL/MED mapping identities
+through three nullable `sql_identifier` domain columns: authorization identifier,
+current database and foreign server. Inherited server owners and effective
+server-USAGE grantees see all mappings on that server, including other roles and
+uppercase `PUBLIC`; mapping ownership alone grants no visibility. Each execution
+uses current captured metadata and authority, including held prepared queries.
+No options or secrets appear in this view, and existing `pg_user_mappings` option
+redaction is unchanged. Metadata-only reads require no foreign provider or remote
+connection; this does not implement `user_mapping_options`.
+Supported server rename remains shared lifecycle coverage; native role-rename
+SQL remains unsupported, and native SQL/MED CASCADE retires dependencies without
+PostgreSQL's dependency notices. Current role-descriptor names still resolve by identity.
+See [native boundaries](docs/DIALECT.md#information-schema-user-mappings) and
+[selected proof and smoke](reference/catalogs/README.md#information-schema-user-mappings).
+
 ## Scalar SQL routines — change note
 
 Basic `CREATE FUNCTION` accepts anonymous positional typed arguments, a concrete

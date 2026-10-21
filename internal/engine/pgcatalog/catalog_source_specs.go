@@ -630,4 +630,9 @@ var Specs = [...]Spec{
 		{"object_type", sqltype.VarChar, true, 950, 0, -1},
 		{"dtd_identifier", sqltype.Name, true, 0, 0, -1},
 	}, true, false, false, false, "stuntgres: missing data type privilege carrier"},
+	{InfoUserMappingsOID, 13229, "user_mappings", []ColumnSpec{
+		{"authorization_identifier", 13248, true, 950, 0, -1},
+		{"foreign_server_catalog", 13248, true, 950, 0, -1},
+		{"foreign_server_name", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing user mapping identifier domain"},
 }
