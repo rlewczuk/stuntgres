@@ -39,10 +39,10 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		table, name = s.Table, s.Name.Text
 		drop = true
 	}
-	if err = policyPreflight(op, auth, stmt, false); err != nil {
+	if err = policyPreflight(op, auth.View, stmt, false); err != nil {
 		return fail(err)
 	}
-	roles, _, err := resolvePolicyRoles(auth, rawRoles)
+	roles, _, err := resolvePolicyRoles(auth.View, rawRoles)
 	if err != nil {
 		return fail(err)
 	}

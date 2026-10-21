@@ -324,7 +324,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
 	parentAuth := auth
 	if err == nil {
-		err = policyPreflight(s.op, auth, stmt, true)
+		err = policyPreflight(s.op, auth.View, stmt, true)
 	}
 	if _, attaching := stmt.(*parser.AlterTableAttachPartition); attaching && err == nil {
 		parentAuth, err = e.partitionAttachAuthorization(s.op, auth)
@@ -401,7 +401,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		case *parser.AlterView:
 			if ref.Domain() != nil {
-				err = alterViewAuthority(parentAuth, ref, utility)
+				err = alterViewAuthority(parentAuth.View, parentAuth, ref, utility)
 			}
 		}
 		if ownerOnly && !viewReplacement && err == nil {
@@ -578,7 +578,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if authorityErr != nil {
 			return authorityErr
 		}
-		if authorityErr = alterViewAuthority(currentAuth, ref, stmt.(*parser.AlterView)); authorityErr != nil {
+		if authorityErr = alterViewAuthority(currentAuth.View, currentAuth, ref, stmt.(*parser.AlterView)); authorityErr != nil {
 			return authorityErr
 		}
 		return ids.ErrCatalogReplaced

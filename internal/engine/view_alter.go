@@ -14,17 +14,17 @@ import (
 
 // PostgreSQL uses different callbacks for column, dependency and other forms.
 // Keep admission and execution on the same action-specific authority contract.
-func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.AlterView) error {
-	d := auth.Catalog.MustRelation(ref.Address)
+func alterViewAuthority(view access.View, env access.Environment, ref ids.ObjectRef, s *parser.AlterView) error {
+	d := view.Catalog.MustRelation(ref.Address)
 	kind, label := catalog.ViewRelation, "view"
 	ownerChecked := false
 	if s.Materialized {
 		kind, label = catalog.MaterializedViewRelation, "materialized view"
 		if s.Action == "column" {
-			return auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
+			return view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
 		}
 		if s.Action != "depends" && s.Action != "no_depends" {
-			if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+			if err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 				return err
 			}
 			ownerChecked = true
@@ -36,7 +36,7 @@ func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.Alt
 	if ownerChecked {
 		return nil
 	}
-	return auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
+	return view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
 }
 
 // Utility admission pins the target identity before waiting. Shared rename and
@@ -77,7 +77,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
-	if err = alterViewAuthority(auth, ref, s); err != nil {
+	if err = alterViewAuthority(auth.View, auth, ref, s); err != nil {
 		return fail(err)
 	}
 	if scope.replacementRead {
@@ -193,13 +193,13 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	return Result{}, err
 }
 
-func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation) error {
-	ownerErr := auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
+func viewDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
+	ownerErr := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
 	if ownerErr == nil {
 		return nil
 	}
-	ns := auth.Catalog.MustNamespace(d.Namespace())
-	allowed, err := auth.Roles.InheritsRole(auth.State.CurrentUser, ns.Owner)
+	ns := view.Catalog.MustNamespace(d.Namespace())
+	allowed, err := view.Roles.InheritsRole(view.State.CurrentUser, ns.Owner)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			e.mu.Unlock()
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.Name(), label), Hint: hint}
 		}
-		if err := viewDropOwner(auth, ref, d); err != nil {
+		if err := viewDropOwner(auth.View, auth, ref, d); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -301,7 +301,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		if err := viewDropOwner(auth, ref, d); err != nil {
+		if err := viewDropOwner(auth.View, auth, ref, d); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

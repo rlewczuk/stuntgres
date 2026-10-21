@@ -190,7 +190,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
 	if kind == "materialized view" {
-		if err := alterViewAuthority(auth, ref, &parser.AlterView{Materialized: true, Action: "owner"}); err != nil {
+		if err := alterViewAuthority(auth.View, auth, ref, &parser.AlterView{Materialized: true, Action: "owner"}); err != nil {
 			return fail(err)
 		}
 	} else if kind == "view" && old.RelationKind != catalog.ViewRelation {
