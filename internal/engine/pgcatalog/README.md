@@ -115,8 +115,11 @@ engine-seeded catalog.
   statement scope, and the `pg_sequence` journal overlay.
 - Descriptor registration during catalog seeding (`initializeCatalogSources`,
   `catalogSourceDescriptor`, `registerCatalogSource`), which reads `Specs`.
-- `pgDependPinned` (`catalog_pinning.go`), which also reads unpublished
-  definition state; producers reach it through `Runtime.Pinned`.
+- The `Runtime` bodies over stored definitions, which forward to `stored`:
+  `ViewDefinition` (`stored.ViewDefinitionSQL`), `ExpressionReferences`,
+  `ViewReferences`, `IndexReferences` and `PartitionReferences`
+  (`stored.*DependRefs`), and `Pinned` (`stored.DependPinned`, which also
+  reads unpublished definition state).
 
 ## Testing
 

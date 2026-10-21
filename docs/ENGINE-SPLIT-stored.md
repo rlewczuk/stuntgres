@@ -431,20 +431,85 @@ aliases remain; the checks in §8.3 pass.
   `905c53bad`, `bec9e323f`, `89b74100f`, then the docs commit) · selected
   unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
   skipped at user request
-- [ ] 22b — `stored` created and presentation set moved *(broad)* (item 68)
+- [x] 22b — `stored` created and presentation set moved *(broad)* (item 68)
+  (`ae29be757`, `4f51dfb7c`, `b66915729`, `687d5dc84`, `96720fefc`,
+  `020d1a446`, `b6960ba81`, then the docs commit) · selected unit and
+  dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+  user request
 - [ ] 22c — Rule and policy payloads, `ReownExpressions` (item 69)
 - [ ] 22d — Aliases removed *(broad)* (item 70)
 
-Outstanding aliases: none yet.
+Outstanding aliases (`internal/engine/stored_aliases.go`, types only):
+`pgDependRefs`, `pgRenderer`, `pgRenderParent`, `policyExpression`,
+`procedureProvider`, `scalarRenderer`, `viewCheckMode`, `viewDefinition`,
+`viewLeaf`, `viewPresentation`, `viewQueryRemapper`, `viewRenderer`.
+Functions, constants and `ViewParts` are qualified directly.
+
+### 22b record
+
+Measured at `ca2167c7c` and replayed onto `c0dfba392` and `3f8d7d950`, then rebased onto `47b3bd17c`: the fixed point
+from `set4.txt` plus the 22a additions had OUT = {`sqlError`} only.
+Commits, each built by a script in
+`.cswd/tmp/PG18-ENGINE-SPLIT-STORED-PACKAGE/` (`replay.sh` rebuilds them
+on a new base; the payload API commit is cherry-picked):
+
+1. Staging: the moving declarations of fifteen mixed files went to
+   `stored_*.go` (`movedecl`); `deparseAttribute` joined
+   `deparse_rendering.go`, `sameMappedSQLRoutine` `routine_presentation.go`.
+2. Ten test locals named `stored` that would capture `stored.X` became
+   `persisted` (`storedrn`, a variant of `shadowrn`).
+3. Payload API, as chosen with the user instead of exported fields:
+   `ViewParts` mirrors every `View` field; `NewView`, `Parts` and `With`
+   (copy, edit, rebuild) replace field writes; read accessors cover every
+   outside read; `NewPolicy` and three policy accessors. A go/types pass
+   (`payloadapi`) rewrote 139 reads and 71 literals; 71 writes were
+   converted by hand.
+4. Export in place (`expspec`/`movex`, 145 rows).
+5. Move: 55 files, `stored/errors.go`, `stored_aliases.go`; `movex`
+   qualified the engine (about 320 files changed).
+6. Forwarders: `ViewDefinitionSQL`, `IndexDependRefs` and
+   `PartitionDependRefs` hold the `pgcatalog.Runtime` bodies.
+7. `TestViewPartsRoundTrip` (new, pins the payload API) moved into
+   `stored`; every other test that uses `stored` builds an engine, a
+   catalog fixture or a test binder and stays in the root, rewritten.
+
+Deviations from the plan above:
+
+- The 22a note named three production writers of `viewDefinition` fields;
+  there were seven functions (CREATE VIEW, ALTER VIEW SET/RESET, CREATE
+  RULE, `remapViewRuleOIDs`, rule action and policy freezing, policy
+  remap) plus 46 test sites. All use `With`/`Parts` now. Where a writer
+  had already attached the definition to its descriptor (CREATE VIEW's
+  TEMP consumer, CREATE RULE's quote revision), the descriptor takes the
+  new copy.
+- Role 28a had moved `relationVisibleAt` and `relationDiagnosticNameAt`
+  from `roles.go` to `relation_diagnostics.go`; they move from there
+  (`relationDiagnosticName` stays).
+- `conversionDefault` stays in the root: it is a statement-scope cache that
+  nothing in the set uses, not stored SQL.
+- Names beyond the 22a table: `RemapView` (`remapFrozenPresentation`),
+  `PolicySQL`, `ViewVolatile`, `CaptureRetainedInput`,
+  `ExpressionTypesChanged`, `DependPinned`, `CheckMode`/`CheckNone`/
+  `CheckLocal`/`CheckCascaded`, and the `stored*` helpers without their
+  prefix (`ReferenceEpochValid`, `ViewUseReference`,
+  `ValidateCollationDependency`, `ValidateSetNode`, ...). View 27a added
+  `remapLikeExpression` to `expression_remap.go`; it moved as
+  `RemapLikeExpression`. The README has the full table.
 
 ### Notes for later steps
 
-- 22b: three production writers outside the set still assign
-  `viewDefinition` fields on their copy (`bindPolicyExpression`,
-  `executeAlterView`, `remapViewRuleOIDs`), and 16 test sites do the same.
-  Give them a constructor or copy-with method when the type moves, not
-  exported fields. `viewLeaf` fields (`ref`, `only`, `mark`, ...) are still
-  read directly through `Sources()`; they need accessors or exports in 22b.
+- 22c and 27: `View` and `Policy` fields are private to `stored`. Root code
+  builds them with `NewView`/`NewPolicy` and edits unpublished copies with
+  `With`/`Parts`; a new outside read needs an accessor in
+  `stored/view_payload.go`. `ViewLeaf` fields are exported (`Ref`, `Reads`,
+  `Mark`, ...).
+- 22d: `unalias` over `stored_aliases.go` needs `shadowrn` first; 22b
+  renamed only the `stored` locals that shadowed qualified function uses,
+  not alias uses. `storedrn` in `.cswd/tmp/PG18-ENGINE-SPLIT-STORED-PACKAGE/`
+  is the qualify-time variant.
+- Prompt files of steps 23–25, 27 and 28 still cite the root names of the
+  moved code; the name table in `internal/engine/stored/README.md` maps
+  them.
 - 21a (regobj): put the `scalarRenderer.record*` methods in
   `scalar_renderer.go` (22a created it), not `default.go` (done).
 - Index 23a: the reader interface is `indexCoverageReader`

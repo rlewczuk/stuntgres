@@ -198,14 +198,13 @@ DDL that drives a binder it builds (`bindRuleDefinitionLocked`,
 expressions); the authority adapters (`analysis_authority.go`:
 `bindingAuthorityView`, `authorityOf`, `authorizationOf`), `expectedOf`
 (`expected_inputs.go`), `signatureOf`/`checkStatementSignature` (the
-`StatementDescription` wrappers of `CheckSignature`), the retag walker the
-host lends the binder (`MapBoundExpression`, `MapBoundQueryExpression`),
+`StatementDescription` wrappers of `CheckSignature`), the host forwarders to
+the `stored` retag walker (`MapBoundExpression`, `MapBoundQueryExpression`),
 query preflight (`query_preflight.go`; expression preflight is in `exec`)
 and the captured input constructors (`captured_input.go`; the resolvers and
-their retarget methods are in `regobj`); stored
-view definitions, which the binder reads only through the host's
-`StoredViewVolatile`, `CaptureRetainedViewInput` and `ValidateViewReadGraph`
-(`query_cte_volatility.go`, `view_retained_input.go`, `view_cycles.go`); query set preflight
+their retarget methods are in `regobj`); the host forwarders through which
+the binder reads stored view definitions (`stored`): `StoredViewVolatile`,
+`CaptureRetainedViewInput` and `ValidateViewReadGraph`; query set preflight
 (`preflightQuerySet`, `query_set_preflight.go`); rule rewriting (`rule_*.go`) and its CTE commands;
 view-write lowering (`viewWrite`); the privilege walkers over view
 definitions, view writes and rule programs (`AuthorizationView.CheckViewWrite`,
@@ -215,14 +214,14 @@ affected count, the EXCLUDED frame and the write overlay, built per command
 over the binding's clause); and the execution-side helpers over
 the binding types: `physicalBinding`, `bindingDefaultOrigin`,
 `evalBindingDefault`, `applyDefaultOrigin`, `capturedDomainReplayCell`,
-`mergeHasVirtualReads`, `selectMergeArm`, `validateCompositeOccurrence` and
-`remapLikeExpression`. The executor-side legality walks stay too
+`mergeHasVirtualReads` and `selectMergeArm` (`stored` has
+`ValidateCompositeOccurrence` and `RemapLikeExpression`). The executor-side legality walks stay too
 (`validateQueryJoinExecution`, `validateMutationJoinExecution`,
 `validateExpressionJoinExecution`, `validateMarkedQueryJoin`,
 `admitQueryGroupings` in `query_join_legality.go`), with the row-mark readers
 of stored views (`viewRowLockLegality`, `viewLeafRowMark`,
 `viewHasStoredRowMarks`, `checkViewRowMarks*`, `query_lock_admission.go`),
-which move with `stored`. Since 12e the engine names these types directly
+which read `stored.View`. Since 12e the engine names these types directly
 (`analyze.Binding`, `analyze.Binder`, ...); no aliases remain.
 
 ## Testing

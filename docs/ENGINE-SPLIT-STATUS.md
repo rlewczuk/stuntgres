@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `3f8d7d950` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 99, 103, 107 and 111). Steps 8–17 were
+Last verified against `master` at `47b3bd17c` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 99, 103, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -14,12 +14,12 @@ planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); only 68 is broad. They touch different
+as another broad item (§8); none of them is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Stored-SQL package:** 68 (stored 22b, **broad**).
-- **Upper features, packages:** 104 (role 28b).
+- **Stored-SQL package:** 69 (stored 22c).
+- **Upper features, packages:** 83 (index 23b), 104 (role 28b).
 - **Upper features, decisions:** 97 (fdw 26d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -69,6 +69,8 @@ Item 111 (control 30a) is done; control 30b (item 112) still waits for
 70, 83, 87, 91 and 100.
 Item 96 (fdw 26c, docs only) is done, so fdw 26d (item 97) is ready; fdw
 26e (item 98) then needs 97 and table 24d (item 89).
+Item 68 (stored 22b) is done, so stored 22c (item 69) and index 23b
+(item 83) are ready; stored 22d (item 70) waits for 69.
 
 ## Task tree
 
@@ -469,7 +471,9 @@ Item 96 (fdw 26c, docs only) is done, so fdw 26d (item 97) is ready; fdw
   - [x] 22a — In place: coverage cut, freeze cut, accessors, renames
     (`fc0f6dbe8`, `219495724`, `f9035b171`, `a0224bb18`, `905c53bad`,
     `bec9e323f`, `89b74100f`, then the docs commit)
-  - [ ] 22b — `stored` created, presentation set moved with aliases *(broad)*
+  - [x] 22b — `stored` created, presentation set moved with aliases *(broad)*
+    (`ae29be757`, `4f51dfb7c`, `b66915729`, `687d5dc84`, `96720fefc`, `020d1a446`, `b6960ba81`,
+    then the docs commit)
   - [ ] 22c — Rule and policy payloads, remap protocol
   - [ ] 22d — Aliases removed *(broad)*
 - [ ] **Step 23 — `index`** ([prompt](ENGINE-SPLIT-index.md); 23b needs 22b,
@@ -976,9 +980,13 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     a function, `viewDefinition` read accessors, renames, name `stored` ·
     selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-68. [ ] stored 22b: `stored` created, presentation set moved with aliases —
+68. [x] stored 22b: `stored` created, presentation set moved with aliases —
     [stored](ENGINE-SPLIT-stored.md) 22b · needs 67, 65, 71, 56, 77 ·
-    **broad**
+    **broad** (`ae29be757`, `4f51dfb7c`, `b66915729`, `687d5dc84`, `96720fefc`, `020d1a446`, `b6960ba81`, then the docs commit) · 55 files (about 10k lines) in `stored`; `View`/`Policy`
+    payload API (`ViewParts`, `NewView`, `Parts`, `With`, accessors,
+    `NewPolicy`); runtime bodies forward; 12 type aliases in
+    `stored_aliases.go` · selected unit and dual-mode proof and quickcheck
+    passed; racecheck/finalcheck skipped at user request
 69. [ ] stored 22c: rule and policy payloads, remap protocol —
     [stored](ENGINE-SPLIT-stored.md) 22c · needs 68, 74
 70. [ ] stored 22d: aliases removed — [stored](ENGINE-SPLIT-stored.md) 22d ·

@@ -34,9 +34,9 @@ them:
   bindings. Cursors are observed without fetching; settings capture one
   coherent physical-session `row_security` tuple after unlocking; prepared
   rows use the actual registry, assigned XID and currently published owner
-  name. Expression/query walkers, deparsers, the foreign-key binder, type and
-  ACL validation, output formatters and error-bearing privilege operations
-  stay adapter-owned. Physical TEMP ownership, sequence journal overlays,
+  name. Expression/query walkers and deparsers forward to `stored`; the
+  foreign-key binder, type and ACL validation, output formatters and
+  error-bearing privilege operations stay adapter-owned. Physical TEMP ownership, sequence journal overlays,
   cancellation boundaries and foreign disclosure booleans keep their
   semantics.
 - `pg_locks_capture.go` keeps the unlock/capture/relock epoch fence and never
@@ -48,8 +48,6 @@ them:
   register fresh descriptors, preserving registration order, OIDs, columns,
   typmods, dimensions, nullability, collation, origins, flags and actual
   row/array links.
-- `catalog_pinning.go`: `pgDependPinned`, reached by producers through
-  `Runtime.Pinned`.
 
 Provenance is same-pointer authority, not equal names/OIDs/epochs:
 `catalogStore.owner()` supplies the stable `*catalog.Owner`, whose Domain,
