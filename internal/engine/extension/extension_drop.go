@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -13,7 +14,7 @@ import (
 // removes, in statement order without duplicates. A missing name fails, or
 // with IF EXISTS emits a notice and is skipped; every selected extension must
 // be owned by the current user.
-func DropTargets(auth Authority, view access.View, s *parser.DropExtension, notice func(sqlstate.Error)) ([]ids.ObjectAddress, error) {
+func DropTargets(auth ddl.Authority, view access.View, s *parser.DropExtension, notice func(sqlstate.Error)) ([]ids.ObjectAddress, error) {
 	var selected []ids.ObjectAddress
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
@@ -28,7 +29,7 @@ func DropTargets(auth Authority, view access.View, s *parser.DropExtension, noti
 		if seen[address] {
 			continue
 		}
-		if err := auth.Check(access.Requirement{Object: view.Owner.Domain.Ref(view.Catalog.Epoch(), address), OwnerOnly: true, OwnerNoun: "extension"}); err != nil {
+		if err := view.Check(auth, access.Requirement{Object: view.Owner.Domain.Ref(view.Catalog.Epoch(), address), OwnerOnly: true, OwnerNoun: "extension"}); err != nil {
 			return nil, err
 		}
 		selected = append(selected, address)

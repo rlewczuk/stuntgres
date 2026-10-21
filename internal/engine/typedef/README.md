@@ -6,7 +6,8 @@ moved the records, validation, Dump/Restore and remap helpers here; Part B
 (15d) moved the DDL stage handlers, which reach the engine through
 `StageHost`. The package sits at layer L10 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `access`, `authorization`, `catalog`, `expr`, `ids`,
+It imports only `access`, `authorization`, `catalog`, `ddl` (the shared
+host contract), `expr`, `ids`,
 `pgcatalog` (collation versions), `session` (the journal slot interfaces and
 notice levels), `storage`, `parser`, `sqltype`, `sqlstate` and the standard
 library, and never the engine, `analyze`, `exec` or `routine`. See
@@ -63,21 +64,22 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
 ## The stage host
 
 The stage handlers run under `Engine.mu` without a statement scope, and
-reach the engine only through `StageHost` (`stage_host.go`). The engine
-implements it on `typedefHost`, a defined type over the fields of the root
-`schemaHost` (engine, operation, catalog stage) that also backs
-`routine.DDLHost`; the two cannot share one method set because each package
-declares its own `Authority` and `Stage`.
+reach the engine only through `StageHost` (`stage_host.go`), which embeds
+the shared [`ddl.Host`](../ddl/README.md) and `ddl.TypeStaging` and adds the
+type methods. The engine implements it on `typedefHost`, a defined type over
+the root `schemaHost` (engine, operation, catalog stage) that also backs
+`routine.DDLHost`; its `ddl.Host` methods delegate to `schemaHost`, and step
+20b merges the two adapters.
 
-- **`Authority`** is the statement authority as an opaque value
-  (`access.Environment` plus the `TypedefAuthority` marker). Handlers keep it
-  by value. `CreationNamespace` may stage an implicit TEMP namespace and
+- **`ddl.Authority`** is the statement authority as an opaque value
+  (`access.Environment` plus the `DDLAuthority` marker). Handlers keep it by
+  value. `CreationNamespace` may stage an implicit TEMP namespace and
   returns a new authority that reads the stage; the handler assigns it to
   its own `auth`, so later checks read the recaptured view, and the
-  argument is never changed. Checks go through `AccessView(auth).Check(auth,
-  ...)` (`check`), and object references use the view's owner domain and
-  epoch (`objectRef`).
-- **`Stage`** is the private catalog change (`Create`, `Replace`, `Get`,
+  argument is never changed. Checks go through `ddl.Check`, object
+  references through `ddl.ObjectRef` (the view's owner domain and epoch),
+  and NOTICEs through `ddl.Notice`.
+- **`ddl.Stage`** is the private catalog change (`Create`, `Replace`, `Get`,
   `LookupName`); the engine stage keeps its lifecycle checks.
   `ReplaceUnsynchronized`, the dependency fields (`AddDomainBase`,
   `DropTarget`, `RecordDependencyPath`) and `RemoveDomainCheck` are host
@@ -145,7 +147,7 @@ make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds|TestDom
 The engine side of the stage host (`typedefHost`):
 
 ```sh
-make check RUN='^TestTypedefHost'
+make check RUN='^Test(TypedefHost|SchemaHostRecaptureLeavesArgument)'
 ```
 
 Engine witnesses that call the stage handlers or run their executors:

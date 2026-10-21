@@ -7,33 +7,34 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func checkOperatorArgumentUsage(h DDLHost, auth Authority, id ids.OID) error {
+func checkOperatorArgumentUsage(h DDLHost, auth ddl.Authority, id ids.OID) error {
 	if id == 0 {
 		return nil
 	}
-	return h.AccessView(auth).CanUse(auth, ddlRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
+	return h.AccessView(auth).CanUse(auth, ddl.ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
 }
 
-func operatorArgument(h DDLHost, auth Authority, raw parser.TypeName) (ids.OID, error) {
+func operatorArgument(h DDLHost, auth ddl.Authority, raw parser.TypeName) (ids.OID, error) {
 	if raw.Name == "" || strings.EqualFold(raw.Name, "none") && raw.Schema == nil && !raw.Quoted {
 		return 0, nil
 	}
 	if raw.Setof {
 		return 0, sqlError("42P13", "SETOF type not allowed for operator argument")
 	}
-	id, err := h.ResolveType(auth, raw)
+	id, err := h.ResolveRegtype(auth, raw)
 	if err != nil {
 		return 0, err
 	}
 	return id, checkOperatorArgumentUsage(h, auth, id)
 }
 
-func findUtilityOperator(h DDLHost, auth Authority, s parser.OperatorSignature) (*catalog.Operator, error) {
+func findUtilityOperator(h DDLHost, auth ddl.Authority, s parser.OperatorSignature) (*catalog.Operator, error) {
 	left, err := operatorArgument(h, auth, s.Left)
 	if err != nil {
 		return nil, err
@@ -42,7 +43,7 @@ func findUtilityOperator(h DDLHost, auth Authority, s parser.OperatorSignature) 
 	if err != nil {
 		return nil, err
 	}
-	path, err := h.OperatorNamespaces(auth, s.Name)
+	path, err := h.SearchNamespaces(auth, s.Name, ids.OperatorClassID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +59,7 @@ func findUtilityOperator(h DDLHost, auth Authority, s parser.OperatorSignature) 
 	return nil, sqlError("42883", "operator does not exist: "+OperatorInputName(view, left, right, s.Name))
 }
 
-func operatorRoutine(h DDLHost, auth Authority, name parser.ObjectName, inputs []ids.OID) (*catalog.Procedure, error) {
+func operatorRoutine(h DDLHost, auth ddl.Authority, name parser.ObjectName, inputs []ids.OID) (*catalog.Procedure, error) {
 	view := h.AccessView(auth).Catalog
 	ids := make([]string, len(inputs))
 	types := make([]string, len(inputs))
@@ -78,13 +79,13 @@ func operatorRoutine(h DDLHost, auth Authority, name parser.ObjectName, inputs [
 	if d.RoutineKind != 'f' {
 		return nil, sqlError("42809", catalog.ObjectNameText(name)+" is not a function")
 	}
-	if err = ddlCheck(h, auth, access.Requirement{Object: ddlRef(h, auth, d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
 	}
 	return d, nil
 }
 
-func operatorEstimator(h DDLHost, auth Authority, name parser.ObjectName, join bool) (ids.OID, error) {
+func operatorEstimator(h DDLHost, auth ddl.Authority, name parser.ObjectName, join bool) (ids.OID, error) {
 	if len(name.Parts) == 0 {
 		return 0, nil
 	}
@@ -122,7 +123,7 @@ func operatorEstimator(h DDLHost, auth Authority, name parser.ObjectName, join b
 			return 0, sqlError("42809", catalog.ObjectNameText(name)+" is not a function")
 		}
 		result = d.Result
-		if err = ddlCheck(h, auth, access.Requirement{Object: ddlRef(h, auth, d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+		if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 			return 0, err
 		}
 		builtin = d.Seeded()

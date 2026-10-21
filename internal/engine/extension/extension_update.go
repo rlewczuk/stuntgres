@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -16,13 +17,13 @@ import (
 // target version and its update path, the trust and CREATE checks, then the
 // replaced extension row and the update actions along the path. It returns
 // nil without error when the target version is already installed.
-func StageUpdate(host Host, auth Authority, view access.View, s *parser.AlterExtensionUpdate) (Stage, error) {
+func StageUpdate(host Host, auth ddl.Authority, view access.View, s *parser.AlterExtensionUpdate) (Stage, error) {
 	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text})
 	old, exists := view.Catalog.Extension(address)
 	if !exists {
 		return nil, sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Name.Text))
 	}
-	if err := auth.Check(access.Requirement{Object: view.Owner.Domain.Ref(view.Catalog.Epoch(), address), OwnerOnly: true, OwnerNoun: "extension"}); err != nil {
+	if err := view.Check(auth, access.Requirement{Object: view.Owner.Domain.Ref(view.Catalog.Epoch(), address), OwnerOnly: true, OwnerNoun: "extension"}); err != nil {
 		return nil, err
 	}
 	implementation := view.Owner.Extensions[old.Name()]
@@ -56,7 +57,7 @@ func StageUpdate(host Host, auth Authority, view access.View, s *parser.AlterExt
 		if !control.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to update extension "%s"`, old.Name()))
 		}
-		rights, err := auth.Effective(view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
+		rights, err := view.Effective(auth, view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
 		if err != nil {
 			return nil, err
 		}

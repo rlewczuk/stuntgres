@@ -1488,7 +1488,9 @@ allocation, notices and the context. `routine.DDLHost`, `typedef.StageHost`
 and the `extension` host and stage embed them and keep only their
 package-specific methods. The prompt file tabulates what differs today
 (`ResolveType`, `DependencyObject`, `CreationNamespace`, `extension`'s
-`Check`/`Effective` authority) and settles each.
+`Check`/`Effective` authority) and settles each. Done: `ddl` holds
+`Authority`, `Stage`, `Allocator`, `TypeStaging`, `Host` and the `Check`,
+`ObjectRef` and `Notice` helpers; the three packages embed them.
 
 **One adapter (20b).** One root staging adapter, `ddlHost`, replaces
 `schemaHost` and `typedefHost`. `extensionHost` stays a separate type (it
@@ -1993,9 +1995,11 @@ exist. Each item is a new sub-step in that package's prompt file.
     output and error order must stay byte-identical.
 16. **One DDL contract.** One `ddl.Authority` and `ddl.Stage` for every
     package that stages catalog changes, with one root staging adapter
-    (20a, 20b). 20a settles whether the per-package marker methods
-    (`RoutineAuthority`, `TypedefAuthority`) go, and how `extension`'s
-    `Check`/`Effective` authority maps onto the shared one.
+    (20a, 20b). Settled by 20a: the per-package markers went; one
+    `DDLAuthority` marker on `AuthorizationView`, recovered by
+    `ddlAuthorityOf`. `extension`'s handlers take a `ddl.Authority` and check
+    it through the view passed beside it (`view.Check(auth, req)`,
+    `view.Effective(auth, ref, g)`, identical to the old methods).
 17. **DML host size.** `dml` executors call about 55 root methods of eight
     owners today. 29c builds the host from the upper features' write-side
     interfaces plus the write stage and row locks, never one flat service
@@ -2029,7 +2033,7 @@ package-specific scope. This section holds the rules every session follows.
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c refined (decisions move, orchestration stays; no `sequence.Host`); 17d done (handler, identity, serial, prepared-literal, call and Control decisions and the stage slot moved; orchestration stays in the root) (racecheck/finalcheck skipped at user request) |
 | 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b–18c planned |
 | 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | 19a done (cursors split in place: `copyLineReader` and `copyBinaryReader` hold the codec; racecheck/finalcheck skipped at user request); 19b planned |
-| 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | planned (20a–20d) |
+| 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b–20d planned |
 | 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | planned (21a–21c) |
 | 22 | [`ENGINE-SPLIT-stored.md`](ENGINE-SPLIT-stored.md) | 22b: 21b, F6, 18b, 12f; 22c: 5j | 22a done in place (coverage and freeze cuts, `viewDefinition` read accessors, renames, name `stored` settled; racecheck/finalcheck skipped at user request); 22b–22d planned |
 | 23 | [`ENGINE-SPLIT-index.md`](ENGINE-SPLIT-index.md) | 23b: 22b, 5i, 10e, 11e; 23c: 20b | planned (23a–23d) |

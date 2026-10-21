@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -16,37 +16,55 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// typedefHost is schemaHost seen as typedef.StageHost. It is a separate type
-// because the feature packages' hosts have methods with the same names but
-// their own authority and stage types.
+// typedefHost is schemaHost seen as typedef.StageHost. The ddl.Host methods
+// delegate to schemaHost; only the type methods have bodies here. 20b merges
+// the two adapters.
 type typedefHost schemaHost
 
 var _ typedef.StageHost = typedefHost{}
 
-// TypedefAuthority marks AuthorizationView as a typedef.Authority.
-func (AuthorizationView) TypedefAuthority() {}
-
-// typedefAuthorityOf recovers the view behind a. The handlers only carry
-// authorities the engine gave them; meeting another kind is a bug.
-func typedefAuthorityOf(a typedef.Authority) AuthorizationView {
-	v, ok := a.(AuthorizationView)
-	if !ok {
-		panic(fmt.Sprintf("stuntgres: unexpected typedef authority %T", a))
-	}
-	return v
+func (h typedefHost) AccessView(a ddl.Authority) access.View { return schemaHost(h).AccessView(a) }
+func (h typedefHost) Recapture(a ddl.Authority, view catalog.Read) ddl.Authority {
+	return schemaHost(h).Recapture(a, view)
+}
+func (h typedefHost) CheckCreateIn(a ddl.Authority, namespace ids.ObjectRef) error {
+	return schemaHost(h).CheckCreateIn(a, namespace)
+}
+func (h typedefHost) Context() context.Context { return schemaHost(h).Context() }
+func (h typedefHost) EmitNotice(level session.NoticeLevel, diagnostic sqlstate.Error) {
+	schemaHost(h).EmitNotice(level, diagnostic)
+}
+func (h typedefHost) AllocateOID() (ids.OID, error)             { return schemaHost(h).AllocateOID() }
+func (h typedefHost) Revision() (ids.DefinitionRevision, error) { return schemaHost(h).Revision() }
+func (h typedefHost) Stage() ddl.Stage                          { return schemaHost(h).Stage() }
+func (h typedefHost) StageBase() catalog.Read                   { return schemaHost(h).StageBase() }
+func (h typedefHost) StageRead() catalog.Read                   { return schemaHost(h).StageRead() }
+func (h typedefHost) CreationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
+	return schemaHost(h).CreationACL(owner, schema, class)
+}
+func (h typedefHost) DropTarget(address ids.ObjectAddress) { schemaHost(h).DropTarget(address) }
+func (h typedefHost) RecordDependencyPath(a ddl.Authority) { schemaHost(h).RecordDependencyPath(a) }
+func (h typedefHost) CreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
+	return schemaHost(h).CreationNamespace(a, name)
+}
+func (h typedefHost) ExistingCreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
+	return schemaHost(h).ExistingCreationNamespace(a, name)
+}
+func (h typedefHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error) {
+	return schemaHost(h).SearchNamespaces(a, name, class)
+}
+func (h typedefHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
+	return schemaHost(h).LookupFunction(a, name, signature)
+}
+func (h typedefHost) DependencyObject(a ddl.Authority, address ids.ObjectAddress) (string, error) {
+	return schemaHost(h).DependencyObject(a, address)
 }
 
-func (h typedefHost) AccessView(a typedef.Authority) access.View { return typedefAuthorityOf(a).View }
-
-func (h typedefHost) CheckCreateIn(a typedef.Authority, namespace ids.ObjectRef) error {
-	return h.e.conversionCheckCreate(h.op, typedefAuthorityOf(a), namespace)
-}
-
-func (h typedefHost) TrustedRestoreDestination(a typedef.Authority, what string) (bool, error) {
+func (h typedefHost) TrustedRestoreDestination(a ddl.Authority, what string) (bool, error) {
 	if h.op == nil || !operationReplayOrZero(h.op).tableDestination {
 		return false, nil
 	}
-	auth := typedefAuthorityOf(a)
+	auth := ddlAuthorityOf(a)
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 	if err != nil || !bootstrap.Superuser || h.e.importTargets == nil {
 		return true, fmt.Errorf("stuntgres: invalid trusted restore %s authority", what)
@@ -54,20 +72,9 @@ func (h typedefHost) TrustedRestoreDestination(a typedef.Authority, what string)
 	return true, nil
 }
 
-func (h typedefHost) Context() context.Context { return h.op.Context() }
-
-func (h typedefHost) EmitNotice(level session.NoticeLevel, diagnostic sqlstate.Error) {
-	h.op.EmitNotice(level, diagnostic)
-}
-
-func (h typedefHost) AllocateOID() (ids.OID, error)             { return h.e.catalog.allocateOIDLocked() }
-func (h typedefHost) Revision() (ids.DefinitionRevision, error) { return h.e.catalog.revisionLocked() }
 func (h typedefHost) AllocateEnumMember() (int64, error) {
 	return h.e.catalog.allocateEnumMemberLocked()
 }
-
-func (h typedefHost) Stage() typedef.Stage    { return h.stage }
-func (h typedefHost) StageRead() catalog.Read { return h.e.stageRead(h.stage) }
 
 func (h typedefHost) ReplaceUnsynchronized(d catalog.Descriptor) error {
 	return h.stage.replaceDescriptor(d, false)
@@ -81,64 +88,16 @@ func (h typedefHost) AddDomainBase(d catalog.Descriptor) {
 	h.stage.domainBases = append(h.stage.domainBases, d)
 }
 
-func (h typedefHost) DropTarget(address ids.ObjectAddress) {
-	h.stage.domainTargets = append(h.stage.domainTargets, address)
-}
-
-func (h typedefHost) RecordDependencyPath(a typedef.Authority) {
-	h.stage.dependencyPath, _ = h.e.referencePath(typedefAuthorityOf(a))
-}
-
 func (h typedefHost) RemoveDomainCheck(d *catalog.Type, oid ids.OID) error {
 	return h.stage.removeDomainCheck(d, oid)
 }
 
-func (h typedefHost) CreationNamespace(a typedef.Authority, name parser.ObjectName) (ids.ObjectRef, typedef.Authority, error) {
-	v := typedefAuthorityOf(a)
-	ref, err := h.e.collationCreationNamespaceLocked(&v, h.stage, name)
-	return ref, v, err
+func (h typedefHost) NamedType(a ddl.Authority, name parser.ObjectName) (*catalog.Type, error) {
+	return h.e.namedType(ddlAuthorityOf(a), name)
 }
 
-func (h typedefHost) ExistingCreationNamespace(a typedef.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
-	return h.e.creationNamespace(typedefAuthorityOf(a), name)
-}
-
-func (h typedefHost) SearchNamespaces(a typedef.Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error) {
-	var kind analyze.LookupKind
-	switch class {
-	case ids.TypeClassID:
-		kind = analyze.TypeLookup
-	case ids.ConversionClassID:
-		kind = analyze.ConversionLookup
-	default:
-		return nil, fmt.Errorf("stuntgres: no namespace search for class %d", class)
-	}
-	path, err := h.e.lookupNamespaces(typedefAuthorityOf(a), name, kind)
-	if err != nil {
-		return nil, err
-	}
-	namespaces := make([]ids.ObjectAddress, path.Count())
-	for i := range namespaces {
-		namespaces[i] = path.At(i)
-	}
-	return namespaces, nil
-}
-
-func (h typedefHost) LookupFunction(a typedef.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
-	v := typedefAuthorityOf(a)
-	path, err := h.e.lookupNamespaces(v, name, analyze.FunctionLookup)
-	if err != nil {
-		return nil, err
-	}
-	return analyze.ProcedureInNamespaces(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, signature), nil
-}
-
-func (h typedefHost) NamedType(a typedef.Authority, name parser.ObjectName) (*catalog.Type, error) {
-	return h.e.namedType(typedefAuthorityOf(a), name)
-}
-
-func (h typedefHost) FindCollation(a typedef.Authority, name parser.ObjectName) (*catalog.Collation, error) {
-	return h.e.findCollation(typedefAuthorityOf(a), name)
+func (h typedefHost) FindCollation(a ddl.Authority, name parser.ObjectName) (*catalog.Collation, error) {
+	return h.e.findCollation(ddlAuthorityOf(a), name)
 }
 
 func (h typedefHost) ResolveType(raw parser.TypeName) (sqltype.Usage, error) {
@@ -153,12 +112,12 @@ func (h typedefHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectN
 	return h.e.resolveColumnCollation(u, raw, h.op)
 }
 
-func (h typedefHost) BindDomainDefault(a typedef.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
-	return h.e.bindDomainDefault(h.op.Context(), h.op, typedefAuthorityOf(a), h.stage, d, raw, input, output)
+func (h typedefHost) BindDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+	return h.e.bindDomainDefault(h.op.Context(), h.op, ddlAuthorityOf(a), h.stage, d, raw, input, output)
 }
 
-func (h typedefHost) BindDomainChecks(a typedef.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	return h.e.bindDomainChecks(h.op, typedefAuthorityOf(a), h.stage, d, raw, input)
+func (h typedefHost) BindDomainChecks(a ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+	return h.e.bindDomainChecks(h.op, ddlAuthorityOf(a), h.stage, d, raw, input)
 }
 
 func (h typedefHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {
@@ -180,13 +139,4 @@ func (h typedefHost) NewCompositeRelation(namespace ids.ObjectAddress, name stri
 
 func (h typedefHost) StageRowType(relation *catalog.Relation) error {
 	return h.e.stageRowTypeLocked(h.stage, relation)
-}
-
-func (h typedefHost) DependencyObject(a typedef.Authority, address ids.ObjectAddress) (string, error) {
-	v := typedefAuthorityOf(a)
-	path, err := h.e.referencePath(v)
-	if err != nil {
-		return "", err
-	}
-	return dependencyObject(v.Catalog, address, path), nil
 }

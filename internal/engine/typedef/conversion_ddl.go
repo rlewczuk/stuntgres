@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func findUtilityConversion(h StageHost, auth Authority, name parser.ObjectName) (*catalog.Conversion, error) {
+func findUtilityConversion(h StageHost, auth ddl.Authority, name parser.ObjectName) (*catalog.Conversion, error) {
 	path, err := h.SearchNamespaces(auth, name, ids.ConversionClassID)
 	if err != nil {
 		return nil, err
@@ -28,7 +29,7 @@ func findUtilityConversion(h StageHost, auth Authority, name parser.ObjectName) 
 	return nil, sqlError("42704", fmt.Sprintf(`conversion "%s" does not exist`, catalog.ObjectNameText(name)))
 }
 
-func StageCreateConversionLocked(h StageHost, auth Authority, s *parser.CreateConversion) error {
+func StageCreateConversionLocked(h StageHost, auth ddl.Authority, s *parser.CreateConversion) error {
 	namespace, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -58,7 +59,7 @@ func StageCreateConversionLocked(h StageHost, auth Authority, s *parser.CreateCo
 	if procedure.Result != 23 {
 		return sqlError("42P17", "encoding conversion function "+functionName+" must return type integer")
 	}
-	if err = check(h, auth, access.Requirement{Object: objectRef(h, auth, procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42501" {
 			return sqlError("42501", "permission denied for function "+functionName)
 		}
@@ -97,7 +98,7 @@ func StageCreateConversionLocked(h StageHost, auth Authority, s *parser.CreateCo
 	return h.Stage().Create(&catalog.Conversion{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: h.AccessView(auth).State.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
 }
 
-func StageAlterConversionLocked(h StageHost, auth Authority, s *parser.AlterConversion) error {
+func StageAlterConversionLocked(h StageHost, auth ddl.Authority, s *parser.AlterConversion) error {
 	d, err := findUtilityConversion(h, auth, s.Name)
 	if err != nil {
 		return err
@@ -129,8 +130,8 @@ func StageAlterConversionLocked(h StageHost, auth Authority, s *parser.AlterConv
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 	}
-	ref := objectRef(h, auth, d.Address())
-	if err = check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+	ref := ddl.ObjectRef(h, auth, d.Address())
+	if err = ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	next := *d
@@ -165,22 +166,22 @@ func StageAlterConversionLocked(h StageHost, auth Authority, s *parser.AlterConv
 	return h.Stage().Replace(&next)
 }
 
-func StageDropConversionLocked(h StageHost, auth Authority, s *parser.DropConversion) error {
+func StageDropConversionLocked(h StageHost, auth ddl.Authority, s *parser.DropConversion) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		d, err := findUtilityConversion(h, auth, name)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
 				if diagnostic.Code == "3F000" {
-					notice(h, "00000", diagnostic.Message+", skipping")
+					ddl.Notice(h, "00000", diagnostic.Message+", skipping")
 				} else {
-					notice(h, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+					ddl.Notice(h, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				}
 				continue
 			}
 			return err
 		}
-		if err = check(h, auth, access.Requirement{Object: objectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
+		if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 				return sqlError("42501", "must be owner of conversion "+catalog.ObjectNameText(name))
 			}

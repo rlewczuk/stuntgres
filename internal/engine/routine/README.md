@@ -3,8 +3,8 @@
 Builtin routine and operator inventories, their lookups and validation, and
 the operator and CREATE FUNCTION DDL handlers. The package sits at layer L10
 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `access`, `authorization`, `catalog`, `expr`, `functions`,
-`ids`, `parser`, `proc`, `session`, `sqltype`, `sqlstate` and the standard
+It imports only `access`, `authorization`, `catalog`, `ddl`, `expr`,
+`functions`, `ids`, `parser`, `proc`, `session`, `sqltype`, `sqlstate` and the standard
 library; never `analyze` (which imports `routine`), another feature package
 or the engine. Step 14 of the split moves it here; see
 [ENGINE-SPLIT-routine.md](../../../docs/ENGINE-SPLIT-routine.md).
@@ -77,18 +77,22 @@ or the engine. Step 14 of the split moves it here; see
 ## The DDL host
 
 The handlers run under `Engine.mu` without a statement scope. They reach the
-engine only through `DDLHost` (`host.go`), which the engine implements on one
-scope-free adapter, `schemaHost`, built once per schema statement:
+engine only through `DDLHost` (`host.go`), which embeds the shared
+[`ddl.Host`](../ddl/README.md) and adds the routine methods
+(`DefinitionType`, `DefinitionLookup`, `SelectFunction`, `ResolveRegtype`,
+`BindSQLRoutine`). The engine implements it on one scope-free adapter,
+`schemaHost`, built once per schema statement:
 
-- **`Authority`** is the statement authority as an opaque value
-  (`access.Environment` plus a marker). Handlers keep it by value. Host
-  methods that change it (`CreationNamespace`, `Recapture`) return a new one,
-  so an implicit namespace or a peer recapture stays local to the helper that
-  made it. Checks go through `AccessView(auth).Check(auth, ...)`, pairing a
-  view with its own authority (`ddlCheck`).
-- **`Stage`** is the private catalog change (`Create`, `Replace`,
+- **`ddl.Authority`** is the statement authority as an opaque value
+  (`access.Environment` plus the `DDLAuthority` marker). Handlers keep it by
+  value. Host methods that change it (`CreationNamespace`, `Recapture`)
+  return a new one, so an implicit namespace or a peer recapture stays local
+  to the helper that made it. Checks go through `ddl.Check`, pairing a view
+  with its own authority, and references through `ddl.ObjectRef`.
+- **`ddl.Stage`** is the private catalog change (`Create`, `Replace`,
   `UpdateDescriptor`, `Get`, `LookupName`); the engine stage keeps its
-  lifecycle checks.
+  lifecycle checks. Operator names are searched with
+  `SearchNamespaces(auth, name, ids.OperatorClassID)`.
 - Namespace selection, routine selection, type-name resolution and SQL body
   binding stay in the engine behind the host, because they need `analyze`.
   OIDs and revisions come from `AllocateOID` and `Revision` in the order the

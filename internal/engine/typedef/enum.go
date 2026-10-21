@@ -6,12 +6,13 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func StageCreateEnumLocked(h StageHost, auth Authority, s *parser.CreateEnum) error {
+func StageCreateEnumLocked(h StageHost, auth ddl.Authority, s *parser.CreateEnum) error {
 	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err

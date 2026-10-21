@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -26,9 +27,9 @@ type extensionHost struct {
 }
 
 var (
-	_ extension.Host      = (*extensionHost)(nil)
-	_ extension.Stage     = (*extensionHost)(nil)
-	_ extension.Authority = AuthorizationView{}
+	_ extension.Host  = (*extensionHost)(nil)
+	_ extension.Stage = (*extensionHost)(nil)
+	_ ddl.Authority   = AuthorizationView{}
 )
 
 // stageOf returns the root stage behind a Stage that BeginStage returned.

@@ -10,7 +10,8 @@ import. Part A of step 16 moved the records here, 16d.1 the staging and
 16d.2 the handler decisions. The package sits at layer L10 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access` (privilege requirements and the captured view),
-`authorization`, `catalog`, `expr`, `functions` (the moved
+`authorization`, `catalog`, `ddl` (the shared authority and allocator),
+`expr`, `functions` (the moved
 kernels and member tables), `ids`, `parser`, `sqlstate`, `sqltype`, `typedef`
 (the relation type name check of cube and intarray staging) and the standard
 library, and never the engine, `analyze`, `routine` or `plan`. See
@@ -54,11 +55,13 @@ library, and never the engine, `analyze`, `routine` or `plan`. See
   `extension_drop.go`, `extension_owner_import.go`): `Host` is the statement
   host of CREATE and ALTER EXTENSION UPDATE (context, notices, the creation
   path, the trusted-replay flag, the bootstrap superuser, OID and revision
-  allocation, and `BeginStage`, which begins and authorizes the stage and
-  returns it as a `Stage`). `Authority` is the statement authority
-  (`Check`, `Effective`); the catalog, roles, role state, registry
-  (`Owner.Extensions`) and object domain come from the captured
-  `access.View` passed beside it. `StageCreate` and `StageUpdate` make
+  allocation through the embedded `ddl.Allocator`, and `BeginStage`, which
+  begins and authorizes the stage and returns it as a `Stage`; `Stage`
+  embeds `ddl.Allocator` and `ddl.TypeStaging`). The statement authority is
+  a [`ddl.Authority`](../ddl/README.md); the handlers check it through the
+  captured `access.View` passed beside it (`view.Check(auth, ...)`,
+  `view.Effective(auth, ...)`), which also supplies the catalog, roles, role
+  state, registry (`Owner.Extensions`) and object domain. `StageCreate` and `StageUpdate` make
   every decision of the two statements and stage the result, returning nil
   for a skipped statement (IF NOT EXISTS, already installed version).
   `DropTargets` selects DROP EXTENSION's targets (notices through a

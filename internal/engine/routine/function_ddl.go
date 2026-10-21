@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
@@ -18,7 +19,7 @@ import (
 
 // StageCreateFunction stages CREATE FUNCTION ... LANGUAGE SQL and binds its
 // body against the stage, except during Restore SQL body replay.
-func StageCreateFunction(h DDLHost, auth Authority, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
+func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
 	if s.Language.Text != "sql" {
 		return expr.ErrorAt("0A000", "only LANGUAGE SQL functions are supported", s.Language.Pos)
 	}
@@ -35,7 +36,7 @@ func StageCreateFunction(h DDLHost, auth Authority, s *parser.CreateFunction, in
 		if raw.Setof {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "set-returning SQL functions are unsupported", raw.Pos)
 		}
-		id, err := h.ResolveType(auth, raw)
+		id, err := h.ResolveRegtype(auth, raw)
 		if err != nil {
 			return sqltype.Usage{}, err
 		}

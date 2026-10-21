@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -34,7 +35,7 @@ func StageAlterEnumLabelLocked(h StageHost, old *catalog.Type, alter *parser.Alt
 	}
 	if newIndex >= 0 {
 		if !alter.Rename && alter.IfNotExists {
-			notice(h, "42710", fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text))
+			ddl.Notice(h, "42710", fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text))
 			return EnumLabelEdit{Skipped: true}, nil
 		}
 		return EnumLabelEdit{}, sqlError("42710", fmt.Sprintf(`enum label "%s" already exists`, alter.Label.Text))

@@ -374,7 +374,41 @@ in §8.3 pass.
 
 ## Status
 
-- [ ] 20a — `ddl` created; `routine`, `typedef` and `extension` adopt it
+- [x] 20a — `ddl` created; `routine`, `typedef` and `extension` adopt it
+  (`3ec2314b9`, `19701cafd`, `578ed8479`, `201947f6d`, then the docs
+  commit; linear item 60). Re-measured at `351822746`: the inventory and
+  the method table above still matched. `ddl` holds `Authority` (marker
+  `DDLAuthority`), `Stage`, `Allocator`, `TypeStaging`, `Host` and the
+  helpers `Check`, `ObjectRef` and `Notice`; it imports `access`,
+  `authorization`, `catalog`, `ids`, `parser`, `session`, `sqlstate` and
+  the standard library. `routine.DDLHost` embeds `ddl.Host`
+  (`OperatorNamespaces` became `SearchNamespaces(..., ids.OperatorClassID)`,
+  `ResolveType` became `ResolveRegtype`, its one `DependencyObject` caller
+  ignores the new error); `routine`'s own `ddlCheck`/`ddlRef`
+  (`ddl_authority.go`, not listed in the inventory) were deleted for the
+  `ddl` helpers. `typedef.StageHost` embeds `ddl.Host` and
+  `ddl.TypeStaging`; `check`, `objectRef` and `notice` were deleted.
+  `extension.Host` embeds `ddl.Allocator`, `extension.Stage` embeds
+  `ddl.Allocator` and `ddl.TypeStaging`, the handlers take a
+  `ddl.Authority` and call `view.Check(auth, ...)`/`view.Effective(auth,
+  ...)`; `Host.Notice` is unchanged. Root: one `DDLAuthority` marker and
+  `ddlAuthorityOf` (panic text "unexpected ddl authority");
+  `schemaHost` implements `ddl.Host` (gained `ExistingCreationNamespace`,
+  `Context` and the class-mapping `SearchNamespaces`; `DependencyObject`
+  renders the text even when the path fails and returns the error beside
+  it). Deviation: `typedefHost`'s `ddl.Host` methods delegate to
+  `schemaHost(h)` instead of keeping duplicate bodies; both types stay for
+  20b. Tests: new `ddl` seam tests (`Check` uses the authority as the
+  environment, `ObjectRef` stamps the epoch, `Notice` emits NOTICE level),
+  each observed failing first. The prompt's fake-host `Recapture` test
+  would only echo the fake, so `TestSchemaHostRecaptureLeavesArgument`
+  (new, root) pins the real adapter instead. Adapted:
+  `typedef_host_test.go` (`ddlAuthorityOf`; the class map gained the
+  operator class). No test moved or deleted. Selected unit and dual-mode proof (308 family tests and
+  `DumpRoundTrip`) and quickcheck passed; under `REFERENCE=1` only
+  `CompositeExpr(Correlated)Returning` failed, in their `/postgres`
+  subtests, identically on master (oracle drift); no bench (startup
+  untouched); racecheck/finalcheck skipped at user request
 - [ ] 20b — One root staging adapter (`ddlHost`)
 - [ ] 20c — Schema-level DDL refined (docs only)
 - [ ] 20d — Schema and tablespace decisions moved
@@ -382,6 +416,10 @@ in §8.3 pass.
 Outstanding aliases: none yet.
 
 ### Notes for later steps
+
+- 20b: `typedefHost`'s shared methods are one-line delegates to
+  `schemaHost`, so merging is deleting them and moving the type methods
+  plus `TypeStaging` onto `ddlHost`.
 
 - 23c–28c (Part B of the upper features): a feature host embeds `ddl.Host`;
   do not declare another `Authority` or `Stage`.

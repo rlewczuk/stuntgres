@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -30,7 +31,7 @@ func collationVersionWarning(h StageHost, d *catalog.Collation, view catalog.Rea
 	return nil
 }
 
-func StageCreateCollationLocked(h StageHost, auth Authority, s *parser.CreateCollation) error {
+func StageCreateCollationLocked(h StageHost, auth ddl.Authority, s *parser.CreateCollation) error {
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -173,7 +174,7 @@ func StageCreateCollationLocked(h StageHost, auth Authority, s *parser.CreateCol
 			message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
 		}
 		if s.IfNotExists {
-			notice(h, "42710", message+", skipping")
+			ddl.Notice(h, "42710", message+", skipping")
 			return nil
 		}
 		return sqlError("42710", message)
@@ -203,7 +204,7 @@ func StageCreateCollationLocked(h StageHost, auth Authority, s *parser.CreateCol
 	return h.Stage().Create(&d)
 }
 
-func StageAlterCollationLocked(h StageHost, auth Authority, s *parser.AlterCollation) error {
+func StageAlterCollationLocked(h StageHost, auth ddl.Authority, s *parser.AlterCollation) error {
 	d, err := findUtilityCollation(h, auth, s.Name)
 	if err != nil {
 		return err
@@ -219,8 +220,8 @@ func StageAlterCollationLocked(h StageHost, auth Authority, s *parser.AlterColla
 			return nil
 		}
 	}
-	ref := objectRef(h, auth, d.Address())
-	if err = check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+	ref := ddl.ObjectRef(h, auth, d.Address())
+	if err = ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	if d.Provider == "d" && s.Action == "refresh" {
@@ -237,10 +238,10 @@ func StageAlterCollationLocked(h StageHost, auth Authority, s *parser.AlterColla
 			return sqlError("XX000", "invalid collation version change")
 		}
 		if actual == nil || *actual == *d.Version {
-			notice(h, "00000", "version has not changed")
+			ddl.Notice(h, "00000", "version has not changed")
 			return nil
 		}
-		notice(h, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
+		ddl.Notice(h, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
 		next.Version = actual
 	case "rename":
 		if err = view.CheckCreate(auth, view.Owner.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
@@ -283,19 +284,19 @@ func StageAlterCollationLocked(h StageHost, auth Authority, s *parser.AlterColla
 	return h.Stage().Replace(&next)
 }
 
-func StageDropCollationLocked(h StageHost, auth Authority, s *parser.DropCollation) error {
+func StageDropCollationLocked(h StageHost, auth ddl.Authority, s *parser.DropCollation) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		d, err := findUtilityCollation(h, auth, name)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
-				notice(h, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+				ddl.Notice(h, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return err
 		}
-		ref := objectRef(h, auth, d.Address())
-		if err = check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := ddl.ObjectRef(h, auth, d.Address())
+		if err = ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if d.Seeded() {
@@ -314,7 +315,7 @@ func StageDropCollationLocked(h StageHost, auth Authority, s *parser.DropCollati
 	return nil
 }
 
-func findUtilityCollation(h StageHost, auth Authority, name parser.ObjectName) (*catalog.Collation, error) {
+func findUtilityCollation(h StageHost, auth ddl.Authority, name parser.ObjectName) (*catalog.Collation, error) {
 	d, err := h.FindCollation(auth, name)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
 		copy := *diagnostic

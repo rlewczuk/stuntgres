@@ -37,7 +37,7 @@ func TestTypedefHostCreationNamespaceRecapturesCopy(t *testing.T) {
 	if _, ok := auth.Catalog.Namespace(ref.Address); ok || auth.stagedTemporary != (ids.ObjectAddress{}) {
 		t.Fatal("the argument authority was recaptured")
 	}
-	recaptured := typedefAuthorityOf(next)
+	recaptured := ddlAuthorityOf(next)
 	if ns, ok := recaptured.Catalog.Namespace(ref.Address); !ok || ns.Temporary == (ids.SessionToken{}) || recaptured.stagedTemporary != ref.Address {
 		t.Fatal("the returned authority does not read the staged namespace", ok)
 	}
@@ -77,7 +77,7 @@ func TestTypedefHostSearchNamespacesMapsClasses(t *testing.T) {
 	h := typedefHost{e: e, op: op, stage: stage}
 	name := typedefHostName("seam")
 	results := map[ids.OID][]ids.ObjectAddress{}
-	for class, kind := range map[ids.OID]analyze.LookupKind{ids.TypeClassID: analyze.TypeLookup, ids.ConversionClassID: analyze.ConversionLookup} {
+	for class, kind := range map[ids.OID]analyze.LookupKind{ids.TypeClassID: analyze.TypeLookup, ids.ConversionClassID: analyze.ConversionLookup, ids.OperatorClassID: analyze.OperatorLookup} {
 		got, err := h.SearchNamespaces(auth, name, class)
 		if err != nil {
 			t.Fatal(err)

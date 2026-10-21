@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -20,7 +21,7 @@ type DomainConstraintEdit struct {
 
 // StageAlterDomainConstraintLocked stages the constraint action of raw on
 // old. The caller validates rows and publishes.
-func StageAlterDomainConstraintLocked(h StageHost, auth Authority, old *catalog.Type, raw *parser.AlterDomain, input sqltype.InputEnvironment) (DomainConstraintEdit, error) {
+func StageAlterDomainConstraintLocked(h StageHost, auth ddl.Authority, old *catalog.Type, raw *parser.AlterDomain, input sqltype.InputEnvironment) (DomainConstraintEdit, error) {
 	next := *old
 	next.DomainChecks = slices.Clone(old.DomainChecks)
 	selected := -1
@@ -52,7 +53,7 @@ func StageAlterDomainConstraintLocked(h StageHost, auth Authority, old *catalog.
 		if selected < 0 {
 			message := fmt.Sprintf("constraint %q of domain %q does not exist", raw.Constraint.Text, catalog.ObjectNameText(raw.Name))
 			if raw.Action == parser.DomainDropCheck && raw.IfExists {
-				notice(h, "00000", message+", skipping")
+				ddl.Notice(h, "00000", message+", skipping")
 				return DomainConstraintEdit{Skipped: true}, nil
 			}
 			err = sqlError("42704", message)

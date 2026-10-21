@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,7 +13,7 @@ import (
 
 // Declaration members, relation identity and reciprocal codecs publish in the
 // same existing catalog stage. This relation never owns physical storage.
-func StageCreateCompositeLocked(h StageHost, auth Authority, s *parser.CreateComposite) error {
+func StageCreateCompositeLocked(h StageHost, auth ddl.Authority, s *parser.CreateComposite) error {
 	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -77,7 +78,7 @@ func StageCreateCompositeLocked(h StageHost, auth Authority, s *parser.CreateCom
 		if err != nil {
 			return err
 		}
-		ref := objectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := ddl.ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := view.CanUse(auth, ref); err != nil {
 			return err
 		}

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `1c5f5898a` (items 55, 58 and 67). Steps 8–17 were
+Last verified against `master` at `1bf7d5e83` (items 55, 58, 60 and 67). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,7 +18,7 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 60 (ddl 20a), 64 (regobj
+- **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 61 (ddl 20b), 64 (regobj
   21a).
 - **Follow-ups in existing packages:** 71 (functions F6), 72 (catalog 5i),
   73 (plan 10e), 74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f),
@@ -28,7 +28,7 @@ after each lands.
 
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
-(dump 18a), 58 (copyfmt 19a) and 67 (stored 22a) are done. Step 3
+(dump 18a), 58 (copyfmt 19a), 60 (ddl 20a) and 67 (stored 22a) are done. Step 3
 stays open until F6 (item 71) closes F2.
 
 ## Task tree
@@ -404,7 +404,7 @@ stays open until F6 (item 71) closes F2.
     (`b2d22701d`, `50cc79234`, `decb25737`, `9118a9cf0`, then the docs commit)
   - [ ] 19b — `copyfmt` created and codecs moved
 - [ ] **Step 20 — `ddl`** ([prompt](ENGINE-SPLIT-ddl.md); needs —)
-  - [ ] 20a — One `Authority`, `Stage` and `Host` contract
+  - [x] 20a — One `Authority`, `Stage` and `Host` contract
   - [ ] 20b — One root staging adapter
   - [ ] 20c — Schema-level DDL host refined (docs only)
   - [ ] 20d — Schema and tablespace decisions moved
@@ -832,8 +832,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     racecheck/finalcheck skipped at user request
 59. [ ] COPY codecs 19b: `copyfmt` created, codecs moved —
     [copyfmt](ENGINE-SPLIT-copyfmt.md) 19b · needs 58
-60. [ ] DDL 20a: one `Authority`, `Stage` and `Host` contract —
-    [ddl](ENGINE-SPLIT-ddl.md) 20a · needs —
+60. [x] DDL 20a: one `Authority`, `Stage` and `Host` contract —
+    [ddl](ENGINE-SPLIT-ddl.md) 20a · needs — (`3ec2314b9`, `19701cafd`,
+    `578ed8479`, `201947f6d`, then the docs commit) · `routine`, `typedef`
+    and `extension` adopt `ddl.Authority`/`Stage`/`Host`; one
+    `DDLAuthority` marker · selected unit and dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 61. [ ] DDL 20b: one root staging adapter — [ddl](ENGINE-SPLIT-ddl.md) 20b ·
     needs 60
 62. [ ] DDL 20c: schema-level DDL host refined (docs only) —
