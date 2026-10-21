@@ -155,7 +155,7 @@ func generationImmutable(node expr.Expr) bool {
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(exec.SubscriptChildren(n, &storage))
+		return args(plan.SubscriptChildren(n, &storage))
 	case plan.LiteralExpr, plan.ColumnExpr, plan.TableOIDExpr:
 		return true
 	case plan.CollationExpr:
@@ -348,7 +348,7 @@ func generationHasTableOID(node expr.Expr) bool {
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(exec.SubscriptChildren(n, &storage))
+		return args(plan.SubscriptChildren(n, &storage))
 	case plan.TableOIDExpr:
 		return true
 	case plan.CollationExpr:
@@ -669,7 +669,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(exec.SubscriptChildren(n, &storage))
+		return args(plan.SubscriptChildren(n, &storage))
 	case plan.ColumnExpr:
 		if _, generated := d.ColumnMeta.Generations[n.Origin.Address.SubID]; generated || n.Virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")

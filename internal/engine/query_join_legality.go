@@ -74,7 +74,7 @@ func validateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressi
 		for _, target := range targets {
 			for path := target; path != nil; path = path.Next {
 				var storage [13]expr.Expr
-				for _, child := range exec.SubscriptChildren(path.Node, &storage) {
+				for _, child := range plan.SubscriptChildren(path.Node, &storage) {
 					if err := validateExpressionJoinExecution(&owner, child, catalog); err != nil {
 						return err
 					}
