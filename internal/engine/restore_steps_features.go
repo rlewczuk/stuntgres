@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"context"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -87,4 +89,9 @@ func afterRestoreDomainOwner(r *restoreRun, op *session.Operation, stmt parser.S
 	var err error
 	r.pairedDomainOwner, err = r.stage.captureRestoredDomainOwner(op, result.created, r.cur.ownerForCreate)
 	return err
+}
+
+// finishRestoreExtensionOwners imports the decoded extension owners.
+func finishRestoreExtensionOwners(r *restoreRun, ctx context.Context, op *session.Operation) error {
+	return r.stage.importExtensionOwners(ctx, op, r.extensionOwners)
 }

@@ -170,5 +170,6 @@ var restoreHooks = []restoreHook{
 	// After the last statement.
 	{name: "table: physical NOT NULL boundary at end", finish: finishRestorePhysicalBoundary},
 	{name: "table: foreign keys", finish: finishRestoreForeignKeys},
+	{name: "extension: owners", finish: finishRestoreExtensionOwners},
 	{name: "inline finish", finish: (*restoreRun).inlineFinish},
 }

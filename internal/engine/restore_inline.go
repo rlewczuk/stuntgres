@@ -360,9 +360,6 @@ func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, r
 }
 
 func (r *restoreRun) inlineFinish(ctx context.Context, op *session.Operation) error {
-	if err := r.stage.importExtensionOwners(ctx, op, r.extensionOwners); err != nil {
-		return err
-	}
 	if err := r.stage.importMaterializedSnapshots(ctx, op, r.snapshots); err != nil {
 		return err
 	}
