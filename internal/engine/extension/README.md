@@ -34,8 +34,9 @@ library, and never the engine, `analyze`, `routine` or `plan`. See
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider`
   validates the extension, text search template and dictionary classes and
   installed member procedures; `ValidateProviderHeader` is the identity check
-  it shares with the engine's `procedureProvider`; `Membership` reads a
-  descriptor's owning extension. `extension_type_validation.go` validates an
+  it shares with the engine's `procedureProvider`; a descriptor's owning
+  extension is `catalog.ExtensionMembership` (moved down in catalog 5i).
+  `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the
   catalog owner.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):

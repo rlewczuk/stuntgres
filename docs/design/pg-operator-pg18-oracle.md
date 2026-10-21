@@ -732,7 +732,7 @@ units cover current metadata, staged/private/reconstructed roots and immutable
 predecessors; no allocation-count, wiring or timing unit replaces semantic proof.
 
 The companion root-owned inheritance traversal remedy filters descriptor keys by
-RelationClassID before loading values in `inheritanceChildren`. Actual parent
+RelationClassID before loading values in `catalog.InheritanceChildren`. Actual parent
 edges in the supplied `catalog.Read`, safe relation assertions and ObjectID sorting
 remain authoritative; `hasSubclasses` is not absence proof. It introduces no
 inheritance cache or new SQL capability. Existing diamond ordering and late

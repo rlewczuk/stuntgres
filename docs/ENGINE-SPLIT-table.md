@@ -180,9 +180,9 @@ set; the top ones are `dumpRelation` fields (69 uses of `.descriptor`),
 | What | Where | Item |
 |---|---|---|
 | `scalarRenderer` and its methods, `defaultSQL`, `renderColumnDefault`, `pgRenderer.foreignKeyConstraintSQL(WithPrimary)`, `foreignKeyActionSQL` (about 0.78k) | `stored` | 22b (68) |
-| Hierarchy helpers `inheritanceChildren`, `inheritanceHasChildren`, `inheritanceParticipant` (`table_inheritance.go`), `cloneInheritance`, `inheritanceQueryLayout`, plus `hierarchyRelation` (`partition.go`), `samePartitionColumnUsage`, `sameRelationRowShape` (`relation_scope.go`) | `catalog` | 5i (72) |
-| Constraint naming `constraintNames`, `relationConstraintNameExists`, `generatedConstraintName` (`not_null_binding.go`; `nameCreateNotNull` stays here) | `catalog` | 5i (72) |
-| Physical NOT NULL validators `physicalNotNullOriginValid`, `physicalPrimarySupportValid`, `validatePhysicalNotNull`, `physicalPrimaryForAttribute`, `capturePhysicalPrimarySupport` | `catalog` (next to `catalog/physical_not_null.go`) | 5i (72) |
+| Hierarchy helpers, moved by 5i: `catalog.InheritanceChildren`, `InheritanceHasChildren`, `InheritanceParticipant`, `CloneInheritance`, `InheritanceQueryLayout`, `HierarchyRelation`, `SamePartitionColumnUsage` (`catalog/inheritance.go`). `sameRelationRowShape` (`relation_scope.go`) stayed in the root: it calls `analyze.SameStatementUsage` | `catalog`; `sameRelationRowShape` root until `SameStatementUsage` has a home below `analyze` | 5i (72) |
+| Constraint naming, moved by 5i: `catalog.ConstraintNames`, `RelationConstraintNameExists`, `GeneratedConstraintName` (`nameCreateNotNull` stays here) | `catalog` | 5i (72) |
+| Physical NOT NULL: 5i moved `catalog.PhysicalPrimaryForAttribute` and `CapturePhysicalPrimarySupport`. The validators `physicalNotNullOriginValid`, `physicalPrimarySupportValid` and `validatePhysicalNotNull` stayed in the root: they call `storedReferenceEpochValid` (root providers) and `indexCatalogKey` (`plan` nodes) | moved part: `catalog`; validators: root, re-measured in 23b/24b | 5i (72) |
 | `generationHasTableOID`, `generationImmutable` (187 lines) | `plan` (`plan.GenerationHasTableOID`, `plan.GenerationImmutable`) | 10e (73), done |
 | FK write-time enforcement (`checkForeignKeys`, `foreignKeyJob` scheduling in `foreign_key_writes.go`) and FK actions (`foreign_action_*.go`, `foreign_actions.go`) | `dml` | 29a/29b |
 | Inheritance DML expansion (`inheritance_dml.go`, `inheritance_dml_authority.go`) | `dml` | 29a/29b |
@@ -202,8 +202,8 @@ Finish-time checks all use it, and `dml` imports `table`.
 Do the steps in this order; each numbered step is one commit and builds.
 
 1. **Re-measure.** Run `reach` and `frontier` over the files above at
-   your base. If 5i (item 72) has not moved the helpers listed under "Not
-   table code", stop and report.
+   your base. 5i (item 72) is done; the helpers it left in the root are
+   named under "Not table code" below. Do not move them here.
 2. **Renames (file moves only; `git mv` plus moving whole declarations).**
    - `not_null.go` → `alter_table.go` (it holds `alterTableLocked` and
      `alterTableLookupKind`).

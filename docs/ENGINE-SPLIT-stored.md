@@ -128,7 +128,7 @@ are used only by `expression_retag.go`; they move here, not to `exec`.
 | `view_check.go` | `viewCheckMode`, `validateViewCheckDeclaration` | — |
 | `deparse_function.go` | `deparseAttribute` | `statementHost.DeparseInquiry` (22c item 4) |
 | `definition_reader.go` | `scalarRenderer.descriptor` | the `AuthorizationView.definition*` wrappers |
-| `definition_identity.go` | `structuralNull` (if catalog 5i has not moved it; then use `catalog`'s) | OID assignment |
+| `definition_identity.go` | `structuralNull` (catalog 5i moved it to `plan.StructuralNull`) | OID assignment |
 | `sql_routine.go` | `sameMappedSQLRoutine` | SQL routine invocation |
 | `composite_field_dependency.go` | `compositeAttributeProvider` | dependency staging |
 | `conversion_execution.go` | `conversionDefault` | — |
