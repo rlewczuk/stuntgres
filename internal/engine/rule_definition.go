@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -72,13 +73,13 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		if err != nil {
 			return stored.NewRule(p), err
 		}
-		if p.Condition != nil && RuleSetAction(b, action) {
+		if p.Condition != nil && view.RuleSetAction(b, action) {
 			return stored.NewRule(p), sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 		}
-		if err := ValidateRuleActionCTEs(action, b); err != nil {
+		if err := view.ValidateRuleActionCTEs(action, b); err != nil {
 			return stored.NewRule(p), err
 		}
-		b = RetainRuleCTEPresentation(auth.Catalog, b)
+		b = view.RetainRuleCTEPresentation(auth.Catalog, b)
 		b.Rule.Template = true
 		if b.Parameters.Count != 0 {
 			return stored.NewRule(p), sqlError("42P02", "there is no parameter $1")
@@ -97,7 +98,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			if providers > 1 {
 				return stored.NewRule(p), sqlError("0A000", "cannot have multiple RETURNING lists in a rule")
 			}
-			if err := RuleResultCheck(d, b.Returning.Schema, false); err != nil {
+			if err := view.RuleResultCheck(d, b.Returning.Schema, false); err != nil {
 				return stored.NewRule(p), err
 			}
 		}
@@ -112,6 +113,6 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		p.Actions = append(p.Actions, stored.NewRuleAction(stored.RuleActionParts{Syntax: action, Binding: b, Presentation: presentation, ModifierPresentations: modifiers}))
 	}
 	var err error
-	p.References, err = RuleReferences(scope.op.Context(), auth.Catalog, stored.NewRule(p))
+	p.References, err = view.RuleReferences(scope.op.Context(), auth.Catalog, stored.NewRule(p))
 	return stored.NewRule(p), err
 }

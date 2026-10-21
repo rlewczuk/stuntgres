@@ -11,13 +11,14 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
 // Caller rights are checked on the original logical target. Each nested layer
 // then uses its current owner or the original invoker, never the outer owner.
 func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Statement) error {
-	w := ViewWriteOf(b.ViewWrite)
+	w := view.ViewWriteOf(b.ViewWrite)
 	logical := w.Logical
 	if err := analyze.CheckBinding(v, logical, stmt); err != nil {
 		return err
@@ -107,7 +108,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 
 // Called unlocked after logical analysis, before private preflight/capture. The
 // same lock ticket/journal owns the real RX grant and all lifecycle source locks.
-func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
+func (s *StatementScope) acquireViewWriteTarget(w *view.Write) error {
 	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: w.Ref}, lock.RowExclusive, policy)

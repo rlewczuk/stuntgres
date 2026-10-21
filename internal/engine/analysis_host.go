@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -302,7 +303,7 @@ func (h *bindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth
 }
 
 func (h *bindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
-	return BindViewWrite(h.engine.catalog.owner(), h.view(auth).Catalog, b, stmt, consumed...)
+	return view.BindViewWrite(h.engine.catalog.owner(), h.view(auth).Catalog, b, stmt, consumed...)
 }
 
 // newExpressionBinder is the root construction point: it binds through the

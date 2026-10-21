@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -28,7 +29,7 @@ type ruleCommandScratch struct {
 	ref        ids.ObjectRef
 	descriptor catalog.Descriptor
 	storage    *storage.Relation
-	viewWrite  *viewWrite
+	viewWrite  *view.Write
 	sources    []exec.Leaf
 	unique     *index.UniqueWriteBinding
 	conflict   *insertConflictState
@@ -54,8 +55,8 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 }
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
-	program := ruleProgram{Count: -1, Returning: -1}
-	count, err := ruleRewriter{e.catalog.owner()}.ExpandLocked(auth, stmt, b, nil, &program)
+	program := view.RuleProgram{Count: -1, Returning: -1}
+	count, err := view.RuleRewriter{Owner: e.catalog.owner()}.ExpandLocked(auth, stmt, b, nil, &program)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -132,9 +133,9 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		if err := scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		physical := PhysicalBinding(command.Binding)
+		physical := view.PhysicalBinding(command.Binding)
 		commandAuth := ruleAuthorizationOf(command.Auth)
-		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.Syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: ViewWriteOf(command.Binding.ViewWrite), sources: command.Binding.QuerySources, ruleAction: ruleActionScope{auth: &commandAuth}})
+		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.Syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: view.ViewWriteOf(command.Binding.ViewWrite), sources: command.Binding.QuerySources, ruleAction: ruleActionScope{auth: &commandAuth}})
 		captures := &exec.QuoteCaptureCandidate{}
 		if command.Binding.Parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}

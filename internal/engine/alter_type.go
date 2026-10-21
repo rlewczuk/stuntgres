@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -237,7 +238,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 	}
 	target := ref.Address
 	target.SubID = original.Attributes[source]
-	if err := PolicyTypeChangeError(auth.Catalog, target); err != nil {
+	if err := view.PolicyTypeChangeError(auth.Catalog, target); err != nil {
 		return fail(err)
 	}
 	if path, pathErr := e.lookupPath(auth, analyze.RelationLookup); pathErr != nil {

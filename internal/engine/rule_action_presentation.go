@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -59,7 +60,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 		from = &plan.SingletonNode{}
 	}
 	metadata.Query = &plan.Query{Root: &plan.ProjectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
-	metadata = RetainRuleCTEPresentation(auth.Catalog, metadata)
+	metadata = view.RetainRuleCTEPresentation(auth.Catalog, metadata)
 	presentation, err := stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, metadata, false, false, 0, "", false)
 	if err != nil {
 		return nil, err

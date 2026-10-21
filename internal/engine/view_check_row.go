@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -12,14 +13,14 @@ import (
 // Called only for admitted, finalized rows, after base constraints/uniqueness.
 // A stack copy separates NEW from UPDATE FROM's OLD/source/RETURNING frame.
 func (e *Engine) checkViewRow(scope *StatementScope, b *analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
-	if b.ViewWrite == nil || len(ViewWriteOf(b.ViewWrite).Checks) == 0 {
+	if b.ViewWrite == nil || len(view.ViewWriteOf(b.ViewWrite).Checks) == 0 {
 		return nil
 	}
 	newFrame := *evaluation
 	newFrame.Row = row
 	newFrame.Scope, newFrame.Frame = 1, 1
-	for i := len(ViewWriteOf(b.ViewWrite).Checks) - 1; i >= 0; i-- {
-		group := &ViewWriteOf(b.ViewWrite).Checks[i]
+	for i := len(view.ViewWriteOf(b.ViewWrite).Checks) - 1; i >= 0; i-- {
+		group := &view.ViewWriteOf(b.ViewWrite).Checks[i]
 		for j := len(group.Predicates) - 1; j >= 0; j-- {
 			if err := exec.EvaluationContext(&newFrame); err != nil {
 				return err

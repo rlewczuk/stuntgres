@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -24,24 +25,24 @@ func TestDomainDefaultViewSQLDependenciesInternal(t *testing.T) {
 	} {
 		roleExecute(t, e, op, q)
 	}
-	view := e.CatalogRead()
-	domain := domainUnitType(t, view, "dd_view_domain")
-	stage := e.BeginCatalogStage(view)
+	catalogView := e.CatalogRead()
+	domain := domainUnitType(t, catalogView, "dd_view_domain")
+	stage := e.BeginCatalogStage(catalogView)
 	defer e.DiscardCatalogStage(stage)
 	provider := stageDropProvider(op.Context(), stage, nil, nil, nil)
 	for _, tc := range []struct {
 		name    string
 		passive bool
 	}{{"dd_view_column", true}, {"dd_view_explicit", false}, {"dd_view_literal", false}} {
-		d := view.MustRelation(roleTableRef(t, e, tc.name).Address)
-		if !ViewDepends(d, domain.Address()) {
+		d := catalogView.MustRelation(roleTableRef(t, e, tc.name).Address)
+		if !view.ViewDepends(d, domain.Address()) {
 			t.Fatal("missing original lifetime capture", tc.name)
 		}
 		got, err := provider.passiveViewTypeDependency(d, domain.Address())
 		if err != nil || got != tc.passive {
 			t.Fatal("SQL column/type edge classification", tc.name, got, err)
 		}
-		if !ViewDepends(d, domain.Address()) {
+		if !view.ViewDepends(d, domain.Address()) {
 			t.Fatal("SQL classification pruned lifetime authority", tc.name)
 		}
 	}

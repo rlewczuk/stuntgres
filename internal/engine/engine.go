@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -351,9 +352,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
 		return StatementDescription{}, err
 	}
-	if relation := BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
-		program := ruleProgram{Count: -1, Returning: -1}
-		if _, err := (ruleRewriter{e.catalog.owner()}).ExpandLocked(auth, stmt, b, nil, &program); err != nil {
+	if relation := view.BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
+		program := view.RuleProgram{Count: -1, Returning: -1}
+		if _, err := (view.RuleRewriter{Owner: e.catalog.owner()}).ExpandLocked(auth, stmt, b, nil, &program); err != nil {
 			return StatementDescription{}, err
 		}
 		for i := range program.Commands {

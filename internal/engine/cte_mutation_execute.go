@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -69,7 +70,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	}
 	// Normalized rule auxiliaries select one preparation policy for the entire
 	// auxiliary/primary program, even when the primary has no rules of its own.
-	if len(RuleCTEsOf(b.Rule.CTEs)) != 0 {
+	if len(view.RuleCTEsOf(b.Rule.CTEs)) != 0 {
 		evaluation.PlanStaticOperators = true
 		evaluation.SpecializeRuleParameters = true
 	}
@@ -104,7 +105,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			continue
 		}
 		syntax, commandBinding, commandAuth := definition.Statement, *mutation, auth
-		rewrite := RuleCTEsOf(b.Rule.CTEs)[definition]
+		rewrite := view.RuleCTEsOf(b.Rule.CTEs)[definition]
 		if rewrite != nil {
 			if _, selectOnly := rewrite.Command.Syntax.(*parser.Select); selectOnly {
 				continue

@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -328,7 +329,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
 	parentAuth := auth
 	if err == nil {
-		err = PolicyPreflight(s.op, auth.View, stmt, true)
+		err = view.PolicyPreflight(s.op, auth.View, stmt, true)
 	}
 	if _, attaching := stmt.(*parser.AlterTableAttachPartition); attaching && err == nil {
 		parentAuth, err = e.partitionAttachAuthorization(s.op, auth)
@@ -405,12 +406,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		case *parser.AlterView:
 			if ref.Domain() != nil {
-				err = AlterViewAuthority(parentAuth.View, parentAuth, ref, utility)
+				err = view.AlterViewAuthority(parentAuth.View, parentAuth, ref, utility)
 			}
 		}
 		if ownerOnly && !viewReplacement && err == nil {
 			if ref.Domain() != nil {
-				err = parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: PolicyOwnerNoun(stmt)})
+				err = parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: view.PolicyOwnerNoun(stmt)})
 				if _, altering := stmt.(*parser.AlterTable); altering && err == nil {
 					err = table.AlterTableLookupKind(parentAuth.Catalog.MustRelation(ref.Address))
 				}
@@ -582,7 +583,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if authorityErr != nil {
 			return authorityErr
 		}
-		if authorityErr = AlterViewAuthority(currentAuth.View, currentAuth, ref, stmt.(*parser.AlterView)); authorityErr != nil {
+		if authorityErr = view.AlterViewAuthority(currentAuth.View, currentAuth, ref, stmt.(*parser.AlterView)); authorityErr != nil {
 			return authorityErr
 		}
 		return ids.ErrCatalogReplaced
@@ -655,7 +656,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				return err
 			}
 		}
-		if err := parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: PolicyOwnerNoun(stmt)}); err != nil {
+		if err := parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: view.PolicyOwnerNoun(stmt)}); err != nil {
 			return err
 		}
 		if _, altering := stmt.(*parser.AlterTable); altering {

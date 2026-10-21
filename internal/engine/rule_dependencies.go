@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -34,7 +35,7 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 		for _, r := range stored.RulesOf(d) {
 			drop := false
 			for _, target := range targets {
-				if RuleDepends(provider.base, r, target) {
+				if view.RuleDepends(provider.base, r, target) {
 					drop = true
 					break
 				}

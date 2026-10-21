@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,7 +20,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	action := ruleUnitInsert(e, sink, 1, 10)
 	recipe := &analyze.InsertConflict{Targets: action.Binding().Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
 	action = action.With(func(p *stored.RuleActionParts) { p.Binding.Insert.Conflict = recipe })
-	first, err := ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
+	first, err := view.ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +31,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	if first.Insert.Conflict.Predicate == nil {
 		t.Fatal("conflict state does not execute the command's clause")
 	}
-	second, err := ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
+	second, err := view.ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +53,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	b := ruleUnitInsert(e, sink, 1, 10).Binding()
 	ref := b.Ref
 	ref.Address.SubID = sink.Attributes[1]
-	target := plan.ColumnExpr{Info: RuleColumnInfo(sink.Columns[1]), Origin: ref, Scope: 1, Frame: 1, Slot: 1}
+	target := plan.ColumnExpr{Info: view.RuleColumnInfo(sink.Columns[1]), Origin: ref, Scope: 1, Frame: 1, Slot: 1}
 	excluded := target
 	excluded.Slot = 3
 	b.Insert.Conflict = &analyze.InsertConflict{Targets: b.Targets, Reads: []int{0}, ActionReads: []int{1}, UpdateTargets: []int{1}, Width: 2, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{excluded}, Predicate: target}}
@@ -96,7 +97,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 				original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
 			}
 			action := ruleUnitInsert(e, sink, 7, 8)
-			composed, err := ComposeRuleAction(auth, original, event, stored.Rule{}, action)
+			composed, err := view.ComposeRuleAction(auth, original, event, stored.Rule{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -107,9 +108,9 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			ref := original.Ref
 			ref.Address.SubID = src.Attributes[0]
 			action = action.With(func(p *stored.RuleActionParts) {
-				p.Binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
+				p.Binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
 			})
-			dependent, err := ComposeRuleAction(auth, original, event, stored.Rule{}, action)
+			dependent, err := view.ComposeRuleAction(auth, original, event, stored.Rule{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}

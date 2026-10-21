@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -144,7 +145,7 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 				want := enabled && forced && actor != bypass.Ref && actor != auth.State.CurrentUser
 				// A policy's provider may be irrelevant or even stale; eligibility must
 				// never traverse its roles or demand expression enforcement.
-				next.Security.Policies = []catalog.PolicyDefinition{{Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: PolicyPayloadOf(using)}}
+				next.Security.Policies = []catalog.PolicyDefinition{{Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: view.PolicyPayloadOf(using)}}
 				active, err := access.RowSecurityApplies(auth.Roles, &next, actor)
 				if err != nil || active != want {
 					t.Fatalf("eligibility %v/%v/%v: %v %v", enabled, forced, actor, active, err)

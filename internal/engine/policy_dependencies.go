@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -26,7 +27,7 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 		for _, p := range d.Security.Policies {
 			drop := false
 			for _, target := range targets {
-				if PolicyDepends(p, target) {
+				if view.PolicyDepends(p, target) {
 					drop = true
 					break
 				}

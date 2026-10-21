@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -38,7 +39,7 @@ func decodeRestoreExtensionOwners(r *restoreRun, comment string, _ parser.Positi
 
 // decodeRestoreMaterializedSnapshot collects a materialized view snapshot.
 func decodeRestoreMaterializedSnapshot(r *restoreRun, comment string, _ parser.Position) (bool, error) {
-	record, recognized, err := DecodeMaterializedSnapshot(comment)
+	record, recognized, err := view.DecodeMaterializedSnapshot(comment)
 	if err != nil || !recognized {
 		return false, err
 	}

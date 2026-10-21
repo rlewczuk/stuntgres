@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 )
 
 type materializedSourceFence struct {
@@ -28,5 +29,5 @@ func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool 
 	}
 	current, _ := e.catalog.state.Relation(f.ref.Address)
 	store := e.storage.Relations[f.ref.Address]
-	return current == f.relation && store == f.storage || SameMaterializedLineage(f.relation, current, f.storage, store)
+	return current == f.relation && store == f.storage || view.SameMaterializedLineage(f.relation, current, f.storage, store)
 }

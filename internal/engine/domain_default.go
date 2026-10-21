@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -157,5 +158,5 @@ func evalDefaultExpression(c *exec.Context, node expr.Expr, origin analyze.Defau
 }
 
 func evalBindingDefault(b *analyze.Binding, c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
-	return evalDefaultExpression(c, node, BindingDefaultOrigin(b, slot))
+	return evalDefaultExpression(c, node, view.BindingDefaultOrigin(b, slot))
 }

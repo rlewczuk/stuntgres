@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -77,7 +78,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		for i, slot := range plan.targets {
 			if len(b.Insert.Defaults) != 0 {
 				plan.defaults[i] = b.Insert.Defaults[slot]
-				plan.defaultOrigins[i] = BindingDefaultOrigin(&b, slot)
+				plan.defaultOrigins[i] = view.BindingDefaultOrigin(&b, slot)
 			}
 		}
 		// Retained defaults can themselves cast to a checked domain even when
@@ -98,7 +99,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 				continue
 			}
 			defaultEvaluation := evaluation
-			applyDefaultOrigin(BindingDefaultOrigin(&b, plan.targets[i]), &defaultEvaluation)
+			applyDefaultOrigin(view.BindingDefaultOrigin(&b, plan.targets[i]), &defaultEvaluation)
 			folded, _, err := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {
 				return nil, err

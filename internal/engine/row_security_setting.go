@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 )
 
 // Called under Engine.mu after identity/schema analysis, before execution ACLs.
@@ -16,8 +17,8 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b an
 	if scope.rowSecurity {
 		return nil
 	}
-	if relation := PhysicalBinding(b).Relation; relation != nil {
-		principal := access.RowSecurityPrincipal(auth.State.CurrentUser, RowSecurityLayers(auth.Catalog, b))
+	if relation := view.PhysicalBinding(b).Relation; relation != nil {
+		principal := access.RowSecurityPrincipal(auth.State.CurrentUser, view.RowSecurityLayers(auth.Catalog, b))
 		if err := access.RowSecuritySettingGuard(false, auth.Roles, relation, principal); err != nil {
 			return err
 		}
@@ -34,13 +35,13 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b an
 	for _, definition := range b.CTEs {
 		if mutation, ok := analyze.MutationBinding(definition); ok {
 			caller := auth
-			if rewrite := RuleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
+			if rewrite := view.RuleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
 				caller = ruleAuthorizationOf(rewrite.Caller)
 			}
 			if err := checkRowSecurityBinding(scope, caller, *mutation); err != nil {
 				return err
 			}
-			if rewrite := RuleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
+			if rewrite := view.RuleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
 				if err := checkRowSecurityBinding(scope, ruleAuthorizationOf(rewrite.Command.Auth), rewrite.Command.Binding); err != nil {
 					return err
 				}
@@ -52,7 +53,7 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b an
 
 // Nonempty rule actions retain the caller's original range-table obligations.
 // INSTEAD NOTHING has no executable query and therefore no such checks.
-func checkRowSecurityRuleProgram(scope *StatementScope, auth AuthorizationView, original analyze.Binding, program ruleProgram) error {
+func checkRowSecurityRuleProgram(scope *StatementScope, auth AuthorizationView, original analyze.Binding, program view.RuleProgram) error {
 	if scope.rowSecurity || len(program.Commands) == 0 {
 		return nil
 	}

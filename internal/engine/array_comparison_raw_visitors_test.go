@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -39,7 +40,7 @@ func TestArrayCompareVisitorsRawEngine(t *testing.T) {
 					t.Fatal("restore parameter child lost", stored)
 				}
 			}
-			if err := MaterializedSnapshotScalar(form.make(literal)); err == nil {
+			if err := view.MaterializedSnapshotScalar(form.make(literal)); err == nil {
 				t.Fatal("closed codec snapshot boundary widened")
 			}
 		})

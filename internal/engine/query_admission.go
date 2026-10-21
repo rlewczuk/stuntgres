@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -59,8 +60,8 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission analyze.LockAdm
 
 // Validate exact admission identity without resolving SQL names again. Metadata
 // revisions may refresh authority before binding, never an already bound layout.
-func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *session.Journal, source exec.Leaf) (*catalog.Relation, error) {
-	current, ok := view.Relation(source.Ref.Address)
+func currentQuerySourceLocked(e *Engine, catalogView catalog.Read, changes *session.Journal, source exec.Leaf) (*catalog.Relation, error) {
+	current, ok := catalogView.Relation(source.Ref.Address)
 	if !ok || source.Relation == nil || source.Ref.Domain() != e.catalog.Domain || source.Ref.Epoch != e.catalog.state.Epoch() || source.Ref.Address.SubID != 0 ||
 		current.Address() != source.Relation.Address() || current.Namespace() != source.Relation.Namespace() || current.Name() != source.Relation.Name() || current.RelationKind != source.Relation.RelationKind ||
 		!index.SameRelationRowShape(current, source.Relation) {
@@ -71,7 +72,7 @@ func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *session.Jou
 			return nil, ids.ErrCatalogReplaced
 		}
 	} else if storage := e.privateStorageLocked(changes, source.Ref.Address); storage != source.Storage &&
-		!SameMaterializedLineage(source.Relation, current, source.Storage, storage) {
+		!view.SameMaterializedLineage(source.Relation, current, source.Storage, storage) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return current, nil
@@ -253,7 +254,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	if collectErr != nil {
 		return nil, collectErr
 	}
-	var view *visibility.View
+	var catalogView *visibility.View
 	var err error
 	needsView := len(refs) != 0
 	if !needsView {
@@ -265,7 +266,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		}
 	}
 	if needsView {
-		view, err = scope.acquireDataViewsLocked(e, refs)
+		catalogView, err = scope.acquireDataViewsLocked(e, refs)
 		if err != nil {
 			return nil, err
 		}
@@ -302,7 +303,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			return nil, err
 		}
 		if denied {
-			source, err = CaptureDeniedQuerySource(view, leaf.Ref)
+			source, err = view.CaptureDeniedQuerySource(catalogView, leaf.Ref)
 		} else {
 			switch leaf.Relation.RelationKind {
 			case catalog.SequenceRelation:
@@ -310,9 +311,9 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				source, err = e.captureSequenceSourceLocked(scope, leaf.Ref, leaf.Relation)
 			case catalog.MaterializedViewRelation:
 				if !leaf.Relation.Populated {
-					err = MaterializedViewReadError(leaf.Relation)
+					err = view.MaterializedViewReadError(leaf.Relation)
 				} else {
-					source, err = exec.CapturePrefix(view, leaf.Ref)
+					source, err = exec.CapturePrefix(catalogView, leaf.Ref)
 				}
 			case catalog.PartitionedRelation:
 				if mark.Mode != 0 {
@@ -321,17 +322,17 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				} else if leaf.Only {
 					// Empty virtual prefixes retain the same visibility authority
 					// as ordinary hierarchy sources, without opening descendants.
-					pin := view.Retain()
+					pin := catalogView.Retain()
 					if pin == nil {
 						err = fmt.Errorf("stuntgres: visibility view is released")
 					} else {
 						source = &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: []exec.InheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = partition.CaptureQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.Ref, leaf.Relation)
+					source, err = partition.CaptureQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), catalogView, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
-				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.Session.SessionToken)
+				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), catalogView, leaf, scope.op.Session.SessionToken)
 				if err == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {
@@ -339,7 +340,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 						source = nil
 					} else {
 						if source.Inheritance == nil {
-							source.PartialMask = e.capturePartialMaskLocked(scope, leaf, view, mark)
+							source.PartialMask = e.capturePartialMaskLocked(scope, leaf, catalogView, mark)
 						}
 					}
 				}

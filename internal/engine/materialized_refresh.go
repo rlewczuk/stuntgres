@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		ref, err = e.resolveRelationReference(auth, stmt.Name, true)
 	}
 	if err == nil {
-		err = MaterializedRefreshAccess(auth.View, auth, ref)
+		err = view.MaterializedRefreshAccess(auth.View, auth, ref)
 	}
 	if err == nil {
 		observed = auth.Catalog.MustRelation(ref.Address)
@@ -61,14 +62,14 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err == nil {
 		current, _ = auth.Catalog.Relation(ref.Address)
 	}
-	if err == nil && (s.txRef.Epoch() != e.catalog.state.Epoch() || !MaterializedRefreshCompatible(observed, current)) {
+	if err == nil && (s.txRef.Epoch() != e.catalog.state.Epoch() || !view.MaterializedRefreshCompatible(observed, current)) {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
-		err = MaterializedRefreshAccess(auth.View, auth, ref)
+		err = view.MaterializedRefreshAccess(auth.View, auth, ref)
 	}
 	if err == nil && stmt.Concurrent.Character != 0 {
-		err = MaterializedConcurrentAdmission(auth.Catalog, current, stmt.NoData)
+		err = view.MaterializedConcurrentAdmission(auth.Catalog, current, stmt.NoData)
 	}
 	if err == nil {
 		s.lockedRef, s.lockedDescriptor, s.lockedStorage = ref, current, e.authorizationStorageLocked(auth, ref.Address)
@@ -91,7 +92,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		return Result{}, fmt.Errorf("stuntgres: REFRESH MATERIALIZED VIEW takes no arguments")
 	}
 	ref := scope.lockedRef
-	if err := MaterializedRefreshAccess(caller.View, caller, ref); err != nil {
+	if err := view.MaterializedRefreshAccess(caller.View, caller, ref); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -108,7 +109,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	var ownDeletes *visibility.PrivateDeletes
 	frontier := e.visibility.CommitSeq()
 	if concurrent {
-		indices = MaterializedEligibleIndexes(caller.Catalog, d)
+		indices = view.MaterializedEligibleIndexes(caller.Catalog, d)
 		previous = *scope.lockedStorage
 		var root *storage.IndexRoot
 		if len(indices) != 0 {
@@ -161,7 +162,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 				return Result{}, err
 			}
 		}
-		rows, err = MaterializedConcurrentRows(scope.op.Context(), caller.Catalog, d, &previous, frontier, oldEntries, indices, rows, scope.output)
+		rows, err = view.MaterializedConcurrentRows(scope.op.Context(), caller.Catalog, d, &previous, frontier, oldEntries, indices, rows, scope.output)
 		if err != nil {
 			return Result{}, err
 		}
@@ -270,7 +271,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	if err := s.replaceDescriptor(&next, false); err != nil {
 		return err
 	}
-	s.materialized().Replacement = &materializedReplacement{Original: d, Descriptor: &next, Predecessor: previous, Storage: &storage.Relation{Versions: versions, Generation: previous.Generation + 1}, Generation: previous.Generation, Length: len(previous.Versions), Ends: previous.Ends}
+	s.materialized().Replacement = &view.MaterializedReplacement{Original: d, Descriptor: &next, Predecessor: previous, Storage: &storage.Relation{Versions: versions, Generation: previous.Generation + 1}, Generation: previous.Generation, Length: len(previous.Versions), Ends: previous.Ends}
 	for _, descriptor := range s.Base.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == d.Address() {
 			s.materialized().Replacement.IndexCount++
@@ -350,17 +351,17 @@ func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, s
 }
 
 // materialized returns the statement's materialized slot, allocating it on first use.
-func (s *StatementScope) materialized() *materializedRefreshScope {
+func (s *StatementScope) materialized() *view.MaterializedRefreshScope {
 	if s.materializedSlot == nil {
-		s.materializedSlot = new(materializedRefreshScope)
+		s.materializedSlot = new(view.MaterializedRefreshScope)
 	}
 	return s.materializedSlot
 }
 
 // materializedOrZero reads the materialized slot; a nil slot reads as zero.
-func (s *StatementScope) materializedOrZero() materializedRefreshScope {
+func (s *StatementScope) materializedOrZero() view.MaterializedRefreshScope {
 	if s.materializedSlot == nil {
-		return materializedRefreshScope{}
+		return view.MaterializedRefreshScope{}
 	}
 	return *s.materializedSlot
 }

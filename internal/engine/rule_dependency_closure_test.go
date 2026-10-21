@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -20,12 +21,12 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	} {
 		sessionSQL(t, s, q)
 	}
-	view := e.CatalogRead()
-	eventRef := catalogRef(t, e, view, "event_v")
-	baseRef := catalogRef(t, e, view, "base")
-	event := view.MustRelation(eventRef.Address)
+	catalogView := e.CatalogRead()
+	eventRef := catalogRef(t, e, catalogView, "event_v")
+	baseRef := catalogRef(t, e, catalogView, "base")
+	event := catalogView.MustRelation(eventRef.Address)
 	var provider ids.ObjectAddress
-	for address, descriptor := range view.Descriptors() {
+	for address, descriptor := range catalogView.Descriptors() {
 		if address.ClassID == ids.TypeClassID && descriptor.Name() == "rule_domain" {
 			provider = address
 			break
@@ -43,12 +44,12 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	if ruleOID == 0 {
 		t.Fatal("missing analyzed ordinary rule fixture")
 	}
-	if ViewDepends(event, provider) {
+	if view.ViewDepends(event, provider) {
 		t.Fatal("domain entered the view's unrelated SELECT definition")
 	}
 	closure := func(target ids.ObjectAddress) []table.DomainDependency {
 		t.Helper()
-		edges, err := domainDependencyClosure(context.Background(), e.BeginCatalogStage(view), []ids.ObjectAddress{target})
+		edges, err := domainDependencyClosure(context.Background(), e.BeginCatalogStage(catalogView), []ids.ObjectAddress{target})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,7 +81,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	if !foundView {
 		t.Fatal("view SELECT definition disappeared from the same canonical closure")
 	}
-	stage := e.BeginCatalogStage(view)
+	stage := e.BeginCatalogStage(catalogView)
 	if err := stageDropProvider(context.Background(), stage, nil, nil, nil).ApplyViewDependents([]ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}

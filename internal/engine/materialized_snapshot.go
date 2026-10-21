@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -18,7 +19,7 @@ import (
 // All rows and descriptors belong exclusively to Restore's isolated engine.
 // No public INSERT execution, authority relaxation or definition evaluation is
 // involved. The destination engine still receives one fenced replacement only.
-func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Operation, records []materializedSnapshot) error {
+func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -95,7 +96,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 					return fmt.Errorf("stuntgres: invalid materialized view snapshot row width")
 				}
 				for _, raw := range row {
-					if err := MaterializedSnapshotScalar(raw); err != nil {
+					if err := view.MaterializedSnapshotScalar(raw); err != nil {
 						return err
 					}
 				}

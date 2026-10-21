@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 )
 
 // preflightQuery retains schemas and source identity from analysis. Only paths
@@ -346,7 +347,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			// Use surviving scalar recipes, not dead conditional branches, to
 			// choose child payload demand. Scalar preparation keeps its usual
 			// precedence over opening/preparing the source.
-			demanded, err := RuleQueryProducerDemand(n, nil, 0)
+			demanded, err := view.RuleQueryProducerDemand(n, nil, 0)
 			if err != nil {
 				return nil, err
 			}

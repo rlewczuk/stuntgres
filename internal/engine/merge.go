@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -70,7 +71,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 				continue
 			}
 			defaultOwner := owner
-			applyDefaultOrigin(BindingDefaultOrigin(&arm.Input, j), &defaultOwner)
+			applyDefaultOrigin(view.BindingDefaultOrigin(&arm.Input, j), &defaultOwner)
 			arm.Input.Insert.Defaults[j], _, err = exec.PreflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err

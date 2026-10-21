@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -99,7 +100,7 @@ func preparedDefinitionStamp(d catalog.Descriptor, session *session.Session) ids
 func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationView, b analyze.Binding) (*preparedAnalysis, error) {
 	target := s.lockedRef
 	if b.ViewWrite != nil {
-		target = ViewWriteOf(b.ViewWrite).Logical.Ref
+		target = view.ViewWriteOf(b.ViewWrite).Logical.Ref
 	}
 	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.Session.SessionToken, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
 	seen := make(map[ids.ObjectRef]bool)

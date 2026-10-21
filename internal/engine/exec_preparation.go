@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,7 +29,7 @@ func (enginePreparation) PrepareDomainConversion(c *exec.Context, source, target
 }
 
 func (enginePreparation) SpecializeRuleParameters(c *exec.Context, e expr.Expr) (expr.Expr, bool, error) {
-	return SpecializeRuleParameterExpression(c, e)
+	return view.SpecializeRuleParameterExpression(c, e)
 }
 
 func (enginePreparation) DomainCatalog(c *exec.Context) catalog.Read {

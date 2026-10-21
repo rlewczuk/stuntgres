@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 )
 
 type catalogIndexFence struct {
@@ -165,7 +166,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		domainBases = nil
 	}
 	for _, source := range s.querySources {
-		if !MaterializedSourceCurrent(s.materializedOrZero().SourceView, source, current, e.stageStorageLocked(s, source.Address())) {
+		if !view.MaterializedSourceCurrent(s.materializedOrZero().SourceView, source, current, e.stageStorageLocked(s, source.Address())) {
 			return catalog.Conflict{}
 		}
 		if snapshot := s.materializedOrZero().SourceView; snapshot != nil {

@@ -6,15 +6,16 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
-func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *CatalogStage) []viewDependencyEdge {
+func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *CatalogStage) []view.DependencyEdge {
 	provider := &dropProvider{base: catalog, stage: stage}
 	return provider.viewClosure(targets)
 }
 
-func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDependencyEdge {
+func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []view.DependencyEdge {
 	var views []*catalog.Relation
 	for address, descriptor := range provider.Descriptors() {
 		if provider.Removed(address) {
@@ -34,14 +35,14 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 			seen[target] = true
 		}
 	}
-	var edges []viewDependencyEdge
+	var edges []view.DependencyEdge
 	var visit func(ids.ObjectAddress)
 	visit = func(target ids.ObjectAddress) {
-		for _, view := range views {
-			if !seen[view.Address()] && ViewDepends(view, target) {
-				seen[view.Address()] = true
-				edges = append(edges, viewDependencyEdge{view, target})
-				visit(view.Address())
+		for _, viewRelation := range views {
+			if !seen[viewRelation.Address()] && view.ViewDepends(viewRelation, target) {
+				seen[viewRelation.Address()] = true
+				edges = append(edges, view.DependencyEdge{View: viewRelation, Target: target})
+				visit(viewRelation.Address())
 			}
 		}
 	}

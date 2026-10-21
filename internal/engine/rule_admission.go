@@ -9,18 +9,19 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
 // Enter with Engine.mu held. Success retains it; failure releases it. This
 // acquires the original ticket's locks, not data views or command effects.
-func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *ruleProgram) ([]ids.ObjectRef, error) {
+func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *view.RuleProgram) ([]ids.ObjectRef, error) {
 	commands, events := program.Commands, program.Events
 	var seen map[*plan.CTEDefinition]bool
 	expanded := false
 	for i := 0; i < len(commands); i++ {
 		for _, definition := range commands[i].Binding.CTEs {
-			rewrite := RuleCTEsOf(commands[i].Binding.Rule.CTEs)[definition]
+			rewrite := view.RuleCTEsOf(commands[i].Binding.Rule.CTEs)[definition]
 			if rewrite == nil || seen[definition] {
 				continue
 			}
@@ -57,7 +58,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}{event.Ref, lock.AccessShare})
 	}
 	for _, command := range commands {
-		physical := PhysicalBinding(command.Binding)
+		physical := view.PhysicalBinding(command.Binding)
 		if physical.Relation != nil && physical.Relation.RelationKind != catalog.ViewRelation {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef

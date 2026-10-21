@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -121,10 +122,10 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 }
 
 func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
-	e, view, d := generatedUnitDescriptor(t)
-	view = view.WithState(catalog.CloneState(view.State()))
-	view.State().SetDescriptor(d.Address(), d)
-	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
+	e, catalogView, d := generatedUnitDescriptor(t)
+	catalogView = catalogView.WithState(catalog.CloneState(catalogView.State()))
+	catalogView.State().SetDescriptor(d.Address(), d)
+	ref := e.catalog.Domain.Ref(catalogView.Epoch(), d.Address())
 	origin := ref
 	origin.Address.SubID = 2
 	typ := d.Columns[0].Usage.Type
@@ -150,9 +151,9 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	definition := stored.NewView(stored.ViewParts{Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []stored.ViewLeaf{{Ref: ref}, {Ref: ref}}})
 	consumer := *d
 	consumer.View = stored.ViewPayload(definition)
-	w := &viewWrite{Layers: []viewWriteLayer{{Relation: &consumer}}}
+	w := &view.Write{Layers: []view.WriteLayer{{Relation: &consumer}}}
 	b := analyze.Binding{QuerySources: []exec.Leaf{{Ref: ref, Relation: d}}}
-	mapped, err := w.GraftQuery(&b, view, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
+	mapped, err := w.GraftQuery(&b, catalogView, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	innerAdd.Left = innerLeft
 	inner := &plan.ProjectNode{Frame: 8, Child: join, Expressions: []expr.Expr{innerAdd, innerRight}}
 	outer := &plan.ProjectNode{Frame: 4, Syntax: syntax, Child: &plan.DerivedNode{Query: &plan.Query{Root: inner}}}
-	derived, err := w.GraftQuery(&b, view, outer, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
+	derived, err := w.GraftQuery(&b, catalogView, outer, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/view"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -176,7 +177,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			continue
 		}
 		defaultEvaluation := evaluation
-		applyDefaultOrigin(BindingDefaultOrigin(&b, i), &defaultEvaluation)
+		applyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
 		folded, _, planErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 		if planErr != nil {
 			return 0, planErr
@@ -185,7 +186,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			return 0, planErr
 		}
 		b.Insert.Defaults[i] = folded
-		if constant, ok := folded.(plan.LiteralExpr); ok && constant.Value.IsNull() && BindingDefaultOrigin(&b, i).Definition.Expression == nil {
+		if constant, ok := folded.(plan.LiteralExpr); ok && constant.Value.IsNull() && view.BindingDefaultOrigin(&b, i).Definition.Expression == nil {
 			b.Insert.Defaults[i] = nil
 		}
 	}

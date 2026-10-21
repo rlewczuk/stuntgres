@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -31,10 +32,10 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 	}
 	assertTargets := func(auth AuthorizationView, want authorization.PrincipalRef) {
 		t.Helper()
-		if err := PolicyPreflight(op, auth.View, creation, false); err != nil {
+		if err := view.PolicyPreflight(op, auth.View, creation, false); err != nil {
 			t.Fatal("preflight", err)
 		}
-		roles, warning, err := ResolvePolicyRoles(auth.View, creation.Roles)
+		roles, warning, err := view.ResolvePolicyRoles(auth.View, creation.Roles)
 		if err != nil || warning || len(roles) != 3 {
 			t.Fatal("selector vector", roles, warning, err)
 		}

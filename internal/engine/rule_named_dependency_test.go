@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -65,7 +66,7 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 		for _, inferred := range []bool{false, true} {
 			t.Run(fmt.Sprintf("modifier=%v/inferred=%v", modifier, inferred), func(t *testing.T) {
 				e, _, event, parent := ruleNamedDependencyFixture(t, modifier, inferred)
-				view := e.CatalogRead()
+				catalogView := e.CatalogRead()
 				r, conflict := ruleNamedDependencyAction(t, event, modifier)
 				constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.Constraints.Unique[0].OID}
 				backing := parent.Constraints.Unique[0].Index
@@ -76,14 +77,14 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 				if conflict.Constraint != want || !inferred && conflict.NamedIndex != backing {
 					t.Fatal("named constraint/physical arbiter identity lost", conflict.Constraint, conflict.NamedIndex)
 				}
-				refs, err := RuleReferences(context.Background(), view, r)
+				refs, err := view.RuleReferences(context.Background(), catalogView, r)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if slices.Contains(refs, constraint) == inferred || slices.Contains(refs, backing) {
 					t.Fatal("actual collector confused named dependency with ordinary inference/backing index", refs)
 				}
-				stage := e.BeginCatalogStage(view)
+				stage := e.BeginCatalogStage(catalogView)
 				defer e.DiscardCatalogStage(stage)
 				edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{constraint, backing})
 				if err != nil {
@@ -263,7 +264,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			view := e.catalog.read(next)
+			catalogView := e.catalog.read(next)
 			mappedParent := next.MustRelation(parent.Address())
 			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: mappedParent.Constraints.Unique[0].OID}
 			if provider == oldConstraint {
@@ -306,14 +307,14 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 					t.Fatal("analyzed modifier consumer scan missing")
 				}
 			}
-			if err := stored.ValidateRules(view, mappedEvent); err != nil {
+			if err := stored.ValidateRules(catalogView, mappedEvent); err != nil {
 				t.Fatal(err)
 			}
-			refs, err := RuleReferences(context.Background(), view, mappedRule)
+			refs, err := view.RuleReferences(context.Background(), catalogView, mappedRule)
 			if err != nil || !slices.Contains(refs, provider) || slices.Contains(refs, oldConstraint) {
 				t.Fatal("remapped canonical collector retained obsolete identity", refs, err)
 			}
-			stage := e.BeginCatalogStage(view)
+			stage := e.BeginCatalogStage(catalogView)
 			defer e.DiscardCatalogStage(stage)
 			edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider})
 			if err != nil {

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -146,7 +147,7 @@ func prepareStoredExecutionRoot(c *exec.Context, definition *stored.View, output
 	demanded := definition.Query().Root
 	if project, ok := demanded.(*plan.ProjectNode); ok {
 		var err error
-		demanded, err = StoredProjectionDemand(project, outputUses)
+		demanded, err = view.StoredProjectionDemand(project, outputUses)
 		if err != nil {
 			return nil, nil, err
 		}

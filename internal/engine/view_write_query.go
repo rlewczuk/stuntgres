@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,10 +15,10 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	original := len(ViewWriteOf(b.ViewWrite).Logical.QuerySources)
+	original := len(view.ViewWriteOf(b.ViewWrite).Logical.QuerySources)
 	for i := original; i < len(b.QuerySources); i++ {
 		rewritten := false
-		for _, ordinal := range ViewWriteOf(b.ViewWrite).QueryOccurrences {
+		for _, ordinal := range view.ViewWriteOf(b.ViewWrite).QueryOccurrences {
 			if ordinal == i {
 				rewritten = true
 				break
@@ -28,11 +29,11 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 		}
 		source := &b.QuerySources[i]
 		source.Storage = e.privateStorageLocked(scope.owner.Catalog, source.Ref.Address)
-		for key, ordinal := range ViewWriteOf(b.ViewWrite).QueryOccurrences {
+		for key, ordinal := range view.ViewWriteOf(b.ViewWrite).QueryOccurrences {
 			if ordinal != i {
 				continue
 			}
-			for _, layer := range ViewWriteOf(b.ViewWrite).Layers {
+			for _, layer := range view.ViewWriteOf(b.ViewWrite).Layers {
 				if stored.ViewOf(layer.Relation) != key.Definition {
 					continue
 				}

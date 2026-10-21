@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -18,15 +19,15 @@ import (
 
 // Analyze once after admitting all body sources, before selecting the CREATE
 // destination. Keep inferred persistence and private namespace off the held AST.
-func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
+func (s *StatementScope) prepareViewCreation(createView *parser.CreateView) error {
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth, err := e.statementAuthorizationLocked(s.op, view)
+	auth, err := e.statementAuthorizationLocked(s.op, createView)
 	if err != nil {
 		return err
 	}
-	b, err := describe(s.op.Context(), e.analysisHost(s.op), view, auth, ids.ObjectRef{}, s.input, nil, &s.queryLockAdmission)
+	b, err := describe(s.op.Context(), e.analysisHost(s.op), createView, auth, ids.ObjectRef{}, s.input, nil, &s.queryLockAdmission)
 	if err != nil {
 		return err
 	}
@@ -36,12 +37,12 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if err := s.validateQuerySources(b.QuerySources); err != nil {
 		return err
 	}
-	if parser.HasModifyingCTE(view.Query) {
+	if parser.HasModifyingCTE(createView.Query) {
 		return sqlError("0A000", "views must not contain data-modifying statements in WITH")
 	}
-	persistence := RequestedViewPersistence(auth.Catalog, view, b.QuerySources)
-	if persistence == "temporary" && view.Persistence != "temporary" {
-		s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
+	persistence := view.RequestedViewPersistence(auth.Catalog, createView, b.QuerySources)
+	if persistence == "temporary" && createView.Persistence != "temporary" {
+		s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, createView.Name.Parts[len(createView.Name.Parts)-1].Text)})
 	}
 	projection, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
@@ -53,7 +54,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 		}
 	}
 	changes := s.owner.Catalog.Clone()
-	ns, err := e.relationCreationNamespaceLocked(auth, view.Name, persistence, changes)
+	ns, err := e.relationCreationNamespaceLocked(auth, createView.Name, persistence, changes)
 	if err != nil {
 		return err
 	}
@@ -76,7 +77,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	return nil
 }
 
-func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateView, count int) (Result, error) {
+func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.CreateView, count int) (Result, error) {
 	op := scope.op
 	e.mu.Lock()
 	if err := scope.validateLockedRelation(e); err != nil {
@@ -113,10 +114,10 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	name := view.Name.Parts[len(view.Name.Parts)-1].Text
+	name := createView.Name.Parts[len(createView.Name.Parts)-1].Text
 	var old *catalog.Relation
 	if address, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}); exists {
-		if !view.Replace {
+		if !createView.Replace {
 			e.mu.Unlock()
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
@@ -148,9 +149,9 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	// CREATE checks local declaration shape before options and replacement prefix.
-	for _, option := range view.Options {
+	for _, option := range createView.Options {
 		if option.Name.Text == "check_option" {
-			if err := stored.ValidateViewCheckDeclaration(stored.NewView(stored.ViewParts{Syntax: view.Query, Query: b.Query})); err != nil {
+			if err := stored.ValidateViewCheckDeclaration(stored.NewView(stored.ViewParts{Syntax: createView.Query, Query: b.Query})); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
@@ -158,11 +159,11 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		}
 	}
 	if old != nil {
-		if err := CheckViewOutputNames(b.Query.Root.Schema(), old); err != nil {
+		if err := view.CheckViewOutputNames(b.Query.Root.Schema(), old); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if err := CheckViewPrefix(auth.Catalog, old.Columns, b.Query.Root.Schema()); err != nil {
+		if err := view.CheckViewPrefix(auth.Catalog, old.Columns, b.Query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -180,19 +181,19 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	// Existing replacement shape errors precede the creation-only VOID
 	// boundary. Appended VOID columns and CREATE OR REPLACE of a missing
 	// destination still fail before a catalog stage can publish anything.
-	if view.Replace {
+	if createView.Replace {
 		if err := analyze.CheckViewOutputTypes(b.Query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	barrier, invoker, mode, err := stored.ViewOptions(view.Options)
+	barrier, invoker, mode, err := stored.ViewOptions(createView.Options)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
 	if old == nil {
-		if err := CheckViewOutputNames(b.Query.Root.Schema(), nil); err != nil {
+		if err := view.CheckViewOutputNames(b.Query.Root.Schema(), nil); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -230,14 +231,14 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewCreationOrZero().Persistence == "temporary")
+	definition, err := e.freezeViewDefinitionLocked(auth, createView.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewCreationOrZero().Persistence == "temporary")
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
 	definition = definition.With(func(p *stored.ViewParts) {
 		p.CheckOption = mode
-		p.Options = TransformViewOptions(nil, view.Options, false)
+		p.Options = view.TransformViewOptions(nil, createView.Options, false)
 		p.QuoteRevision = revision
 	})
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: stored.ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.Query.Root.Schema()))}
@@ -316,17 +317,17 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 }
 
 // viewCreation returns the statement's viewCreation slot, allocating it on first use.
-func (s *StatementScope) viewCreation() *viewCreationScope {
+func (s *StatementScope) viewCreation() *view.CreationScope {
 	if s.viewCreationSlot == nil {
-		s.viewCreationSlot = new(viewCreationScope)
+		s.viewCreationSlot = new(view.CreationScope)
 	}
 	return s.viewCreationSlot
 }
 
 // viewCreationOrZero reads the viewCreation slot; a nil slot reads as zero.
-func (s *StatementScope) viewCreationOrZero() viewCreationScope {
+func (s *StatementScope) viewCreationOrZero() view.CreationScope {
 	if s.viewCreationSlot == nil {
-		return viewCreationScope{}
+		return view.CreationScope{}
 	}
 	return *s.viewCreationSlot
 }

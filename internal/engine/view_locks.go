@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -145,7 +146,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	catalogView = e.privateCatalogLocked(s.owner.Catalog)
 	if s.materializedOrZero().Refresh {
 		for _, observed := range s.materializedOrZero().Sources {
-			if !MaterializedSourceCurrent(s.materializedOrZero().SourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.Catalog, observed.Address())) {
+			if !view.MaterializedSourceCurrent(s.materializedOrZero().SourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.Catalog, observed.Address())) {
 				return ids.ErrCatalogReplaced
 			}
 		}

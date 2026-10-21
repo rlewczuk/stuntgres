@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/access"
@@ -133,7 +134,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if (r.Security.RLSEnabled || r.Security.RLSForced) && r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation {
 		return fmt.Errorf("stuntgres: row-security flags require a table")
 	}
-	if err := ValidatePolicies(v, r); err != nil {
+	if err := view.ValidatePolicies(v, r); err != nil {
 		return err
 	}
 	if err := stored.ValidateRules(v, r); err != nil {
@@ -195,7 +196,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		return nil
 	}
 	if r.RelationKind == catalog.ViewRelation || r.RelationKind == catalog.MaterializedViewRelation {
-		return ValidateViewDefinition(v, r)
+		return view.ValidateViewDefinition(v, r)
 	}
 	names := make(map[string]bool, len(r.Constraints.NotNull))
 	attrs := make(map[int32]bool, len(r.Constraints.NotNull))
@@ -383,7 +384,7 @@ type CatalogStage struct {
 	querySources     []catalog.Descriptor
 	tableSlot        *table.Stage
 	indexesSlot      *index.Stage
-	materializedSlot *materializedStage
+	materializedSlot *view.MaterializedStage
 }
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
@@ -803,7 +804,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			return ChangeSet{}, err
 		}
 		for _, source := range s.querySources {
-			if !MaterializedSourceCurrent(s.materializedOrZero().SourceView, source, current, currentStorage[source.Address()]) {
+			if !view.MaterializedSourceCurrent(s.materializedOrZero().SourceView, source, current, currentStorage[source.Address()]) {
 				e.mu.Unlock()
 				return ChangeSet{}, catalog.Conflict{}
 			}
@@ -841,7 +842,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 					if descriptor == s.Base.Get(address) {
 						continue
 					}
-					if relation, ok := descriptor.(*catalog.Relation); ok && MaterializedExtensionDepends(relation, a) {
+					if relation, ok := descriptor.(*catalog.Relation); ok && view.MaterializedExtensionDepends(relation, a) {
 						e.mu.Unlock()
 						return ChangeSet{}, catalog.Conflict{}
 					}
@@ -1074,7 +1075,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
-				if err := ValidatePolicies(e.catalog.read(next), relation); err != nil {
+				if err := view.ValidatePolicies(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
@@ -1083,8 +1084,8 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 					return ChangeSet{}, err
 				}
 			}
-			if view, ok := descriptor.(*catalog.Relation); ok && view.View != nil {
-				if err := ValidateViewDefinition(e.catalog.read(next), view); err != nil {
+			if viewRelation, ok := descriptor.(*catalog.Relation); ok && viewRelation.View != nil {
+				if err := view.ValidateViewDefinition(e.catalog.read(next), viewRelation); err != nil {
 					return ChangeSet{}, err
 				}
 			}

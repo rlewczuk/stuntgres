@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 )
 
 // dumpSection is one fixed part of the Dump script.
@@ -126,7 +127,7 @@ func emitDumpMaterializedSnapshots(ctx context.Context, s *dumpScript, w *dumpWr
 		return strings.Compare(a.Name, b.Name)
 	})
 	for i := range s.materialized {
-		if err := EmitMaterializedSnapshot(ctx, &s.materialized[i], s.originalCatalog, w.emit); err != nil {
+		if err := view.EmitMaterializedSnapshot(ctx, &s.materialized[i], s.originalCatalog, w.emit); err != nil {
 			return err
 		}
 	}

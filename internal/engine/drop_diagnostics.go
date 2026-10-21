@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -168,7 +169,7 @@ type supportedDependent struct {
 
 // Walk the existing immediate-provider edges depth-first. Genuine identities
 // order mixed siblings; same-owner CHECK siblings retain declaration order.
-func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []viewDependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, foreign ...table.DomainDependency) []supportedDependent {
+func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []view.DependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, foreign ...table.DomainDependency) []supportedDependent {
 	policyTargets := targets
 	if len(views) != 0 {
 		policyTargets = make([]ids.ObjectAddress, len(targets), len(targets)+len(views))
@@ -183,7 +184,7 @@ func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress,
 }
 
 // Other labels are captured before CASCADE mutates policy and rule metadata.
-func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []viewDependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, other []supportedDependent, foreign ...table.DomainDependency) []supportedDependent {
+func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []view.DependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, other []supportedDependent, foreign ...table.DomainDependency) []supportedDependent {
 	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
@@ -242,7 +243,7 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 	return ordered
 }
 
-func supportedRestrictErrorLabels(catalog catalog.Read, views []viewDependencyEdge, path []ids.ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
+func supportedRestrictErrorLabels(catalog catalog.Read, views []view.DependencyEdge, path []ids.ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
 		provider := dependencyObject(catalog, dependent.target, path)
@@ -284,7 +285,7 @@ func ruleDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path
 	return ruleDependentLabelsFrom(catalog, targets, path, catalog.Descriptors(), nil)
 }
 
-func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
+func ruleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*catalog.Relation)
@@ -293,11 +294,11 @@ func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, pat
 		}
 		for _, r := range stored.RulesOf(d) {
 			for _, target := range targets {
-				if RuleDepends(view, r, target) {
+				if view.RuleDepends(catalogView, r, target) {
 					if observe != nil {
 						observe(d.Address())
 					}
-					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)})
+					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(catalogView, d, path)})
 					break
 				}
 			}
@@ -310,7 +311,7 @@ func policyDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, pa
 	return policyDependentLabelsFrom(catalog, targets, path, catalog.Descriptors())
 }
 
-func policyDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []supportedDependent {
+func policyDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*catalog.Relation)
@@ -322,8 +323,8 @@ func policyDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, p
 		}
 		for _, p := range d.Security.Policies {
 			for _, target := range targets {
-				if PolicyDepends(p, target) {
-					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + dependencyRelationName(view, d, path)})
+				if view.PolicyDepends(p, target) {
+					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + dependencyRelationName(catalogView, d, path)})
 					break
 				}
 			}

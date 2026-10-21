@@ -1,0 +1,350 @@
+package view
+
+import (
+	"slices"
+
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
+)
+
+// Demand is derived from typed NEW references before substitution. The ordinary
+// stored projection planner also retains volatile outputs and clause caches.
+func ruleProducerOutputUses(original analyze.Binding, rule stored.Rule, action analyze.Binding) []int {
+	uses := []int{}
+	inspect := func(bound expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
+			column, ok := node.(plan.ColumnExpr)
+			if !ok || column.Scope != analyze.RulePseudoScope || column.Frame != 2 {
+				return
+			}
+			target := slices.Index(original.Relation.Attributes, column.Origin.Address.SubID)
+			for output, slot := range original.Targets {
+				if slot == target && !slices.Contains(uses, output) {
+					uses = append(uses, output)
+				}
+			}
+		})
+	}
+	query := func(root plan.Node) { plan.VisitCTEQuery(root, func(plan.Node) {}, inspect, true) }
+	expression := func(bound expr.Expr) {
+		if bound != nil {
+			query(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
+		}
+	}
+	targets := func(items []*plan.ArrayAssignmentTarget) {
+		for _, target := range items {
+			for ; target != nil; target = target.Next {
+				for _, sub := range target.Node.Subscripts {
+					expression(sub.Lower)
+					expression(sub.Upper)
+				}
+			}
+		}
+	}
+	expression(rule.Condition())
+	if rule.ConditionBinding() != nil && rule.ConditionBinding().Query != nil {
+		query(rule.ConditionBinding().Query.Root)
+	}
+	if action.Query != nil {
+		query(action.Query.Root)
+	}
+	for _, row := range action.Expressions {
+		for _, expr := range row {
+			expression(expr)
+		}
+	}
+	expression(action.Predicate)
+	query(action.Delete.Using)
+	targets(action.ArrayTargets)
+	if action.Update != nil {
+		query(action.Update.From)
+		expression(action.Update.Predicate)
+		for _, expr := range action.Update.Assignments {
+			expression(expr)
+		}
+		targets(action.Update.ArrayTargets)
+	}
+	if action.Returning != nil {
+		for _, expr := range action.Returning.Expressions {
+			expression(expr)
+		}
+	}
+	if action.Insert.Conflict != nil {
+		expression(action.Insert.Conflict.Predicate)
+		for _, key := range action.Insert.Conflict.Keys {
+			expression(key.Expression)
+		}
+		if action.Insert.Conflict.Update != nil {
+			expression(action.Insert.Conflict.Update.Predicate)
+			for _, expr := range action.Insert.Conflict.Update.Assignments {
+				expression(expr)
+			}
+			targets(action.Insert.Conflict.Update.ArrayTargets)
+		}
+	}
+	return uses
+}
+
+// Apply ordinary projection liveness at each derived producer boundary before
+// rule-program static preparation. Slots are interpreted in their retained
+// lexical input frame, including the offset contributed by preceding join arms.
+// Analysis-only expressions are not executable demand.
+func RuleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), targetPrefix int) (plan.Node, error) {
+	type producer struct {
+		frame   uint32
+		offset  int
+		demand  []bool
+		project *plan.ProjectNode
+		uses    []int
+		active  bool
+		dirty   bool
+	}
+	var producers []*producer
+	bySource := make(map[plan.Node]*producer)
+	var collect func(plan.Node, int, uint32, uint32)
+	collect = func(node plan.Node, offset int, exposedFrame, inputFrame uint32) {
+		if node == nil {
+			return
+		}
+		if derived, ok := node.(*plan.DerivedNode); ok {
+			if bySource[derived] != nil || derived.Query == nil {
+				return
+			}
+			project, ok := derived.Query.Root.(*plan.ProjectNode)
+			if !ok {
+				return
+			}
+			frame := derived.ScanFrame
+			if frame == 0 {
+				// Synthetic producers inherit their consumer's current frame;
+				// zero is not a separate lexical namespace.
+				frame = inputFrame
+			}
+			item := &producer{frame: frame, offset: offset, demand: derived.Demand, project: project, uses: []int{}}
+			bySource[derived] = item
+			producers = append(producers, item)
+			// openDerivedNode creates a fresh inner query state. Its project
+			// supplies an explicit frame or uses the ordinary default frame.
+			collect(project, 0, 0, 1)
+			return
+		}
+		if project, projected := node.(*plan.ProjectNode); projected {
+			if exposedFrame != 0 && bySource[project] == nil {
+				// A join arm consumes this projection's output in the enclosing
+				// frame; its payload reads its own local input frame.
+				item := &producer{frame: exposedFrame, offset: offset, project: project, uses: []int{}}
+				bySource[project] = item
+				producers = append(producers, item)
+			}
+			// A projection's child owns a local input frame, even when the
+			// projected output follows another arm in a correlated join.
+			offset = 0
+			if project.Frame != 0 {
+				inputFrame = project.Frame
+			}
+		}
+		left, right := plan.QueryInputs(node)
+		if join, joined := node.(*plan.JoinNode); joined {
+			frame := inputFrame
+			if join.Frame != 0 {
+				frame = join.Frame
+			}
+			collect(left, offset, frame, frame)
+			collect(right, offset+len(left.Schema()), frame, frame)
+		} else {
+			collect(left, offset, 0, inputFrame)
+			collect(right, offset, 0, inputFrame)
+		}
+		plan.QueryExpressions(node, func(expression expr.Expr) {
+			plan.WalkDemandedExpression(expression, func(node expr.Expr) {
+				if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEEdge && subquery.QueryPlan != nil {
+					collect(subquery.QueryPlan.Root, 0, 0, 1)
+				}
+			})
+		})
+	}
+	collect(root, 0, 0, 1)
+	if len(producers) == 0 {
+		return root, nil
+	}
+	var queue []*producer
+	enqueue := func(item *producer) {
+		if !item.dirty {
+			item.dirty = true
+			queue = append(queue, item)
+		}
+	}
+	activate := func(item *producer) {
+		if item == nil || item.active {
+			return
+		}
+		item.active = true
+		for slot, used := range item.demand {
+			if used {
+				item.uses = append(item.uses, slot)
+			}
+		}
+		enqueue(item)
+	}
+	var failure error
+	var observe func(plan.Node)
+	var inspect func(expr.Expr, int)
+	inspect = func(expression expr.Expr, prefix int) {
+		plan.WalkDemandedExpression(expression, func(node expr.Expr) {
+			if column, ok := node.(plan.ColumnExpr); ok {
+				for _, item := range producers {
+					slot := column.Slot - prefix - item.offset
+					if column.Frame != item.frame || slot < 0 || slot >= len(item.project.Expressions) {
+						continue
+					}
+					activate(item)
+					if !slices.Contains(item.uses, slot) {
+						item.uses = append(item.uses, slot)
+						enqueue(item)
+					}
+				}
+			}
+			if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEEdge && subquery.QueryPlan != nil {
+				observe(subquery.QueryPlan.Root)
+			}
+		})
+	}
+	observe = func(node plan.Node) {
+		if node == nil || failure != nil {
+			return
+		}
+		if item := bySource[node]; item != nil {
+			activate(item)
+			return
+		}
+		switch n := node.(type) {
+		case *plan.DerivedNode:
+			// Modifying scans have no SELECT graph and retain their spool key.
+			return
+		case *plan.ProjectNode:
+			failure = storedProjectionDemandExpressions(n, nil, func(expression expr.Expr) {
+				inspect(expression, 0)
+			}, observe)
+		default:
+			plan.QueryExpressions(node, func(expression expr.Expr) { inspect(expression, 0) })
+			left, right := plan.QueryInputs(node)
+			observe(left)
+			observe(right)
+		}
+	}
+	observe(root)
+	if external != nil {
+		external(func(expression expr.Expr) { inspect(expression, targetPrefix) })
+	}
+	// Original immutable recipes remain intact until liveness converges. A
+	// retained payload can read a supplier in an outer lexical frame; each new
+	// output use enqueues that supplier, never its executed rows or invocation.
+	for next := 0; next < len(queue) && failure == nil; next++ {
+		item := queue[next]
+		item.dirty = false
+		failure = storedProjectionDemandExpressions(item.project, item.uses, func(expression expr.Expr) {
+			inspect(expression, 0)
+		}, observe)
+	}
+	if failure != nil {
+		return nil, failure
+	}
+	uses := make(map[*plan.ProjectNode][]int)
+	for _, item := range producers {
+		if !item.active {
+			continue
+		}
+		current, found := uses[item.project]
+		if !found {
+			current = []int{}
+		}
+		for _, slot := range item.uses {
+			if !slices.Contains(current, slot) {
+				current = append(current, slot)
+			}
+		}
+		uses[item.project] = current
+	}
+	pruned := make(map[*plan.ProjectNode]*plan.ProjectNode)
+	for project, outputUses := range uses {
+		demanded, err := StoredProjectionDemand(project, outputUses)
+		if err != nil {
+			return nil, err
+		}
+		if demanded != project {
+			pruned[project] = demanded
+		}
+	}
+	if len(pruned) == 0 {
+		return root, nil
+	}
+	identity := func(expression expr.Expr) (expr.Expr, bool, error) { return expression, false, nil }
+	var rewrite func(plan.Node) (plan.Node, error)
+	rewrite = func(node plan.Node) (plan.Node, error) {
+		project, ok := node.(*plan.ProjectNode)
+		if !ok || pruned[project] == nil {
+			return node, nil
+		}
+		copy := *pruned[project]
+		child, err := plan.RewriteQueryExpressions(copy.Child, identity, rewrite)
+		if err != nil {
+			return nil, err
+		}
+		copy.Child = child
+		return &copy, nil
+	}
+	return plan.RewriteQueryExpressions(root, identity, rewrite)
+}
+
+// Mutation consumers live outside their FROM/USING query root. Pass those real
+// expressions into the same liveness pass, without inventing a project/provider
+// or moving their execution frontier into the source.
+func RuleMutationProducerDemand(b analyze.Binding) (analyze.Binding, error) {
+	root := b.Delete.Using
+	if b.Update != nil {
+		root = b.Update.From
+	}
+	if root == nil {
+		return b, nil
+	}
+	mapped, err := RuleQueryProducerDemand(root, func(visit func(expr.Expr)) {
+		targets := b.ArrayTargets
+		if b.Update != nil {
+			for _, expression := range b.Update.Assignments {
+				visit(expression)
+			}
+			visit(b.Update.Predicate)
+			targets = b.Update.ArrayTargets
+		} else {
+			visit(b.Predicate)
+		}
+		for _, target := range targets {
+			for ; target != nil; target = target.Next {
+				for _, subscript := range target.Node.Subscripts {
+					visit(subscript.Lower)
+					visit(subscript.Upper)
+				}
+			}
+		}
+		if b.Returning != nil {
+			for _, expression := range b.Returning.Expressions {
+				visit(expression)
+			}
+		}
+	}, len(b.Relation.Columns))
+	if err != nil {
+		return analyze.Binding{}, err
+	}
+	if mapped != root {
+		if b.Update != nil {
+			copy := *b.Update
+			copy.From = mapped
+			b.Update = &copy
+		} else {
+			b.Delete.Using = mapped
+		}
+	}
+	return b, nil
+}
