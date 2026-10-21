@@ -20,26 +20,46 @@ type partitionRoutineIdentity struct {
 	ri    bool
 }
 
+// partitionRecipeHost is the statement state a partition key recipe reads
+// through its evaluation's live host. The root implements it on statementHost;
+// without a statement host the recipe runs uncached under the evaluation's own
+// routine program.
+type partitionRecipeHost interface {
+	// CommandIdentity is the statement's transaction and command identity.
+	CommandIdentity() ids.CommandIdentity
+	// PreparedDomainChecks are the statement's prepared domain check programs.
+	PreparedDomainChecks() map[*catalog.Type]exec.DomainCheckProgram
+	// ReferentialActor is the current user of the referential action
+	// authority; false outside a referential action.
+	ReferentialActor() (authorization.PrincipalRef, bool)
+	// PartitionPrograms returns the consumed recipe programs of identity, or nil.
+	PartitionPrograms(identity partitionRoutineIdentity) []expr.Expr
+	// RecordPartitionPrograms caches the programs of identity and records their
+	// routine admission among the statement's consumed routine programs.
+	RecordPartitionPrograms(identity partitionRoutineIdentity, expressions []expr.Expr, admission exec.RoutineProgram)
+}
+
 func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
 	key := owner.Partition.Keys[keyIndex].Derived
 	local := indexRecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1
-	scope := scopeOf(local.LiveHost())
-	if scope != nil {
-		local.DomainPhase = ids.CommandIdentity{Transaction: scope.txRef, Command: scope.command}
-		local.PreparedDomainChecks = scope.domains.preparedChecks
+	host, _ := local.LiveHost().(partitionRecipeHost)
+	if host != nil {
+		local.DomainPhase = host.CommandIdentity()
+		local.PreparedDomainChecks = host.PreparedDomainChecks()
 	}
 	auth, _, err := exec.RoutineAdmissionAuthority(&local)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	identity := partitionRoutineIdentity{owner: owner, phase: local.DomainPhase, actor: auth.State.CurrentUser}
-	if scope != nil {
-		identity.ri = scope.foreignActionAuth != nil && scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
+	if host != nil {
+		actor, ok := host.ReferentialActor()
+		identity.ri = ok && actor == auth.State.CurrentUser
 	}
 	var expressions []expr.Expr
-	if scope != nil {
-		expressions = scope.partitionsOrZero().programs[identity]
+	if host != nil {
+		expressions = host.PartitionPrograms(identity)
 	}
 	if expressions == nil {
 		var admission exec.RoutineProgram
@@ -54,12 +74,8 @@ func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, 
 				return sqltype.Value{}, err
 			}
 		}
-		if scope != nil {
-			if scope.partitionsOrZero().programs == nil {
-				scope.partitions().programs = make(map[partitionRoutineIdentity][]expr.Expr)
-			}
-			scope.partitions().programs[identity] = expressions
-			scope.routinePrograms = append(scope.routinePrograms, commandRoutineProgram{admission: admission})
+		if host != nil {
+			host.RecordPartitionPrograms(identity, expressions, admission)
 		} else if program := local.RoutineProgram; program != nil {
 			program.Include(&admission)
 		}
