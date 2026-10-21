@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -25,7 +26,7 @@ type restoredForeignKey struct {
 }
 type restoredForeignKeys struct {
 	child       ids.ObjectRef
-	auth        AuthorizationView
+	auth        ddl.Authority // The declaring principal; root staging recovers it.
 	definitions []restoredForeignKey
 }
 
@@ -50,7 +51,7 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 	defer e.mu.Unlock()
 	for i := range pending.definitions {
 		definition := &pending.definitions[i]
-		path, err := e.lookupNamespacesSnapshot(pending.auth, definition.raw.Target, analyze.RelationLookup)
+		path, err := e.lookupNamespacesSnapshot(ddlAuthorityOf(pending.auth), definition.raw.Target, analyze.RelationLookup)
 		if err != nil {
 			return err
 		}
@@ -59,7 +60,7 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 			namespace := path.At(at)
 			definition.path[at] = namespace
 			if definition.target == (ids.ObjectAddress{}) {
-				definition.target = pending.auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text})
+				definition.target = ddlAuthorityOf(pending.auth).Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text})
 			}
 		}
 	}
@@ -135,7 +136,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 				e.mu.Unlock()
 				return ids.ErrCatalogReplaced
 			}
-			if err := e.stageForeignKey(declaration.auth, stage, child, definition.raw, target, definition.supporting); err != nil {
+			if err := e.stageForeignKey(ddlAuthorityOf(declaration.auth), stage, child, definition.raw, target, definition.supporting); err != nil {
 				e.mu.Unlock()
 				return err
 			}
@@ -152,7 +153,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 	view := e.stageRead(stage)
 	for _, declaration := range pending {
 		child := view.MustRelation(declaration.child.Address)
-		auth := declaration.auth
+		auth := ddlAuthorityOf(declaration.auth)
 		auth.Catalog = view
 		auth.Recapture(auth.Catalog)
 		for _, definition := range declaration.definitions {
@@ -201,7 +202,7 @@ func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, 
 		any, all := foreignKeyNullState(comparisons, row.Values)
 		if any {
 			if f.Full && !all {
-				return false, foreignKeyDiagnostic(ctx, auth, child, parent, f, row.Values, false, true, output)
+				return false, foreignKeyDiagnostic(ctx, auth.View, auth, child, parent, f, row.Values, false, true, output)
 			}
 			return false, nil
 		}
@@ -214,7 +215,7 @@ func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, 
 		}
 		found := matching.Row != 0
 		if !found {
-			return false, foreignKeyDiagnostic(ctx, auth, child, parent, f, row.Values, false, false, output)
+			return false, foreignKeyDiagnostic(ctx, auth.View, auth, child, parent, f, row.Values, false, false, output)
 		}
 		return false, nil
 	})

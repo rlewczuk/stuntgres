@@ -281,19 +281,19 @@ func uniqueHasNull(key []sqltype.Value) bool {
 }
 
 // DDL ownership is independent of ordinary key SELECT disclosure rights.
-func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []catalog.IndexKey) (bool, error) {
+func uniqueKeyDetailAllowed(view access.View, env access.Environment, ref ids.ObjectRef, keys []catalog.IndexKey) (bool, error) {
 	// RLS applicability is captured metadata/role authority, not a policy-row
 	// evaluation. Table SELECT alone cannot reveal a hidden physical key.
-	descriptor, ok := auth.Catalog.Descriptor(ref.Address)
+	descriptor, ok := view.Catalog.Descriptor(ref.Address)
 	parent, relation := descriptor.(*catalog.Relation)
 	if !ok || !relation {
 		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
 	}
-	decision, err := access.RowSecurityDecision(auth.Roles, parent, auth.State.CurrentUser, catalog.PolicySelect, false)
+	decision, err := access.RowSecurityDecision(view.Roles, parent, view.State.CurrentUser, catalog.PolicySelect, false)
 	if err != nil || decision != access.RLSUnrestricted {
 		return false, err
 	}
-	rights, err := auth.Effective(ref, false)
+	rights, err := view.Effective(env, ref, false)
 	if err != nil {
 		return false, err
 	}
@@ -312,7 +312,7 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []ca
 		}
 		column := ref
 		column.Address.SubID = attribute
-		rights, err := auth.Effective(column, false)
+		rights, err := view.Effective(env, column, false)
 		if err != nil {
 			return false, err
 		}
@@ -428,7 +428,7 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 		allowed := auth == nil || auth.engine == nil // Trusted publication has no SQL principal.
 		if auth != nil && auth.engine != nil {
 			ref := auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), parent.Address())
-			allowed, err = uniqueKeyDetailAllowed(*auth, ref, d.Keys)
+			allowed, err = uniqueKeyDetailAllowed(auth.View, *auth, ref, d.Keys)
 			if err != nil {
 				return err
 			}

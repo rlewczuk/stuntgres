@@ -294,7 +294,7 @@ func (s *StatementScope) checkForeignKeys() error {
 			any, all := foreignKeyNullState(job.comparisons, row.Values)
 			if any {
 				if f.Full && !all {
-					return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.Values, false, true, s.output)
+					return foreignKeyDiagnostic(s.op.Context(), childAuth.View, childAuth, job.child, job.parent, f, row.Values, false, true, s.output)
 				}
 				continue
 			}
@@ -327,7 +327,7 @@ func (s *StatementScope) checkForeignKeys() error {
 				return err
 			}
 			if !found {
-				return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.Values, false, false, s.output)
+				return foreignKeyDiagnostic(s.op.Context(), childAuth.View, childAuth, job.child, job.parent, f, row.Values, false, false, s.output)
 			}
 		}
 		checkOld := func(old storage.RowVersion) error {
@@ -340,7 +340,7 @@ func (s *StatementScope) checkForeignKeys() error {
 				if err != nil || found {
 					return false, err
 				}
-				return false, foreignKeyDiagnostic(s.op.Context(), parentAuth, job.child, job.parent, f, old.Values, true, false, s.output)
+				return false, foreignKeyDiagnostic(s.op.Context(), parentAuth.View, parentAuth, job.child, job.parent, f, old.Values, true, false, s.output)
 			})
 		}
 		for _, row := range parentRows.staged {

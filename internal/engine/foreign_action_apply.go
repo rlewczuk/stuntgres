@@ -176,7 +176,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err != nil || !match {
 				return false, err
 			}
-			d := foreignKeyDiagnostic(s.op.Context(), reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
+			d := foreignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
 			var diagnostic *sqlstate.Error
 			if !errors.As(d, &diagnostic) {
 				return false, d
@@ -372,7 +372,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err != nil || found {
 				return false, err
 			}
-			return false, foreignKeyDiagnostic(s.op.Context(), reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
+			return false, foreignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
 		})
 	}
 	return nil

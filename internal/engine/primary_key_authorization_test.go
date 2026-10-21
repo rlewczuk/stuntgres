@@ -59,7 +59,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				allowed, err := uniqueKeyDetailAllowed(auth, e.catalog.Domain.Ref(view.Epoch(), parent.Address()), index.SQLIndex.Keys)
+				allowed, err := uniqueKeyDetailAllowed(auth.View, auth, e.catalog.Domain.Ref(view.Epoch(), parent.Address()), index.SQLIndex.Keys)
 				if err != nil || allowed != (mode == "keys" || mode == "table") {
 					t.Fatal("actual current key disclosure authority", allowed, err)
 				}

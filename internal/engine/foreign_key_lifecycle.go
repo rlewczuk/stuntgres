@@ -452,7 +452,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if _, err := bindForeignKeyComparison(auth.Catalog, child, parent, index, f); err != nil {
 				return err
 			}
-			if err := foreignKeyReferencesAllowed(auth, parent, f.Referenced); err != nil {
+			if err := foreignKeyReferencesAllowed(auth.View, auth, parent, f.Referenced); err != nil {
 				return err
 			}
 		}

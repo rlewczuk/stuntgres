@@ -167,7 +167,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 	if err != nil {
 		return restoredForeignKeys{}, false, err
 	}
-	auth := pending.auth
+	auth := ddlAuthorityOf(pending.auth)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if !partitionConstraintReplayImport(e, op, auth) {
@@ -262,10 +262,10 @@ func inheritedForeignRelationUnchanged(current, before *catalog.Relation) bool {
 // Comments and final attribute-rank repairs do not alter these key/provider
 // observations. No later key, owner, type or provider incarnation can reuse them.
 func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *session.Operation, declaration restoredForeignKeys, view catalog.Read) error {
-	auth := declaration.auth
+	auth := ddlAuthorityOf(declaration.auth)
 	auth.Catalog = view
 	auth.Recapture(view)
-	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.Domain || receipt.target.Domain() != e.catalog.Domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.RoleRecord != e.roles.published || !partitionConstraintReplayImport(e, op, auth) {
+	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.Domain || receipt.target.Domain() != e.catalog.Domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || auth.RoleRecord != e.roles.published || !partitionConstraintReplayImport(e, op, auth) {
 		return ids.ErrCatalogReplaced
 	}
 	source, _ := view.Relation(receipt.source.Address)

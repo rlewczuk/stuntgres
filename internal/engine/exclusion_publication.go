@@ -21,7 +21,7 @@ func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation,
 		catalog = auth.Catalog
 		if auth.engine != nil {
 			ref := catalog.Owner().Domain.Ref(catalog.Epoch(), parent.Address())
-			allowed, err = uniqueKeyDetailAllowed(*auth, ref, index.SQLIndex.Keys)
+			allowed, err = uniqueKeyDetailAllowed(auth.View, *auth, ref, index.SQLIndex.Keys)
 			if err != nil {
 				return err
 			}
