@@ -3,11 +3,11 @@ package engine
 import (
 	"fmt"
 	"sort"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -65,82 +65,9 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	case "schema":
 		return e.alterSchemaLocked(scope, scope.op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
 	}
-	next := *old
-	changed := true
-	var extension *catalog.Extension
-	switch s.Action {
-	case "depends", "no_depends":
-		address, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Target.Text})
-		if !exists {
-			return fail(sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Target.Text)))
-		}
-		extension, _ = auth.Catalog.Extension(address)
-		if extension == nil {
-			return fail(ids.ErrCatalogReplaced)
-		}
-		slot := sort.Search(len(old.AutoExtensions), func(i int) bool { return old.AutoExtensions[i].ObjectID >= address.ObjectID })
-		present := slot < len(old.AutoExtensions) && old.AutoExtensions[slot] == address
-		changed = present == (s.Action == "no_depends")
-		if changed {
-			if present {
-				next.AutoExtensions = make([]ids.ObjectAddress, len(old.AutoExtensions)-1)
-				copy(next.AutoExtensions, old.AutoExtensions[:slot])
-				copy(next.AutoExtensions[slot:], old.AutoExtensions[slot+1:])
-			} else {
-				next.AutoExtensions = make([]ids.ObjectAddress, len(old.AutoExtensions)+1)
-				copy(next.AutoExtensions, old.AutoExtensions[:slot])
-				next.AutoExtensions[slot] = address
-				copy(next.AutoExtensions[slot+1:], old.AutoExtensions[slot:])
-			}
-		}
-	case "set", "reset":
-		definition := stored.ViewOf(old).Parts()
-		if s.Action == "set" {
-			barrier, invoker, mode, err := stored.ViewOptions(s.Options)
-			if err != nil {
-				return fail(err)
-			}
-			for _, option := range s.Options {
-				switch option.Name.Text {
-				case "security_barrier":
-					definition.Barrier = barrier
-				case "security_invoker":
-					definition.Invoker = invoker
-				case "check_option":
-					definition.CheckOption = mode
-				}
-			}
-		} else {
-			for _, option := range s.Options {
-				if option.HasValue {
-					return fail(sqlError("42601", "RESET must not include values for parameters"))
-				}
-				switch option.Name.Text {
-				case "security_barrier":
-					definition.Barrier = false
-				case "security_invoker":
-					definition.Invoker = false
-				case "check_option":
-					definition.CheckOption = stored.CheckNone
-				}
-			}
-		}
-		definition.Options = view.TransformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
-		altered := stored.NewView(definition)
-		if altered.CheckOption() != stored.CheckNone {
-			if err := stored.ValidateViewCheckDeclaration(altered); err != nil {
-				return fail(err)
-			}
-		}
-		next.View = altered
-	default:
-		return fail(sqlError("0A000", "ALTER VIEW action is unsupported"))
-	}
-	if changed {
-		next.ObjectRevision, err = e.catalog.revisionLocked()
-		if err != nil {
-			return fail(err)
-		}
+	next, extension, err := alterViewChange(ddlHost{e: e, op: scope.op}, auth.Catalog, old, s)
+	if err != nil {
+		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
@@ -153,8 +80,8 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		scope.replacementRead = false
 	}
 	defer e.DiscardCatalogStage(stage)
-	if changed {
-		err = stage.Replace(&next)
+	if next != nil {
+		err = stage.Replace(next)
 	}
 	if err == nil {
 		var prepared *PreparedCatalogPublication
@@ -181,48 +108,14 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	kind, label := catalog.ViewRelation, "view"
-	if s.Materialized {
-		kind, label = catalog.MaterializedViewRelation, "materialized view"
+	refs, notices, err := dropViewTargets(ddlHost{e: e, op: scope.op}, auth, s)
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
 	}
-	refs := make([]ids.ObjectRef, 0, len(s.Names))
-	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
-	var notices []sqlstate.Error
-	for _, name := range s.Names {
-		ref, err := e.resolveRelationReference(auth, name, true)
-		if err != nil {
-			if !s.IfExists || !table.RenameMissing(err) {
-				e.mu.Unlock()
-				return Result{}, view.ViewDropMissing(err, name, label)
-			}
-			diagnostic := view.ViewDropMissing(err, name, label).(*sqlstate.Error)
-			notices = append(notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: diagnostic.Message + ", skipping"})
-			continue
-		}
-		d := auth.Catalog.MustRelation(ref.Address)
-		if d.RelationKind != kind {
-			hint := "Use DROP TABLE to remove a table."
-			switch d.RelationKind {
-			case catalog.SequenceRelation:
-				hint = "Use DROP SEQUENCE to remove a sequence."
-			case catalog.IndexRelation:
-				hint = "Use DROP INDEX to remove an index."
-			case catalog.ViewRelation:
-				hint = "Use DROP VIEW to remove a view."
-			case catalog.MaterializedViewRelation:
-				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
-			}
-			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.Name(), label), Hint: hint}
-		}
-		if err := view.ViewDropOwner(auth.View, auth, ref, d); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-		if !seen[ref.Address] {
-			seen[ref.Address] = true
-			refs = append(refs, ref)
-		}
+	seen := make(map[ids.ObjectAddress]bool, len(refs))
+	for _, ref := range refs {
+		seen[ref.Address] = true
 	}
 	epoch := auth.Catalog.Epoch()
 	e.mu.Unlock()
@@ -255,16 +148,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	for _, ref := range refs {
-		d, ok := auth.Catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.Domain {
-			e.mu.Unlock()
-			return Result{}, ids.ErrCatalogReplaced
-		}
-		if err := view.ViewDropOwner(auth.View, auth, ref, d); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
+	if err := recheckDropViewTargets(auth.View, auth, refs); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)

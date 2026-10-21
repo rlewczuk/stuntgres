@@ -121,7 +121,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
+	definition, err := freezeViewDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

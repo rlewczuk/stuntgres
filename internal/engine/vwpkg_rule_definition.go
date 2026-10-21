@@ -11,20 +11,24 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule) (stored.Rule, error) {
+// bindRuleDefinition binds and freezes a CREATE RULE on d (ref) that is not an
+// ON SELECT rule: its condition, then each action in order, with the
+// unsupported forms, parameters and RETURNING rejected as PostgreSQL does.
+func bindRuleDefinition(h view.Host, auth ddl.Authority, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule, input sqltype.InputEnvironment) (stored.Rule, error) {
+	catalogView, owner := h.AccessView(auth).Catalog, h.TemporaryOwner(auth)
 	p := stored.RuleParts{Name: s.Name.Text, Event: strings.ToUpper(s.Event), Instead: s.Instead}
 	ns := &analyze.RuleNamespace{Relation: d, Ref: ref, Event: p.Event}
 	if s.Condition != nil {
-		h := ddlHost{e: e, op: scope.op}
-		condition, query, b, err := h.BindRuleCondition(auth, ns, s.Condition, scope.input)
+		condition, query, b, err := h.BindRuleCondition(auth, ns, s.Condition, input)
 		p.Condition = condition
 		if err != nil {
 			return stored.NewRule(p), err
 		}
 		p.ConditionBinding = &b
-		p.ConditionPresentation, err = stored.FreezeQueryPresentation(auth.Catalog, h.TemporaryOwner(auth), query, b, false, false, 0, "", false)
+		p.ConditionPresentation, err = stored.FreezeQueryPresentation(catalogView, owner, query, b, false, false, 0, "", false)
 		if err != nil {
 			return stored.NewRule(p), err
 		}
@@ -46,12 +50,12 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			targetName = action.Name
 		}
 		if len(targetName.Parts) != 0 {
-			target, err = e.resolveRelationReference(auth, targetName, true)
+			target, err = h.ResolveRelation(auth, targetName)
 		}
 		if err != nil {
 			return stored.NewRule(p), ddl.CreationError(err, targetName)
 		}
-		b, err := describeWithRule(scope.op.Context(), e.analysisHost(scope.op), action, auth, target, scope.input, nil, nil, ns)
+		b, err := h.DescribeRule(auth, action, target, input, ns)
 		if err != nil {
 			return stored.NewRule(p), err
 		}
@@ -61,7 +65,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		if err := view.ValidateRuleActionCTEs(action, b); err != nil {
 			return stored.NewRule(p), err
 		}
-		b = view.RetainRuleCTEPresentation(auth.Catalog, b)
+		b = view.RetainRuleCTEPresentation(catalogView, b)
 		b.Rule.Template = true
 		if b.Parameters.Count != 0 {
 			return stored.NewRule(p), sqlError("42P02", "there is no parameter $1")
@@ -84,17 +88,17 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 				return stored.NewRule(p), err
 			}
 		}
-		presentation, err := e.freezeRuleActionPresentationLocked(auth, action, b)
+		presentation, err := freezeRuleActionPresentation(catalogView, owner, action, b)
 		if err != nil {
 			return stored.NewRule(p), err
 		}
-		modifiers, err := e.freezeRuleModifierPresentationsLocked(auth, b)
+		modifiers, err := freezeRuleModifierPresentations(catalogView, owner, b)
 		if err != nil {
 			return stored.NewRule(p), err
 		}
 		p.Actions = append(p.Actions, stored.NewRuleAction(stored.RuleActionParts{Syntax: action, Binding: b, Presentation: presentation, ModifierPresentations: modifiers}))
 	}
 	var err error
-	p.References, err = view.RuleReferences(scope.op.Context(), auth.Catalog, stored.NewRule(p))
+	p.References, err = view.RuleReferences(h.Context(), catalogView, stored.NewRule(p))
 	return stored.NewRule(p), err
 }

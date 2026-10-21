@@ -91,7 +91,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				var definition *stored.View
 				if bindErr == nil {
-					definition, bindErr = e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 0, catalog.ViewRelation, false)
+					definition, bindErr = freezeViewDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, 0, catalog.ViewRelation, false)
 				}
 				var oid ids.OID
 				if bindErr == nil {
