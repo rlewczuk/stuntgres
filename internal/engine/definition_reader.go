@@ -148,8 +148,3 @@ func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayo
 func (a AuthorizationView) definitionArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
 	return catalog.DefinitionArrayAt(a.Catalog, a.definition, element)
 }
-
-func (r scalarRenderer) descriptor(view catalog.Read, address ids.ObjectAddress) catalog.Descriptor {
-	descriptor, _ := catalog.DescriptorAt(view, r.definition, address)
-	return descriptor
-}

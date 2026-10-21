@@ -164,17 +164,6 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 	}
 	return sqltype.String(result, text), nil
 }
-func deparseAttribute(relation *catalog.Relation, attr int32) (string, error) {
-	if relation == nil {
-		return "", sqlError("22023", "expression contains variables")
-	}
-	for i, live := range relation.Attributes {
-		if live == attr {
-			return catalog.Identifier(relation.Columns[i].Name), nil
-		}
-	}
-	return "", sqlError("XX000", fmt.Sprintf("invalid attnum %d for relation %q", attr, relation.Name()))
-}
 func deparseRelation(c *exec.Context, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor, pretty bool) (sqltype.Value, error) {
 	scope := scopeOf(c.LiveHost())
 	catalog := scope.inquiry.commentCatalog

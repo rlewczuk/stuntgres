@@ -447,36 +447,3 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 	}
 	return nil
 }
-
-func (r pgRenderer) uniqueConstraintSQL(parent *catalog.Relation, c *catalog.UniqueConstraint) (string, error) {
-	index, ok := r.view.Relation(c.Index)
-	if !ok || index.SQLIndex == nil {
-		return "", fmt.Errorf("stuntgres: missing unique deparse index")
-	}
-	labels := make([]string, len(c.Attributes)+len(index.SQLIndex.Include))
-	for i, attribute := range c.Attributes {
-		label, err := r.attribute(parent, attribute)
-		if err != nil {
-			return "", err
-		}
-		labels[i] = label
-	}
-	prefix := "UNIQUE"
-	if c.Primary {
-		prefix = "PRIMARY KEY"
-	} else if c.NullsNotDistinct {
-		prefix += " NULLS NOT DISTINCT"
-	}
-	text := prefix + " (" + strings.Join(labels[:len(c.Attributes)], ", ") + ")"
-	if len(index.SQLIndex.Include) != 0 {
-		for i, attribute := range index.SQLIndex.Include {
-			label, err := r.attribute(parent, attribute)
-			if err != nil {
-				return "", err
-			}
-			labels[len(c.Attributes)+i] = label
-		}
-		text += " INCLUDE (" + strings.Join(labels[len(c.Attributes):], ", ") + ")"
-	}
-	return text, nil
-}

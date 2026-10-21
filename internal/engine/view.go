@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
@@ -17,49 +16,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-// A definition owns an immutable analyzed query and its creation-time source layout.
-// Runtime source opening uses identities, never the retained deparser syntax.
-type viewDefinition struct {
-	query             *plan.Query
-	syntax            *parser.Select
-	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
-	sources           []viewLeaf
-	dependencies      []catalog.ExpressionDependency
-	sequenceRefs      map[int]ids.ObjectRef
-	literals          map[analyze.ViewLiteralPath]plan.LiteralExpr
-	castUsages        map[analyze.ViewLiteralPath]sqltype.Usage
-	routineRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
-	operatorRefs      map[analyze.ViewLiteralPath]ids.ObjectRef
-	composites        map[analyze.ViewLiteralPath]analyze.CompositeOccurrence
-	similarSubstrings map[analyze.ViewLiteralPath]bool
-	posixSubstrings   map[analyze.ViewLiteralPath]bool
-	columns           map[analyze.ViewLiteralPath]analyze.ViewColumn
-	stars             map[analyze.ViewLiteralPath][]analyze.ViewColumn
-	frames            map[uint32]*plan.ProjectNode
-	queries           map[*parser.Select]*plan.ProjectNode
-	namespaces        []analyze.ViewNamespace
-	barrier, invoker  bool
-	checkOption       viewCheckMode
-	options           []string // Immutable ordered installed name=value facts, including explicit false.
-	rule              ids.OID
-	consumer          ids.ObjectAddress
-	temporary         ids.SessionToken
-	references        map[ids.ObjectRef]catalog.Descriptor
-	collations        map[analyze.ViewLiteralPath]uint32
-	quoteRevision     ids.DefinitionRevision // frozen defining revision, not later relation renames
-}
-
-// Stored leaves contain identities and frozen layout, never live storage or
-// descriptors. Ordinals are SQL occurrences, including repeated self-joins.
-type viewLeaf struct {
-	ref          ids.ObjectRef
-	only         bool
-	attributes   []int32
-	reads        []int32
-	analysisOnly bool
-	mark         plan.RowMark
-}
 
 // Output names are downstream definition checks, not SELECT/alias analysis.
 // Existing replacements check their descriptor before options; fresh CREATE
@@ -79,62 +35,6 @@ func checkViewOutputNames(columns []catalog.Column, old *catalog.Relation) error
 		seen[column.Name] = true
 	}
 	return nil
-}
-
-func viewOptions(options []parser.ViewOption) (barrier, invoker bool, mode viewCheckMode, err error) {
-	seen := make(map[string]bool, len(options))
-	for _, option := range options {
-		name := option.Name.Text
-		if name != "check_option" && name != "security_barrier" && name != "security_invoker" {
-			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
-		}
-		if seen[name] {
-			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`parameter "%s" specified more than once`, name))
-		}
-		seen[name] = true
-		if name == "check_option" {
-			switch {
-			case strings.EqualFold(option.Value, "local"):
-				mode = viewCheckLocal
-			case strings.EqualFold(option.Value, "cascaded"):
-				mode = viewCheckCascaded
-			default:
-				return false, false, viewCheckNone, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for enum option "check_option": %s`, option.Value), Detail: `Valid values are "local" and "cascaded".`}
-			}
-			continue
-		}
-		value, valid := false, false
-		text := strings.ToLower(strings.TrimSpace(option.Value))
-		if text == "1" {
-			value, valid = true, true
-		} else if text == "0" {
-			valid = true
-		} else if text != "" {
-			for _, spelling := range []string{"true", "yes", "on"} {
-				if strings.HasPrefix(spelling, text) {
-					value, valid = true, true
-				}
-			}
-			for _, spelling := range []string{"false", "no", "off"} {
-				if strings.HasPrefix(spelling, text) {
-					if valid {
-						valid = false
-						break
-					}
-					valid = true
-				}
-			}
-		}
-		if !valid {
-			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`invalid value for boolean option "%s": %s`, name, option.Value))
-		}
-		if name == "security_barrier" {
-			barrier = value
-		} else {
-			invoker = value
-		}
-	}
-	return
 }
 
 // Relation occurrences, including unused/join/subquery leaves, determine PG18
@@ -470,112 +370,6 @@ func checkViewPrefix(catalog catalog.Read, old, next []catalog.Column) error {
 		}
 		if a.Collation.ID != b.Collation.ID {
 			return sqlError("42P16", fmt.Sprintf(`cannot change collation of view column "%s" from "%s" to "%s"`, column.Name, typedef.CollationName(catalog, a.Collation.ID), typedef.CollationName(catalog, b.Collation.ID)))
-		}
-	}
-	return nil
-}
-
-func (v *viewDefinition) validateNamespaces() error {
-	expected := 0
-	var countFrom func(parser.FromItem)
-	countFrom = func(item parser.FromItem) {
-		if item == nil {
-			return
-		}
-		expected++
-		switch n := item.(type) {
-		case *parser.AliasReference:
-			countFrom(n.Input)
-		case *parser.JoinReference:
-			countFrom(n.Left)
-			countFrom(n.Right)
-		}
-	}
-	for _, project := range v.frames {
-		if project.Syntax != nil {
-			countFrom(project.Syntax.From)
-		}
-	}
-	if expected != len(v.namespaces) {
-		return fmt.Errorf("stuntgres: invalid view namespace count")
-	}
-	for _, ns := range v.namespaces {
-		project := v.frames[ns.Frame]
-		if project == nil {
-			return fmt.Errorf("stuntgres: missing view namespace frame")
-		}
-		if ns.Node < analyze.ViewSourceNamespace || ns.Node > analyze.ViewRegexpNamespace {
-			return fmt.Errorf("stuntgres: invalid view namespace kind")
-		}
-		root := v.namespaceRoot(ns)
-		if root == nil {
-			return fmt.Errorf("stuntgres: missing view namespace node")
-		}
-		check := func(columns []analyze.ViewNamespaceColumn) error {
-			for _, column := range columns {
-				if column.Slot < 0 || column.Slot >= len(root.Schema()) {
-					return fmt.Errorf("stuntgres: invalid view namespace slot")
-				}
-				if column.Leaf >= 0 {
-					if column.Leaf >= len(v.sources) {
-						return fmt.Errorf("stuntgres: invalid view namespace occurrence")
-					}
-					found := false
-					for _, attribute := range v.sources[column.Leaf].attributes {
-						found = found || attribute == column.Attribute
-					}
-					if !found {
-						return fmt.Errorf("stuntgres: invalid view namespace attribute")
-					}
-				} else if column.Attribute != 0 {
-					return fmt.Errorf("stuntgres: invalid computed view namespace identity")
-				}
-			}
-			return nil
-		}
-		if err := check(ns.Columns); err != nil {
-			return err
-		}
-		for _, q := range ns.Qualifiers {
-			if err := check(q.Columns); err != nil {
-				return err
-			}
-		}
-		if len(ns.Keys) > len(ns.Columns) {
-			return fmt.Errorf("stuntgres: invalid view USING namespace")
-		}
-		for i, key := range ns.Keys {
-			if ns.Columns[i].Name != key {
-				return fmt.Errorf("stuntgres: invalid view USING key label")
-			}
-		}
-	}
-	return nil
-}
-
-func (v *viewDefinition) namespaceRoot(ns analyze.ViewNamespace) plan.Node {
-	project := v.frames[ns.Frame]
-	if project == nil {
-		return nil
-	}
-	from := analyze.ViewFromRoot(project)
-	switch ns.Node {
-	case analyze.ViewSourceNamespace:
-		return viewSourceAt(from, ns.Ordinal)
-	case analyze.ViewJoinNamespace:
-		return viewJoinAt(from, ns.Ordinal)
-	case analyze.ViewValuesNamespace:
-		return viewValuesAt(from, ns.Ordinal)
-	case analyze.ViewFunctionNamespace:
-		return viewFunctionFromAt(from, ns.Ordinal, false)
-	case analyze.ViewRegexpNamespace:
-		return viewFunctionFromAt(from, ns.Ordinal, true)
-	case analyze.ViewDerivedNamespace:
-		if ns.Ordinal < 0 {
-			return viewCTEOrdinal(from, ns.Ordinal)
-		}
-		if child := v.frames[uint32(ns.Ordinal)]; child != nil {
-			return viewDerivedAt(from, child.Syntax)
 		}
 	}
 	return nil

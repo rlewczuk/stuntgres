@@ -80,12 +80,6 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 	return nil
 }
 
-// Only meaningful NULL masks or deferred domain conversions survive ordinary
-// column-default elision. Plain builtin DEFAULT NULL retains its old absence.
-func omitColumnDefault(view catalog.Read, node expr.Expr, usage sqltype.Usage) bool {
-	return plan.StructuralNull(node) && typedef.TypeDefault(view, usage.Type) == nil && !node.Properties().RuntimeDomainConversion
-}
-
 func applyDefaultOrigin(o analyze.DefaultOrigin, c *exec.Context) {
 	c.QuoteOrigin = o.Quote
 	c.RoutineRecipe, c.RoutineGraft = true, false

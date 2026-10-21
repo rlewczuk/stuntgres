@@ -236,19 +236,3 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 	}
 	return !slices.Contains(refs, target), nil
 }
-
-// Both stored-expression capture and provider validation require the same live
-// stable member of the actual named rowtype/backing-relation pair. This is
-// metadata authority only; it does not authorize reading another table's rows.
-func compositeAttributeProvider(typ *catalog.Type, relation *catalog.Relation, attribute int32) bool {
-	if typ == nil || typ.SQLType == nil || relation == nil || attribute <= 0 || relation.Address().ClassID != ids.RelationClassID || typ.OwningRelation != relation.Address() || relation.RowType != typ.SQLType.ID() || !typ.SQLType.IsComposite() {
-		return false
-	}
-	index, exists := typ.SQLType.CompositeAttributeIndex(attribute)
-	slot := relation.IndexForAttribute(attribute)
-	if !exists || slot < 0 {
-		return false
-	}
-	member := typ.SQLType.CompositeMember(index)
-	return relation.Columns[slot].Name == member.Name && relation.Columns[slot].Usage == member.Usage
-}
