@@ -70,19 +70,17 @@ func TestRegTSProviderResolution(t *testing.T) {
 			t.Fatal("text-search numeric category", alias)
 		}
 	}
-	input, err := e.captureRegTSInput(auth)
-	if err != nil {
-		t.Fatal(err)
+	path := e.effectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
+	if len(path) != 3 || path[1] != namespaces[1] {
+		t.Fatal("TEMP text-search path isolation", path)
 	}
-	input.path = e.effectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
-	if len(input.path) != 3 || input.path[1] != namespaces[1] {
-		t.Fatal("TEMP text-search path isolation", input.path)
-	}
+	capture := inputCapture(auth, path)
+	input := regobj.NewTextSearchInput(capture)
 	id, err := input.ResolveRegdictionary(context.Background(), "UNACCENT")
 	if err != nil || id != 91001 {
 		t.Fatal("first-path lookup", id, err)
 	}
-	if got := regobj.TextSearchSpelling(view, input.path, 91002, sqltype.Regdictionary, false); got != "reg_ts_right.unaccent" {
+	if got := regobj.TextSearchSpelling(view, path, 91002, sqltype.Regdictionary, false); got != "reg_ts_right.unaccent" {
 		t.Fatal("shadowed output", got)
 	}
 	for _, text := range []string{` "Reg.TS" . UNACCENT `, `"Reg.TS".unaccent`} {
@@ -91,13 +89,13 @@ func TestRegTSProviderResolution(t *testing.T) {
 			t.Fatal("quoted namespace", id, err)
 		}
 	}
-	if got := regobj.TextSearchSpelling(view, input.path, 91000, sqltype.Regdictionary, false); got != `"Reg.TS".unaccent` {
+	if got := regobj.TextSearchSpelling(view, path, 91000, sqltype.Regdictionary, false); got != `"Reg.TS".unaccent` {
 		t.Fatal("off-path quoting", got)
 	}
-	if got := regobj.TextSearchSpelling(view, input.path, 91000, sqltype.Regconfig, false); got != "91000" {
+	if got := regobj.TextSearchSpelling(view, path, 91000, sqltype.Regconfig, false); got != "91000" {
 		t.Fatal("cross-class output", got)
 	}
-	if got := regobj.TextSearchSpelling(view, input.path, 0, sqltype.Regdictionary, false); got != "-" {
+	if got := regobj.TextSearchSpelling(view, path, 0, sqltype.Regdictionary, false); got != "-" {
 		t.Fatal("zero output", got)
 	}
 	for _, tc := range []struct{ input, code string }{{"simple", "42704"}, {"reg_ts_missing.unaccent", "42704"}, {"a..b", "42602"}, {"a.b.c.d", "42601"}, {"reg_ts_foreign.public.unaccent", "0A000"}} {
@@ -112,7 +110,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	for _, alias := range []sqltype.ID{sqltype.Regdictionary, sqltype.Regconfig} {
 		typ, _ := view.LookupType(alias)
 		value, _ := sqltype.RegTSValue(typ, 91000)
-		if err := regobj.CaptureTextSearchOutputValue(rows, view, input.path, value); err != nil {
+		if err := regobj.CaptureTextSearchOutputValue(rows, view, path, value); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -125,7 +123,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	ns := *next.MustNamespace(namespaces[0])
 	ns.ObjectName = "renamed"
 	next.State().SetDescriptor(ns.Address(), &ns)
-	if got := regobj.TextSearchSpelling(next, input.path, 91000, sqltype.Regdictionary, false); got != "renamed.unaccent" {
+	if got := regobj.TextSearchSpelling(next, path, 91000, sqltype.Regdictionary, false); got != "renamed.unaccent" {
 		t.Fatal("fresh spelling", got)
 	}
 	if got, err := rows.FormatRegdictionary(91000); err != nil || got != `"Reg.TS".unaccent` {
@@ -140,19 +138,20 @@ func TestRegTSProviderResolution(t *testing.T) {
 		quoted.State().SetDescriptor(d.Address(), &d)
 		quoted.State().BindName(catalog.DescriptorNameKey(&d), d.Address())
 	}
-	quotedInput := input
-	quotedInput.auth.Recapture(quoted)
+	quotedCapture := capture
+	quotedCapture.Authority.View.Recapture(quoted)
+	quotedInput := regobj.NewTextSearchInput(quotedCapture)
 	id, err = quotedInput.ResolveRegdictionary(context.Background(), `"Reg.TS".`+strings.Repeat("x", 70))
 	if err != nil || id != 92002 {
 		t.Fatal("identifier byte truncation", id, err)
 	}
-	if got := regobj.TextSearchSpelling(quoted, input.path, 92001, sqltype.Regdictionary, false); got != `"Reg.TS"."Odd"".TS"` {
+	if got := regobj.TextSearchSpelling(quoted, path, 92001, sqltype.Regdictionary, false); got != `"Reg.TS"."Odd"".TS"` {
 		t.Fatal("embedded quote/dot output", got)
 	}
-	if got := regobj.TextSearchSpelling(quoted, input.path, 92003, sqltype.Regdictionary, false); got != `"Reg.TS"."select"` {
+	if got := regobj.TextSearchSpelling(quoted, path, 92003, sqltype.Regdictionary, false); got != `"Reg.TS"."select"` {
 		t.Fatal("keyword output", got)
 	}
-	id, err = input.ResolveRegdictionary(context.Background(), catalog.QuoteIdentifier(input.database)+`."Reg.TS".unaccent`)
+	id, err = input.ResolveRegdictionary(context.Background(), catalog.QuoteIdentifier(capture.Database)+`."Reg.TS".unaccent`)
 	if err != nil || id != 91000 {
 		t.Fatal("same database lookup", id, err)
 	}
@@ -303,7 +302,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	}
 	op, actorDone := roleOperation(t, e, "reg_ts_acl_actor")
 	defer actorDone()
-	capture := func() capturedRegTSInput {
+	capture := func() regobj.TextSearchInput {
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
 		e.mu.Unlock()

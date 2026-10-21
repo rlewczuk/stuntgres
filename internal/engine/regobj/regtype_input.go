@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -20,12 +20,8 @@ import (
 
 // Input authority is captured beside the existing regclass authority, not a
 // separate registry. The catalog generation and effective type path are immutable.
-type capturedRegtypeInput struct {
-	auth      AuthorizationView
-	path      []ids.ObjectAddress
-	database  string
-	temporary ids.ObjectAddress
-	token     ids.SessionToken
+type TypeInput struct {
+	capture   InputCapture
 	op        *session.Operation
 	authority *exec.Authority
 	position  parser.Position
@@ -34,21 +30,19 @@ type capturedRegtypeInput struct {
 	resolved  *[]catalog.ExpressionDependency
 }
 
-func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *session.Operation) (capturedRegtypeInput, error) {
-	path, err := e.lookupPath(auth, analyze.TypeLookup)
-	if err != nil {
-		return capturedRegtypeInput{}, err
-	}
-	r := capturedRegtypeInput{auth: auth, path: path, temporary: temporaryNamespace(auth), op: op}
-	if auth.session != nil {
-		r.database = auth.session.DatabaseName
-		r.token = auth.session.SessionToken
-	}
-	r.auth.session = nil
-	r.auth.settings = nil
-	return r, nil
+// NewTypeInput returns the regtype resolver over c. Without an execution
+// authority its notices go to op.
+func NewTypeInput(c InputCapture, op *session.Operation) TypeInput {
+	return TypeInput{capture: c, op: op}
 }
-func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (uint32, error) {
+
+// Authority returns the captured read authority.
+func (r TypeInput) Authority() Authority { return r.capture.Authority }
+
+// Path returns the captured type lookup path.
+func (r TypeInput) Path() []ids.ObjectAddress { return r.capture.Path }
+
+func (r TypeInput) ResolveRegtype(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -63,7 +57,8 @@ func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (
 		}
 	}
 	if numeric {
-		oid, _ := r.auth.definitionType(sqltype.Oid)
+		a := r.capture.Authority
+		oid, _ := catalog.DefinitionTypeAt(a.View.Catalog, a.Definitions, sqltype.Oid)
 		value, err := oid.Input(ctx, text, -1)
 		if err != nil {
 			return 0, err
@@ -73,40 +68,62 @@ func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (
 	return r.resolveTypeName(ctx, text)
 }
 
+// typeNotices emits one type-name notice or type-modifier warning.
+type typeNotices func(session.NoticeLevel, sqlstate.Error)
+
+// notices returns where this resolver's notices go: the captured operation
+// without an execution authority, otherwise the authority's current host if
+// it takes notices. The host is read at each call, never at capture.
+func (r TypeInput) notices() typeNotices {
+	if r.authority == nil {
+		return operationNotices(r.op)
+	}
+	if host, ok := r.authority.Host.(NoticeHost); ok {
+		return host.TypeNameNotice
+	}
+	return nil
+}
+
+func operationNotices(op *session.Operation) typeNotices {
+	if op == nil {
+		return nil
+	}
+	return op.EmitNotice
+}
+
 // resolveTypeName resolves decoded SQL type syntax, without the numeric OID and
 // dash shortcuts accepted by whole REGTYPE inputs.
-func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) (uint32, error) {
+func (r TypeInput) resolveTypeName(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	op := r.op
-	if r.authority != nil {
-		op = nil
-		if scope := scopeOf(r.authority.Host); scope != nil {
-			op = scope.op
-		}
-	}
+	emit := r.notices()
 	raw, err := parser.ParseTypeName(ctx, text, func(notice sqlstate.Error) {
-		if op != nil {
+		if emit != nil {
 			if r.portal != "" {
 				notice.Context += "\n" + r.portal
 			}
-			op.EmitNotice(session.LevelNotice, notice)
+			emit(session.LevelNotice, notice)
 		}
 	})
 	if err != nil {
 		return 0, err
 	}
-	return r.resolveParsedTypeName(ctx, raw, op)
+	return r.resolveParsed(ctx, raw, emit)
 }
 
 // Object-address lists and SQL routine declarations already have positioned
 // type syntax. Reuse captured identity lookup without reparsing text or
-// admitting a use provider.
-func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw parser.TypeName, op *session.Operation) (uint32, error) {
+// admitting a use provider. Modifier warnings go to op.
+func (r TypeInput) ResolveParsedTypeName(ctx context.Context, raw parser.TypeName, op *session.Operation) (uint32, error) {
+	return r.resolveParsed(ctx, raw, operationNotices(op))
+}
+
+func (r TypeInput) resolveParsed(ctx context.Context, raw parser.TypeName, emit typeNotices) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
+	a := r.capture.Authority
 	if !raw.Quoted && raw.Schema == nil {
 		canonical := typedef.CanonicalDeclarationTypeName(raw.Name)
 		if canonical != raw.Name {
@@ -132,28 +149,28 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		return 0, sqlError("42601", "improper qualified name (too many dotted names): "+spelling())
 	}
 	if len(parts) == 3 {
-		if parts[0].Text != r.database {
+		if parts[0].Text != r.capture.Database {
 			return 0, sqlError("0A000", "cross-database references are not implemented: "+spelling())
 		}
 		parts = parts[1:]
 	}
 	name := parts[len(parts)-1].Text
-	path := analyze.NamespaceSelection{Path: r.path}
+	path := analyze.NamespaceSelection{Path: r.capture.Path}
 	if raw.System {
 		path = analyze.NamespaceSelection{Qualified: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}
 	} else if len(parts) == 2 {
-		ns := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
+		ns := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
-			ns = r.temporary
+			ns = r.capture.Temporary
 		}
 		if ns == (ids.ObjectAddress{}) {
 			return 0, sqlError("3F000", fmt.Sprintf("schema \"%s\" does not exist", parts[0].Text))
 		}
-		namespace, _ := r.auth.definitionNamespace(ns)
-		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
+		namespace, _ := catalog.DefinitionNamespaceAt(a.View.Catalog, a.Definitions, ns)
+		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.capture.Token {
 			return 0, sqlError("42501", "permission denied for schema "+namespace.Name())
 		}
-		if err := r.auth.CanUse(r.auth.Ref(ns)); err != nil {
+		if err := a.View.CanUse(a.Environment, a.View.Ref(ns)); err != nil {
 			return 0, err
 		}
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
@@ -163,8 +180,8 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 	}
 	var typ *sqltype.Descriptor
 	for i := range path.Count() {
-		if address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name}); address != (ids.ObjectAddress{}) {
-			typ, _ = r.auth.definitionType(sqltype.ID(address.ObjectID))
+		if address := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name}); address != (ids.ObjectAddress{}) {
+			typ, _ = catalog.DefinitionTypeAt(a.View.Catalog, a.Definitions, sqltype.ID(address.ObjectID))
 			break
 		}
 	}
@@ -181,7 +198,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		return name
 	}
 	if typ != nil && len(raw.ArrayBounds) > 0 {
-		typ, _ = r.auth.definitionArray(typ)
+		typ, _ = catalog.DefinitionArrayAt(a.View.Catalog, a.Definitions, typ)
 	}
 	if typ == nil {
 		return 0, sqlError("42704", fmt.Sprintf("type \"%s\" does not exist", parsedName()))
@@ -205,7 +222,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 				modifiers[i] = *m.Integer
 				continue
 			}
-			integer, _ := r.auth.definitionType(sqltype.Int4)
+			integer, _ := catalog.DefinitionTypeAt(a.View.Catalog, a.Definitions, sqltype.Int4)
 			v, err := integer.Input(ctx, m.Raw, -1)
 			if err != nil {
 				return 0, err
@@ -223,24 +240,24 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		if err != nil {
 			return 0, err
 		}
-		if warning != nil && op != nil {
+		if warning != nil && emit != nil {
 			if r.position.Character > 0 {
 				warning.Position = strconv.Itoa(r.position.Character)
 			}
 			warning.Context = r.portal
-			op.EmitNotice(session.LevelWarning, *warning)
+			emit(session.LevelWarning, *warning)
 		}
 	}
 	if r.resolved != nil {
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
-		d, _ := r.auth.definitionDescriptor(address)
-		ref := r.auth.Ref(address)
+		d, _ := catalog.DescriptorAt(a.View.Catalog, a.Definitions, address)
+		ref := a.View.Ref(address)
 		*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()})
 	}
 	return uint32(typ.ID()), nil
 }
 
-func (r capturedRegtypeInput) RegtypeParameter(slot int, empty bool) sqltype.RegtypeResolver {
+func (r TypeInput) RegtypeParameter(slot int, empty bool) sqltype.RegtypeResolver {
 	text := "..."
 	if empty {
 		text = ""

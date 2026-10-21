@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `92ce8c794` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90 and 94). Steps 8–17 were
+Last verified against `master` at `bfeb5f38a` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90 and 94). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,7 +18,7 @@ as another broad item (§8); only 68 is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 66 (regobj 21c), 111 (control 30a).
+- **Seams:** 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
 - **Upper features, in place:** 99 (view 27a), 103 (role 28a).
 - **Upper features, packages:** 95 (fdw 26b).
@@ -58,7 +58,8 @@ Item 82 (index 23a) is done, so DML 29a (item 107) is ready; index 23b
 Item 90 (partition 25a) is done; partition 25b (item 91) still waits
 for table 24b (item 87).
 Item 63 (ddl 20d) is done and closes step 20; only the end-state review
-(item 114) needs it.
+(item 114) needs it. Item 66 (regobj 21c) is done and closes step 21; only
+item 114 needs it.
 
 ## Task tree
 
@@ -445,14 +446,15 @@ Item 63 (ddl 20d) is done and closes step 20; only the end-state review
   - [x] 20c — Schema-level DDL host refined (docs only; the docs commit)
   - [x] 20d — Schema and tablespace decisions moved (`77b3fabf1`, `40deebd48`, `c8167af8d`, `4d5daf404`, then the
     docs commit)
-- [ ] **Step 21 — `regobj`** ([prompt](ENGINE-SPLIT-regobj.md); 21b needs
+- [x] **Step 21 — `regobj`** ([prompt](ENGINE-SPLIT-regobj.md); 21b needs
   5j)
   - [x] 21a — In place: regclass and visibility files, renderer split
     (`faabae6f1`, `fdea22a7e`, `bc4972dc4`, `4c5e82e76`, `c8c5d6f0c`,
     `108381a52`, `3a26d7fbb`, `46a317e4d`, then the docs commit)
   - [x] 21b — `regobj` created and clean set moved (`91fc9de2f`,
     `8ea91a2eb`, `ca7c8d575`, then the docs commit)
-  - [ ] 21c — Captured input resolvers moved
+  - [x] 21c — Captured input resolvers moved (`8565a61e7`, `fc8a45cdd`, `b65da8100`, then the docs
+    commit)
 - [ ] **Step 22 — `stored`** ([prompt](ENGINE-SPLIT-stored.md); 22b needs
   21b, F6, 18b and 12f, 22c needs 5j)
   - [x] 22a — In place: coverage cut, freeze cut, accessors, renames
@@ -941,8 +943,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     lines) in `regobj`; names settled in its README; `regtypeAnalysis`
     stays in the root; no aliases · selected unit and dual-mode proof and
     quickcheck passed; racecheck/finalcheck skipped at user request
-66. [ ] regobj 21c: captured input resolvers moved —
-    [regobj](ENGINE-SPLIT-regobj.md) 21c · needs 65
+66. [x] regobj 21c: captured input resolvers moved —
+    [regobj](ENGINE-SPLIT-regobj.md) 21c · needs 65 (`8565a61e7`, `fc8a45cdd`, `b65da8100`, then
+    the docs commit) · six resolvers in `regobj` behind `regobj.Authority`
+    and `NoticeHost`; constructors stay in the root; no aliases · selected
+    unit/`RACE=1` and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 67. [x] stored 22a: in place (coverage cut, freeze cuts, accessors,
     renames) — [stored](ENGINE-SPLIT-stored.md) 22a · needs —
     (`fc0f6dbe8`, `219495724`, `f9035b171`, `a0224bb18`, `905c53bad`,

@@ -36,7 +36,7 @@ func (s *StatementScope) captureFormalInputLocked(auth AuthorizationView, types 
 			}
 		}
 		if usage.Type.ContainsRegproc() && s.input.Regproc == nil {
-			s.input.Regproc, err = e.captureRoutineInput(auth, s.input.Regtype.(capturedRegtypeInput))
+			s.input.Regproc, err = e.captureRoutineInput(auth, s.input.Regtype.(regobj.TypeInput))
 			if err != nil {
 				return err
 			}

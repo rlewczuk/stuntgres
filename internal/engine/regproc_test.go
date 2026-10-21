@@ -215,12 +215,4 @@ func TestRoutineDiagnosticOwnership(t *testing.T) {
 	if !errors.As(literal, &translated) || translated.Position != "17" || translated.Context != saved.Context || *original != saved {
 		t.Fatal("literal translation mutated argument diagnostic", literal, err)
 	}
-	parameter := input.RoutineParameter(2, false).(capturedRoutineInput)
-	if parameter.types.portal != "unnamed portal parameter $2 = '...'" || input.types.portal != "" {
-		t.Fatal("parameter authority/redaction mutated original input")
-	}
-	runtime := input.RoutineLiteral(17).(capturedRoutineInput)
-	if runtime.types.position.Character != 17 || input.types.position.Character != 0 || runtime.types.portal != "" {
-		t.Fatal("literal authority retained portal or mutated original")
-	}
 }

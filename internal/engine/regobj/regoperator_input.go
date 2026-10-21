@@ -1,45 +1,38 @@
-package engine
+package regobj
 
 import (
 	"context"
 	"slices"
 	"strings"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type capturedOperatorInput struct {
-	types     capturedRegtypeInput
+type OperatorInput struct {
+	types     TypeInput
 	path      []ids.ObjectAddress
 	groups    exec.OperatorGroups
 	qualified *[]ids.ObjectAddress
 	operands  *[]catalog.ExpressionDependency
 }
 
-func (e *Engine) captureOperatorInput(auth AuthorizationView, op *session.Operation) (capturedOperatorInput, error) {
-	types, err := e.captureRegtypeInput(auth, op)
-	if err != nil {
-		return capturedOperatorInput{}, err
-	}
-	path, err := e.lookupPath(auth, analyze.OperatorLookup)
-	if err != nil {
-		return capturedOperatorInput{}, err
-	}
-	return capturedOperatorInput{types: types, path: path, groups: regobj.CollectOperatorGroups(auth.Catalog)}, nil
+// NewOperatorInput returns the regoper and regoperator resolver: operand
+// types resolve through types, operator names on path over the operator
+// groups of the types' catalog.
+func NewOperatorInput(types TypeInput, path []ids.ObjectAddress) OperatorInput {
+	return OperatorInput{types: types, path: path, groups: CollectOperatorGroups(types.capture.Authority.View.Catalog)}
 }
-func (r capturedOperatorInput) OperatorParameter(slot int, empty bool) sqltype.OperatorResolver {
-	r.types = r.types.RegtypeParameter(slot, empty).(capturedRegtypeInput)
+
+func (r OperatorInput) OperatorParameter(slot int, empty bool) sqltype.OperatorResolver {
+	r.types = r.types.RegtypeParameter(slot, empty).(TypeInput)
 	return r
 }
-func (r capturedOperatorInput) numeric(ctx context.Context, text string) (uint32, bool, error) {
+func (r OperatorInput) numeric(ctx context.Context, text string) (uint32, bool, error) {
 	if len(text) == 0 {
 		return 0, false, nil
 	}
@@ -48,7 +41,7 @@ func (r capturedOperatorInput) numeric(ctx context.Context, text string) (uint32
 			return 0, false, nil
 		}
 	}
-	oid, _ := r.types.auth.Catalog.LookupType(sqltype.Oid)
+	oid, _ := r.types.capture.Authority.View.Catalog.LookupType(sqltype.Oid)
 	v, err := oid.Input(ctx, text, -1)
 	if err != nil {
 		return 0, true, err
@@ -56,7 +49,7 @@ func (r capturedOperatorInput) numeric(ctx context.Context, text string) (uint32
 	n, err := v.OID()
 	return n, true, err
 }
-func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, error) {
+func (r OperatorInput) candidates(text string) ([]*catalog.Operator, error) {
 	raw, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return nil, sqlError("42602", "invalid name syntax")
@@ -71,21 +64,22 @@ func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, err
 		return nil, sqlError("42601", "improper qualified name (too many dotted names): "+spelling)
 	}
 	if len(parts) == 3 {
-		if parts[0].Text != r.types.database {
+		if parts[0].Text != r.types.capture.Database {
 			return nil, sqlError("0A000", "cross-database references are not implemented: "+spelling)
 		}
 		parts = parts[1:]
 	}
 	path := r.path
 	if len(parts) == 2 {
-		ns := r.types.auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
+		a := r.types.capture.Authority
+		ns := a.View.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
-			ns = r.types.temporary
+			ns = r.types.capture.Temporary
 		}
 		if ns == (ids.ObjectAddress{}) {
 			return nil, nil
 		}
-		if err := r.types.auth.CanUse(r.types.auth.Ref(ns)); err != nil {
+		if err := a.View.CanUse(a.Environment, a.View.Ref(ns)); err != nil {
 			return nil, err
 		}
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
@@ -93,9 +87,9 @@ func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, err
 		}
 		path = []ids.ObjectAddress{ns}
 	}
-	return regobj.VisibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
+	return VisibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
 }
-func (r capturedOperatorInput) ResolveRegoper(ctx context.Context, text string) (uint32, error) {
+func (r OperatorInput) ResolveRegoper(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -114,7 +108,7 @@ func (r capturedOperatorInput) ResolveRegoper(ctx context.Context, text string) 
 	}
 	return uint32(candidates[0].Address().ObjectID), nil
 }
-func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text string) (uint32, error) {
+func (r OperatorInput) ResolveRegoperator(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}

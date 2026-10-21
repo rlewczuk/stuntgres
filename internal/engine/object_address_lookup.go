@@ -74,7 +74,10 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, false)
 	}
 	view := scope.inquiry.commentCatalog
-	types := capturedRegtypeInput{auth: scope.inquiry.deparseAuth, path: scope.inquiry.deparsePath, database: scope.op.Session.DatabaseName, temporary: temporaryNamespace(scope.inquiry.deparseAuth), token: scope.op.Session.SessionToken, op: scope.op}
+	types := regobj.NewTypeInput(regobj.InputCapture{
+		Authority: inputAuthority(scope.inquiry.deparseAuth), Path: scope.inquiry.deparsePath,
+		Database: scope.op.Session.DatabaseName, Token: scope.op.Session.SessionToken, Temporary: temporaryNamespace(scope.inquiry.deparseAuth),
+	}, scope.op)
 	parseSyntax := func(input string) (parser.TypeName, error) {
 		return parser.ParseTypeName(ctx, input, func(notice sqlstate.Error) { scope.op.EmitNotice(session.LevelNotice, notice) })
 	}
@@ -135,7 +138,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		}
 	}
 	if typeName {
-		typeID, err = types.resolveParsedTypeName(ctx, parsedName, scope.op)
+		typeID, err = types.ResolveParsedTypeName(ctx, parsedName, scope.op)
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
@@ -144,7 +147,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	if parsedArgs != nil {
 		argIDs = make([]ids.OID, len(parsedArgs))
 		for i, raw := range parsedArgs {
-			id, err := types.resolveParsedTypeName(ctx, raw, scope.op)
+			id, err := types.ResolveParsedTypeName(ctx, raw, scope.op)
 			if err != nil {
 				return ids.ObjectAddress{}, err
 			}

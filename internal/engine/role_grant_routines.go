@@ -45,7 +45,7 @@ func (e *Engine) resolveGrantRoutine(op *session.Operation, v AuthorizationView,
 				}
 				return ids.ObjectRef{}, sqlError("54023", noun+" cannot have more than 100 arguments")
 			}
-			id, err := types.resolveParsedTypeName(op.Context(), argument.Type, op)
+			id, err := types.ResolveParsedTypeName(op.Context(), argument.Type, op)
 			if err != nil {
 				return ids.ObjectRef{}, err
 			}

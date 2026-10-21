@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -10,35 +10,32 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// capturedRoutineInput uses the same immutable catalog and namespace authority
+// RoutineInput uses the same immutable catalog and namespace authority
 // as type input. Its function path excludes temporary namespaces.
-type capturedRoutineInput struct {
-	types    capturedRegtypeInput
+type RoutineInput struct {
+	types    TypeInput
 	path     []ids.ObjectAddress
 	operands *[]catalog.ExpressionDependency
 }
 
-func (e *Engine) captureRoutineInput(auth AuthorizationView, types capturedRegtypeInput) (capturedRoutineInput, error) {
-	path, err := e.lookupPath(auth, analyze.FunctionLookup)
-	if err != nil {
-		return capturedRoutineInput{}, err
-	}
-	return capturedRoutineInput{types: types, path: path}, nil
+// NewRoutineInput returns the regproc and regprocedure resolver: argument
+// types resolve through types, routine names on path.
+func NewRoutineInput(types TypeInput, path []ids.ObjectAddress) RoutineInput {
+	return RoutineInput{types: types, path: path}
 }
 
-func (r capturedRoutineInput) ResolveRegproc(ctx context.Context, text string) (uint32, error) {
+func (r RoutineInput) ResolveRegproc(ctx context.Context, text string) (uint32, error) {
 	return r.resolveRoutine(ctx, text, false)
 }
-func (r capturedRoutineInput) ResolveRegprocedure(ctx context.Context, text string) (uint32, error) {
+func (r RoutineInput) ResolveRegprocedure(ctx context.Context, text string) (uint32, error) {
 	return r.resolveRoutine(ctx, text, true)
 }
 
-func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, signatureQualified bool) (uint32, error) {
+func (r RoutineInput) resolveRoutine(ctx context.Context, text string, signatureQualified bool) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -52,8 +49,9 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 			break
 		}
 	}
+	a := r.types.capture.Authority
 	if numeric {
-		oid, _ := r.types.auth.definitionType(sqltype.Oid)
+		oid, _ := catalog.DefinitionTypeAt(a.View.Catalog, a.Definitions, sqltype.Oid)
 		value, err := oid.Input(ctx, text, -1)
 		if err != nil {
 			return 0, err
@@ -93,7 +91,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		return 0, sqlError("42601", "improper qualified name (too many dotted names): "+text)
 	}
 	if len(parts) == 3 {
-		if parts[0].Text != r.types.database {
+		if parts[0].Text != r.types.capture.Database {
 			return 0, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, catalog.ObjectNameText(name)))
 		}
 		parts = parts[1:]
@@ -101,14 +99,14 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	selection := analyze.NamespaceSelection{Path: r.path}
 	missing := func() (uint32, error) { return 0, sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, text)) }
 	if len(parts) == 2 {
-		namespace := r.types.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
+		namespace := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
-			namespace = r.types.temporary
+			namespace = r.types.capture.Temporary
 		}
 		if namespace == (ids.ObjectAddress{}) {
 			return missing()
 		}
-		if err := r.types.auth.CanUse(r.types.auth.Ref(namespace)); err != nil {
+		if err := a.View.CanUse(a.Environment, a.View.Ref(namespace)); err != nil {
 			return 0, err
 		}
 		if r.types.qualified != nil && !slices.Contains(*r.types.qualified, namespace) {
@@ -116,7 +114,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		}
 		selection = analyze.NamespaceSelection{Qualified: namespace}
 	}
-	selected, count := regobj.SelectRoutine(r.types.auth.Catalog, selection, parts[len(parts)-1].Text, exact)
+	selected, count := SelectRoutine(a.View.Catalog, selection, parts[len(parts)-1].Text, exact)
 	if count == 0 {
 		return missing()
 	}
@@ -124,8 +122,8 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		return 0, sqlError("42725", fmt.Sprintf(`more than one function named "%s"`, text))
 	}
 	if r.operands != nil {
-		if owner := regobj.RoutineDescriptorOwner(r.types.auth.Catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {
-			ref := r.types.auth.Ref(owner.Address())
+		if owner := RoutineDescriptorOwner(a.View.Catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {
+			ref := a.View.Ref(owner.Address())
 			for _, operand := range *r.operands {
 				if operand.Ref == ref {
 					return uint32(selected.ID), nil
@@ -137,11 +135,11 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	return uint32(selected.ID), nil
 }
 
-func (r capturedRoutineInput) RoutineParameter(slot int, empty bool) sqltype.RoutineResolver {
-	r.types = r.types.RegtypeParameter(slot, empty).(capturedRegtypeInput)
+func (r RoutineInput) RoutineParameter(slot int, empty bool) sqltype.RoutineResolver {
+	r.types = r.types.RegtypeParameter(slot, empty).(TypeInput)
 	return r
 }
-func (r capturedRoutineInput) RoutineLiteral(position int) sqltype.RoutineResolver {
+func (r RoutineInput) RoutineLiteral(position int) sqltype.RoutineResolver {
 	r.types.position = parser.Position{Character: position}
 	return r
 }

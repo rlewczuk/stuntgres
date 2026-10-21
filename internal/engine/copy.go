@@ -373,10 +373,10 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth
 			s.input.Operator, err = e.captureOperatorInput(auth, s.op)
 		}
 		if err == nil && usage.Type.ContainsRegproc() && s.input.Regproc == nil {
-			s.input.Regproc, err = e.captureRoutineInput(auth, s.input.Regtype.(capturedRegtypeInput))
+			s.input.Regproc, err = e.captureRoutineInput(auth, s.input.Regtype.(regobj.TypeInput))
 		}
 		if err == nil && usage.Type.ContainsRegObject() && (s.input.Regcollation == nil || s.input.Regnamespace == nil) {
-			var input capturedRegObjectInput
+			var input regobj.ObjectInput
 			input, err = e.captureRegObjectInput(auth)
 			if err == nil {
 				s.input.Regcollation, s.input.Regnamespace = input, input

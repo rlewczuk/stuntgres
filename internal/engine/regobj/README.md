@@ -3,12 +3,12 @@
 Catalog objects and typed values as SQL text, and the way back: the
 object-identifier types, type declarations, typed literals, `aclitem`
 I/O and object identity. Step 21 of the engine split created it (21b moved
-the clean set; 21c moves the captured input resolvers). The package sits at
+the clean set; 21c moved the captured input resolvers). The package sits at
 layer L11 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
-it imports `analyze`, `authorization`, `catalog`, `exec`, `expr`, `ids`,
-`pgcatalog`, `plan`, `routine`, `session`, `parser`, `sqlstate`, `sqltype`
-and the standard library, and never the engine, `stored` or an upper
+it imports `access`, `analyze`, `authorization`, `catalog`, `exec`, `expr`,
+`ids`, `pgcatalog`, `plan`, `routine`, `session`, `typedef`, `parser`,
+`sqlstate`, `sqltype` and the standard library, and never the engine, `stored` or an upper
 feature. Only the upper features, `stored` and the engine import it; never
 `analyze`, `exec`, `session`, `pgcatalog` or a lower feature. See
 [ENGINE-SPLIT-regobj.md](../../../docs/ENGINE-SPLIT-regobj.md).
@@ -29,6 +29,20 @@ feature. Only the upper features, `stored` and the engine import it; never
   `ClassQualifiedName`, `RoleInput`, `CollectOperatorGroups`,
   `VisibleOperators`, `SelectRoutine`, `SelectExactRoutine`,
   `RoutineIdentityByOID`, `RoutineDescriptorOwner`.
+- **Captured input resolvers** (`regclass_input.go`, `regtype_input.go`,
+  `regoperator_input.go`, `regproc_input.go`, `regts_input.go`,
+  `regobjects_input.go`, `captured_input_target.go`, `input_authority.go`):
+  `ClassInput`, `TypeInput`, `OperatorInput`, `RoutineInput`,
+  `TextSearchInput` and `ObjectInput`, built by `New*Input` over an
+  `InputCapture` (an `Authority`, the lookup path, and the session's
+  database, token and TEMP namespace at capture). `Authority` is the
+  statement's `access.View`, its `access.Environment` and the cooking DDL
+  definition overlay (nil otherwise); resolvers check USAGE with
+  `View.CanUse(Environment, ref)` and read names through the
+  `catalog.Definition*At` readers. `TypeInput.ResolveParsedTypeName` serves
+  already-parsed type syntax. The `Retarget*` methods implement the
+  `analyze` retarget interfaces, and `DetachCursorInput` rebinds a cursor's
+  resolvers to its execution authority.
 - **Dump spellings, stored-value walkers and remap**
   (`regclass_dump.go`, `regproc_persistence.go`,
   `regoperator_persistence.go`, `regts_persistence.go`,
@@ -74,7 +88,13 @@ their lower-case names.
   `Remap*Datum` result.
 - Every function reads only the `catalog.Read`, `authorization.Read`,
   definition reader and path its caller passes. Nothing here caches a
-  permission decision or a catalog snapshot.
+  permission decision or a catalog snapshot. A captured resolver keeps the
+  authority its constructor captured; it never reads live session state.
+- Type-name notices and type-modifier warnings go to the operation of the
+  current execution, never of the capture: a resolver bound to an
+  `exec.Authority` asserts `Host.(NoticeHost)` at each call and emits
+  nothing when the host takes no notices; otherwise it emits to the
+  captured operation. Notice order, text and portal context are unchanged.
 - No mutex; nothing takes `Engine.mu`. Callers that need the engine lock
   (`Engine.capture*`) hold it themselves.
 
@@ -85,12 +105,12 @@ their lower-case names.
   `exec` keys and filled through the spellings above.
 - The constructors that read engine state: `Engine.captureRegclassOutput`,
   `Engine.captureACLItemInput`, `Engine.captureRegObjectRowsValueLocked`,
-  `Engine.regclassLocked`, the other `Engine.capture*Input` methods, and the
-  `analyze.Host` resolver methods (forwarders).
-- The captured input resolvers `capturedRegclassInput`,
-  `capturedOperatorInput`, `capturedRoutineInput`, `capturedRegTSInput`,
-  `capturedRegObjectInput` and `capturedRegtypeInput`: they hold an
-  `AuthorizationView` until 21c.
+  `Engine.regclassLocked` (`regclass_lookup.go`), the `Engine.capture*Input`
+  methods and `captureRegObjectsOnPath` with the `inputCapture` helper
+  (`captured_input.go`, which drops the session and settings from the
+  captured `AuthorizationView`), and the `analyze.Host` resolver methods
+  (forwarders).
+- `statementHost.TypeNameNotice`, the `NoticeHost` implementation.
 - `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
   prepared-statement regtype analysis cell is statement state, not SQL text.
 - `preflightACLItemDump` (Dump/Restore, step 30), `aclitem_remap.go` and
@@ -101,6 +121,7 @@ their lower-case names.
 
 ```sh
 make check RUN='^TestVisibilityInquiryCollationSelection$'
+make check RUN='^(TestCapturedInputsRetargetOnlyTheirSinks|TestRoutineInputParameterAndLiteralCopies|TestTypeInputNoticesFollowTheCurrentHost)$'
 make check RUN='^TestReference(Reg|ACLItem|ObjectAddress|FormatRegclass|SequenceRegclass|ArrayRegclass|RLSPolicyRegtype|SQLCursorRegtype|UpdateReturningCapturedRegclass|PGDependRegclass|PartitionConstraintsRegclass)'
 make check RUN='DumpRoundTrip|NativeControls'
 ```
@@ -109,4 +130,5 @@ Add `REFERENCE=1` for the real PostgreSQL oracle. The engine unit tests of
 this code need an `Engine` and stay in `internal/engine`
 (`TestObjectAddress*`, `TestRegTS*`, `TestRegOperator*`, `TestRoutine*`
 in `regproc_test.go`, `TestRegrole*`, `TestRegclass*`, `TestACLValues*`,
-`TestACLItem*`, `TestRegObjectAlias*`).
+`TestACLItem*`, `TestRegObjectAlias*`, `TestMaterializedRefreshOwnerContext`,
+`TestConversionRegprocCapturedProcedurePresentation`).

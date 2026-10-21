@@ -23,7 +23,7 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *session.Operati
 		}
 	}
 	if input.Regproc == nil {
-		input.Regproc, err = e.captureRoutineInput(auth, input.Regtype.(capturedRegtypeInput))
+		input.Regproc, err = e.captureRoutineInput(auth, input.Regtype.(regobj.TypeInput))
 	}
 	if input.Regrole == nil {
 		input.Regrole = regobj.RoleInput{Roles: auth.Roles}
@@ -32,7 +32,7 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *session.Operati
 		input.Operator, err = e.captureOperatorInput(auth, op)
 	}
 	if err == nil && (input.Regcollation == nil || input.Regnamespace == nil) {
-		var resolver capturedRegObjectInput
+		var resolver regobj.ObjectInput
 		resolver, err = e.captureRegObjectInput(auth)
 		if err == nil {
 			input.Regcollation, input.Regnamespace = resolver, resolver

@@ -7,6 +7,9 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -18,6 +21,7 @@ import (
 type statementHost StatementScope
 
 var _ exec.Host = (*statementHost)(nil)
+var _ regobj.NoticeHost = (*statementHost)(nil)
 var _ foreignWriteRuntime = (*statementHost)(nil)
 
 // hostOf returns an untyped nil for a nil scope, never a typed nil.
@@ -117,4 +121,13 @@ func (h *statementHost) FormatRegdictionary(id uint32) (string, error) {
 
 func (h *statementHost) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
 	return h.scope().FormatACLRole(authority, id)
+}
+
+// TypeNameNotice implements regobj.NoticeHost: a type-name notice goes to the
+// operation of the current execution, if there is one.
+func (h *statementHost) TypeNameNotice(level session.NoticeLevel, notice sqlstate.Error) {
+	if h == nil || h.op == nil {
+		return
+	}
+	h.op.EmitNotice(level, notice)
 }

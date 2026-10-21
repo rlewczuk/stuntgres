@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -11,28 +11,17 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type capturedRegTSInput struct {
-	auth      AuthorizationView
-	database  string
-	temporary ids.ObjectAddress
-	path      []ids.ObjectAddress
+type TextSearchInput struct {
+	capture   InputCapture
 	qualified *[]ids.ObjectAddress
 	resolved  *[]catalog.ExpressionDependency
 }
 
-func (e *Engine) captureRegTSInput(auth AuthorizationView) (capturedRegTSInput, error) {
-	path, err := e.lookupPath(auth, analyze.OperatorLookup) // Text search, like operators, excludes TEMP.
-	if err != nil {
-		return capturedRegTSInput{}, err
-	}
-	r := capturedRegTSInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
-	if auth.session != nil {
-		r.database = auth.session.DatabaseName
-	}
-	r.auth.session, r.auth.settings = nil, nil
-	return r, nil
-}
-func (r capturedRegTSInput) name(ctx context.Context, text string) ([]parser.Identifier, string, error) {
+// NewTextSearchInput returns the regconfig and regdictionary resolver over c;
+// c.Path is the text-search path, which excludes TEMP.
+func NewTextSearchInput(c InputCapture) TextSearchInput { return TextSearchInput{capture: c} }
+
+func (r TextSearchInput) name(ctx context.Context, text string) ([]parser.Identifier, string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
@@ -50,32 +39,33 @@ func (r capturedRegTSInput) name(ctx context.Context, text string) ([]parser.Ide
 		return nil, "", sqlError("42601", "improper qualified name (too many dotted names): "+spelling)
 	}
 	if len(parts) == 3 {
-		if parts[0].Text != r.database {
+		if parts[0].Text != r.capture.Database {
 			return nil, "", sqlError("0A000", "cross-database references are not implemented: "+spelling)
 		}
 		parts = parts[1:]
 	}
 	return parts, spelling, nil
 }
-func (r capturedRegTSInput) ResolveRegconfig(ctx context.Context, text string) (uint32, error) {
+func (r TextSearchInput) ResolveRegconfig(ctx context.Context, text string) (uint32, error) {
 	if _, _, err := r.name(ctx, text); err != nil {
 		return 0, err
 	}
 	return 0, sqlError("0A000", "text search configuration name lookup is not supported")
 }
-func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text string) (uint32, error) {
+func (r TextSearchInput) ResolveRegdictionary(ctx context.Context, text string) (uint32, error) {
 	parts, spelling, err := r.name(ctx, text)
 	if err != nil {
 		return 0, err
 	}
-	selection := analyze.NamespaceSelection{Path: r.path}
+	a := r.capture.Authority
+	selection := analyze.NamespaceSelection{Path: r.capture.Path}
 	if len(parts) == 2 {
-		ns := r.auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
+		ns := a.View.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
-			ns = r.temporary
+			ns = r.capture.Temporary
 		}
 		if ns != (ids.ObjectAddress{}) {
-			if err := r.auth.CanUse(r.auth.Ref(ns)); err != nil {
+			if err := a.View.CanUse(a.Environment, a.View.Ref(ns)); err != nil {
 				return 0, err
 			}
 			if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
@@ -86,10 +76,10 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 	}
 	for i := range selection.Count() {
 		ns := selection.At(i)
-		address := r.auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text})
-		if d, ok := r.auth.Catalog.TSDictionary(address); ok {
+		address := a.View.Catalog.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text})
+		if d, ok := a.View.Catalog.TSDictionary(address); ok {
 			if r.resolved != nil {
-				ref := r.auth.Ref(d.Address())
+				ref := a.View.Ref(d.Address())
 				*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()})
 			}
 			return uint32(d.Address().ObjectID), nil
