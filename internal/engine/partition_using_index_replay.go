@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -36,7 +37,7 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *session.Operation, raw *pars
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	operationReplay(op).partitionUsingIndex = CaptureUsingIndexReplay(auth.Catalog, raw, table)
+	operationReplay(op).partitionUsingIndex = partition.CaptureUsingIndexReplay(auth.Catalog, raw, table)
 	return nil
 }
 
@@ -44,5 +45,5 @@ func partitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationV
 	if op == nil || raw == nil || operationReplayOrZero(op).partitionUsingIndex == nil {
 		return false
 	}
-	return usingIndexReplayMatches(operationReplayOrZero(op).partitionUsingIndex, auth.Catalog, raw, table) && partitionConstraintReplayImport(auth.engine, op, auth)
+	return operationReplayOrZero(op).partitionUsingIndex.Matches(auth.Catalog, raw, table) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

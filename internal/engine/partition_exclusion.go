@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -30,7 +31,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *s
 	for _, descriptor := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, descriptor)
 	}
-	err = StageExclusions(ddlHost{e: e, op: op, stage: stage}, auth, scope.input, table, raw)
+	err = partition.StageExclusions(ddlHost{e: e, op: op, stage: stage}, auth, scope.input, table, raw)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {

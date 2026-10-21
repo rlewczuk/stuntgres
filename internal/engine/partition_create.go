@@ -21,7 +21,7 @@ type pendingPartitionDefinition struct {
 
 func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*pendingPartitionDefinition, error) {
 	op := scope.op
-	if err := RejectForeignKeys(syntax); err != nil {
+	if err := partition.RejectForeignKeys(syntax); err != nil {
 		return nil, err
 	}
 	for _, observed := range scope.partitionRelations {
@@ -45,7 +45,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			return nil, err
 		}
 	}
-	definition, err := StageCreate(ddlHost{e: e, op: op, stage: stage}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.input, scope.foreignActionsOrZero().KeyTargets)
+	definition, err := partition.StageCreate(ddlHost{e: e, op: op, stage: stage}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.input, scope.foreignActionsOrZero().KeyTargets)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if p == nil {
 		return nil
 	}
-	if err := CheckCoverage(p.stage, p.Child); err != nil {
+	if err := partition.CheckCoverage(p.stage, p.Child); err != nil {
 		return err
 	}
 	if p.Parent == nil {
@@ -79,20 +79,20 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	ctx := scope.op.Context()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
 	if !p.Bound.DefaultBound {
-		if err := EvaluateBounds(ctx, &p.Definition, partitionBoundBinder{scope: scope, pending: p}, &evaluation); err != nil {
+		if err := partition.EvaluateBounds(ctx, &p.Definition, partitionBoundBinder{scope: scope, pending: p}, &evaluation); err != nil {
 			return err
 		}
-		if err := ValidateBounds(ctx, scope.input, &p.Definition); err != nil {
+		if err := partition.ValidateBounds(ctx, scope.input, &p.Definition); err != nil {
 			return err
 		}
-		if err := CheckOverlap(ctx, scope.input, p.stage.Base, &p.Definition); err != nil {
+		if err := partition.CheckOverlap(ctx, scope.input, p.stage.Base, &p.Definition); err != nil {
 			return err
 		}
 		if err := partition.CheckSupported(&p.Definition); err != nil {
 			return err
 		}
 		evaluation.Catalog, evaluation.RoutineAuthority = p.auth.Catalog, &p.auth
-		if err := CheckDefaultRows(ctx, &evaluation, p.view, p.stage.Base, &p.Definition); err != nil {
+		if err := partition.CheckDefaultRows(ctx, &evaluation, p.view, p.stage.Base, &p.Definition); err != nil {
 			return err
 		}
 	}
@@ -109,5 +109,5 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return StageIndexChildren(ddlHost{e: e, op: scope.op, stage: p.stage}, p.Parent, p.Child.Address(), false)
+	return partition.StageIndexChildren(ddlHost{e: e, op: scope.op, stage: p.stage}, p.Parent, p.Child.Address(), false)
 }

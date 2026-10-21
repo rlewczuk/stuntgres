@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -43,7 +44,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	captured, err := CaptureUniqueReplay(auth.Catalog, raw, table)
+	captured, err := partition.CaptureUniqueReplay(auth.Catalog, raw, table)
 	if err != nil {
 		return err
 	}
@@ -55,7 +56,7 @@ func partitionUniqueReplayAllowed(op *session.Operation, auth AuthorizationView,
 	if op == nil || raw == nil || operationReplayOrZero(op).partitionUnique == nil || !partitionConstraintReplayImport(auth.engine, op, auth) {
 		return false
 	}
-	return uniqueReplayMatches(operationReplayOrZero(op).partitionUnique, auth.Catalog, raw, table)
+	return operationReplayOrZero(op).partitionUnique.Matches(auth.Catalog, raw, table)
 }
 
 // Consume Engine.mu like the canonical ALTER executor. The existing binder,

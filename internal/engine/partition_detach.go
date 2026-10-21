@@ -116,7 +116,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	if err = StageDetach(stage, stage.Base, parent, child); err != nil {
+	if err = partition.StageDetach(stage, stage.Base, parent, child); err != nil {
 		return Result{}, err
 	}
 	if _, err = e.ValidateCatalogStage(op.Context(), stage); err != nil {

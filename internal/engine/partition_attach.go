@@ -34,7 +34,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return Result{}, nil
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
-	if err := CheckAttachTarget(parent, operationReplayOrZero(op).partitionAttach); err != nil {
+	if err := partition.CheckAttachTarget(parent, operationReplayOrZero(op).partitionAttach); err != nil {
 		return fail(err)
 	}
 	lookupAuth, err := e.partitionAttachAuthorization(op, auth)
@@ -56,7 +56,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	defer func() { e.DiscardCatalogStage(pending.stage) }()
 	if !bound.DefaultBound {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}}
-		if err = EvaluateBounds(op.Context(), &pending.Definition, partitionBoundBinder{scope: scope, pending: pending}, &evaluation); err != nil {
+		if err = partition.EvaluateBounds(op.Context(), &pending.Definition, partitionBoundBinder{scope: scope, pending: pending}, &evaluation); err != nil {
 			return Result{}, err
 		}
 	}
@@ -159,14 +159,14 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return Result{}, err
 	}
 	pending.Child = next
-	if err = ValidateBounds(scope.op.Context(), scope.input, &pending.Definition); err != nil {
+	if err = partition.ValidateBounds(scope.op.Context(), scope.input, &pending.Definition); err != nil {
 		return Result{}, err
 	}
 	if err = partition.CheckDefaultConflict(auth.Catalog, parent, bound, child.Name(), raw.Bound.Pos); err != nil {
 		return Result{}, err
 	}
 	if !bound.DefaultBound {
-		if err = CheckOverlap(scope.op.Context(), scope.input, pending.stage.Base, &pending.Definition); err != nil {
+		if err = partition.CheckOverlap(scope.op.Context(), scope.input, pending.stage.Base, &pending.Definition); err != nil {
 			return Result{}, err
 		}
 	}
@@ -179,10 +179,10 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return Result{}, err
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}}
-	if err = ValidateAttachRows(scope.op.Context(), &evaluation, scope.partitionsOrZero().ValidationView, auth.Catalog, parent, bound, jobs); err != nil {
+	if err = partition.ValidateAttachRows(scope.op.Context(), &evaluation, scope.partitionsOrZero().ValidationView, auth.Catalog, parent, bound, jobs); err != nil {
 		return Result{}, err
 	}
-	changed, next, err := AttachDescriptors(parent, next, bound)
+	changed, next, err := partition.AttachDescriptors(parent, next, bound)
 	if err != nil {
 		return Result{}, err
 	}
@@ -193,7 +193,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return Result{}, err
 	}
 	e.mu.Lock()
-	err = StageIndexChildren(ddlHost{e: e, op: op, stage: stage}, parent, child.Address(), true)
+	err = partition.StageIndexChildren(ddlHost{e: e, op: op, stage: stage}, parent, child.Address(), true)
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
