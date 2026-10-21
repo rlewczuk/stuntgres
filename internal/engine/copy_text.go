@@ -8,6 +8,7 @@ import (
 	"io"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -25,7 +26,7 @@ type copyCursor struct {
 	nullInput         bool
 }
 
-func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyOptions, r io.Reader) *copyCursor {
+func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyfmt.Options, r io.Reader) *copyCursor {
 	// One backing array for both row flags offsets the targets allocation.
 	n := len(b.Relation.Columns)
 	flags := make([]bool, 2*n)
@@ -167,8 +168,8 @@ func (s *StatementScope) copyCommandError(err error) error {
 	}
 	return err
 }
-func (s *StatementScope) copyOutput(rows exec.RowResult, o copyOptions, w io.Writer) (count int64, err error) {
-	if o.format == copyFormatBinary {
+func (s *StatementScope) copyOutput(rows exec.RowResult, o copyfmt.Options, w io.Writer) (count int64, err error) {
+	if o.Format == copyfmt.Binary {
 		return s.copyBinaryOutput(rows, w)
 	}
 	schema := rows.Schema()
@@ -182,15 +183,15 @@ func (s *StatementScope) copyOutput(rows exec.RowResult, o copyOptions, w io.Wri
 		}
 		return err
 	}
-	if o.header != 0 {
+	if o.Header != 0 {
 		for i, column := range schema {
 			if i != 0 {
-				buffer = append(buffer, o.delimiter)
+				buffer = append(buffer, o.Delimiter)
 			}
-			if o.format == copyFormatCSV {
+			if o.Format == copyfmt.CSV {
 				buffer = appendCopyCSV(buffer, column.Name, o, false, len(schema) == 1)
 			} else {
-				buffer = appendCopyText(buffer, column.Name, o.delimiter)
+				buffer = appendCopyText(buffer, column.Name, o.Delimiter)
 			}
 		}
 		buffer = append(buffer, '\n')
@@ -210,20 +211,20 @@ func (s *StatementScope) copyOutput(rows exec.RowResult, o copyOptions, w io.Wri
 		output := rows.OutputEnvironment()
 		for i, value := range values {
 			if i != 0 {
-				buffer = append(buffer, o.delimiter)
+				buffer = append(buffer, o.Delimiter)
 			}
 			if value.IsNull() {
-				buffer = append(buffer, o.null...)
+				buffer = append(buffer, o.Null...)
 				continue
 			}
 			text, outputErr := value.Type().OutputWithEnvironment(s.op.Context(), value, output)
 			if outputErr != nil {
 				return 0, outputErr
 			}
-			if o.format == copyFormatCSV {
-				buffer = appendCopyCSV(buffer, text, o, copyForced(o.quoteFields, i), len(schema) == 1)
+			if o.Format == copyfmt.CSV {
+				buffer = appendCopyCSV(buffer, text, o, copyfmt.Forced(o.QuoteFields, i), len(schema) == 1)
 			} else {
-				buffer = appendCopyText(buffer, text, o.delimiter)
+				buffer = appendCopyText(buffer, text, o.Delimiter)
 			}
 		}
 		buffer = append(buffer, '\n')

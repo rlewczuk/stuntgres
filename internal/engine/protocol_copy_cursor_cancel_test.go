@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -105,7 +106,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 					Targets:  []int{0},
 				},
 				in: copyLineReader{
-					options: copyOptions{delimiter: '\t', null: "\\N"},
+					options: copyfmt.Options{Delimiter: '\t', Null: "\\N"},
 					reader:  bufio.NewReader(strings.NewReader(tc.input)),
 					targets: []copyTarget{{name: "v"}},
 				},

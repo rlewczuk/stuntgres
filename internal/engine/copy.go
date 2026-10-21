@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"stuntgres/internal/engine/copyfmt"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -14,42 +15,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-func copyTargets(relation *catalog.Relation, columns []parser.Identifier) ([]int, error) {
-	targets := make([]int, 0, len(relation.Columns))
-	if len(columns) == 0 {
-		for i, attribute := range relation.Attributes {
-			if _, generated := relation.ColumnMeta.Generations[attribute]; !generated {
-				targets = append(targets, i)
-			}
-		}
-		return targets, nil
-	}
-	for _, name := range columns {
-		target := -1
-		for i, c := range relation.Columns {
-			if c.Name == name.Text {
-				target = i
-				break
-			}
-		}
-		if target < 0 {
-			return nil, sqlError("42703", fmt.Sprintf("column \"%s\" of relation \"%s\" does not exist", name.Text, relation.Name()))
-		}
-		for _, prior := range targets {
-			if prior == target {
-				return nil, sqlError("42701", fmt.Sprintf("column \"%s\" specified more than once", name.Text))
-			}
-		}
-		if _, generated := relation.ColumnMeta.Generations[relation.Attributes[target]]; generated {
-			d := sqlError("42P10", fmt.Sprintf("column \"%s\" is a generated column", name.Text)).(*sqlstate.Error)
-			d.Detail = "Generated columns cannot be used in COPY."
-			return nil, d
-		}
-		targets = append(targets, target)
-	}
-	return targets, nil
-}
 
 func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination io.Writer) (count int64, err error) {
 	return s.CopyProtocol(syntax, source, destination, CopyProtocolHooks{})
@@ -67,9 +32,9 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if syntax.Endpoint != parser.CopyStdin && syntax.Endpoint != parser.CopyStdout {
 		return 0, CopyBoundary(syntax)
 	}
-	var options copyOptions
+	var options copyfmt.Options
 	if syntax.Query != nil {
-		options, err = parseCopyOptions(syntax)
+		options, err = copyfmt.ParseOptions(syntax)
 		if err != nil {
 			return 0, err
 		}
@@ -94,7 +59,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 				err = closeErr
 			}
 		}()
-		if err = options.bindForces(nil, nil, rows.Schema()); err != nil {
+		if err = options.BindForces(nil, nil, rows.Schema()); err != nil {
 			return 0, err
 		}
 		if err = s.reserveCopy(); err != nil {
@@ -130,11 +95,11 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.Session.SessionToken); err != nil {
 		return 0, err
 	}
-	options, err = parseCopyOptions(syntax)
+	options, err = copyfmt.ParseOptions(syntax)
 	if err != nil {
 		return 0, err
 	}
-	if err = options.bindForces(b.Relation, b.Targets, nil); err != nil {
+	if err = options.BindForces(b.Relation, b.Targets, nil); err != nil {
 		return 0, err
 	}
 	if !syntax.From {
@@ -182,7 +147,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	for _, target := range b.Targets {
 		selected[target] = true
 	}
-	binaryInput := options.format == copyFormatBinary && (s.protocolOrZero().command || s.protocolOrZero().simple)
+	binaryInput := options.Format == copyfmt.Binary && (s.protocolOrZero().command || s.protocolOrZero().simple)
 	inputColumns := len(b.Insert.Defaults)
 	if binaryInput {
 		inputColumns = len(b.Relation.Columns)
@@ -203,7 +168,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if expression == nil {
 			continue
 		}
-		if selected[i] && !options.hasDefault {
+		if selected[i] && !options.HasDefault {
 			b.Insert.Defaults[i] = nil
 			continue
 		}
@@ -268,7 +233,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		rowDefaults() []bool
 		diagnostic(error) error
 	}
-	if options.format == copyFormatBinary {
+	if options.Format == copyfmt.Binary {
 		cursor = newCopyBinaryCursor(s, b, source)
 	} else {
 		cursor = newCopyCursor(s, b, options, source)
@@ -336,7 +301,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 		return
 	}
 	b.Storage = e.authorizationStorageLocked(auth, b.Ref.Address)
-	b.Targets, err = copyTargets(b.Relation, syntax.Columns)
+	b.Targets, err = copyfmt.ResolveColumns(b.Relation, syntax.Columns)
 	if err != nil {
 		return
 	}

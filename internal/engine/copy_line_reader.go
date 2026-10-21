@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -26,7 +27,7 @@ type copyTarget struct {
 // decodes fields and checks the header line. It reuses its buffers across
 // records and knows nothing of the statement executing the COPY.
 type copyLineReader struct {
-	options                      copyOptions
+	options                      copyfmt.Options
 	reader                       *bufio.Reader
 	line, decoded                []byte
 	fields                       []copyField
@@ -42,7 +43,7 @@ func (r *copyLineReader) lineError(message string, hint string) error {
 	return d
 }
 func (r *copyLineReader) readLine() (present bool, err error) {
-	if r.options.format == copyFormatCSV {
+	if r.options.Format == copyfmt.CSV {
 		return r.readCSVLine()
 	}
 	if r.ended {
@@ -190,7 +191,7 @@ func decodeCopyField(dst, raw []byte) []byte {
 	return dst
 }
 func (r *copyLineReader) split(defaultMarkers bool) error {
-	if r.options.format == copyFormatCSV {
+	if r.options.Format == copyfmt.CSV {
 		return r.splitCSV(defaultMarkers)
 	}
 	r.fields = r.fields[:0]
@@ -201,13 +202,13 @@ func (r *copyLineReader) split(defaultMarkers bool) error {
 			i++
 			continue
 		}
-		if i < len(r.line) && r.line[i] != r.options.delimiter {
+		if i < len(r.line) && r.line[i] != r.options.Delimiter {
 			continue
 		}
 		raw := r.line[start:i]
 		begin := len(r.decoded)
-		isNull := string(raw) == r.options.null
-		isDefault := defaultMarkers && r.options.hasDefault && string(raw) == r.options.def
+		isNull := string(raw) == r.options.Null
+		isDefault := defaultMarkers && r.options.HasDefault && string(raw) == r.options.Default
 		if isDefault && len(r.fields) < len(r.targets) {
 			if target := r.targets[len(r.fields)]; !target.hasDefault {
 				d := r.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
@@ -242,14 +243,14 @@ func (r *copyLineReader) header() error {
 		return nil
 	}
 	r.headerDone = true
-	if r.options.header == 0 {
+	if r.options.Header == 0 {
 		return nil
 	}
 	_, err := r.readLine()
 	if err != nil {
 		return err
 	}
-	if r.options.header != 2 {
+	if r.options.Header != 2 {
 		return nil
 	}
 	if err = r.split(false); err != nil {
@@ -261,7 +262,7 @@ func (r *copyLineReader) header() error {
 	for i, field := range r.fields {
 		name := r.targets[i].name
 		if field.isNull {
-			return r.lineError(fmt.Sprintf("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"", i+1, r.options.null, name), "")
+			return r.lineError(fmt.Sprintf("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"", i+1, r.options.Null, name), "")
 		}
 		if string(field.decoded) != name {
 			return r.lineError(fmt.Sprintf("column name mismatch in header line field %d: got \"%s\", expected \"%s\"", i+1, string(field.decoded), name), "")
@@ -273,13 +274,13 @@ func (r *copyLineReader) header() error {
 // fieldNull applies the CSV FORCE_NOT_NULL and FORCE_NULL flags to field i.
 func (r *copyLineReader) fieldNull(i int) bool {
 	field := r.fields[i]
-	if r.options.format != copyFormatCSV {
+	if r.options.Format != copyfmt.CSV {
 		return field.isNull
 	}
 	if field.isNull {
-		return !copyForced(r.options.notNullFields, i)
+		return !copyfmt.Forced(r.options.NotNullFields, i)
 	}
-	return field.quoted && copyForced(r.options.nullFields, i) && string(field.decoded) == r.options.null
+	return field.quoted && copyfmt.Forced(r.options.NullFields, i) && string(field.decoded) == r.options.Null
 }
 func copyContextValue(text string) string {
 	if len(text) <= 100 {

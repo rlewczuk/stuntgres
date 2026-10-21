@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -18,7 +19,7 @@ func (r *copyLineReader) readCSVLine() (present bool, err error) {
 	r.lineValid = false
 	r.number++
 	quoted, lastEscape := false, false
-	distinctEscape := r.options.escape != r.options.quote
+	distinctEscape := r.options.Escape != r.options.Quote
 	for {
 		b, readErr := r.reader.ReadByte()
 		if readErr != nil {
@@ -32,13 +33,13 @@ func (r *copyLineReader) readCSVLine() (present bool, err error) {
 		// Framing follows raw-byte parity, not decoder pair consumption.
 		// Equal QUOTE/ESCAPE disables special escape handling: every quote
 		// toggles before separator detection, including accepted CR/LF quotes.
-		if quoted && distinctEscape && b == r.options.escape {
+		if quoted && distinctEscape && b == r.options.Escape {
 			lastEscape = !lastEscape
 		}
-		if b == r.options.quote && !lastEscape {
+		if b == r.options.Quote && !lastEscape {
 			quoted = !quoted
 		}
-		if !distinctEscape || b != r.options.escape {
+		if !distinctEscape || b != r.options.Escape {
 			lastEscape = false
 		}
 		if quoted {
@@ -91,24 +92,24 @@ func (r *copyLineReader) splitCSV(defaultMarkers bool) error {
 		if i < len(r.line) {
 			b := r.line[i]
 			if quoted {
-				if b == r.options.escape && i+1 < len(r.line) && (r.line[i+1] == r.options.escape || r.line[i+1] == r.options.quote) {
+				if b == r.options.Escape && i+1 < len(r.line) && (r.line[i+1] == r.options.Escape || r.line[i+1] == r.options.Quote) {
 					i++
 					r.decoded = append(r.decoded, r.line[i])
 					continue
 				}
-				if b == r.options.quote {
+				if b == r.options.Quote {
 					quoted = false
 					continue
 				}
 				r.decoded = append(r.decoded, b)
 				continue
 			}
-			if b == r.options.quote {
+			if b == r.options.Quote {
 				quoted = true
 				sawQuote = true
 				continue
 			}
-			if b != r.options.delimiter {
+			if b != r.options.Delimiter {
 				r.decoded = append(r.decoded, b)
 				continue
 			}
@@ -117,8 +118,8 @@ func (r *copyLineReader) splitCSV(defaultMarkers bool) error {
 			return r.lineError("unterminated CSV quoted field", "")
 		}
 		raw := r.line[start:i]
-		isNull := !sawQuote && string(raw) == r.options.null
-		isDefault := defaultMarkers && r.options.hasDefault && string(raw) == r.options.def
+		isNull := !sawQuote && string(raw) == r.options.Null
+		isDefault := defaultMarkers && r.options.HasDefault && string(raw) == r.options.Default
 		if isDefault && len(r.fields) < len(r.targets) {
 			if target := r.targets[len(r.fields)]; !target.hasDefault {
 				d := r.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
@@ -141,18 +142,18 @@ func (r *copyLineReader) splitCSV(defaultMarkers bool) error {
 	return nil
 }
 
-func appendCopyCSV(dst []byte, text string, o copyOptions, force, single bool) []byte {
-	quote := force || text == o.null || single && text == `\.` || strings.IndexByte(text, o.delimiter) >= 0 || strings.IndexByte(text, o.quote) >= 0 || strings.ContainsAny(text, "\r\n")
+func appendCopyCSV(dst []byte, text string, o copyfmt.Options, force, single bool) []byte {
+	quote := force || text == o.Null || single && text == `\.` || strings.IndexByte(text, o.Delimiter) >= 0 || strings.IndexByte(text, o.Quote) >= 0 || strings.ContainsAny(text, "\r\n")
 	if !quote {
 		return append(dst, text...)
 	}
-	dst = append(dst, o.quote)
+	dst = append(dst, o.Quote)
 	for i := range len(text) {
 		b := text[i]
-		if b == o.quote || b == o.escape {
-			dst = append(dst, o.escape)
+		if b == o.Quote || b == o.Escape {
+			dst = append(dst, o.Escape)
 		}
 		dst = append(dst, b)
 	}
-	return append(dst, o.quote)
+	return append(dst, o.Quote)
 }

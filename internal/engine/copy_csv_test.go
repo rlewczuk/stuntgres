@@ -4,46 +4,11 @@ import (
 	"bufio"
 	"reflect"
 	"strings"
-	"stuntgres/internal/parser"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func csvUnitOptions(t *testing.T, q string) copyOptions {
-	t.Helper()
-	statements, err := parser.Parse(q)
-	if err != nil {
-		t.Fatal(err)
-	}
-	o, err := parseCopyOptions(statements[0].(*parser.Copy))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return o
-}
-func TestCopyCSVOptions(t *testing.T) {
-	for _, q := range []string{"COPY t FROM STDIN WITH(FORMAT csv)", "COPY t FROM STDIN WITH(QUOTE '''',FORMAT csv)", "COPY t FROM STDIN WITH(ESCAPE '!',QUOTE '''',FORMAT csv)"} {
-		o := csvUnitOptions(t, q)
-		if o.format != copyFormatCSV || o.delimiter != ',' || o.null != "" {
-			t.Fatal(o)
-		}
-		quote, escape := byte('"'), byte('"')
-		if strings.Contains(q, "QUOTE") {
-			quote = '\''
-			escape = quote
-		}
-		if strings.Contains(q, "ESCAPE") {
-			escape = '!'
-		}
-		if o.quote != quote || o.escape != escape {
-			t.Fatal(o)
-		}
-	}
-	o := csvUnitOptions(t, "COPY t FROM STDIN WITH(FORMAT text)")
-	if o.format == copyFormatCSV || o.delimiter != '\t' || o.null != `\N` {
-		t.Fatal(o)
-	}
-}
 func TestCopyCSVFraming(t *testing.T) {
 	for _, tc := range []struct {
 		input string
@@ -53,7 +18,7 @@ func TestCopyCSVFraming(t *testing.T) {
 		{"\"a\r\nb\"\r\nc\r\n", []string{"\"a\r\nb\"", "c"}},
 		{"\"" + strings.Repeat("é", 40000) + "\"", []string{"\"" + strings.Repeat("é", 40000) + "\""}},
 	} {
-		c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: '"', escape: '"'}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
+		c := copyLineReader{options: copyfmt.Options{Format: copyfmt.CSV, Quote: '"', Escape: '"'}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
 		var got []string
 		for {
 			present, err := c.readLine()
@@ -70,7 +35,7 @@ func TestCopyCSVFraming(t *testing.T) {
 		}
 	}
 	t.Run("EstablishedCRLeavesLF", func(t *testing.T) {
-		c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: '"', escape: '"'}, reader: bufio.NewReaderSize(strings.NewReader("1,ok\r2,x\r\n"), 16)}
+		c := copyLineReader{options: copyfmt.Options{Format: copyfmt.CSV, Quote: '"', Escape: '"'}, reader: bufio.NewReaderSize(strings.NewReader("1,ok\r2,x\r\n"), 16)}
 		for i, want := range []string{"1,ok", "2,x"} {
 			present, err := c.readLine()
 			if err != nil || !present || string(c.line) != want || c.number != int64(i+1) {
@@ -96,7 +61,7 @@ func TestCopyCSVFraming(t *testing.T) {
 			{"\"bad\n\nvalue\",x\n", '\n', []int64{1}},
 			{"1,ok\n2,\"good\n\nvalue\"\nbad,x\n", '\n', []int64{1, 4, 5}},
 		} {
-			c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: '"', escape: tc.escape}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
+			c := copyLineReader{options: copyfmt.Options{Format: copyfmt.CSV, Quote: '"', Escape: tc.escape}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
 			for _, line := range tc.lines {
 				present, err := c.readLine()
 				if err != nil || !present || c.number != line {
@@ -117,7 +82,7 @@ func TestCopyCSVFraming(t *testing.T) {
 			{'\r', "\rbad\r\rvalue\r", "\rbad", 2},
 			{'\n', "\nbad\n\nvalue\n", "\nbad", 1},
 		} {
-			c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: tc.quote, escape: tc.quote}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
+			c := copyLineReader{options: copyfmt.Options{Format: copyfmt.CSV, Quote: tc.quote, Escape: tc.quote}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16)}
 			present, err := c.readLine()
 			if err != nil || !present || string(c.line) != tc.raw || c.number != tc.line {
 				t.Fatalf("quote %q raw %q line %d present %v err %v", tc.quote, c.line, c.number, present, err)
@@ -135,7 +100,7 @@ func TestCopyCSVFraming(t *testing.T) {
 			{"'a!!!!',tail\n", "a!!"},
 			{"'a!x'b,tail\n", "a!xb"},
 		} {
-			c := copyLineReader{options: copyOptions{format: copyFormatCSV, quote: '\'', escape: '!', delimiter: ','}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16), targets: make([]copyTarget, 2)}
+			c := copyLineReader{options: copyfmt.Options{Format: copyfmt.CSV, Quote: '\'', Escape: '!', Delimiter: ','}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16), targets: make([]copyTarget, 2)}
 			present, err := c.readLine()
 			if err != nil || !present || string(c.line) != strings.TrimSuffix(tc.input, "\n") {
 				t.Fatalf("raw %q present %v err %v", c.line, present, err)
@@ -159,7 +124,7 @@ func TestCopyCSVFields(t *testing.T) {
 		{"\"a\"\"b\",\\n", []string{"a\"b", `\n`}, []bool{true, false}, []bool{false, false}},
 		{"\"" + strings.Repeat("x", 90000) + "\",tail", []string{strings.Repeat("x", 90000), "tail"}, []bool{true, false}, []bool{false, false}},
 	} {
-		c := copyLineReader{options: copyOptions{format: copyFormatCSV, delimiter: ',', quote: '"', escape: '"'}, line: []byte(tc.input), targets: make([]copyTarget, len(tc.want))}
+		c := copyLineReader{options: copyfmt.Options{Format: copyfmt.CSV, Delimiter: ',', Quote: '"', Escape: '"'}, line: []byte(tc.input), targets: make([]copyTarget, len(tc.want))}
 		if err := c.split(true); err != nil {
 			t.Fatal(err)
 		}
@@ -174,7 +139,7 @@ func TestCopyCSVFields(t *testing.T) {
 	}
 }
 func TestCopyCSVOutput(t *testing.T) {
-	o := copyOptions{format: copyFormatCSV, delimiter: ',', quote: '"', escape: '"'}
+	o := copyfmt.Options{Format: copyfmt.CSV, Delimiter: ',', Quote: '"', Escape: '"'}
 	for _, tc := range []struct {
 		text, want    string
 		force, single bool
@@ -186,8 +151,8 @@ func TestCopyCSVOutput(t *testing.T) {
 			t.Fatalf("%q want %q", got, tc.want)
 		}
 	}
-	o.quote = '\''
-	o.escape = '!'
+	o.Quote = '\''
+	o.Escape = '!'
 	if got := string(appendCopyCSV(nil, "a'b!c", o, false, true)); got != "'a!'b!!c'" {
 		t.Fatal(got)
 	}
@@ -196,7 +161,7 @@ func TestCopyCSVOutput(t *testing.T) {
 	}
 }
 func TestCopyCSVLifecycle(t *testing.T) {
-	t.Run("OwnerReservation", func(t *testing.T) { copyOwnerReservation(t, copyFormatCSV) })
+	t.Run("OwnerReservation", func(t *testing.T) { copyOwnerReservation(t, copyfmt.CSV) })
 	t.Run("OperationExpiry", func(t *testing.T) { copyTimeoutTest(t, true) })
 	t.Run("FinalCancellationVeto", func(t *testing.T) { copyFinalCancellationVeto(t, true) })
 }

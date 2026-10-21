@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -354,7 +355,7 @@ func TestProtocolCopyHooks(t *testing.T) {
 	}
 	// A real reservation is required; optional nil hook does not create one.
 	sentinel := errors.New("start veto")
-	if err = scope.startProtocolCopy(CopyProtocolHooks{}, true, copyOptions{}, 2); err != nil {
+	if err = scope.startProtocolCopy(CopyProtocolHooks{}, true, copyfmt.Options{}, 2); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.reserveCopy(); err != nil {
@@ -371,7 +372,7 @@ func TestProtocolCopyHooks(t *testing.T) {
 		}
 		s.Transactions.Admission.Unlock()
 		return sentinel
-	}}, true, copyOptions{format: copyFormatBinary}, 2)
+	}}, true, copyfmt.Options{Format: copyfmt.Binary}, 2)
 	if !called || !errors.Is(err, sentinel) {
 		t.Fatal("start callback primary error lost", err)
 	}
