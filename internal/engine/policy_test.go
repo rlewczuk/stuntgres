@@ -279,8 +279,8 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			}
 			var labels []string
 			for _, edge := range edges {
-				if !edge.automatic {
-					labels = append(labels, edge.label)
+				if !edge.Automatic {
+					labels = append(labels, edge.Label)
 				}
 			}
 			want := "policy p on table t"

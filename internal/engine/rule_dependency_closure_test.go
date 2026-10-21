@@ -56,12 +56,12 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	ruleAddress := ids.ObjectAddress{ClassID: 2618, ObjectID: ruleOID}
 	found := false
 	for _, edge := range closure(provider) {
-		if edge.address == event.Address() {
+		if edge.Address == event.Address() {
 			t.Fatal("ordinary rule dependency retired its event view", edge)
 		}
-		if edge.address == ruleAddress {
+		if edge.Address == ruleAddress {
 			found = true
-			if edge.target != provider || edge.root != provider || edge.relation != event || edge.automatic {
+			if edge.Target != provider || edge.Root != provider || edge.Relation != event || edge.Automatic {
 				t.Fatal("ordinary rule edge lost object/owner/provider authority", edge)
 			}
 		}
@@ -72,15 +72,15 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	// The separately analyzed SELECT definition remains the event relation's edge.
 	foundView := false
 	for _, edge := range closure(baseRef.Address) {
-		if edge.address == event.Address() {
-			foundView = edge.target == baseRef.Address && edge.root == baseRef.Address
+		if edge.Address == event.Address() {
+			foundView = edge.Target == baseRef.Address && edge.Root == baseRef.Address
 		}
 	}
 	if !foundView {
 		t.Fatal("view SELECT definition disappeared from the same canonical closure")
 	}
 	stage := e.BeginCatalogStage(view)
-	if err := stageDropProvider(context.Background(), stage, nil, nil, nil).applyViewDependents([]ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
+	if err := stageDropProvider(context.Background(), stage, nil, nil, nil).ApplyViewDependents([]ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	current := e.stageRead(stage).MustRelation(event.Address())

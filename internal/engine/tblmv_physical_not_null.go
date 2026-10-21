@@ -11,7 +11,7 @@ import (
 // The caller is the affected historical-only NN branch of real TYPE cleanup.
 // It has not rebound the primary yet; the ordinary TYPE rebuilder still owns
 // fresh key/index identities and supplies the completed binding below.
-func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotNullConstraint) (catalog.PhysicalNotNullProof, bool) {
+func PhysicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotNullConstraint) (catalog.PhysicalNotNullProof, bool) {
 	if old.Inheritance == nil || fact.OID == 0 || fact.NotValid || fact.NoInherit || !slices.Contains(old.Constraints.NotNull, fact) {
 		return catalog.PhysicalNotNullProof{}, false
 	}
@@ -36,7 +36,7 @@ func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotN
 	return catalog.PhysicalNotNullProof{Cause: cause, Usage: old.Columns[slot].Usage, Support: catalog.CapturePhysicalPrimarySupport(candidate, primary)}, true
 }
 
-func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinary map[int32]bool) error {
+func ValidatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinary map[int32]bool) error {
 	var validated *catalog.PhysicalPrimarySupport
 	for attribute, proof := range table.Constraints.PhysicalNotNull {
 		if ordinary[attribute] || !index.PhysicalNotNullOriginValid(view, table, attribute, proof) {
@@ -71,7 +71,7 @@ func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinar
 
 // Real NN creation/column retirement supersedes the exceptional physical flag.
 // Callers already own a detached relation candidate; the old map stays immutable.
-func prunePhysicalNotNull(next *catalog.Relation) {
+func PrunePhysicalNotNull(next *catalog.Relation) {
 	if len(next.Constraints.PhysicalNotNull) == 0 {
 		return
 	}
@@ -95,8 +95,8 @@ func prunePhysicalNotNull(next *catalog.Relation) {
 
 // A genuine supported DROP may retire the key, but it does not clear the
 // independently surviving physical attribute flag or revive an NN row.
-func transitionPhysicalNotNull(old, next *catalog.Relation) {
-	prunePhysicalNotNull(next)
+func TransitionPhysicalNotNull(old, next *catalog.Relation) {
+	PrunePhysicalNotNull(next)
 	copied := len(old.Constraints.PhysicalNotNull) != len(next.Constraints.PhysicalNotNull)
 	for attribute, proof := range next.Constraints.PhysicalNotNull {
 		if proof.Support == nil || catalog.PhysicalPrimaryForAttribute(next, attribute) != nil {
@@ -118,7 +118,7 @@ func transitionPhysicalNotNull(old, next *catalog.Relation) {
 // Callers own the detached NN slice and inheritance graph. Physical TYPE cleanup
 // and its strict import counterpart retire the same actual definition without
 // deciding the independent physical attribute flag here.
-func removeDetachedNotNullMetadata(next *catalog.Relation, fact catalog.NotNullConstraint) {
+func RemoveDetachedNotNullMetadata(next *catalog.Relation, fact catalog.NotNullConstraint) {
 	next.Constraints.NotNull = slices.DeleteFunc(next.Constraints.NotNull, func(candidate catalog.NotNullConstraint) bool { return candidate.OID == fact.OID })
 	if next.Inheritance != nil {
 		delete(next.Inheritance.NotNull, fact.Attribute)

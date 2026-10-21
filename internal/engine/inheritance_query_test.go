@@ -38,7 +38,7 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	e.catalog.state.SetDescriptor(peerNamespace, &catalog.Namespace{ObjectAddress: peerNamespace, Temporary: peer})
 	for range 2 {
 		var got []ids.ObjectAddress
-		if err := inheritanceQueryClosure(e.CatalogRead(), p, own, func(d *catalog.Relation) error { got = append(got, d.Address()); return nil }); err != nil {
+		if err := InheritanceQueryClosure(e.CatalogRead(), p, own, func(d *catalog.Relation) error { got = append(got, d.Address()); return nil }); err != nil {
 			t.Fatal(err)
 		}
 		want := []ids.ObjectAddress{p.Address(), l.Address(), d.Address(), r.Address(), o.Address()}
@@ -185,7 +185,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, leaf, op.Session.SessionToken)
+		source, err = CaptureInheritanceQueryPrefix(scope.inheritance.catalog, view, leaf, op.Session.SessionToken)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -228,7 +228,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	incomplete, err := failed.acquireDataViewsLocked(e, []ids.ObjectRef{ref})
 	var partial *exec.Source
 	if err == nil {
-		partial, err = captureInheritanceQueryPrefix(incomplete.Catalog(), incomplete, leaf, failOp.Session.SessionToken)
+		partial, err = CaptureInheritanceQueryPrefix(incomplete.Catalog(), incomplete, leaf, failOp.Session.SessionToken)
 	}
 	e.mu.Unlock()
 	if err == nil || partial != nil || incomplete == nil || incomplete.Load() == nil {
@@ -255,7 +255,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 			t.Fatalf("relation syntax lost its source carrier: %T", query.From)
 		}
 		table := tables[0]
-		if table.Only != tc.only || sourceOnly(&parser.Select{From: table}) != tc.only {
+		if table.Only != tc.only || SourceOnly(&parser.Select{From: table}) != tc.only {
 			t.Fatal(tc.sql, table.Only, tc.only)
 		}
 	}

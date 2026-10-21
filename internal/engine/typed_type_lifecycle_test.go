@@ -122,12 +122,12 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	changed := *root
 	changed.Columns, changed.Attributes, changed.Index = root.Columns[1:], root.Attributes[1:], map[string]int{"note": 0}
 	state := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{root.Address(): &changed, other.Address(): &other}, nil)
-	actions, renames, graph, err := typedInheritedActions(e.catalog.read(state), &child, nil)
+	actions, renames, graph, err := TypedInheritedActions(e.catalog.read(state), &child, nil)
 	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.Columns[3].Origins, []catalog.InheritanceOrigin{{Parent: other.Address(), Attribute: 1}}) || len(child.Inheritance.Columns[3].Origins) != 2 {
 		t.Fatal("surviving other-parent origin lost", actions, renames, graph, err)
 	}
 	other.Columns, other.Attributes, other.Index = nil, nil, map[string]int{}
-	actions, _, graph, err = typedInheritedActions(e.catalog.read(state), &child, nil)
+	actions, _, graph, err = TypedInheritedActions(e.catalog.read(state), &child, nil)
 	if err != nil || len(actions) != 1 || actions[0].Action.Column.Text != "id" || !graph.Columns[8].Local {
 		t.Fatal("local column or retired origin lost", actions, graph, err)
 	}

@@ -195,7 +195,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		return nil, err
 	}
 	for i := range s.tables {
-		if err := s.tables[i].prepareInheritedRecipes(s.originalCatalog); err != nil {
+		if err := s.tables[i].PrepareInheritedRecipes(s.originalCatalog); err != nil {
 			return nil, err
 		}
 	}

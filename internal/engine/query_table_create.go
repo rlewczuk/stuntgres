@@ -97,7 +97,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 			}
 			return nil, nil, false, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type %s`, column.Name, typeName))
 		}
-		if err = validateQueryTableOutputType(typ); err != nil {
+		if err = ValidateQueryTableOutputType(typ); err != nil {
 			return nil, nil, false, err
 		}
 		if projection.Expressions[i].CollationIndeterminate() {

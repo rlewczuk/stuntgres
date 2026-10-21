@@ -16,7 +16,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 		return restoredForeignKeys{}, false, nil
 	}
 	reject := func() (restoredForeignKeys, bool, error) {
-		return restoredForeignKeys{}, false, sqlError("0A000", restoreInheritedForeignKeyBoundary)
+		return restoredForeignKeys{}, false, sqlError("0A000", RestoreInheritedForeignKeyBoundary)
 	}
 	foreign := raw.Actions[0].ForeignKey
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(foreign.Target.Parts) != 2 || foreign.Name.Text == "" || len(foreign.Columns) == 0 {
@@ -29,7 +29,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 	if err != nil {
 		return restoredForeignKeys{}, false, err
 	}
-	auth := ddlAuthorityOf(pending.auth)
+	auth := ddlAuthorityOf(pending.Auth)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if !partitionConstraintReplayImport(e, op, auth) {
@@ -45,7 +45,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 	}
 	source, sourceOK := auth.Catalog.Relation(sourceRef.Address)
 	target, targetOK := auth.Catalog.Relation(targetRef.Address)
-	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != catalog.TableRelation || target.RelationKind != catalog.TableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !inheritedForeignKeyDescendant(auth.Catalog, target, source.Address()) {
+	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != catalog.TableRelation || target.RelationKind != catalog.TableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !InheritedForeignKeyDescendant(auth.Catalog, target, source.Address()) {
 		return reject()
 	}
 	if auth.Catalog.MustNamespace(source.Namespace()).Temporary != (ids.SessionToken{}) || auth.Catalog.MustNamespace(target.Namespace()).Temporary != (ids.SessionToken{}) {
@@ -54,13 +54,13 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 	if err := auth.Check(access.Requirement{Object: sourceRef, OwnerOnly: true}); err != nil {
 		return restoredForeignKeys{}, false, err
 	}
-	receipt := &restoredInheritedForeignKey{source: sourceRef, target: targetRef, beforeSource: source, beforeTarget: target, raw: *foreign, providers: make(map[ids.ObjectAddress]restoredInheritedForeignIndex)}
+	receipt := &restoredInheritedForeignKey{Source: sourceRef, Target: targetRef, BeforeSource: source, BeforeTarget: target, Raw: *foreign, Providers: make(map[ids.ObjectAddress]restoredInheritedForeignIndex)}
 	var valid bool
-	receipt.columns, valid = captureInheritedForeignColumns(source, foreign.Columns)
+	receipt.Columns, valid = CaptureInheritedForeignColumns(source, foreign.Columns)
 	if !valid {
 		return reject()
 	}
-	receipt.deleted, valid = captureInheritedForeignColumns(source, foreign.DeleteColumns)
+	receipt.Deleted, valid = CaptureInheritedForeignColumns(source, foreign.DeleteColumns)
 	if !valid {
 		return reject()
 	}
@@ -68,7 +68,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 	if len(referenced) == 0 {
 		for _, key := range target.Constraints.Unique {
 			if key.Primary {
-				pending.definitions[0].supporting = key.Index
+				pending.Definitions[0].Supporting = key.Index
 				referenced = make([]parser.Identifier, len(key.Attributes))
 				for i, attribute := range key.Attributes {
 					slot := target.IndexForAttribute(attribute)
@@ -81,44 +81,44 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 			}
 		}
 	}
-	receipt.referenced, valid = captureInheritedForeignColumns(target, referenced)
-	if !valid || len(receipt.referenced) != len(receipt.columns) {
+	receipt.Referenced, valid = CaptureInheritedForeignColumns(target, referenced)
+	if !valid || len(receipt.Referenced) != len(receipt.Columns) {
 		return reject()
 	}
-	attributes := make([]int32, len(receipt.referenced))
-	for i, column := range receipt.referenced {
-		attributes[i] = column.attribute
+	attributes := make([]int32, len(receipt.Referenced))
+	for i, column := range receipt.Referenced {
+		attributes[i] = column.Attribute
 	}
 	for address, descriptor := range auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.Address() {
 			continue
 		}
-		eligible, err := foreignKeyIndexEligible(target, index, attributes)
+		eligible, err := ForeignKeyIndexEligible(target, index, attributes)
 		if err != nil {
 			return restoredForeignKeys{}, false, err
 		}
-		receipt.providers[address] = restoredInheritedForeignIndex{current: index, eligible: eligible}
+		receipt.Providers[address] = restoredInheritedForeignIndex{Current: index, Eligible: eligible}
 	}
-	pending.child = sourceRef
-	pending.definitions[0].target = targetRef.Address
-	pending.definitions[0].path = []ids.ObjectAddress{target.Namespace()}
-	pending.definitions[0].inherited = receipt
+	pending.Child = sourceRef
+	pending.Definitions[0].Target = targetRef.Address
+	pending.Definitions[0].Path = []ids.ObjectAddress{target.Namespace()}
+	pending.Definitions[0].Inherited = receipt
 	return pending, true, nil
 }
 
 // Comments and final attribute-rank repairs do not alter these key/provider
 // observations. No later key, owner, type or provider incarnation can reuse them.
 func validateRestoredInheritedForeignKey(e *Engine, receipt *restoredInheritedForeignKey, op *session.Operation, declaration restoredForeignKeys, view catalog.Read) error {
-	auth := ddlAuthorityOf(declaration.auth)
+	auth := ddlAuthorityOf(declaration.Auth)
 	auth.Catalog = view
 	auth.Recapture(view)
-	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.Domain || receipt.target.Domain() != e.catalog.Domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || auth.RoleRecord != e.roles.published || !partitionConstraintReplayImport(e, op, auth) {
+	if receipt.Source != declaration.Child || receipt.Source.Domain() != e.catalog.Domain || receipt.Target.Domain() != e.catalog.Domain || receipt.Source.Epoch != view.Epoch() || receipt.Target.Epoch != view.Epoch() || auth.RoleRecord != e.roles.published || !partitionConstraintReplayImport(e, op, auth) {
 		return ids.ErrCatalogReplaced
 	}
-	source, _ := view.Relation(receipt.source.Address)
-	target, _ := view.Relation(receipt.target.Address)
-	if !inheritedForeignRelationUnchanged(source, receipt.beforeSource) || !inheritedForeignRelationUnchanged(target, receipt.beforeTarget) || !inheritedForeignKeyDescendant(view, target, source.Address()) || !inheritedForeignColumnsUnchanged(source, receipt.columns) || !inheritedForeignColumnsUnchanged(source, receipt.deleted) || !inheritedForeignColumnsUnchanged(target, receipt.referenced) {
+	source, _ := view.Relation(receipt.Source.Address)
+	target, _ := view.Relation(receipt.Target.Address)
+	if !InheritedForeignRelationUnchanged(source, receipt.BeforeSource) || !InheritedForeignRelationUnchanged(target, receipt.BeforeTarget) || !InheritedForeignKeyDescendant(view, target, source.Address()) || !InheritedForeignColumnsUnchanged(source, receipt.Columns) || !InheritedForeignColumnsUnchanged(source, receipt.Deleted) || !InheritedForeignColumnsUnchanged(target, receipt.Referenced) {
 		return ids.ErrCatalogReplaced
 	}
 	seen := 0
@@ -127,19 +127,19 @@ func validateRestoredInheritedForeignKey(e *Engine, receipt *restoredInheritedFo
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.Address() {
 			continue
 		}
-		observed, exists := receipt.providers[address]
-		if !exists || index.SQLIndex != observed.current.SQLIndex || index.Owner != observed.current.Owner || index.Namespace() != observed.current.Namespace() || index.Name() != observed.current.Name() || len(index.Columns) != len(observed.current.Columns) {
+		observed, exists := receipt.Providers[address]
+		if !exists || index.SQLIndex != observed.Current.SQLIndex || index.Owner != observed.Current.Owner || index.Namespace() != observed.Current.Namespace() || index.Name() != observed.Current.Name() || len(index.Columns) != len(observed.Current.Columns) {
 			return ids.ErrCatalogReplaced
 		}
 		for i, column := range index.Columns {
-			if column.Usage != observed.current.Columns[i].Usage {
+			if column.Usage != observed.Current.Columns[i].Usage {
 				return ids.ErrCatalogReplaced
 			}
 		}
 		seen++
 	}
-	if seen != len(receipt.providers) {
+	if seen != len(receipt.Providers) {
 		return ids.ErrCatalogReplaced
 	}
-	return auth.Check(access.Requirement{Object: receipt.source, OwnerOnly: true})
+	return auth.Check(access.Requirement{Object: receipt.Source, OwnerOnly: true})
 }

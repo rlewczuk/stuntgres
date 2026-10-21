@@ -40,7 +40,7 @@ func TestCheckReviewScalarInquiryCatalogReplacement(t *testing.T) {
 				}
 				view := target.CatalogRead()
 				imported := catalogRef(t, target, view, "t")
-				if err := validateChecks(view, view.MustRelation(imported.Address), map[string]bool{}); err != nil {
+				if err := ValidateChecks(view, view.MustRelation(imported.Address), map[string]bool{}); err != nil {
 					t.Fatal(err)
 				}
 				transactionRows(t, peer, "SELECT a FROM t", 1)

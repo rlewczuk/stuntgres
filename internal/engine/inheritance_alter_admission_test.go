@@ -84,8 +84,8 @@ func (c *inheritanceAlterAdmissionCase) run() error {
 		return err
 	}
 	command := *c.raw
-	command.Actions = prepared.actions
-	_, err = c.e.alterInheritanceLocked(c.scope, c.op, c.auth, &command, 0, prepared.destination, prepared.types)
+	command.Actions = prepared.Actions
+	_, err = c.e.alterInheritanceLocked(c.scope, c.op, c.auth, &command, 0, prepared.Destination, prepared.Types)
 	return err
 }
 func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *catalog.Relation) *StatementScope {
@@ -230,7 +230,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	g := inheritanceAlterGrandchild(t, e, c)
 	grown := e.CatalogRead()
 	currentChild := grown.MustRelation(c.Address())
-	if currentChild == c || !currentChild.History.HasSubclasses || currentChild.History.SubclassPredecessor != c || currentChild.Revision() != currentChild.History.SubclassPublication || !inheritanceMarkerPublication(c, currentChild) {
+	if currentChild == c || !currentChild.History.HasSubclasses || currentChild.History.SubclassPredecessor != c || currentChild.Revision() != currentChild.History.SubclassPublication || !InheritanceMarkerPublication(c, currentChild) {
 		t.Fatal("first-grandchild publication was not the actual narrow marker copy")
 	}
 	if grown.Epoch() != beforeGrowth.Epoch() {
@@ -240,7 +240,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	if err := inheritanceAlterJoin(t, result, joined); err != nil {
 		t.Fatal("additive first-grandchild growth was treated as replacement", err)
 	}
-	if state.stage == nil || state.stage.Base.State() != grown.State() || state.stage.Base.Get(g.Address()) != g || len(state.targets) != 3 {
+	if state.stage == nil || state.stage.Base.State() != grown.State() || state.stage.Base.Get(g.Address()) != g || len(state.Targets) != 3 {
 		t.Fatal("sole stage did not capture reconciled actual growth")
 	}
 	if e.CatalogRead().State() != grown.State() {
@@ -283,7 +283,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	state := inheritanceAlterPending(t, command, c)
 	g := inheritanceAlterGrandchild(t, e, c)
 	marker := e.CatalogRead().MustRelation(c.Address())
-	if !inheritanceMarkerPublication(c, marker) {
+	if !InheritanceMarkerPublication(c, marker) {
 		t.Fatal("fixture failed to publish genuine first-child marker")
 	}
 	// A subsequent actual metadata publication keeps the marker's fields but is
@@ -298,7 +298,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	queryCreatePublish(t, e, stage)
 	stable := e.CatalogRead()
 	stores := maps.Clone(e.storage.Relations)
-	if inheritanceMarkerPublication(c, &later) {
+	if InheritanceMarkerPublication(c, &later) {
 		t.Fatal("subsequent mutation laundered the first-child marker")
 	}
 	holder.Finish(nil)
@@ -468,7 +468,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if prepared == nil || prepared.steps[0].drop == nil {
 				t.Fatal("rowtype witness did not use actual DROP preparation")
 			}
-			if prepared.checks.next == nil || len(prepared.checks.next.Constraints.Check) != 1 {
+			if prepared.checks.Next == nil || len(prepared.checks.Next.Constraints.Check) != 1 {
 				t.Fatal("rowtype fixture did not produce its actual cooked CHECK")
 			}
 			assertShape := func(typ *sqltype.Descriptor, names []string) {
@@ -517,7 +517,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			assertShape(before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.RowType)}).SQLType, []string{"a", "b"})
 			if interim {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
-					expression := prepared.steps[index+1].added.expression
+					expression := prepared.steps[index+1].added.Expression
 					composite, array := false, false
 					plan.WalkExpression(expression, func(node expr.Expr) {
 						typ := node.ResultUsage().Type
@@ -551,7 +551,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				return
 			}
 			finalComposite, finalArray := false, false
-			plan.WalkExpression(prepared.checks.next.Constraints.Check[0].Expression, func(node expr.Expr) {
+			plan.WalkExpression(prepared.checks.Next.Constraints.Check[0].Expression, func(node expr.Expr) {
 				typ := node.ResultUsage().Type
 				if typ == nil {
 					return
@@ -602,24 +602,24 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			result, joined := inheritanceAlterWorker(t, command, holder)
 			state := inheritanceAlterPending(t, command, c)
 			prepared := state.prepared[p.Address()]
-			if prepared == nil || prepared.steps[1].drop == nil || prepared.steps[0].added.column == nil || len(prepared.inline) != 1 {
+			if prepared == nil || prepared.steps[1].drop == nil || prepared.steps[0].added.Column == nil || len(prepared.inline) != 1 {
 				t.Fatal("actual mixed providers were not prepared before descendant wait")
 			}
 			drop := prepared.steps[1].drop
 			add := prepared.steps[0]
-			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.HasAttribute(p.Attributes[p.Index["b"]]) || add.old != drop.next || add.added.attribute == p.Attributes[p.Index["b"]] {
+			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.HasAttribute(p.Attributes[p.Index["b"]]) || add.old != drop.next || add.added.Attribute == p.Attributes[p.Index["b"]] {
 				t.Fatal("mixed ADD cooked against original or guessed DROP shape")
 			}
-			cooked := prepared.checks.next
+			cooked := prepared.checks.Next
 			if cooked == nil || len(cooked.Constraints.Check) != 1 || len(cooked.Constraints.NotNull) != 1 {
 				t.Fatal("mixed fixture did not produce its actual cooked NN/CHECK")
 			}
 			newAttribute := cooked.Attributes[cooked.Index["b"]]
-			if !slices.Equal(constraintAttributeKeys(cooked, cooked.Constraints.Check[0].Expression), []int32{newAttribute}) || cooked.Constraints.Check[0].Name != "ck" || cooked.Constraints.NotNull[0].Name != "nn" || cooked.Constraints.Check[0].OID != 0 || cooked.Constraints.NotNull[0].OID != 0 {
+			if !slices.Equal(ConstraintAttributeKeys(cooked, cooked.Constraints.Check[0].Expression), []int32{newAttribute}) || cooked.Constraints.Check[0].Name != "ck" || cooked.Constraints.NotNull[0].Name != "nn" || cooked.Constraints.Check[0].OID != 0 || cooked.Constraints.NotNull[0].OID != 0 {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.Namespace(), Name: "old_b"}
-			if prepared.reader.Lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.State() != before.State() || e.CatalogRead().State() != before.State() || e.CatalogRead().Get(view.Address()) != view {
+			if prepared.reader.Lookup(key) != (ids.ObjectAddress{}) || prepared.reader.Base.State() != before.State() || e.CatalogRead().State() != before.State() || e.CatalogRead().Get(view.Address()) != view {
 				t.Fatal("actual ordered DROP effects were absent or prematurely published")
 			}
 			if cancelAtWait {

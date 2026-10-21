@@ -39,7 +39,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if err := stored.ValidateInstalledUUIDOssp(n, view); err != nil {
 				t.Fatal(err)
 			}
-			if err := validateGenerationPlan(view, nil, n); err != nil {
+			if err := ValidateGenerationPlan(view, nil, n); err != nil {
 				t.Fatal(err)
 			}
 			refs, err := stored.ExpressionDependRefs(context.Background(), view, n)

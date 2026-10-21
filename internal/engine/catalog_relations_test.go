@@ -88,7 +88,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 		if err != nil || !strings.Contains(text, "pg_catalog."+sample.name+"(") || !demand {
 			t.Fatal("symbolic serialization and catalog demand", text, demand, err)
 		}
-		if err := validateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
+		if err := ValidateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
 			t.Fatal("typed persisted plan validation", err)
 		}
 		args := expr.Expr(sample.node).(expr.Composite).Children()

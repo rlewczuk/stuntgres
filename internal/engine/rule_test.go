@@ -508,7 +508,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		}
 		found := false
 		for _, dependent := range dependents {
-			if dependent.address == owner && dependent.relation == src && dependent.target == sink.Address() && !dependent.automatic {
+			if dependent.Address == owner && dependent.Relation == src && dependent.Target == sink.Address() && !dependent.Automatic {
 				found = true
 			}
 		}

@@ -60,13 +60,13 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				relations = append(relations, other)
 			}
 			view := inheritanceUnitView(e, relations...)
-			actions, renames, graph, err := typedInheritedActions(view, child, nil)
+			actions, renames, graph, err := TypedInheritedActions(view, child, nil)
 			if err != nil || len(actions) != 0 || len(renames) != 0 {
 				t.Fatal(actions, renames, err)
 			}
 			next := *child
 			typedef.FinishTypedInheritance(view, &next, graph)
-			if err := validateInheritance(view, &next); err != nil {
+			if err := ValidateInheritance(view, &next); err != nil {
 				t.Fatal(err)
 			}
 			if !reflect.DeepEqual(next.Constraints.NotNull, child.Constraints.NotNull) || !reflect.DeepEqual(next.Constraints.Check, child.Constraints.Check) || !reflect.DeepEqual(next.ColumnMeta.Defaults, child.ColumnMeta.Defaults) || next.Columns[0].Nullable {
@@ -100,7 +100,7 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 		child.Columns[i].OriginTable, child.Columns[i].OriginAttribute = uint32(child.Address().ObjectID), int16(attribute)
 	}
 	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{table.Address()}, Columns: map[int32]catalog.InheritedColumn{3: {Origins: []catalog.InheritanceOrigin{{Parent: table.Address(), Attribute: 1}}}, 8: {Origins: []catalog.InheritanceOrigin{{Parent: table.Address(), Attribute: 7}}}}}
-	actions, _, _, err := typedInheritedActions(inheritanceUnitView(e, table, child), child, map[ids.ObjectAddress]map[int32]bool{table.Address(): {1: true}})
+	actions, _, _, err := TypedInheritedActions(inheritanceUnitView(e, table, child), child, map[ids.ObjectAddress]map[int32]bool{table.Address(): {1: true}})
 	if err != nil || len(actions) != 1 || actions[0].Action.Action != parser.AlterColumnType || actions[0].Action.Column.Text != "id" {
 		t.Fatal("same-usage inherited TYPE disappeared", actions, err)
 	}

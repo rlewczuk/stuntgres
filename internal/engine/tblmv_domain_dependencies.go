@@ -6,12 +6,12 @@ import (
 )
 
 type domainDependency struct {
-	address, target, root ids.ObjectAddress
-	oid                   ids.OID
-	ordinal               int32
-	label                 string
-	relation              *catalog.Relation
-	domain                *catalog.Type
-	column                string
-	automatic             bool
+	Address, Target, Root ids.ObjectAddress
+	OID                   ids.OID
+	Ordinal               int32
+	Label                 string
+	Relation              *catalog.Relation
+	Domain                *catalog.Type
+	Column                string
+	Automatic             bool
 }

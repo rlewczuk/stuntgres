@@ -124,7 +124,7 @@ func TestCheckReviewDependencyOrderRoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := e.CatalogRead().MustRelation(catalogRef(t, e, e.CatalogRead(), "t").Address)
-	if d.Constraints.Check[0].Name != "c1" || orderedChecks(d)[0].Name != "c2" {
+	if d.Constraints.Check[0].Name != "c1" || OrderedChecks(d)[0].Name != "c2" {
 		t.Fatal("enforcement/declaration order conflated")
 	}
 }

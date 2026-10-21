@@ -21,7 +21,7 @@ func (e *Engine) stageForeignTableLocked(op *session.Operation, input sqltype.In
 		for _, name := range s.Names {
 			ref, err := e.resolveRelationReference(auth, name, true)
 			if err != nil {
-				if s.IfExists && renameMissing(err) {
+				if s.IfExists && RenameMissing(err) {
 					schemaNotice(op, "00000", fmt.Sprintf(`foreign table "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 					continue
 				}
@@ -115,7 +115,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	ref, err := e.resolveRelationReference(auth, s.Name, true)
 	if err != nil {
 		e.mu.Unlock()
-		if s.IfExists && renameMissing(err) {
+		if s.IfExists && RenameMissing(err) {
 			schemaNotice(scope.op, "00000", fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(s.Name)))
 			scope.completed = true
 			return Result{}, nil
@@ -183,7 +183,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		for _, action := range s.TableActions {
 			phase := 9
 			if action.Ordinary != nil {
-				if ordinary := alterActionPhase(action.Ordinary.Action); ordinary >= 0 {
+				if ordinary := AlterActionPhase(action.Ordinary.Action); ordinary >= 0 {
 					phase = ordinary
 				}
 			}
@@ -253,7 +253,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			var candidate *catalog.Relation
 			switch a.Action {
 			case parser.SetNotNull, parser.DropNotNull, parser.AddNotNull, parser.DropConstraint:
-				candidate, err = notNullCandidate(scope.op, auth.Catalog, &next, a, notNullDirect)
+				candidate, err = NotNullCandidate(scope.op, auth.Catalog, &next, a, NotNullDirect)
 			case parser.AddCheck:
 				candidate = &next
 				candidate.Constraints.Check = slices.Clone(next.Constraints.Check)
@@ -267,9 +267,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				}
 				var added addedColumn
 				candidate, added, err = e.addColumnCandidate(scope, scope.op, auth, &next, a, nil)
-				if err == nil && added.column != nil {
-					if added.declaration.NotNull {
-						candidate, err = notNullCandidate(scope.op, auth.Catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, notNullDirect)
+				if err == nil && added.Column != nil {
+					if added.Declaration.NotNull {
+						candidate, err = NotNullCandidate(scope.op, auth.Catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, NotNullDirect)
 					}
 					if err == nil {
 						var checks []*parser.CheckConstraint
@@ -316,7 +316,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			next = *candidate
 		}
 		if pass == 0 {
-			pendingChecks, err = captureAlterTypeChecks(scope.op, auth.Catalog, old, &next, typeActions)
+			pendingChecks, err = CaptureAlterTypeChecks(scope.op, auth.Catalog, old, &next, typeActions)
 		}
 		if err == nil && pass == 1 {
 			var rebound *catalog.Relation

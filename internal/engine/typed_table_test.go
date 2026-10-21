@@ -83,7 +83,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 	if table.RowType == source.RowType || !reflect.DeepEqual(table.Attributes, []int32{1, 7}) || table.ColumnMeta.HighWater != 7 {
 		t.Fatal("source identity copied into destination", table)
 	}
-	next, err := renameColumnCandidate(source, "note", "label")
+	next, err := RenameColumnCandidate(source, "note", "label")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,9 +145,9 @@ func typedRenameStage(t *testing.T, e *Engine, source, table *catalog.Relation) 
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.typedState().Source = table.OfType
-	stage.typedState().Observed = typedClosure(stage.Base, table.OfType)
+	stage.typedState().Observed = TypedClosure(stage.Base, table.OfType)
 	for _, old := range []*catalog.Relation{source, table} {
-		next, err := renameColumnCandidate(old, "note", "label")
+		next, err := RenameColumnCandidate(old, "note", "label")
 		if err != nil {
 			t.Fatal(err)
 		}

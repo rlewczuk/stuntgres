@@ -15,7 +15,7 @@ func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, ch
 		return parent, nil
 	}
 	next := *parent
-	prunePhysicalNotNull(&next)
+	PrunePhysicalNotNull(&next)
 	var support *catalog.PhysicalPrimarySupport
 	copied := next.Constraints.PhysicalNotNull != nil && len(next.Constraints.PhysicalNotNull) != len(parent.Constraints.PhysicalNotNull)
 	for attribute, proof := range next.Constraints.PhysicalNotNull {

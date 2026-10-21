@@ -78,7 +78,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Rel
 	if err != nil {
 		return old, capture, err
 	}
-	if err := provider.applyViewDependents([]ids.ObjectAddress{identity.Sequence}, parser.DropRestrict); err != nil {
+	if err := provider.ApplyViewDependents([]ids.ObjectAddress{identity.Sequence}, parser.DropRestrict); err != nil {
 		return old, capture, err
 	}
 	if err := provider.remove(ref); err != nil {

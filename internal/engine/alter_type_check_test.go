@@ -29,24 +29,24 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 	}
 	defer cleanup()
 	actions := statement(t, "ALTER TABLE t ALTER a TYPE BIGINT USING b,ALTER b TYPE BIGINT USING a*10").(*parser.AlterTable).Actions
-	queue, err := captureAlterTypeChecks(op, e.CatalogRead(), old, old, actions)
+	queue, err := CaptureAlterTypeChecks(op, e.CatalogRead(), old, old, actions)
 	if err != nil || len(queue) != 4 {
 		t.Fatal(queue, err)
 	}
 	for i, want := range []string{"z", "both_values", "explicit_cast", "aa"} {
-		if old.Constraints.Check[queue[i].index].Name != want {
+		if old.Constraints.Check[queue[i].Index].Name != want {
 			t.Fatal("discovery/declaration order", queue, i, want)
 		}
 	}
-	if !strings.Contains(queue[2].sql, "CAST(") {
-		t.Fatal("lost explicit cast", queue[2].sql)
+	if !strings.Contains(queue[2].SQL, "CAST(") {
+		t.Fatal("lost explicit cast", queue[2].SQL)
 	}
 	run(t, e, "ALTER TABLE t DROP p,ALTER a TYPE BIGINT USING b,ALTER b TYPE BIGINT USING a*10")
 	next := e.catalog.state.MustRelation(ref.Address)
 	if next == old || !reflect.DeepEqual(old.Constraints.Check, oldChecks) || old.Columns[1].Usage.Type.ID() != 23 || next.Columns[0].Usage.Type.ID() != 20 || next.Columns[1].Usage.Type.ID() != 20 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) {
 		t.Fatal("mutated original/final layout", old, next)
 	}
-	if err := validateChecks(e.CatalogRead(), next, map[string]bool{}); err != nil {
+	if err := ValidateChecks(e.CatalogRead(), next, map[string]bool{}); err != nil {
 		t.Fatal("new expression/manifest invalid", err)
 	}
 	for i, c := range next.Constraints.Check {
@@ -95,7 +95,7 @@ func TestAlterTypeCheckAtomicity(t *testing.T) {
 			if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT * FROM t")), rows) {
 				t.Fatal("published failed CHECK/NN candidate")
 			}
-			if err := validateChecks(e.CatalogRead(), old.(*catalog.Relation), map[string]bool{}); err != nil {
+			if err := ValidateChecks(e.CatalogRead(), old.(*catalog.Relation), map[string]bool{}); err != nil {
 				t.Fatal("damaged incumbent manifest", err)
 			}
 		})
@@ -147,17 +147,17 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 			}
 			defer cleanup()
 			actions := statement(t, "ALTER TABLE t ALTER c TYPE "+tc.declaration).(*parser.AlterTable).Actions
-			queue, err := captureAlterTypeChecks(op, e.CatalogRead(), original, original, actions)
+			queue, err := CaptureAlterTypeChecks(op, e.CatalogRead(), original, original, actions)
 			if err != nil || len(queue) != 1 {
 				t.Fatal(queue, err)
 			}
 			pending := queue[0]
-			if len(pending.literals) != 2 || !strings.Contains(pending.sql, "$1") || !strings.Contains(pending.sql, "$2") {
+			if len(pending.Literals) != 2 || !strings.Contains(pending.SQL, "$1") || !strings.Contains(pending.SQL, "$2") {
 				t.Fatal("missing private literal transport", pending)
 			}
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-			binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Stored.CheckLiterals = true, true, pending.literals
-			for i, literal := range pending.literals {
+			binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Stored.CheckLiterals = true, true, pending.Literals
+			for i, literal := range pending.Literals {
 				if literal.ResultUsage().Type.ID() != tc.id || literal.Value.IsNull() != (i == 1) {
 					t.Fatal("lost concrete/NULL usage", i, literal)
 				}
@@ -187,7 +187,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 				t.Fatal("changed ordinary CHECK serialization", ordinary, err)
 			}
 			if tc.id == sqltype.Float4 {
-				literal := pending.literals[0]
+				literal := pending.Literals[0]
 				ordinaryLiteral, err := (stored.ScalarRenderer{}).SQL(context.Background(), e.CatalogRead(), literal)
 				if err != nil || ordinaryLiteral != "'1.0000001'" {
 					t.Fatal("ordinary FLOAT4 output changed", ordinaryLiteral, err)
@@ -212,7 +212,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 						t.Fatal("special float encoding changed", raw, before, after, err)
 					}
 				}
-				typedNull := pending.literals[1]
+				typedNull := pending.Literals[1]
 				replayNull, err := (stored.ScalarRenderer{CheckReplayPrecision: true}).SQL(context.Background(), e.CatalogRead(), typedNull)
 				if err != nil || replayNull != "NULL" {
 					t.Fatal("typed NULL replay changed", replayNull, err)

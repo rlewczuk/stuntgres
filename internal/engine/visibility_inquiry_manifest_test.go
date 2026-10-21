@@ -87,11 +87,11 @@ func TestVisibilityInquiryStoredNullManifest(t *testing.T) {
 			expected := *relation
 			expected.Constraints.Check = append([]catalog.CheckConstraint(nil), relation.Constraints.Check...)
 			expected.Constraints.Check[0].VisibilitySnapshot = tc.visibility
-			if err := validateChecks(view, &expected, map[string]bool{}); err != nil {
+			if err := ValidateChecks(view, &expected, map[string]bool{}); err != nil {
 				t.Error("preserved CHECK visibility manifest rejected", err)
 			}
 			expected.Constraints.Check[0].VisibilitySnapshot = !tc.visibility
-			err := validateChecks(view, &expected, map[string]bool{})
+			err := ValidateChecks(view, &expected, map[string]bool{})
 			if err == nil || err.Error() != "stuntgres: inconsistent check visibility snapshot manifest" {
 				t.Errorf("corrupt visibility manifest error = %v", err)
 			}

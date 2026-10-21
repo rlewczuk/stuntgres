@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/typedef"
 )
 
-func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *catalog.Relation) ([]catalog.Descriptor, error) {
+func PrepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *catalog.Relation) ([]catalog.Descriptor, error) {
 	if relation.RowType == 0 {
 		return nil, nil
 	}
@@ -26,14 +26,14 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *ca
 			return reader.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 		})
 	}, func(descriptor catalog.Descriptor) error {
-		reader.appendDescriptor(descriptor)
+		reader.AppendDescriptor(descriptor)
 		effects = append(effects, descriptor)
 		return nil
 	})
 	return effects, err
 }
 
-func detachPreparedInheritanceDefinition(next *catalog.Relation) *catalog.Relation {
+func DetachPreparedInheritanceDefinition(next *catalog.Relation) *catalog.Relation {
 	copy := *next
 	copy.Constraints.NotNull = slices.Clone(next.Constraints.NotNull)
 	copy.Constraints.Check = slices.Clone(next.Constraints.Check)

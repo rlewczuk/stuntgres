@@ -34,23 +34,23 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 func (e *Engine) captureHistoricalFacts(refs map[ids.ObjectAddress]ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
 	view := e.CatalogRead()
 	for _, ref := range refs {
-		captureHistoricalRelation(view, ref, facts)
+		CaptureHistoricalRelation(view, ref, facts)
 	}
 }
 
 func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Update, authority *restoredHistoryAuthority) error {
-	repair, err := restoreRetiredSyntax(raw)
+	repair, err := RestoreRetiredSyntax(raw)
 	if err != nil {
 		return err
 	}
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	reject := func() error { return sqlError("0A000", restoreRetiredBoundary) }
-	if authority == nil || authority.facts == nil || authority.archives == nil || authority.sources == nil {
+	reject := func() error { return sqlError("0A000", RestoreRetiredBoundary) }
+	if authority == nil || authority.Facts == nil || authority.Archives == nil || authority.Sources == nil {
 		return reject()
 	}
-	facts, archives, sources := authority.facts, authority.archives, authority.sources
+	facts, archives, sources := authority.Facts, authority.Archives, authority.Sources
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 		e.mu.Unlock()
 		return reject()
 	}
-	ref, err := e.resolveRelationReference(auth, repair.relation, false)
+	ref, err := e.resolveRelationReference(auth, repair.Relation, false)
 	if err != nil {
 		e.mu.Unlock()
 		return err
@@ -82,31 +82,31 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	}
 	var fact restoredHistoricalFact
 	var provenance catalog.InheritedConstraint
-	if repair.check {
+	if repair.Check {
 		for _, c := range old.Constraints.Check {
-			if c.Name == repair.name {
-				fact = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, check: true, attributes: constraintAttributeKeys(old, c.Expression), expression: c.Expression, notValid: c.NotValid, noInherit: c.NoInherit}
+			if c.Name == repair.Name {
+				fact = restoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: ConstraintAttributeKeys(old, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NoInherit: c.NoInherit}
 				provenance = old.Inheritance.Checks[c.Name]
 				break
 			}
 		}
 	} else {
 		for _, c := range old.Constraints.NotNull {
-			if c.Name == repair.name {
-				fact = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, attributes: []int32{c.Attribute}, notValid: c.NotValid, noInherit: c.NoInherit}
+			if c.Name == repair.Name {
+				fact = restoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Attributes: []int32{c.Attribute}, NotValid: c.NotValid, NoInherit: c.NoInherit}
 				provenance = old.Inheritance.NotNull[c.Attribute]
 				break
 			}
 		}
 	}
-	captured, exists := facts[fact.oid]
-	if !exists || captured.oid != fact.oid || fact.oid == 0 || captured.ref != ref || captured.name != fact.name || captured.check != fact.check || captured.notValid != fact.notValid || captured.noInherit != fact.noInherit || !slices.Equal(captured.attributes, fact.attributes) || !analyze.SameGroupExpression(captured.expression, fact.expression) || captured.local != repair.beforeLocal || captured.count != repair.before || provenance.Local != repair.beforeLocal || provenance.Count() != repair.before || len(provenance.Retired) != 0 || len(fact.attributes) != len(repair.columns) {
+	captured, exists := facts[fact.OID]
+	if !exists || captured.OID != fact.OID || fact.OID == 0 || captured.Ref != ref || captured.Name != fact.Name || captured.Check != fact.Check || captured.NotValid != fact.NotValid || captured.NoInherit != fact.NoInherit || !slices.Equal(captured.Attributes, fact.Attributes) || !analyze.SameGroupExpression(captured.Expression, fact.Expression) || captured.Local != repair.BeforeLocal || captured.Count != repair.Before || provenance.Local != repair.BeforeLocal || provenance.Count() != repair.Before || len(provenance.Retired) != 0 || len(fact.Attributes) != len(repair.Columns) {
 		e.mu.Unlock()
 		return reject()
 	}
-	for i, attribute := range fact.attributes {
+	for i, attribute := range fact.Attributes {
 		slot := old.IndexForAttribute(attribute)
-		if slot < 0 || old.Columns[slot].Name != repair.columns[i] {
+		if slot < 0 || old.Columns[slot].Name != repair.Columns[i] {
 			e.mu.Unlock()
 			return reject()
 		}
@@ -114,9 +114,9 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	var records []catalog.RetiredInheritanceOrigin
 	nextArchives := maps.Clone(archives)
 	nextSources := maps.Clone(sources)
-	nextArchive := authority.nextArchive
-	for _, row := range repair.rows {
-		parent, err := e.resolveRelationReference(auth, row.parent, false)
+	nextArchive := authority.NextArchive
+	for _, row := range repair.Rows {
+		parent, err := e.resolveRelationReference(auth, row.Parent, false)
 		if err != nil {
 			e.mu.Unlock()
 			return err
@@ -125,7 +125,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 			e.mu.Unlock()
 			return reject()
 		}
-		archive, known := nextArchives[row.archive]
+		archive, known := nextArchives[row.Archive]
 		if !known {
 			if nextArchive == ^uint64(0) {
 				e.mu.Unlock()
@@ -133,11 +133,11 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 			}
 			nextArchive++
 			archive = nextArchive
-			nextArchives[row.archive] = archive
+			nextArchives[row.Archive] = archive
 		}
-		record := catalog.RetiredInheritanceOrigin{Parent: parent, Attribute: row.attribute, Column: row.column, Name: row.name, Constraint: row.constraint, Lifetime: row.lifetime, Archive: archive, Own: fact.oid, Check: fact.check, Replayed: true}
-		identity := retiredSourceIdentity{parent: parent, archive: archive, lifetime: row.lifetime, constraint: row.constraint}
-		description := retiredSourceDescription{column: row.column, name: row.name, attribute: row.attribute, check: row.check}
+		record := catalog.RetiredInheritanceOrigin{Parent: parent, Attribute: row.Attribute, Column: row.Column, Name: row.Name, Constraint: row.Constraint, Lifetime: row.Lifetime, Archive: archive, Own: fact.OID, Check: fact.Check, Replayed: true}
+		identity := retiredSourceIdentity{Parent: parent, Archive: archive, Lifetime: row.Lifetime, Constraint: row.Constraint}
+		description := retiredSourceDescription{Column: row.Column, Name: row.Name, Attribute: row.Attribute, Check: row.Check}
 		if previous, known := nextSources[identity]; known && previous != description {
 			e.mu.Unlock()
 			return reject()
@@ -158,12 +158,12 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	next := *old
 	next.ObjectRevision++
 	next.Inheritance = catalog.CloneInheritance(old.Inheritance)
-	provenance.Local = repair.local
+	provenance.Local = repair.Local
 	provenance.Retired = records
-	if fact.check {
-		next.Inheritance.Checks[fact.name] = provenance
+	if fact.Check {
+		next.Inheritance.Checks[fact.Name] = provenance
 	} else {
-		next.Inheritance.NotNull[fact.attributes[0]] = provenance
+		next.Inheritance.NotNull[fact.Attributes[0]] = provenance
 	}
 	staged := e.BeginCatalogStage(auth.Catalog)
 	staged.authorizeLocked(auth, op.Session)
@@ -185,7 +185,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	for identity, description := range nextSources {
 		sources[identity] = description
 	}
-	authority.nextArchive = nextArchive
-	delete(facts, fact.oid)
+	authority.NextArchive = nextArchive
+	delete(facts, fact.OID)
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 )
 
 // Named ALTER lookup rejects protected relations before action preparation.
-func alterTableLookupKind(d *catalog.Relation) error {
+func AlterTableLookupKind(d *catalog.Relation) error {
 	switch d.RelationKind {
 	case catalog.CatalogRelation:
 		return sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, d.Name()))

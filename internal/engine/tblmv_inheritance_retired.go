@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func validateRetiredInheritance(view catalog.Read, table *catalog.Relation, p catalog.InheritedConstraint, own ids.OID, check bool) error {
+func ValidateRetiredInheritance(view catalog.Read, table *catalog.Relation, p catalog.InheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.Retired {
 		parent, ok := view.Relation(history.Parent.Address)
 		if !ok || parent.RelationKind != catalog.TableRelation || !stored.ReferenceEpochValid(view, table, history.Parent) || history.Parent.Address.SubID != 0 || history.Attribute <= 0 || history.Attribute > 1600 || history.Column == "" || history.Name == "" || history.Constraint == 0 || history.Lifetime == 0 || history.Own != own || history.Check != check || !slices.Contains(table.Inheritance.Parents, parent.Address()) {
@@ -42,14 +42,14 @@ func validateRetiredInheritance(view catalog.Read, table *catalog.Relation, p ca
 	return nil
 }
 
-func inheritRetiredColumnConstraints(state *inheritanceAlterPlan, view catalog.Read, child *catalog.Relation, graph *catalog.TableInheritance, attribute int32) {
+func InheritRetiredColumnConstraints(state *inheritanceAlterPlan, view catalog.Read, child *catalog.Relation, graph *catalog.TableInheritance, attribute int32) {
 	for _, parent := range graph.Parents {
-		for _, event := range state.events[parent] {
-			if event.action.Action != parser.DropColumn {
+		for _, event := range state.Events[parent] {
+			if event.Action.Action != parser.DropColumn {
 				continue
 			}
 			parentRef := view.Owner().Domain.Ref(view.Epoch(), parent)
-			for _, source := range event.retiredNotNull {
+			for _, source := range event.RetiredNotNull {
 				for _, own := range child.Constraints.NotNull {
 					if own.Attribute != attribute {
 						continue
@@ -57,7 +57,7 @@ func inheritRetiredColumnConstraints(state *inheritanceAlterPlan, view catalog.R
 					provenance := graph.NotNull[attribute]
 					for _, origin := range provenance.Origins {
 						if origin.Parent == parent && origin.Constraint == source.OID {
-							record := catalog.RetiredInheritanceOrigin{Parent: parentRef, Attribute: event.attribute, Column: event.action.Column.Text, Name: source.Name, Constraint: source.OID, Lifetime: uint64(view.Epoch()), Own: own.OID}
+							record := catalog.RetiredInheritanceOrigin{Parent: parentRef, Attribute: event.Attribute, Column: event.Action.Column.Text, Name: source.Name, Constraint: source.OID, Lifetime: uint64(view.Epoch()), Own: own.OID}
 							provenance.Retired = append(slices.Clone(provenance.Retired), record)
 						}
 					}
@@ -67,7 +67,7 @@ func inheritRetiredColumnConstraints(state *inheritanceAlterPlan, view catalog.R
 					graph.NotNull[attribute] = provenance
 				}
 			}
-			for _, source := range event.retiredChecks {
+			for _, source := range event.RetiredChecks {
 				provenance, exists := graph.Checks[source.Name]
 				if !exists {
 					continue
@@ -78,7 +78,7 @@ func inheritRetiredColumnConstraints(state *inheritanceAlterPlan, view catalog.R
 				}
 				for _, origin := range provenance.Origins {
 					if origin.Parent == parent && origin.Constraint == source.OID {
-						record := catalog.RetiredInheritanceOrigin{Parent: parentRef, Attribute: event.attribute, Column: event.action.Column.Text, Name: source.Name, Constraint: source.OID, Lifetime: uint64(view.Epoch()), Own: child.Constraints.Check[own].OID, Check: true}
+						record := catalog.RetiredInheritanceOrigin{Parent: parentRef, Attribute: event.Attribute, Column: event.Action.Column.Text, Name: source.Name, Constraint: source.OID, Lifetime: uint64(view.Epoch()), Own: child.Constraints.Check[own].OID, Check: true}
 						provenance.Retired = append(slices.Clone(provenance.Retired), record)
 					}
 				}
@@ -110,7 +110,7 @@ func retireRebuiltDefinitionHistory(p catalog.InheritedConstraint, before, after
 
 // CHECK's real rebind/assignment has already supplied the new own OID. Merely
 // replacing a name or fabricating an identity cannot rescue stale history.
-func retireRebuiltCheckHistory(old, next *catalog.Relation) error {
+func RetireRebuiltCheckHistory(old, next *catalog.Relation) error {
 	if old.Inheritance == nil || next.Inheritance == nil {
 		return nil
 	}
@@ -146,7 +146,7 @@ func retireRebuiltCheckHistory(old, next *catalog.Relation) error {
 // Called only after the incumbent NN TYPE rebuilder allocates its real new
 // identity. Re-addition creates a local definition, not a continuation of the
 // destroyed tuple's historical contributions. Actual live origins remain.
-func retireRebuiltNotNullHistory(old, next *catalog.Relation) error {
+func RetireRebuiltNotNullHistory(old, next *catalog.Relation) error {
 	if old.Inheritance == nil || next.Inheritance == nil {
 		return nil
 	}
@@ -187,7 +187,7 @@ func retireRebuiltNotNullHistory(old, next *catalog.Relation) error {
 // Released TYPE cleanup internally drops an affected nonlocal definition.
 // Without a live parent fact there is no recursive re-add. Historical count
 // certifies past support; it is not authority to reconstruct a new local fact.
-func releaseRetiredTypeConstraints(old *catalog.Relation, actions []parser.AlterTableAction) *catalog.Relation {
+func ReleaseRetiredTypeConstraints(old *catalog.Relation, actions []parser.AlterTableAction) *catalog.Relation {
 	if old.Inheritance == nil {
 		return old
 	}
@@ -226,8 +226,8 @@ func releaseRetiredTypeConstraints(old *catalog.Relation, actions []parser.Alter
 				next.Columns = slices.Clone(old.Columns)
 				copiedNN = true
 			}
-			removeDetachedNotNullMetadata(next, fact)
-			if proof, retained := physicalNotNullFromType(old, next, fact); retained {
+			RemoveDetachedNotNullMetadata(next, fact)
+			if proof, retained := PhysicalNotNullFromType(old, next, fact); retained {
 				if !copiedPhysical {
 					next.Constraints.PhysicalNotNull = maps.Clone(old.Constraints.PhysicalNotNull)
 					if next.Constraints.PhysicalNotNull == nil {

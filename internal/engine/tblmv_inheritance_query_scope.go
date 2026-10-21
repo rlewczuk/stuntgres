@@ -8,7 +8,7 @@ import (
 
 // Closure is physical-identity deduplication within one SQL occurrence. A foreign
 // session's temporary branch is not admitted, even through a persistent ancestor.
-func inheritanceQueryClosure(view catalog.Read, root *catalog.Relation, token ids.SessionToken, visit func(*catalog.Relation) error) error {
+func InheritanceQueryClosure(view catalog.Read, root *catalog.Relation, token ids.SessionToken, visit func(*catalog.Relation) error) error {
 	if err := visit(root); err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func inheritanceQueryClosure(view catalog.Read, root *catalog.Relation, token id
 	return walk(children)
 }
 
-func sourceOnly(statement parser.Statement) bool {
+func SourceOnly(statement parser.Statement) bool {
 	if query, ok := statement.(*parser.Select); ok && query.From != nil {
 		if table, ok := query.From.(*parser.TableReference); ok {
 			return table.Only

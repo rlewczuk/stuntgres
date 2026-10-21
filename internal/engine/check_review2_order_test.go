@@ -17,7 +17,7 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(a INT,b INT,CONSTRAINT z CHECK(a>0),CONSTRAINT m CHECK(b>0),CONSTRAINT a CHECK(a<10))")
 	view := e.CatalogRead()
 	d := view.MustRelation(catalogRef(t, e, view, "t").Address)
-	if err := validateChecks(view, d, map[string]bool{}); err != nil {
+	if err := ValidateChecks(view, d, map[string]bool{}); err != nil {
 		t.Fatal("valid initial descriptor rejected", err)
 	}
 	for _, tc := range []struct {
@@ -31,7 +31,7 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 			copy := *d
 			copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
 			tc.change(copy.Constraints.Check)
-			if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
+			if err := ValidateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("malformed declaration ordinal accepted")
 			}
 		})
@@ -41,11 +41,11 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	sessionSQL(t, a, "ALTER TABLE t DROP CONSTRAINT z")
 	view = e.CatalogRead()
 	d = view.MustRelation(catalogRef(t, e, view, "t").Address)
-	ordered := orderedChecks(d)
+	ordered := OrderedChecks(d)
 	if len(ordered) != 2 || ordered[0].Name != "m" || ordered[0].Ordinal != 1 || ordered[1].Name != "a" || ordered[1].Ordinal != 2 {
 		t.Fatal("DROP CONSTRAINT rewrote surviving declaration identities", ordered)
 	}
-	if err := validateChecks(view, d, map[string]bool{}); err != nil {
+	if err := ValidateChecks(view, d, map[string]bool{}); err != nil {
 		t.Fatal("nondense post-DROP CONSTRAINT descriptor rejected", err)
 	}
 	sessionSQL(t, a, "ALTER TABLE t DROP COLUMN b")
@@ -54,7 +54,7 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	if len(d.Constraints.Check) != 1 || d.Constraints.Check[0].Name != "a" || d.Constraints.Check[0].Ordinal != 2 {
 		t.Fatal("DROP COLUMN rewrote surviving declaration identity", d.Constraints.Check)
 	}
-	if err := validateChecks(view, d, map[string]bool{}); err != nil {
+	if err := ValidateChecks(view, d, map[string]bool{}); err != nil {
 		t.Fatal("nondense post-DROP COLUMN descriptor rejected", err)
 	}
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")

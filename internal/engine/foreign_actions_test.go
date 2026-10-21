@@ -68,7 +68,7 @@ func TestForeignActionsDefinition(t *testing.T) {
 		candidate := *child
 		candidate.Constraints.ForeignKeys = slices.Clone(child.Constraints.ForeignKeys)
 		change(&candidate.Constraints.ForeignKeys[0])
-		if err := validateForeignKeys(view, &candidate, map[string]bool{}); err == nil {
+		if err := ValidateForeignKeys(view, &candidate, map[string]bool{}); err == nil {
 			t.Fatal("invalid action attachment admitted", candidate.Constraints.ForeignKeys[0])
 		}
 	}
@@ -104,7 +104,7 @@ func TestForeignActionsEquality(t *testing.T) {
 			f := child.Constraints.ForeignKeys[0]
 			parent := view.MustRelation(f.Target)
 			index := view.MustRelation(f.Index)
-			comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)
+			comparisons, err := BindForeignKeyComparison(view, child, parent, index, f)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -119,7 +119,7 @@ func TestForeignActionsEquality(t *testing.T) {
 			if foreignActionSameKey(comparisons, []sqltype.Value{old}, []sqltype.Value{next}) {
 				t.Fatal("SQL equality suppressed representation transition")
 			}
-			equal, err := foreignKeyRowsMatch(context.Background(), comparisons, []sqltype.Value{old}, []sqltype.Value{next}, sqltype.InputEnvironment{})
+			equal, err := ForeignKeyRowsMatch(context.Background(), comparisons, []sqltype.Value{old}, []sqltype.Value{next}, sqltype.InputEnvironment{})
 			if err != nil || !equal {
 				t.Fatal("matching lost selected supporting equality", equal, err)
 			}
@@ -148,7 +148,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := children.committed[0]
+	old := children.Committed[0]
 	value, _ := sqltype.Integer(job.child.Columns[0].Usage.Type, 2)
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]storage.RowVersion{old}
@@ -158,7 +158,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, false); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.storage); err != nil {
+	if err = scope.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.stage.deleteForeignAction(ref, old); err == nil {
@@ -183,7 +183,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 		t.Fatal("child action spoofed initiating admission")
 	}
 	admission := scope.foreignActionsOrZero().admissions[ref.Address]
-	if !admission.mutated || admission.tx != scope.txRef || admission.storage != children.storage {
+	if !admission.mutated || admission.tx != scope.txRef || admission.storage != children.Storage {
 		t.Fatal("missing captured physical child authority", admission)
 	}
 	foreign := ref

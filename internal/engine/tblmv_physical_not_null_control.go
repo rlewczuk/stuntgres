@@ -10,7 +10,7 @@ import (
 
 // Map actual live relation/index addresses with the existing replacement map.
 // Archived removed identities retain their genuine source lifetime namespace.
-func remapPhysicalNotNullReferences(old, next *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+func RemapPhysicalNotNullReferences(old, next *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	if len(old.Constraints.PhysicalNotNull) == 0 {
 		return nil
 	}
@@ -51,7 +51,7 @@ func remapPhysicalNotNullReferences(old, next *catalog.Relation, mapping map[ids
 	return nil
 }
 
-func physicalOrdinaryNotNull(table *catalog.Relation) map[int32]bool {
+func PhysicalOrdinaryNotNull(table *catalog.Relation) map[int32]bool {
 	ordinary := make(map[int32]bool, len(table.Constraints.NotNull))
 	for _, fact := range table.Constraints.NotNull {
 		ordinary[fact.Attribute] = true

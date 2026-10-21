@@ -14,7 +14,7 @@ import (
 
 // Ordinary LOCK and view-target paths retain their capability boundary.
 // Direct UPDATE/DELETE targets use real command-local descendant admission.
-func inheritanceTargetGuard(view catalog.Read, relation *catalog.Relation) error {
+func InheritanceTargetGuard(view catalog.Read, relation *catalog.Relation) error {
 	if relation.View == nil {
 		if relation.RelationKind == catalog.TableRelation && catalog.InheritanceHasChildren(view, relation.Address()) {
 			return sqlError("0A000", "recursive table inheritance is unsupported")
@@ -26,7 +26,7 @@ func inheritanceTargetGuard(view catalog.Read, relation *catalog.Relation) error
 
 func inheritanceViewTargetGuard(catalog catalog.Read, relation *catalog.Relation, visited map[ids.ObjectAddress]bool) error {
 	if relation.View == nil {
-		return inheritanceTargetGuard(catalog, relation)
+		return InheritanceTargetGuard(catalog, relation)
 	}
 	if visited[relation.Address()] {
 		// The existing view binder owns recursive-view diagnostics.
@@ -45,7 +45,7 @@ func inheritanceViewTargetGuard(catalog catalog.Read, relation *catalog.Relation
 	return nil
 }
 
-func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], replacement func(ids.ObjectAddress) catalog.Descriptor, removed func(ids.ObjectAddress) bool, relation *catalog.Relation) error {
+func InheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], replacement func(ids.ObjectAddress) catalog.Descriptor, removed func(ids.ObjectAddress) bool, relation *catalog.Relation) error {
 	if removed(relation.Address()) {
 		return nil
 	}
@@ -69,7 +69,7 @@ func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, ca
 	return nil
 }
 
-func inheritanceColumnGuard(relation *catalog.Relation, name, operation string, position parser.Position) error {
+func InheritanceColumnGuard(relation *catalog.Relation, name, operation string, position parser.Position) error {
 	if relation.Inheritance == nil {
 		return nil
 	}
@@ -86,7 +86,7 @@ func inheritanceColumnGuard(relation *catalog.Relation, name, operation string, 
 
 // Check prohibited inherited actions before admitting any member of a list;
 // no earlier action may evaluate defaults or stage a partial shape change.
-func inheritanceAlterActionsGuard(view catalog.Read, relation *catalog.Relation, actions []parser.AlterTableAction) error {
+func InheritanceAlterActionsGuard(view catalog.Read, relation *catalog.Relation, actions []parser.AlterTableAction) error {
 	if access.RowSecurityActions(actions) {
 		return nil
 	}
@@ -100,7 +100,7 @@ func inheritanceAlterActionsGuard(view catalog.Read, relation *catalog.Relation,
 			if action.Action == parser.AlterColumnType {
 				operation = "alter"
 			}
-			if err := inheritanceColumnGuard(relation, action.Column.Text, operation, action.Column.Pos); err != nil {
+			if err := InheritanceColumnGuard(relation, action.Column.Text, operation, action.Column.Pos); err != nil {
 				return err
 			}
 		case parser.DropExpression:

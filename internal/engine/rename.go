@@ -23,7 +23,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 	if err == nil && ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if ifExists && renameMissing(err) {
+	if ifExists && RenameMissing(err) {
 		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
 		op.Session.Mu.Unlock()
@@ -53,7 +53,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 		if old.OfType != (ids.ObjectAddress{}) {
 			return fail(sqlError("42809", "cannot rename column of typed table"))
 		}
-		if err := inheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
+		if err := InheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
 		}
 		if catalog.InheritanceParticipant(auth.Catalog, old) {
@@ -66,7 +66,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 				Detail:  "This operation is not supported for sequences.",
 			})
 		}
-		renamed, err = renameColumnCandidate(old, column, destination)
+		renamed, err = RenameColumnCandidate(old, column, destination)
 		if err != nil {
 			return fail(err)
 		}

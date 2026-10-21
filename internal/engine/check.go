@@ -93,7 +93,7 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 		}
 		if err != nil {
 			if altering {
-				err = alterCookingError(err)
+				err = AlterCookingError(err)
 			}
 			return err
 		}
@@ -176,5 +176,5 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 // Provider references join the incumbent dependency stage. Owner-local column
 // dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
 func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
-	return checkDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+	return CheckDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }

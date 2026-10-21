@@ -14,7 +14,7 @@ func (state *inheritanceAlterState) retiredBase() catalog.Read {
 	if state.stage != nil {
 		return state.stage.Base
 	}
-	return state.definition.base
+	return state.Definition.Base
 }
 
 func (e *Engine) remapRetiredConstraints(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {

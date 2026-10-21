@@ -47,7 +47,7 @@ func TestAlterTablespacePreparation(t *testing.T) {
 	add := parser.AlterTableAction{Action: parser.AddColumn, Column: parser.Identifier{Text: "a"}}
 	original := []parser.AlterTableAction{action("pg_default"), add}
 	prepared, err := prepare(original)
-	work, destination := prepared.actions, prepared.destination
+	work, destination := prepared.Actions, prepared.Destination
 	if err != nil || !reflect.DeepEqual(work, []parser.AlterTableAction{add}) || original[0].Action != parser.SetTablespace {
 		t.Fatal(work, err, original)
 	}
@@ -55,7 +55,7 @@ func TestAlterTablespacePreparation(t *testing.T) {
 		t.Fatal(err)
 	}
 	prepared, err = prepare([]parser.AlterTableAction{action("pg_global"), add})
-	work, destination = prepared.actions, prepared.destination
+	work, destination = prepared.Actions, prepared.Destination
 	if err != nil || !reflect.DeepEqual(work, []parser.AlterTableAction{add}) {
 		t.Fatal("movement was not deferred", work, err)
 	}
@@ -90,14 +90,14 @@ func TestAlterTablespaceNoop(t *testing.T) {
 	e.mu.Lock()
 	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), actions)
 	e.mu.Unlock()
-	work, destination := prepared.actions, prepared.destination
+	work, destination := prepared.Actions, prepared.Destination
 	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles.published != roles || e.storage.Relations[old.Address()] != store || old.Revision() != revision || e.catalog.state.Epoch() != epoch {
 		t.Fatal("default preparation changed authority/storage", work, err)
 	}
 	if err := validateAlterTablespaceMove(destination); err != nil {
 		t.Fatal(err)
 	}
-	if inheritanceRecursiveAction(old, actions[0], false) || !tablespaceOnlyActions(actions) {
+	if InheritanceRecursiveAction(old, actions[0], false) || !tablespaceOnlyActions(actions) {
 		t.Fatal("assignment propagated to descendants")
 	}
 	// A successful no-work utility must still pass the ordinary completion gate.
@@ -162,20 +162,20 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 	// Both occurrences are cooked against the original INT4 row, without Eval:
 	// the second expression is valid to bind but fails only on row execution.
 	prepared, err := prepare("ALTER TABLE t ALTER a TYPE BIGINT USING a, SET TABLESPACE pg_default, ALTER a TYPE BIGINT USING 10/(a-a)")
-	if err != nil || len(prepared.types) != 2 || len(prepared.actions) != 2 {
+	if err != nil || len(prepared.Types) != 2 || len(prepared.Actions) != 2 {
 		t.Fatal(prepared, err)
 	}
-	for _, captured := range prepared.types {
-		if captured.usage.Type.ID() != sqltype.Int8 || captured.transformation.Attribute != old.Attributes[0] || captured.transformation.Expression == nil || !captured.transformation.Rewrite {
+	for _, captured := range prepared.Types {
+		if captured.Usage.Type.ID() != sqltype.Int8 || captured.Transformation.Attribute != old.Attributes[0] || captured.Transformation.Expression == nil || !captured.Transformation.Rewrite {
 			t.Fatal("incomplete TYPE capture", captured)
 		}
 	}
 	// The candidate consumes the completed expression; it must not consult a
 	// second raw USING graph. This is the actual mutation seam, not a binder mock.
-	action := prepared.actions[0]
+	action := prepared.Actions[0]
 	action.Using = alterAddUnitAction(t, "ALTER TABLE t ALTER a TYPE BIGINT USING absent").Using
-	next, consumed, err := e.alterTypeCandidate(scope, scope.op, auth, nil, old, old, ref, action, prepared.types[0])
-	if err != nil || next.Columns[0].Usage.Type.ID() != sqltype.Int8 || !reflect.DeepEqual(consumed, prepared.types[0].transformation) || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
+	next, consumed, err := e.alterTypeCandidate(scope, scope.op, auth, nil, old, old, ref, action, prepared.Types[0])
+	if err != nil || next.Columns[0].Usage.Type.ID() != sqltype.Int8 || !reflect.DeepEqual(consumed, prepared.Types[0].Transformation) || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate did not consume capture", next, consumed, err)
 	}
 }
@@ -191,14 +191,14 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 	holder := inheritanceAlterAXHolder(t, e, child)
 	result, joined := inheritanceAlterWorker(t, command, holder)
 	state := inheritanceAlterPending(t, command, child)
-	if len(state.types) != 1 || state.tablespace.Address.ObjectID != 1663 {
-		t.Fatal("root lost original preparation", state.types, state.tablespace)
+	if len(state.Types) != 1 || state.Tablespace.Address.ObjectID != 1663 {
+		t.Fatal("root lost original preparation", state.Types, state.Tablespace)
 	}
-	rootCapture := state.types[0]
+	rootCapture := state.Types[0]
 	assertRootOrigin := func(captured alterTypePreparation) {
 		t.Helper()
 		columns := 0
-		plan.WalkExpression(captured.transformation.Expression, func(expression expr.Expr) {
+		plan.WalkExpression(captured.Transformation.Expression, func(expression expr.Expr) {
 			if column, ok := expression.(plan.ColumnExpr); ok {
 				columns++
 				if column.Origin != rootColumn || column.Slot != 0 || column.ResultUsage().Type.ID() != sqltype.Int4 {
@@ -206,7 +206,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 				}
 			}
 		})
-		if columns != 1 || captured.transformation.Attribute != parent.Attributes[0] {
+		if columns != 1 || captured.Transformation.Attribute != parent.Attributes[0] {
 			t.Fatal("root capture missing original attribute", columns, captured)
 		}
 	}
@@ -218,10 +218,10 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 	if err := inheritanceAlterJoin(t, result, joined); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(state.types[0], rootCapture) || e.CatalogRead().State() != before.State() {
+	if !reflect.DeepEqual(state.Types[0], rootCapture) || e.CatalogRead().State() != before.State() {
 		t.Fatal("sole stage replaced capture or published before Finish")
 	}
-	assertRootOrigin(state.types[0])
+	assertRootOrigin(state.Types[0])
 	if err := command.scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}

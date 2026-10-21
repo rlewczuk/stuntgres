@@ -12,7 +12,7 @@ import (
 // Restore alone calls this interpreter, against its isolated catalog. It is not
 // an UPDATE execution path and never grants writable access to catalog sources.
 func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update) error {
-	name, column, rank, err := restoreAttributeRankSyntax(raw)
+	name, column, rank, err := RestoreAttributeRankSyntax(raw)
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update)
 	old, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || old.RelationKind != catalog.TableRelation {
 		e.mu.Unlock()
-		return sqlError("0A000", restoreAttributeRankBoundary)
+		return sqlError("0A000", RestoreAttributeRankBoundary)
 	}
 	slot, exists := old.Index[column]
 	if !exists {
@@ -57,7 +57,7 @@ func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update)
 	}
 	if rank != 0 && !old.Columns[slot].Usage.Type.IsArray() {
 		e.mu.Unlock()
-		return sqlError("0A000", restoreAttributeRankBoundary)
+		return sqlError("0A000", RestoreAttributeRankBoundary)
 	}
 	if old.Columns[slot].DeclaredDimensions == rank {
 		e.mu.Unlock()

@@ -9,7 +9,7 @@ func typedObservationValid(stage *CatalogStage, current catalog.Read) bool {
 	if stage.typed.SourceType() == (ids.ObjectAddress{}) {
 		return true
 	}
-	observed := typedClosure(current, stage.typed.SourceType())
+	observed := TypedClosure(current, stage.typed.SourceType())
 	if len(observed) != len(stage.typed.ObservedTables()) {
 		return false
 	}

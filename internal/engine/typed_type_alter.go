@@ -54,8 +54,8 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	stage.dependencyPath = path
 	stage.domainBases = append(stage.domainBases, typ)
 	stage.typedState().Source = typ.Address()
-	stage.typedState().Observed = typedClosure(auth.Catalog, typ.Address())
-	targets := typedPropagationOrder(auth.Catalog, typ.Address())
+	stage.typedState().Observed = TypedClosure(auth.Catalog, typ.Address())
+	targets := TypedPropagationOrder(auth.Catalog, typ.Address())
 	if len(targets) != 0 {
 		restrict := s.Rename != nil && s.Mode != parser.DropCascade
 		for _, action := range s.Actions {
@@ -112,7 +112,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	}
 	var sourceMutation typedRelationMutation
 	if s.Rename != nil {
-		next, renameErr := renameColumnCandidate(source, s.Column.Text, s.Rename.Text)
+		next, renameErr := RenameColumnCandidate(source, s.Column.Text, s.Rename.Text)
 		if renameErr != nil {
 			return Result{}, renameErr
 		}
@@ -181,7 +181,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 		if table.OfType == typ.Address() {
 			actions, renames = typedef.TypedShapeActions(source, sourceMutation.next, table, forced[source.Address()])
 		} else {
-			actions, renames, graph, err = typedInheritedActions(view, table, forced)
+			actions, renames, graph, err = TypedInheritedActions(view, table, forced)
 			if err != nil {
 				return Result{}, err
 			}
@@ -194,7 +194,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 			if forced == nil {
 				forced = make(map[ids.ObjectAddress]map[int32]bool)
 			}
-			forced[table.Address()] = typedTransformAttributes(mutation.transforms)
+			forced[table.Address()] = TypedTransformAttributes(mutation.transforms)
 		}
 		for _, attribute := range table.Attributes {
 			destination, rename := renames[attribute]
@@ -205,7 +205,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 			if slot < 0 {
 				continue
 			}
-			mutation.next, err = renameColumnCandidate(mutation.next, mutation.next.Columns[slot].Name, destination)
+			mutation.next, err = RenameColumnCandidate(mutation.next, mutation.next.Columns[slot].Name, destination)
 			if err != nil {
 				return Result{}, err
 			}

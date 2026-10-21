@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func renameLocalConstraint(parent *catalog.Relation, old, destination string, kind byte) (*catalog.Relation, error) {
+func RenameLocalConstraint(parent *catalog.Relation, old, destination string, kind byte) (*catalog.Relation, error) {
 	collision := func(name string) error {
 		if name == destination {
 			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, destination, parent.Name()))

@@ -71,7 +71,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					view := inheritanceUnitView(e, p, q, c)
 					stage := e.BeginCatalogStage(view)
 					stage.UpdateDescriptor(&next)
-					state := &inheritanceAlterState{stage: stage, inheritanceAlterPlan: inheritanceAlterPlan{root: p, targets: []*catalog.Relation{p, c}, selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, only: only, actions: []parser.AlterTableAction{action}, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}}
+					state := &inheritanceAlterState{stage: stage, inheritanceAlterPlan: inheritanceAlterPlan{Root: p, Targets: []*catalog.Relation{p, c}, Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, Only: only, Actions: []parser.AlterTableAction{action}, Events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}}
 					(&StatementScope{inheritance: inheritanceScope{alter: state}}).recordInheritanceAlterAction(p, &next, action)
 					actions, graph, err := e.inheritedAlterActions(state, c)
 					if err != nil {
@@ -156,17 +156,17 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	c.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(9)}}
 	provenance := catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}
 	view := inheritanceUnitView(e, p, c)
-	retained, err := retainInheritedRecipes(view, c, 1, provenance)
+	retained, err := RetainInheritedRecipes(view, c, 1, provenance)
 	if err != nil || retained.Local || !retained.ExplicitDefault || !reflect.DeepEqual(retained.Origins, provenance.Origins) {
 		t.Fatal("default authority changed attribute locality/origins", retained, err)
 	}
 	c.ColumnMeta.Defaults = nil
-	tombstone, err := retainInheritedRecipes(view, c, 1, provenance)
+	tombstone, err := RetainInheritedRecipes(view, c, 1, provenance)
 	if err != nil || tombstone.Local || !tombstone.ExplicitDefault {
 		t.Fatal("default absence lost explicit authority", tombstone, err)
 	}
 	p.ColumnMeta.Defaults = nil
-	plain, err := retainInheritedRecipes(view, c, 1, provenance)
+	plain, err := RetainInheritedRecipes(view, c, 1, provenance)
 	if err != nil || plain.ExplicitDefault || plain.Local {
 		t.Fatal("ordinary inherited absence fabricated authority", plain, err)
 	}
@@ -176,10 +176,10 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	c.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24001, Kind: catalog.GenerationVirtual, Expression: expression(2)}}
 	c.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}, 2: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 2}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
 	view = inheritanceUnitView(e, p, c)
-	if err := validateInheritance(view, c); err != nil {
+	if err := ValidateInheritance(view, c); err != nil {
 		t.Fatal("legal ONLY recipe divergence invalidated column origins", err)
 	}
-	effective, err := retainInheritedRecipes(view, c, 2, c.Inheritance.Columns[2])
+	effective, err := RetainInheritedRecipes(view, c, 2, c.Inheritance.Columns[2])
 	if err != nil || effective.Local || !effective.ExplicitGeneration || c.Inheritance.Columns[2].ExplicitGeneration {
 		t.Fatal("capture failed to derive retained recipe without retagging live child", effective, err)
 	}
@@ -195,7 +195,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 		case "origin":
 			next.Inheritance.Columns[2] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}
 		}
-		if err := validateInheritance(view, &next); err == nil {
+		if err := ValidateInheritance(view, &next); err == nil {
 			t.Fatal("recipe equality relaxation bypassed independent invariant", kind)
 		}
 	}
@@ -204,10 +204,10 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	definition.Dependencies = []ids.ObjectRef{foreign.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
 	invalid := *c
 	invalid.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: definition}
-	if err := validateGenerationProviders(view, &invalid); err == nil {
+	if err := ValidateGenerationProviders(view, &invalid); err == nil {
 		t.Fatal("foreign generation provider gained authority")
 	}
-	if err := validateGenerationPlan(view, c, plan.LiteralExpr{}); err == nil {
+	if err := ValidateGenerationPlan(view, c, plan.LiteralExpr{}); err == nil {
 		t.Fatal("missing own expression Usage passed validation")
 	}
 }

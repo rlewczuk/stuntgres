@@ -40,7 +40,7 @@ func physicalPermutedPrimary(table *catalog.Relation) *catalog.UniqueConstraint 
 
 // Reuse the existing eligible-index predicate. Only real providers competing
 // with a captured permuted self-FK's primary are ordered after that FK.
-func physicalCompetingIndexSource(view catalog.Read, index *catalog.Relation) (*catalog.Relation, bool, error) {
+func PhysicalCompetingIndexSource(view catalog.Read, index *catalog.Relation) (*catalog.Relation, bool, error) {
 	if index == nil || index.SQLIndex == nil {
 		return nil, false, nil
 	}
@@ -52,7 +52,7 @@ func physicalCompetingIndexSource(view catalog.Read, index *catalog.Relation) (*
 	if primary == nil || primary.Index == index.Address() {
 		return nil, false, nil
 	}
-	eligible, err := foreignKeyIndexEligible(parent, index, primary.Attributes)
+	eligible, err := ForeignKeyIndexEligible(parent, index, primary.Attributes)
 	if err != nil || !eligible {
 		return nil, false, err
 	}
@@ -63,7 +63,7 @@ func physicalCompetingIndexSource(view catalog.Read, index *catalog.Relation) (*
 	return source, true, nil
 }
 
-func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
+func EmitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
 	primary := physicalPermutedPrimary(table)
 	if primary == nil {
 		return nil
@@ -79,7 +79,7 @@ func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, ow
 		if index.PartitionReplaySeparateConstraint(view, idx) {
 			continue
 		}
-		_, deferred, err := physicalCompetingIndexSource(view, idx)
+		_, deferred, err := PhysicalCompetingIndexSource(view, idx)
 		if err != nil {
 			return err
 		}

@@ -48,7 +48,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		return fail(err)
 	}
 	ref, err := e.resolveRelationReference(auth, table, true)
-	if s, ok := stmt.(*parser.DropPolicy); ok && s.IfExists && renameMissing(err) {
+	if s, ok := stmt.(*parser.DropPolicy); ok && s.IfExists && RenameMissing(err) {
 		message := fmt.Sprintf(`relation "%s" does not exist, skipping`, table.Parts[len(table.Parts)-1].Text)
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "3F000" {
 			message = fmt.Sprintf(`schema "%s" does not exist, skipping`, table.Parts[0].Text)

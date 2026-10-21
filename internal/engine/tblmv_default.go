@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) error {
+func ValidateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) error {
 	var err error
 	plan.WalkExpression(node, func(node expr.Expr) {
 		if err != nil {

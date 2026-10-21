@@ -12,7 +12,7 @@ import (
 // Column locality describes declaration provenance, not ownership of a default
 // or generation recipe. ONLY changes to a provider can leave a valid descendant
 // recipe that must be replayed without making its attribute local.
-func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribute int32, provenance catalog.InheritedColumn) (catalog.InheritedColumn, error) {
+func RetainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribute int32, provenance catalog.InheritedColumn) (catalog.InheritedColumn, error) {
 	childDefault, hasDefault := child.ColumnMeta.Defaults[attribute]
 	childGeneration, generated := child.ColumnMeta.Generations[attribute]
 	suppliedDefault, suppliedGeneration := false, false
@@ -23,7 +23,7 @@ func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 		}
 		if definition, exists := parent.ColumnMeta.Defaults[origin.Attribute]; exists {
 			suppliedDefault = true
-			if !hasDefault || !sameInheritedExpression(definition.Expression, childDefault.Expression, child, view) {
+			if !hasDefault || !SameInheritedExpression(definition.Expression, childDefault.Expression, child, view) {
 				provenance.ExplicitDefault = true
 			}
 		}
@@ -41,7 +41,7 @@ func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 			if err != nil {
 				return provenance, err
 			}
-			if !sameInheritedExpression(mapped, childGeneration.Expression, child, view) {
+			if !SameInheritedExpression(mapped, childGeneration.Expression, child, view) {
 				provenance.ExplicitGeneration = true
 			}
 		}
@@ -58,20 +58,20 @@ func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 // Inline redeclarations would change attislocal. These are the same supported
 // physical ALTER actions used by callers, before children/data observe recipes.
 // Captured-reference defaults retain the existing provider-dependent phase.
-func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalogView catalog.Read, deferDefaults bool, emit func(string) error) error {
-	if len(t.recipes) == 0 {
+func (t *dumpRelation) EmitInheritedDefaults(ctx context.Context, catalogView catalog.Read, deferDefaults bool, emit func(string) error) error {
+	if len(t.Recipes) == 0 {
 		return nil
 	}
-	prefix := "ALTER TABLE ONLY " + catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name) + " ALTER COLUMN "
-	for i, column := range t.columns {
-		attribute := t.attributes[i]
-		provenance := t.recipes[attribute]
+	prefix := "ALTER TABLE ONLY " + catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name) + " ALTER COLUMN "
+	for i, column := range t.Columns {
+		attribute := t.Attributes[i]
+		provenance := t.Recipes[attribute]
 		if provenance.Local {
 			continue
 		}
-		if provenance.ExplicitDefault && !(deferDefaults && t.deferredDefinitions[attribute]) {
+		if provenance.ExplicitDefault && !(deferDefaults && t.DeferredDefinitions[attribute]) {
 			clause := " DROP DEFAULT"
-			if definition, exists := t.defaults[attribute]; exists {
+			if definition, exists := t.Defaults[attribute]; exists {
 				text, err := stored.DefaultSQL(ctx, catalogView, definition.Expression)
 				if err != nil {
 					return err
@@ -86,7 +86,7 @@ func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalogView ca
 	return nil
 }
 
-func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *catalog.Relation) bool {
+func InheritedDefaultReplay(raw *parser.AlterTableDefault, relation *catalog.Relation) bool {
 	if !raw.Only || len(raw.Name.Parts) != 2 || relation.Inheritance == nil {
 		return false
 	}
@@ -98,26 +98,26 @@ func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *catalog.Rel
 	return !provenance.Local && len(provenance.Origins) != 0 && provenance.ExplicitDefault
 }
 
-func (t *dumpRelation) prepareInheritedRecipes(view catalog.Read) error {
-	graph := t.descriptor.Inheritance
+func (t *dumpRelation) PrepareInheritedRecipes(view catalog.Read) error {
+	graph := t.Descriptor.Inheritance
 	if graph == nil {
 		return nil
 	}
-	for _, attribute := range t.attributes {
+	for _, attribute := range t.Attributes {
 		provenance := graph.Columns[attribute]
 		if provenance.Local && len(provenance.Origins) == 0 {
 			continue
 		}
-		effective, err := retainInheritedRecipes(view, t.descriptor, attribute, provenance)
+		effective, err := RetainInheritedRecipes(view, t.Descriptor, attribute, provenance)
 		if err != nil {
 			return err
 		}
 		needed := !provenance.Local && (effective.ExplicitDefault || effective.ExplicitGeneration) || provenance.Local && (!provenance.ExplicitDefault && effective.ExplicitDefault || !provenance.ExplicitGeneration && effective.ExplicitGeneration)
 		if needed {
-			if t.recipes == nil {
-				t.recipes = make(map[int32]catalog.InheritedColumn)
+			if t.Recipes == nil {
+				t.Recipes = make(map[int32]catalog.InheritedColumn)
 			}
-			t.recipes[attribute] = effective
+			t.Recipes[attribute] = effective
 		}
 	}
 	return nil

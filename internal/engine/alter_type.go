@@ -44,7 +44,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Oper
 					stage.authorizeLocked(auth, op.Session)
 				}
 			}
-			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.Sequence, prepared[index].usage); err != nil {
+			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.Sequence, prepared[index].Usage); err != nil {
 				return stage, err
 			}
 		}
@@ -98,7 +98,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *session.Operati
 	fail := func(err error) (alterTypePreparation, error) {
 		return alterTypePreparation{}, err
 	}
-	source, err := alterTypeColumn(original, a.Column.Text)
+	source, err := AlterTypeColumn(original, a.Column.Text)
 	if err != nil {
 		return fail(err)
 	}
@@ -126,7 +126,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *session.Operati
 	if err != nil {
 		return fail(err)
 	}
-	prepared := alterTypePreparation{usage: usage, declaredDimensions: int16(len(a.TypeName.ArrayBounds))}
+	prepared := alterTypePreparation{Usage: usage, DeclaredDimensions: int16(len(a.TypeName.ArrayBounds))}
 	if original.RelationKind == catalog.CompositeRelation {
 		return prepared, nil
 	}
@@ -143,7 +143,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *session.Operati
 	if err != nil {
 		return fail(err)
 	}
-	prepared.transformation = index.ColumnTransformation{Attribute: original.Attributes[source], Expression: node, Dependencies: dependencies}
+	prepared.Transformation = index.ColumnTransformation{Attribute: original.Attributes[source], Expression: node, Dependencies: dependencies}
 	return prepared, nil
 }
 
@@ -155,8 +155,8 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	if original.RelationKind == catalog.CompositeRelation || original.RelationKind == catalog.ForeignRelation {
 		return prepared, nil
 	}
-	usage := prepared.usage
-	node := prepared.transformation.Expression
+	usage := prepared.Usage
+	node := prepared.Transformation.Expression
 	input, annotations := analyze.DomainCoercionInput(node, usage)
 	info, err := analyze.StorageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 	if err != nil {
@@ -196,8 +196,8 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	}
 	source := original.Index[a.Column.Text]
 	oldUsage := original.Columns[source].Usage
-	prepared.transformation.Expression = node
-	prepared.transformation.Rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
+	prepared.Transformation.Expression = node
+	prepared.Transformation.Rewrite = a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod
 	return prepared, nil
 }
 
@@ -206,7 +206,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 	fail := func(err error) (*catalog.Relation, index.ColumnTransformation, error) {
 		return nil, index.ColumnTransformation{}, err
 	}
-	slot, err := alterTypeColumn(next, a.Column.Text)
+	slot, err := AlterTypeColumn(next, a.Column.Text)
 	if err != nil {
 		return fail(err)
 	}
@@ -275,20 +275,20 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 		d.Detail = fmt.Sprintf(`rule _RETURN on view %s depends on column "%s"`, name, a.Column.Text)
 		return fail(d)
 	}
-	usage := prepared.usage
+	usage := prepared.Usage
 	if original.RelationKind == catalog.CompositeRelation {
-		if usage == current && next.Columns[slot].DeclaredDimensions == prepared.declaredDimensions {
+		if usage == current && next.Columns[slot].DeclaredDimensions == prepared.DeclaredDimensions {
 			return next, index.ColumnTransformation{}, nil
 		}
 		replacement := *next
 		replacement.Columns = append([]catalog.Column(nil), next.Columns...)
 		replacement.Columns[slot].Usage = usage
-		replacement.Columns[slot].DeclaredDimensions = prepared.declaredDimensions
+		replacement.Columns[slot].DeclaredDimensions = prepared.DeclaredDimensions
 		return &replacement, index.ColumnTransformation{}, nil
 	}
 	attribute := original.Attributes[source]
-	transformation := prepared.transformation
-	dimensions := prepared.declaredDimensions
+	transformation := prepared.Transformation
+	dimensions := prepared.DeclaredDimensions
 	if usage == current && next.Columns[slot].DeclaredDimensions == dimensions {
 		return next, transformation, nil
 	}
@@ -360,9 +360,9 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 		generatedSlots[i] = next.IndexForAttribute(attribute)
 	}
 	for i, added := range additions {
-		addedSlots[i].index = next.Index[added.column.Name]
-		if added.expression != nil {
-			properties := added.expression.Properties()
+		addedSlots[i].index = next.Index[added.Column.Name]
+		if added.Expression != nil {
+			properties := added.Expression.Properties()
 			addedSlots[i].perRow = properties.Volatility > expr.Stable || properties.RuntimeDomainConversion
 		}
 	}
@@ -454,10 +454,10 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 				values[destinations[i]] = v
 			}
 			for i, added := range additions {
-				value := added.value
+				value := added.Value
 				if addedSlots[i].perRow {
 					var err error
-					value, err = added.expression.Eval(&evaluation)
+					value, err = added.Expression.Eval(&evaluation)
 					if err != nil {
 						return nil, err
 					}
@@ -467,14 +467,14 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 			evaluation.Row = values
 			if !preparedGeneration && len(generations) != 0 {
 				var err error
-				generationProgram, err = prepareGenerationProgram(&evaluation, next, generatedSlots, old)
+				generationProgram, err = PrepareGenerationProgram(&evaluation, next, generatedSlots, old)
 				if err != nil {
 					return nil, err
 				}
 				preparedGeneration = true
 			}
 			for i, attribute := range generations {
-				expression := generationRecipeExpression(next.ColumnMeta.Generations[attribute])
+				expression := GenerationRecipeExpression(next.ColumnMeta.Generations[attribute])
 				if generationProgram != nil {
 					expression = generationProgram[generatedSlots[i]]
 				}
@@ -484,7 +484,7 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 				}
 				values[generatedSlots[i]] = value
 			}
-			if err := validator.validate(values, &evaluation); err != nil {
+			if err := validator.Validate(values, &evaluation); err != nil {
 				return nil, err
 			}
 			row.Values = values

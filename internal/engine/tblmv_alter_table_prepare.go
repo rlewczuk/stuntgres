@@ -6,7 +6,7 @@ import (
 )
 
 type alterTablePreparation struct {
-	actions     []parser.AlterTableAction
-	destination ids.ObjectRef
-	types       []alterTypePreparation
+	Actions     []parser.AlterTableAction
+	Destination ids.ObjectRef
+	Types       []alterTypePreparation
 }

@@ -14,12 +14,12 @@ import (
 type notNullRecursion uint8
 
 const (
-	notNullDirect notNullRecursion = iota
-	notNullInherited
-	notNullValidation
+	NotNullDirect notNullRecursion = iota
+	NotNullInherited
+	NotNullValidation
 )
 
-func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion notNullRecursion) (*catalog.Relation, error) {
+func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion notNullRecursion) (*catalog.Relation, error) {
 	slot, idx := -1, -1
 	if a.Action == parser.DropConstraint {
 		for i, c := range old.Constraints.NotNull {
@@ -62,7 +62,7 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 				next.Constraints.Unique = make([]catalog.UniqueConstraint, 0, len(old.Constraints.Unique)-1)
 				next.Constraints.Unique = append(next.Constraints.Unique, old.Constraints.Unique[:i]...)
 				next.Constraints.Unique = append(next.Constraints.Unique, old.Constraints.Unique[i+1:]...)
-				transitionPhysicalNotNull(old, &next)
+				TransitionPhysicalNotNull(old, &next)
 				return &next, nil
 			}
 		}
@@ -144,9 +144,9 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 				return nil, diagnostic
 			}
 			if constraint.NotValid && !a.NotValid {
-				return nil, incompatibleNotValid(constraint.Name, old.Name())
+				return nil, IncompatibleNotValid(constraint.Name, old.Name())
 			}
-			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
+			if recursion == NotNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
 				next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 				provenance := next.Inheritance.NotNull[constraint.Attribute]
@@ -162,10 +162,10 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			}
 			// The first direct SET localizes an inherited fact; it does not
 			// validate an inherited NOT VALID fact or visit its descendants.
-			if recursion == notNullInherited {
+			if recursion == NotNullInherited {
 				return old, nil
 			}
-			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
+			if recursion == NotNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
 				next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 				provenance := next.Inheritance.NotNull[constraint.Attribute]
@@ -181,7 +181,7 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			return old, nil
 		}
 		if a.Action == parser.AddNotNull {
-			return nil, incompatibleNotValid(old.Constraints.NotNull[idx].Name, old.Name())
+			return nil, IncompatibleNotValid(old.Constraints.NotNull[idx].Name, old.Name())
 		}
 		next := *old
 		next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
@@ -212,11 +212,11 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 		next.Constraints.NotNull = append(next.Constraints.NotNull, old.Constraints.NotNull[:idx]...)
 		next.Constraints.NotNull = append(next.Constraints.NotNull, old.Constraints.NotNull[idx+1:]...)
 	}
-	transitionPhysicalNotNull(old, &next)
+	TransitionPhysicalNotNull(old, &next)
 	return &next, nil
 }
 
-func incompatibleNotValid(name, table string) error {
+func IncompatibleNotValid(name, table string) error {
 	diagnostic := sqlError("55000", fmt.Sprintf(`incompatible NOT VALID constraint "%s" on relation "%s"`, name, table)).(*sqlstate.Error)
 	diagnostic.Hint = "You might need to validate it using ALTER TABLE ... VALIDATE CONSTRAINT."
 	return diagnostic
@@ -225,7 +225,7 @@ func incompatibleNotValid(name, table string) error {
 // This is the incumbent USING INDEX NN constructor, shared by admission and
 // ordinary staging. Only actual eligible KEY attributes participate; INCLUDE
 // attributes and the physical index/constraint are never propagated.
-func usingIndexNotNullCandidate(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured index.UsingIndexAttachment) (*catalog.Relation, error) {
+func UsingIndexNotNullCandidate(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured index.UsingIndexAttachment) (*catalog.Relation, error) {
 	if !captured.Syntax.Primary {
 		return parent, nil
 	}
@@ -240,7 +240,7 @@ func usingIndexNotNullCandidate(op *session.Operation, view catalog.Read, reader
 		}
 		action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: next.Columns[slot].Name}}
 		var err error
-		next, err = notNullCandidate(op, view, next, action, notNullDirect)
+		next, err = NotNullCandidate(op, view, next, action, NotNullDirect)
 		if err != nil {
 			return nil, err
 		}

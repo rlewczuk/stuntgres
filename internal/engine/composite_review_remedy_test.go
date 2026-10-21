@@ -65,7 +65,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		domainUnitDiagnostic(t, typedef.RowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
 		stage.typedState().Source = table.OfType
-		stage.typedState().Observed = typedClosure(before, table.OfType)
+		stage.typedState().Observed = TypedClosure(before, table.OfType)
 		if typedObservationValid(stage, view) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
@@ -137,7 +137,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
 	stage.typedState().Source = table.OfType
-	stage.typedState().Observed = typedClosure(before, table.OfType)
+	stage.typedState().Observed = TypedClosure(before, table.OfType)
 	if err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if len(current.Constraints.Check) != 1 || current.Constraints.Check[0].Name != "keep_check" || len(child.Constraints.Check) != 2 {
 		t.Fatal("pruning authority lost")
 	}
-	actions, renames, graph, err := typedInheritedActions(view, current, nil)
+	actions, renames, graph, err := TypedInheritedActions(view, current, nil)
 	if err != nil || len(actions) != 0 || len(renames) != 0 {
 		t.Fatal("unrelated inherited shape changed", err)
 	}

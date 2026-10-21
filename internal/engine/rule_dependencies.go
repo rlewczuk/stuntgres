@@ -221,7 +221,7 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 		}
 		copy := *d
 		copy.Rules = stored.RulesPayload(kept)
-		revision, err := provider.revision(copy.Revision())
+		revision, err := provider.Revision(copy.Revision())
 		if err != nil {
 			return err
 		}

@@ -186,19 +186,19 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
-		label := "default value for column " + catalog.DependencyIdentifier(edge.column) + " of table " + dependencyRelationName(catalogView, edge.relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.relation.ColumnMeta.Defaults[edge.attribute].OID, target: edge.target, label: label})
+		label := "default value for column " + catalog.DependencyIdentifier(edge.Column) + " of table " + dependencyRelationName(catalogView, edge.Relation, path)
+		dependents = append(dependents, supportedDependent{oid: edge.Relation.ColumnMeta.Defaults[edge.Attribute].OID, target: edge.Target, label: label})
 	}
 	for _, edge := range checks {
-		label := "constraint " + catalog.DependencyIdentifier(edge.check.Name) + " on table " + dependencyRelationName(catalogView, edge.relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.Address().ObjectID, checkOrdinal: edge.check.Ordinal})
+		label := "constraint " + catalog.DependencyIdentifier(edge.Check.Name) + " on table " + dependencyRelationName(catalogView, edge.Relation, path)
+		dependents = append(dependents, supportedDependent{oid: edge.Check.OID, target: edge.Target, label: label, checkOwner: edge.Relation.Address().ObjectID, checkOrdinal: edge.Check.Ordinal})
 	}
 	for _, edge := range views {
 		dependents = append(dependents, supportedDependent{oid: edge.view.Address().ObjectID, target: edge.target, view: edge.view.Address(), label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalogView, edge.view, path)})
 	}
 	for _, edge := range foreign {
-		if !edge.automatic {
-			dependents = append(dependents, supportedDependent{oid: edge.oid, target: edge.target, label: edge.label})
+		if !edge.Automatic {
+			dependents = append(dependents, supportedDependent{oid: edge.OID, target: edge.Target, label: edge.Label})
 		}
 	}
 	slices.SortFunc(dependents, func(a, b supportedDependent) int { return cmp.Compare(a.oid, b.oid) })

@@ -112,7 +112,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			}
 		}
 		if !found {
-			if _, err := notNullCandidate(scope.op, view, current, action, notNullDirect); err != nil {
+			if _, err := NotNullCandidate(scope.op, view, current, action, NotNullDirect); err != nil {
 				return Result{}, err
 			}
 		}

@@ -85,10 +85,10 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	}
 	prepared, completionErr := tablespacePrefixPrepare(c, old, c.raw.Actions)
 	tablespacePrefixCode(t, completionErr, "42804")
-	if len(prepared.types) != 3 || prepared.types[0].usage.Type.ID() != sqltype.Int8 || prepared.types[1].usage.Type.ID() != sqltype.Int8 || prepared.types[2].usage.Type.ID() != sqltype.Int2 {
-		t.Fatal("missing admitted failing occurrence", prepared.types)
+	if len(prepared.Types) != 3 || prepared.Types[0].Usage.Type.ID() != sqltype.Int8 || prepared.Types[1].Usage.Type.ID() != sqltype.Int8 || prepared.Types[2].Usage.Type.ID() != sqltype.Int2 {
+		t.Fatal("missing admitted failing occurrence", prepared.Types)
 	}
-	stage, err := e.stageAlterIdentityTypes(scope, c.op, c.auth, old, c.raw.Actions, prepared.types)
+	stage, err := e.stageAlterIdentityTypes(scope, c.op, c.auth, old, c.raw.Actions, prepared.Types)
 	if err != nil || stage == nil {
 		t.Fatal("bounded staging visited an unadmitted TYPE", stage, err)
 	}
@@ -151,10 +151,10 @@ func TestAlterTablespaceAdmissionFailureNoPrefix(t *testing.T) {
 			generator := *c.e.storage.Sequences[a]
 			prepared, err := tablespacePrefixPrepare(c, old, c.raw.Actions)
 			tablespacePrefixCode(t, err, tc.code)
-			if len(prepared.types) != 0 {
-				t.Fatal("admission failure exposed a stageable prefix", prepared.types)
+			if len(prepared.Types) != 0 {
+				t.Fatal("admission failure exposed a stageable prefix", prepared.Types)
 			}
-			stage, stageErr := c.e.stageAlterIdentityTypes(c.scope, c.op, c.auth, original, c.raw.Actions, prepared.types)
+			stage, stageErr := c.e.stageAlterIdentityTypes(c.scope, c.op, c.auth, original, c.raw.Actions, prepared.Types)
 			if stage != nil || stageErr != nil || *payloadOf(c.op.Session).sequences.Memory(a) != memory || *c.e.storage.Sequences[a] != generator || c.e.catalog.state != before {
 				t.Fatal("failed admission staged AS", stage, stageErr)
 			}
@@ -197,7 +197,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					// reentry: this branch must leave disposal to its outer owner.
 					stage = e.BeginCatalogStage(c.auth.Catalog)
 					stage.authorizeLocked(c.auth, c.op.Session)
-					scope.inheritance.alter = &inheritanceAlterState{stage: stage, inheritanceAlterPlan: inheritanceAlterPlan{descendant: true}}
+					scope.inheritance.alter = &inheritanceAlterState{stage: stage, inheritanceAlterPlan: inheritanceAlterPlan{Descendant: true}}
 					t.Cleanup(func() { scope.inheritance.alter = nil; e.DiscardCatalogStage(stage) })
 				}
 				e.mu.Lock()

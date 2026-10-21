@@ -45,12 +45,12 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *cata
 			if !ok {
 				return nil, ids.ErrCatalogReplaced
 			}
-			index, err := foreignKeyIndex(view, target, c.Referenced)
+			index, err := ForeignKeyIndex(view, target, c.Referenced)
 			if err != nil {
 				return nil, err
 			}
 			c.Index = index.Address()
-			if _, err := bindForeignKeyComparison(view, next, target, index, *c); err != nil {
+			if _, err := BindForeignKeyComparison(view, next, target, index, *c); err != nil {
 				return nil, err
 			}
 			c.OID, err = e.catalog.allocateOIDLocked()
@@ -131,7 +131,7 @@ func (s *StatementScope) validateAlterForeignKeys(view catalog.Read, address ids
 			}
 			parent := view.MustRelation(f.Target)
 			index := view.MustRelation(f.Index)
-			comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)
+			comparisons, err := BindForeignKeyComparison(view, child, parent, index, f)
 			if err != nil {
 				return err
 			}
@@ -225,17 +225,17 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			eligible, err := foreignKeyIndexEligible(parent, index, f.Referenced)
+			eligible, err := ForeignKeyIndexEligible(parent, index, f.Referenced)
 			if err != nil {
 				return err
 			}
 			if !eligible {
 				return ids.ErrCatalogReplaced
 			}
-			if _, err := bindForeignKeyComparison(auth.Catalog, child, parent, index, f); err != nil {
+			if _, err := BindForeignKeyComparison(auth.Catalog, child, parent, index, f); err != nil {
 				return err
 			}
-			if err := foreignKeyReferencesAllowed(auth.View, auth, parent, f.Referenced); err != nil {
+			if err := ForeignKeyReferencesAllowed(auth.View, auth, parent, f.Referenced); err != nil {
 				return err
 			}
 		}

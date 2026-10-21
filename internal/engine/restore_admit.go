@@ -96,13 +96,13 @@ func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.Alte
 // admitRestoreCreateTable captures and strips the table's foreign keys
 // (bound at finish) and checks its stored expressions.
 func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.CreateTable) error {
-	if declarations := foreignKeyDeclarations(s); len(declarations) != 0 {
+	if declarations := ForeignKeyDeclarations(s); len(declarations) != 0 {
 		var err error
 		r.cur.pending, err = r.stage.captureRestoredForeignKeys(op, declarations)
 		if err != nil {
 			return err
 		}
-		stripRestoreForeignKeys(s)
+		StripRestoreForeignKeys(s)
 	}
 	if restoreStagesTemporary(s.Persistence, s.Name) {
 		return sqlError("0A000", "restore cannot stage non-retractable effects")
@@ -185,7 +185,7 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {
 		return r.stage.restoreInheritedCheck(op, s, r.generationRepairs)
 	}
-	return restoreAlterConstraints(s)
+	return RestoreAlterConstraints(s)
 }
 
 func admitRestoreAlterTableOf(_ *restoreRun, _ *session.Operation, s *parser.AlterTableOf) error {
@@ -289,12 +289,12 @@ func admitRestoreSessionAuthorization(r *restoreRun, _ *session.Operation, s *pa
 // attribute rank.
 func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.Update) error {
 	var err error
-	if restoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
+	if RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
 		err = r.stage.restoreRetiredConstraint(op, s, r.historicalAuthority)
-	} else if restoreCatalogName(s.Name, "pg_constraint") {
+	} else if RestoreCatalogName(s.Name, "pg_constraint") {
 		err = r.stage.restoreNoInheritNotNull(op, s, r.pairedNotNull)
 		if err == nil {
-			delete(r.notNullOrigins, r.pairedNotNull.constraint)
+			delete(r.notNullOrigins, r.pairedNotNull.Constraint)
 		}
 	} else {
 		err = r.stage.restoreAttributeRank(op, s)
@@ -312,7 +312,7 @@ func replayRestorePhysicalNotNull(r *restoreRun, op *session.Operation, s *parse
 	}
 	if r.pairedPhysical.position == len(r.pairedPhysical.repairs) {
 		var err error
-		r.physicalForeignProvider, err = r.stage.capturePhysicalForeignKeyProvider(op, r.pairedPhysical.repairs[0].relation, r.historicalRefs)
+		r.physicalForeignProvider, err = r.stage.capturePhysicalForeignKeyProvider(op, r.pairedPhysical.repairs[0].Relation, r.historicalRefs)
 		if err != nil {
 			return err
 		}

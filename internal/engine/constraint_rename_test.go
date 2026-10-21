@@ -82,7 +82,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			e.DiscardCatalogStage(failed)
 			// The local helper checks the same revision exhaustion before slicing.
 			candidate.Constraints.NotNull = []catalog.NotNullConstraint{{Name: "nn"}}
-			if _, err := renameLocalConstraint(&candidate, "nn", "renamed_nn", 'n'); err == nil {
+			if _, err := RenameLocalConstraint(&candidate, "nn", "renamed_nn", 'n'); err == nil {
 				t.Fatal("revision exhaustion admitted")
 			}
 			// Ordinary backing-index rename still uses the same group helper.
@@ -101,7 +101,7 @@ func TestConstraintRenameCheckOrder(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
 	a, b := old.Constraints.Check[0], old.Constraints.Check[1]
-	next, err := renameLocalConstraint(old, "a", "z", 'c')
+	next, err := RenameLocalConstraint(old, "a", "z", 'c')
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -33,10 +33,10 @@ func expressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32
 }
 
 func stageCompositeFieldDependencies(stage *CatalogStage, source *catalog.Relation, attribute int32, mode parser.DropMode, scope *StatementScope) error {
-	return stageDropProvider(nil, stage, scope, nil, nil).compositeFieldDependencies(source, attribute, mode)
+	return stageDropProvider(nil, stage, scope, nil, nil).CompositeFieldDependencies(source, attribute, mode)
 }
 
-func (provider *dropProvider) compositeFieldDependencies(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
+func (provider *dropProvider) CompositeFieldDependencies(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
 	var relations []*catalog.Relation
 	var domains []*catalog.Type
 	target := source.Address()
@@ -99,12 +99,12 @@ func (provider *dropProvider) compositeFieldDependencies(source *catalog.Relatio
 			continue
 		}
 		if provider.stage == nil || !typedFieldCheckOwner(provider.stage, relation) {
-			if err := provider.inheritanceAlterGuard(relation); err != nil {
+			if err := provider.InheritanceAlterGuard(relation); err != nil {
 				return err
 			}
 		}
 		next := *relation
-		revision, err := provider.revision(next.Revision())
+		revision, err := provider.Revision(next.Revision())
 		if err != nil {
 			return err
 		}
@@ -194,7 +194,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 	if target.ClassID != ids.TypeClassID {
 		return false, nil
 	}
-	domain, ok := provider.descriptor(target).(*catalog.Type)
+	domain, ok := provider.Descriptor(target).(*catalog.Type)
 	if !ok || !domain.SQLType.IsDomain() {
 		return false, nil
 	}
@@ -210,7 +210,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 		}
 		address := ref.Address
 		address.SubID = 0
-		source, ok := provider.descriptor(address).(*catalog.Relation)
+		source, ok := provider.Descriptor(address).(*catalog.Relation)
 		if !ok {
 			continue
 		}

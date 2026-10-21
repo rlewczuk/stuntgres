@@ -13,7 +13,7 @@ import (
 // neither retirement nor dependency traversal publishes the private candidate.
 // Each action classifies its own dependencies before any later backing removal.
 func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *catalog.Relation, actions []parser.AlterTableAction, changes *session.Journal) (*catalog.Relation, *CatalogStage, error) {
-	if !hasDroppedConstraintIndexes(old, actions) {
+	if !HasDroppedConstraintIndexes(old, actions) {
 		return next, stage, nil
 	}
 	if stage == nil {
@@ -28,7 +28,7 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 // constraints without backing indexes, during staging and pure preparation.
 func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, actions []parser.AlterTableAction) (*catalog.Relation, error) {
 	for _, action := range actions {
-		constraint, address := droppedConstraint(old, action)
+		constraint, address := DroppedConstraint(old, action)
 		if constraint == (ids.ObjectAddress{}) {
 			continue
 		}
@@ -50,13 +50,13 @@ func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, 
 			return next, err
 		}
 		// CASCADE can remove a self-reference from this same parent.
-		next = provider.descriptor(old.Address()).(*catalog.Relation)
+		next = provider.Descriptor(old.Address()).(*catalog.Relation)
 	}
 	return next, nil
 }
 
 func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *catalog.Relation, actions []parser.AlterTableAction, prior *preparedDrop) (*preparedDrop, error) {
-	if !hasDroppedConstraintIndexes(old, actions) {
+	if !HasDroppedConstraintIndexes(old, actions) {
 		return nil, nil
 	}
 	provider, err := scope.prepareDropDefinitionProvider(auth, next, scope.lockedRef, prior)

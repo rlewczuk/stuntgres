@@ -14,13 +14,13 @@ import (
 )
 
 func (s *CatalogStage) captureLikeSource(source catalog.Descriptor) {
-	if table := s.table(); !slices.Contains(table.likeSources, source) {
-		table.likeSources = append(table.likeSources, source)
+	if table := s.table(); !slices.Contains(table.LikeSources, source) {
+		table.LikeSources = append(table.LikeSources, source)
 	}
 }
 
 func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
-	sources := s.tableOrZero().likeSources
+	sources := s.tableOrZero().LikeSources
 	if len(sources) == 0 {
 		return nil
 	}
@@ -79,7 +79,7 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 					// tree, including frozen literals and external identities, is reusable.
 					node := old.Expression
 					temporary := auth.Catalog.MustNamespace(destination.Namespace()).Temporary
-					if err := validateCookedDefaultTemporary(node, temporary); err != nil {
+					if err := ValidateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
 					definition := catalog.ColumnDefault{Expression: node}
@@ -164,7 +164,7 @@ func (e *Engine) stageLikeChecks(op *session.Operation, auth AuthorizationView, 
 		if in.Options&analyze.LikeConstraints == 0 {
 			continue
 		}
-		for _, old := range orderedChecks(in.Source) {
+		for _, old := range OrderedChecks(in.Source) {
 			if names[old.Name] {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, destination.Name()))
 			}

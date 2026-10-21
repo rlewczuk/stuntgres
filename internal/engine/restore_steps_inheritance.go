@@ -56,7 +56,7 @@ func prepareRestoreGenerationPair(r *restoreRun, op *session.Operation, stmt par
 func afterRestoreHistoricalRelation(r *restoreRun, _ *session.Operation, stmt parser.Statement, result Result) error {
 	if _, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
 		r.historicalRefs[result.created.Address] = result.created
-		captureHistoricalRelation(r.stage.CatalogRead(), result.created, r.historicalAuthority.facts)
+		CaptureHistoricalRelation(r.stage.CatalogRead(), result.created, r.historicalAuthority.Facts)
 	}
 	return nil
 }
@@ -88,7 +88,7 @@ func afterRestoreHistoricalFacts(r *restoreRun, _ *session.Operation, stmt parse
 	if alteration, altered := stmt.(*parser.AlterTable); altered && slices.ContainsFunc(alteration.Actions, func(a parser.AlterTableAction) bool {
 		return a.Action == parser.AddCheck || a.Action == parser.AddNotNull || a.Action == parser.SetNotNull
 	}) {
-		r.stage.captureHistoricalFacts(r.historicalRefs, r.historicalAuthority.facts)
+		r.stage.captureHistoricalFacts(r.historicalRefs, r.historicalAuthority.Facts)
 	}
 	return nil
 }
@@ -105,7 +105,7 @@ func afterRestoreGeneration(r *restoreRun, op *session.Operation, stmt parser.St
 		return err
 	}
 	r.generationRepairs = append(r.generationRepairs, record)
-	delete(r.placeholderOrigins, restoredGenerationKey{record.ref.Address, record.attribute})
+	delete(r.placeholderOrigins, restoredGenerationKey{record.Ref.Address, record.Attribute})
 	return nil
 }
 

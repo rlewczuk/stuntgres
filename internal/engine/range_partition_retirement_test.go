@@ -83,7 +83,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	}
 	found := false
 	for _, edge := range edges {
-		found = found || edge.address == root.Address() && edge.relation == root && edge.address.SubID == 0
+		found = found || edge.Address == root.Address() && edge.Relation == root && edge.Address.SubID == 0
 	}
 	if !found {
 		t.Fatal("real closure lacks whole-hierarchy dependency edge")

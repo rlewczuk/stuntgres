@@ -28,7 +28,7 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 			if committed && replaced[row.Row] || !visibility.LiveVersion(row, frontier, ends, deletes) {
 				continue
 			}
-			if err := validator.validate(row.Values, &evaluation); err != nil {
+			if err := validator.Validate(row.Values, &evaluation); err != nil {
 				return err
 			}
 		}

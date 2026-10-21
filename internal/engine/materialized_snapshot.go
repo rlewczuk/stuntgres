@@ -39,10 +39,10 @@ func materializedViewReadError(d *catalog.Relation) error {
 // its population flag and the rows its table dump emits.
 func emitMaterializedSnapshot(ctx context.Context, t *dumpRelation, catalog catalog.Read, emit func(string) error) error {
 	var rows strings.Builder
-	if err := t.emitRows(ctx, catalog, func(line string) error { rows.WriteString(line); return nil }); err != nil {
+	if err := t.EmitRows(ctx, catalog, func(line string) error { rows.WriteString(line); return nil }); err != nil {
 		return err
 	}
-	record := materializedSnapshot{Schema: t.schema, Name: t.name, Populated: t.descriptor.Populated, Rows: rows.String()}
+	record := materializedSnapshot{Schema: t.Schema, Name: t.Name, Populated: t.Descriptor.Populated, Rows: rows.String()}
 	if !record.Populated && record.Rows != "" {
 		return fmt.Errorf("stuntgres: unpopulated materialized view has stored rows")
 	}

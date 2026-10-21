@@ -182,11 +182,11 @@ func TestDomainDefinitionIdentityDependencyOrder(t *testing.T) {
 	}
 	domain := domainUnitType(t, e.CatalogRead(), "a")
 	array, ok := e.CatalogRead().LookupArray(domain.SQLType)
-	if !ok || len(dependencies) != 4 || !dependencies[0].automatic || dependencies[0].address.ObjectID != ids.OID(array.ID()) {
+	if !ok || len(dependencies) != 4 || !dependencies[0].Automatic || dependencies[0].Address.ObjectID != ids.OID(array.ID()) {
 		t.Fatal("missing automatic array lifetime dependency", dependencies)
 	}
 	dependencies = dependencies[1:]
-	if len(dependencies) != 3 || dependencies[0].address.ObjectID != first || dependencies[1].address.ObjectID != second || dependencies[2].address.ObjectID != check {
+	if len(dependencies) != 3 || dependencies[0].Address.ObjectID != first || dependencies[1].Address.ObjectID != second || dependencies[2].Address.ObjectID != check {
 		t.Fatal("dependency closure lost allocated definition chronology", dependencies)
 	}
 }

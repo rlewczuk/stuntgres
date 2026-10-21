@@ -49,7 +49,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 			continue
 		}
 		if relation.SQLIndex != nil {
-			producer, moved, err := physicalCompetingIndexSource(view, relation)
+			producer, moved, err := PhysicalCompetingIndexSource(view, relation)
 			if err != nil {
 				return err
 			}
@@ -101,7 +101,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 				if !ok {
 					return fmt.Errorf("stuntgres: missing physical foreign-key provider")
 				}
-				_, moved, err := physicalCompetingIndexSource(view, index)
+				_, moved, err := PhysicalCompetingIndexSource(view, index)
 				if err != nil {
 					return err
 				}

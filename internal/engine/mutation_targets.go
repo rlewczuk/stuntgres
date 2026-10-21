@@ -48,7 +48,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 		}
 		var pending []exec.Leaf
-		err := inheritanceQueryClosure(view, root, s.op.Session.SessionToken, func(child *catalog.Relation) error {
+		err := InheritanceQueryClosure(view, root, s.op.Session.SessionToken, func(child *catalog.Relation) error {
 			if child.Address() == root.Address() {
 				return nil
 			}
@@ -187,7 +187,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 	}
 	relation := physical.Leaf.Relation
 	generationEval := *eval
-	if err := evaluateGenerations(eval.Context, relation, row, &generationEval); err != nil {
+	if err := EvaluateGenerations(eval.Context, relation, row, &generationEval); err != nil {
 		return err
 	}
 	diagnostic := func(column, check string) error {
@@ -202,13 +202,13 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 		}
 		e.mu.Unlock()
 		if check != "" {
-			return checkDetailError(physicalSchema, relation.Name(), check, detail)
+			return CheckDetailError(physicalSchema, relation.Name(), check, detail)
 		}
 		return notNullDetailError(physicalSchema, relation.Name(), column, detail)
 	}
 	for i, column := range relation.Columns {
 		if !column.Nullable {
-			value, err := logicalColumnValue(relation, i, row, &generationEval)
+			value, err := LogicalColumnValue(relation, i, row, &generationEval)
 			if err != nil {
 				return err
 			}
@@ -217,7 +217,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 			}
 		}
 	}
-	if constraint, err := validateCheckRow(relation, row, &generationEval); err != nil {
+	if constraint, err := ValidateCheckRow(relation, row, &generationEval); err != nil {
 		return err
 	} else if constraint != nil {
 		return diagnostic("", constraint.Name)

@@ -45,7 +45,7 @@ func inheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 		if d.RelationKind != catalog.TableRelation || leaf.Only {
 			return visit(leaf)
 		}
-		return inheritanceQueryClosure(view, d, token, func(physical *catalog.Relation) error {
+		return InheritanceQueryClosure(view, d, token, func(physical *catalog.Relation) error {
 			child := leaf
 			child.Ref.Address, child.Relation = physical.Address(), physical
 			return visit(child)

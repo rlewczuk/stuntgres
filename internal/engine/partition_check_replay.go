@@ -28,7 +28,7 @@ func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.Al
 	if !partitionConstraintReplayImport(e, op, auth) {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK authority")
 	}
-	if err := restoreAlterConstraints(raw); err != nil {
+	if err := RestoreAlterConstraints(raw); err != nil {
 		return err
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, true)

@@ -88,7 +88,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
-	if err = nameCreateNotNull(d, auth.Catalog); err != nil {
+	if err = NameCreateNotNull(d, auth.Catalog); err != nil {
 		return nil, err
 	}
 	for i := range d.Constraints.NotNull {

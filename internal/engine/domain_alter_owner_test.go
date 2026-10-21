@@ -48,7 +48,7 @@ func domainAlterReplayOwnership(t *testing.T) {
 				}
 				message := typedef.RestoreDomainOwnerBoundary
 				if tc.name == "wrong_kind" {
-					message = restoreInheritedOwnerBoundary
+					message = RestoreInheritedOwnerBoundary
 				}
 				domainUnitDiagnostic(t, err, "0A000", message)
 				return

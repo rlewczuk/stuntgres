@@ -67,7 +67,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 	column := d.Columns[slot]
 	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
 	if kind == catalog.GenerationVirtual {
-		if err := virtualDestination(column); err != nil {
+		if err := VirtualDestination(column); err != nil {
 			return catalog.ColumnGeneration{}, err
 		}
 	}
@@ -77,7 +77,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 	}
 	analyzed := node
 	if kind == catalog.GenerationVirtual {
-		if err := virtualGenerationSecurity(analyzed); err != nil {
+		if err := VirtualGenerationSecurity(analyzed); err != nil {
 			return catalog.ColumnGeneration{}, err
 		}
 	}

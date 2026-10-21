@@ -599,7 +599,7 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b analyze.Bind
 	if err := evaluation.Context.Err(); err != nil {
 		return err
 	}
-	if err := evaluateGenerations(evaluation.Context, b.Relation, row, evaluation); err != nil {
+	if err := EvaluateGenerations(evaluation.Context, b.Relation, row, evaluation); err != nil {
 		return err
 	}
 	if err := access.RowSecurityProposal(scope.rls.proposal, scope.rls.proposalTable); err != nil {
@@ -615,7 +615,7 @@ func validatePhysicalRowConstraints(relation *catalog.Relation, schema string, r
 		if column.Nullable {
 			continue
 		}
-		value, err := logicalColumnValue(relation, j, row, evaluation)
+		value, err := LogicalColumnValue(relation, j, row, evaluation)
 		if err != nil {
 			return err
 		}
@@ -628,7 +628,7 @@ func validatePhysicalRowConstraints(relation *catalog.Relation, schema string, r
 		}
 	}
 	if len(relation.Constraints.Check) != 0 {
-		constraint, err := validateCheckRow(relation, row, evaluation)
+		constraint, err := ValidateCheckRow(relation, row, evaluation)
 		if err != nil {
 			return err
 		}
@@ -637,7 +637,7 @@ func validatePhysicalRowConstraints(relation *catalog.Relation, schema string, r
 			if err != nil {
 				return err
 			}
-			return checkDetailError(schema, relation.Name(), constraint.Name, detail)
+			return CheckDetailError(schema, relation.Name(), constraint.Name, detail)
 		}
 	}
 	return nil

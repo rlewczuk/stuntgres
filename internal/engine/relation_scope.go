@@ -265,7 +265,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return nil
 		}
 		name = v.Name
-		mode = alterTableLockMode(v)
+		mode = AlterTableLockMode(v)
 		ownerOnly = true
 		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableAttachPartition:
@@ -386,7 +386,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			ref, err = e.resolveRelationReference(parentAuth, name, mode == lock.ShareUpdateExclusive || rename || indexBuild || partitionCreate)
 		}
 	}
-	if rename && ifExists && renameMissing(err) {
+	if rename && ifExists && RenameMissing(err) {
 		err = nil
 	}
 	if err == nil {
@@ -410,7 +410,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			if ref.Domain() != nil {
 				err = parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
 				if _, altering := stmt.(*parser.AlterTable); altering && err == nil {
-					err = alterTableLookupKind(parentAuth.Catalog.MustRelation(ref.Address))
+					err = AlterTableLookupKind(parentAuth.Catalog.MustRelation(ref.Address))
 				}
 			}
 			if tableRename && ref.Domain() != nil && err == nil {
@@ -589,7 +589,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		s.prepared.changedDuringAdmission = true
 	}
 	if source {
-		s.querySources = append(s.querySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: sourceOnly(stmt), Storage: e.privateStorageLocked(s.owner.Catalog, ref.Address)})
+		s.querySources = append(s.querySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: SourceOnly(stmt), Storage: e.privateStorageLocked(s.owner.Catalog, ref.Address)})
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
@@ -657,7 +657,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return err
 		}
 		if _, altering := stmt.(*parser.AlterTable); altering {
-			if err := alterTableLookupKind(descriptor); err != nil {
+			if err := AlterTableLookupKind(descriptor); err != nil {
 				return err
 			}
 		}

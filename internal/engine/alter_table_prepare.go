@@ -17,7 +17,7 @@ import (
 // On completion error only, the result retains the admitted TYPE prefix for
 // sequence AS; that error-path result must never reach a descriptor candidate.
 func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, actions []parser.AlterTableAction) (alterTablePreparation, error) {
-	prepared := alterTablePreparation{actions: actions}
+	prepared := alterTablePreparation{Actions: actions}
 	fail := func(err error) (alterTablePreparation, error) {
 		return alterTablePreparation{}, err
 	}
@@ -31,14 +31,14 @@ func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *session.Ope
 			if err != nil {
 				return fail(err)
 			}
-			prepared.types = append(prepared.types, admitted)
+			prepared.Types = append(prepared.Types, admitted)
 			captured, err := e.completeAlterTypeLocked(scope, auth, original, action, admitted)
 			if err != nil {
 				// Sequence AS precedes this error, but not admission failures.
 				// Retain only the admitted prefix; later actions are unvisited.
 				return prepared, err
 			}
-			prepared.types[len(prepared.types)-1] = captured
+			prepared.Types[len(prepared.Types)-1] = captured
 		case parser.SetTablespace:
 			destination, err := ddl.TablespaceRef(auth.View, action.Tablespace.Text)
 			if err != nil {
@@ -47,23 +47,23 @@ func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *session.Ope
 			if err := checkAlterTablespaceCreate(auth, destination); err != nil {
 				return fail(err)
 			}
-			if prepared.destination.Address.ObjectID != 0 {
+			if prepared.Destination.Address.ObjectID != 0 {
 				return fail(sqlError("42601", "cannot have multiple SET TABLESPACE subcommands"))
 			}
-			prepared.destination = destination
+			prepared.Destination = destination
 		}
 	}
-	if prepared.destination.Address.ObjectID == 0 {
+	if prepared.Destination.Address.ObjectID == 0 {
 		return prepared, nil
 	}
 	if len(actions) == 1 {
-		prepared.actions = nil
+		prepared.Actions = nil
 		return prepared, nil
 	}
-	prepared.actions = make([]parser.AlterTableAction, 0, len(actions)-1)
+	prepared.Actions = make([]parser.AlterTableAction, 0, len(actions)-1)
 	for _, action := range actions {
 		if action.Action != parser.SetTablespace {
-			prepared.actions = append(prepared.actions, action)
+			prepared.Actions = append(prepared.Actions, action)
 		}
 	}
 	return prepared, nil

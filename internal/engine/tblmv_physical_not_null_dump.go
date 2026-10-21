@@ -8,11 +8,11 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func physicalPrimaryDeferred(table *catalog.Relation, primary *catalog.UniqueConstraint) bool {
+func PhysicalPrimaryDeferred(table *catalog.Relation, primary *catalog.UniqueConstraint) bool {
 	return primary.Primary && len(table.Constraints.PhysicalNotNull) != 0
 }
 
-func emitPhysicalPrimaryCleanup(view catalog.Read, table *catalog.Relation, primary *catalog.UniqueConstraint, emit func(string) error, setOwner func(string) error) error {
+func EmitPhysicalPrimaryCleanup(view catalog.Read, table *catalog.Relation, primary *catalog.UniqueConstraint, emit func(string) error, setOwner func(string) error) error {
 	hasPhysicalKey := false
 	for _, attribute := range primary.Attributes {
 		if _, present := table.Constraints.PhysicalNotNull[attribute]; present {
@@ -45,17 +45,17 @@ func emitPhysicalPrimaryCleanup(view catalog.Read, table *catalog.Relation, prim
 
 // Run at declaration time, before descendants or rows. The constructor creates
 // its real NN record; the CTE selects that record by key, never an assumed name.
-func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) error, setOwner func(string) error) error {
-	if len(t.descriptor.Constraints.PhysicalNotNull) == 0 {
+func (t *dumpRelation) EmitPhysicalNotNull(view catalog.Read, emit func(string) error, setOwner func(string) error) error {
+	if len(t.Descriptor.Constraints.PhysicalNotNull) == 0 {
 		return nil
 	}
-	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
-	for _, attribute := range t.attributes {
-		if _, physical := t.descriptor.Constraints.PhysicalNotNull[attribute]; !physical || catalog.PhysicalPrimaryForAttribute(t.descriptor, attribute) != nil {
+	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
+	for _, attribute := range t.Attributes {
+		if _, physical := t.Descriptor.Constraints.PhysicalNotNull[attribute]; !physical || catalog.PhysicalPrimaryForAttribute(t.Descriptor, attribute) != nil {
 			continue
 		}
-		column := t.columns[t.descriptor.IndexForAttribute(attribute)].Name
-		if err := setOwner(t.owner); err != nil {
+		column := t.Columns[t.Descriptor.IndexForAttribute(attribute)].Name
+		if err := setOwner(t.Owner); err != nil {
 			return err
 		}
 		if err := emit("ALTER TABLE ONLY " + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(column) + " SET NOT NULL;\n"); err != nil {
@@ -68,8 +68,8 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 			return err
 		}
 	}
-	for i := range t.descriptor.Constraints.Unique {
-		primary := &t.descriptor.Constraints.Unique[i]
+	for i := range t.Descriptor.Constraints.Unique {
+		primary := &t.Descriptor.Constraints.Unique[i]
 		if !primary.Primary {
 			continue
 		}
@@ -80,17 +80,17 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 		if index.PartitionReplaySeparateConstraint(view, idx) {
 			continue
 		}
-		text, err := (stored.Deparser{View: view}).UniqueConstraintSQL(t.descriptor, primary)
+		text, err := (stored.Deparser{View: view}).UniqueConstraintSQL(t.Descriptor, primary)
 		if err != nil {
 			return err
 		}
-		if err := setOwner(t.owner); err != nil {
+		if err := setOwner(t.Owner); err != nil {
 			return err
 		}
 		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + catalog.QuoteIdentifier(primary.Name) + " " + text + ";\n"); err != nil {
 			return err
 		}
-		if err := emitPhysicalPrimaryCleanup(view, t.descriptor, primary, emit, setOwner); err != nil {
+		if err := EmitPhysicalPrimaryCleanup(view, t.Descriptor, primary, emit, setOwner); err != nil {
 			return err
 		}
 	}

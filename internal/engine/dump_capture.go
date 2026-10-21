@@ -97,7 +97,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	catalogView := e.catalog.read(state)
 	originalCatalog := catalogView
 	originalRoles := e.roles.read(e.catalog.owner(), originalCatalog, e.roles.published)
-	recipePlan, err := capturedGenerationReplayPlan(originalCatalog)
+	recipePlan, err := CapturedGenerationReplayPlan(originalCatalog)
 	if err != nil {
 		return nil, err
 	}

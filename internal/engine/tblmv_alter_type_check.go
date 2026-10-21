@@ -16,16 +16,16 @@ import (
 // Original definitions are captured once after DROP, before any TYPE changes
 // their usages. Queue order is TYPE discovery, then retained declaration order.
 type alterTypeCheck struct {
-	index    int
-	sql      string
-	literals []plan.LiteralExpr
+	Index    int
+	SQL      string
+	Literals []plan.LiteralExpr
 }
 
-func captureAlterTypeChecks(op *session.Operation, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
+func CaptureAlterTypeChecks(op *session.Operation, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
 	if len(survivor.Constraints.Check) == 0 || !slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterColumnType }) {
 		return nil, nil
 	}
-	ordered := orderedChecks(survivor)
+	ordered := OrderedChecks(survivor)
 	var queue []alterTypeCheck
 	for _, action := range actions {
 		if action.Action != parser.AlterColumnType {
@@ -48,7 +48,7 @@ func captureAlterTypeChecks(op *session.Operation, view catalog.Read, original, 
 				continue
 			}
 			index := slices.IndexFunc(survivor.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Ordinal == check.Ordinal })
-			if slices.ContainsFunc(queue, func(c alterTypeCheck) bool { return c.index == index }) {
+			if slices.ContainsFunc(queue, func(c alterTypeCheck) bool { return c.Index == index }) {
 				continue
 			}
 			var literals []plan.LiteralExpr
@@ -56,13 +56,13 @@ func captureAlterTypeChecks(op *session.Operation, view catalog.Read, original, 
 			if err != nil {
 				return nil, err
 			}
-			queue = append(queue, alterTypeCheck{index: index, sql: canonical, literals: literals})
+			queue = append(queue, alterTypeCheck{Index: index, SQL: canonical, Literals: literals})
 		}
 	}
 	return queue, nil
 }
 
-func alterTypeCheckReparseError(err error) error {
+func AlterTypeCheckReparseError(err error) error {
 	if diagnostic, ok := err.(*sqlstate.Error); ok {
 		copy := *diagnostic
 		copy.Position, copy.InternalPosition, copy.InternalQuery = "", "", ""
@@ -75,15 +75,15 @@ func alterTypeCheckReparseError(err error) error {
 // scans. The CHECK traversal descriptor is ephemeral; storage stays alphabetic.
 type alterRowValidator struct {
 	relation *catalog.Relation
-	checks   *catalog.Relation
+	Checks   *catalog.Relation
 	schema   string
-	notNull  []int
+	NotNull  []int
 }
 
-func (v alterRowValidator) validate(row []sqltype.Value, evaluation *exec.Context) error {
-	for _, slot := range v.notNull {
+func (v alterRowValidator) Validate(row []sqltype.Value, evaluation *exec.Context) error {
+	for _, slot := range v.NotNull {
 		column := v.relation.Columns[slot]
-		value, err := logicalColumnValue(v.relation, slot, row, evaluation)
+		value, err := LogicalColumnValue(v.relation, slot, row, evaluation)
 		if err != nil {
 			return err
 		}
@@ -93,10 +93,10 @@ func (v alterRowValidator) validate(row []sqltype.Value, evaluation *exec.Contex
 			return diagnostic
 		}
 	}
-	if v.checks == nil {
+	if v.Checks == nil {
 		return nil
 	}
-	failed, err := validateCheckRow(v.checks, row, evaluation)
+	failed, err := ValidateCheckRow(v.Checks, row, evaluation)
 	if err != nil || failed == nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (v alterRowValidator) validate(row []sqltype.Value, evaluation *exec.Contex
 	return diagnostic
 }
 
-func newAlterRowValidator(relation *catalog.Relation, schema string) alterRowValidator {
+func NewAlterRowValidator(relation *catalog.Relation, schema string) alterRowValidator {
 	v := alterRowValidator{relation: relation, schema: schema}
 	for slot, column := range relation.Columns {
 		if column.Nullable {
@@ -119,13 +119,13 @@ func newAlterRowValidator(relation *catalog.Relation, schema string) alterRowVal
 			}
 		}
 		if !invalid {
-			v.notNull = append(v.notNull, slot)
+			v.NotNull = append(v.NotNull, slot)
 		}
 	}
 	return v
 }
 
-func needsNotNullScan(original, next *catalog.Relation) bool {
+func NeedsNotNullScan(original, next *catalog.Relation) bool {
 	for _, n := range next.Constraints.NotNull {
 		if n.NotValid {
 			continue

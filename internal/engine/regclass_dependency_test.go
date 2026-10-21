@@ -113,7 +113,7 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 		labels = append(labels, dependent.label)
 	}
 	want := []string{"view rr_order_bridge", "view rr_order_view", "default value for column r of table rr_order_owner", "constraint rr_order_zfirst on table rr_order_owner", "constraint rr_order_afinal on table rr_order_owner"}
-	if !reflect.DeepEqual(labels, want) || ordered[0].oid <= ordered[1].oid || ordered[2].oid != owner.ColumnMeta.Defaults[owner.Attributes[owner.Index["r"]]].OID || ordered[3].oid != checks[0].check.OID || ordered[4].oid != checks[1].check.OID || ordered[3].oid <= ordered[4].oid {
+	if !reflect.DeepEqual(labels, want) || ordered[0].oid <= ordered[1].oid || ordered[2].oid != owner.ColumnMeta.Defaults[owner.Attributes[owner.Index["r"]]].OID || ordered[3].oid != checks[0].Check.OID || ordered[4].oid != checks[1].Check.OID || ordered[3].oid <= ordered[4].oid {
 		t.Fatal("provider traversal or genuine sibling identity lost", labels, ordered)
 	}
 	duplicate := supportedDependentLabels(view, []ids.ObjectAddress{target, target}, checks, views, defaults, nil)

@@ -42,7 +42,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 				}
 				inherited = true
 				record, exists := origins[restoredGenerationKey{origin.Parent, origin.Attribute}]
-				if !exists || record.ref.Domain() != created.Domain() || record.ref.Epoch != created.Epoch || record.generation != generation.OID || record.kind != generation.Kind || record.usage != parent.Columns[parent.IndexForAttribute(origin.Attribute)].Usage {
+				if !exists || record.Ref.Domain() != created.Domain() || record.Ref.Epoch != created.Epoch || record.Generation != generation.OID || record.Kind != generation.Kind || record.Usage != parent.Columns[parent.IndexForAttribute(origin.Attribute)].Usage {
 					compatible = false
 					break
 				}
@@ -50,7 +50,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 			declared = inherited && compatible && !table.Inheritance.Columns[attribute].ExplicitGeneration
 		}
 		if declared {
-			origins[restoredGenerationKey{created.Address, attribute}] = restoredGenerationRecipe{ref: created, attribute: attribute, generation: definition.OID, usage: table.Columns[table.IndexForAttribute(attribute)].Usage, kind: definition.Kind}
+			origins[restoredGenerationKey{created.Address, attribute}] = restoredGenerationRecipe{Ref: created, Attribute: attribute, Generation: definition.OID, Usage: table.Columns[table.IndexForAttribute(attribute)].Usage, Kind: definition.Kind}
 		}
 	}
 }
@@ -94,7 +94,7 @@ func (e *Engine) pairRestoredGeneration(op *session.Operation, raw *parser.Alter
 	attribute := table.Attributes[slot]
 	record, exists := origins[restoredGenerationKey{ref.Address, attribute}]
 	definition, generated := table.ColumnMeta.Generations[attribute]
-	if !exists || !generated || record.ref != ref || record.attribute != attribute || record.generation != definition.OID || record.usage != table.Columns[slot].Usage || record.kind != definition.Kind {
+	if !exists || !generated || record.Ref != ref || record.Attribute != attribute || record.Generation != definition.OID || record.Usage != table.Columns[slot].Usage || record.Kind != definition.Kind {
 		return reject()
 	}
 	if (relationProvider{}).Validate(auth.Catalog, table) != nil {
@@ -122,7 +122,7 @@ func (e *Engine) captureRestoredGeneration(op *session.Operation, raw *parser.Al
 	}
 	attribute := table.Attributes[slot]
 	generation := table.ColumnMeta.Generations[attribute]
-	return restoredGenerationRecipe{ref: ref, attribute: attribute, generation: generation.OID, usage: table.Columns[slot].Usage, kind: generation.Kind}, nil
+	return restoredGenerationRecipe{Ref: ref, Attribute: attribute, Generation: generation.OID, Usage: table.Columns[slot].Usage, Kind: generation.Kind}, nil
 }
 
 func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterTable, repairs []restoredGenerationRecipe) error {
@@ -170,26 +170,26 @@ func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterT
 	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
-	if validateInheritance(auth.Catalog, target) != nil {
+	if ValidateInheritance(auth.Catalog, target) != nil {
 		return reject()
 	}
 	for _, repair := range repairs {
-		if repair.ref.Domain() != ref.Domain() || repair.ref.Epoch != ref.Epoch {
+		if repair.Ref.Domain() != ref.Domain() || repair.Ref.Epoch != ref.Epoch {
 			continue
 		}
-		table, ok := auth.Catalog.Relation(repair.ref.Address)
+		table, ok := auth.Catalog.Relation(repair.Ref.Address)
 		if !ok {
 			continue
 		}
-		generation, ok := table.ColumnMeta.Generations[repair.attribute]
-		slot := table.IndexForAttribute(repair.attribute)
-		if !ok || slot < 0 || generation.OID != repair.generation || generation.Kind != repair.kind || table.Columns[slot].Usage != repair.usage {
+		generation, ok := table.ColumnMeta.Generations[repair.Attribute]
+		slot := table.IndexForAttribute(repair.Attribute)
+		if !ok || slot < 0 || generation.OID != repair.Generation || generation.Kind != repair.Kind || table.Columns[slot].Usage != repair.Usage {
 			continue
 		}
 		if (relationProvider{}).Validate(auth.Catalog, table) != nil {
 			continue
 		}
-		if inheritedRecipeConnected(auth.Catalog, target.Address(), table.Address()) {
+		if InheritedRecipeConnected(auth.Catalog, target.Address(), table.Address()) {
 			return nil
 		}
 	}
@@ -207,7 +207,7 @@ func (e *Engine) closeRestoredRecipesForData(op *session.Operation, raw *parser.
 	}
 	retained := repairs[:0]
 	for _, repair := range repairs {
-		if !inheritedRecipeConnected(auth.Catalog, ref.Address, repair.ref.Address) {
+		if !InheritedRecipeConnected(auth.Catalog, ref.Address, repair.Ref.Address) {
 			retained = append(retained, repair)
 		}
 	}

@@ -12,23 +12,23 @@ import (
 // the actions and the events each node recorded for its children. It holds no
 // stage or journal; inheritanceAlterState carries those.
 type inheritanceAlterPlan struct {
-	root       *catalog.Relation
-	targets    []*catalog.Relation
-	selected   map[ids.ObjectAddress]bool
-	graph      *catalog.TableInheritance
-	descendant bool
-	only       bool
-	actions    []parser.AlterTableAction
-	events     map[ids.ObjectAddress][]inheritanceAlterEvent
-	validating map[string]bool
-	preparing  bool
-	definition inheritanceDefinitionReader
-	tablespace ids.ObjectRef          // Prepared root-only destination; never propagated.
-	types      []alterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
+	Root       *catalog.Relation
+	Targets    []*catalog.Relation
+	Selected   map[ids.ObjectAddress]bool
+	Graph      *catalog.TableInheritance
+	Descendant bool
+	Only       bool
+	Actions    []parser.AlterTableAction
+	Events     map[ids.ObjectAddress][]inheritanceAlterEvent
+	Validating map[string]bool
+	Preparing  bool
+	Definition inheritanceDefinitionReader
+	Tablespace ids.ObjectRef          // Prepared root-only destination; never propagated.
+	Types      []alterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
 }
 
 // Unlike the OF-type entry, ordinary propagation includes its named root.
-func inheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog.Relation {
+func InheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog.Relation {
 	selected := map[ids.ObjectAddress]*catalog.Relation{}
 	var collect func(*catalog.Relation)
 	collect = func(d *catalog.Relation) {
@@ -77,7 +77,7 @@ func inheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog
 	return result
 }
 
-func inheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableAction, only bool) bool {
+func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableAction, only bool) bool {
 	switch a.Action {
 	case parser.SetTablespace:
 		return false // Assignment is always root-only, independent of ONLY/star.
@@ -137,7 +137,7 @@ func inheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableActio
 	return false
 }
 
-func inheritanceOnlyActions(root *catalog.Relation, children bool, actions []parser.AlterTableAction) ([]parser.AlterTableAction, error) {
+func InheritanceOnlyActions(root *catalog.Relation, children bool, actions []parser.AlterTableAction) ([]parser.AlterTableAction, error) {
 	if !children {
 		return actions, nil
 	}
@@ -172,7 +172,7 @@ func inheritanceOnlyActions(root *catalog.Relation, children bool, actions []par
 	return next, nil
 }
 
-func inheritedNotNull(view catalog.Read, parents []ids.ObjectAddress, name string) *catalog.NotNullConstraint {
+func InheritedNotNull(view catalog.Read, parents []ids.ObjectAddress, name string) *catalog.NotNullConstraint {
 	for _, address := range parents {
 		parent := view.MustRelation(address)
 		if slot, exists := parent.Index[name]; exists {

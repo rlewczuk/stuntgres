@@ -175,7 +175,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 			if !exists {
 				return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Column.Text)))
 			}
-			if err := rejectVirtualIndexUses(parent, []int{slot}); err != nil {
+			if err := RejectVirtualIndexUses(parent, []int{slot}); err != nil {
 				return fail(err)
 			}
 			columns[i] = parent.Columns[slot]

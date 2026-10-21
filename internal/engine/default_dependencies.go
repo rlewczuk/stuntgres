@@ -7,5 +7,5 @@ import (
 )
 
 func stageDefaultDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
-	return defaultDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+	return DefaultDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }

@@ -51,19 +51,19 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	}
 	row := []sqltype.Value{value, sqltype.Null(value.Type())}
 	eval := exec.Context{}
-	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil {
+	if err := EvaluateGenerations(context.Background(), d, row, &eval); err != nil {
 		t.Fatal(err)
 	}
 	if n, err := row[1].Integer(); err != nil || n != 2 {
 		t.Fatal(n, err)
 	}
 	row[0] = sqltype.Null(value.Type())
-	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() {
+	if err := EvaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() {
 		t.Fatal(row, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := evaluateGenerations(canceled, d, row, &eval); !errors.Is(err, context.Canceled) {
+	if err := EvaluateGenerations(canceled, d, row, &eval); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	wrong := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 2, Frame: 1, Row: row}}

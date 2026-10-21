@@ -16,7 +16,7 @@ import (
 func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured index.UsingIndexAttachment) (*index.UsingIndexPreparation, error) {
 	prepared := &index.UsingIndexPreparation{Parent: parent}
 	if !captured.NotNullPrepared {
-		candidate, err := usingIndexNotNullCandidate(op, view, reader, parent, captured)
+		candidate, err := UsingIndexNotNullCandidate(op, view, reader, parent, captured)
 		if err != nil {
 			return nil, err
 		}
@@ -53,7 +53,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 		}
 		for _, constraint := range parent.Constraints.NotNull {
 			if constraint.NotValid && slices.Contains(captured.Attributes, constraint.Attribute) {
-				prepared.Err = incompatibleNotValid(constraint.Name, parent.Name())
+				prepared.Err = IncompatibleNotValid(constraint.Name, parent.Name())
 				return prepared, nil
 			}
 		}

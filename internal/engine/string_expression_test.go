@@ -151,7 +151,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	broken := *relation
 	broken.Constraints.Check = append([]catalog.CheckConstraint(nil), relation.Constraints.Check...)
 	broken.Constraints.Check[0].CommentSnapshot = false
-	if err := validateChecks(view, &broken, map[string]bool{}); err == nil {
+	if err := ValidateChecks(view, &broken, map[string]bool{}); err == nil {
 		t.Fatal("invalid stored snapshot manifest accepted")
 	}
 	sourceRef := catalogRef(t, engine, view, "regclass_source")

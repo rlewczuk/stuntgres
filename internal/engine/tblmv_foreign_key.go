@@ -16,11 +16,11 @@ import (
 )
 
 type foreignKeyComparison struct {
-	child, parent int
-	comparison    sqltype.IndexForeignKeyComparison
+	Child, Parent int
+	Comparison    sqltype.IndexForeignKeyComparison
 }
 
-func foreignKeyDeclarations(s *parser.CreateTable) []parser.ForeignKeyConstraint {
+func ForeignKeyDeclarations(s *parser.CreateTable) []parser.ForeignKeyConstraint {
 	var declarations []parser.ForeignKeyConstraint
 	for _, element := range s.Elements {
 		if element.ForeignKey != nil {
@@ -39,7 +39,7 @@ func foreignKeyDeclarations(s *parser.CreateTable) []parser.ForeignKeyConstraint
 	return declarations
 }
 
-func foreignKeyAttributes(d *catalog.Relation, columns []parser.Identifier) ([]int32, error) {
+func ForeignKeyAttributes(d *catalog.Relation, columns []parser.Identifier) ([]int32, error) {
 	attributes := make([]int32, len(columns))
 	for i, column := range columns {
 		slot, ok := d.Index[column.Text]
@@ -51,14 +51,14 @@ func foreignKeyAttributes(d *catalog.Relation, columns []parser.Identifier) ([]i
 	return attributes, nil
 }
 
-func foreignKeyIndex(view catalog.Read, parent *catalog.Relation, attributes []int32) (*catalog.Relation, error) {
+func ForeignKeyIndex(view catalog.Read, parent *catalog.Relation, attributes []int32) (*catalog.Relation, error) {
 	var found *catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		eligible, err := foreignKeyIndexEligible(parent, index, attributes)
+		eligible, err := ForeignKeyIndexEligible(parent, index, attributes)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +72,7 @@ func foreignKeyIndex(view catalog.Read, parent *catalog.Relation, attributes []i
 	return found, nil
 }
 
-func foreignKeyIndexEligible(parent, idx *catalog.Relation, attributes []int32) (bool, error) {
+func ForeignKeyIndexEligible(parent, idx *catalog.Relation, attributes []int32) (bool, error) {
 	d := idx.SQLIndex
 	if d == nil || d.Parent != parent.Address() || !d.Unique || !d.Ready || !d.Valid || !d.Live || d.Predicate != nil || len(d.Keys) != len(attributes) {
 		return false, nil
@@ -98,7 +98,7 @@ func foreignKeyIndexEligible(parent, idx *catalog.Relation, attributes []int32) 
 	return true, nil
 }
 
-func bindForeignKeyComparison(view catalog.Read, child, parent, idx *catalog.Relation, f catalog.ForeignKeyConstraint) ([]foreignKeyComparison, error) {
+func BindForeignKeyComparison(view catalog.Read, child, parent, idx *catalog.Relation, f catalog.ForeignKeyConstraint) ([]foreignKeyComparison, error) {
 	comparisons := make([]foreignKeyComparison, len(f.Attributes))
 	for i, attribute := range f.Attributes {
 		c, p := slices.Index(child.Attributes, attribute), slices.Index(parent.Attributes, f.Referenced[i])
@@ -107,7 +107,7 @@ func bindForeignKeyComparison(view catalog.Read, child, parent, idx *catalog.Rel
 		}
 		cu, pu := child.Columns[c].Usage, parent.Columns[p].Usage
 		var err error
-		bound := foreignKeyComparison{child: c, parent: p}
+		bound := foreignKeyComparison{Child: c, Parent: p}
 		matchedAt := -1
 		for at, key := range idx.SQLIndex.Keys {
 			a, node, keyErr := index.CatalogKey(parent, key)
@@ -116,7 +116,7 @@ func bindForeignKeyComparison(view catalog.Read, child, parent, idx *catalog.Rel
 			}
 			if node == nil && a == f.Referenced[i] {
 				pu = index.KeyCollation(pu, key)
-				bound.comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.Class, view.LookupType)
+				bound.Comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.Class, view.LookupType)
 				matchedAt = at
 				break
 			}
@@ -134,7 +134,7 @@ func bindForeignKeyComparison(view catalog.Read, child, parent, idx *catalog.Rel
 	return comparisons, nil
 }
 
-func foreignKeyReferencesAllowed(view access.View, env access.Environment, parent *catalog.Relation, attributes []int32) error {
+func ForeignKeyReferencesAllowed(view access.View, env access.Environment, parent *catalog.Relation, attributes []int32) error {
 	ref := view.Ref(parent.Address())
 	rights, err := view.Effective(env, ref, false)
 	if err != nil {
@@ -157,7 +157,7 @@ func foreignKeyReferencesAllowed(view access.View, env access.Environment, paren
 	return nil
 }
 
-func validateForeignKeys(view catalog.Read, child *catalog.Relation, names map[string]bool) error {
+func ValidateForeignKeys(view catalog.Read, child *catalog.Relation, names map[string]bool) error {
 	for _, f := range child.Constraints.ForeignKeys {
 		if child.RelationKind != catalog.TableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")
@@ -179,7 +179,7 @@ func validateForeignKeys(view catalog.Read, child *catalog.Relation, names map[s
 		if !ok {
 			return fmt.Errorf("stuntgres: missing foreign-key index")
 		}
-		eligible, err := foreignKeyIndexEligible(parent, index, f.Referenced)
+		eligible, err := ForeignKeyIndexEligible(parent, index, f.Referenced)
 		if err != nil {
 			return err
 		}
@@ -189,20 +189,20 @@ func validateForeignKeys(view catalog.Read, child *catalog.Relation, names map[s
 		if view.MustNamespace(parent.Namespace()).Temporary != view.MustNamespace(child.Namespace()).Temporary {
 			return fmt.Errorf("stuntgres: foreign-key temporary provenance mismatch")
 		}
-		if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {
+		if _, err := BindForeignKeyComparison(view, child, parent, index, f); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func foreignKeyRowsMatch(ctx context.Context, comparisons []foreignKeyComparison, child, parent []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
+func ForeignKeyRowsMatch(ctx context.Context, comparisons []foreignKeyComparison, child, parent []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
 	for _, comparison := range comparisons {
-		left, right := child[comparison.child], parent[comparison.parent]
+		left, right := child[comparison.Child], parent[comparison.Parent]
 		if left.IsNull() || right.IsNull() {
 			return false, nil
 		}
-		cmp, err := comparison.comparison.Compare(ctx, right, left, input)
+		cmp, err := comparison.Comparison.Compare(ctx, right, left, input)
 		if err != nil || cmp != 0 {
 			return false, err
 		}
@@ -210,17 +210,17 @@ func foreignKeyRowsMatch(ctx context.Context, comparisons []foreignKeyComparison
 	return true, nil
 }
 
-func foreignKeyNullState(comparisons []foreignKeyComparison, row []sqltype.Value) (any, all bool) {
+func ForeignKeyNullState(comparisons []foreignKeyComparison, row []sqltype.Value) (any, all bool) {
 	all = true
 	for _, c := range comparisons {
-		n := row[c.child].IsNull()
+		n := row[c.Child].IsNull()
 		any = any || n
 		all = all && n
 	}
 	return
 }
 
-func foreignKeyDiagnostic(ctx context.Context, view access.View, env access.Environment, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, values []sqltype.Value, parentSide, partial bool, output sqltype.OutputEnvironment) error {
+func ForeignKeyDiagnostic(ctx context.Context, view access.View, env access.Environment, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, values []sqltype.Value, parentSide, partial bool, output sqltype.OutputEnvironment) error {
 	d := sqlError("23503", fmt.Sprintf(`insert or update on table "%s" violates foreign key constraint "%s"`, child.Name(), f.Name)).(*sqlstate.Error)
 	d.Schema = view.Catalog.Get(child.Namespace()).Name()
 	d.Table, d.Constraint = child.Name(), f.Name

@@ -105,7 +105,7 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 	next := catalog.CloneState(e.catalog.state)
 	next.SetDescriptor(parent.Address(), &changed)
 	next.SetDescriptor(child.Address(), child)
-	if err := remapInheritanceConstraintOrigins(next, old); err != nil {
+	if err := RemapInheritanceConstraintOrigins(next, old); err != nil {
 		t.Fatal(err)
 	}
 	current := next.MustRelation(child.Address())
@@ -199,7 +199,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 		t.Fatal(err)
 	}
 	for _, table := range []*catalog.Relation{tempChild, imported} {
-		if err := validateInheritance(e.catalog.read(next), table); err != nil {
+		if err := ValidateInheritance(e.catalog.read(next), table); err != nil {
 			t.Fatal(table.Name(), err)
 		}
 	}
@@ -289,7 +289,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 		t.Fatal("combined definition identities invalid", err)
 	}
 	for _, table := range []*catalog.Relation{tempChild, imported} {
-		if err := validateInheritance(e.catalog.read(next), table); err != nil {
+		if err := ValidateInheritance(e.catalog.read(next), table); err != nil {
 			t.Fatal(table.Name(), err)
 		}
 	}

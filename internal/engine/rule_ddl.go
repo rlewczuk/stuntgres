@@ -37,7 +37,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	}
 	ref, err := e.resolveRelationReference(auth, table, true)
 	if err != nil {
-		if s, ok := stmt.(*parser.DropRule); ok && s.IfExists && renameMissing(err) {
+		if s, ok := stmt.(*parser.DropRule); ok && s.IfExists && RenameMissing(err) {
 			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(table)))
 		}
 		return fail(err)

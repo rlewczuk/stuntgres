@@ -40,10 +40,10 @@ func retiredTerms(raw parser.Expr, terms *[]parser.Expr) {
 	}
 }
 
-func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
+func RestoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 	var result retiredRepair
-	reject := func() (retiredRepair, error) { return retiredRepair{}, sqlError("0A000", restoreRetiredBoundary) }
-	if !restoreCatalogName(raw.Name, "pg_constraint") || raw.Only || raw.Star || raw.WithRecursive || len(raw.With) != 0 || raw.Alias.Text != "" || raw.From != nil || raw.CurrentOf != nil || raw.Returning != nil || len(raw.Assignments) != 2 {
+	reject := func() (retiredRepair, error) { return retiredRepair{}, sqlError("0A000", RestoreRetiredBoundary) }
+	if !RestoreCatalogName(raw.Name, "pg_constraint") || raw.Only || raw.Star || raw.WithRecursive || len(raw.With) != 0 || raw.Alias.Text != "" || raw.From != nil || raw.CurrentOf != nil || raw.Returning != nil || len(raw.Assignments) != 2 {
 		return reject()
 	}
 	for _, a := range raw.Assignments {
@@ -58,7 +58,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 	if !ok {
 		return reject()
 	}
-	result.local = local
+	result.Local = local
 	sum, ok := raw.Assignments[1].Value.(parser.OperatorExpr)
 	if !ok || len(sum.Name.Parts) != 1 || sum.Name.Parts[0].Text != "+" || len(sum.Args) != 2 {
 		return reject()
@@ -67,7 +67,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 	if !ok || before < 0 || before > 32767 {
 		return reject()
 	}
-	result.before = int(before)
+	result.Before = int(before)
 	sub, ok := sum.Args[1].(parser.SubqueryExpr)
 	if !ok || sub.Kind != parser.SubqueryScalar || sub.Left != nil || sub.Negate || len(sub.Operator.Parts) != 0 || !restorePlainSelect(sub.Query) || sub.Query.Values != nil || sub.Query.Where != nil || len(sub.Query.Targets) != 1 {
 		return reject()
@@ -102,7 +102,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 		}
 		values = input.Query.Values
 	}
-	if values == nil || values.Order != nil || values.Bounds != nil || len(values.Rows) == 0 || len(values.Rows)+result.before > 32767 {
+	if values == nil || values.Order != nil || values.Bounds != nil || len(values.Rows) == 0 || len(values.Rows)+result.Before > 32767 {
 		return reject()
 	}
 	for _, row := range values.Rows {
@@ -153,7 +153,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 		if err != nil || oid == 0 || strconv.FormatUint(oid, 10) != oidText {
 			return reject()
 		}
-		result.rows = append(result.rows, retiredRepairRow{parent: parent, text: text, column: oldColumn, attribute: int32(attribute), check: kind == "c", name: name, lifetime: lifetime, archive: archive, constraint: ids.OID(oid)})
+		result.Rows = append(result.Rows, retiredRepairRow{Parent: parent, text: text, Column: oldColumn, Attribute: int32(attribute), Check: kind == "c", Name: name, Lifetime: lifetime, Archive: archive, Constraint: ids.OID(oid)})
 		if !slices.Contains(result.parents, text) {
 			result.parents = append(result.parents, text)
 		}
@@ -167,7 +167,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 	if !ok {
 		return reject()
 	}
-	result.relation, result.text, ok = restoreNoInheritRegclass(relation)
+	result.Relation, result.text, ok = restoreNoInheritRegclass(relation)
 	if !ok {
 		return reject()
 	}
@@ -175,8 +175,8 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 	if !ok {
 		return reject()
 	}
-	result.name, ok = retiredText(name)
-	if !ok || result.name == "" {
+	result.Name, ok = retiredText(name)
+	if !ok || result.Name == "" {
 		return reject()
 	}
 	kindRaw, ok := restoreAttributeRankEquality(terms[2], "contype")
@@ -187,7 +187,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 	if !ok || (kind != "n" && kind != "c") {
 		return reject()
 	}
-	result.check = kind == "c"
+	result.Check = kind == "c"
 	key, ok := restoreAttributeRankEquality(terms[3], "conkey")
 	if !ok {
 		return reject()
@@ -198,16 +198,16 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 	}
 	for _, element := range array.Elements {
 		column, ok := restoreConstraintAttribute(element, result.text)
-		if !ok || slices.Contains(result.columns, column) {
+		if !ok || slices.Contains(result.Columns, column) {
 			return reject()
 		}
-		result.columns = append(result.columns, column)
+		result.Columns = append(result.Columns, column)
 	}
 	localRaw, ok := restoreAttributeRankEquality(terms[4], "conislocal")
 	if !ok {
 		return reject()
 	}
-	result.beforeLocal, ok = retiredBoolean(localRaw)
+	result.BeforeLocal, ok = retiredBoolean(localRaw)
 	if !ok {
 		return reject()
 	}
@@ -216,7 +216,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 		return reject()
 	}
 	expected, ok := retiredInteger(countRaw)
-	if !ok || expected != int64(result.before) {
+	if !ok || expected != int64(result.Before) {
 		return reject()
 	}
 	for i, parent := range result.parents {
@@ -229,7 +229,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 			return reject()
 		}
 		from, ok := exists.Query.From.(*parser.TableReference)
-		if !ok || from.Only || !restoreCatalogName(from.Name, "pg_inherits") {
+		if !ok || from.Only || !RestoreCatalogName(from.Name, "pg_inherits") {
 			return reject()
 		}
 		predicate, ok := exists.Query.Where.(parser.LogicalExpr)
@@ -253,8 +253,8 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 			return reject()
 		}
 	}
-	for _, row := range result.rows {
-		if row.check != result.check {
+	for _, row := range result.Rows {
+		if row.Check != result.Check {
 			return reject()
 		}
 	}

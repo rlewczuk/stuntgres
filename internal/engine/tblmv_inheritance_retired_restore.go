@@ -13,59 +13,59 @@ import (
 	"stuntgres/internal/parser"
 )
 
-const restoreRetiredBoundary = "restore accepts only paired canonical retired constraint origins"
+const RestoreRetiredBoundary = "restore accepts only paired canonical retired constraint origins"
 
 type restoredHistoricalFact struct {
-	ref                 ids.ObjectRef
-	oid                 ids.OID
-	name                string
-	check               bool
-	attributes          []int32
-	expression          expr.Expr
-	notValid, noInherit bool
-	local               bool
-	count               int
+	Ref                 ids.ObjectRef
+	OID                 ids.OID
+	Name                string
+	Check               bool
+	Attributes          []int32
+	Expression          expr.Expr
+	NotValid, NoInherit bool
+	Local               bool
+	Count               int
 }
 
 type retiredRepairRow struct {
-	parent             parser.ObjectName
-	text, column, name string
-	attribute          int32
-	constraint         ids.OID
-	lifetime, archive  uint64
-	check              bool
+	Parent             parser.ObjectName
+	text, Column, Name string
+	Attribute          int32
+	Constraint         ids.OID
+	Lifetime, Archive  uint64
+	Check              bool
 }
 
 type retiredRepair struct {
-	relation                  parser.ObjectName
-	text, name                string
-	check, local, beforeLocal bool
-	before                    int
-	columns                   []string
-	rows                      []retiredRepairRow
+	Relation                  parser.ObjectName
+	text, Name                string
+	Check, Local, BeforeLocal bool
+	Before                    int
+	Columns                   []string
+	Rows                      []retiredRepairRow
 	parents                   []string
 }
 
 type retiredSourceIdentity struct {
-	parent            ids.ObjectRef
-	archive, lifetime uint64
-	constraint        ids.OID
+	Parent            ids.ObjectRef
+	Archive, Lifetime uint64
+	Constraint        ids.OID
 }
 
 type retiredSourceDescription struct {
-	column, name string
-	attribute    int32
-	check        bool
+	Column, Name string
+	Attribute    int32
+	Check        bool
 }
 
 type restoredHistoryAuthority struct {
-	facts       map[ids.OID]restoredHistoricalFact
-	archives    map[uint64]uint64
-	sources     map[retiredSourceIdentity]retiredSourceDescription
-	nextArchive uint64
+	Facts       map[ids.OID]restoredHistoricalFact
+	Archives    map[uint64]uint64
+	Sources     map[retiredSourceIdentity]retiredSourceDescription
+	NextArchive uint64
 }
 
-func constraintAttributeKeys(table *catalog.Relation, expression expr.Expr) []int32 {
+func ConstraintAttributeKeys(table *catalog.Relation, expression expr.Expr) []int32 {
 	var keys []int32
 	plan.WalkExpression(expression, func(node expr.Expr) {
 		if column, ok := node.(plan.ColumnExpr); ok && column.Origin.Address.ClassID == ids.RelationClassID && column.Origin.Address.ObjectID == table.Address().ObjectID && !slices.Contains(keys, column.Origin.Address.SubID) {
@@ -75,7 +75,7 @@ func constraintAttributeKeys(table *catalog.Relation, expression expr.Expr) []in
 	return keys
 }
 
-func captureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
+func CaptureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
 	table, ok := view.Relation(ref.Address)
 	if !ok || table.Inheritance == nil {
 		return
@@ -89,20 +89,20 @@ func captureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[i
 		if len(p.Retired) != 0 {
 			continue
 		}
-		if old, exists := facts[c.OID]; exists && old.local == p.Local && old.count == len(p.Origins) && old.notValid == c.NotValid && old.noInherit == c.NoInherit {
+		if old, exists := facts[c.OID]; exists && old.Local == p.Local && old.Count == len(p.Origins) && old.NotValid == c.NotValid && old.NoInherit == c.NoInherit {
 			continue
 		}
-		facts[c.OID] = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, attributes: []int32{c.Attribute}, notValid: c.NotValid, noInherit: c.NoInherit, local: p.Local, count: len(p.Origins)}
+		facts[c.OID] = restoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Attributes: []int32{c.Attribute}, NotValid: c.NotValid, NoInherit: c.NoInherit, Local: p.Local, Count: len(p.Origins)}
 	}
 	for _, c := range table.Constraints.Check {
 		p := table.Inheritance.Checks[c.Name]
 		if len(p.Retired) != 0 {
 			continue
 		}
-		if old, exists := facts[c.OID]; exists && old.local == p.Local && old.count == len(p.Origins) && old.notValid == c.NotValid && old.noInherit == c.NoInherit {
+		if old, exists := facts[c.OID]; exists && old.Local == p.Local && old.Count == len(p.Origins) && old.NotValid == c.NotValid && old.NoInherit == c.NoInherit {
 			continue
 		}
-		facts[c.OID] = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, check: true, attributes: constraintAttributeKeys(table, c.Expression), expression: c.Expression, notValid: c.NotValid, noInherit: c.NoInherit, local: p.Local, count: len(p.Origins)}
+		facts[c.OID] = restoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: ConstraintAttributeKeys(table, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NoInherit: c.NoInherit, Local: p.Local, Count: len(p.Origins)}
 	}
 }
 
@@ -140,7 +140,7 @@ func retiredDeclarationNeeded(view catalog.Read, table *catalog.Relation, p cata
 	return true
 }
 
-func dumpNotNullDeclaration(view catalog.Read, table *catalog.Relation, attribute int32) bool {
+func DumpNotNullDeclaration(view catalog.Read, table *catalog.Relation, attribute int32) bool {
 	if table.Inheritance == nil {
 		return true
 	}
@@ -152,16 +152,16 @@ func dumpNotNullDeclaration(view catalog.Read, table *catalog.Relation, attribut
 	return false
 }
 
-func dumpCheckDeclaration(view catalog.Read, table *catalog.Relation, c catalog.CheckConstraint) bool {
+func DumpCheckDeclaration(view catalog.Read, table *catalog.Relation, c catalog.CheckConstraint) bool {
 	return table.Inheritance == nil || retiredDeclarationNeeded(view, table, table.Inheritance.Checks[c.Name], true, c.NotValid)
 }
 
-func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, emit func(string) error, setOwner func(string) error) error {
-	graph := t.descriptor.Inheritance
+func (t *dumpRelation) EmitRetiredConstraints(view catalog.Read, checks bool, emit func(string) error, setOwner func(string) error) error {
+	graph := t.Descriptor.Inheritance
 	if graph == nil {
 		return nil
 	}
-	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
+	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
 	emitFact := func(name string, keys []int32, p catalog.InheritedConstraint, check, notValid bool) error {
 		if len(p.Retired) == 0 {
 			return nil
@@ -169,14 +169,14 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 		if err := setOwner("postgres"); err != nil {
 			return err
 		}
-		beforeLocal := retiredDeclarationNeeded(view, t.descriptor, p, check, notValid)
+		beforeLocal := retiredDeclarationNeeded(view, t.Descriptor, p, check, notValid)
 		var rows, parents, keyQueries []string
 		for _, attribute := range keys {
-			slot := t.descriptor.IndexForAttribute(attribute)
+			slot := t.Descriptor.IndexForAttribute(attribute)
 			if slot < 0 {
 				return fmt.Errorf("stuntgres: missing historical constraint key")
 			}
-			keyQueries = append(keyQueries, "(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = "+dump.CommentLiteral(qualified)+"::regclass AND attname = "+dump.CommentLiteral(t.columns[slot].Name)+")")
+			keyQueries = append(keyQueries, "(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = "+dump.CommentLiteral(qualified)+"::regclass AND attname = "+dump.CommentLiteral(t.Columns[slot].Name)+")")
 		}
 		kind := "n"
 		if check {
@@ -200,13 +200,13 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 		return emit(sql + ";\n")
 	}
 	if checks {
-		for _, c := range t.descriptor.Constraints.Check {
-			if err := emitFact(c.Name, constraintAttributeKeys(t.descriptor, c.Expression), graph.Checks[c.Name], true, c.NotValid); err != nil {
+		for _, c := range t.Descriptor.Constraints.Check {
+			if err := emitFact(c.Name, ConstraintAttributeKeys(t.Descriptor, c.Expression), graph.Checks[c.Name], true, c.NotValid); err != nil {
 				return err
 			}
 		}
 	} else {
-		for _, c := range t.notNullConstraints {
+		for _, c := range t.NotNullConstraints {
 			if err := emitFact(c.Name, []int32{c.Attribute}, graph.NotNull[c.Attribute], false, c.NotValid); err != nil {
 				return err
 			}
@@ -215,9 +215,9 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 	return nil
 }
 
-func retiredConstraintEvents(view catalog.Read, events dump.Graph, tables []dumpRelation) {
+func RetiredConstraintEvents(view catalog.Read, events dump.Graph, tables []dumpRelation) {
 	for i := range tables {
-		table := tables[i].descriptor
+		table := tables[i].Descriptor
 		graph := table.Inheritance
 		if graph == nil {
 			continue

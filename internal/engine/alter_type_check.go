@@ -31,9 +31,9 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 		// Parse in CHECK context so selected calls remain functions, rather than
 		// the general scalar grammar's function-style casts. Only the extracted
 		// expression is bound; this wrapper never creates catalog metadata.
-		syntax, err := parser.ParseWithOptions("CREATE TABLE "+catalog.QuoteIdentifier(next.Name())+" (CHECK ("+pending.sql+"))", parser.Options{Context: op.Context(), StandardConformingStrings: true})
+		syntax, err := parser.ParseWithOptions("CREATE TABLE "+catalog.QuoteIdentifier(next.Name())+" (CHECK ("+pending.SQL+"))", parser.Options{Context: op.Context(), StandardConformingStrings: true})
 		if err != nil {
-			return nil, nil, alterTypeCheckReparseError(err)
+			return nil, nil, AlterTypeCheckReparseError(err)
 		}
 		e.mu.Lock()
 		if ref.Epoch != e.catalog.state.Epoch() {
@@ -42,15 +42,15 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 		}
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Query.Auth = true, true, &auth
-		binder.Stored.CheckLiterals = pending.literals
+		binder.Stored.CheckLiterals = pending.Literals
 		binder.Query.Namespace = &namespace
 		binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: &replacement}}
 		node, err := binder.BindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, analyze.ProjectionContext, "CHECK")
 		e.mu.Unlock()
 		if err != nil {
-			return nil, nil, alterTypeCheckReparseError(err)
+			return nil, nil, AlterTypeCheckReparseError(err)
 		}
-		definition := replacement.Constraints.Check[pending.index]
+		definition := replacement.Constraints.Check[pending.Index]
 		definition.OID = 0 // Affected TYPE definitions get a new logical identity.
 		definition.Expression, definition.Dependencies, definition.CommentSnapshot, definition.VisibilitySnapshot = node, nil, false, false
 		var dependencies []ids.ObjectRef
@@ -66,13 +66,13 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 			}
 			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: dependency, Revision: revision})
 		}
-		replacement.Constraints.Check[pending.index] = definition
+		replacement.Constraints.Check[pending.Index] = definition
 	}
 	if err := stored.RefreshGenerationChecks(&replacement, auth.Catalog); err != nil {
 		return nil, nil, err
 	}
 	for _, pending := range queue {
-		definition := replacement.Constraints.Check[pending.index]
+		definition := replacement.Constraints.Check[pending.Index]
 		if !definition.NotValid {
 			ordered = append(ordered, definition)
 		}

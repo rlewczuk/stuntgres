@@ -56,7 +56,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(err)
 	}
 	ref, err := e.resolveRelationReference(auth, s.Name, true)
-	if s.IfExists && renameMissing(err) {
+	if s.IfExists && RenameMissing(err) {
 		scope.op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, scope.op)
 		scope.op.Session.Mu.Unlock()
@@ -233,7 +233,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	for _, name := range s.Names {
 		ref, err := e.resolveRelationReference(auth, name, true)
 		if err != nil {
-			if !s.IfExists || !renameMissing(err) {
+			if !s.IfExists || !RenameMissing(err) {
 				e.mu.Unlock()
 				return Result{}, viewDropMissing(err, name, label)
 			}

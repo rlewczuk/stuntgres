@@ -24,35 +24,35 @@ func foreignKeyColumnDependencies(provider dropDependencyReader, target ids.Obje
 	if !present {
 		return nil, nil
 	}
-	discovered, err := provider.dependencyClosure([]ids.ObjectAddress{target})
+	discovered, err := provider.DependencyClosure([]ids.ObjectAddress{target})
 	if err != nil {
 		return nil, err
 	}
 	foreign := discovered[:0]
 	for _, edge := range discovered {
-		if edge.address.ClassID != 2606 || edge.relation == nil {
+		if edge.Address.ClassID != 2606 || edge.Relation == nil {
 			continue
 		}
-		for _, f := range edge.relation.Constraints.ForeignKeys {
-			if f.OID == edge.address.ObjectID {
+		for _, f := range edge.Relation.Constraints.ForeignKeys {
+			if f.OID == edge.Address.ObjectID {
 				// The column's existing shape pass owns local AUTO removal,
 				// even if discovery first reached this FK through its index.
-				if edge.relation.Address().ClassID == target.ClassID && edge.relation.Address().ObjectID == target.ObjectID && slices.Contains(f.Attributes, target.SubID) {
+				if edge.Relation.Address().ClassID == target.ClassID && edge.Relation.Address().ObjectID == target.ObjectID && slices.Contains(f.Attributes, target.SubID) {
 					break
 				}
-				edge.target = target
+				edge.Target = target
 				foreign = append(foreign, edge)
 				break
 			}
 		}
 	}
-	if provider.statementBound() && mode == parser.DropCascade {
+	if provider.StatementBound() && mode == parser.DropCascade {
 		var owners []ids.ObjectRef
 		for _, edge := range foreign {
-			if edge.automatic {
+			if edge.Automatic {
 				continue
 			}
-			ref := provider.baseRef(edge.relation.Address())
+			ref := provider.BaseRef(edge.Relation.Address())
 			if !slices.Contains(owners, ref) {
 				owners = append(owners, ref)
 			}
@@ -67,7 +67,7 @@ func foreignKeyColumnDependencies(provider dropDependencyReader, target ids.Obje
 			return 0
 		})
 		for _, ref := range owners {
-			if err := provider.acquire(ref, true); err != nil {
+			if err := provider.Acquire(ref, true); err != nil {
 				return nil, err
 			}
 		}
@@ -77,20 +77,20 @@ func foreignKeyColumnDependencies(provider dropDependencyReader, target ids.Obje
 
 // The ordinary dependency closure owns discovery/order/RESTRICT diagnostics.
 // This pass consumes only FK definition edges, never the referencing table/data.
-func foreignKeyDependents(provider dropDependencyReader, edges []domainDependency) error {
+func ForeignKeyDependents(provider dropDependencyReader, edges []domainDependency) error {
 	for _, edge := range edges {
-		if edge.address.ClassID != 2606 || edge.relation == nil {
+		if edge.Address.ClassID != 2606 || edge.Relation == nil {
 			continue
 		}
-		if provider.Removed(edge.relation.Address()) {
+		if provider.Removed(edge.Relation.Address()) {
 			continue
 		}
-		old := edge.relation
+		old := edge.Relation
 		if replacement, ok := provider.Replacement(old.Address()).(*catalog.Relation); ok {
 			old = replacement
 		}
 		for i, f := range old.Constraints.ForeignKeys {
-			if f.OID != edge.address.ObjectID {
+			if f.OID != edge.Address.ObjectID {
 				continue
 			}
 			next := *old
@@ -98,7 +98,7 @@ func foreignKeyDependents(provider dropDependencyReader, edges []domainDependenc
 			next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, old.Constraints.ForeignKeys[:i]...)
 			next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, old.Constraints.ForeignKeys[i+1:]...)
 			var err error
-			next.ObjectRevision, err = provider.revision(old.Revision())
+			next.ObjectRevision, err = provider.Revision(old.Revision())
 			if err != nil {
 				return err
 			}

@@ -45,7 +45,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *session.Operation, raw *pars
 		return nil, nil
 	}
 	reject := func() (*physicalNotNullConstructor, error) {
-		return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
+		return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
 	}
 	definition := raw.Actions[0].Unique
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || !definition.Primary || definition.NullsNotDistinct || definition.Name.Text == "" || len(definition.Columns) == 0 || pair.position != len(pair.repairs) || pair.primary != nil || pair.op != op {
@@ -77,5 +77,5 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *session.Operation, raw *pars
 			return reject()
 		}
 	}
-	return &physicalNotNullConstructor{before: old, ref: ref, deferred: definition}, nil
+	return &physicalNotNullConstructor{Before: old, Ref: ref, Deferred: definition}, nil
 }

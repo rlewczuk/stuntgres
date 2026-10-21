@@ -15,8 +15,8 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction) (*catalog.Relation, error) {
-	ctx := provider.context()
+func OrdinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction) (*catalog.Relation, error) {
+	ctx := provider.Context()
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
@@ -28,8 +28,8 @@ func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, re
 		if !a.IfExists {
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.Name()))
 		}
-		if provider.statementBound() {
-			provider.missingColumnNotice(a.Column.Text, old.Name())
+		if provider.StatementBound() {
+			provider.MissingColumnNotice(a.Column.Text, old.Name())
 		}
 		return old, nil
 	}
@@ -56,7 +56,7 @@ func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, re
 		generatedSlot := old.IndexForAttribute(attribute)
 		if a.Mode == parser.DropRestrict {
 			message := "cannot drop desired object(s) because other objects depend on them"
-			if !provider.recursingInheritance() {
+			if !provider.RecursingInheritance() {
 				message = fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.Name())
 			}
 			diagnostic := sqlError("2BP01", message).(*sqlstate.Error)
@@ -66,18 +66,18 @@ func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, re
 		}
 		dependentAction := a
 		dependentAction.Column = parser.Identifier{Text: old.Columns[generatedSlot].Name}
-		remaining, err := ordinaryColumnDrop(provider, old, ref, dependentAction)
+		remaining, err := OrdinaryColumnDrop(provider, old, ref, dependentAction)
 		if err != nil {
 			return nil, err
 		}
-		return ordinaryColumnDrop(provider, remaining, ref, a)
+		return OrdinaryColumnDrop(provider, remaining, ref, a)
 	}
 	// Dependency passes must see preceding actions in this same ALTER list.
 	if err := provider.Replace(old); err != nil {
 		return nil, err
 	}
 	if old.RelationKind == catalog.CompositeRelation {
-		if err := provider.compositeFieldDependencies(old, target.SubID, a.Mode); err != nil {
+		if err := provider.CompositeFieldDependencies(old, target.SubID, a.Mode); err != nil {
 			return nil, err
 		}
 	}
@@ -85,13 +85,13 @@ func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, re
 	if err != nil {
 		return nil, err
 	}
-	if err := provider.applyViewDependents([]ids.ObjectAddress{target}, a.Mode, foreign...); err != nil {
+	if err := provider.ApplyViewDependents([]ids.ObjectAddress{target}, a.Mode, foreign...); err != nil {
 		return nil, err
 	}
 	// The dependency pass can prune surviving definitions on this same table.
 	// Its staged descriptor, not the pre-cascade maps, owns the remaining shape.
-	old = provider.descriptor(ref.Address).(*catalog.Relation)
-	next, err := dropColumnMetadata(ctx, provider.baseRead(), provider.descriptor, old, target, history)
+	old = provider.Descriptor(ref.Address).(*catalog.Relation)
+	next, err := dropColumnMetadata(ctx, provider.BaseRead(), provider.Descriptor, old, target, history)
 	if err != nil {
 		return nil, err
 	}
@@ -101,10 +101,10 @@ func ordinaryColumnDrop(provider dropDependencyReader, old *catalog.Relation, re
 	if err := provider.Replace(next); err != nil {
 		return nil, err
 	}
-	if err := provider.ownedExpressionDependencies([]ids.ObjectAddress{target}, a.Mode); err != nil {
+	if err := provider.OwnedExpressionDependencies([]ids.ObjectAddress{target}, a.Mode); err != nil {
 		return nil, err
 	}
-	return provider.descriptor(ref.Address).(*catalog.Relation), nil
+	return provider.Descriptor(ref.Address).(*catalog.Relation), nil
 }
 
 // dropColumnMetadata cooks the stable-slot migration once. Dependency effects
@@ -278,6 +278,6 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 			next.ColumnMeta.Comments[sub] = text
 		}
 	}
-	transitionPhysicalNotNull(old, &next)
+	TransitionPhysicalNotNull(old, &next)
 	return &next, nil
 }

@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func droppedConstraint(parent *catalog.Relation, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
+func DroppedConstraint(parent *catalog.Relation, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
 	if action.Action == parser.DropConstraint {
 		for _, c := range parent.Constraints.Unique {
 			if c.Name == action.Constraint.Text {
@@ -32,9 +32,9 @@ func droppedConstraint(parent *catalog.Relation, action parser.AlterTableAction)
 	return ids.ObjectAddress{}, ids.ObjectAddress{}
 }
 
-func hasDroppedConstraintIndexes(old *catalog.Relation, actions []parser.AlterTableAction) bool {
+func HasDroppedConstraintIndexes(old *catalog.Relation, actions []parser.AlterTableAction) bool {
 	for _, action := range actions {
-		if constraint, _ := droppedConstraint(old, action); constraint != (ids.ObjectAddress{}) {
+		if constraint, _ := DroppedConstraint(old, action); constraint != (ids.ObjectAddress{}) {
 			return true
 		}
 	}

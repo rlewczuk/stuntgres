@@ -49,7 +49,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		return fail(err)
 	}
 	ref, err := e.resolveRelationReference(auth, name, true)
-	if ifExists && renameMissing(err) {
+	if ifExists && RenameMissing(err) {
 		e.mu.Unlock()
 		scope.completed = true
 		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})

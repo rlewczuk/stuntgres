@@ -12,12 +12,12 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 	if state == nil {
 		return
 	}
-	events := state.events[before.Address()]
+	events := state.Events[before.Address()]
 	switch a.Action {
 	case parser.AddColumn:
 		if slot, exists := after.Index[a.Definition.Name]; exists {
 			if _, old := before.Index[a.Definition.Name]; !old {
-				events = append(events, inheritanceAlterEvent{action: a, attribute: after.Attributes[slot]})
+				events = append(events, inheritanceAlterEvent{Action: a, Attribute: after.Attributes[slot]})
 			}
 		}
 	case parser.DropColumn:
@@ -27,17 +27,17 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 			}
 			action := a
 			action.Column = parser.Identifier{Text: before.Columns[slot].Name}
-			event := inheritanceAlterEvent{action: action, attribute: attribute}
+			event := inheritanceAlterEvent{Action: action, Attribute: attribute}
 			for _, c := range before.Constraints.NotNull {
 				if c.Attribute == attribute && !slices.ContainsFunc(after.Constraints.NotNull, func(next catalog.NotNullConstraint) bool { return next.OID == c.OID }) {
-					event.retiredNotNull = append(event.retiredNotNull, c)
+					event.RetiredNotNull = append(event.RetiredNotNull, c)
 				}
 			}
 			for _, c := range before.Constraints.Check {
 				if !slices.ContainsFunc(after.Constraints.Check, func(next catalog.CheckConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.Dependencies, func(dependency catalog.ExpressionDependency) bool {
 					return dependency.Ref.Address == ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: before.Address().ObjectID, SubID: attribute}
 				}) {
-					event.retiredChecks = append(event.retiredChecks, c)
+					event.RetiredChecks = append(event.RetiredChecks, c)
 				}
 			}
 			events = append(events, event)
@@ -48,7 +48,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 				action := a
 				action.Action = parser.DropNotNull
 				action.Column = parser.Identifier{Text: before.Columns[before.IndexForAttribute(old.Attribute)].Name}
-				events = append(events, inheritanceAlterEvent{action: action, attribute: old.Attribute, constraint: old.OID})
+				events = append(events, inheritanceAlterEvent{Action: action, Attribute: old.Attribute, Constraint: old.OID})
 			}
 		}
 		for _, old := range before.Constraints.Check {
@@ -56,15 +56,15 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 				action := a
 				action.Action = parser.DropConstraint
 				action.Constraint = parser.Identifier{Text: old.Name}
-				events = append(events, inheritanceAlterEvent{action: action, constraint: old.OID})
+				events = append(events, inheritanceAlterEvent{Action: action, Constraint: old.OID})
 			}
 		}
 	case parser.AlterColumnType, parser.SetExpression, parser.DropExpression:
-		if !state.only {
-			events = append(events, inheritanceAlterEvent{action: a})
+		if !state.Only {
+			events = append(events, inheritanceAlterEvent{Action: a})
 		}
 	}
-	if !state.only {
+	if !state.Only {
 		for _, next := range after.Constraints.NotNull {
 			if next.NoInherit {
 				continue
@@ -78,15 +78,15 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 			if validation || a.Action == parser.SetNotNull {
 				action.Action = parser.SetNotNull
 			}
-			events = append(events, inheritanceAlterEvent{action: action, attribute: next.Attribute, validation: validation})
+			events = append(events, inheritanceAlterEvent{Action: action, Attribute: next.Attribute, Validation: validation})
 		}
 	}
-	state.events[before.Address()] = events
+	state.Events[before.Address()] = events
 }
 
 func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Relation, raw []*parser.CheckConstraint, start int) {
 	state := scope.inheritance.alter
-	if state == nil || state.only {
+	if state == nil || state.Only {
 		return
 	}
 	for _, c := range after.Constraints.Check {
@@ -99,26 +99,26 @@ func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Rela
 		}
 		definition := *raw[index]
 		definition.Name = parser.Identifier{Text: c.Name}
-		state.events[before.Address()] = append(state.events[before.Address()], inheritanceAlterEvent{action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, constraint: c.OID})
+		state.Events[before.Address()] = append(state.Events[before.Address()], inheritanceAlterEvent{Action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, Constraint: c.OID})
 	}
 }
 
 func (scope *StatementScope) inheritanceNotNullMode(column string) notNullRecursion {
 	state := scope.inheritance.alter
-	if state != nil && state.descendant {
-		if state.validating[column] {
-			return notNullValidation
+	if state != nil && state.Descendant {
+		if state.Validating[column] {
+			return NotNullValidation
 		}
-		return notNullInherited
+		return NotNullInherited
 	}
-	return notNullDirect
+	return NotNullDirect
 }
 
 // ONLY's fresh-fact prohibition uses the actual phase input, including earlier
 // DROP effects. Existing compatible facts can still merge/localize genuinely.
 func (scope *StatementScope) inheritanceOnlyCreatedConstraint(before, after *catalog.Relation) error {
 	state := scope.inheritance.alter
-	if state == nil || !state.only || state.descendant || len(state.targets) < 2 {
+	if state == nil || !state.Only || state.Descendant || len(state.Targets) < 2 {
 		return nil
 	}
 	for _, fact := range after.Constraints.NotNull {

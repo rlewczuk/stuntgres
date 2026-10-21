@@ -22,5 +22,5 @@ func inheritanceStageAlterGuard(stage *CatalogStage, relation *catalog.Relation)
 			}
 		}
 	}
-	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) catalog.Descriptor { return stage.Get(address) }, func(address ids.ObjectAddress) bool { _, removed := stage.Removal(address); return removed }, relation)
+	return InheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) catalog.Descriptor { return stage.Get(address) }, func(address ids.ObjectAddress) bool { _, removed := stage.Removal(address); return removed }, relation)
 }

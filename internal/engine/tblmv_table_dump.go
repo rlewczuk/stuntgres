@@ -20,31 +20,31 @@ import (
 
 // Immutable table metadata and row frontier captured by Dump under Engine.mu.
 type dumpRelation struct {
-	owner, schema, name string
-	columns             []catalog.Column
-	attributes          []int32
-	versions            []storage.RowVersion
-	ends                *storage.DeletionRoot
-	frontier            ids.CommitSeq
-	comment             string
-	columnComments      map[int32]string
-	notNullConstraints  []catalog.NotNullConstraint
-	defaults            map[int32]catalog.ColumnDefault
-	deferredDefinitions map[int32]bool
-	descriptor          *catalog.Relation
-	recipes             map[int32]catalog.InheritedColumn
-	deferredChecks      map[string]bool
-	recipePlaceholders  bool
-	recipeComponent     ids.ObjectAddress
-	identities          map[int32]catalog.ColumnIdentity
-	identitySequences   map[ids.ObjectAddress]sequence.Dump
+	Owner, Schema, Name string
+	Columns             []catalog.Column
+	Attributes          []int32
+	Versions            []storage.RowVersion
+	Ends                *storage.DeletionRoot
+	Frontier            ids.CommitSeq
+	Comment             string
+	ColumnComments      map[int32]string
+	NotNullConstraints  []catalog.NotNullConstraint
+	Defaults            map[int32]catalog.ColumnDefault
+	DeferredDefinitions map[int32]bool
+	Descriptor          *catalog.Relation
+	Recipes             map[int32]catalog.InheritedColumn
+	DeferredChecks      map[string]bool
+	RecipePlaceholders  bool
+	RecipeComponent     ids.ObjectAddress
+	Identities          map[int32]catalog.ColumnIdentity
+	IdentitySequences   map[ids.ObjectAddress]sequence.Dump
 }
 
-func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
-	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
-	for i, c := range t.columns {
-		definition, exists := t.defaults[t.attributes[i]]
-		if !exists || !t.deferredDefinitions[t.attributes[i]] {
+func (t *dumpRelation) EmitDeferredDefaults(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
+	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
+	for i, c := range t.Columns {
+		definition, exists := t.Defaults[t.Attributes[i]]
+		if !exists || !t.DeferredDefinitions[t.Attributes[i]] {
 			continue
 		}
 		text, err := stored.DefaultSQL(ctx, catalogView, definition.Expression)
@@ -52,7 +52,7 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalogView cat
 			return err
 		}
 		prefix := "ALTER TABLE "
-		if t.descriptor.Partition == nil && t.descriptor.Membership == nil {
+		if t.Descriptor.Partition == nil && t.Descriptor.Membership == nil {
 			prefix += "ONLY "
 		}
 		if err := emit(prefix + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(c.Name) + " SET DEFAULT " + text + ";\n"); err != nil {
@@ -62,21 +62,21 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalogView cat
 	return nil
 }
 
-func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
-	destination := index.PartitionHashReplayTarget(catalogView, t.descriptor)
+func (t *dumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
+	destination := index.PartitionHashReplayTarget(catalogView, t.Descriptor)
 	qualified := catalog.QuoteIdentifier(catalogView.Get(destination.Namespace()).Name()) + "." + catalog.QuoteIdentifier(destination.Name())
 	var line strings.Builder
-	for _, version := range t.versions {
+	for _, version := range t.Versions {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !visibility.LiveVersion(version, t.frontier, t.ends, nil) {
+		if !visibility.LiveVersion(version, t.Frontier, t.Ends, nil) {
 			continue
 		}
 		row := version.Values
 		line.Reset()
 		var replayCells []typedef.DomainReplayCell
-		if len(t.columns) == 0 {
+		if len(t.Columns) == 0 {
 			if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil {
 				return err
 			}
@@ -85,9 +85,9 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 		line.WriteString("INSERT INTO " + qualified)
 		// Hierarchy reconstruction can place inherited columns before local
 		// columns added earlier. Address captured values by name, not replay slot.
-		if t.descriptor.Membership != nil || t.descriptor.Inheritance != nil {
+		if t.Descriptor.Membership != nil || t.Descriptor.Inheritance != nil {
 			line.WriteString(" (")
-			for i, column := range t.columns {
+			for i, column := range t.Columns {
 				if i != 0 {
 					line.WriteString(", ")
 				}
@@ -95,7 +95,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 			}
 			line.WriteString(")")
 		}
-		if len(t.identities) != 0 {
+		if len(t.Identities) != 0 {
 			line.WriteString(" OVERRIDING SYSTEM VALUE")
 		}
 		line.WriteString(" VALUES (")
@@ -103,20 +103,20 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 			if i > 0 {
 				line.WriteString(", ")
 			}
-			if _, generated := t.descriptor.ColumnMeta.Generations[t.attributes[i]]; generated {
+			if _, generated := t.Descriptor.ColumnMeta.Generations[t.Attributes[i]]; generated {
 				line.WriteString("DEFAULT")
 				continue
 			}
 			var literal string
 			var err error
-			destination := t.columns[i].Usage.Type
+			destination := t.Columns[i].Usage.Type
 			base := destination.BaseType().ID()
 			if typedef.ContainsStoredDomainNull(v) {
-				node, captureErr := captureDomainReplayNode(ctx, catalogView, t.columns[i].Usage, v)
+				node, captureErr := captureDomainReplayNode(ctx, catalogView, t.Columns[i].Usage, v)
 				if captureErr != nil {
 					return captureErr
 				}
-				replayCells = append(replayCells, typedef.DomainReplayCell{Column: t.columns[i].Name, Value: &node})
+				replayCells = append(replayCells, typedef.DomainReplayCell{Column: t.Columns[i].Name, Value: &node})
 				literal = "NULL"
 			} else if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range || base == sqltype.NumRange || base == sqltype.DateRange || base == sqltype.TimestampRange || base == sqltype.TimestamptzRange || base == sqltype.Int4Multirange || base == sqltype.Int8Multirange || base == sqltype.NumMultirange) {
 				// The INSERT destination reconstructs the domain via ordinary
@@ -124,7 +124,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 				// non-contextual stored expressions keep regobj.Literal.
 				literal, err = destination.SQLLiteral(ctx, v)
 			} else {
-				literal, err = regobj.Literal(ctx, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.columns[i].Usage}, Value: v})
+				literal, err = regobj.Literal(ctx, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.Columns[i].Usage}, Value: v})
 			}
 			if err != nil {
 				return err
@@ -152,15 +152,15 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 // Stored regclass values need the actual replay name, not merely the table's
 // type declaration. Reuse the ordinary scalar reference walker for arrays and
 // opaque owned values, and the same captured visibility frontier as emitRows.
-func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.Read, add func(ids.ObjectAddress) error) error {
-	for _, version := range t.versions {
+func (t *dumpRelation) RowReplayReferences(ctx context.Context, catalog catalog.Read, add func(ids.ObjectAddress) error) error {
+	for _, version := range t.Versions {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !visibility.LiveVersion(version, t.frontier, t.ends, nil) {
+		if !visibility.LiveVersion(version, t.Frontier, t.Ends, nil) {
 			continue
 		}
-		for i, column := range t.columns {
+		for i, column := range t.Columns {
 			if err := regobj.WalkRoutineReferences(catalog, version.Values[i], add); err != nil {
 				return err
 			}

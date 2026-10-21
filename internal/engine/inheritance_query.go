@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf exec.Leaf, token ids.SessionToken) (*exec.Source, error) {
+func CaptureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf exec.Leaf, token ids.SessionToken) (*exec.Source, error) {
 	if leaf.Only || !catalog.InheritanceHasChildren(catalogView, leaf.Ref.Address) {
 		return exec.CapturePrefix(view, leaf.Ref)
 	}
@@ -19,7 +19,7 @@ func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.Vi
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
 	source := &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0)}
-	err := inheritanceQueryClosure(catalogView, leaf.Relation, token, func(physical *catalog.Relation) error {
+	err := InheritanceQueryClosure(catalogView, leaf.Relation, token, func(physical *catalog.Relation) error {
 		child := leaf
 		child.Ref.Address, child.Relation = physical.Address(), physical
 		child.Storage = view.Data().GenerationAt(physical.Address())

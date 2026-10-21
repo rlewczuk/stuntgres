@@ -112,16 +112,16 @@ func (s *dumpScript) table(oid ids.OID) dumpRelation {
 // authority.
 func dumpBootstrapOwner(*dumpScript, dump.Event) string { return "postgres" }
 
-func dumpTableOwner(s *dumpScript, event dump.Event) string { return s.table(event.OID).owner }
+func dumpTableOwner(s *dumpScript, event dump.Event) string { return s.table(event.OID).Owner }
 
 // dumpInvalidConstraintOwner validates inheritance participants' NOT VALID
 // constraints as bootstrap and others as the table owner.
 func dumpInvalidConstraintOwner(s *dumpScript, event dump.Event) string {
 	t := s.table(event.OID)
-	if catalog.InheritanceParticipant(s.originalCatalog, t.descriptor) {
+	if catalog.InheritanceParticipant(s.originalCatalog, t.Descriptor) {
 		return "postgres"
 	}
-	return t.owner
+	return t.Owner
 }
 
 func dumpEventRelation(view catalog.Read, event dump.Event) *catalog.Relation {
@@ -156,40 +156,40 @@ func emitDumpInvalidIndex(ctx context.Context, s *dumpScript, w *dumpWriter, eve
 
 func emitDumpDefaults(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.emitDeferredDefaults(ctx, s.originalCatalog, w.emit)
+	return t.EmitDeferredDefaults(ctx, s.originalCatalog, w.emit)
 }
 
 func emitDumpRows(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.emitRows(ctx, s.originalCatalog, w.emit)
+	return t.EmitRows(ctx, s.originalCatalog, w.emit)
 }
 
 func emitDumpInvalidConstraints(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.emitInvalidConstraints(ctx, s.originalCatalog, w.emit)
+	return t.EmitInvalidConstraints(ctx, s.originalCatalog, w.emit)
 }
 
 func emitDumpInheritanceRecipes(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.emitInheritedGenerations(ctx, s.originalCatalog, w.emit)
+	return t.EmitInheritedGenerations(ctx, s.originalCatalog, w.emit)
 }
 
 func emitDumpInheritanceChecks(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.emitInheritedChecks(ctx, s.originalCatalog, w.emit)
+	return t.EmitInheritedChecks(ctx, s.originalCatalog, w.emit)
 }
 
 func emitDumpInheritedForeignKeys(_ context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	return t.emitInheritedForeignKeys(s.originalCatalog, w.emit)
+	return t.EmitInheritedForeignKeys(s.originalCatalog, w.emit)
 }
 
 func emitDumpRetiredConstraints(_ context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	t := s.table(event.OID)
-	if err := t.emitRetiredConstraints(s.originalCatalog, false, w.emit, w.setOwner); err != nil {
+	if err := t.EmitRetiredConstraints(s.originalCatalog, false, w.emit, w.setOwner); err != nil {
 		return err
 	}
-	return t.emitRetiredConstraints(s.originalCatalog, true, w.emit, w.setOwner)
+	return t.EmitRetiredConstraints(s.originalCatalog, true, w.emit, w.setOwner)
 }
 
 func emitDumpDomainChecks(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {

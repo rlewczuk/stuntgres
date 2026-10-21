@@ -4,7 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func validCheckTraversal(parent *catalog.Relation) *catalog.Relation {
+func ValidCheckTraversal(parent *catalog.Relation) *catalog.Relation {
 	valid := 0
 	for _, c := range parent.Constraints.Check {
 		if !c.NotValid {

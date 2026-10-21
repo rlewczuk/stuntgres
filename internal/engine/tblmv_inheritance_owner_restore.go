@@ -5,10 +5,10 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-const restoreInheritedOwnerBoundary = "restore accepts only immediately paired inherited declaration ownership"
+const RestoreInheritedOwnerBoundary = "restore accepts only immediately paired inherited declaration ownership"
 
 type restoredInheritedOwner struct {
-	ref     ids.ObjectRef
-	owner   authorization.PrincipalRef
-	creator authorization.PrincipalRef
+	Ref     ids.ObjectRef
+	Owner   authorization.PrincipalRef
+	Creator authorization.PrincipalRef
 }

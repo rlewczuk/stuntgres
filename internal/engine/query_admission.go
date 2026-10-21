@@ -329,7 +329,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
-				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.Session.SessionToken)
+				source, err = CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.Session.SessionToken)
 				if err == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {

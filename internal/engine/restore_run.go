@@ -75,5 +75,5 @@ func (r *restoreRun) startCaptures(archiveHighWater uint64) {
 	r.physicalIndexes = make(map[ids.ObjectAddress]*catalog.Relation)
 	r.placeholderOrigins = make(map[restoredGenerationKey]restoredGenerationRecipe)
 	r.historicalRefs = make(map[ids.ObjectAddress]ids.ObjectRef)
-	r.historicalAuthority = &restoredHistoryAuthority{facts: make(map[ids.OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: archiveHighWater}
+	r.historicalAuthority = &restoredHistoryAuthority{Facts: make(map[ids.OID]restoredHistoricalFact), Archives: make(map[uint64]uint64), Sources: make(map[retiredSourceIdentity]retiredSourceDescription), NextArchive: archiveHighWater}
 }

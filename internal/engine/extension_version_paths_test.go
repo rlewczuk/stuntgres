@@ -39,7 +39,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if err != nil || !strings.Contains(text, "pg_catalog.pg_extension_update_paths(") || !demand {
 		t.Fatal("path symbolic render and demand", text, err)
 	}
-	if err := validateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
+	if err := ValidateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
 		t.Fatal("persisted typed plan validation", err)
 	}
 	args := expr.Expr(call).(expr.Composite).Children()

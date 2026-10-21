@@ -56,7 +56,7 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 	if err := e.bindColumnChecks(scope.op, auth, checks, &next, scope.input, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	ordered := orderedChecks(&next)
+	ordered := OrderedChecks(&next)
 	if len(ordered) != 3 || ordered[0].Ordinal != 7 || ordered[1].Ordinal != 8 || ordered[2].Ordinal != 9 || ordered[1].Name != "z_first" || ordered[2].Name != "a_second" || next.Constraints.Check[0].Name != "a_second" || len(old.Constraints.Check) != 1 || old.Constraints.Check[0].Name != "original" {
 		t.Fatal("CHECK ordering/source invariant", ordered, next.Constraints.Check, old.Constraints.Check)
 	}

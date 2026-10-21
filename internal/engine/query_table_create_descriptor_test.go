@@ -92,7 +92,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ids.ObjectAddress{domain.Address()}
 	edges, err := domainDependencyClosure(context.Background(), drop, drop.domainTargets)
-	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].column != "d" || edges[0].address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: d.Address().ObjectID, SubID: 2}) {
+	if err != nil || len(edges) != 1 || edges[0].Target != domain.Address() || edges[0].Column != "d" || edges[0].Address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: d.Address().ObjectID, SubID: 2}) {
 		t.Fatal("stored domain dependency lost", edges, err)
 	}
 }
@@ -185,7 +185,7 @@ func TestQueryTableCreateStructuralOutputWrappers(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range []*sqltype.Descriptor{tree, domain, array, outer} {
-		err := validateQueryTableOutputType(typ)
+		err := ValidateQueryTableOutputType(typ)
 		var got *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "query table output type pg_node_tree is unsupported"}
 		if !errors.As(err, &got) || *got != *want {
@@ -193,7 +193,7 @@ func TestQueryTableCreateStructuralOutputWrappers(t *testing.T) {
 		}
 	}
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Char, sqltype.Name, sqltype.Regclass, sqltype.Xid} {
-		if err := validateQueryTableOutputType(testUsage(e, id).Type); err != nil {
+		if err := ValidateQueryTableOutputType(testUsage(e, id).Type); err != nil {
 			t.Fatal("ordinary stored output rejected", id, err)
 		}
 	}
@@ -229,7 +229,7 @@ func TestQueryTableCreateEnumArrayOutputBoundary(t *testing.T) {
 	nested := arrayOf(61104, "_mood_array_domain", arrayDomain)
 	outer := domain(61105, "nested_domain", nested)
 	for _, typ := range []*sqltype.Descriptor{array, arrayDomain, nested, outer} {
-		err := validateQueryTableOutputType(typ)
+		err := ValidateQueryTableOutputType(typ)
 		var got *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported array element type"}
 		if !errors.As(err, &got) || *got != *want {
@@ -241,7 +241,7 @@ func TestQueryTableCreateEnumArrayOutputBoundary(t *testing.T) {
 	projectionDomain := domain(61108, "projection_domain", projection)
 	integerArray := arrayOf(61109, "_integer", testUsage(e, sqltype.Int4).Type)
 	for _, typ := range []*sqltype.Descriptor{mood, moodDomain, projection, projectionDomain, integerArray} {
-		if err := validateQueryTableOutputType(typ); err != nil {
+		if err := ValidateQueryTableOutputType(typ); err != nil {
 			t.Fatal("supported query-derived output rejected", typ.Name(), err)
 		}
 	}

@@ -202,11 +202,11 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	}
 	visible := 0
 	for _, edge := range edges {
-		if edge.automatic {
+		if edge.Automatic {
 			continue
 		}
 		visible++
-		if edge.domain != dependent || edge.label != "constraint provider_check" || edge.address.ObjectID != dependent.DomainChecks[0].OID {
+		if edge.Domain != dependent || edge.Label != "constraint provider_check" || edge.Address.ObjectID != dependent.DomainChecks[0].OID {
 			t.Fatal("CHECK-owned dependency", edges)
 		}
 	}

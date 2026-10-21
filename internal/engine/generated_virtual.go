@@ -27,7 +27,7 @@ func virtualTypeRestriction(t *sqltype.Descriptor) (domain, user bool) {
 	return false, false
 }
 
-func virtualDestination(column catalog.Column) error {
+func VirtualDestination(column catalog.Column) error {
 	domain, user := virtualTypeRestriction(column.Usage.Type)
 	if domain {
 		return sqlError("0A000", fmt.Sprintf(`virtual generated column "%s" cannot have a domain type`, column.Name))
@@ -40,7 +40,7 @@ func virtualDestination(column catalog.Column) error {
 	return nil
 }
 
-func virtualGenerationSecurity(node expr.Expr) error {
+func VirtualGenerationSecurity(node expr.Expr) error {
 	var failure error
 	plan.WalkExpression(node, func(n expr.Expr) {
 		if failure != nil {
@@ -55,7 +55,7 @@ func virtualGenerationSecurity(node expr.Expr) error {
 	return failure
 }
 
-func admitColumnVirtualGeneration(c *exec.Context, e plan.ColumnExpr, view catalog.Read) error {
+func AdmitColumnVirtualGeneration(c *exec.Context, e plan.ColumnExpr, view catalog.Read) error {
 	if e.VirtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -67,7 +67,7 @@ func admitColumnVirtualGeneration(c *exec.Context, e plan.ColumnExpr, view catal
 	exec.SelectVirtualGenerationRecipe(&recipe, e.VirtualOwner, definition)
 	recipe.Scope, recipe.Frame = 1, 1
 	recipe.Row, recipe.Outer = nil, nil
-	node, _, err := exec.PreflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
+	node, _, err := exec.PreflightCoercionsWithPolicy(&recipe, GenerationRecipeExpression(definition), true)
 	c.PreparedDomainChecks = recipe.PreparedDomainChecks
 	if err != nil {
 		return err
@@ -75,7 +75,7 @@ func admitColumnVirtualGeneration(c *exec.Context, e plan.ColumnExpr, view catal
 	return exec.AdmitExpression(&recipe, node, view)
 }
 
-func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *exec.Context) (sqltype.Value, error) {
+func LogicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *exec.Context) (sqltype.Value, error) {
 	if definition, ok := d.ColumnMeta.Generations[d.Attributes[slot]]; !ok || definition.Kind != catalog.GenerationVirtual {
 		return row[slot], nil
 	}
@@ -85,7 +85,7 @@ func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *e
 	return column.Eval(&local)
 }
 
-func rejectVirtualIndexUses(parent *catalog.Relation, slots []int) error {
+func RejectVirtualIndexUses(parent *catalog.Relation, slots []int) error {
 	for _, slot := range slots {
 		if definition, ok := parent.ColumnMeta.Generations[parent.Attributes[slot]]; ok && definition.Kind == catalog.GenerationVirtual {
 			return sqlError("0A000", "indexes on virtual generated columns are not supported")

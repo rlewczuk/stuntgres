@@ -242,7 +242,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 			appendOption(option.String())
 		}
 	}
-	for _, constraint := range orderedChecks(d) {
+	for _, constraint := range OrderedChecks(d) {
 		expression, err := (stored.ScalarRenderer{Owner: d, CheckReplayPrecision: true}).SQL(ctx, catalogView, constraint.Expression)
 		if err != nil {
 			return "", err

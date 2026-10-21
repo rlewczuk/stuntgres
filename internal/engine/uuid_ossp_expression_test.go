@@ -43,7 +43,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if plan.GenerationHasTableOID(n) {
 		t.Fatal("zero-child UUID leaf acquired a tableoid dependency")
 	}
-	if err := validateGenerationPlan(view, nil, n); err != nil {
+	if err := ValidateGenerationPlan(view, nil, n); err != nil {
 		t.Fatal("installed UUID plan validation", err)
 	}
 	found := false

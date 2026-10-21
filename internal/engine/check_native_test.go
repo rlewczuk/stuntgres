@@ -39,7 +39,7 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 			view := target.CatalogRead()
 			ref := catalogRef(t, target, view, "imported")
 			descriptor := view.MustRelation(ref.Address)
-			if err := validateChecks(view, descriptor, map[string]bool{}); err != nil {
+			if err := ValidateChecks(view, descriptor, map[string]bool{}); err != nil {
 				t.Fatal(err)
 			}
 			if target.catalog.state.Get(tempRef.Address) != temp {
@@ -83,7 +83,7 @@ func TestCheckAbsentValidatorHasNoAllocation(t *testing.T) {
 	table := &catalog.Relation{}
 	eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	if allocations := testing.AllocsPerRun(100, func() {
-		constraint, err := validateCheckRow(table, nil, eval)
+		constraint, err := ValidateCheckRow(table, nil, eval)
 		if constraint != nil || err != nil {
 			panic("unexpected validator failure")
 		}

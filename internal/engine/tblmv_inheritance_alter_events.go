@@ -11,12 +11,12 @@ import (
 // same-named fact. A DROP followed by ADD must remove the old contribution even
 // though the parent's completed candidate already contains its replacement.
 type inheritanceAlterEvent struct {
-	action         parser.AlterTableAction
-	attribute      int32
-	constraint     ids.OID
-	validation     bool
-	retiredNotNull []catalog.NotNullConstraint
-	retiredChecks  []catalog.CheckConstraint
+	Action         parser.AlterTableAction
+	Attribute      int32
+	Constraint     ids.OID
+	Validation     bool
+	RetiredNotNull []catalog.NotNullConstraint
+	RetiredChecks  []catalog.CheckConstraint
 }
 
 func inheritanceEventName(a parser.AlterTableAction) string {
@@ -31,15 +31,15 @@ func inheritanceEventName(a parser.AlterTableAction) string {
 	return a.Column.Text
 }
 
-func inheritanceParentActions(state *inheritanceAlterPlan, old *catalog.Relation) []parser.AlterTableAction {
+func InheritanceParentActions(state *inheritanceAlterPlan, old *catalog.Relation) []parser.AlterTableAction {
 	var actions []parser.AlterTableAction
-	state.validating = nil
+	state.Validating = nil
 	if old.Inheritance == nil {
 		return actions
 	}
 	for _, parent := range old.Inheritance.Parents {
-		for _, event := range state.events[parent] {
-			a := event.action
+		for _, event := range state.Events[parent] {
+			a := event.Action
 			if a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint {
 				var origins []catalog.InheritanceOrigin
 				if a.Action == parser.DropConstraint {
@@ -52,13 +52,13 @@ func inheritanceParentActions(state *inheritanceAlterPlan, old *catalog.Relation
 					}
 				}
 				reached := slices.ContainsFunc(origins, func(origin catalog.InheritanceOrigin) bool {
-					return origin.Parent == parent && ((a.Action == parser.DropColumn && origin.Attribute == event.attribute) || (a.Action != parser.DropColumn && origin.Constraint == event.constraint))
+					return origin.Parent == parent && ((a.Action == parser.DropColumn && origin.Attribute == event.Attribute) || (a.Action != parser.DropColumn && origin.Constraint == event.Constraint))
 				})
 				if !reached {
 					continue
 				}
 			}
-			if state.only && a.Action != parser.DropColumn && a.Action != parser.DropConstraint && a.Action != parser.DropNotNull {
+			if state.Only && a.Action != parser.DropColumn && a.Action != parser.DropConstraint && a.Action != parser.DropNotNull {
 				continue
 			}
 			if !slices.ContainsFunc(actions, func(previous parser.AlterTableAction) bool {
@@ -66,11 +66,11 @@ func inheritanceParentActions(state *inheritanceAlterPlan, old *catalog.Relation
 			}) {
 				actions = append(actions, a)
 			}
-			if event.validation {
-				if state.validating == nil {
-					state.validating = make(map[string]bool)
+			if event.Validation {
+				if state.Validating == nil {
+					state.Validating = make(map[string]bool)
 				}
-				state.validating[a.Column.Text] = true
+				state.Validating[a.Column.Text] = true
 			}
 		}
 	}
@@ -82,25 +82,25 @@ func inheritanceParentActions(state *inheritanceAlterPlan, old *catalog.Relation
 	return actions
 }
 
-func inheritanceRemovedOrigin(state *inheritanceAlterPlan, origin catalog.InheritanceOrigin, kind parser.AlterTableActionKind) bool {
-	for _, event := range state.events[origin.Parent] {
-		if event.action.Action != kind {
+func InheritanceRemovedOrigin(state *inheritanceAlterPlan, origin catalog.InheritanceOrigin, kind parser.AlterTableActionKind) bool {
+	for _, event := range state.Events[origin.Parent] {
+		if event.Action.Action != kind {
 			continue
 		}
-		if kind == parser.DropColumn && event.attribute == origin.Attribute {
+		if kind == parser.DropColumn && event.Attribute == origin.Attribute {
 			return true
 		}
-		if kind == parser.DropNotNull && event.constraint == origin.Constraint {
+		if kind == parser.DropNotNull && event.Constraint == origin.Constraint {
 			return true
 		}
-		if kind == parser.DropConstraint && event.constraint == origin.Constraint {
+		if kind == parser.DropConstraint && event.Constraint == origin.Constraint {
 			return true
 		}
 	}
 	return false
 }
 
-func inheritancePreparatoryLocks(actions []parser.AlterTableAction, only bool) bool {
+func InheritancePreparatoryLocks(actions []parser.AlterTableAction, only bool) bool {
 	if only {
 		return false
 	}

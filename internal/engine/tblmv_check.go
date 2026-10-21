@@ -18,13 +18,13 @@ import (
 	"unicode/utf8"
 )
 
-func orderedChecks(d *catalog.Relation) []catalog.CheckConstraint {
+func OrderedChecks(d *catalog.Relation) []catalog.CheckConstraint {
 	checks := slices.Clone(d.Constraints.Check)
 	slices.SortFunc(checks, func(a, b catalog.CheckConstraint) int { return cmp.Compare(a.Ordinal, b.Ordinal) })
 	return checks
 }
 
-func checkDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
+func CheckDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	for _, c := range d.Constraints.Check {
 		for _, dep := range c.Dependencies {
 			a := dep.Ref.Address
@@ -39,7 +39,7 @@ func checkDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 // The merge fence checks external identities against the candidate current root,
 // not the stage's older validation snapshot. The publisher retries if that root
 // changes before its single final install. No rendering or row evaluation here.
-func validateCheckProviders(view catalog.Read, d *catalog.Relation) error {
+func ValidateCheckProviders(view catalog.Read, d *catalog.Relation) error {
 	for _, c := range d.Constraints.Check {
 		for _, dep := range c.Dependencies {
 			address := dep.Ref.Address
@@ -64,7 +64,7 @@ func validateCheckProviders(view catalog.Read, d *catalog.Relation) error {
 	return nil
 }
 
-func validateChecks(view catalog.Read, d *catalog.Relation, names map[string]bool) error {
+func ValidateChecks(view catalog.Read, d *catalog.Relation, names map[string]bool) error {
 	previous := ""
 	for i, c := range d.Constraints.Check {
 		if c.Ordinal < 0 {
@@ -131,7 +131,7 @@ func validateChecks(view catalog.Read, d *catalog.Relation, names map[string]boo
 // validateCheckRow is the shared DML-independent completed-row validator. A
 // future ADD/VALIDATE consumer supplies its own traversal and publication stage.
 // UNKNOWN passes, unlike WHERE. The no-CHECK path does not allocate or bind.
-func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *exec.Context) (*catalog.CheckConstraint, error) {
+func ValidateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *exec.Context) (*catalog.CheckConstraint, error) {
 	if len(d.Constraints.Check) == 0 {
 		return nil, nil
 	}
@@ -204,19 +204,19 @@ func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *exec.Conte
 	return nil, nil
 }
 
-func checkDetailError(schema, table, name, detail string) error {
+func CheckDetailError(schema, table, name, detail string) error {
 	d := sqlError("23514", `new row for relation "`+table+`" violates check constraint "`+name+`"`).(*sqlstate.Error)
 	d.Schema, d.Table, d.Constraint, d.Detail = schema, table, name, detail
 	return d
 }
 
 type checkDependencyEdge struct {
-	relation *catalog.Relation
-	check    catalog.CheckConstraint
-	target   ids.ObjectAddress
+	Relation *catalog.Relation
+	Check    catalog.CheckConstraint
+	Target   ids.ObjectAddress
 }
 
-func checkDependents(provider dropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
+func CheckDependents(provider dropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
 	var relations []*catalog.Relation
 	for address, descriptor := range provider.InputDescriptors() {
 		d, ok := descriptor.(*catalog.Relation)
@@ -278,11 +278,11 @@ func checkDependents(provider dropDependencyReader, targets []ids.ObjectAddress,
 			changed = true
 		}
 		if changed {
-			if err := provider.inheritanceAlterGuard(d); err != nil {
+			if err := provider.InheritanceAlterGuard(d); err != nil {
 				return nil, err
 			}
 			copy := *d
-			revision, err := provider.revision(copy.Revision())
+			revision, err := provider.Revision(copy.Revision())
 			if err != nil {
 				return nil, err
 			}
@@ -294,13 +294,13 @@ func checkDependents(provider dropDependencyReader, targets []ids.ObjectAddress,
 		}
 	}
 	slices.SortStableFunc(edges, func(a, b checkDependencyEdge) int {
-		if a.relation.Address().ObjectID < b.relation.Address().ObjectID {
+		if a.Relation.Address().ObjectID < b.Relation.Address().ObjectID {
 			return -1
 		}
-		if a.relation.Address().ObjectID > b.relation.Address().ObjectID {
+		if a.Relation.Address().ObjectID > b.Relation.Address().ObjectID {
 			return 1
 		}
-		return cmp.Compare(a.check.Ordinal, b.check.Ordinal)
+		return cmp.Compare(a.Check.Ordinal, b.Check.Ordinal)
 	})
 	return edges, nil
 }

@@ -146,7 +146,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		if err = refreshForeignActionJob(auth.Catalog, job); err != nil {
 			return nil, auth, err
 		}
-		job.comparisons, err = bindForeignKeyComparison(auth.Catalog, job.child, job.parent, job.index, job.definition)
+		job.comparisons, err = BindForeignKeyComparison(auth.Catalog, job.child, job.parent, job.index, job.definition)
 		if err != nil {
 			return nil, auth, err
 		}
@@ -208,7 +208,7 @@ func (s *StatementScope) settleForeignActions() error {
 			if index.UniqueRowDeleted(next.Row, s.stage.deletes[a]) {
 				continue
 			}
-			old, ok := image.previous(next.Row)
+			old, ok := image.Previous(next.Row)
 			if ok {
 				s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: a, old: old, next: next})
 			} else if next.Base != 0 {
@@ -226,9 +226,9 @@ func (s *StatementScope) settleForeignActions() error {
 			return err
 		}
 		for id := range root.Rows {
-			old, ok := image.previous(id)
+			old, ok := image.Previous(id)
 			if !ok {
-				for _, row := range image.staged {
+				for _, row := range image.Staged {
 					if row.Row == id {
 						old, ok = row, true
 						break

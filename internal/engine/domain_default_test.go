@@ -229,11 +229,11 @@ func TestDomainDefaultDependencyReasonInternal(t *testing.T) {
 	}
 	found := 0
 	for _, edge := range edges {
-		if edge.address != parent.Address() && edge.address != child.Address() {
+		if edge.Address != parent.Address() && edge.Address != child.Address() {
 			continue
 		}
 		found++
-		if edge.root != provider.Address() || edge.target != provider.Address() {
+		if edge.Root != provider.Address() || edge.Target != provider.Address() {
 			t.Fatal("lost direct default-provider dependency", edge)
 		}
 	}

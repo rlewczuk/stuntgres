@@ -141,7 +141,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, parent, op.Session.SessionToken)
+		source, err = CaptureInheritanceQueryPrefix(scope.inheritance.catalog, view, parent, op.Session.SessionToken)
 	}
 	e.mu.Unlock()
 	if err != nil {

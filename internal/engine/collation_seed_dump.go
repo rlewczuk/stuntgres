@@ -27,9 +27,9 @@ func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view catalo
 		return err
 	}
 	for _, edge := range edges {
-		d := view.Get(ids.ObjectAddress{ClassID: edge.address.ClassID, ObjectID: edge.address.ObjectID})
-		if edge.relation != nil {
-			d = edge.relation
+		d := view.Get(ids.ObjectAddress{ClassID: edge.Address.ClassID, ObjectID: edge.Address.ObjectID})
+		if edge.Relation != nil {
+			d = edge.Relation
 		}
 		if d == nil {
 			return fmt.Errorf("stuntgres: missing temporary collation dependent")

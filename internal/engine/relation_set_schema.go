@@ -23,7 +23,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 	if err == nil && ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if s.IfExists && renameMissing(err) {
+	if s.IfExists && RenameMissing(err) {
 		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
 		op.Session.Mu.Unlock()

@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func generationRecipeExpression(definition catalog.ColumnGeneration) expr.Expr {
+func GenerationRecipeExpression(definition catalog.ColumnGeneration) expr.Expr {
 	if definition.Expression != nil {
 		return definition.Expression
 	}
@@ -25,7 +25,7 @@ func generationRecipeExpression(definition catalog.ColumnGeneration) expr.Expr {
 // One execution owner uses one fixed generation program for this descriptor.
 // ALTER borrows its existing selected-slot vector; ordinary writes demand all
 // stored slots. Neither path admits unused recipes or checks rights per row.
-func prepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []int, consumer *catalog.Relation) ([]expr.Expr, error) {
+func PrepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []int, consumer *catalog.Relation) ([]expr.Expr, error) {
 	program, prepared := c.PreparedGenerations[d]
 	if prepared {
 		return program, nil
@@ -50,7 +50,7 @@ func prepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []i
 		recipe.RoutineChecks = nil
 		recipe.RoutineReferences = definition.Dependencies
 		recipe.RoutineConsumer = consumer
-		node, changed, err := exec.PreflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
+		node, changed, err := exec.PreflightCoercionsWithPolicy(&recipe, GenerationRecipeExpression(definition), true)
 		c.PreparedDomainChecks = recipe.PreparedDomainChecks
 		if err != nil {
 			return nil, err
@@ -62,7 +62,7 @@ func prepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []i
 			if program == nil {
 				program = make([]expr.Expr, len(d.Columns))
 				for i, attribute := range d.Attributes {
-					program[i] = generationRecipeExpression(d.ColumnMeta.Generations[attribute])
+					program[i] = GenerationRecipeExpression(d.ColumnMeta.Generations[attribute])
 				}
 			}
 			program[slot] = node
@@ -77,7 +77,7 @@ func prepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []i
 	return program, nil
 }
 
-func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype.Value, c *exec.Context) error {
+func EvaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype.Value, c *exec.Context) error {
 	if len(d.ColumnMeta.Generations) == 0 {
 		return ctx.Err()
 	}
@@ -85,7 +85,7 @@ func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype
 	c.Scope = 1
 	c.Frame = 1
 	c.Row = row
-	program, err := prepareGenerationProgram(c, d, nil, d)
+	program, err := PrepareGenerationProgram(c, d, nil, d)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype
 			row[slot] = sqltype.Null(d.Columns[slot].Usage.Type)
 			continue
 		}
-		expression := generationRecipeExpression(definition)
+		expression := GenerationRecipeExpression(definition)
 		if program != nil {
 			expression = program[slot]
 		}
@@ -111,7 +111,7 @@ func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype
 	return ctx.Err()
 }
 
-func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
+func ValidateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 	for _, definition := range d.ColumnMeta.Generations {
 		for _, ref := range definition.Dependencies {
 			address := ref.Address
@@ -164,7 +164,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 
 // The analyzed tree supplies provider-signature validation. The physical tree
 // independently validates its concrete usages and row/owner identities.
-func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Expr) error {
+func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Expr) error {
 	if node == nil {
 		return nil
 	}
@@ -178,7 +178,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	if err := stored.ValidateUsageCollation(view, usage); err != nil {
 		return err
 	}
-	child := func(n expr.Expr) error { return validateGenerationPlan(view, d, n) }
+	child := func(n expr.Expr) error { return ValidateGenerationPlan(view, d, n) }
 	pair := func(a, b expr.Expr) error {
 		if err := child(a); err != nil {
 			return err
@@ -325,7 +325,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		if err := n.Validate(); err != nil {
 			return err
 		}
-		return validateGenerationPlan(view, d, n.Arg)
+		return ValidateGenerationPlan(view, d, n.Arg)
 	case plan.InstalledSoundexExpr:
 		return args(n.Args)
 	case plan.InstalledMetaphoneExpr:
@@ -353,7 +353,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	}
 }
 
-func generationDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
+func GenerationDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	for _, definition := range d.ColumnMeta.Generations {
 		for _, dependency := range definition.Dependencies {
 			address := dependency.Address

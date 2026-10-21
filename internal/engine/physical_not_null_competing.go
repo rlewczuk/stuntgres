@@ -14,7 +14,7 @@ func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *pars
 	}
 	definition := raw.Actions[0].Unique
 	reject := func() (*physicalNotNullConstructor, error) {
-		return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
+		return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
 	}
 	if provider == nil || !provider.permuted || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || definition.Primary || definition.Name.Text == "" || len(definition.Columns) != len(provider.primary.Keys) {
 		return reject()
@@ -48,5 +48,5 @@ func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *pars
 			}
 		}
 	}
-	return &physicalNotNullConstructor{before: old, ref: provider.ref, deferred: definition, competing: true}, nil
+	return &physicalNotNullConstructor{Before: old, Ref: provider.ref, Deferred: definition, Competing: true}, nil
 }

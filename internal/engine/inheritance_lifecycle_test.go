@@ -58,7 +58,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	}
 	var addresses []ids.ObjectAddress
 	for _, edge := range edges {
-		addresses = append(addresses, edge.address)
+		addresses = append(addresses, edge.Address)
 	}
 	if !reflect.DeepEqual(addresses, []ids.ObjectAddress{left.Address(), leaf.Address(), right.Address()}) {
 		t.Fatal(addresses)

@@ -15,16 +15,16 @@ import (
 // Added defaults are execution-private. Only captured nonvolatile values enter
 // transaction shape projections; persistent definitions retain their bound tree.
 type addedColumn struct {
-	attribute    int32
-	column       *parser.Column
-	declaration  analyze.ColumnDeclaration
-	expression   expr.Expr
-	dependencies []ids.ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
-	consumer     *catalog.Relation
-	value        sqltype.Value
+	Attribute    int32
+	Column       *parser.Column
+	Declaration  analyze.ColumnDeclaration
+	Expression   expr.Expr
+	Dependencies []ids.ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
+	Consumer     *catalog.Relation
+	Value        sqltype.Value
 }
 
-func alterCookingError(err error) error {
+func AlterCookingError(err error) error {
 	var diagnostic *sqlstate.Error
 	if errors.As(err, &diagnostic) {
 		copy := *diagnostic

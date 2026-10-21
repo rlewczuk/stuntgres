@@ -100,19 +100,19 @@ func TestAlterAddConstraintValidationSelection(t *testing.T) {
 	if d.Columns[0].Nullable || !d.Constraints.NotNull[0].NotValid || !d.Constraints.Check[0].NotValid {
 		t.Fatal("invalid means unenforced or flags lost", d)
 	}
-	v := newAlterRowValidator(d, "public")
-	v.checks = validCheckTraversal(d)
-	if len(v.notNull) != 0 || len(v.checks.Constraints.Check) != 0 {
+	v := NewAlterRowValidator(d, "public")
+	v.Checks = ValidCheckTraversal(d)
+	if len(v.NotNull) != 0 || len(v.Checks.Constraints.Check) != 0 {
 		t.Fatal("historical selection contains invalid jobs", v)
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for _, row := range e.storage.Relations[d.Address()].Versions {
-		if err := v.validate(row.Values, &evaluation); err != nil {
+		if err := v.Validate(row.Values, &evaluation); err != nil {
 			t.Fatal(err)
 		}
 	}
 	row := e.storage.Relations[d.Address()].Versions[1]
-	failed, err := validateCheckRow(d, row.Values, &evaluation)
+	failed, err := ValidateCheckRow(d, row.Values, &evaluation)
 	if err != nil || failed == nil || failed.Name != "ck" {
 		t.Fatal("ordinary DML lost invalid CHECK enforcement", failed, err)
 	}
@@ -143,7 +143,7 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	if len(scope.foreignActionsOrZero().alterKeys) != 1 || scope.foreignActionsOrZero().alterKeys[0].target.Address != original.Address() || scope.foreignActionsOrZero().alterKeys[0].index != (ids.ObjectAddress{}) {
+	if len(scope.foreignActionsOrZero().alterKeys) != 1 || scope.foreignActionsOrZero().alterKeys[0].Target.Address != original.Address() || scope.foreignActionsOrZero().alterKeys[0].Index != (ids.ObjectAddress{}) {
 		t.Fatal("invented preexisting self provider", scope.foreignActionsOrZero().alterKeys)
 	}
 	candidate := scope.catalog.Descriptors[original.Address()].(*catalog.Relation)
@@ -172,12 +172,12 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	child, parent := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "p")
 	f := child.Constraints.ForeignKeys[0]
 	index := e.catalog.state.MustRelation(f.Index)
-	comparisons, err := bindForeignKeyComparison(e.CatalogRead(), child, parent, index, f)
+	comparisons, err := BindForeignKeyComparison(e.CatalogRead(), child, parent, index, f)
 	if err != nil {
 		t.Fatal(err)
 	}
 	value := e.storage.Relations[child.Address()].Versions[0].Values[0]
-	equal, err := comparisons[0].comparison.EqualChildren(context.Background(), value, value, sqltype.InputEnvironment{})
+	equal, err := comparisons[0].Comparison.EqualChildren(context.Background(), value, value, sqltype.InputEnvironment{})
 	if err != nil || !equal {
 		t.Fatal("narrowed committed unchanged child key", equal, err)
 	}
@@ -196,7 +196,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	previous, ok := rows.previous(current.Row)
+	previous, ok := rows.Previous(current.Row)
 	if !ok || current.Base == 0 || previous.Born != 0 {
 		t.Fatal("real prior-own predecessor missing", current, previous)
 	}

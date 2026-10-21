@@ -530,7 +530,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if !stored.ViewReferenceValid(e.CatalogRead(), retainedView, procedureRef) {
 		t.Fatal("exact retained procedure manifest lost contextual epoch authority")
 	}
-	if err := validateDefaultProviders(e.CatalogRead(), local); err != nil {
+	if err := ValidateDefaultProviders(e.CatalogRead(), local); err != nil {
 		t.Fatal("retained procedure DEFAULT authority", err)
 	}
 	procedureCopy := *e.catalog.state.MustProcedure(procedureRef.Address)

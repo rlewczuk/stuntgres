@@ -46,7 +46,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	for _, name := range names {
 		ref, err := e.resolveRelationReference(auth, name, true)
 		if err != nil {
-			if !renameMissing(err) {
+			if !RenameMissing(err) {
 				return fail(err)
 			}
 			kind, missing := "relation", name.Parts[len(name.Parts)-1].Text

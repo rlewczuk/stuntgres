@@ -6,5 +6,5 @@ import "stuntgres/internal/engine/catalog"
 // writes it: the exact source descriptors it copied, which publication
 // re-checks but which are not dependencies.
 type tableStage struct {
-	likeSources []catalog.Descriptor
+	LikeSources []catalog.Descriptor
 }

@@ -12,13 +12,13 @@ import (
 )
 
 type defaultDependencyEdge struct {
-	relation  *catalog.Relation
-	attribute int32
-	column    string
-	target    ids.ObjectAddress
+	Relation  *catalog.Relation
+	Attribute int32
+	Column    string
+	Target    ids.ObjectAddress
 }
 
-func defaultDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
+func DefaultDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	for _, definition := range d.ColumnMeta.Defaults {
 		for _, dependency := range definition.Dependencies {
 			a := dependency.Address
@@ -32,16 +32,16 @@ func defaultDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 
 // Validate only captured provider authority against the merged publication root.
 // Full expression/dependency agreement is already checked on the private stage.
-func validateDefaultProviders(view catalog.Read, d *catalog.Relation) error {
+func ValidateDefaultProviders(view catalog.Read, d *catalog.Relation) error {
 	for _, definition := range d.ColumnMeta.Defaults {
-		if err := validateColumnDefaultProviders(view, d, definition); err != nil {
+		if err := ValidateColumnDefaultProviders(view, d, definition); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, definition catalog.ColumnDefault) error {
+func ValidateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, definition catalog.ColumnDefault) error {
 	for _, ref := range definition.Dependencies {
 		address := ref.Address
 		address.SubID = 0
@@ -75,7 +75,7 @@ func validateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, defi
 	return nil
 }
 
-func defaultDependents(provider dropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
+func DefaultDependents(provider dropDependencyReader, targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
 	var edges []defaultDependencyEdge
 	for address, descriptor := range provider.InputDescriptors() {
 		d, ok := descriptor.(*catalog.Relation)
@@ -126,11 +126,11 @@ func defaultDependents(provider dropDependencyReader, targets []ids.ObjectAddres
 			removed = append(removed, attribute)
 		}
 		if len(removed) != 0 && mode != parser.DropRestrict {
-			if err := provider.inheritanceAlterGuard(d); err != nil {
+			if err := provider.InheritanceAlterGuard(d); err != nil {
 				return nil, err
 			}
 			copy := *d
-			revision, err := provider.revision(copy.Revision())
+			revision, err := provider.Revision(copy.Revision())
 			if err != nil {
 				return nil, err
 			}
@@ -145,10 +145,10 @@ func defaultDependents(provider dropDependencyReader, targets []ids.ObjectAddres
 		}
 	}
 	slices.SortFunc(edges, func(a, b defaultDependencyEdge) int {
-		if order := cmp.Compare(a.relation.Address().ObjectID, b.relation.Address().ObjectID); order != 0 {
+		if order := cmp.Compare(a.Relation.Address().ObjectID, b.Relation.Address().ObjectID); order != 0 {
 			return order
 		}
-		return cmp.Compare(a.attribute, b.attribute)
+		return cmp.Compare(a.Attribute, b.Attribute)
 	})
 	return edges, nil
 }

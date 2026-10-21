@@ -43,7 +43,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 			p := predicate
 			p.Left = bad
 			copy.Constraints.Check[0].Expression = p
-			if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
+			if err := ValidateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("invalid descriptor accepted")
 			}
 		})
@@ -55,14 +55,14 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		copy := *original
 		copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
 		copy.Constraints.Check[0].Expression = node
-		if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
+		if err := ValidateChecks(view, &copy, map[string]bool{}); err == nil {
 			t.Fatalf("unpersistable %T accepted", node)
 		}
 	}
 	copy := *original
 	copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
 	copy.Constraints.Check[0].Dependencies = nil
-	if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
+	if err := ValidateChecks(view, &copy, map[string]bool{}); err == nil {
 		t.Fatal("missing dependency manifest accepted")
 	}
 }
@@ -82,12 +82,12 @@ func TestCheckCompletedRowValidator(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		c, err := validateCheckRow(table, []sqltype.Value{v}, &eval)
+		c, err := ValidateCheckRow(table, []sqltype.Value{v}, &eval)
 		if err != nil || (c != nil) != (n == 2) {
 			t.Fatal(n, c, err)
 		}
 	}
-	if c, err := validateCheckRow(table, old, &eval); err != nil || c != nil {
+	if c, err := ValidateCheckRow(table, old, &eval); err != nil || c != nil {
 		t.Fatal("UNKNOWN rejected", c, err)
 	}
 	if eval.Scope != 7 || eval.Frame != 9 || &eval.Row[0] != &old[0] {
@@ -114,7 +114,7 @@ func TestCheckNativeCatalogReplacementOrigins(t *testing.T) {
 			defer finish()
 			ref := roleTableRef(t, target, "t")
 			d, _ := target.CatalogRead().Descriptor(ref.Address)
-			if err := validateChecks(target.CatalogRead(), d.(*catalog.Relation), map[string]bool{}); err != nil {
+			if err := ValidateChecks(target.CatalogRead(), d.(*catalog.Relation), map[string]bool{}); err != nil {
 				t.Fatal(err)
 			}
 			ast := statement(t, "INSERT INTO t VALUES(2)")

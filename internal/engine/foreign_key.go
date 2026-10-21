@@ -42,11 +42,11 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if childTemp != parentTemp {
 		return ids.ErrCatalogReplaced
 	}
-	local, err := foreignKeyAttributes(child, raw.Columns)
+	local, err := ForeignKeyAttributes(child, raw.Columns)
 	if err != nil {
 		return err
 	}
-	deleteAttributes, err := foreignKeyAttributes(child, raw.DeleteColumns)
+	deleteAttributes, err := ForeignKeyAttributes(child, raw.DeleteColumns)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 			return sqlError("42704", fmt.Sprintf(`there is no primary key for referenced table "%s"`, parent.Name()))
 		}
 	} else {
-		referenced, err = foreignKeyAttributes(parent, raw.Referenced)
+		referenced, err = ForeignKeyAttributes(parent, raw.Referenced)
 		if err != nil {
 			return err
 		}
@@ -98,7 +98,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	}
 	var index *catalog.Relation
 	if supporting == (ids.ObjectAddress{}) {
-		index, err = foreignKeyIndex(view, parent, referenced)
+		index, err = ForeignKeyIndex(view, parent, referenced)
 	} else {
 		var ok bool
 		index, ok = view.Relation(supporting)
@@ -106,7 +106,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 			return ids.ErrCatalogReplaced
 		}
 		var eligible bool
-		eligible, err = foreignKeyIndexEligible(parent, index, referenced)
+		eligible, err = ForeignKeyIndexEligible(parent, index, referenced)
 		if err == nil && !eligible {
 			return ids.ErrCatalogReplaced
 		}
@@ -114,7 +114,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if err != nil {
 		return err
 	}
-	if err := foreignKeyReferencesAllowed(auth.View, auth, parent, referenced); err != nil {
+	if err := ForeignKeyReferencesAllowed(auth.View, auth, parent, referenced); err != nil {
 		return err
 	}
 	used := catalog.ConstraintNames(view, child.Namespace(), child)
@@ -130,7 +130,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.Name()))
 	}
 	f := catalog.ForeignKeyConstraint{Name: name, Attributes: local, Target: parent.Address(), Referenced: referenced, Index: index.Address(), Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid}
-	if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {
+	if _, err := BindForeignKeyComparison(view, child, parent, index, f); err != nil {
 		return err
 	}
 	f.OID, err = e.catalog.allocateOIDLocked()
@@ -143,7 +143,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 }
 
 func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogStage, child *catalog.Relation, s *parser.CreateTable, targets []ids.ObjectRef) error {
-	declarations := foreignKeyDeclarations(s)
+	declarations := ForeignKeyDeclarations(s)
 	if len(targets) != 0 && len(targets) != len(declarations) {
 		return fmt.Errorf("stuntgres: invalid foreign-key creation authority")
 	}

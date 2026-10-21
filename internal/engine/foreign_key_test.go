@@ -234,7 +234,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 		copy := *child
 		copy.Constraints.ForeignKeys = slices.Clone(child.Constraints.ForeignKeys)
 		change(&copy.Constraints.ForeignKeys[0])
-		if err := validateForeignKeys(view, &copy, map[string]bool{}); err == nil {
+		if err := ValidateForeignKeys(view, &copy, map[string]bool{}); err == nil {
 			t.Fatal("invalid attachment admitted", copy.Constraints.ForeignKeys[0])
 		}
 	}
@@ -255,7 +255,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 		}
 		copy.SQLIndex = &definition
 		state.SetDescriptor(index.Address(), &copy)
-		if err := validateForeignKeys(e.catalog.read(state), child, map[string]bool{}); err == nil {
+		if err := ValidateForeignKeys(e.catalog.read(state), child, map[string]bool{}); err == nil {
 			t.Fatal("invalid selected index authority", phase)
 		}
 	}

@@ -35,7 +35,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 				graph[dump.Event{OID: c}] = []dump.Event{{OID: r}}
 			}
 			declarations := []dump.Event{{OID: r}, {OID: c}, {OID: pi}, {OID: ci}}
-			tables := []dumpRelation{{descriptor: f.root}, {descriptor: f.leaf}}
+			tables := []dumpRelation{{Descriptor: f.root}, {Descriptor: f.leaf}}
 			indices := map[ids.OID]int{pi: 0, ci: 1}
 			replay := &partitionConstraintReplay{original: f.view, temporary: map[ids.ObjectAddress]string{}}
 			if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
@@ -131,7 +131,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	}
 	// A real captured private-name projection exercises the local constraint's
 	// rename barrier. Stored REGCLASS data must wait for that original identity.
-	tables := []dumpRelation{{descriptor: f.root}, {descriptor: f.leaf}, {descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, defaults: consumer.ColumnMeta.Defaults, versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value}}}}}
+	tables := []dumpRelation{{Descriptor: f.root}, {Descriptor: f.leaf}, {Descriptor: consumer, Columns: consumer.Columns, Attributes: consumer.Attributes, Defaults: consumer.ColumnMeta.Defaults, Versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value}}}}}
 	indices := map[ids.OID]int{pi: 0, ci: 1, li: 2}
 	_, replay := partitionConstraintDumpCatalog(f.view)
 	if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {

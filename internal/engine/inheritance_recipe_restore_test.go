@@ -55,12 +55,12 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*restoredGenerationRecipe){
-		"epoch":     func(r *restoredGenerationRecipe) { r.ref.Epoch++ },
-		"owner":     func(r *restoredGenerationRecipe) { r.ref = New().catalog.Domain.Ref(r.ref.Epoch, r.ref.Address) },
-		"attribute": func(r *restoredGenerationRecipe) { r.attribute++ },
-		"identity":  func(r *restoredGenerationRecipe) { r.generation++ },
-		"kind":      func(r *restoredGenerationRecipe) { r.kind = catalog.GenerationStored },
-		"usage":     func(r *restoredGenerationRecipe) { r.usage = testUsage(e, sqltype.Int8) },
+		"epoch":     func(r *restoredGenerationRecipe) { r.Ref.Epoch++ },
+		"owner":     func(r *restoredGenerationRecipe) { r.Ref = New().catalog.Domain.Ref(r.Ref.Epoch, r.Ref.Address) },
+		"attribute": func(r *restoredGenerationRecipe) { r.Attribute++ },
+		"identity":  func(r *restoredGenerationRecipe) { r.Generation++ },
+		"kind":      func(r *restoredGenerationRecipe) { r.Kind = catalog.GenerationStored },
+		"usage":     func(r *restoredGenerationRecipe) { r.Usage = testUsage(e, sqltype.Int8) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := maps.Clone(origins)
@@ -116,9 +116,9 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 		t.Fatal("CHECK admitted without actual generation repair")
 	}
 	for _, bad := range []restoredGenerationRecipe{
-		{ref: repair.ref, attribute: repair.attribute, generation: repair.generation + 1, usage: repair.usage, kind: repair.kind},
-		{ref: refs["unrelated"], attribute: repair.attribute, generation: repair.generation, usage: repair.usage, kind: repair.kind},
-		{ref: repair.ref, attribute: repair.attribute, generation: repair.generation, usage: testUsage(e, sqltype.Int8), kind: repair.kind},
+		{Ref: repair.Ref, Attribute: repair.Attribute, Generation: repair.Generation + 1, Usage: repair.Usage, Kind: repair.Kind},
+		{Ref: refs["unrelated"], Attribute: repair.Attribute, Generation: repair.Generation, Usage: repair.Usage, Kind: repair.Kind},
+		{Ref: repair.Ref, Attribute: repair.Attribute, Generation: repair.Generation, Usage: testUsage(e, sqltype.Int8), Kind: repair.Kind},
 	} {
 		if err := e.restoreInheritedCheck(op, check, []restoredGenerationRecipe{bad}); err == nil {
 			t.Fatal("foreign definition authorized CHECK", bad)
@@ -191,9 +191,9 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*restoredInheritedOwner){
 		"missing": func(r *restoredInheritedOwner) { *r = restoredInheritedOwner{} },
-		"epoch":   func(r *restoredInheritedOwner) { r.ref.Epoch++ },
-		"creator": func(r *restoredInheritedOwner) { r.creator = owner.Ref },
-		"target":  func(r *restoredInheritedOwner) { r.ref = refs["unrelated"] },
+		"epoch":   func(r *restoredInheritedOwner) { r.Ref.Epoch++ },
+		"creator": func(r *restoredInheritedOwner) { r.Creator = owner.Ref },
+		"target":  func(r *restoredInheritedOwner) { r.Ref = refs["unrelated"] },
 	} {
 		t.Run(name, func(t *testing.T) {
 			candidate := pair
@@ -211,10 +211,10 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	}
 	e.importTargets = targets
 	before := e.CatalogRead().MustRelation(refs["c"].Address)
-	nn := restoredNotNull{ref: refs["c"], attribute: 1, constraint: before.Constraints.NotNull[0].OID}
+	nn := restoredNotNull{Ref: refs["c"], Attribute: 1, Constraint: before.Constraints.NotNull[0].OID}
 	roleExecute(t, e, op, "ALTER TABLE public.c OWNER TO captured_owner")
 	after := e.CatalogRead().MustRelation(refs["c"].Address)
-	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.Constraints.NotNull[0].OID != nn.constraint {
+	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.Constraints.NotNull[0].OID != nn.Constraint {
 		t.Fatal("actual owner transfer changed source capture or physical NN identity")
 	}
 	if err := e.restoreInheritedOwner(op, raw, pair); err == nil {
@@ -227,7 +227,7 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	if err := e.restoreNoInheritNotNull(op, restoreNNRaw("public.c", "a", "local_nn"), nn); err != nil {
 		t.Fatal("legal owner metadata copy invalidated actual NN identity", err)
 	}
-	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != nn.constraint {
+	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != nn.Constraint {
 		t.Fatal("paired NN repair changed final captured owner/identity")
 	}
 }

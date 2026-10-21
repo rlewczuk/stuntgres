@@ -9,22 +9,22 @@ import (
 )
 
 type preparedAddedChecks struct {
-	old, next *catalog.Relation
-	raw       []*parser.CheckConstraint
-	scans     []catalog.CheckConstraint
-	ordinal   int
+	Old, Next *catalog.Relation
+	Raw       []*parser.CheckConstraint
+	Scans     []catalog.CheckConstraint
+	Ordinal   int
 }
 
 // Fresh PK preparation observes statement-start NN validity, before DROP/SET
 // candidates can remove or validate it. New keys remain with the later binder.
-func verifyAlterPrimaryPrerequisites(parent *catalog.Relation, actions []parser.AlterTableAction) error {
+func VerifyAlterPrimaryPrerequisites(parent *catalog.Relation, actions []parser.AlterTableAction) error {
 	for _, action := range actions {
 		if action.Action != parser.AddUnique || !action.Unique.Primary {
 			continue
 		}
 		for _, column := range action.Unique.Columns {
 			if slot, exists := parent.Index[column.Text]; exists {
-				if err := verifyNotNullPKCompatible(parent, parent.Attributes[slot:slot+1]); err != nil {
+				if err := VerifyNotNullPKCompatible(parent, parent.Attributes[slot:slot+1]); err != nil {
 					return err
 				}
 			}
@@ -33,7 +33,7 @@ func verifyAlterPrimaryPrerequisites(parent *catalog.Relation, actions []parser.
 	return nil
 }
 
-func verifyNotNullPKCompatible(parent *catalog.Relation, attributes []int32) error {
+func VerifyNotNullPKCompatible(parent *catalog.Relation, attributes []int32) error {
 	for _, n := range parent.Constraints.NotNull {
 		if (!n.NotValid && !n.NoInherit) || !slices.Contains(attributes, n.Attribute) {
 			continue

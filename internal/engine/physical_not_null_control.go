@@ -61,7 +61,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalog.State, previous map[ids.Obje
 			copy.Constraints.PhysicalNotNull[attribute] = proof
 		}
 		next.SetDescriptor(address, &copy)
-		if err := validatePhysicalNotNull(e.catalog.read(next), &copy, physicalOrdinaryNotNull(&copy)); err != nil {
+		if err := ValidatePhysicalNotNull(e.catalog.read(next), &copy, PhysicalOrdinaryNotNull(&copy)); err != nil {
 			return err
 		}
 	}

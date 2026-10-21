@@ -122,5 +122,5 @@ func (provider *dropProvider) synchronizeRowType(relation *catalog.Relation) err
 	if staged, ok := provider.Replacement(address).(*catalog.Type); ok {
 		row = staged
 	}
-	return typedef.SynchronizeRowTypeMetadata(relation, row, provider.descriptor, provider.associatedArrayName, provider.Replace)
+	return typedef.SynchronizeRowTypeMetadata(relation, row, provider.Descriptor, provider.associatedArrayName, provider.Replace)
 }

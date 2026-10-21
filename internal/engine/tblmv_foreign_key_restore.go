@@ -7,22 +7,22 @@ import (
 )
 
 type restoredForeignKey struct {
-	raw        parser.ForeignKeyConstraint
-	path       []ids.ObjectAddress
-	target     ids.ObjectAddress
-	supporting ids.ObjectAddress // Exact captured primary for physical self-FK or omitted-reference inherited replay.
-	inherited  *restoredInheritedForeignKey
-	boundOID   ids.OID
-	boundSlot  int // Actual append position in this sole stage, verified against boundOID.
+	Raw        parser.ForeignKeyConstraint
+	Path       []ids.ObjectAddress
+	Target     ids.ObjectAddress
+	Supporting ids.ObjectAddress // Exact captured primary for physical self-FK or omitted-reference inherited replay.
+	Inherited  *restoredInheritedForeignKey
+	BoundOID   ids.OID
+	BoundSlot  int // Actual append position in this sole stage, verified against boundOID.
 }
 
 type restoredForeignKeys struct {
-	child       ids.ObjectRef
-	auth        ddl.Authority // The declaring principal; root staging recovers it.
-	definitions []restoredForeignKey
+	Child       ids.ObjectRef
+	Auth        ddl.Authority // The declaring principal; root staging recovers it.
+	Definitions []restoredForeignKey
 }
 
-func stripRestoreForeignKeys(raw *parser.CreateTable) {
+func StripRestoreForeignKeys(raw *parser.CreateTable) {
 	elements := raw.Elements[:0]
 	for _, element := range raw.Elements {
 		if element.ForeignKey != nil {

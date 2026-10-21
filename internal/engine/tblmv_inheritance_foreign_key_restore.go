@@ -14,15 +14,15 @@ import (
 // A valid FK to an ordinary descendant cannot live in its ancestor's CREATE:
 // the referenced relation must first inherit that declaration. Replay the real
 // constraint after both physical row streams and its actual key provider exist.
-func inheritedForeignKeyDeferred(view catalog.Read, source *catalog.Relation, foreign *catalog.ForeignKeyConstraint) bool {
+func InheritedForeignKeyDeferred(view catalog.Read, source *catalog.Relation, foreign *catalog.ForeignKeyConstraint) bool {
 	if foreign.NotValid || source.RelationKind != catalog.TableRelation || source.Partition != nil || source.Membership != nil || foreign.Target == source.Address() {
 		return false
 	}
 	target, ok := view.Relation(foreign.Target)
-	return ok && target.RelationKind == catalog.TableRelation && target.Partition == nil && target.Membership == nil && inheritedForeignKeyDescendant(view, target, source.Address())
+	return ok && target.RelationKind == catalog.TableRelation && target.Partition == nil && target.Membership == nil && InheritedForeignKeyDescendant(view, target, source.Address())
 }
 
-func inheritedForeignKeyDescendant(view catalog.Read, target *catalog.Relation, ancestor ids.ObjectAddress) bool {
+func InheritedForeignKeyDescendant(view catalog.Read, target *catalog.Relation, ancestor ids.ObjectAddress) bool {
 	if target.Inheritance == nil {
 		return false
 	}
@@ -51,13 +51,13 @@ func inheritedForeignKeyDescendant(view catalog.Read, target *catalog.Relation, 
 	return walk(target)
 }
 
-func inheritedForeignKeyEvents(view catalog.Read, graph dump.Graph, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dump.Event, bool, error)) error {
+func InheritedForeignKeyEvents(view catalog.Read, graph dump.Graph, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dump.Event, bool, error)) error {
 	for i := range tables {
-		source := tables[i].descriptor
+		source := tables[i].Descriptor
 		event := dump.Event{OID: source.Address().ObjectID, Phase: dump.InheritedForeignKeys}
 		for i := range source.Constraints.ForeignKeys {
 			foreign := &source.Constraints.ForeignKeys[i]
-			if !inheritedForeignKeyDeferred(view, source, foreign) {
+			if !InheritedForeignKeyDeferred(view, source, foreign) {
 				continue
 			}
 			provider, present, err := nameReady(foreign.Index)
@@ -86,15 +86,15 @@ func inheritedForeignKeyPrimary(target *catalog.Relation, foreign *catalog.Forei
 	return false
 }
 
-func (table *dumpRelation) emitInheritedForeignKeys(view catalog.Read, emit func(string) error) error {
-	qualified := catalog.QuoteIdentifier(table.schema) + "." + catalog.QuoteIdentifier(table.name)
-	for i := range table.descriptor.Constraints.ForeignKeys {
-		foreign := &table.descriptor.Constraints.ForeignKeys[i]
-		if !inheritedForeignKeyDeferred(view, table.descriptor, foreign) {
+func (table *dumpRelation) EmitInheritedForeignKeys(view catalog.Read, emit func(string) error) error {
+	qualified := catalog.QuoteIdentifier(table.Schema) + "." + catalog.QuoteIdentifier(table.Name)
+	for i := range table.Descriptor.Constraints.ForeignKeys {
+		foreign := &table.Descriptor.Constraints.ForeignKeys[i]
+		if !InheritedForeignKeyDeferred(view, table.Descriptor, foreign) {
 			continue
 		}
 		target := view.MustRelation(foreign.Target)
-		text, err := (stored.Deparser{View: view}).ForeignKeyConstraintSQLWithPrimary(table.descriptor, *foreign, inheritedForeignKeyPrimary(target, foreign))
+		text, err := (stored.Deparser{View: view}).ForeignKeyConstraintSQLWithPrimary(table.Descriptor, *foreign, inheritedForeignKeyPrimary(target, foreign))
 		if err != nil {
 			return err
 		}
@@ -105,30 +105,30 @@ func (table *dumpRelation) emitInheritedForeignKeys(view catalog.Read, emit func
 	return nil
 }
 
-const restoreInheritedForeignKeyBoundary = "restore accepts valid foreign-key ALTER only for freshly imported ordinary ancestor/descendant relations"
+const RestoreInheritedForeignKeyBoundary = "restore accepts valid foreign-key ALTER only for freshly imported ordinary ancestor/descendant relations"
 
 type restoredInheritedForeignColumn struct {
 	name      string
-	attribute int32
+	Attribute int32
 	usage     sqltype.Usage
 }
 
 type restoredInheritedForeignIndex struct {
-	current  *catalog.Relation
-	eligible bool
+	Current  *catalog.Relation
+	Eligible bool
 }
 
 type restoredInheritedForeignKey struct {
-	source, target      ids.ObjectRef
-	beforeSource        *catalog.Relation
-	beforeTarget        *catalog.Relation
-	raw                 parser.ForeignKeyConstraint
-	columns, referenced []restoredInheritedForeignColumn
-	deleted             []restoredInheritedForeignColumn
-	providers           map[ids.ObjectAddress]restoredInheritedForeignIndex
+	Source, Target      ids.ObjectRef
+	BeforeSource        *catalog.Relation
+	BeforeTarget        *catalog.Relation
+	Raw                 parser.ForeignKeyConstraint
+	Columns, Referenced []restoredInheritedForeignColumn
+	Deleted             []restoredInheritedForeignColumn
+	Providers           map[ids.ObjectAddress]restoredInheritedForeignIndex
 }
 
-func captureInheritedForeignColumns(table *catalog.Relation, names []parser.Identifier) ([]restoredInheritedForeignColumn, bool) {
+func CaptureInheritedForeignColumns(table *catalog.Relation, names []parser.Identifier) ([]restoredInheritedForeignColumn, bool) {
 	columns := make([]restoredInheritedForeignColumn, len(names))
 	for i, name := range names {
 		slot, exists := table.Index[name.Text]
@@ -136,45 +136,45 @@ func captureInheritedForeignColumns(table *catalog.Relation, names []parser.Iden
 			return nil, false
 		}
 		for _, previous := range columns[:i] {
-			if previous.attribute == table.Attributes[slot] {
+			if previous.Attribute == table.Attributes[slot] {
 				return nil, false
 			}
 		}
-		columns[i] = restoredInheritedForeignColumn{name: name.Text, attribute: table.Attributes[slot], usage: table.Columns[slot].Usage}
+		columns[i] = restoredInheritedForeignColumn{name: name.Text, Attribute: table.Attributes[slot], usage: table.Columns[slot].Usage}
 	}
 	return columns, true
 }
 
-func inheritedForeignColumnsUnchanged(table *catalog.Relation, columns []restoredInheritedForeignColumn) bool {
+func InheritedForeignColumnsUnchanged(table *catalog.Relation, columns []restoredInheritedForeignColumn) bool {
 	for _, column := range columns {
 		slot, exists := table.Index[column.name]
-		if !exists || table.Attributes[slot] != column.attribute || table.Columns[slot].Usage != column.usage {
+		if !exists || table.Attributes[slot] != column.Attribute || table.Columns[slot].Usage != column.usage {
 			return false
 		}
 	}
 	return true
 }
 
-func inheritedForeignRelationUnchanged(current, before *catalog.Relation) bool {
+func InheritedForeignRelationUnchanged(current, before *catalog.Relation) bool {
 	return current != nil && current.Address() == before.Address() && current.Namespace() == before.Namespace() && current.Name() == before.Name() && current.Owner == before.Owner && current.OfType == before.OfType && current.RelationKind == catalog.TableRelation && current.Partition == nil && current.Membership == nil
 }
 
-func (receipt *restoredInheritedForeignKey) accepts(foreign *catalog.ForeignKeyConstraint) bool {
-	if foreign.Name != receipt.raw.Name.Text || foreign.Target != receipt.target.Address || foreign.NotValid || foreign.Full != receipt.raw.Full || foreign.UpdateAction != receipt.raw.UpdateAction || foreign.DeleteAction != receipt.raw.DeleteAction || len(foreign.Attributes) != len(receipt.columns) || len(foreign.Referenced) != len(receipt.referenced) || len(foreign.DeleteAttributes) != len(receipt.deleted) || !receipt.providers[foreign.Index].eligible {
+func (receipt *restoredInheritedForeignKey) Accepts(foreign *catalog.ForeignKeyConstraint) bool {
+	if foreign.Name != receipt.Raw.Name.Text || foreign.Target != receipt.Target.Address || foreign.NotValid || foreign.Full != receipt.Raw.Full || foreign.UpdateAction != receipt.Raw.UpdateAction || foreign.DeleteAction != receipt.Raw.DeleteAction || len(foreign.Attributes) != len(receipt.Columns) || len(foreign.Referenced) != len(receipt.Referenced) || len(foreign.DeleteAttributes) != len(receipt.Deleted) || !receipt.Providers[foreign.Index].Eligible {
 		return false
 	}
-	for i, column := range receipt.columns {
-		if foreign.Attributes[i] != column.attribute {
+	for i, column := range receipt.Columns {
+		if foreign.Attributes[i] != column.Attribute {
 			return false
 		}
 	}
-	for i, column := range receipt.referenced {
-		if foreign.Referenced[i] != column.attribute {
+	for i, column := range receipt.Referenced {
+		if foreign.Referenced[i] != column.Attribute {
 			return false
 		}
 	}
-	for i, column := range receipt.deleted {
-		if foreign.DeleteAttributes[i] != column.attribute {
+	for i, column := range receipt.Deleted {
+		if foreign.DeleteAttributes[i] != column.Attribute {
 			return false
 		}
 	}

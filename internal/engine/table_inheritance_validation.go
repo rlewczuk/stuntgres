@@ -14,7 +14,7 @@ import (
 // Retained TEMP definitions keep their original row-reference epoch across a
 // persistent replacement. Compare at current row authority without changing
 // either descriptor or remapping external provider references.
-func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v catalog.Read) bool {
+func SameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v catalog.Read) bool {
 	if analyze.SameGroupExpression(mapped, child) {
 		return true
 	}
@@ -23,7 +23,7 @@ func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v cat
 	return err == nil && analyze.SameGroupExpression(mapped, current)
 }
 
-func validateInheritance(v catalog.Read, d *catalog.Relation) error {
+func ValidateInheritance(v catalog.Read, d *catalog.Relation) error {
 	graph := d.Inheritance
 	if graph == nil {
 		return nil
@@ -121,7 +121,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 		if child < 0 || !provenance.Local && provenance.Count() == 0 {
 			return invalid()
 		}
-		if err := validateRetiredInheritance(v, d, provenance, d.Constraints.NotNull[child].OID, false); err != nil {
+		if err := ValidateRetiredInheritance(v, d, provenance, d.Constraints.NotNull[child].OID, false); err != nil {
 			return err
 		}
 		origins := make(map[ids.ObjectAddress]bool)
@@ -149,7 +149,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 		if child < 0 || !provenance.Local && provenance.Count() == 0 || d.Constraints.Check[child].NoInherit && provenance.Count() != 0 {
 			return invalid()
 		}
-		if err := validateRetiredInheritance(v, d, provenance, d.Constraints.Check[child].OID, true); err != nil {
+		if err := ValidateRetiredInheritance(v, d, provenance, d.Constraints.Check[child].OID, true); err != nil {
 			return err
 		}
 		origins := make(map[ids.ObjectAddress]bool)
@@ -170,7 +170,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 				mapper.TargetSlots[i] = d.Index[c.Name]
 			}
 			node, err := stored.RemapLikeExpression(&mapper, parent.Constraints.Check[source].Expression, d, v)
-			if err != nil || !sameInheritedExpression(node, d.Constraints.Check[child].Expression, d, v) {
+			if err != nil || !SameInheritedExpression(node, d.Constraints.Check[child].Expression, d, v) {
 				return invalid()
 			}
 		}

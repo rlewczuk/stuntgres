@@ -6,7 +6,7 @@ import (
 
 // Concrete catalog carriers are not necessarily physical SQL storage values.
 // Resolve existing domain/array wrappers without adding a public type framework.
-func validateQueryTableOutputType(typ *sqltype.Descriptor) error {
+func ValidateQueryTableOutputType(typ *sqltype.Descriptor) error {
 	for {
 		physical := typ.BaseType()
 		if !physical.IsArray() {

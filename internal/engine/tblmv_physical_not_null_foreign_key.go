@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func physicalSelfForeignKeyDeferred(table *catalog.Relation, foreign catalog.ForeignKeyConstraint) bool {
+func PhysicalSelfForeignKeyDeferred(table *catalog.Relation, foreign catalog.ForeignKeyConstraint) bool {
 	if len(table.Constraints.PhysicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.Address() {
 		return false
 	}
@@ -20,13 +20,13 @@ func physicalSelfForeignKeyDeferred(table *catalog.Relation, foreign catalog.For
 	return false
 }
 
-func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
+func EmitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
 	if len(table.Constraints.PhysicalNotNull) == 0 || len(table.Constraints.ForeignKeys) == 0 {
 		return nil
 	}
 	qualified := catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name())
 	for _, foreign := range table.Constraints.ForeignKeys {
-		if !physicalSelfForeignKeyDeferred(table, foreign) {
+		if !PhysicalSelfForeignKeyDeferred(table, foreign) {
 			continue
 		}
 		idx := view.MustRelation(foreign.Index)

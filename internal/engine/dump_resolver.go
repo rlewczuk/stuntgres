@@ -98,7 +98,7 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		if !index.BackingConstraintPresent(parent, source) {
 			return 0, fmt.Errorf("stuntgres: orphan unique index dump dependency")
 		}
-		if producer, moved, err := physicalCompetingIndexSource(view, source); err != nil {
+		if producer, moved, err := PhysicalCompetingIndexSource(view, source); err != nil {
 			return 0, err
 		} else if moved {
 			source = producer

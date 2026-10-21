@@ -8,14 +8,14 @@ import (
 	"stuntgres/internal/parser"
 )
 
-const restorePhysicalNotNullBoundary = "restore accepts only paired canonical physical not-null cleanup"
+const RestorePhysicalNotNullBoundary = "restore accepts only paired canonical physical not-null cleanup"
 
 type physicalNotNullRepair struct {
-	relation     parser.ObjectName
-	relationText string
-	column       string
-	primary      string
-	keys         []string
+	Relation     parser.ObjectName
+	RelationText string
+	Column       string
+	Primary      string
+	Keys         []string
 }
 
 func physicalNotNullCleanupSQL(relation, column, primary string, keys []string) string {
@@ -77,7 +77,7 @@ func physicalFrom(query *parser.Select, name string) bool {
 		return false
 	}
 	table, ok := query.From.(*parser.TableReference)
-	return ok && !table.Only && restoreCatalogName(table.Name, name)
+	return ok && !table.Only && RestoreCatalogName(table.Name, name)
 }
 func physicalOne(query *parser.Select) bool {
 	if len(query.Targets) != 1 {
@@ -130,12 +130,12 @@ func physicalTargetMembership(raw parser.Expr, column string) bool {
 	return ok && !table.Only && len(table.Name.Parts) == 1 && table.Name.Parts[0].Text == "target"
 }
 func physicalDelete(raw *parser.Delete, name string) bool {
-	return raw != nil && restoreCatalogName(raw.Name, name) && !raw.Only && !raw.Star && raw.Alias.Text == "" && raw.Using == nil && raw.CurrentOf == nil && !raw.WithRecursive
+	return raw != nil && RestoreCatalogName(raw.Name, name) && !raw.Only && !raw.Star && raw.Alias.Text == "" && raw.Using == nil && raw.CurrentOf == nil && !raw.WithRecursive
 }
 
 // Recognize only the closed, data-modifying CTE emitted above. Its dependency
 // deletion removes the selected NN's outgoing edges, never incoming objects.
-func restorePhysicalNotNullSyntax(raw *parser.Delete) (physicalNotNullRepair, bool) {
+func RestorePhysicalNotNullSyntax(raw *parser.Delete) (physicalNotNullRepair, bool) {
 	var repair physicalNotNullRepair
 	if !physicalDelete(raw, "pg_constraint") || len(raw.With) != 2 || raw.Returning != nil || !physicalTargetMembership(raw.Where, "oid") {
 		return repair, false
@@ -168,7 +168,7 @@ func restorePhysicalNotNullSyntax(raw *parser.Delete) (physicalNotNullRepair, bo
 		return repair, false
 	}
 	table, ok := alias.Input.(*parser.TableReference)
-	if !ok || table.Only || !restoreCatalogName(table.Name, "pg_constraint") {
+	if !ok || table.Only || !RestoreCatalogName(table.Name, "pg_constraint") {
 		return repair, false
 	}
 	terms, ok = physicalTerms(target.Where, 10)
@@ -179,16 +179,16 @@ func restorePhysicalNotNullSyntax(raw *parser.Delete) (physicalNotNullRepair, bo
 	if !ok {
 		return repair, false
 	}
-	repair.relation, repair.relationText, ok = restoreNoInheritRegclass(value)
-	if !ok || len(repair.relation.Parts) != 2 || !physicalTextEquality(terms[1], "n", "nn", "contype") {
+	repair.Relation, repair.RelationText, ok = restoreNoInheritRegclass(value)
+	if !ok || len(repair.Relation.Parts) != 2 || !physicalTextEquality(terms[1], "n", "nn", "contype") {
 		return repair, false
 	}
 	value, ok = physicalEquality(terms[2], "nn", "conkey")
-	columns, valid := physicalArray(value, repair.relationText)
+	columns, valid := physicalArray(value, repair.RelationText)
 	if !ok || !valid || len(columns) != 1 {
 		return repair, false
 	}
-	repair.column = columns[0]
+	repair.Column = columns[0]
 	if !physicalBooleanEquality(terms[3], true, "nn", "conislocal") || !physicalIntegerEquality(terms[4], 0, "nn", "coninhcount") || !physicalIntegerEquality(terms[5], 0, "nn", "conparentid") || !physicalBooleanEquality(terms[6], true, "nn", "convalidated") || !physicalBooleanEquality(terms[7], false, "nn", "connoinherit") {
 		return repair, false
 	}
@@ -218,22 +218,22 @@ func restorePhysicalNotNullSyntax(raw *parser.Delete) (physicalNotNullRepair, bo
 		count = 4
 	}
 	primaryTerms, ok := physicalTerms(primary.Where, count)
-	if !ok || !physicalRegclassEquality(primaryTerms[0], repair.relationText, "conrelid") {
+	if !ok || !physicalRegclassEquality(primaryTerms[0], repair.RelationText, "conrelid") {
 		return repair, false
 	}
 	if !positive {
 		return repair, physicalTextEquality(primaryTerms[1], "p", "contype")
 	}
 	value, ok = physicalEquality(primaryTerms[1], "conname")
-	repair.primary, valid = retiredText(value)
-	if !ok || !valid || repair.primary == "" || !physicalTextEquality(primaryTerms[2], "p", "contype") {
+	repair.Primary, valid = retiredText(value)
+	if !ok || !valid || repair.Primary == "" || !physicalTextEquality(primaryTerms[2], "p", "contype") {
 		return repair, false
 	}
 	value, ok = physicalEquality(primaryTerms[3], "conkey")
-	repair.keys, valid = physicalArray(value, repair.relationText)
-	return repair, ok && valid && slices.Contains(repair.keys, repair.column)
+	repair.Keys, valid = physicalArray(value, repair.RelationText)
+	return repair, ok && valid && slices.Contains(repair.Keys, repair.Column)
 }
 
-func samePhysicalRepair(a, b physicalNotNullRepair) bool {
-	return a.relationText == b.relationText && a.column == b.column && a.primary == b.primary && slices.Equal(a.keys, b.keys)
+func SamePhysicalRepair(a, b physicalNotNullRepair) bool {
+	return a.RelationText == b.RelationText && a.Column == b.Column && a.Primary == b.Primary && slices.Equal(a.Keys, b.Keys)
 }

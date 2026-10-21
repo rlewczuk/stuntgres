@@ -36,17 +36,17 @@ func TestInheritanceGuards(t *testing.T) {
 	cyclic := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90006}, RelationKind: catalog.ViewRelation}
 	cyclic.View = stored.NewView(stored.ViewParts{Sources: []stored.ViewLeaf{{Ref: ids.ObjectRef{Address: cyclic.Address()}}, {Ref: ids.ObjectRef{Address: parent.Address()}}}})
 	catalogView.State().SetDescriptor(cyclic.Address(), cyclic)
-	assertError(inheritanceTargetGuard(catalogView, cyclic), "0A000", "recursive table inheritance is unsupported", "")
+	assertError(InheritanceTargetGuard(catalogView, cyclic), "0A000", "recursive table inheritance is unsupported", "")
 	for _, relation := range []*catalog.Relation{parent, view} {
-		assertError(inheritanceTargetGuard(catalogView, relation), "0A000", "recursive table inheritance is unsupported", "")
+		assertError(InheritanceTargetGuard(catalogView, relation), "0A000", "recursive table inheritance is unsupported", "")
 	}
 	for _, relation := range []*catalog.Relation{child, standalone} {
-		if err := inheritanceTargetGuard(catalogView, relation); err != nil {
+		if err := InheritanceTargetGuard(catalogView, relation); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, relation := range []*catalog.Relation{parent, child, standalone} {
-		if err := inheritanceAlterActionsGuard(catalogView, relation, []parser.AlterTableAction{{Action: parser.SetNotNull, Column: parser.Identifier{Text: "a"}}}); err != nil {
+		if err := InheritanceAlterActionsGuard(catalogView, relation, []parser.AlterTableAction{{Action: parser.SetNotNull, Column: parser.Identifier{Text: "a"}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -55,8 +55,8 @@ func TestInheritanceGuards(t *testing.T) {
 		if operation == "alter" {
 			position = "21"
 		}
-		assertError(inheritanceColumnGuard(child, "a", operation, parser.Position{Character: 21}), "42P16", "cannot "+operation+` inherited column "a"`, position)
-		if err := inheritanceColumnGuard(child, "local", operation, parser.Position{}); err != nil {
+		assertError(InheritanceColumnGuard(child, "a", operation, parser.Position{Character: 21}), "42P16", "cannot "+operation+` inherited column "a"`, position)
+		if err := InheritanceColumnGuard(child, "local", operation, parser.Position{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -64,9 +64,9 @@ func TestInheritanceGuards(t *testing.T) {
 		{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "p_a_not_null"}},
 		{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}},
 	} {
-		assertError(inheritanceAlterActionsGuard(catalogView, child, []parser.AlterTableAction{{Action: parser.AddColumn}, action}), "42P16", `cannot drop inherited constraint "p_a_not_null" of relation "c"`, "")
+		assertError(InheritanceAlterActionsGuard(catalogView, child, []parser.AlterTableAction{{Action: parser.AddColumn}, action}), "42P16", `cannot drop inherited constraint "p_a_not_null" of relation "c"`, "")
 	}
-	if err := inheritanceAlterActionsGuard(catalogView, child, []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "local"}}}); err != nil {
+	if err := InheritanceAlterActionsGuard(catalogView, child, []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "local"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if child.Inheritance.Columns[5].Local || len(child.Inheritance.Columns[5].Origins) != 1 || child.Constraints.NotNull[0].Name != "p_a_not_null" {

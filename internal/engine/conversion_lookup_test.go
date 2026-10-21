@@ -279,7 +279,7 @@ func TestRoutineAliasStorageAdmission(t *testing.T) {
 	op, _ := conversionUnitAuth(t, e)
 	for _, id := range []sqltype.ID{sqltype.Regproc, sqltype.Regprocedure, 1008, 2207} {
 		typ, _ := e.CatalogRead().LookupType(id)
-		if err := validateQueryTableOutputType(typ); err != nil {
+		if err := ValidateQueryTableOutputType(typ); err != nil {
 			t.Fatal("routine alias query storage rejected", err)
 		}
 	}

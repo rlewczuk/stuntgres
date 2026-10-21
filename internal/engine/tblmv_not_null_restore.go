@@ -8,29 +8,29 @@ import (
 	"stuntgres/internal/parser"
 )
 
-const restoreNoInheritBoundary = "restore accepts only paired canonical pg_constraint no-inherit repairs"
+const RestoreNoInheritBoundary = "restore accepts only paired canonical pg_constraint no-inherit repairs"
 
 type restoredNotNull struct {
-	ref        ids.ObjectRef
-	attribute  int32
-	constraint ids.OID
+	Ref        ids.ObjectRef
+	Attribute  int32
+	Constraint ids.OID
 }
 
 // The declaration supplies the exact captured name, even when another object
 // occupies the usual generated stem. The temporary ordinary fact is repaired
 // before any descendant declaration can inherit it. SET is genuine supported
 // PostgreSQL syntax; only the narrowly paired catalog repair is importer-only.
-func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner func(string) error) error {
-	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
-	for _, constraint := range t.notNullConstraints {
+func (t *dumpRelation) EmitNoInheritNotNull(emit func(string) error, setOwner func(string) error) error {
+	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
+	for _, constraint := range t.NotNullConstraints {
 		if !constraint.NoInherit {
 			continue
 		}
 		if constraint.NotValid {
 			return fmt.Errorf("stuntgres: invalid no-inherit not-null replay fact")
 		}
-		column := t.columns[t.descriptor.IndexForAttribute(constraint.Attribute)].Name
-		if err := setOwner(t.owner); err != nil {
+		column := t.Columns[t.Descriptor.IndexForAttribute(constraint.Attribute)].Name
+		if err := setOwner(t.Owner); err != nil {
 			return err
 		}
 		if err := emit("ALTER TABLE ONLY " + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(column) + " SET NOT NULL;\n"); err != nil {
@@ -48,11 +48,11 @@ func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner fu
 	return nil
 }
 
-func restoreNoInheritSyntax(raw *parser.Update) (parser.ObjectName, string, string, error) {
+func RestoreNoInheritSyntax(raw *parser.Update) (parser.ObjectName, string, string, error) {
 	reject := func() (parser.ObjectName, string, string, error) {
-		return parser.ObjectName{}, "", "", sqlError("0A000", restoreNoInheritBoundary)
+		return parser.ObjectName{}, "", "", sqlError("0A000", RestoreNoInheritBoundary)
 	}
-	if !restoreCatalogName(raw.Name, "pg_constraint") || raw.Only || raw.Star || raw.WithRecursive || len(raw.With) != 0 || raw.Alias.Text != "" || raw.From != nil || raw.CurrentOf != nil || raw.Returning != nil || len(raw.Assignments) != 1 {
+	if !RestoreCatalogName(raw.Name, "pg_constraint") || raw.Only || raw.Star || raw.WithRecursive || len(raw.With) != 0 || raw.Alias.Text != "" || raw.From != nil || raw.CurrentOf != nil || raw.Returning != nil || len(raw.Assignments) != 1 {
 		return reject()
 	}
 	assignment := raw.Assignments[0]
@@ -114,7 +114,7 @@ func restoreConstraintAttribute(raw parser.Expr, relation string) (string, bool)
 		}
 	}
 	from, ok := query.From.(*parser.TableReference)
-	if !ok || from.Only || !restoreCatalogName(from.Name, "pg_attribute") {
+	if !ok || from.Only || !RestoreCatalogName(from.Name, "pg_attribute") {
 		return "", false
 	}
 	target, ok := query.Targets[0].(parser.ColumnExpr)
@@ -144,7 +144,7 @@ func restoreConstraintAttribute(raw parser.Expr, relation string) (string, bool)
 	return literal.Value.Text, true
 }
 
-func restoreCatalogName(name parser.ObjectName, relation string) bool {
+func RestoreCatalogName(name parser.ObjectName, relation string) bool {
 	return len(name.Parts) == 2 && name.Parts[0].Text == "pg_catalog" && name.Parts[1].Text == relation
 }
 

@@ -477,7 +477,7 @@ func (e *Engine) rowConstraintError(s *StatementScope, b analyze.Binding, schema
 		return err
 	}
 	if check != "" {
-		return checkDetailError(schema, b.Relation.Name(), check, detail)
+		return CheckDetailError(schema, b.Relation.Name(), check, detail)
 	}
 	return notNullDetailError(schema, b.Relation.Name(), column, detail)
 }
@@ -485,14 +485,14 @@ func (e *Engine) rowConstraintError(s *StatementScope, b analyze.Binding, schema
 // Public UPDATE and admitted RI assignment share generation and local checks.
 func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schema string, row []sqltype.Value, eval *exec.Context) error {
 	generationEval := *eval
-	if err := evaluateGenerations(eval.Context, b.Relation, row, &generationEval); err != nil {
+	if err := EvaluateGenerations(eval.Context, b.Relation, row, &generationEval); err != nil {
 		return err
 	}
 	for i, column := range b.Relation.Columns {
 		if column.Nullable {
 			continue
 		}
-		value, err := logicalColumnValue(b.Relation, i, row, &generationEval)
+		value, err := LogicalColumnValue(b.Relation, i, row, &generationEval)
 		if err != nil {
 			return err
 		}
@@ -501,7 +501,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schem
 		}
 	}
 	if len(b.Relation.Constraints.Check) != 0 {
-		constraint, err := validateCheckRow(b.Relation, row, eval)
+		constraint, err := ValidateCheckRow(b.Relation, row, eval)
 		if err != nil {
 			return err
 		}

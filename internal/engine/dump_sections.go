@@ -119,10 +119,10 @@ func emitDumpSequenceCompletion(_ context.Context, s *dumpScript, w *dumpWriter)
 
 func emitDumpMaterializedSnapshots(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 	slices.SortFunc(s.materialized, func(a, b dumpRelation) int {
-		if order := strings.Compare(a.schema, b.schema); order != 0 {
+		if order := strings.Compare(a.Schema, b.Schema); order != 0 {
 			return order
 		}
-		return strings.Compare(a.name, b.name)
+		return strings.Compare(a.Name, b.Name)
 	})
 	for i := range s.materialized {
 		if err := emitMaterializedSnapshot(ctx, &s.materialized[i], s.originalCatalog, w.emit); err != nil {
@@ -159,12 +159,12 @@ func emitDumpAttributeRanks(_ context.Context, s *dumpScript, w *dumpWriter) err
 			continue
 		}
 		table := s.tables[index]
-		inheritance := table.descriptor.Inheritance
+		inheritance := table.Descriptor.Inheritance
 		if inheritance == nil {
 			continue
 		}
-		for i, column := range table.columns {
-			if column.DeclaredDimensions == 0 || len(inheritance.Columns[table.attributes[i]].Origins) == 0 {
+		for i, column := range table.Columns {
+			if column.DeclaredDimensions == 0 || len(inheritance.Columns[table.Attributes[i]].Origins) == 0 {
 				continue
 			}
 			if !rankAuthority {
@@ -173,7 +173,7 @@ func emitDumpAttributeRanks(_ context.Context, s *dumpScript, w *dumpWriter) err
 				}
 				rankAuthority = true
 			}
-			qualified := catalog.QuoteIdentifier(s.catalogView.Get(table.descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.name)
+			qualified := catalog.QuoteIdentifier(s.catalogView.Get(table.Descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name)
 			if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, dump.CommentLiteral(qualified), dump.CommentLiteral(column.Name))); err != nil {
 				return err
 			}

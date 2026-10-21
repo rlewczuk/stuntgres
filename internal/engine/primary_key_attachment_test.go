@@ -127,17 +127,17 @@ func TestPrimaryKeyNotNullDropCandidate(t *testing.T) {
 		{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}},
 		{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: parent.Constraints.NotNull[0].Name}},
 	} {
-		next, err := notNullCandidate(nil, view, parent, action, notNullDirect)
+		next, err := NotNullCandidate(nil, view, parent, action, NotNullDirect)
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P16", Message: `column "a" is in a primary key`})
 		if next != nil {
 			t.Fatal("guard returned mutable candidate", next)
 		}
 	}
-	withoutPK, err := notNullCandidate(nil, view, parent, parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "pk"}}, notNullDirect)
+	withoutPK, err := NotNullCandidate(nil, view, parent, parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "pk"}}, NotNullDirect)
 	if err != nil || len(withoutPK.Constraints.Unique) != 0 || !reflect.DeepEqual(withoutPK.Constraints.NotNull, parent.Constraints.NotNull) {
 		t.Fatal(withoutPK, err)
 	}
-	withoutNN, err := notNullCandidate(nil, view, withoutPK, parser.AlterTableAction{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}}, notNullDirect)
+	withoutNN, err := NotNullCandidate(nil, view, withoutPK, parser.AlterTableAction{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}}, NotNullDirect)
 	if err != nil || !withoutNN.Columns[0].Nullable || len(withoutNN.Constraints.NotNull) != 1 || len(parent.Constraints.Unique) != 1 || parent.Columns[0].Nullable {
 		t.Fatal("ordered candidate or retained descriptor contract", withoutNN, err)
 	}
@@ -164,7 +164,7 @@ func TestPrimaryKeyIdentityGuardPrecedence(t *testing.T) {
 		{parser.AlterTableAction{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}}, sqlstate.Error{Code: "42601", Message: `column "a" of relation "identity_table" is an identity column`}},
 		{parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "nn"}}, sqlstate.Error{Code: "42P16", Message: `column "a" is in a primary key`}},
 	} {
-		next, err := notNullCandidate(nil, view, parent, tc.action, notNullDirect)
+		next, err := NotNullCandidate(nil, view, parent, tc.action, NotNullDirect)
 		nullCountUnitDiagnostic(t, err, tc.diagnostic)
 		if next != nil || e.CatalogRead().State() != view.State() || parent.Columns[0].Nullable || !parent.Constraints.Unique[0].Primary {
 			t.Fatal("identity/PK route guard changed state", next)

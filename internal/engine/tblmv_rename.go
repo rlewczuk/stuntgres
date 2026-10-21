@@ -8,12 +8,12 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func renameMissing(err error) bool {
+func RenameMissing(err error) bool {
 	d, ok := err.(*sqlstate.Error)
 	return ok && (d.Code == "42P01" || d.Code == "3F000")
 }
 
-func renameColumnCandidate(old *catalog.Relation, name, destination string) (*catalog.Relation, error) {
+func RenameColumnCandidate(old *catalog.Relation, name, destination string) (*catalog.Relation, error) {
 	if old.RelationKind != catalog.CompositeRelation && catalog.IsSystemColumn(name) {
 		return nil, sqlError("0A000", fmt.Sprintf(`cannot rename system column "%s"`, name))
 	}

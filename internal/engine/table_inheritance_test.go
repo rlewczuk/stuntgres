@@ -98,7 +98,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 		t.Fatal("inherited identity copied")
 	}
 	combined := inheritanceUnitView(e, p, q, child)
-	if err := validateInheritance(combined, child); err != nil {
+	if err := ValidateInheritance(combined, child); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -107,7 +107,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 	p := inheritanceUnitRelation(e, "p", 22000, "a")
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
 	c.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}}}
-	if err := validateInheritance(inheritanceUnitView(e, p, c), c); err != nil {
+	if err := ValidateInheritance(inheritanceUnitView(e, p, c), c); err != nil {
 		t.Fatal(err)
 	}
 	for _, kind := range []string{"dangling", "duplicate", "attribute", "cycle", "locality", "type"} {
@@ -133,7 +133,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 				parent.Columns = append([]catalog.Column(nil), p.Columns...)
 				parent.Columns[0].Usage = testUsage(e, sqltype.Int8)
 			}
-			if err := validateInheritance(inheritanceUnitView(e, &parent, &child), &child); err == nil {
+			if err := ValidateInheritance(inheritanceUnitView(e, &parent, &child), &child); err == nil {
 				t.Fatal("invalid graph accepted")
 			}
 		})
@@ -261,18 +261,18 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	current := e.catalog.read(state)
 	mapper := analyze.LikeInput{Source: d}
 	mapped, err := stored.RemapLikeExpression(&mapper, old, d, current)
-	if err != nil || !sameInheritedExpression(mapped, old, d, current) || old.Origin != oldRef {
+	if err != nil || !SameInheritedExpression(mapped, old, d, current) || old.Origin != oldRef {
 		t.Fatal("retained row authority changed equality or source", mapped, old, err)
 	}
 	other := old
 	other.Info.Usage = testUsage(e, sqltype.Int8)
-	if sameInheritedExpression(mapped, other, d, current) {
+	if SameInheritedExpression(mapped, other, d, current) {
 		t.Fatal("row-authority normalization hid a different expression type")
 	}
 	external := functions.SequenceCall{Ref: oldRef}
 	newExternal := external
 	newExternal.Ref.Epoch++
-	if sameInheritedExpression(newExternal, external, d, current) {
+	if SameInheritedExpression(newExternal, external, d, current) {
 		t.Fatal("row-authority normalization retargeted an external provider")
 	}
 }

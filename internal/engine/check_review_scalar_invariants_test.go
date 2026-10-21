@@ -28,7 +28,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	badRelation := *relation
 	badRelation.Constraints.Check = append([]catalog.CheckConstraint(nil), relation.Constraints.Check...)
 	badRelation.Constraints.Check[0].CommentSnapshot = false
-	if err := validateChecks(view, &badRelation, map[string]bool{}); err == nil {
+	if err := ValidateChecks(view, &badRelation, map[string]bool{}); err == nil {
 		t.Fatal("invalid snapshot demand persisted")
 	}
 	inquiry := relation.Constraints.Check[0].Expression.(plan.NullTestExpr).Child.(functions.CommentInquiry)

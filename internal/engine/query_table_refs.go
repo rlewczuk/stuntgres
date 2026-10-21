@@ -116,7 +116,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 		}
 		if relation.RelationKind == catalog.TableRelation && !only {
-			return inheritanceQueryClosure(view, relation, token, func(physical *catalog.Relation) error {
+			return InheritanceQueryClosure(view, relation, token, func(physical *catalog.Relation) error {
 				child := ref
 				child.Address = physical.Address()
 				return collect(child, true)

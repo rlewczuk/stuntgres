@@ -212,7 +212,7 @@ func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef
 
 func foreignActionSameKey(comparisons []foreignKeyComparison, old, next []sqltype.Value) bool {
 	for _, comparison := range comparisons {
-		if !sqltype.SameDatum(old[comparison.parent], next[comparison.parent]) {
+		if !sqltype.SameDatum(old[comparison.Parent], next[comparison.Parent]) {
 			return false
 		}
 	}
@@ -233,11 +233,11 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKey
 	var retained foreignKeyRows
 	if stableIsolation(s.owner.Isolation) && s.owner.SnapshotSet {
 		if root, exists := s.owner.Roots[ref.Address]; exists {
-			if root.Storage != rows.storage {
+			if root.Storage != rows.Storage {
 				return foreignKeyRows{}, retained, ids.ErrCatalogReplaced
 			}
 			retained = rows
-			retained.committed, retained.ends, retained.frontier = root.Versions, root.Ends, s.owner.Frontier
+			retained.Committed, retained.Ends, retained.Frontier = root.Versions, root.Ends, s.owner.Frontier
 		}
 	}
 	return rows, retained, nil

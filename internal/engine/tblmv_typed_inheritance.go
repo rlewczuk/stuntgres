@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func typedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAddress]catalog.Descriptor {
+func TypedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAddress]catalog.Descriptor {
 	result := make(map[ids.ObjectAddress]catalog.Descriptor)
 	var visit func(*catalog.Relation)
 	visit = func(table *catalog.Relation) {
@@ -64,7 +64,7 @@ func typedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAdd
 }
 
 // Parent-before-child order processes a diamond only after both incoming edges.
-func typedPropagationOrder(view catalog.Read, source ids.ObjectAddress) []*catalog.Relation {
+func TypedPropagationOrder(view catalog.Read, source ids.ObjectAddress) []*catalog.Relation {
 	selected := make(map[ids.ObjectAddress]*catalog.Relation)
 	var selectTable func(*catalog.Relation)
 	selectTable = func(table *catalog.Relation) {
@@ -117,7 +117,7 @@ func typedPropagationOrder(view catalog.Read, source ids.ObjectAddress) []*catal
 	return ordered
 }
 
-func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]typedef.TypedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
+func TypedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]typedef.TypedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
 	graph := *old.Inheritance
 	graph.Columns = maps.Clone(graph.Columns)
 	graph.Checks = maps.Clone(graph.Checks)
@@ -212,7 +212,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 	return actions, renames, &graph, nil
 }
 
-func typedTransformAttributes(transforms []index.ColumnTransformation) map[int32]bool {
+func TypedTransformAttributes(transforms []index.ColumnTransformation) map[int32]bool {
 	if len(transforms) == 0 {
 		return nil
 	}

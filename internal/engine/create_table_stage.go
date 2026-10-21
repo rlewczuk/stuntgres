@@ -77,7 +77,7 @@ func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView
 	if err := e.stageInheritance(op, auth, stage, d, b); err != nil {
 		return err
 	}
-	if err := nameCreateNotNull(d, auth.Catalog); err != nil {
+	if err := NameCreateNotNull(d, auth.Catalog); err != nil {
 		return err
 	}
 	if err := e.stageCreateIdentities(auth, stage, d, s); err != nil {
