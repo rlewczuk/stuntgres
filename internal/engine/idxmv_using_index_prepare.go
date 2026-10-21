@@ -5,24 +5,21 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 )
 
 // Capture the actual physical attachment metadata once; only the stage adapter
 // installs its index name/backing link. No tuple/index build runs here.
-func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured index.UsingIndexAttachment) (*index.UsingIndexPreparation, error) {
+//
+// parent is the table the attachment is staged on, and effective the same
+// table with the primary key's NOT NULL constraints prepared (parent itself
+// when the capture already prepared them).
+func PrepareUsingIndex(a ddl.Allocator, reader catalog.DefinitionReader, parent, effective *catalog.Relation, captured index.UsingIndexAttachment) (*index.UsingIndexPreparation, error) {
 	prepared := &index.UsingIndexPreparation{Parent: parent}
-	if !captured.NotNullPrepared {
-		candidate, err := table.UsingIndexNotNullCandidate(op, view, reader, parent, captured)
-		if err != nil {
-			return nil, err
-		}
-		parent = candidate
-	}
+	parent = effective
 	descriptor, present := reader.Descriptor(captured.Index.Address())
 	idx, ok := descriptor.(*catalog.Relation)
 	if !present || !ok || idx.SQLIndex == nil {
@@ -63,9 +60,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 		prepared.Err = index.UsingIndexCatalogDuplicate(parent, name)
 		return prepared, nil
 	}
-	e.mu.Lock()
-	oid, err := e.catalog.allocateOIDLocked()
-	e.mu.Unlock()
+	oid, err := a.AllocateOID()
 	if err != nil {
 		prepared.Err = err
 		return prepared, nil

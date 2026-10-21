@@ -123,7 +123,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		g.Descriptors[ref.Address] = child
 		g.Indexes = append(g.Indexes, ref)
 		parent := g.Descriptors[g.Targets[0].Address]
-		if err := index.PartitionIndexAttachCheck(s.op, auth.Catalog, parent, child); err != nil {
+		if err := index.PartitionIndexAttachCheck(s.op.Context(), auth.Catalog, parent, child); err != nil {
 			return fail(err)
 		}
 	}

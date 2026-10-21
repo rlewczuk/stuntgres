@@ -6,7 +6,6 @@ import (
 	"iter"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -61,7 +60,7 @@ func CoverageComplete(r CoverageReader, index *catalog.Relation) bool {
 	return true
 }
 
-func PartitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent, child *catalog.Relation) error {
+func PartitionIndexAttachCheck(ctx context.Context, view catalog.Read, parent, child *catalog.Relation) error {
 	diagnostic := func(code, detail string) error {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(`cannot attach index "%s" as a partition of index "%s"`, child.Name(), parent.Name()), Detail: detail}
 	}
@@ -85,11 +84,11 @@ func PartitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent,
 	if parent.SQLIndex.IsExclusion() || child.SQLIndex.IsExclusion() {
 		return diagnostic("42P17", "The index definitions do not match.")
 	}
-	mapped, err := MapPartitionIndex(op.Context(), view, table, childTable, parent.SQLIndex)
+	mapped, err := MapPartitionIndex(ctx, view, table, childTable, parent.SQLIndex)
 	if err != nil {
 		return err
 	}
-	match, err := PartitionIndexEquivalent(op.Context(), view, childTable, mapped, child.SQLIndex)
+	match, err := PartitionIndexEquivalent(ctx, view, childTable, mapped, child.SQLIndex)
 	if err != nil {
 		return err
 	}

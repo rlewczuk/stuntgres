@@ -54,7 +54,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *s
 	}
 	next.Constraints.Exclusion = slices.Clone(table.Constraints.Exclusion)
 	for _, action := range raw.Actions {
-		if err = e.stageExclusion(op, scope.input, auth, stage, &next, action.Exclusion, !raw.Only); err != nil {
+		if err = StageExclusion(ddlHost{e: e, op: op, stage: stage}, auth, scope.input, &next, action.Exclusion, !raw.Only); err != nil {
 			break
 		}
 	}

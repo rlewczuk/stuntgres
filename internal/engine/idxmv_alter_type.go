@@ -12,17 +12,18 @@ import (
 
 // A TYPE action rebuilds each affected constraint/backing relation as one
 // removal-and-create candidate, retaining the parent and stable attribute keys.
-func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
+// The caller rebuilds the NOT NULL constraints next.
+func RebuildAlterUniques(h index.Host, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
 	if len(transformations) == 0 {
 		return parent, nil
 	}
 	var next *catalog.Relation
 	for i, old := range parent.Constraints.Unique {
-		idx, ok := stage.Base.Relation(old.Index)
+		idx, ok := h.StageBase().Relation(old.Index)
 		if !ok {
 			// A TYPE-reminted standalone index was already rebuilt before its
 			// USING INDEX attachment. Do not allocate another backing identity.
-			if current, exists := stage.Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
+			if current, exists := h.Stage().Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
 				continue
 			}
 			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
@@ -30,7 +31,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 		if idx.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
 		}
-		if current, exists := stage.Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
+		if current, exists := h.Stage().Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
 			idx = current
 		}
 		if !index.UniqueIndexTypeAffected(idx.SQLIndex, transformations) {
@@ -42,23 +43,22 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 			next = &clone
 		}
 		c := &next.Constraints.Unique[i]
-		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Index)
-		if err := stage.removeObjectLocked(ref, false); err != nil {
+		if err := h.RemoveObject(stageRef(h, old.Index), false); err != nil {
 			return nil, err
 		}
 		var err error
-		c.OID, err = e.catalog.allocateOIDLocked()
+		c.OID, err = h.AllocateOID()
 		if err != nil {
 			return nil, err
 		}
-		id, err := e.catalog.allocateOIDLocked()
+		id, err := h.AllocateOID()
 		if err != nil {
 			return nil, err
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		clone := *idx
 		clone.ObjectAddress = c.Index
-		clone.ObjectRevision, err = e.catalog.revisionLocked()
+		clone.ObjectRevision, err = h.Revision()
 		if err != nil {
 			return nil, err
 		}
@@ -96,15 +96,21 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 				break
 			}
 		}
-		if err := stage.Create(&clone); err != nil {
+		if err := h.Stage().Create(&clone); err != nil {
 			return nil, err
 		}
 	}
 	if next == nil {
-		return e.rebuildAlterNotNullsLocked(stage, parent, transformations)
+		return parent, nil
 	}
-	if err := stage.Replace(next); err != nil {
+	if err := h.Stage().Replace(next); err != nil {
 		return nil, err
 	}
-	return e.rebuildAlterNotNullsLocked(stage, next, transformations)
+	return next, nil
+}
+
+// stageRef is the reference to address in the stage's base catalog.
+func stageRef(h index.Host, address ids.ObjectAddress) ids.ObjectRef {
+	base := h.StageBase()
+	return base.Owner().Domain.Ref(base.Epoch(), address)
 }

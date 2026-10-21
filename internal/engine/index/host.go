@@ -63,6 +63,9 @@ type Host interface {
 	ACLOutput(view catalog.Read) regobj.ACLItemOutput
 	// DefinitionReader reads definitions through the stage.
 	DefinitionReader() catalog.DefinitionReader
+	// ValidityTarget is the stage's drop provider, for the partitioned-index
+	// validity pass.
+	ValidityTarget() ValidityTarget
 
 	// BindIndexExpression binds, preflights and renders one index key
 	// expression of parent, and returns its column label.

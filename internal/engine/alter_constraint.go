@@ -151,7 +151,7 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 	}
 	next := *parent
 	e.mu.Lock()
-	err = e.stageUniqueDefinitions(op, stage, &next, []analyze.UniqueConstraint{{UniqueConstraint: definition}}, true)
+	err = StageUniqueDefinitions(ddlHost{e: e, op: op, stage: stage}, &next, []analyze.UniqueConstraint{{UniqueConstraint: definition}}, true)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, err

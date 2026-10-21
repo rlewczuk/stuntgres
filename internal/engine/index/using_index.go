@@ -90,10 +90,22 @@ func UsingIndexCatalogDuplicate(parent *catalog.Relation, name string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_constraint_conrelid_contypid_conname_index"`, Detail: fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", parent.Address().ObjectID, name), Schema: "pg_catalog", Table: "pg_constraint", Constraint: "pg_constraint_conrelid_contypid_conname_index"}
 }
 
-func StagePreparedUsingIndex(op *session.Operation, stage DescriptorStage, parent *catalog.Relation, prepared *UsingIndexPreparation) (*catalog.Relation, error) {
+// UsingIndexStage is what attaching a prepared USING INDEX needs: the stage
+// and the statement's notices. Neither needs Engine.mu, and attaching takes
+// none.
+type UsingIndexStage interface {
+	DescriptorStage() DescriptorStage
+	EmitNotice(session.NoticeLevel, sqlstate.Error)
+}
+
+// StageUsingIndex attaches a prepared USING INDEX to parent: it emits the
+// rename NOTICE, reports the preparation's deferred error, then renames the
+// index and links it to its constraint.
+func StageUsingIndex(h UsingIndexStage, parent *catalog.Relation, prepared *UsingIndexPreparation) (*catalog.Relation, error) {
 	if prepared == nil || prepared.Parent != parent {
 		return nil, ids.ErrCatalogReplaced
 	}
+	stage := h.DescriptorStage()
 	index, clone := prepared.Index, prepared.Replacement
 	current := stage.Get(index.Address())
 	if current == nil {
@@ -103,7 +115,7 @@ func StagePreparedUsingIndex(op *session.Operation, stage DescriptorStage, paren
 		return nil, ids.ErrCatalogReplaced
 	}
 	if prepared.Notice.Code != "" {
-		op.EmitNotice(session.LevelNotice, prepared.Notice)
+		h.EmitNotice(session.LevelNotice, prepared.Notice)
 	}
 	if prepared.Err != nil {
 		return nil, prepared.Err

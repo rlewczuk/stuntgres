@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"strings"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// Caller uses the installed catalog stage and index binder; no alternate type,
-// expression, predicate or method provider is introduced by EXCLUDE.
-func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
+// StageExclusion stages one EXCLUDE constraint on parent with its backing
+// index; recurse also stages the partitions' child indexes. It binds through
+// the stage's catalog and the host's index binder; EXCLUDE introduces no
+// alternate type, expression, predicate or method provider.
+func StageExclusion(h index.Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
 	s := raw.Index
 	if len(s.Keys) == 0 || len(s.Keys) != len(raw.Operators) {
 		return fmt.Errorf("stuntgres: invalid exclusion declaration")
@@ -32,26 +33,26 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 	if err := index.ValidateIndexMethod(&methodCheck); err != nil {
 		return err
 	}
-	auth.Catalog = e.stageRead(stage)
-	auth.Recapture(auth.Catalog)
-	predicate, err := e.bindIndexPredicate(op, input, auth, parent, s.Predicate)
+	auth = h.Recapture(auth, h.StageRead())
+	view := h.AccessView(auth).Catalog
+	predicate, err := h.BindIndexPredicate(auth, parent, s.Predicate, input)
 	if err != nil {
 		return err
 	}
-	definition, columns, attributes, lookup, err := e.bindIndexAttributes(op, input, auth, parent, &s)
+	definition, columns, attributes, lookup, err := BindAttributes(h, auth, input, parent, &s)
 	if err != nil {
 		return err
 	}
 	definition.Predicate = predicate
 	operators := make([]sqltype.ExclusionOperator, len(s.Keys))
 	for i, name := range raw.Operators {
-		path, err := e.lookupNamespaces(auth, name, analyze.OperatorLookup)
+		path, err := h.SearchNamespaces(auth, name, ids.OperatorClassID)
 		if err != nil {
 			return index.SemanticError(err)
 		}
 		visible := false
-		for j := range path.Count() {
-			if path.At(j) == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
+		for _, namespace := range path {
+			if namespace == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
 				visible = true
 				break
 			}
@@ -79,8 +80,8 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 		return index.Capability("index storage parameters are unsupported", s.WithPos)
 	}
 	name := raw.Name.Text
-	used := catalog.ConstraintNames(auth.Catalog, parent.Namespace(), parent)
-	for key := range auth.Catalog.Names() {
+	used := catalog.ConstraintNames(view, parent.Namespace(), parent)
+	for key := range view.Names() {
 		if key.ClassID == ids.RelationClassID && key.Namespace == parent.Namespace() {
 			used[key.Name] = true
 		}
@@ -92,8 +93,8 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 		}
 		name = catalog.GeneratedConstraintName(parent.Name(), strings.Join(labels, "_"), "excl", used)
 	} else {
-		if _, altering := stage.Base.Find(parent.Address()); altering {
-			if auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {
+		if _, altering := h.StageBase().Find(parent.Address()); altering {
+			if view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
 		}
@@ -126,15 +127,15 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 	}
-	constraintOID, err := e.catalog.allocateOIDLocked()
+	constraintOID, err := h.AllocateOID()
 	if err != nil {
 		return err
 	}
-	indexOID, err := e.catalog.allocateOIDLocked()
+	indexOID, err := h.AllocateOID()
 	if err != nil {
 		return err
 	}
-	revision, err := e.catalog.revisionLocked()
+	revision, err := h.Revision()
 	if err != nil {
 		return err
 	}
@@ -144,20 +145,20 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 	if err := index.PartitionUniqueCoverage(parent, definition); err != nil {
 		return err
 	}
-	index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}}
+	backing := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}}
 	for i := range columns {
-		index.Columns[i].Nullable = true
-		index.Columns[i].NullabilityKnown = true
-		index.Columns[i].OriginTable = uint32(indexOID)
-		index.Columns[i].OriginAttribute = int16(i + 1)
+		backing.Columns[i].Nullable = true
+		backing.Columns[i].NullabilityKnown = true
+		backing.Columns[i].OriginTable = uint32(indexOID)
+		backing.Columns[i].OriginAttribute = int16(i + 1)
 	}
 	parent.Constraints.Exclusion = append(parent.Constraints.Exclusion, c)
-	if _, existing := stage.Base.Find(parent.Address()); existing {
-		if err := stage.Replace(parent); err != nil {
+	if _, existing := h.StageBase().Find(parent.Address()); existing {
+		if err := h.Stage().Replace(parent); err != nil {
 			return err
 		}
 	}
-	if err := stage.Create(index); err != nil {
+	if err := h.Stage().Create(backing); err != nil {
 		return err
 	}
 	if parent.Partition != nil {
@@ -165,15 +166,17 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 			definition.Valid = len(parent.Partition.Children) == 0
 			return nil
 		}
-		return e.stagePartitionIndexChildren(op, stage, parent, index, false)
+		return StagePartitionIndexChildren(h, parent, backing, false)
 	}
 	return nil
 }
 
-func (e *Engine) stageCreateExclusions(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, s *parser.CreateTable) error {
+// StageCreateExclusions stages the EXCLUDE constraints of CREATE TABLE s on
+// the new table parent.
+func StageCreateExclusions(h index.Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateTable) error {
 	for _, element := range s.Elements {
 		if element.Exclusion != nil {
-			if err := e.stageExclusion(op, input, auth, stage, parent, element.Exclusion, true); err != nil {
+			if err := StageExclusion(h, auth, input, parent, element.Exclusion, true); err != nil {
 				return err
 			}
 		}

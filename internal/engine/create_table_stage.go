@@ -161,10 +161,16 @@ func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView
 			}
 		}
 	}
-	if err := e.stageCreateUniques(op, stage, d, b.Create.Uniques); err != nil {
+	h := ddlHost{e: e, op: op, stage: stage}
+	for _, declaration := range b.Create.Uniques {
+		if declaration.Source != nil {
+			stage.captureLikeSource(declaration.Source)
+		}
+	}
+	if err := StageCreateUniques(h, d, b.Create.Uniques); err != nil {
 		return err
 	}
-	if err := e.stageCreateExclusions(op, input, auth, stage, d, s); err != nil {
+	if err := StageCreateExclusions(h, auth, input, d, s); err != nil {
 		return err
 	}
 	if err := e.stageLikeIndexes(op, auth, stage, d, b.Create.Likes); err != nil {

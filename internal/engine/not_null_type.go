@@ -10,8 +10,12 @@ import (
 )
 
 // TYPE recreates affected NN identities without changing names or validity.
+// It runs right after index.RebuildAlterUniques; with no changes it is a no-op.
 // New attachments already describe the completed shape and are not recreated.
 func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog.Relation, changes []index.ColumnTransformation) (*catalog.Relation, error) {
+	if len(changes) == 0 {
+		return parent, nil
+	}
 	original, ok := stage.Base.Relation(parent.Address())
 	if !ok {
 		return nil, ids.ErrCatalogReplaced

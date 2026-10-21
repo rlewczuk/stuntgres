@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
@@ -26,6 +27,10 @@ func (h ddlHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
 }
 
 func (h ddlHost) DefinitionReader() catalog.DefinitionReader { return stageDefinitionReader{h.stage} }
+
+func (h ddlHost) ValidityTarget() index.ValidityTarget {
+	return stageDropProvider(context.Background(), h.stage, nil, nil, nil)
+}
 
 func (h ddlHost) LookupCollation(raw parser.ObjectName) (uint32, error) {
 	return h.e.lookupCollation(raw, h.op)

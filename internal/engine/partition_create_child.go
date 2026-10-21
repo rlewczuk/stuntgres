@@ -184,10 +184,16 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err = e.assignDefinitionOIDsLocked(d); err != nil {
 		return nil, err
 	}
-	if err = e.stageCreateUniques(op, stage, d, uniques); err != nil {
+	h := ddlHost{e: e, op: op, stage: stage}
+	for _, declaration := range uniques {
+		if declaration.Source != nil {
+			stage.captureLikeSource(declaration.Source)
+		}
+	}
+	if err = StageCreateUniques(h, d, uniques); err != nil {
 		return nil, err
 	}
-	if err = e.stageCreateExclusions(op, scope.input, auth, stage, d, syntax); err != nil {
+	if err = StageCreateExclusions(h, auth, scope.input, d, syntax); err != nil {
 		return nil, err
 	}
 	return d, nil

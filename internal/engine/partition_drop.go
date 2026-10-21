@@ -50,7 +50,7 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *catalog.R
 	if err := provider.Replace(&next); err != nil {
 		return err
 	}
-	return provider.partitionIndexValidity(ids.ObjectAddress{})
+	return PartitionIndexValidity(provider, ids.ObjectAddress{})
 }
 
 func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
