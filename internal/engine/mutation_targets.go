@@ -131,7 +131,7 @@ func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 // Capture the already admitted manifest, never rediscover a graph after the
 // command view has frozen its roots. Each segment retains real physical rows.
 func (s *StatementScope) captureMutationSource(ctx context.Context, dataView *visibility.View, b analyze.Binding) (*exec.Source, error) {
-	if s.rls.targetDenied {
+	if s.rls.TargetDenied {
 		return view.CaptureDeniedQuerySource(dataView, b.Ref)
 	}
 	if len(s.inheritedTargets) == 0 {

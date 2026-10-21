@@ -391,9 +391,9 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		}
 	}
 	rowContext := *evaluation
-	scope.rls.proposal = scope.rls.mergeInsert
+	scope.rls.Proposal = scope.rls.MergeInsert
 	if arm.Action == parser.MergeUpdateAction {
-		scope.rls.proposal = scope.rls.mergeUpdate
+		scope.rls.Proposal = scope.rls.MergeUpdate
 	}
 	if err := e.validateInsertRow(scope, b, schema, row, &rowContext); err != nil {
 		return err
