@@ -277,8 +277,10 @@ clean, stop and report the `reach` path instead of widening the cut.
 
 ### 22b — Create `stored` and move the set (broad)
 
-1. **Prerequisites.** Check that 21b (`regobj`), F6 (no function cases in
-   `view_remap.go`) and 18b (`dump.CommentLiteral`) have landed. Re-run
+1. **Prerequisites.** Check that 21b (`regobj`), F6 (no provider switch in
+   `expression_remap.go`; only the documented `functions.SequenceCall` Ref
+   case remains, see the functions F6 record) and 18b (`dump.CommentLiteral`)
+   have landed. Re-run
    the fixed point from `set4.txt` plus the 22a additions; OUT must hold
    only `regobj`, `dump`, `catalog` and `sqlError`. Stop if not.
 2. **Names.** Settled in 22a (record the table in the README):

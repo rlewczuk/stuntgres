@@ -607,6 +607,17 @@ name binds as `count`, for its missing-function diagnostics; only
 | JSON | `json_aggregate_bind.go`, `json_object_aggregate_bind.go` | `jsonArrayAggregateNames`, `jsonObjectAggregateNames`, `json_objectagg` (`BindReturning`) |
 | WITHIN GROUP | `ordered_set_bind.go` | `percentile_cont`, `percentile_disc`, `mode`, the rank family |
 
+Providers that may persist in a view or stored query implement
+`RemappableProvider` (`aggregate_remap.go`). When the stored query moves to new
+catalog generations, the engine's view remapper calls `Remap` with a
+`ProviderRemap`: the type mapper, a usage mapper that also remaps the collation,
+and the call's stored argument usage (ordered sets bind their ordering from
+it). `Remap` rebuilds the provider and rebinds the plans it derived (bitwise
+operators, JSON conversion plans, extrema and ordering comparisons, the range
+aggregate), returning the first error. A new aggregate provider that views may
+store needs this method; without it, view creation fails with "unpersistable
+view aggregate". Window SUM uses the same hook.
+
 `window_function_bind.go` holds the `windowFunctions` table
 (`LookupWindowFunction`): `row_number`, `ntile`, `first_value`/`last_value`/
 `nth_value`, `lead`/`lag` and the rank family. `Signature` analyzes the
@@ -905,6 +916,19 @@ executor ownership remain engine responsibilities. There is no alternate binder,
 dynamic plugin registration, compatibility forwarding carrier or duplicated
 type algorithm.
 
+Two kinds of glue stay in the root. The `statementHost` capability bodies
+implement `functions` capabilities over engine state, so they stay by design:
+`advisory_runtime.go`, `blocking_runtime.go`, `acl_runtime.go`,
+`catalog_inquiry_runtime.go`, `session_inquiry_runtime.go`,
+`transaction_inquiry_runtime.go`, `setting_calls.go` and
+`statement_host_function.go`. The installed-node validators
+(`validateInstalled*` in the `levenshtein_`, `soundex_`, `metaphone_`,
+`uuid_ossp_` and `pgcrypto_expression.go` files) and the function deparse
+helpers (`sqljson_deparse.go`, `subscripts_deparse.go`,
+`datetime_overlaps_render.go`, `datetime_zone_deparse.go`,
+`intagg_presentation.go`) are stored-presentation code: they move with
+`stored` (engine-split step 22).
+
 Bind code of registered families that engine glue still reaches is
 exported: `FinishArrayTransform` (the `||` operator), `ArraySearchNode` (the
 `@>`/`<@`/`&&` membership operators) and `FinishRangeInspect` (`lower` and
@@ -1097,6 +1121,20 @@ without allocating code strings, so two empty/no-letter inputs agree4.
 There is no input-length limit, Unicode normalization or transliteration.
 
 ## Testing
+### Aggregate provider remap
+
+`aggregate_remap_test.go` holds the leaf units: every persistable provider maps
+each descriptor it exposes, returns a usage error unchanged, ordered sets read
+the stored argument usage, and the range result check. Engine integration and
+public witnesses:
+
+```sh
+make check RUN='^(TestAggregateProviderRemap.*|TestIntaggIdentityRemap|TestQueryWindowReviewDescriptorRemap|TestQueryWindowRows(Domain)?Remap|TestQuerySubquery(Presence|View)Remap|TestIntervalSumProviderViewRemap|TestRangeAggregateRemap|TestJSON(Object|Array)AggregateProviderRemap|TestPGAggregateIntaggRemap)$'
+make check RUN='^TestReference(AggregateModifiersLifecycle|AnyValueViews|CorrelationRegressionLifecycle|Extrema(Lifecycle|ViewCollation)|HypotheticalAggregateLifecycle|MoneyIntervalSum(Lifecycle|Consumers)|StatisticalAggregateLifecycle|GroupingSets(Lifecycle|TypedStoredDefinitions)|OrderedSetAggregateViews|RangeAggregateControls|JSON(Object|Array)AggregateControls|BitwiseAggregateControls|StringAggLifecycle|ArrayAggLifecycle|PGAggregateIdentityPersistence|QueryWindowLifecycle)$'
+```
+
+Run the reference selector with `REFERENCE=1` as well.
+
 ### Catalog inquiry ownership and selected proof
 
 Pure inventory/cursor, AM-name, node validation, nullability, grouping-property
