@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -37,7 +38,7 @@ func (enginePreparation) DomainCatalog(c *exec.Context) catalog.Read {
 func (enginePreparation) ReturnsSet(d *catalog.Procedure) bool { return procedureReturnsSet(d) }
 
 func (enginePreparation) StoredReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
-	return ReferenceEpochValid(view, consumer, ref)
+	return stored.ReferenceEpochValid(view, consumer, ref)
 }
 
 func (enginePreparation) ValidInstalledText(n plan.InstalledTextExpr) bool {

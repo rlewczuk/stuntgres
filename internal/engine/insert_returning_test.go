@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -139,7 +140,7 @@ func TestInsertReturningWholeRow(t *testing.T) {
 				if !analyze.ExpressionUsesFrame(expr, 1) {
 					t.Fatal("lost zero-member correlation", i)
 				}
-				mapped, err := RemapExpression(expr, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, nil)
+				mapped, err := stored.RemapExpression(expr, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, nil)
 				if err != nil || mapped.ResultUsage().Type != typ || !analyze.ExpressionUsesFrame(mapped, 1) {
 					t.Fatal("retained row remapping", mapped, err)
 				}

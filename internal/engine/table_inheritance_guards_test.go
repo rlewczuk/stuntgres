@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -21,7 +22,7 @@ func TestInheritanceGuards(t *testing.T) {
 		NotNull: map[int32]catalog.InheritedConstraint{5: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 3, Constraint: 90003}}}},
 	}}
 	standalone := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90004}, RelationKind: catalog.TableRelation}
-	view := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90005}, RelationKind: catalog.ViewRelation, View: NewView(ViewParts{Sources: []viewLeaf{{Ref: ids.ObjectRef{Address: parent.Address()}}}})}
+	view := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90005}, RelationKind: catalog.ViewRelation, View: stored.NewView(stored.ViewParts{Sources: []viewLeaf{{Ref: ids.ObjectRef{Address: parent.Address()}}}})}
 	for _, relation := range []*catalog.Relation{parent, child, standalone, view} {
 		catalogView.State().SetDescriptor(relation.Address(), relation)
 	}
@@ -33,7 +34,7 @@ func TestInheritanceGuards(t *testing.T) {
 		}
 	}
 	cyclic := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90006}, RelationKind: catalog.ViewRelation}
-	cyclic.View = NewView(ViewParts{Sources: []viewLeaf{{Ref: ids.ObjectRef{Address: cyclic.Address()}}, {Ref: ids.ObjectRef{Address: parent.Address()}}}})
+	cyclic.View = stored.NewView(stored.ViewParts{Sources: []viewLeaf{{Ref: ids.ObjectRef{Address: cyclic.Address()}}, {Ref: ids.ObjectRef{Address: parent.Address()}}}})
 	catalogView.State().SetDescriptor(cyclic.Address(), cyclic)
 	assertError(inheritanceTargetGuard(catalogView, cyclic), "0A000", "recursive table inheritance is unsupported", "")
 	for _, relation := range []*catalog.Relation{parent, view} {

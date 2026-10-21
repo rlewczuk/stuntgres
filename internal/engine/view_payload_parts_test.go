@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -13,7 +14,7 @@ import (
 // must copy each one into its own twin: a field set alone round-trips alone.
 func TestViewPartsRoundTrip(t *testing.T) {
 	definition := reflect.TypeFor[viewDefinition]()
-	parts := reflect.TypeFor[ViewParts]()
+	parts := reflect.TypeFor[stored.ViewParts]()
 	if definition.NumField() != parts.NumField() {
 		t.Fatalf("ViewParts has %d fields, viewDefinition %d", parts.NumField(), definition.NumField())
 	}
@@ -25,15 +26,15 @@ func TestViewPartsRoundTrip(t *testing.T) {
 		}
 	}
 	for i := range parts.NumField() {
-		var p ViewParts
+		var p stored.ViewParts
 		value := reflect.ValueOf(&p).Elem().Field(i)
 		value.Set(nonZero(t, value.Type()))
-		if got := NewView(p).Parts(); !reflect.DeepEqual(got, p) {
+		if got := stored.NewView(p).Parts(); !reflect.DeepEqual(got, p) {
 			t.Fatalf("ViewParts.%s did not round-trip: %+v", parts.Field(i).Name, got)
 		}
-		original := NewView(p)
-		edited := original.With(func(q *ViewParts) { *q = ViewParts{} })
-		if edited == original || !reflect.DeepEqual(original.Parts(), p) || !reflect.DeepEqual(edited.Parts(), ViewParts{}) {
+		original := stored.NewView(p)
+		edited := original.With(func(q *stored.ViewParts) { *q = stored.ViewParts{} })
+		if edited == original || !reflect.DeepEqual(original.Parts(), p) || !reflect.DeepEqual(edited.Parts(), stored.ViewParts{}) {
 			t.Fatalf("With changed its receiver for ViewParts.%s", parts.Field(i).Name)
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -86,7 +87,7 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 func TestRangeMoreExpressionHooks(t *testing.T) {
 	view, fresh := New().CatalogRead(), New().CatalogRead()
 	e := moreUnitExpression(t, view)
-	next, changed, err := RetagTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	next, changed, err := stored.RetagTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		n, ok := fresh.LookupType(d.ID())
 		if ok {
 			return n

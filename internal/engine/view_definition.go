@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -23,5 +24,5 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 			return nil, err
 		}
 	}
-	return FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), syntax, b, barrier, invoker, rule, temporaryMessage, temporaryConsumer)
+	return stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), syntax, b, barrier, invoker, rule, temporaryMessage, temporaryConsumer)
 }

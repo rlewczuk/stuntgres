@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -42,28 +43,28 @@ func intaggUnitRecipes(t *testing.T) {
 				child = &plan.AggregateNode{Child: child, Calls: b.Grouping.Aggregates}
 			}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: syntax}
-			definition := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages})
-			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
+			definition := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages})
+			definition = definition.With(func(p *stored.ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
 			if err := definition.ValidateLiterals(e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			renderer := NewQueryRenderer(definition)
+			renderer := stored.NewQueryRenderer(definition)
 			renderer.Frame = b.FrameID()
 			text, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}
 			for _, badRef := range []ids.ObjectRef{{}, New().catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.Address())} {
-				bad := definition.With(func(p *ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: badRef} })
+				bad := definition.With(func(p *stored.ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: badRef} })
 				if err := bad.ValidateLiterals(e.CatalogRead()); err == nil {
 					t.Fatal("forged frozen reference accepted", badRef)
 				}
 			}
-			missing := definition.With(func(p *ViewParts) { p.RoutineRefs = nil })
+			missing := definition.With(func(p *stored.ViewParts) { p.RoutineRefs = nil })
 			if err := missing.ValidateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("raw-name fallback accepted")
 			}
-			extra := definition.With(func(p *ViewParts) {
+			extra := definition.With(func(p *stored.ViewParts) {
 				p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref, {Query: b.FrameID(), Target: 99}: ref}
 			})
 			if err := extra.ValidateLiterals(e.CatalogRead()); err == nil {
@@ -92,7 +93,7 @@ func intaggUnitRecipes(t *testing.T) {
 				}
 				return old
 			}
-			mapped, err := RemapView(view, definition, mapping, mapRef, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil)
+			mapped, err := stored.RemapView(view, definition, mapping, mapRef, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

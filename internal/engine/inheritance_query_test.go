@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -267,8 +268,8 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++
-		frozen := NewView(ViewParts{Sources: []viewLeaf{{Ref: old, Only: only}}, Query: &plan.Query{Root: &plan.SourceNode{Ref: old}}})
-		mapped, err := RemapView(e.CatalogRead(), frozen, nil, func(source ids.ObjectRef) ids.ObjectRef {
+		frozen := stored.NewView(stored.ViewParts{Sources: []viewLeaf{{Ref: old, Only: only}}, Query: &plan.Query{Root: &plan.SourceNode{Ref: old}}})
+		mapped, err := stored.RemapView(e.CatalogRead(), frozen, nil, func(source ids.ObjectRef) ids.ObjectRef {
 			if source == old {
 				return ref
 			}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -79,14 +80,14 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 				t.Fatal(serialized, wantTree, err)
 			}
 			target := New()
-			retagged, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+			retagged, changed, err := stored.RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 				typ, _ := target.CatalogRead().LookupType(d.ID())
 				return typ
 			})
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			remapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
+			remapped, err := stored.RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
 				t.Fatal("identity leaf invented a catalog reference", ref)
 				return ref
 			}, nil)

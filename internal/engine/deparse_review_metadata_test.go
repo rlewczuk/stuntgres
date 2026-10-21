@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -95,14 +96,14 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 			t.Fatal("unknown and concrete NULL conflated")
 		}
 		target := New()
-		retagged, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := stored.RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, _ := target.CatalogRead().LookupType(d.ID())
 			return typ
 		})
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		remapped, err := stored.RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -277,7 +278,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "CREATE TABLE t(id INT)")
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
-	view := ViewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
+	view := stored.ViewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
 	literal, ok := view.Literals()[analyze.ViewLiteralPath{Query: view.Query().Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 0, Node: 0}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.Literals())

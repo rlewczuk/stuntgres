@@ -8,6 +8,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -46,7 +47,7 @@ func validateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, defi
 		address := ref.Address
 		address.SubID = 0
 		provider, ok := view.Descriptor(address)
-		if !ok || !ReferenceEpochValid(view, d, ref) {
+		if !ok || !stored.ReferenceEpochValid(view, d, ref) {
 			return fmt.Errorf("stuntgres: missing default provider dependency")
 		}
 		if relation, ok := provider.(*catalog.Relation); ok {
@@ -61,7 +62,7 @@ func validateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, defi
 				}
 			}
 		} else if provider.Kind() == ids.CollationObject {
-			if err := ValidateCollationDependency(view, ref, definition.Expression); err != nil {
+			if err := stored.ValidateCollationDependency(view, ref, definition.Expression); err != nil {
 				return err
 			}
 		} else if provider.Kind() == ids.NamespaceObject {

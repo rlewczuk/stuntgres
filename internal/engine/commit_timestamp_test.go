@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -331,7 +332,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+name+"(") {
 			t.Fatal(recipe, err)
 		}
-		persisted, err := RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		persisted, err := stored.RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !analyze.SameGroupExpression(n, persisted) || persisted.(expr.StoredProvider).ValidateStoredProvider() != nil {
 			t.Fatal("symbolic persistence lost the inquiry signature or argument", err)
 		}
@@ -346,7 +347,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			persisted, err := RemapExpression(withColumn, func(ref ids.ObjectRef) ids.ObjectRef {
+			persisted, err := stored.RemapExpression(withColumn, func(ref ids.ObjectRef) ids.ObjectRef {
 				ref.Address.SubID++
 				return ref
 			}, map[int32]int{2: 3})
@@ -365,7 +366,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		}
 		fresh := New()
 		fb := newTestExpressionBinder(t, ctx, fresh, sqltype.InputEnvironment{}, nil)
-		mapped, _, err := RetagTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, _, err := stored.RetagTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d.IsComposite() {
 				return d
 			}

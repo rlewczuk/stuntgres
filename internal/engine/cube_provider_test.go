@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/engine/access"
@@ -60,10 +61,10 @@ func TestCubeProviderIdentity(t *testing.T) {
 		t.Fatal("lookup-only reciprocal array")
 	}
 	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}
-	if DependPinned(view, nil, base.Address()) || DependPinned(view, nil, arrayAddress) {
+	if stored.DependPinned(view, nil, base.Address()) || stored.DependPinned(view, nil, arrayAddress) {
 		t.Fatal("installed base or automatic array classified as bootstrap-pinned")
 	}
-	if !DependPinned(view, nil, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
+	if !stored.DependPinned(view, nil, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
 		t.Fatal("builtin int4 array lost bootstrap pinning")
 	}
 	for i, address := range ext.Members {

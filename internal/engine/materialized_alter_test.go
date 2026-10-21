@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -34,12 +35,12 @@ func TestMaterializedAlterIdentity(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	store := e.storage.Relations[d.Address()]
-	rule, rowType := ViewOf(d).RuleOID(), d.RowType
+	rule, rowType := stored.ViewOf(d).RuleOID(), d.RowType
 	if err := materializedAlterUnit(t, e, op, d, "rename", "saved"); err != nil {
 		t.Fatal(err)
 	}
 	next := e.catalog.state.MustRelation(d.Address())
-	if next == d || next.Name() != "saved" || d.Name() != "unit_mv" || next.RowType != rowType || ViewOf(next).RuleOID() != rule || next.View != d.View || e.storage.Relations[d.Address()] != store || !reflect.DeepEqual(next.Attributes, d.Attributes) {
+	if next == d || next.Name() != "saved" || d.Name() != "unit_mv" || next.RowType != rowType || stored.ViewOf(next).RuleOID() != rule || next.View != d.View || e.storage.Relations[d.Address()] != store || !reflect.DeepEqual(next.Attributes, d.Attributes) {
 		t.Fatal("metadata publication reminted or mutated captured identity")
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(rowType)})

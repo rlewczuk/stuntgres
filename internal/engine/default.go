@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -41,7 +42,7 @@ func bindCreateDefaults(b *analyze.Binder, columns []catalog.Column, declaration
 		if err != nil {
 			return nil, err
 		}
-		if OmitColumnDefault(view, node, columns[slot].Usage) {
+		if stored.OmitColumnDefault(view, node, columns[slot].Usage) {
 			continue
 		}
 		definition := catalog.ColumnDefault{Expression: node}

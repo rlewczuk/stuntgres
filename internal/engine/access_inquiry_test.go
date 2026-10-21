@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -175,7 +176,7 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	n.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: oid.Usage()}, Value: v}
 	n.Args[2] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "MEMBER")}
 	destination := New().CatalogRead()
-	mapped, changed, err := RetagTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := stored.RetagTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil
 		}
@@ -200,7 +201,7 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	if n.Args[0].ResultUsage().Type != name {
 		t.Fatal("mutated original children")
 	}
-	rewritten, changed, err := MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
+	rewritten, changed, err := stored.MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
 		if literal, ok := child.(plan.LiteralExpr); ok && literal.Value.Type().ID() == sqltype.Name {
 			literal.Value = sqltype.String(name, "replacement")
 			return literal, true, nil
@@ -215,7 +216,7 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	if got != "replacement" || old != "postgres" {
 		t.Fatal("recipe rewrite aliasing", got, old)
 	}
-	remapped, err := RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	remapped, err := stored.RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || remapped.(functions.AccessInquiry).Validate() != nil {
 		t.Fatal("stored recipe remap", err)
 	}

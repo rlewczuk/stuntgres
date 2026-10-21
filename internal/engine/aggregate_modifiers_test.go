@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -317,7 +318,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
-	remapped, err := RemapViewQuery(New().CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
+	remapped, err := stored.RemapViewQuery(New().CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
 	if err != nil || remapped == node {
 		t.Fatal(remapped, err)
 	}

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -52,11 +53,11 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 			RegtypeConstants:  b.Prepared.RegtypeConstants,
 		},
 	}
-	frozen, err := FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
+	frozen, err := stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}
-	refs, err := ExpressionDependRefs(scope.op.Context(), auth.Catalog, node)
+	refs, err := stored.ExpressionDependRefs(scope.op.Context(), auth.Catalog, node)
 	if err != nil {
 		return nil, err
 	}
@@ -69,10 +70,10 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 			Revision: auth.Catalog.Get(whole).Revision(),
 		})
 	}
-	frozen = frozen.With(func(p *ViewParts) {
+	frozen = frozen.With(func(p *stored.ViewParts) {
 		p.Frames[1] = root
 		p.ExpressionSyntax = raw
 		p.Dependencies = dependencies
 	})
-	return NewPolicy(raw, node, frozen), nil
+	return stored.NewPolicy(raw, node, frozen), nil
 }

@@ -6,13 +6,14 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
 func validateRetiredInheritance(view catalog.Read, table *catalog.Relation, p catalog.InheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.Retired {
 		parent, ok := view.Relation(history.Parent.Address)
-		if !ok || parent.RelationKind != catalog.TableRelation || !ReferenceEpochValid(view, table, history.Parent) || history.Parent.Address.SubID != 0 || history.Attribute <= 0 || history.Attribute > 1600 || history.Column == "" || history.Name == "" || history.Constraint == 0 || history.Lifetime == 0 || history.Own != own || history.Check != check || !slices.Contains(table.Inheritance.Parents, parent.Address()) {
+		if !ok || parent.RelationKind != catalog.TableRelation || !stored.ReferenceEpochValid(view, table, history.Parent) || history.Parent.Address.SubID != 0 || history.Attribute <= 0 || history.Attribute > 1600 || history.Column == "" || history.Name == "" || history.Constraint == 0 || history.Lifetime == 0 || history.Own != own || history.Check != check || !slices.Contains(table.Inheritance.Parents, parent.Address()) {
 			return fmt.Errorf("stuntgres: invalid retired inheritance origin")
 		}
 		if history.Replayed != (history.Archive != 0) {

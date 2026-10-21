@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -197,7 +198,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 	if !ok || !domain.SQLType.IsDomain() {
 		return false, nil
 	}
-	view := ViewOf(relation)
+	view := stored.ViewOf(relation)
 	if view == nil || view.Query() == nil {
 		return false, nil
 	}
@@ -230,7 +231,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 	} else {
 		return false, fmt.Errorf("stuntgres: missing view dependency projection")
 	}
-	refs, err := QueryDependRefs(provider.ctx, provider.base, reader, view.Query())
+	refs, err := stored.QueryDependRefs(provider.ctx, provider.base, reader, view.Query())
 	if err != nil {
 		return false, err
 	}

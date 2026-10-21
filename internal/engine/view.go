@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -185,7 +186,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	// CREATE checks local declaration shape before options and replacement prefix.
 	for _, option := range view.Options {
 		if option.Name.Text == "check_option" {
-			if err := ValidateViewCheckDeclaration(NewView(ViewParts{Syntax: view.Query, Query: b.Query})); err != nil {
+			if err := stored.ValidateViewCheckDeclaration(stored.NewView(stored.ViewParts{Syntax: view.Query, Query: b.Query})); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
@@ -221,7 +222,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, err
 		}
 	}
-	barrier, invoker, mode, err := ViewOptions(view.Options)
+	barrier, invoker, mode, err := stored.ViewOptions(view.Options)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -249,7 +250,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	var oid, rule ids.OID
 	if old != nil {
-		oid, rule = old.Address().ObjectID, ViewOf(old).RuleOID()
+		oid, rule = old.Address().ObjectID, stored.ViewOf(old).RuleOID()
 	} else {
 		oid, err = e.catalog.allocateOIDLocked()
 		if err == nil {
@@ -270,15 +271,15 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition = definition.With(func(p *ViewParts) {
+	definition = definition.With(func(p *stored.ViewParts) {
 		p.CheckOption = mode
 		p.Options = transformViewOptions(nil, view.Options, false)
 		p.QuoteRevision = revision
 	})
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.Query.Root.Schema()))}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: stored.ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.Query.Root.Schema()))}
 	if old != nil {
 		*d = *old
-		d.ObjectRevision, d.View = revision, ViewPayload(definition)
+		d.ObjectRevision, d.View = revision, stored.ViewPayload(definition)
 		d.Columns = append([]catalog.Column(nil), b.Query.Root.Schema()...)
 		d.Attributes = make([]int32, len(d.Columns))
 		copy(d.Attributes, old.Attributes)
@@ -288,8 +289,8 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.Security.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
 	}
 	if scope.viewCreationOrZero().persistence == "temporary" {
-		definition = definition.With(func(p *ViewParts) { p.Consumer = d.Address() })
-		d.View = ViewPayload(definition)
+		definition = definition.With(func(p *stored.ViewParts) { p.Consumer = d.Address() })
+		d.View = stored.ViewPayload(definition)
 	}
 	attribute := d.ColumnMeta.HighWater
 	for _, id := range d.Attributes {

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -40,14 +41,14 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if name == "json_array_elements_text" {
 			id = sqltype.Text
 		}
-		if original.ResultUsage().Type != b.Type(id) || original.ResultUsage().Type.IsComposite() || !ValidExpressionUsage(view, original.ResultUsage()) {
+		if original.ResultUsage().Type != b.Type(id) || original.ResultUsage().Type.IsComposite() || !stored.ValidExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("scalar result usage", original)
 		}
 		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.Clause.QueryHasTargetSet || !exec.SourceReturnsSet(original) || exec.QuerySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
-		mapped, changed, err := RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+		mapped, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal("retag", changed, err)
 		}
@@ -76,7 +77,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if len(dependencies) != 1 || dependencies[0] != original.Args[0] || exec.PlannedVolatility(original) != expr.Immutable {
 			t.Fatal("lost argument dependency", dependencies)
 		}
-		clone, err := RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+		clone, err := stored.RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 		if err != nil || !analyze.SameGroupExpression(original, clone) {
 			t.Fatal("stored remap", clone, err)
 		}

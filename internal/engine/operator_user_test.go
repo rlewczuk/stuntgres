@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -383,7 +384,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	wrapped := plan.SelectedOperatorExpr{Info: info, Operator: source, Ref: original, Provider: provider}
 	assertManifest := func(node expr.Expr, operator ids.ObjectAddress) {
 		t.Helper()
-		_, manifest, err := RenderColumnDefault(context.Background(), view, node)
+		_, manifest, err := stored.RenderColumnDefault(context.Background(), view, node)
 		if err != nil {
 			t.Fatal("stored selected operator", err)
 		}
@@ -410,7 +411,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		}
 	}
 	assertManifest(wrapped, source.Address())
-	mapped, err := RemapExpression(wrapped, func(ref ids.ObjectRef) ids.ObjectRef {
+	mapped, err := stored.RemapExpression(wrapped, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address == original.Address {
 			ref.Address.ObjectID = 90001
 		}
@@ -472,7 +473,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	if err != nil || mappedID != 90001 {
 		t.Fatal("nested domain alias remap", mappedID, err)
 	}
-	retagged, _, err := RetagTypes(view, mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	retagged, _, err := stored.RetagTypes(view, mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}

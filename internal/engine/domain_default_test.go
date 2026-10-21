@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -95,7 +96,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	plain := domainUnitType(t, view, "no_default")
 	integer, _ := view.LookupType(sqltype.Int4)
 	null := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
-	if !OmitColumnDefault(view, null, integer.Usage()) || OmitColumnDefault(view, null, parent.SQLType.Usage()) || !OmitColumnDefault(view, null, plain.SQLType.Usage()) {
+	if !stored.OmitColumnDefault(view, null, integer.Usage()) || stored.OmitColumnDefault(view, null, parent.SQLType.Usage()) || !stored.OmitColumnDefault(view, null, plain.SQLType.Usage()) {
 		t.Fatal("plain NULL omission/domain mask distinction")
 	}
 	badPresentation := *parent

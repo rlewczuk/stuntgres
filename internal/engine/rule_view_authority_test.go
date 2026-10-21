@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 )
 
@@ -37,7 +38,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			inner.Owner, inner.RelationKind = owner.Ref, catalog.ViewRelation
 			inner.Security.ACL = grant(actor.Ref)
 			inner.Security.ACL.Entries = append(inner.Security.ACL.Entries, grant(owner.Ref).Entries...)
-			inner.View = NewView(ViewParts{
+			inner.View = stored.NewView(stored.ViewParts{
 				Query:   &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(base.Columns), Ref: baseRef}},
 				Invoker: shape == "invoker" || shape == "definer_over_invoker",
 				Sources: []viewLeaf{{Ref: baseRef, Reads: []int32{1}, Attributes: []int32{1, 2}}},
@@ -47,7 +48,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				outer := *inner
 				outer.ObjectAddress.ObjectID++
 				outer.ObjectName = "outer_view"
-				outer.View = NewView(ViewParts{
+				outer.View = stored.NewView(stored.ViewParts{
 					Query:   &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(inner.Columns), Ref: ruleUnitRef(e, inner)}},
 					Invoker: shape == "invoker_over_definer",
 					Sources: []viewLeaf{{Ref: ruleUnitRef(e, inner), Reads: []int32{1}, Attributes: []int32{1, 2}}},

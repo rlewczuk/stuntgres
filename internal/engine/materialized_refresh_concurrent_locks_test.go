@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			stage, source := queryCreateStage(t, e, "concurrent_unit_source", 1)
 			queryCreatePublish(t, e, stage)
 			sourceRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), source.Address())
-			d.View = ViewOf(d).With(func(p *ViewParts) {
+			d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
 				p.Sources = []viewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
 			targetRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -46,8 +47,8 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			ownedSyntax := *syntax
 			ownedSyntax.Targets = []parser.Expr{frozen}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: &ownedSyntax}
-			definition := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: &ownedSyntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages})
-			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
+			definition := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: project}, Syntax: &ownedSyntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages})
+			definition = definition.With(func(p *stored.ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
 			read := e.CatalogRead()
 			if err := definition.ValidateLiterals(read); err != nil {
 				t.Fatal(err)
@@ -66,16 +67,16 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			}
 			badReferences = append(badReferences, e.catalog.Domain.Ref(read.Epoch(), builtins[0]))
 			for _, ref := range badReferences {
-				bad := definition.With(func(p *ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref} })
+				bad := definition.With(func(p *stored.ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref} })
 				if err := bad.ValidateLiterals(read); err == nil {
 					t.Fatal("forged frozen SQL reference accepted", ref)
 				}
 			}
-			missing := definition.With(func(p *ViewParts) { p.RoutineRefs = nil })
+			missing := definition.With(func(p *stored.ViewParts) { p.RoutineRefs = nil })
 			if err := missing.ValidateLiterals(read); err == nil {
 				t.Fatal("missing SQL capture accepted")
 			}
-			extra := definition.With(func(p *ViewParts) {
+			extra := definition.With(func(p *stored.ViewParts) {
 				p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.FrameID(), Target: 99}: n.Ref}
 			})
 			if err := extra.ValidateLiterals(read); err == nil {
@@ -88,7 +89,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			}
 			render := func() string {
 				t.Helper()
-				renderer := NewQueryRenderer(definition)
+				renderer := stored.NewQueryRenderer(definition)
 				renderer.Frame = b.FrameID()
 				text, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), frozen, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {

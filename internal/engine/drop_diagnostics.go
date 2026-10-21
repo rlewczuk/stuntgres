@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -152,7 +153,7 @@ func dependencyRelationName(catalogView catalog.Read, d *catalog.Relation, path 
 	if path == nil {
 		return catalog.DependencyIdentifier(d.Name())
 	}
-	return RelationDiagnosticNameAt(catalogView, d, path)
+	return stored.RelationDiagnosticNameAt(catalogView, d, path)
 }
 
 type supportedDependent struct {

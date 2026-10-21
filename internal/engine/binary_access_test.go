@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -111,7 +112,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			t.Fatal(err)
 		}
 		original := functions.Binary{Info: expr.Info{Usage: types[result].Usage()}, Plan: p, Args: args}
-		rebound, changed, err := RetagTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
+		rebound, changed, err := stored.RetagTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(name, changed, err)
 		}

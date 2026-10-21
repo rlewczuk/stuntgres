@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/stored"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -81,7 +82,7 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 	}
 	if t.SQLType.IsDomain() {
 		base := t.SQLType.DomainBase()
-		if err := ValidateUsageCollation(view, base); err != nil {
+		if err := stored.ValidateUsageCollation(view, base); err != nil {
 			return err
 		}
 		actual, exists := view.LookupType(base.Type.ID())

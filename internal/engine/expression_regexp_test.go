@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -227,13 +228,13 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 			}
 			// Actual analyzed occurrences and lexical frames, with no query
 			// execution or captured output used as an expected SQL golden.
-			definition := NewView(ViewParts{
+			definition := stored.NewView(stored.ViewParts{
 				Query: query, Syntax: raw, Literals: b.Capture.Literals,
 				CastUsages: b.Capture.CastUsages, Columns: b.Capture.Columns,
 				Stars: b.Capture.Stars, Namespaces: b.Capture.Namespaces,
 				Collations: b.Capture.Collations,
 			})
-			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(query.Root) })
+			definition = definition.With(func(p *stored.ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(query.Root) })
 			text, err := definition.SelectSQL(context.Background(), auth.Catalog, viewPresentation{})
 			if err != nil || !strings.Contains(text, `"a"."s"`) {
 				t.Fatal("lost dependent function argument prefix", text, err)

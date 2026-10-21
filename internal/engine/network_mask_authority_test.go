@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -87,7 +88,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 					t.Fatal("invalid selected authority", mode)
 				}
 			}
-			remapped, _, err := RetagTypes(foreign.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, _, err := stored.RetagTypes(foreign.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				current, _ := foreign.CatalogRead().LookupType(old.ID())
 				return current
 			})

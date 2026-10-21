@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -222,7 +223,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		view.VirtualView = false
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		attrs := append([]int32(nil), d.Attributes...)
-		view.View = NewView(ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []viewLeaf{{Ref: leaf, Attributes: attrs, Reads: attrs}}})
+		view.View = stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []viewLeaf{{Ref: leaf, Attributes: attrs, Reads: attrs}}})
 		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}

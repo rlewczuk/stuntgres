@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -130,7 +131,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 		if err != nil {
 			return fail(alterCookingError(err))
 		}
-		if !OmitColumnDefault(auth.Catalog, node, usage) {
+		if !stored.OmitColumnDefault(auth.Catalog, node, usage) {
 			persisted := catalog.ColumnDefault{Expression: node}
 			if _, err := (scalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &persisted.Dependencies, CommentSnapshot: &persisted.CatalogSnapshot, CatalogAliasReferences: &persisted.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, node); err != nil {
 				return fail(alterCookingError(err))

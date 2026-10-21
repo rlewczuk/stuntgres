@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -166,7 +167,7 @@ func TestQueryWindowExcludeGraphRemap(t *testing.T) {
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
-	mapped, err := RemapViewQuery(New().CatalogRead(), query.Root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
+	mapped, err := stored.RemapViewQuery(New().CatalogRead(), query.Root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +418,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	lookup := func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] }
-	mapped, err := RemapViewQuery(New().CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, lookup)
+	mapped, err := stored.RemapViewQuery(New().CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, lookup)
 	if err != nil {
 		t.Fatal(err)
 	}

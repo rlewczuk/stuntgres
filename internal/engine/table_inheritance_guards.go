@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -32,7 +33,7 @@ func inheritanceViewTargetGuard(catalog catalog.Read, relation *catalog.Relation
 		return nil
 	}
 	visited[relation.Address()] = true
-	for _, source := range ViewOf(relation).Sources() {
+	for _, source := range stored.ViewOf(relation).Sources() {
 		live, ok := catalog.Relation(source.Ref.Address)
 		if !ok {
 			return ids.ErrCatalogReplaced

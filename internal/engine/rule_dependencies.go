@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -24,7 +25,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 		if e == nil {
 			return nil
 		}
-		items, err := ExpressionDependRefs(ctx, catalog, e)
+		items, err := stored.ExpressionDependRefs(ctx, catalog, e)
 		add(items)
 		return err
 	}
@@ -62,7 +63,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 				add([]ids.ObjectAddress{b.Ref.Address})
 			}
 		}
-		items, err := QueryDependRefs(ctx, catalog, nil, b.Query)
+		items, err := stored.QueryDependRefs(ctx, catalog, nil, b.Query)
 		if err != nil {
 			return err
 		}
@@ -89,14 +90,14 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 			if err := expr(b.Update.Predicate); err != nil {
 				return err
 			}
-			items, err := QueryDependRefs(ctx, catalog, nil, &plan.Query{Root: b.Update.From})
+			items, err := stored.QueryDependRefs(ctx, catalog, nil, &plan.Query{Root: b.Update.From})
 			if err != nil {
 				return err
 			}
 			add(items)
 		}
 		if b.Delete.Using != nil {
-			items, err := QueryDependRefs(ctx, catalog, nil, &plan.Query{Root: b.Delete.Using})
+			items, err := stored.QueryDependRefs(ctx, catalog, nil, &plan.Query{Root: b.Delete.Using})
 			if err != nil {
 				return err
 			}

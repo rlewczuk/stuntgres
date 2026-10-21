@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -189,7 +190,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		t.Fatal("outer cast hid prohibited child", err)
 	}
 	arrayLiteral := plan.LiteralExpr{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
-	renderer := viewRenderer{viewDefinition: NewView(ViewParts{
+	renderer := viewRenderer{View: stored.NewView(stored.ViewParts{
 		Literals:   map[analyze.ViewLiteralPath]plan.LiteralExpr{{Node: 1}: arrayLiteral},
 		CastUsages: map[analyze.ViewLiteralPath]sqltype.Usage{{}: arrayType.Usage()},
 	})}

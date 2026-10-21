@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -47,7 +48,7 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalogView cat
 		if !exists || !t.deferredDefinitions[t.attributes[i]] {
 			continue
 		}
-		text, err := DefaultSQL(ctx, catalogView, definition.Expression)
+		text, err := stored.DefaultSQL(ctx, catalogView, definition.Expression)
 		if err != nil {
 			return err
 		}

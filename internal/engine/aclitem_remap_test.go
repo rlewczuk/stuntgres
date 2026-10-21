@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -83,7 +84,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	next := catalog.CloneState(source.catalog.state)
 	next.SetACLItemImport(importer)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
-	rebound, changed, err := RetagTypes(target.catalog.read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	rebound, changed, err := stored.RetagTypes(target.catalog.read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed || rebound.(plan.LiteralExpr).Value == value {
 		t.Fatal("constant principal import skipped", changed, err)
 	}
@@ -95,7 +96,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	comparison := plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: literal, Right: literal, Predicate: predicate, Operator: "="}
-	rebound, changed, err = RetagTypes(target.catalog.read(next), comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	rebound, changed, err = stored.RetagTypes(target.catalog.read(next), comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || !changed {
 		t.Fatal("enclosing principal import skipped", changed, err)
 	}
@@ -106,7 +107,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	if _, err := (scalarRenderer{Validation: true}).SQL(context.Background(), target.catalog.read(next), imported); err != nil {
 		t.Fatal("target validation ran with source CHECK carriers", err)
 	}
-	retained, changed, err := RetagTypes(target.catalog.read(next), imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	retained, changed, err := stored.RetagTypes(target.catalog.read(next), imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
 	if err != nil || changed || retained.(plan.ComparisonExpr).Left.(plan.LiteralExpr).Value != sameDescriptor {
 		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
 	}

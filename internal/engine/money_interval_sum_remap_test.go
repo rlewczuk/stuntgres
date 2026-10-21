@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -37,7 +38,7 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 		Child:       &plan.ValuesNode{},
 		Calls:       []plan.AggregateCall{{Provider: p, Operation: operation}},
 	}
-	mapped, err := RemapViewQuery(destination.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := stored.RemapViewQuery(destination.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == old {
 			return owned
 		}

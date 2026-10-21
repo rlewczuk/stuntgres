@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -114,11 +115,11 @@ func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 			key.Attribute = a
 			continue
 		}
-		node, err := RemapLikeExpression(&in, key.Derived.Definition, child, view)
+		node, err := stored.RemapLikeExpression(&in, key.Derived.Definition, child, view)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := RemapLikeExpression(&in, key.Derived.Execution, child, view)
+		execution, err := stored.RemapLikeExpression(&in, key.Derived.Execution, child, view)
 		if err != nil {
 			return nil, err
 		}
@@ -129,11 +130,11 @@ func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 		key.Derived = derived
 	}
 	if old.Predicate != nil {
-		node, err := RemapLikeExpression(&in, old.Predicate.Definition, child, view)
+		node, err := stored.RemapLikeExpression(&in, old.Predicate.Definition, child, view)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := RemapLikeExpression(&in, old.Predicate.Execution, child, view)
+		execution, err := stored.RemapLikeExpression(&in, old.Predicate.Execution, child, view)
 		if err != nil {
 			return nil, err
 		}

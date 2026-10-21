@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -41,7 +42,7 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 			t.Fatal(err)
 		}
 		original := functions.Binary{Info: expr.Info{Usage: types[sqltype.JSONB].Usage()}, Plan: plan, Args: args}
-		rebound, changed, err := RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
+		rebound, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
@@ -57,7 +58,7 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if err != nil || text != `{"a": "1", "b": "2"}` {
 			t.Fatal(text, err)
 		}
-		mapped, err := RemapExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		mapped, err := stored.RemapExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !analyze.SameGroupExpression(original, mapped) {
 			t.Fatal(mapped, err)
 		}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -68,26 +69,26 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			refs = append(refs, ref)
 		}
 		if d.RelationKind == catalog.ViewRelation || s.materializedOrZero().refresh && ref == s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
-			if ViewOf(d).Temporary() != (ids.SessionToken{}) {
-				for old := range ViewOf(d).References() {
+			if stored.ViewOf(d).Temporary() != (ids.SessionToken{}) {
+				for old := range stored.ViewOf(d).References() {
 					if old.Epoch != e.catalog.state.Epoch() {
 						retainedViews = append(retainedViews, d)
 						break
 					}
 				}
 			}
-			for i, leaf := range ViewOf(d).Sources() {
-				use, err := ViewUseReference(catalogView, d, leaf.Ref)
+			for i, leaf := range stored.ViewOf(d).Sources() {
+				use, err := stored.ViewUseReference(catalogView, d, leaf.Ref)
 				if err != nil {
 					return err
 				}
-				if err := visit(use, viewLeafRowMark(ViewOf(d), i, plan.RowMark{Mode: mode}).Mode); err != nil {
+				if err := visit(use, viewLeafRowMark(stored.ViewOf(d), i, plan.RowMark{Mode: mode}).Mode); err != nil {
 					return err
 				}
 			}
-			for _, dependency := range ViewOf(d).Dependencies() {
+			for _, dependency := range stored.ViewOf(d).Dependencies() {
 				if dependency.Ref.Address.ClassID == ids.RelationClassID {
-					child, err := ViewUseReference(catalogView, d, dependency.Ref)
+					child, err := stored.ViewUseReference(catalogView, d, dependency.Ref)
 					if err != nil {
 						return err
 					}
@@ -150,8 +151,8 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 	}
 	for _, view := range retainedViews {
-		for ref := range ViewOf(view).References() {
-			if !ViewReferenceValid(catalogView, view, ref) {
+		for ref := range stored.ViewOf(view).References() {
+			if !stored.ViewReferenceValid(catalogView, view, ref) {
 				return ids.ErrCatalogReplaced
 			}
 		}

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -196,7 +197,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 		t.Fatal("source replaced typed provider", rebuilt)
 	}
 	fresh := jsonObjectUnitTypes()
-	mapped, changed, err := RetagTypes(e.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	mapped, changed, err := stored.RetagTypes(e.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal("remint", changed, err)
 	}

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -160,7 +161,7 @@ func TestQueryWindowOffsetOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	lookup := func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] }
-	mapped, err := RemapViewQuery(New().CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, lookup)
+	mapped, err := stored.RemapViewQuery(New().CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, lookup)
 	if err != nil {
 		t.Fatal(err)
 	}

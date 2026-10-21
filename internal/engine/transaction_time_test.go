@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -113,14 +114,14 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 			t.Fatal(tree, err)
 		}
 		target := New()
-		retagged, changed, err := RetagTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := stored.RetagTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := target.CatalogRead().LookupType(d.ID())
 			return next
 		})
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented dependency", ref); return ref }, nil)
+		remapped, err := stored.RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented dependency", ref); return ref }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

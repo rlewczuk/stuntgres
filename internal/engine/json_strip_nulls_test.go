@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -34,7 +35,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 			t.Fatal("formal inference", i)
 		}
 	}
-	if !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || PlannedIntrinsicVolatility(node) != expr.Immutable {
+	if !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || stored.PlannedIntrinsicVolatility(node) != expr.Immutable {
 		t.Fatal(node.Properties())
 	}
 	for _, q := range []string{`SELECT json_strip_nulls(NULL,missing)`, `SELECT json_strip_nulls(missing,NULL)`} {
@@ -51,7 +52,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		n := jsonStripUnitBind(t, binder, tc.q)
-		if n.Properties().Volatility != tc.volatility || exec.PlannedVolatility(n) != tc.volatility || PlannedIntrinsicVolatility(n) != expr.Immutable {
+		if n.Properties().Volatility != tc.volatility || exec.PlannedVolatility(n) != tc.volatility || stored.PlannedIntrinsicVolatility(n) != expr.Immutable {
 			t.Fatal(tc.q, n.Properties(), exec.PlannedVolatility(n))
 		}
 	}
@@ -64,7 +65,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if volatile.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(volatile) != expr.Volatile || PlannedIntrinsicVolatility(volatile) != expr.Immutable || plan.GenerationImmutable(volatile) {
+	if volatile.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(volatile) != expr.Volatile || stored.PlannedIntrinsicVolatility(volatile) != expr.Immutable || plan.GenerationImmutable(volatile) {
 		t.Fatal("volatile Boolean child lost", volatile.Properties(), exec.PlannedVolatility(volatile))
 	}
 }
@@ -76,7 +77,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	e := jsonStripUnitBind(t, b, `SELECT json_strip_nulls(strip_in_arrays => true,target => '{"a":null,"b":[null,1]}')`).(functions.JSONStripNulls)
 	fresh := jsonObjectUnitTypes()
-	next, changed, err := RetagTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	next, changed, err := stored.RetagTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(next, changed, err)
 	}
@@ -97,7 +98,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 	if err != nil || out != `{"b":[1]}` {
 		t.Fatal(out, err)
 	}
-	mapped, err := RemapExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err := stored.RemapExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || !analyze.SameGroupExpression(e, mapped) || exec.PlannedVolatility(mapped) != expr.Immutable {
 		t.Fatal(mapped, err)
 	}
@@ -144,7 +145,7 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+			renderer := viewRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
 			emitted, err := renderer.ExpressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || round > 0 && emitted != previous {
 				t.Fatal(emitted, previous, err)

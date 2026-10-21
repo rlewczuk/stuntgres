@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -200,11 +201,11 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 				if key.Derived == nil {
 					key.Attribute = c.Attributes[j]
 				} else {
-					node, err := RemapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, stage.Base)
+					node, err := stored.RemapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, stage.Base)
 					if err != nil {
 						return err
 					}
-					execution, err := RemapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, stage.Base)
+					execution, err := stored.RemapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, stage.Base)
 					if err != nil {
 						return err
 					}
@@ -359,7 +360,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 			if node != nil {
 				labels[i], err = (pgRenderer{View: catalog, Relation: parent, Output: output}).SQL(ctx, node, pgRenderParent{})
 			} else {
-				labels[i], err = DeparseAttribute(parent, attribute)
+				labels[i], err = stored.DeparseAttribute(parent, attribute)
 			}
 			if err != nil {
 				return err

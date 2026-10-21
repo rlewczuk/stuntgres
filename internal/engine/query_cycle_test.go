@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -188,7 +189,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 	if c.Path.Element() != c.Record || c.Record.CompositeMember(0).Usage.Type != array {
 		t.Fatal("changed source")
 	}
-	if !ValidExpressionUsage(view, c.Path.Usage()) || ValidExpressionUsage(view, mapped.Usage()) {
+	if !stored.ValidExpressionUsage(view, c.Path.Usage()) || stored.ValidExpressionUsage(view, mapped.Usage()) {
 		t.Fatal("foreign leaf accepted")
 	}
 	if sqltype.SameRecordUsage(c.Path.Usage(), mapped.Usage()) {
@@ -213,16 +214,16 @@ func TestQueryCycleOwnership(t *testing.T) {
 		catalogPath.Concrete() || catalogPath.Usage().Valid() || catalogPath.IsUserDefined() {
 		t.Fatal("occurrence shape replaced catalog record authority")
 	}
-	if err := ValidateSetNode(&original.SetNode, original.Cycle, nil); err != nil {
+	if err := stored.ValidateSetNode(&original.SetNode, original.Cycle, nil); err != nil {
 		t.Fatal("original cycle arm layout", err)
 	}
 	badWidth := original.SetNode
 	badWidth.LeftExpressions = append(append([]expr.Expr(nil), original.LeftExpressions...), original.RightExpressions[original.Cycle.MarkSlot])
-	if err := ValidateSetNode(&badWidth, original.Cycle, nil); err == nil {
+	if err := stored.ValidateSetNode(&badWidth, original.Cycle, nil); err == nil {
 		t.Fatal("accepted generated anchor slot as an original user target")
 	}
 	destination := New()
-	remapped, err := RemapViewQuery(destination.CatalogRead(), original.Definition.Query.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	remapped, err := stored.RemapViewQuery(destination.CatalogRead(), original.Definition.Query.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		typ, ok := destination.CatalogRead().LookupType(old.ID())
 		if !ok {
 			t.Fatal(old.ID())
@@ -233,13 +234,13 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	union := remapped.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
-	if err := ValidateSetNode(&union.SetNode, union.Cycle, nil); err != nil {
+	if err := stored.ValidateSetNode(&union.SetNode, union.Cycle, nil); err != nil {
 		t.Fatal("remapped cycle arm layout", err)
 	}
 	badParent := union.SetNode
 	badParent.RightExpressions = append([]expr.Expr(nil), union.RightExpressions...)
 	badParent.RightExpressions[union.Cycle.MarkSlot+1] = union.RightExpressions[union.Cycle.MarkSlot]
-	if err := ValidateSetNode(&badParent, union.Cycle, nil); err == nil {
+	if err := stored.ValidateSetNode(&badParent, union.Cycle, nil); err == nil {
 		t.Fatal("accepted parent mark in the hidden path slot")
 	}
 	scan, offset := analyze.RecursiveParentSlot(union.Right.Child, union.Definition, 0)

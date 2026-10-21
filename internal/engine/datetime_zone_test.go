@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -74,7 +75,7 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 		for _, descriptor := range sqltype.Builtins() {
 			replacements[descriptor.ID()] = descriptor
 		}
-		rebound, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+		rebound, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 		if err != nil || !changed || rebound.ResultUsage().Type != replacements[signature.result] {
 			t.Fatal("remap", signature, rebound, changed, err)
 		}

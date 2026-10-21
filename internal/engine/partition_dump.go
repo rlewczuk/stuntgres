@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -212,13 +213,13 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		childSQL, parentSQL := "NULL", "NULL"
 		var err error
 		if childHasDefault {
-			childSQL, err = DefaultSQL(ctx, catalogView, childDefault.Expression)
+			childSQL, err = stored.DefaultSQL(ctx, catalogView, childDefault.Expression)
 			if err != nil {
 				return "", err
 			}
 		}
 		if parentHasDefault {
-			parentSQL, err = DefaultSQL(ctx, catalogView, parentDefault.Expression)
+			parentSQL, err = stored.DefaultSQL(ctx, catalogView, parentDefault.Expression)
 			if err != nil {
 				return "", err
 			}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -60,7 +61,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			literal := plan.LiteralExpr{Info: expr.Info{Usage: regtype.Usage()}, Value: tc.value}
-			refs, err := ExpressionDependRefs(context.Background(), view, literal)
+			refs, err := stored.ExpressionDependRefs(context.Background(), view, literal)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -119,12 +120,12 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	view.State().SetDescriptor(payloadAddress, &catalog.Type{SQLType: payloadType})
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: payloadType.Usage()}, Value: payload}
 	want := []ids.ObjectAddress{payloadAddress, provider, rowAddress}
-	refs, err := ExpressionDependRefs(context.Background(), view, literal)
+	refs, err := stored.ExpressionDependRefs(context.Background(), view, literal)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, refs, want)
-	refs, err = QueryDependRefs(context.Background(), view, nil, &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{literal}}})
+	refs, err = stored.QueryDependRefs(context.Background(), view, nil, &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{literal}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +153,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}); !errors.Is(err, stop) || calls != 1 {
 		t.Fatal("callback failure lost", err, calls)
 	}
-	remapped, err := RemapExpression(literal, func(ref ids.ObjectRef) ids.ObjectRef {
+	remapped, err := stored.RemapExpression(literal, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address == provider {
 			ref.Address = rowAddress
 		}
@@ -161,7 +162,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	refs, err = ExpressionDependRefs(context.Background(), view, remapped)
+	refs, err = stored.ExpressionDependRefs(context.Background(), view, remapped)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +173,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if refs, err := ExpressionDependRefs(canceled, view, literal); !errors.Is(err, context.Canceled) || refs != nil {
+	if refs, err := stored.ExpressionDependRefs(canceled, view, literal); !errors.Is(err, context.Canceled) || refs != nil {
 		t.Fatal("cancellation lost", refs, err)
 	}
 }

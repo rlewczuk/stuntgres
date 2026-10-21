@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -52,14 +53,14 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			t.Fatal(tree, err)
 		}
 		target := New()
-		retagged, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := stored.RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := target.CatalogRead().LookupType(d.ID())
 			return next
 		})
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
+		remapped, err := stored.RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
 			t.Fatal("current leaf invented relation reference", ref)
 			return ref
 		}, nil)

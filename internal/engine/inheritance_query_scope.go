@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -65,15 +66,15 @@ func inheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 			}
 			active = append(active, d.Address())
 			defer func() { active = active[:len(active)-1] }()
-			for i, child := range ViewOf(d).Sources() {
+			for i, child := range stored.ViewOf(d).Sources() {
 				if child.AnalysisOnly {
 					continue
 				}
-				ref, err := ViewUseReference(view, d, child.Ref)
+				ref, err := stored.ViewUseReference(view, d, child.Ref)
 				if err != nil {
 					return err
 				}
-				if err := walk(exec.Leaf{Ref: ref, Only: child.Only, Mark: viewLeafRowMark(ViewOf(d), i, leaf.Mark)}); err != nil {
+				if err := walk(exec.Leaf{Ref: ref, Only: child.Only, Mark: viewLeafRowMark(stored.ViewOf(d), i, leaf.Mark)}); err != nil {
 					return err
 				}
 			}
@@ -114,11 +115,11 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			return ids.ErrCatalogReplaced
 		}
 		roots = append([]exec.Leaf(nil), roots...)
-		for _, leaf := range ViewOf(d).Sources() {
+		for _, leaf := range stored.ViewOf(d).Sources() {
 			if leaf.AnalysisOnly {
 				continue
 			}
-			ref, err := ViewUseReference(catalog, d, leaf.Ref)
+			ref, err := stored.ViewUseReference(catalog, d, leaf.Ref)
 			if err != nil {
 				e.mu.Unlock()
 				return err

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -259,7 +260,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	}
 	typ := n.Schema()[0].Usage.Type
 	destination := *typ
-	mapped, err := RemapViewQuery(New().CatalogRead(), project, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := stored.RemapViewQuery(New().CatalogRead(), project, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == typ {
 			return &destination
 		}

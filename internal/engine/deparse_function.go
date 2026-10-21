@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -225,7 +226,7 @@ func deparseRelation(c *exec.Context, signature functions.DeparseSignature, valu
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = ViewOf(relation).SelectSQL(c.Context, catalog, viewPresentation{Deparse: true, Pretty: pretty, Wrap: wrap, Path: scope.inquiry.deparsePath, Columns: relation.Columns, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings})
+		text, err = stored.ViewOf(relation).SelectSQL(c.Context, catalog, viewPresentation{Deparse: true, Pretty: pretty, Wrap: wrap, Path: scope.inquiry.deparsePath, Columns: relation.Columns, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings})
 		text += ";"
 	}
 	if err != nil {

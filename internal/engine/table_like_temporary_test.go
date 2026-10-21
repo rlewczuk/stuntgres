@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -207,18 +208,18 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		t.Fatal("retained cooked default lost original manifest/identity or advanced provider", copied)
 	}
 	view := e.stageRead(stage)
-	if call.Ref.Epoch == view.Epoch() || !SequenceEpochValid(view, destination, call.Ref, call.Temporary) {
+	if call.Ref.Epoch == view.Epoch() || !stored.SequenceEpochValid(view, destination, call.Ref, call.Temporary) {
 		t.Fatal("retained manifest lacks bounded old-epoch authority", call.Ref)
 	}
 	if err := e.ValidateObjectRef(view, call.Ref); err == nil {
 		t.Fatal("generic stale ObjectRef admitted")
 	}
 	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(call.Ref.Epoch, call.Ref.Address), e.catalog.Domain.Ref(view.Epoch()+1, call.Ref.Address)} {
-		if SequenceEpochValid(view, destination, bad, call.Temporary) {
+		if stored.SequenceEpochValid(view, destination, bad, call.Temporary) {
 			t.Fatal("foreign/future reference admitted", bad)
 		}
 	}
-	if SequenceEpochValid(view, destination, call.Ref, ids.SessionToken{}) {
+	if stored.SequenceEpochValid(view, destination, call.Ref, ids.SessionToken{}) {
 		t.Fatal("zero token admitted stale temporary sequence")
 	}
 	var rendered []ids.ObjectRef
@@ -281,7 +282,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	e.DiscardCatalogStage(stage)
 	sessionSQL(t, owner, "DROP SEQUENCE pg_temp.seed CASCADE")
 	sessionSQL(t, owner, "CREATE TEMP SEQUENCE seed START 901")
-	if SequenceEpochValid(e.CatalogRead(), destination, call.Ref, call.Temporary) {
+	if stored.SequenceEpochValid(e.CatalogRead(), destination, call.Ref, call.Temporary) {
 		t.Fatal("retired reference adopted recreated provider name")
 	}
 	if !reflect.DeepEqual(source.ColumnMeta.Defaults[1].Expression, old.Expression) || !slices.Equal(old.Dependencies, manifest) {

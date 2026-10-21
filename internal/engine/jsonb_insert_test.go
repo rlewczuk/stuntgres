@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -71,7 +72,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		t.Run(query, func(t *testing.T) {
 			n := jsonbSetUnitBind(t, b, query).(functions.JSONBSet)
 			fresh := jsonObjectUnitTypes()
-			next, changed, err := RetagTypes(engine.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+			next, changed, err := stored.RetagTypes(engine.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(next, changed, err)
 			}
@@ -84,7 +85,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 					t.Fatal("descriptor remapping", i)
 				}
 			}
-			mapped, err := RemapExpression(r, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+			mapped, err := stored.RemapExpression(r, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 			if err != nil || !analyze.SameGroupExpression(r, mapped) {
 				t.Fatal(mapped, err)
 			}

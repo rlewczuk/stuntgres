@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -48,7 +49,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 				if strings.Contains(arguments, "$") {
 					// Prepared parameters are runtime inputs, not persistable view
 					// children. Lifetime support must not admit them to storage.
-					if _, err := RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil); err == nil {
+					if _, err := stored.RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil); err == nil {
 						t.Fatal("persisted a runtime parameter")
 					}
 				} else {
@@ -57,7 +58,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					persisted := node
 					persisted.Args = append([]expr.Expr(nil), node.Args...)
 					persisted.Args[last] = column
-					remapped, err := RemapExpression(persisted, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
+					remapped, err := stored.RemapExpression(persisted, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 					if err != nil {
 						t.Fatal("remapping stored column", err)
 					}

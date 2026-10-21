@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -68,7 +69,7 @@ func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[
 			expression(constraint.Expression)
 		}
 		if relation.View != nil {
-			for _, literal := range ViewOf(relation).Literals() {
+			for _, literal := range stored.ViewOf(relation).Literals() {
 				check(literal.Value)
 			}
 		}
@@ -99,10 +100,10 @@ func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[
 		}
 		for _, policy := range relation.Security.Policies {
 			if policy.Using != nil {
-				expression(PolicyOf(policy.Using).Expression())
+				expression(stored.PolicyOf(policy.Using).Expression())
 			}
 			if policy.Check != nil {
-				expression(PolicyOf(policy.Check).Expression())
+				expression(stored.PolicyOf(policy.Check).Expression())
 			}
 		}
 		if failure != nil {

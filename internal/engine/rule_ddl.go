@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -104,16 +105,16 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if err := ruleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
-			temporary := ViewOf(old).Temporary() != (ids.SessionToken{})
-			definition, err := e.freezeViewDefinitionLocked(auth, query, b, ViewOf(old).Barrier(), ViewOf(old).Invoker(), ViewOf(old).RuleOID(), catalog.ViewRelation, temporary)
+			temporary := stored.ViewOf(old).Temporary() != (ids.SessionToken{})
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, stored.ViewOf(old).Barrier(), stored.ViewOf(old).Invoker(), stored.ViewOf(old).RuleOID(), catalog.ViewRelation, temporary)
 			if err != nil {
 				return fail(err)
 			}
-			definition = definition.With(func(p *ViewParts) {
-				p.Options = ViewOf(old).Options()
-				p.CheckOption = ViewOf(old).CheckOption()
+			definition = definition.With(func(p *stored.ViewParts) {
+				p.Options = stored.ViewOf(old).Options()
+				p.CheckOption = stored.ViewOf(old).CheckOption()
 			})
-			next.View = ViewPayload(definition)
+			next.View = stored.ViewPayload(definition)
 			sources = b.QuerySources
 		} else {
 			if name == "_RETURN" {
@@ -169,7 +170,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(err)
 	}
 	if next.View != old.View {
-		next.View = ViewOf(&next).With(func(p *ViewParts) { p.QuoteRevision = next.Revision() })
+		next.View = stored.ViewOf(&next).With(func(p *stored.ViewParts) { p.QuoteRevision = next.Revision() })
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)

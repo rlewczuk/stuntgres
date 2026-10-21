@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -73,7 +74,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			for _, d := range sqltype.Builtins() {
 				replacements[d.ID()] = d
 			}
-			rebound, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+			rebound, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(tc.name, changed, err)
 			}

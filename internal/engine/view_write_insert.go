@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -21,7 +22,7 @@ func lowerViewInsert(owner *catalog.Owner, view catalog.Read, b *analyze.Binding
 	b.Insert.IdentityDiscard = nil
 	b.Insert.Projection = nil
 	for i, output := range viewWriteOf(b.ViewWrite).outputs {
-		direct, ok := ViewDirectColumn(output)
+		direct, ok := stored.ViewDirectColumn(output)
 		if !ok {
 			continue
 		}

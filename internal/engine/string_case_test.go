@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 			Plan: stringPlan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
 			Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.String(text, "ß")}},
 		}
-		rebound, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		rebound, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == text {
 				return replacement
 			}

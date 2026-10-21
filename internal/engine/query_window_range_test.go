@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -21,7 +22,7 @@ func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
-	mapped, err := RemapViewQuery(New().CatalogRead(), query.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
+	mapped, err := stored.RemapViewQuery(New().CatalogRead(), query.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
 	if err != nil || mapped == query.Root {
 		t.Fatal(mapped, err)
 	}

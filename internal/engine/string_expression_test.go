@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -90,7 +91,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 			replacement = d
 		}
 	}
-	rebound, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == text {
 			return replacement
 		}
@@ -221,7 +222,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	if err != nil || grouped.(functions.Binary).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("aggregate rewrite lost syntax", grouped, err)
 	}
-	remapped, err := RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
+	remapped, err := stored.RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
 	if err != nil || remapped.(functions.Binary).Syntax != parser.SQLFunctionSyntax ||
 		remapped.(functions.Binary).Args[0].(plan.ColumnExpr).Slot != 1 || node.Args[0].(plan.ColumnExpr).Slot != 0 {
 		t.Fatal("remap lost syntax or mutated original children", remapped, err)
@@ -232,7 +233,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 			replacement = d
 		}
 	}
-	rebound, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == sqltype.Bytea {
 			return replacement
 		}

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -107,7 +108,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("foreign original descriptor admitted")
 			}
-			remapped, _, err := RetagTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, _, err := stored.RetagTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == nil {
 					return nil
 				}

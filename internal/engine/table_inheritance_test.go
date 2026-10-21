@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -41,7 +42,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 	ref.Address.SubID = 7
 	node := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: ref, Scope: 1, Frame: 1, Slot: 1}
 	mapper := analyze.LikeInput{Source: parent, TargetSlots: []int{1, 0}}
-	mapped, err := RemapLikeExpression(&mapper, node, child, e.CatalogRead())
+	mapped, err := stored.RemapLikeExpression(&mapper, node, child, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 		t.Fatal(got, node)
 	}
 	sequence := functions.SequenceCall{Ref: ref}
-	mapped, err = RemapLikeExpression(&mapper, sequence, child, e.CatalogRead())
+	mapped, err = stored.RemapLikeExpression(&mapper, sequence, child, e.CatalogRead())
 	if err != nil || mapped.(functions.SequenceCall).Ref != ref {
 		t.Fatal(mapped, err)
 	}
@@ -259,7 +260,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	state.SetEpoch(state.Epoch() + 1)
 	current := e.catalog.read(state)
 	mapper := analyze.LikeInput{Source: d}
-	mapped, err := RemapLikeExpression(&mapper, old, d, current)
+	mapped, err := stored.RemapLikeExpression(&mapper, old, d, current)
 	if err != nil || !sameInheritedExpression(mapped, old, d, current) || old.Origin != oldRef {
 		t.Fatal("retained row authority changed equality or source", mapped, old, err)
 	}

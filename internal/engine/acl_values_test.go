@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -93,7 +94,7 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 		t.Fatal("original empty recipe", err)
 	}
 	target := New().CatalogRead()
-	mapped, _, err := MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, _, err := stored.MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		fresh, ok := target.LookupType(d.ID())
 		if !ok {
 			return d

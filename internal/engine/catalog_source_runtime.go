@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -141,10 +142,10 @@ func (r engineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *c
 	return failure
 }
 func (r engineCatalogRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
-	return ExpressionDependRefs(ctx, view, value)
+	return stored.ExpressionDependRefs(ctx, view, value)
 }
 func (r engineCatalogRuntime) ViewReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
-	return QueryDependRefs(ctx, view, nil, ViewOf(relation).Query())
+	return stored.QueryDependRefs(ctx, view, nil, stored.ViewOf(relation).Query())
 }
 func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
 	if key.Derived == nil {
@@ -188,10 +189,10 @@ func (r engineCatalogRuntime) PartitionReferences(ctx context.Context, view cata
 func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	presentation := r.presentation
 	presentation.Columns = relation.Columns
-	renderer := NewQueryRenderer(ViewOf(relation))
+	renderer := stored.NewQueryRenderer(stored.ViewOf(relation))
 	renderer.Presentation = presentation
 	renderer.CurrentNames = true
-	definition, err := renderer.SelectQuerySQL(ctx, view, ViewOf(relation).Syntax(), ViewOf(relation).Queries()[ViewOf(relation).Syntax()])
+	definition, err := renderer.SelectQuerySQL(ctx, view, stored.ViewOf(relation).Syntax(), stored.ViewOf(relation).Queries()[stored.ViewOf(relation).Syntax()])
 	return definition, err
 }
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
@@ -254,7 +255,7 @@ func (r engineCatalogRuntime) ValidateACL(roles authorization.Read, d catalog.De
 	return access.ValidateACL(roles, d)
 }
 func (r engineCatalogRuntime) Pinned(view catalog.Read, address ids.ObjectAddress) bool {
-	return DependPinned(view, nil, address)
+	return stored.DependPinned(view, nil, address)
 }
 func (r engineCatalogRuntime) OperatorSeeded(d *catalog.Operator) bool {
 	return routine.OperatorSeeded(d)

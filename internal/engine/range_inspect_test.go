@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, changed, err := RetagTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
+	mapped, changed, err := stored.RetagTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}

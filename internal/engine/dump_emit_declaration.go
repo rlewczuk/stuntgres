@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -235,7 +236,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 				}
 			}
 			if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.ExplicitDefault && !(s.deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
-				text, err := DefaultSQL(ctx, s.catalogView, definition.Expression)
+				text, err := stored.DefaultSQL(ctx, s.catalogView, definition.Expression)
 				if err != nil {
 					return "", err
 				}

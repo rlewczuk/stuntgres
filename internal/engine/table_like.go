@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -115,11 +116,11 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.TargetSlot(slot)].Name, destination.Name())
 						return diagnostic
 					}
-					node, err := RemapLikeExpression(in, old.Expression, destination, auth.Catalog)
+					node, err := stored.RemapLikeExpression(in, old.Expression, destination, auth.Catalog)
 					if err != nil {
 						return err
 					}
-					planned, err := RemapLikeExpression(in, old.Planned, destination, auth.Catalog)
+					planned, err := stored.RemapLikeExpression(in, old.Planned, destination, auth.Catalog)
 					if err != nil {
 						return err
 					}
@@ -170,7 +171,7 @@ func (e *Engine) stageLikeChecks(op *session.Operation, auth AuthorizationView, 
 			if ordinal == int(^uint(0)>>1) {
 				return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
 			}
-			node, err := RemapLikeExpression(in, old.Expression, destination, auth.Catalog)
+			node, err := stored.RemapLikeExpression(in, old.Expression, destination, auth.Catalog)
 			if err != nil {
 				return err
 			}

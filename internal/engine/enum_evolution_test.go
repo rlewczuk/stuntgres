@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -151,7 +152,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	importing.SetScalarImports(imports)
 	view := New().catalog.read(importing)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: source.Usage()}, Value: v}
-	rebound, changed, err := RetagTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := stored.RetagTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == source {
 			return target
 		}

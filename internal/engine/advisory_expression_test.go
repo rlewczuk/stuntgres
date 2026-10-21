@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -200,7 +201,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if b.SameGroupExpression(node, other) {
 			t.Fatal("group identity ignored argument order")
 		}
-		remapped, err := RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
+		remapped, err := stored.RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,7 +210,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal("view child identity/slot remap", mappedColumn)
 		}
 		types := formatUnitTypes()
-		retained, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+		retained, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(retained, changed, err)
 		}
@@ -240,7 +241,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil || !strings.Contains(text, "pg_catalog.pg_try_advisory_lock(") {
 			t.Fatal("stored CHECK/view symbolic rendering", text, err)
 		}
-		if _, err = DefaultSQL(ctx, view, node); err == nil {
+		if _, err = stored.DefaultSQL(ctx, view, node); err == nil {
 			t.Fatal("volatile default rendering widened")
 		}
 		if _, err = b.BindDefault(raw, catalog.Column{Name: "v", Usage: node.ResultUsage()}); err == nil {

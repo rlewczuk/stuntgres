@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -369,7 +370,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 		run(t, e, q)
 	}
 	ref := roleTableRef(t, e, "enum_window")
-	definition := ViewOf(e.CatalogRead().MustRelation(ref.Address))
+	definition := stored.ViewOf(e.CatalogRead().MustRelation(ref.Address))
 	original := definition.Query().Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	oldEnum := domainUnitType(t, e.CatalogRead(), "window_enum").SQLType
 	oldDomain := domainUnitType(t, e.CatalogRead(), "window_domain").SQLType
@@ -386,7 +387,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	if oldEnum == newEnum || oldDomain == newDomain || newDomain.BaseType() != newEnum {
 		t.Fatal("descriptors not replaced")
 	}
-	mapped, err := RemapViewQuery(New().CatalogRead(), definition.Query().Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := stored.RemapViewQuery(New().CatalogRead(), definition.Query().Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == oldEnum {
 			return newEnum
 		}

@@ -4,12 +4,13 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
 func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, action parser.Statement, b analyze.Binding) (*viewDefinition, error) {
 	if query, ok := action.(*parser.Select); ok {
-		return FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
+		return stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
 	}
 	if insert, ok := action.(*parser.Insert); ok && insert.Source != nil && b.Query != nil {
 		query := insert.Source.Select
@@ -23,7 +24,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 			producer.Root = &project
 			b.Query = &producer
 		}
-		return FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
+		return stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
 	}
 	metadata := b
 	query := &parser.Select{}
@@ -59,11 +60,11 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 	}
 	metadata.Query = &plan.Query{Root: &plan.ProjectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
 	metadata = retainRuleCTEPresentation(auth.Catalog, metadata)
-	presentation, err := FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, metadata, false, false, 0, "", false)
+	presentation, err := stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, metadata, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}
-	return presentation.With(func(p *ViewParts) { p.Frames[1] = metadata.Query.Root.(*plan.ProjectNode) }), nil
+	return presentation.With(func(p *stored.ViewParts) { p.Frames[1] = metadata.Query.Root.(*plan.ProjectNode) }), nil
 }
 
 func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b analyze.Binding) (map[parser.Statement]*viewDefinition, error) {

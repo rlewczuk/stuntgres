@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -39,7 +40,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || exec.PlannedVolatility(n) != v.volatility || plan.GenerationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal(v, n)
 		}
-		if err := ValidateInstalledCrypto(n, e.CatalogRead()); err != nil {
+		if err := stored.ValidateInstalledCrypto(n, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		if !analyze.ClosedPgcryptoDefault(n) {
@@ -49,7 +50,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if err != nil {
 			t.Fatal("installed crypto DEFAULT admission", v.name, err)
 		}
-		if _, err := DefaultSQL(context.Background(), e.CatalogRead(), persisted); err != nil {
+		if _, err := stored.DefaultSQL(context.Background(), e.CatalogRead(), persisted); err != nil {
 			t.Fatal("installed crypto DEFAULT rendering", v.name, err)
 		}
 		for _, properties := range []expr.Properties{
@@ -78,7 +79,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if exec.PlannedVolatility(n) != v.volatility || plan.GenerationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal("reconstruction changed intrinsic volatility")
 		}
-		retagged, _, err := RetagTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+		retagged, _, err := stored.RetagTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 		if err != nil {
 			t.Fatal(err)
 		}

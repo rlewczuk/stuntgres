@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -134,7 +135,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	if err = b.CaptureViewLiterals(ast.Targets[0], node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+	renderer := viewRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
 	old := e.CatalogRead()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER SCHEMA public RENAME TO moved"))
 	text, err := renderer.ExpressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})

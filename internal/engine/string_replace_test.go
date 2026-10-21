@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -83,7 +84,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	rebound, changed, err := RetagTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	rebound, changed, err := stored.RetagTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
@@ -141,14 +142,14 @@ func TestStringPrefixPrettyLogicalGrouping(t *testing.T) {
 		{Precedence: 2, Operator: "AND", Right: true},
 		{Precedence: 3, Operator: "NOT"},
 	} {
-		if OperatorGrouped("^@", true, parent) {
+		if stored.OperatorGrouped("^@", true, parent) {
 			t.Fatal("prefix operator grouped under Boolean parent", parent)
 		}
 	}
-	if !OperatorGrouped("^@", true, pgRenderParent{Precedence: 5, Operator: "^@", Right: true}) {
+	if !stored.OperatorGrouped("^@", true, pgRenderParent{Precedence: 5, Operator: "^@", Right: true}) {
 		t.Fatal("nested prefix operand lost required grouping")
 	}
-	if !OperatorGrouped("-", false, pgRenderParent{Precedence: 3, Operator: "NOT"}) {
+	if !stored.OperatorGrouped("-", false, pgRenderParent{Precedence: 3, Operator: "NOT"}) {
 		t.Fatal("unary scalar operator lost existing grouping")
 	}
 }

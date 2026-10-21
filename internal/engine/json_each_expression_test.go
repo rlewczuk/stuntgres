@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -44,14 +45,14 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			valueID = sqltype.Text
 		}
 		shape := original.ResultUsage().Type
-		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.Type(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.Type(valueID) || !ValidExpressionUsage(view, original.ResultUsage()) {
+		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.Type(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.Type(valueID) || !stored.ValidExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("analysis shape", shape)
 		}
 		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.Clause.QueryHasTargetSet || !exec.SourceReturnsSet(original) || exec.QuerySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
-		mapped, changed, err := RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+		mapped, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal("record remap", changed, err)
 		}
@@ -77,7 +78,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if walked != 1 || exec.PlannedVolatility(original) != expr.Immutable || !analyze.SameGroupExpression(original, original) {
 			t.Fatal("closed traversal", walked)
 		}
-		clone, err := RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+		clone, err := stored.RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 		if err != nil || !analyze.SameGroupExpression(original, clone) {
 			t.Fatal("stored reconstruction", clone, err)
 		}

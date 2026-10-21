@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -201,7 +202,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		if actual.Ref.Address != mapping[call.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) {
 			t.Fatal("stale relocated provider", actual.Ref)
 		}
-		if err := ValidateInstalledCrypto(actual, view); err != nil {
+		if err := stored.ValidateInstalledCrypto(actual, view); err != nil {
 			t.Fatal(err)
 		}
 		value, err := actual.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
@@ -235,7 +236,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		ref.Epoch = next.Epoch()
 		return ref
 	}
-	query, err := RemapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+	query, err := stored.RemapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 	if err != nil {
 		t.Fatal("relocated query", err)
 	}
@@ -254,7 +255,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		}
 		original := node.(plan.InstalledCryptoExpr)
 		project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "value", Usage: original.ResultUsage()}}, Child: &plan.ValuesNode{}, Expressions: []expr.Expr{original}}
-		query, err := RemapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+		query, err := stored.RemapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 		if err != nil {
 			t.Fatal(name, err)
 		}
@@ -262,7 +263,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		if actual.Ref.Address != mapping[original.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || exec.PlannedVolatility(actual) != expr.Volatile || !analyze.ClosedPgcryptoDefault(actual) {
 			t.Fatal("relocated random/FIPS recipe", name, actual)
 		}
-		if err := ValidateInstalledCrypto(actual, view); err != nil {
+		if err := stored.ValidateInstalledCrypto(actual, view); err != nil {
 			t.Fatal(name, err)
 		}
 		if original.Procedure != before.Get(original.Ref.Address) || original.Ref.Address == actual.Ref.Address {

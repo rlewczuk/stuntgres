@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -206,11 +207,11 @@ func validateCheckProviders(view catalog.Read, d *catalog.Relation) error {
 				continue
 			}
 			provider, ok := view.Descriptor(address)
-			if !ok || !ReferenceEpochValid(view, d, dep.Ref) || (provider.Kind() != ids.RelationObject && provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject) || provider.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
+			if !ok || !stored.ReferenceEpochValid(view, d, dep.Ref) || (provider.Kind() != ids.RelationObject && provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject) || provider.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid check provider dependency")
 			}
 			if provider.Kind() == ids.CollationObject {
-				if err := ValidateCollationDependency(view, dep.Ref, c.Expression); err != nil {
+				if err := stored.ValidateCollationDependency(view, dep.Ref, c.Expression); err != nil {
 					return err
 				}
 			}
@@ -267,16 +268,16 @@ func validateChecks(view catalog.Read, d *catalog.Relation, names map[string]boo
 			address := dep.Ref.Address
 			address.SubID = 0
 			if address == d.Address() {
-				if !ReferenceEpochValid(view, d, dep.Ref) || !d.HasAttribute(dep.Ref.Address.SubID) {
+				if !stored.ReferenceEpochValid(view, d, dep.Ref) || !d.HasAttribute(dep.Ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: invalid check column dependency")
 				}
 			} else {
 				target, ok := view.Descriptor(address)
-				if !ok || !ReferenceEpochValid(view, d, dep.Ref) || (target.Kind() != ids.RelationObject && target.Kind() != ids.TypeObject && target.Kind() != ids.CollationObject && target.Kind() != ids.ProcedureObject && target.Kind() != ids.OperatorObject && target.Kind() != ids.NamespaceObject && target.Kind() != ids.TSDictionaryObject) || target.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
+				if !ok || !stored.ReferenceEpochValid(view, d, dep.Ref) || (target.Kind() != ids.RelationObject && target.Kind() != ids.TypeObject && target.Kind() != ids.CollationObject && target.Kind() != ids.ProcedureObject && target.Kind() != ids.OperatorObject && target.Kind() != ids.NamespaceObject && target.Kind() != ids.TSDictionaryObject) || target.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid check provider dependency")
 				}
 				if target.Kind() == ids.CollationObject {
-					if err := ValidateCollationDependency(view, dep.Ref, c.Expression); err != nil {
+					if err := stored.ValidateCollationDependency(view, dep.Ref, c.Expression); err != nil {
 						return err
 					}
 				}

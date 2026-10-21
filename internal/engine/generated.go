@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -233,7 +234,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 		for _, ref := range definition.Dependencies {
 			address := ref.Address
 			address.SubID = 0
-			if !ReferenceEpochValid(view, d, ref) {
+			if !stored.ReferenceEpochValid(view, d, ref) {
 				return fmt.Errorf("stuntgres: missing generation provider")
 			}
 			if address == d.Address() && ref.Address.SubID != 0 {
@@ -252,7 +253,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 			validRelation := relationProvider && relation.Address().ClassID == ids.RelationClassID
 			if validRelation && ref.Address.SubID != 0 {
 				rowType, exists := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-				validRelation = exists && CompositeAttributeProvider(rowType, relation, ref.Address.SubID)
+				validRelation = exists && stored.CompositeAttributeProvider(rowType, relation, ref.Address.SubID)
 			}
 			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && !validRelation || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
@@ -270,7 +271,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 				}
 			}
 			if provider.Kind() == ids.CollationObject {
-				if err := ValidateCollationDependency(view, ref, definition.Expression); err != nil {
+				if err := stored.ValidateCollationDependency(view, ref, definition.Expression); err != nil {
 					return err
 				}
 			}
@@ -289,10 +290,10 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	if usage.Type == nil {
 		return fmt.Errorf("stuntgres: missing generation plan type")
 	}
-	if !ValidExpressionUsage(view, usage) {
+	if !stored.ValidExpressionUsage(view, usage) {
 		return fmt.Errorf("stuntgres: invalid generation plan type")
 	}
-	if err := ValidateUsageCollation(view, usage); err != nil {
+	if err := stored.ValidateUsageCollation(view, usage); err != nil {
 		return err
 	}
 	child := func(n expr.Expr) error { return validateGenerationPlan(view, d, n) }
@@ -373,12 +374,12 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		if _, generated := d.ColumnMeta.Generations[n.Origin.Address.SubID]; generated || n.Virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")
 		}
-		if !ReferenceEpochValid(view, d, n.Origin) || n.Origin.Address.ClassID != d.Address().ClassID || n.Origin.Address.ObjectID != d.Address().ObjectID || n.Scope != 1 || n.Frame != 1 || n.Slot < 0 || n.Slot >= len(d.Columns) || d.Attributes[n.Slot] != n.Origin.Address.SubID || usage != d.Columns[n.Slot].Usage {
+		if !stored.ReferenceEpochValid(view, d, n.Origin) || n.Origin.Address.ClassID != d.Address().ClassID || n.Origin.Address.ObjectID != d.Address().ObjectID || n.Scope != 1 || n.Frame != 1 || n.Slot < 0 || n.Slot >= len(d.Columns) || d.Attributes[n.Slot] != n.Origin.Address.SubID || usage != d.Columns[n.Slot].Usage {
 			return fmt.Errorf("stuntgres: invalid generation plan row")
 		}
 		return nil
 	case plan.TableOIDExpr:
-		if !ReferenceEpochValid(view, d, n.Owner) || n.Owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
+		if !stored.ReferenceEpochValid(view, d, n.Owner) || n.Owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
 			return fmt.Errorf("stuntgres: invalid generation plan owner")
 		}
 		return nil
@@ -450,7 +451,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	case plan.InstalledLevenshteinExpr:
 		return args(n.Args)
 	case plan.InstalledUUIDOsspExpr:
-		return ValidateInstalledUUIDOssp(n, view)
+		return stored.ValidateInstalledUUIDOssp(n, view)
 	case plan.InstalledCryptoExpr:
 		return args(n.Args)
 	case plan.InstalledTextExpr:

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -151,7 +152,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 		t.Fatal("closed sleep default rejected")
 	}
 	target := New()
-	rebound, _, err := RetagTypes(target.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, _, err := stored.RetagTypes(target.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		next, _ := target.CatalogRead().LookupType(d.ID())
 		return next
 	})
@@ -175,7 +176,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound, _, err = RetagTypes(target.CatalogRead(), interval, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, _, err = stored.RetagTypes(target.CatalogRead(), interval, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		next, _ := target.CatalogRead().LookupType(d.ID())
 		return next
 	})

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -110,14 +111,14 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 		}
 	}
 	assertRows(node, b.Type(sqltype.Text))
-	mapped, err := RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err := stored.RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pathConversion(mapped)
 	assertRows(mapped, b.Type(sqltype.Text))
 	fresh := jsonObjectUnitTypes()
-	reminted, changed, err := RetagTypes(engine.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	reminted, changed, err := stored.RetagTypes(engine.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

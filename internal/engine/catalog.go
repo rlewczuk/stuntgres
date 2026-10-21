@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/access"
@@ -122,7 +123,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if !exists || typ != c.Usage.Type || !catalogNull && (!typ.Concrete() || !c.Usage.Valid()) {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
-		if err := ValidateUsageCollation(v, c.Usage); err != nil {
+		if err := stored.ValidateUsageCollation(v, c.Usage); err != nil {
 			return err
 		}
 	}
@@ -264,7 +265,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
 		_, err := (scalarRenderer{Validation: true, Provenance: r, CapturedManifest: definition.Dependencies, Dependencies: &dependencies, CommentSnapshot: &catalogSnapshot}).SQL(context.Background(), v, definition.Expression)
-		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot || OmitColumnDefault(v, definition.Expression, r.Columns[slot].Usage) {
+		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot || stored.OmitColumnDefault(v, definition.Expression, r.Columns[slot].Usage) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
 	}

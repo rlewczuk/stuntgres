@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -153,7 +154,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			}
 			definition := original
 			definition.OID = 0
-			definition.Expression, err = RemapExpressionWithQuery(original.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots, nil, rowRef)
+			definition.Expression, err = stored.RemapExpressionWithQuery(original.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots, nil, rowRef)
 			if err != nil {
 				return nil, err
 			}

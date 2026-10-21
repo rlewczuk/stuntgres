@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -25,8 +26,8 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 	var definition *viewDefinition
 	var consumer *catalog.Relation
 	for _, layer := range w.layers {
-		if _, found := ViewOf(layer.relation).Queries()[project.Syntax]; found {
-			definition = ViewOf(layer.relation)
+		if _, found := stored.ViewOf(layer.relation).Queries()[project.Syntax]; found {
+			definition = stored.ViewOf(layer.relation)
 			consumer = layer.relation
 			break
 		}
@@ -52,7 +53,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 				w.queryOccurrences = make(map[viewWriteOccurrence]int)
 			}
 			w.queryOccurrences[key] = slot
-			use, err := ViewUseReference(view, consumer, leaf.Ref)
+			use, err := stored.ViewUseReference(view, consumer, leaf.Ref)
 			if err != nil {
 				return 0, err
 			}
@@ -91,7 +92,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 			column.QueryOccurrence = slot + 1
 			changed = true
 		}
-		use, err := ViewUseReference(view, consumer, column.Origin)
+		use, err := stored.ViewUseReference(view, consumer, column.Origin)
 		if err != nil {
 			return nil, false, err
 		}
@@ -100,7 +101,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 		return column, changed, nil
 	}
 	return plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
-		next, translated, err := MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
+		next, translated, err := stored.MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
 		if err != nil {
 			return nil, false, err
 		}
@@ -148,12 +149,12 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 				continue
 			}
 			for _, layer := range viewWriteOf(b.ViewWrite).layers {
-				if ViewOf(layer.relation) != key.definition {
+				if stored.ViewOf(layer.relation) != key.definition {
 					continue
 				}
 				current := auth.Catalog.MustRelation(layer.ref.Address)
 				source.Principal = current.Owner
-				if ViewOf(current).Invoker() {
+				if stored.ViewOf(current).Invoker() {
 					source.Principal = auth.State.CurrentUser
 				}
 				break

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -84,14 +85,14 @@ func TestVersionInformationRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.VersionInformationKind{functions.VersionInformationServer, functions.VersionInformationUnicode, functions.VersionInformationICU} {
 		leaf := versionInformationUnitLeaf(t, b, kind)
-		retagged, changed, err := RetagTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := stored.RetagTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := target.CatalogRead().LookupType(d.ID())
 			return next
 		})
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented row dependency", ref); return ref }, nil)
+		remapped, err := stored.RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented row dependency", ref); return ref }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -119,9 +120,9 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 			}
 		}
 	case "set", "reset":
-		definition := ViewOf(old).Parts()
+		definition := stored.ViewOf(old).Parts()
 		if s.Action == "set" {
-			barrier, invoker, mode, err := ViewOptions(s.Options)
+			barrier, invoker, mode, err := stored.ViewOptions(s.Options)
 			if err != nil {
 				return fail(err)
 			}
@@ -146,14 +147,14 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				case "security_invoker":
 					definition.Invoker = false
 				case "check_option":
-					definition.CheckOption = CheckNone
+					definition.CheckOption = stored.CheckNone
 				}
 			}
 		}
-		definition.Options = transformViewOptions(ViewOf(old).Options(), s.Options, s.Action == "reset")
-		altered := NewView(definition)
-		if altered.CheckOption() != CheckNone {
-			if err := ValidateViewCheckDeclaration(altered); err != nil {
+		definition.Options = transformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
+		altered := stored.NewView(definition)
+		if altered.CheckOption() != stored.CheckNone {
+			if err := stored.ValidateViewCheckDeclaration(altered); err != nil {
 				return fail(err)
 			}
 		}

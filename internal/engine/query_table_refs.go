@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 // Expand recursive view bases before the first capture. Capture callers pass
@@ -34,22 +35,22 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 		}
 		mark = exec.EffectiveQueryRowMark(relation, mark)
-		if err := authorizeViewSourceSnapshot(auth, ref, ViewOf(relation), sourceInvoker, mark); err != nil {
+		if err := authorizeViewSourceSnapshot(auth, ref, stored.ViewOf(relation), sourceInvoker, mark); err != nil {
 			return err
 		}
 		active = append(active, ref)
 		defer func() { active = active[:len(active)-1] }()
-		for i, child := range ViewOf(relation).Sources() {
+		for i, child := range stored.ViewOf(relation).Sources() {
 			if child.AnalysisOnly {
 				continue
 			}
-			use, err := ViewUseReference(view, relation, child.Ref)
+			use, err := stored.ViewUseReference(view, relation, child.Ref)
 			if err != nil {
 				return err
 			}
 			// Nested invoker views retain this occurrence's original invoker;
 			// each definer view selects its own owner in the canonical check.
-			if err := authorize(use, sourceInvoker, viewLeafRowMark(ViewOf(relation), i, mark)); err != nil {
+			if err := authorize(use, sourceInvoker, viewLeafRowMark(stored.ViewOf(relation), i, mark)); err != nil {
 				return err
 			}
 		}
@@ -90,11 +91,11 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				visited = make(map[ids.ObjectRef]bool)
 			}
 			visited[ref] = true
-			for _, child := range ViewOf(relation).Sources() {
+			for _, child := range stored.ViewOf(relation).Sources() {
 				if child.AnalysisOnly {
 					continue
 				}
-				use, err := ViewUseReference(view, relation, child.Ref)
+				use, err := stored.ViewUseReference(view, relation, child.Ref)
 				if err != nil {
 					return err
 				}

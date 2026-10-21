@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -235,15 +236,15 @@ func TestSerialSequenceExpression(t *testing.T) {
 		}
 	}
 	// Rendering/remapping must retain the inquiry, never an evaluated name.
-	before, err := DefaultSQL(context.Background(), f.view, f.node)
+	before, err := stored.DefaultSQL(context.Background(), f.view, f.node)
 	if err != nil || !strings.Contains(before, "pg_catalog.pg_get_serial_sequence(") {
 		t.Fatal(before, err)
 	}
-	remapped, err := RemapExpression(f.node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	remapped, err := stored.RemapExpression(f.node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, err := DefaultSQL(context.Background(), f.view, remapped)
+	after, err := stored.DefaultSQL(context.Background(), f.view, remapped)
 	if err != nil || before != after {
 		t.Fatal(before, after, err)
 	}

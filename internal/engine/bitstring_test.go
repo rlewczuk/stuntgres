@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -79,7 +80,7 @@ func TestBitstringFormatLiteralReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		text, err := DefaultSQL(ctx, e.CatalogRead(), node)
+		text, err := stored.DefaultSQL(ctx, e.CatalogRead(), node)
 		want := "pg_catalog.format('%s', B'" + tc.canonical + "')"
 		if err != nil || text != want {
 			t.Fatal(text, want, err)

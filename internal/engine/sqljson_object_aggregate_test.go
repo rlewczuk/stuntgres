@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -60,7 +61,7 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 		root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: result.Usage()}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: p, Operation: functions.AggregateJSONObjectStrict, IncludeNulls: true}}}
-		mapped, err := RemapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := stored.RemapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
 		})

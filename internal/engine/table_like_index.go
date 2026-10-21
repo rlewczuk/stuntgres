@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 )
 
 // Clone live definitions, not source roots or validity flags. Invalid concurrent
@@ -68,11 +69,11 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 					key.Attribute = mapped
 					continue
 				}
-				node, err := RemapLikeExpression(in, key.Derived.Definition, destination, auth.Catalog)
+				node, err := stored.RemapLikeExpression(in, key.Derived.Definition, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := RemapLikeExpression(in, key.Derived.Execution, destination, auth.Catalog)
+				execution, err := stored.RemapLikeExpression(in, key.Derived.Execution, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
@@ -83,11 +84,11 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 				key.Derived = derived
 			}
 			if old.Predicate != nil {
-				node, err := RemapLikeExpression(in, old.Predicate.Definition, destination, auth.Catalog)
+				node, err := stored.RemapLikeExpression(in, old.Predicate.Definition, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := RemapLikeExpression(in, old.Predicate.Execution, destination, auth.Catalog)
+				execution, err := stored.RemapLikeExpression(in, old.Predicate.Execution, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}

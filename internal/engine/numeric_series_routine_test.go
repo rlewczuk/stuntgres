@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -114,7 +115,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
 			}
-			remapped, _, err := RetagTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, _, err := stored.RetagTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == nil {
 					return nil
 				}

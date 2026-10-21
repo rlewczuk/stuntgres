@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -83,7 +84,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, deparse := range []bool{false, true} {
-		renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID(), Presentation: viewPresentation{Deparse: deparse, Pretty: true}}
+		renderer := viewRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID(), Presentation: viewPresentation{Deparse: deparse, Pretty: true}}
 		sql, err := renderer.ExpressionSQL(context.Background(), b.BindingCatalog(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 		if err != nil {
 			t.Fatal(err)
@@ -99,7 +100,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 	}
 	target := New()
 	targetBinder := newTestExpressionBinder(t, context.Background(), target, sqltype.InputEnvironment{}, nil)
-	rebound, changed, err := RetagTypes(target.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := stored.RetagTypes(target.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		next, _ := target.CatalogRead().LookupType(d.ID())
 		return next
 	})
@@ -142,7 +143,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 		}
 		// Canonical stored SQL has a separate renderer from pg_get_viewdef's
 		// presentation route. Replay must preserve the reversed formal roles.
-		sql, err := DefaultSQL(context.Background(), owner.BindingCatalog(), node)
+		sql, err := stored.DefaultSQL(context.Background(), owner.BindingCatalog(), node)
 		if err != nil {
 			t.Fatal(err)
 		}

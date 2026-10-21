@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -82,7 +83,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := node.(functions.ArrayInspect)
-	mapped, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := stored.RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil
 		}

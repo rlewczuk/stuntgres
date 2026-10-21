@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -52,7 +53,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		if key.Derived != nil {
 			return (scalarRenderer{Owner: parent}).SQL(ctx, view, key.Derived.Definition)
 		}
-		return DeparseAttribute(parent, key.Attribute)
+		return stored.DeparseAttribute(parent, key.Attribute)
 	}
 	identifier := (pgRenderer{Output: presentation.output}).Identifier
 	if presentation.dump {
@@ -64,7 +65,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 	}
 	parentName := identifier(schema) + "." + identifier(parent.Name())
 	if presentation.pretty && !presentation.output.QuoteAllIdentifiers {
-		parentName = RelationDiagnosticNameAt(view, parent, presentation.path)
+		parentName = stored.RelationDiagnosticNameAt(view, parent, presentation.path)
 	}
 	// Canonical replay spells the supported access methods as SQL tokens.
 	// Session inquiry alone follows quote_all_identifiers.
@@ -138,7 +139,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 			if presentation.dump {
 				sql.WriteString(typedef.CollationSQLName(view, presented.Collation))
 			} else {
-				sql.WriteString(CollationDisplayName(view, presented.Collation, presentation.path))
+				sql.WriteString(stored.CollationDisplayName(view, presented.Collation, presentation.path))
 			}
 		}
 		if presented.ExplicitClass {

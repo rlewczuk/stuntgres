@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -158,7 +159,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if err != nil || !strings.Contains(nativeText, "ROW(18)") || strings.Contains(nativeText, "17") || strings.Contains(nativeText, "19") {
 		t.Fatal("native replay retained retired constructor arity", nativeText, err)
 	}
-	again, _, err := RetagTypes(after, mapped.DomainDefault.Expression, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+	again, _, err := stored.RetagTypes(after, mapped.DomainDefault.Expression, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
 		current, ok := after.LookupType(typ.ID())
 		if ok {
 			return current

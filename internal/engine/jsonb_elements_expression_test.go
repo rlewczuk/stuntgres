@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -40,7 +41,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			t.Fatal("unlifted evaluation accepted")
 		}
 		fresh := jsonObjectUnitTypes()
-		mapped, changed, err := RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+		mapped, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}

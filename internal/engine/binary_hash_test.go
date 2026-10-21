@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -44,7 +45,7 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rebound, changed, err := RetagTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
+			rebound, changed, err := stored.RetagTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}

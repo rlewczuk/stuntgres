@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -134,7 +135,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		}
 		other := New()
 		read := other.CatalogRead()
-		mapped, changed, err := RetagTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, changed, err := stored.RetagTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == nil {
 				return nil
 			}

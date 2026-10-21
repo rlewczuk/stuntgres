@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -29,7 +30,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if count != 1 {
 		t.Fatal("path argument traversal", count)
 	}
-	mapped, err := RemapExpression(call, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err := stored.RemapExpression(call, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || !analyze.SameGroupExpression(call, mapped) {
 		t.Fatal("path reference remap", err)
 	}
@@ -64,7 +65,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	}
 	fresh := New()
 	destination := catalogRelationsUnitBind(t, fresh, "pg_extension_update_paths", raw).(plan.ExtensionPathsExpr)
-	retagged, _, err := RetagTypes(fresh.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	retagged, _, err := stored.RetagTypes(fresh.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == 2249 {
 			return destination.ResultUsage().Type
 		}

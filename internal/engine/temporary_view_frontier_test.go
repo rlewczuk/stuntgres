@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 // Exercise actual session publication, replacement, frontier admission and read
@@ -38,7 +39,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 	for _, name := range []string{"retained_catalog", "retained_summary"} {
 		address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: name})
 		consumer := before.MustRelation(address)
-		source := ViewOf(consumer).Sources()[0].Ref.Address
+		source := stored.ViewOf(consumer).Sources()[0].Ref.Address
 		providers[source] = before.MustRelation(source)
 	}
 	controls := []func() error{

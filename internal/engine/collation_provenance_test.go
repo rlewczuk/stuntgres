@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -39,7 +40,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if view.Epoch() == before.Epoch() || view.Get(consumer.Address()) != consumer {
 		t.Fatal("fixture did not retain exact TEMP descriptor across replacement")
 	}
-	if !CollationReferenceValid(view, consumer, ref, capability) {
+	if !stored.CollationReferenceValid(view, consumer, ref, capability) {
 		t.Fatal("lawful physical-owner retained provider rejected")
 	}
 	seedAddress := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 100}
@@ -48,7 +49,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	seedRef := e.catalog.Domain.Ref(before.Epoch(), seedAddress)
-	if !CollationReferenceValid(view, consumer, seedRef, seedCapability) {
+	if !stored.CollationReferenceValid(view, consumer, seedRef, seedCapability) {
 		t.Fatal("lawful retained actual pinned seed rejected")
 	}
 	foreignAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: peer.TemporaryNamespace, Name: "foreign_provider"})
@@ -89,16 +90,16 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if CollationReferenceValid(view, c.consumer, c.ref, c.capability) {
+			if stored.CollationReferenceValid(view, c.consumer, c.ref, c.capability) {
 				t.Fatal("accepted invalid retained collation authority")
 			}
 		})
 	}
-	if CollationReferenceValid(view, consumer, expiredRef, expiredCapability) {
+	if stored.CollationReferenceValid(view, consumer, expiredRef, expiredCapability) {
 		t.Fatal("accepted genuinely dropped retained provider")
 	}
 	detached := *consumer
-	if CollationReferenceValid(view, &detached, ref, capability) {
+	if stored.CollationReferenceValid(view, &detached, ref, capability) {
 		t.Fatal("accepted detached consumer instead of actual live descriptor")
 	}
 	stage := e.BeginCatalogStage(view)
@@ -108,7 +109,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if err := stage.Replace(&invalidSeed); err != nil {
 		t.Fatal(err)
 	}
-	if CollationReferenceValid(e.stageRead(stage), consumer, seedRef, seedCapability) {
+	if stored.CollationReferenceValid(e.stageRead(stage), consumer, seedRef, seedCapability) {
 		t.Fatal("accepted candidate with incompatible actual seed provider invariant")
 	}
 	// Render genuine retained trees through the complete serializer. Compare

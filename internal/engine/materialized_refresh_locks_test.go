@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -49,7 +50,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			stage, source := queryCreateStage(t, e, "refresh_unit_source", 1)
 			queryCreatePublish(t, e, stage)
 			sourceRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), source.Address())
-			d.View = ViewOf(d).With(func(p *ViewParts) {
+			d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
 				p.Sources = []viewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
 			holder := sessionStart(t, e, nil)

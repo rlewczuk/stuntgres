@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 )
 
 // Retained TEMP definitions keep their original row-reference epoch across a
@@ -18,7 +19,7 @@ func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v cat
 		return true
 	}
 	identity := analyze.LikeInput{Source: d}
-	current, err := RemapLikeExpression(&identity, child, d, v)
+	current, err := stored.RemapLikeExpression(&identity, child, d, v)
 	return err == nil && analyze.SameGroupExpression(mapped, current)
 }
 
@@ -168,7 +169,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 			for i, c := range parent.Columns {
 				mapper.TargetSlots[i] = d.Index[c.Name]
 			}
-			node, err := RemapLikeExpression(&mapper, parent.Constraints.Check[source].Expression, d, v)
+			node, err := stored.RemapLikeExpression(&mapper, parent.Constraints.Check[source].Expression, d, v)
 			if err != nil || !sameInheritedExpression(node, d.Constraints.Check[child].Expression, d, v) {
 				return invalid()
 			}

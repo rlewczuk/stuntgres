@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -170,7 +171,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if n.Procedure.Address() != ext.Members[1] || n.Dictionary.Address() != ext.Members[5] || n.Template.Address() != ext.Members[4] {
 		t.Fatal("captured provider identity")
 	}
-	refs, err := ExpressionDependRefs(context.Background(), e.CatalogRead(), node)
+	refs, err := stored.ExpressionDependRefs(context.Background(), e.CatalogRead(), node)
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("procedure dependency", refs, err)
 	}
@@ -179,7 +180,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type {
 		t.Fatal("strict typed NULL", value, err)
 	}
-	retagged, _, err := RetagTypes(e.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	retagged, _, err := stored.RetagTypes(e.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -154,7 +155,7 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal("definition validation evaluated an explicit cast", err)
 	}
-	text, err := DefaultSQL(context.Background(), view, old.ColumnMeta.Defaults[2].Expression)
+	text, err := stored.DefaultSQL(context.Background(), view, old.ColumnMeta.Defaults[2].Expression)
 	if err != nil || !strings.Contains(text, "CAST(CAST('oops' AS TEXT) AS ") {
 		t.Fatal("lost known TEXT input type", text, err)
 	}
@@ -185,7 +186,7 @@ func TestDefaultDescriptorProviderUnfoldedDecisiveBranches(t *testing.T) {
 		t.Fatal("provider evaluated a discarded conversion", err)
 	}
 	for _, definition := range d.ColumnMeta.Defaults {
-		text, err := DefaultSQL(context.Background(), view, definition.Expression)
+		text, err := stored.DefaultSQL(context.Background(), view, definition.Expression)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -64,7 +65,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			for _, d := range sqltype.Builtins() {
 				replacements[d.ID()] = d
 			}
-			next, changed, err := RetagTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+			next, changed, err := stored.RetagTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(next, changed, err)
 			}

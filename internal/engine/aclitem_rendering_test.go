@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,14 +27,14 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	if err != nil || text != "CAST('acl_render_a=r*/acl_render_b' AS ACLITEM)" {
 		t.Fatal("explicit construction authority", text, err)
 	}
-	if _, err := DefaultSQL(context.Background(), view, literal); err == nil {
+	if _, err := stored.DefaultSQL(context.Background(), view, literal); err == nil {
 		t.Fatal("real SQL presentation accepted missing authority")
 	}
 	// Build the actual persisted CHECK provider and its dependency manifest
 	// without issuing SQL or asserting only a standalone formatting helper.
 	boolean := aclUnitType(t, e, sqltype.Bool)
 	ordinaryBoolean := plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
-	if _, err := DefaultSQL(context.Background(), view, ordinaryBoolean); err != nil {
+	if _, err := stored.DefaultSQL(context.Background(), view, ordinaryBoolean); err != nil {
 		t.Fatal("non-ACL presentation acquired authority requirement", err)
 	}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, value.Type(), value.Type(), boolean, sqltype.CollationRef{}, false)
@@ -86,7 +87,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	if _, err := validation.SQL(context.Background(), view, foreignLiteral); err == nil {
 		t.Fatal("foreign token validated through coincident descriptor/IDs")
 	}
-	if _, err := DefaultSQL(context.Background(), view, literal); err == nil {
+	if _, err := stored.DefaultSQL(context.Background(), view, literal); err == nil {
 		t.Fatal("validation mode leaked into real SQL presentation")
 	}
 	t.Run("view owning cast replay", func(t *testing.T) {
@@ -97,7 +98,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		}
 		render := func(value sqltype.Value, target sqltype.Usage) (string, error) {
 			leafPath := analyze.ViewLiteralPath{Node: 1}
-			renderer := viewRenderer{viewDefinition: NewView(ViewParts{
+			renderer := viewRenderer{View: stored.NewView(stored.ViewParts{
 				Literals:   map[analyze.ViewLiteralPath]plan.LiteralExpr{leafPath: {Info: expr.Info{Usage: value.Type().Usage()}, Value: value}},
 				CastUsages: map[analyze.ViewLiteralPath]sqltype.Usage{{}: target},
 			})}

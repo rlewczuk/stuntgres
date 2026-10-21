@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 
 	"stuntgres/internal/engine/functions"
@@ -98,7 +99,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, original, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := NewQueryRenderer(NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
+	renderer := stored.NewQueryRenderer(stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
 	renderer.Frame = b.FrameID()
 	persisted, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
@@ -200,7 +201,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 		t.Fatal("ordered argument identity")
 	}
 	types := formatUnitTypes()
-	retained, changed, err := RetagTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := stored.RetagTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -229,7 +230,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	}
 	node := bound.(functions.Format)
 	types := formatUnitTypes()
-	retained, changed, err := RetagTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := stored.RetagTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

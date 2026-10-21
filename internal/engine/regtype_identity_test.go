@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -92,7 +93,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 		}
 		return ref
 	}
-	untouched, err := RemapExpression(literal, transform, nil)
+	untouched, err := stored.RemapExpression(literal, transform, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +102,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 		t.Fatal("relation ID used as type identity", id, err)
 	}
 	mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 42}
-	changed, err := RemapExpression(literal, transform, nil)
+	changed, err := stored.RemapExpression(literal, transform, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

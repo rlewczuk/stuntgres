@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -50,7 +51,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		if unary.Ref.Address != ext.Members[tc.member] {
 			t.Fatal("unary procedure identity", unary.Ref)
 		}
-		if err := ValidateInstalledMetaphone(unary, e.CatalogRead()); err != nil {
+		if err := stored.ValidateInstalledMetaphone(unary, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		value, err := unary.Eval(ctx)
@@ -64,7 +65,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if err != nil || readErr != nil || integer != "KM" || n.Ref.Address != ext.Members[5] || value.Type() != n.ResultUsage().Type || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
 		t.Fatal(value, n.Ref, err, readErr)
 	}
-	if err := ValidateInstalledMetaphone(n, e.CatalogRead()); err != nil {
+	if err := stored.ValidateInstalledMetaphone(n, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	nonmember := *n.Procedure
@@ -74,7 +75,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if err := extension.StockFuzzystrmatch.ValidateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
-	refs, err := ExpressionDependRefs(ctx.Context, e.CatalogRead(), n)
+	refs, err := stored.ExpressionDependRefs(ctx.Context, e.CatalogRead(), n)
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal(refs, err)
 	}
@@ -111,7 +112,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		state.SetDescriptor(n.Ref.Address, &bad)
 		forged := n
 		forged.Procedure = &bad
-		if err := ValidateInstalledMetaphone(forged, e.catalog.read(state)); err == nil {
+		if err := stored.ValidateInstalledMetaphone(forged, e.catalog.read(state)); err == nil {
 			t.Fatal("forged installed call admitted", bad)
 		}
 	}
@@ -126,11 +127,11 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 			t.Fatal("foreign/stale stored reference admitted")
 		}
 	}
-	retagged, _, err := RetagTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	retagged, _, err := stored.RetagTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateInstalledMetaphone(retagged.(plan.InstalledMetaphoneExpr), e.CatalogRead()); err != nil {
+	if err := stored.ValidateInstalledMetaphone(retagged.(plan.InstalledMetaphoneExpr), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	folded, _, err := exec.SimplifyConditional(ctx, n, false)
@@ -211,7 +212,7 @@ func TestMetaphoneRemap(t *testing.T) {
 		if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
 			t.Fatal("stale remapped authority", n.Ref)
 		}
-		if err := ValidateInstalledMetaphone(n, view); err != nil {
+		if err := stored.ValidateInstalledMetaphone(n, view); err != nil {
 			t.Fatal(err)
 		}
 		value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -187,7 +188,7 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 		d := &catalog.Type{SQLType: typ, ObjectNamespace: ns, ObjectRevision: 1}
 		view.State().SetDescriptor(d.Address(), d)
 	}
-	if !DependPinned(view, nil, pgDependUnitAddress(1247, 23, 0)) || !DependPinned(view, nil, pgDependUnitAddress(2615, 11, 0)) || DependPinned(view, nil, pgDependUnitAddress(2615, 2200, 0)) || DependPinned(view, nil, pgDependUnitAddress(1247, 47003, 0)) {
+	if !stored.DependPinned(view, nil, pgDependUnitAddress(1247, 23, 0)) || !stored.DependPinned(view, nil, pgDependUnitAddress(2615, 11, 0)) || stored.DependPinned(view, nil, pgDependUnitAddress(2615, 2200, 0)) || stored.DependPinned(view, nil, pgDependUnitAddress(1247, 47003, 0)) {
 		t.Fatal("pin authorities")
 	}
 	got, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
@@ -230,7 +231,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 		}
 		var got []pgcatalog.DependEdge
 		for _, edge := range edges {
-			if DependPinned(view, nil, edge.Referenced) {
+			if stored.DependPinned(view, nil, edge.Referenced) {
 				t.Fatal("pinned reference escaped collector policy", edge)
 			}
 			if edge.Dependent == owner {

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -14,8 +15,8 @@ func TestPgClassOptionHistory(t *testing.T) {
 		return parser.ViewOption{Name: parser.Identifier{Text: name}, Value: value, HasValue: true}
 	}
 	created := []parser.ViewOption{option("security_invoker", "false"), option("security_barrier", "true")}
-	barrier, invoker, mode, err := ViewOptions(created)
-	if err != nil || !barrier || invoker || mode != CheckNone {
+	barrier, invoker, mode, err := stored.ViewOptions(created)
+	if err != nil || !barrier || invoker || mode != stored.CheckNone {
 		t.Fatal("execution flags", barrier, invoker, mode, err)
 	}
 	old := transformViewOptions(nil, created, false)
@@ -41,12 +42,12 @@ func TestPgClassOptionHistory(t *testing.T) {
 		t.Fatal("lexical facts", got)
 	}
 	e := New()
-	original := NewView(ViewParts{Query: &plan.Query{Root: &plan.SingletonNode{}}, Options: old, Barrier: true, Invoker: false, CheckOption: CheckNone, Rule: 200001})
-	mapped, err := RemapView(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+	original := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.SingletonNode{}}, Options: old, Barrier: true, Invoker: false, CheckOption: stored.CheckNone, Rule: 200001})
+	mapped, err := stored.RemapView(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 	if err != nil || mapped == original || mapped.RuleOID() != original.RuleOID() || mapped.Barrier() != original.Barrier() || mapped.Invoker() != original.Invoker() || !reflect.DeepEqual(mapped.Options(), old) {
 		t.Fatal("remap lost installed options", mapped, err)
 	}
-	mapped = mapped.With(func(p *ViewParts) {
+	mapped = mapped.With(func(p *stored.ViewParts) {
 		p.Options = transformViewOptions(p.Options, []parser.ViewOption{option("security_invoker", "true")}, false)
 	})
 	if !reflect.DeepEqual(original.Options(), old) || !reflect.DeepEqual(mapped.Options(), []string{"security_barrier=true", "security_invoker=true"}) {

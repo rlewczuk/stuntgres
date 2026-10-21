@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"testing"
@@ -47,7 +48,7 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	old = e.catalog.state.MustRelation(ref.Address)
 	roleExecute(t, e, op, "CREATE OR REPLACE VIEW v WITH(security_barrier=true,security_invoker=true) AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.View == old.View || next.Address() != old.Address() || next.Owner != old.Owner || ViewOf(next).RuleOID() != ViewOf(old).RuleOID() || !reflect.DeepEqual(next.Attributes[:2], old.Attributes) || !reflect.DeepEqual(next.Security.ACL, old.Security.ACL) || !reflect.DeepEqual(next.Security.ColumnACL, old.Security.ColumnACL) || next.Comment != old.Comment || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) {
+	if next == old || next.View == old.View || next.Address() != old.Address() || next.Owner != old.Owner || stored.ViewOf(next).RuleOID() != stored.ViewOf(old).RuleOID() || !reflect.DeepEqual(next.Attributes[:2], old.Attributes) || !reflect.DeepEqual(next.Security.ACL, old.Security.ACL) || !reflect.DeepEqual(next.Security.ColumnACL, old.Security.ColumnACL) || next.Comment != old.Comment || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) {
 		t.Fatal("replacement lost immutable identity/ACL/comment", old, next)
 	}
 	if len(old.Columns) != 2 || len(next.Columns) != 3 || next.Attributes[2] == old.Attributes[0] || next.Attributes[2] == old.Attributes[1] {
@@ -60,18 +61,18 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	_, err := testExecute(e, context.Background(), statement(t, "DROP TABLE u"), nil)
 	viewReplaceError(t, err, sqlstate.Error{Code: "2BP01", Message: "cannot drop table u because other objects depend on it", Detail: "view v depends on table u\nview w depends on view v", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
 	roleExecute(t, e, op, "ALTER VIEW v SET(security_invoker=false)")
-	flags := ViewOf(e.catalog.state.MustRelation(ref.Address))
+	flags := stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
 	if !flags.Barrier() || flags.Invoker() {
 		t.Fatal(flags)
 	}
 	roleExecute(t, e, op, "ALTER VIEW v RESET(security_barrier,unknown_option,unknown_option,check_option)")
-	flags = ViewOf(e.catalog.state.MustRelation(ref.Address))
+	flags = stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
 	if flags.Barrier() || flags.Invoker() {
 		t.Fatal(flags)
 	}
 	roleExecute(t, e, op, "ALTER VIEW v SET(security_barrier=true,security_invoker=true)")
 	roleExecute(t, e, op, "CREATE OR REPLACE VIEW v AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
-	flags = ViewOf(e.catalog.state.MustRelation(ref.Address))
+	flags = stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
 	if flags.Barrier() || flags.Invoker() {
 		t.Fatal("replace did not clear options", flags)
 	}

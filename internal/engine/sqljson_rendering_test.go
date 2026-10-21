@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -145,7 +146,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 					t.Fatalf("display pretty=%v = %q, %v; want %q", pretty, got, err, want)
 				}
 			}
-			got, err := DefaultSQL(context.Background(), view, c.node)
+			got, err := stored.DefaultSQL(context.Background(), view, c.node)
 			if err != nil || got != c.replay {
 				t.Fatalf("replay = %q, %v; want %q", got, err, c.replay)
 			}

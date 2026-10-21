@@ -5,7 +5,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Inputs have already passed viewOptions/RESET validation. PostgreSQL retains
+// Inputs have already passed stored.ViewOptions/RESET validation. PostgreSQL retains
 // unmatched old options in their old order, then appends SET keys in statement
 // order. Parser values preserve lexical strings (including explicit false).
 // Every mutation owns its output slice; old definitions remain immutable.

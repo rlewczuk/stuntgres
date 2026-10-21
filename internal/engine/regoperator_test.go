@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -52,7 +53,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		if err := (routine.OperatorProvider{}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
-		if !DependPinned(view, nil, address) {
+		if !stored.DependPinned(view, nil, address) {
 			t.Fatal("builtin operator not pinned", address)
 		}
 		expected[ids.OID(oid)] = true

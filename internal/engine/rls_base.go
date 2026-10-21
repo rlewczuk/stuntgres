@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
@@ -63,7 +64,7 @@ func rowSecurityLayers(view catalog.Read, b analyze.Binding) []access.RowSecurit
 	layers := make([]access.RowSecurityLayer, 0, len(viewWriteOf(b.ViewWrite).layers))
 	for _, layer := range viewWriteOf(b.ViewWrite).layers {
 		current := view.MustRelation(layer.ref.Address)
-		layers = append(layers, access.RowSecurityLayer{Owner: current.Owner, Invoker: ViewOf(current).Invoker()})
+		layers = append(layers, access.RowSecurityLayer{Owner: current.Owner, Invoker: stored.ViewOf(current).Invoker()})
 	}
 	return layers
 }

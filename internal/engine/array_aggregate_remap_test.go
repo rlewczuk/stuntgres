@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -42,7 +43,7 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 			Child:       &plan.ValuesNode{},
 			Calls:       []plan.AggregateCall{{Provider: p, IncludeNulls: true}},
 		}
-		mapped, err := RemapViewQuery(e.catalog.read(e.catalog.state), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := stored.RemapViewQuery(e.catalog.read(e.catalog.state), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == p.ResultUsage().Type {
 				return array
 			}
@@ -132,7 +133,7 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 			Child:       &plan.ValuesNode{},
 			Calls:       []plan.AggregateCall{{Provider: p, IncludeNulls: true}},
 		}
-		mapped, err := RemapViewQuery(destinationView, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := stored.RemapViewQuery(destinationView, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == sourceElement {
 				return destinationElement
 			}

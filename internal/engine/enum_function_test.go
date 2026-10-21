@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -48,7 +49,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
-	unchanged, changed, err := RetagTypes(sourceView, bound, identity)
+	unchanged, changed, err := stored.RetagTypes(sourceView, bound, identity)
 	if err != nil || changed || unchanged.(functions.Enum).Args[0] != bound.Args[0] {
 		t.Fatal("unchanged mapping", changed, err)
 	}
@@ -61,11 +62,11 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		}
 		return d
 	}
-	if _, _, err := RetagTypes(targetView, bound, mapping); err == nil {
+	if _, _, err := stored.RetagTypes(targetView, bound, mapping); err == nil {
 		t.Fatal("cross-lifetime literal remap admitted without import authority")
 	}
 	targetView.State().SetScalarImports(map[*sqltype.Descriptor]*sqltype.Descriptor{mood: targetMood})
-	mapped, changed, err := RetagTypes(targetView, bound, mapping)
+	mapped, changed, err := stored.RetagTypes(targetView, bound, mapping)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -77,7 +78,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if old.Type() != array || old.ArrayElement(0).Type() != mood || bound.Plan.Enum() != mood || bound.Args[0].ResultUsage().Type != mood {
 		t.Fatal("source mutated")
 	}
-	text, deps, err := RenderColumnDefault(ctx, targetView, next)
+	text, deps, err := stored.RenderColumnDefault(ctx, targetView, next)
 	if err != nil || !strings.Contains(text, "pg_catalog.enum_range(") || len(deps) < 2 {
 		t.Fatal(text, deps, err)
 	}

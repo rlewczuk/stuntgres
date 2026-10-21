@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -92,7 +93,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					mapped.presentation, err = RemapView(current, mapped.presentation, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+					mapped.presentation, err = stored.RemapView(current, mapped.presentation, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 					if err != nil {
 						t.Fatal(err)
 					}

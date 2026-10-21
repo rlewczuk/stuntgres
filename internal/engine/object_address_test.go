@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -94,7 +95,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{3: {OID: 48017}}
 	d.Rules = rulesPayloadOf([]ruleDefinition{{OID: 48018, Name: "rule_unit"}})
 	d.Security.Policies = []catalog.PolicyDefinition{{OID: 48019, Name: "policy_unit"}}
-	d.View = NewView(ViewParts{Rule: 48022})
+	d.View = stored.NewView(stored.ViewParts{Rule: 48022})
 	for _, tc := range []struct {
 		class, id ids.OID
 		name      string
@@ -182,7 +183,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 		if err != nil || !value.IsNull() || value.Type() != n.ResultUsage().Type {
 			t.Fatal("strict typed NULL", value, err)
 		}
-		mapped, err := RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		mapped, err := stored.RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || mapped.(functions.ObjectAddress).Validate() != nil {
 			t.Fatal("stored remap", mapped, err)
 		}

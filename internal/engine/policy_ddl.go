@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -137,7 +138,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	for _, p := range next.Security.Policies {
-		for _, expression := range []*policyExpression{PolicyOf(p.Using), PolicyOf(p.Check)} {
+		for _, expression := range []*policyExpression{stored.PolicyOf(p.Using), stored.PolicyOf(p.Check)} {
 			if expression == nil {
 				continue
 			}

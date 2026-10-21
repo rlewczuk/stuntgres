@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -120,22 +121,22 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	advanced := catalog.CloneState(view.State())
 	advanced.SetEpoch(advanced.Epoch() + 1)
 	retained := e.catalog.read(advanced)
-	if !ReferenceEpochValid(retained, table, old) {
+	if !stored.ReferenceEpochValid(retained, table, old) {
 		t.Fatal("exact retained owner rejected")
 	}
 	bad := old
 	bad = New().catalog.Domain.Ref(bad.Epoch, bad.Address)
-	if ReferenceEpochValid(retained, table, bad) {
+	if stored.ReferenceEpochValid(retained, table, bad) {
 		t.Fatal("foreign engine accepted")
 	}
 	bad = old
 	bad.Address.SubID = 2
-	if ReferenceEpochValid(retained, table, bad) {
+	if stored.ReferenceEpochValid(retained, table, bad) {
 		t.Fatal("removed attribute accepted")
 	}
 	bad = old
 	bad.Epoch = advanced.Epoch() + 1
-	if ReferenceEpochValid(retained, table, bad) {
+	if stored.ReferenceEpochValid(retained, table, bad) {
 		t.Fatal("future incarnation accepted")
 	}
 	foreign := *advanced.MustNamespace(table.Namespace())
@@ -144,12 +145,12 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	consumer.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
 	advanced.SetDescriptor(consumer.Namespace(), &catalog.Namespace{ObjectAddress: consumer.Namespace(), Temporary: op.Session.SessionToken})
 	advanced.SetDescriptor(table.Namespace(), &foreign)
-	if ReferenceEpochValid(retained, &consumer, old) {
+	if stored.ReferenceEpochValid(retained, &consumer, old) {
 		t.Fatal("peer provenance accepted")
 	}
 	advanced.SetDescriptor(table.Namespace(), view.Get(table.Namespace()))
 	advanced.RemoveDescriptor(table.Address())
-	if ReferenceEpochValid(retained, table, old) {
+	if stored.ReferenceEpochValid(retained, table, old) {
 		t.Fatal("retired target resurrected")
 	}
 }
@@ -334,7 +335,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	}
 	for _, target := range []*catalog.Relation{provider, providerIndex} {
 		ref := e.catalog.Domain.Ref(before.Epoch(), target.Address())
-		if !ReferenceEpochValid(retained, consumer, ref) {
+		if !stored.ReferenceEpochValid(retained, consumer, ref) {
 			t.Fatal("actual same-owner relation rejected", target.Name())
 		}
 		if err := e.ValidateObjectRef(retained, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -350,11 +351,11 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 			e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID, SubID: 99}),
 			e.catalog.Domain.Ref(ref.Epoch, foreign.Address()),
 		} {
-			if ReferenceEpochValid(retained, consumer, bad) {
+			if stored.ReferenceEpochValid(retained, consumer, bad) {
 				t.Fatal("invalid contextual reference accepted", bad)
 			}
 		}
-		if ReferenceEpochValid(New().CatalogRead(), consumer, ref) || ReferenceEpochValid(retained, persistent, ref) || ReferenceEpochValid(retained, nil, ref) {
+		if stored.ReferenceEpochValid(New().CatalogRead(), consumer, ref) || stored.ReferenceEpochValid(retained, persistent, ref) || stored.ReferenceEpochValid(retained, nil, ref) {
 			t.Fatal("foreign engine, persistent or generic consumer gained authority")
 		}
 	}
@@ -374,7 +375,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	if _, live := retained.Find(domainRef.Address); !live {
 		t.Fatal("actual replacement did not retain domain address")
 	}
-	if ReferenceEpochValid(retained, consumer, domainRef) || ReferenceEpochValid(retained, consumer, arrayRef) {
+	if stored.ReferenceEpochValid(retained, consumer, domainRef) || stored.ReferenceEpochValid(retained, consumer, arrayRef) {
 		t.Fatal("domain or domain-array gained stale type authority")
 	}
 	// This is a real captured row origin, not a provider-kind substitute. Exact
@@ -435,13 +436,13 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("closure discovery mutated genuine catalog/row/index predecessors")
 	}
 	sessionSQL(t, owner, "DROP TABLE live_provider CASCADE")
-	if ReferenceEpochValid(e.CatalogRead(), consumer, captured) || ReferenceEpochValid(e.CatalogRead(), consumer, capturedIndex) {
+	if stored.ReferenceEpochValid(e.CatalogRead(), consumer, captured) || stored.ReferenceEpochValid(e.CatalogRead(), consumer, capturedIndex) {
 		t.Fatal("retired provider resurrected")
 	}
 	sessionSQL(t, owner, "CREATE TEMP TABLE live_provider(v INT)")
 	sessionSQL(t, owner, "CREATE INDEX live_provider_index ON live_provider(v)")
 	current := e.CatalogRead()
-	if lookup(current, "live_provider", owner.SessionToken).Address() == provider.Address() || lookup(current, "live_provider_index", owner.SessionToken).Address() == providerIndex.Address() || ReferenceEpochValid(current, consumer, captured) || ReferenceEpochValid(current, consumer, capturedIndex) {
+	if lookup(current, "live_provider", owner.SessionToken).Address() == provider.Address() || lookup(current, "live_provider_index", owner.SessionToken).Address() == providerIndex.Address() || stored.ReferenceEpochValid(current, consumer, captured) || stored.ReferenceEpochValid(current, consumer, capturedIndex) {
 		t.Fatal("same-name recreated provider rebound old identity")
 	}
 	for attribute, manifest := range dependencies {

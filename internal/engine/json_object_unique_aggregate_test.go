@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -53,7 +54,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 				return
 			}
 			root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: p.ResultUsage()}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: p, Operation: call.Operation, IncludeNulls: call.IncludeNulls}}}
-			mapped, err := RemapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			mapped, err := stored.RemapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := destination.CatalogRead().LookupType(old.ID())
 				return next
 			})

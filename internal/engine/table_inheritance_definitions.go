@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -76,11 +77,11 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 				d.ColumnMeta.Defaults[target] = copied
 			}
 			if old, ok := in.Source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.Generation == nil {
-				node, err := RemapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
+				node, err := stored.RemapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				planned, err := RemapLikeExpression(&mapper, old.Planned, d, auth.Catalog)
+				planned, err := stored.RemapLikeExpression(&mapper, old.Planned, d, auth.Catalog)
 				if err != nil {
 					return err
 				}
@@ -104,7 +105,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 			if old.NoInherit {
 				continue
 			}
-			node, err := RemapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
+			node, err := stored.RemapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
 			if err != nil {
 				return err
 			}

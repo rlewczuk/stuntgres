@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -71,11 +72,11 @@ func evolveIndexRevision(index, oldParent, parent *catalog.Relation, transformat
 			continue
 		}
 		remap := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
-		node, err := RemapExpression(key.Derived.Definition, remap, slots)
+		node, err := stored.RemapExpression(key.Derived.Definition, remap, slots)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := RemapExpression(key.Derived.Execution, remap, slots)
+		execution, err := stored.RemapExpression(key.Derived.Execution, remap, slots)
 		if err != nil {
 			return nil, err
 		}
@@ -102,11 +103,11 @@ func evolveIndexRevision(index, oldParent, parent *catalog.Relation, transformat
 				slots[id] = slot
 			}
 			remap := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
-			node, err := RemapExpression(predicate.Definition, remap, slots)
+			node, err := stored.RemapExpression(predicate.Definition, remap, slots)
 			if err != nil {
 				return nil, err
 			}
-			execution, err := RemapExpression(predicate.Execution, remap, slots)
+			execution, err := stored.RemapExpression(predicate.Execution, remap, slots)
 			if err != nil {
 				return nil, err
 			}

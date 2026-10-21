@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -75,7 +76,7 @@ func TestUUIDExtractRemap(t *testing.T) {
 	fresh := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.UUIDExtractKind{functions.UUIDExtractTimestamp, functions.UUIDExtractVersion} {
 		node := uuidExtractEngineUnit(t, b, kind)
-		mapped, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
+		mapped, changed, err := stored.RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
 		if err != nil || !changed {
 			t.Fatal(mapped, changed, err)
 		}

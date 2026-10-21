@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 )
 
 func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
@@ -42,7 +43,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 		next.ObjectAddress.ObjectID = oid
 		next.ObjectName = "late_view"
 		next.ObjectRevision = revision
-		next.View = ViewOf(originalView).With(func(p *ViewParts) { p.Rule = rule })
+		next.View = stored.ViewOf(originalView).With(func(p *stored.ViewParts) { p.Rule = rule })
 		next.Columns = append([]catalog.Column(nil), originalView.Columns...)
 		for i := range next.Columns {
 			next.Columns[i].OriginTable = uint32(oid)

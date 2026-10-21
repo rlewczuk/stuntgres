@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -58,7 +59,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if !ok {
 			return "", ids.ErrCatalogReplaced
 		}
-		name, err := DeparseAttribute(d, column.Origin.Address.SubID)
+		name, err := stored.DeparseAttribute(d, column.Origin.Address.SubID)
 		if err != nil {
 			return "", err
 		}
@@ -91,7 +92,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if !ok || project.Syntax == nil {
 			return "", true, fmt.Errorf("stuntgres: missing rule subquery syntax")
 		}
-		renderer := NewQueryRenderer(action.presentation)
+		renderer := stored.NewQueryRenderer(action.presentation)
 		// Replacement remaps executable and frozen graphs independently.
 		// Every slot cache and frame lookup in this render must use the
 		// retained presentation graph, selected by immutable syntax identity.
@@ -231,7 +232,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		if !ok || project.Syntax == nil || action.presentation == nil {
 			return "", fmt.Errorf("stuntgres: missing rule derived-query presentation")
 		}
-		renderer := NewQueryRenderer(action.presentation)
+		renderer := stored.NewQueryRenderer(action.presentation)
 		project = renderer.Queries()[project.Syntax]
 		if project == nil {
 			return "", fmt.Errorf("stuntgres: missing retained rule derived-query presentation")
@@ -303,7 +304,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 	d := view.MustRelation(b.Ref.Address)
 	var sql strings.Builder
 	if definitions := parser.StatementWith(action.syntax); len(definitions) != 0 {
-		renderer := NewQueryRenderer(action.presentation)
+		renderer := stored.NewQueryRenderer(action.presentation)
 		prefix, err := renderer.WithClauseSQL(ctx, view, definitions, parser.StatementWithRecursive(action.syntax), func(statement parser.Statement) (string, error) {
 			if query, ok := statement.(*parser.Select); ok {
 				project := renderer.Queries()[query]
@@ -337,7 +338,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 			names := make([]string, len(b.Targets))
 			for i, slot := range b.Targets {
 				attribute := b.Relation.Attributes[slot]
-				names[i], err = DeparseAttribute(d, attribute)
+				names[i], err = stored.DeparseAttribute(d, attribute)
 				if err != nil {
 					return "", err
 				}
@@ -396,7 +397,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				parts := make([]string, len(b.Insert.Conflict.Keys))
 				for i, key := range b.Insert.Conflict.Keys {
 					if key.Attribute != 0 {
-						parts[i], err = DeparseAttribute(d, key.Attribute)
+						parts[i], err = stored.DeparseAttribute(d, key.Attribute)
 					} else {
 						parts[i], err = ruleExpressionSQL(ctx, view, key.Expression, action)
 						parts[i] = "(" + parts[i] + ")"
@@ -428,7 +429,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 					if i != 0 {
 						sql.WriteString(", ")
 					}
-					column, err := DeparseAttribute(d, b.Relation.Attributes[b.Insert.Conflict.UpdateTargets[i]])
+					column, err := stored.DeparseAttribute(d, b.Relation.Attributes[b.Insert.Conflict.UpdateTargets[i]])
 					if err != nil {
 						return "", err
 					}
@@ -549,7 +550,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			}
 			sql.WriteString("CREATE RULE " + catalog.QuoteIdentifier(r.Name) + " AS ON " + r.event + " TO " + table)
 			if r.condition != nil {
-				renderer := NewQueryRenderer(r.conditionPresentation)
+				renderer := stored.NewQueryRenderer(r.conditionPresentation)
 				renderer.Frame = r.conditionPresentation.Query().Root.(*plan.ProjectNode).Frame
 				text, err := renderer.ExpressionSQL(ctx, view, r.conditionPresentation.Syntax().Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {

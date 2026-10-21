@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 )
 
 // The caller is the affected historical-only NN branch of real TYPE cleanup.
@@ -38,7 +39,7 @@ func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotN
 
 func physicalNotNullOriginValid(view catalog.Read, table *catalog.Relation, attribute int32, proof catalog.PhysicalNotNullProof) bool {
 	cause := proof.Cause
-	if cause == nil || cause.Self != cause || cause.Kind != catalog.PhysicalNotNullTypeCleanup && cause.Kind != catalog.PhysicalNotNullImportCleanup && cause.Kind != catalog.PhysicalNotNullImportFlag || cause.Ref.Address != table.Address() || cause.Ref.Address.SubID != 0 || cause.Attribute != attribute || cause.RemovedNN == 0 || cause.Usage.Type == nil || !ReferenceEpochValid(view, table, cause.Ref) {
+	if cause == nil || cause.Self != cause || cause.Kind != catalog.PhysicalNotNullTypeCleanup && cause.Kind != catalog.PhysicalNotNullImportCleanup && cause.Kind != catalog.PhysicalNotNullImportFlag || cause.Ref.Address != table.Address() || cause.Ref.Address.SubID != 0 || cause.Attribute != attribute || cause.RemovedNN == 0 || cause.Usage.Type == nil || !stored.ReferenceEpochValid(view, table, cause.Ref) {
 		return false
 	}
 	if cause.Origin.Domain() == nil || cause.Origin.Epoch == 0 || cause.Origin.Address.ClassID != ids.RelationClassID || cause.Origin.Address.ObjectID == 0 || cause.Origin.Address.SubID != 0 {

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -29,7 +30,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	evaluation.QuoteCaptures = scope.quoteCaptures
 	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.QuoteRevision()}
 	consumer, ok := catalog.Relation(ref.Address)
-	if !ok || ViewOf(consumer) != definition {
+	if !ok || stored.ViewOf(consumer) != definition {
 		return nil, nil, ids.ErrCatalogReplaced
 	}
 	evaluation.RoutineRecipe, evaluation.RoutineConsumer = true, consumer
@@ -56,7 +57,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	leaves := make([]exec.Leaf, len(definition.Sources()))
 	for i, leaf := range definition.Sources() {
 		relation := catalog.MustRelation(leaf.Ref.Address)
-		use, err := ViewUseReference(catalog, consumer, leaf.Ref)
+		use, err := stored.ViewUseReference(catalog, consumer, leaf.Ref)
 		if err != nil {
 			e.mu.Unlock()
 			return nil, nil, err
@@ -134,7 +135,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	// Only this opaque stored tree borrows its defining recipe. User/grafted
 	// replacements retain their existing per-node ancestry rules.
 	source.RoutineRecipe = consumer
-	if recipe := ViewOf(consumer); recipe != nil {
+	if recipe := stored.ViewOf(consumer); recipe != nil {
 		source.RoutineChecks = recipe.Dependencies()
 	}
 	return root, source, nil

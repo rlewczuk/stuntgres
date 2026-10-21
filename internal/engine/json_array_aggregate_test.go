@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -96,7 +97,7 @@ func TestJSONArrayAggregateProviderRemap(t *testing.T) {
 		result, _ := source.CatalogRead().LookupType(id)
 		p := jsonArrayProviderUnit(t, input.Usage(), result.Usage(), true)
 		root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: p, Operation: functions.AggregateJSONStrict, IncludeNulls: true}}}
-		mapped, err := RemapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := stored.RemapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
 		})
@@ -272,7 +273,7 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 	if err = b.CaptureViewLiterals(raw, bound, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := NewQueryRenderer(NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
+	renderer := stored.NewQueryRenderer(stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
 	renderer.Frame = b.FrameID()
 	text, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -99,7 +100,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			continue
 		}
 		for _, policy := range relation.Security.Policies {
-			for _, condition := range []*policyExpression{PolicyOf(policy.Using), PolicyOf(policy.Check)} {
+			for _, condition := range []*policyExpression{stored.PolicyOf(policy.Using), stored.PolicyOf(policy.Check)} {
 				if condition == nil {
 					continue
 				}
@@ -178,7 +179,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				retainExpression(definition.Expression)
 			}
 			for _, policy := range relation.Security.Policies {
-				for _, condition := range []*policyExpression{PolicyOf(policy.Using), PolicyOf(policy.Check)} {
+				for _, condition := range []*policyExpression{stored.PolicyOf(policy.Using), stored.PolicyOf(policy.Check)} {
 					if condition != nil {
 						analyze.WalkQueryArgumentExpression(condition.Expression(), func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 					}
@@ -200,7 +201,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					retainExpression(predicate.Execution)
 				}
 			}
-			if definition := ViewOf(relation); definition != nil {
+			if definition := stored.ViewOf(relation); definition != nil {
 				var retainQuery func(plan.Node)
 				retainQuery = func(node plan.Node) {
 					if node == nil {
@@ -235,7 +236,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					case *catalog.Type:
 						retainBuiltin(provider.SQLType)
 					case *catalog.Relation:
-						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalog.CatalogRelation || !DependPinned(e.catalog.read(e.catalog.state), nil, address) {
+						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalog.CatalogRelation || !stored.DependPinned(e.catalog.read(e.catalog.state), nil, address) {
 							continue
 						}
 						// The exact immutable catalog provider includes unused columns.
@@ -332,7 +333,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			}
 			switch r := d.(type) {
 			case *catalog.Namespace:
-				if target == a && d == e.catalog.state.Get(a) && DependPinned(e.catalog.read(e.catalog.state), nil, a) {
+				if target == a && d == e.catalog.state.Get(a) && stored.DependPinned(e.catalog.read(e.catalog.state), nil, a) {
 					// Preflight retained this exact immutable namespace authority.
 					break
 				}
@@ -382,7 +383,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					d = &n
 				}
 			case *catalog.Relation:
-				if target == a && r.RelationKind == catalog.CatalogRelation && d == e.catalog.state.Get(a) && DependPinned(e.catalog.read(e.catalog.state), nil, a) {
+				if target == a && r.RelationKind == catalog.CatalogRelation && d == e.catalog.state.Get(a) && stored.DependPinned(e.catalog.read(e.catalog.state), nil, a) {
 					if _, moved := mapping[r.Namespace()]; !moved {
 						// Remapping unrelated imported identities must not copy
 						// the exact provider certified for retained TEMP consumers.
@@ -658,7 +659,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 		if !ok || consumer.View == nil {
 			continue
 		}
-		for ref, captured := range ViewOf(consumer).References() {
+		for ref, captured := range stored.ViewOf(consumer).References() {
 			address := ref.Address
 			address.SubID = 0
 			old, ok := e.catalog.state.Relation(address)
@@ -666,7 +667,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 				continue
 			}
 			if temporary[old.Namespace()] != nil {
-				if !ViewReferenceValid(view, consumer, ref) {
+				if !stored.ViewReferenceValid(view, consumer, ref) {
 					return ids.ErrCatalogReplaced
 				}
 				continue
@@ -674,7 +675,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 			fail := func() error {
 				return fmt.Errorf("stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported")
 			}
-			if old != captured || old.RelationKind != catalog.CatalogRelation || !DependPinned(view, nil, address) {
+			if old != captured || old.RelationKind != catalog.CatalogRelation || !stored.DependPinned(view, nil, address) {
 				return fail()
 			}
 			candidate, ok := next.Relation(address)
@@ -695,7 +696,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 			}
 			namespace, ok := e.catalog.state.Namespace(old.Namespace())
 			other, candidateOK := next.Namespace(old.Namespace())
-			if !ok || !candidateOK || !DependPinned(view, nil, old.Namespace()) || namespace.Name() != other.Name() || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
+			if !ok || !candidateOK || !stored.DependPinned(view, nil, old.Namespace()) || namespace.Name() != other.Name() || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
 				return fail()
 			}
 			next.SetDescriptor(address, old)
