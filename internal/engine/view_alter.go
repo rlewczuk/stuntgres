@@ -65,7 +65,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	case "schema":
 		return e.alterSchemaLocked(scope, scope.op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
 	}
-	next, extension, err := alterViewChange(ddlHost{e: e, op: scope.op}, auth.Catalog, old, s)
+	next, extension, err := view.AlterChange(ddlHost{e: e, op: scope.op}, auth.Catalog, old, s)
 	if err != nil {
 		return fail(err)
 	}
@@ -108,7 +108,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	refs, notices, err := dropViewTargets(ddlHost{e: e, op: scope.op}, auth, s)
+	refs, notices, err := view.DropTargets(ddlHost{e: e, op: scope.op}, auth, s)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -148,7 +148,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	if err := recheckDropViewTargets(auth.View, auth, refs); err != nil {
+	if err := view.RecheckDropTargets(auth.View, auth, refs); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"fmt"
@@ -10,16 +10,15 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-// alterViewChange decides ALTER VIEW s on old for DEPENDS ON EXTENSION and
+// AlterChange decides ALTER VIEW s on old for DEPENDS ON EXTENSION and
 // SET or RESET: it returns the changed relation with a new revision, or nil
 // when nothing changes, and the extension the stage records as a query
 // source. RENAME and SET SCHEMA never reach it; other actions are 0A000.
-func alterViewChange(a ddl.Allocator, catalogView catalog.Read, old *catalog.Relation, s *parser.AlterView) (*catalog.Relation, *catalog.Extension, error) {
+func AlterChange(a ddl.Allocator, catalogView catalog.Read, old *catalog.Relation, s *parser.AlterView) (*catalog.Relation, *catalog.Extension, error) {
 	next := *old
 	changed := true
 	var extension *catalog.Extension
@@ -102,7 +101,7 @@ func alterViewOptions(old *catalog.Relation, s *parser.AlterView) (*stored.View,
 			}
 		}
 	}
-	definition.Options = view.TransformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
+	definition.Options = TransformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
 	altered := stored.NewView(definition)
 	if altered.CheckOption() != stored.CheckNone {
 		if err := stored.ValidateViewCheckDeclaration(altered); err != nil {
@@ -112,10 +111,10 @@ func alterViewOptions(old *catalog.Relation, s *parser.AlterView) (*stored.View,
 	return altered, nil
 }
 
-// dropViewTargets resolves the relations DROP [MATERIALIZED] VIEW s names, in
+// DropTargets resolves the relations DROP [MATERIALIZED] VIEW s names, in
 // order and without duplicates. Each must be an owned relation of the dropped
 // kind; with IF EXISTS a missing one becomes a NOTICE instead.
-func dropViewTargets(h view.Host, auth ddl.Authority, s *parser.DropView) ([]ids.ObjectRef, []sqlstate.Error, error) {
+func DropTargets(h Host, auth ddl.Authority, s *parser.DropView) ([]ids.ObjectRef, []sqlstate.Error, error) {
 	catalogAccess := h.AccessView(auth)
 	kind, label := catalog.ViewRelation, "view"
 	if s.Materialized {
@@ -128,9 +127,9 @@ func dropViewTargets(h view.Host, auth ddl.Authority, s *parser.DropView) ([]ids
 		ref, err := h.ResolveRelation(auth, name)
 		if err != nil {
 			if !s.IfExists || !table.RenameMissing(err) {
-				return nil, nil, view.ViewDropMissing(err, name, label)
+				return nil, nil, ViewDropMissing(err, name, label)
 			}
-			diagnostic := view.ViewDropMissing(err, name, label).(*sqlstate.Error)
+			diagnostic := ViewDropMissing(err, name, label).(*sqlstate.Error)
 			notices = append(notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: diagnostic.Message + ", skipping"})
 			continue
 		}
@@ -149,7 +148,7 @@ func dropViewTargets(h view.Host, auth ddl.Authority, s *parser.DropView) ([]ids
 			}
 			return nil, nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.Name(), label), Hint: hint}
 		}
-		if err := view.ViewDropOwner(catalogAccess, auth, ref, d); err != nil {
+		if err := ViewDropOwner(catalogAccess, auth, ref, d); err != nil {
 			return nil, nil, err
 		}
 		if !seen[ref.Address] {
@@ -160,15 +159,15 @@ func dropViewTargets(h view.Host, auth ddl.Authority, s *parser.DropView) ([]ids
 	return refs, notices, nil
 }
 
-// recheckDropViewTargets checks the DROP VIEW targets again after the lock
+// RecheckDropTargets checks the DROP VIEW targets again after the lock
 // waits: each must still exist in v's catalog domain and still be owned.
-func recheckDropViewTargets(v access.View, env access.Environment, refs []ids.ObjectRef) error {
+func RecheckDropTargets(v access.View, env access.Environment, refs []ids.ObjectRef) error {
 	for _, ref := range refs {
 		d, ok := v.Catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != v.Owner.Domain {
 			return ids.ErrCatalogReplaced
 		}
-		if err := view.ViewDropOwner(v, env, ref, d); err != nil {
+		if err := ViewDropOwner(v, env, ref, d); err != nil {
 			return err
 		}
 	}

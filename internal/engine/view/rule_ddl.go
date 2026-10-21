@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"fmt"
@@ -12,18 +12,17 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// planRule decides CREATE, ALTER or DROP RULE: it resolves the relation
+// PlanRule decides CREATE, ALTER or DROP RULE: it resolves the relation
 // (locked is the admitted identity), checks ownership and the relation kind,
 // binds and freezes a new rule or ON SELECT view query, and returns the
 // relation with its rule list changed and a new revision. An IF EXISTS miss
 // returns only the NOTICE text in Skip.
-func planRule(h view.Host, auth ddl.Authority, stmt parser.Statement, locked ids.ObjectRef, input sqltype.InputEnvironment) (view.RelationChange, error) {
+func PlanRule(h Host, auth ddl.Authority, stmt parser.Statement, locked ids.ObjectRef, input sqltype.InputEnvironment) (RelationChange, error) {
 	var tbl parser.ObjectName
 	var name string
 	switch s := stmt.(type) {
@@ -37,30 +36,30 @@ func planRule(h view.Host, auth ddl.Authority, stmt parser.Statement, locked ids
 	ref, err := h.ResolveRelation(auth, tbl)
 	if err != nil {
 		if s, ok := stmt.(*parser.DropRule); ok && s.IfExists && table.RenameMissing(err) {
-			return view.RelationChange{Skip: fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(tbl))}, nil
+			return RelationChange{Skip: fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(tbl))}, nil
 		}
-		return view.RelationChange{}, err
+		return RelationChange{}, err
 	}
 	if ref != locked {
-		return view.RelationChange{}, ids.ErrCatalogReplaced
+		return RelationChange{}, ids.ErrCatalogReplaced
 	}
 	catalogAccess := h.AccessView(auth)
 	old := catalogAccess.Catalog.MustRelation(ref.Address)
-	index := view.RuleIndex(old, name)
+	index := RuleIndex(old, name)
 	if s, ok := stmt.(*parser.DropRule); ok && index < 0 && !(old.View != nil && name == "_RETURN") {
 		if s.IfExists {
-			return view.RelationChange{Skip: fmt.Sprintf(`rule "%s" for relation "%s" does not exist, skipping`, name, old.Name())}, nil
+			return RelationChange{Skip: fmt.Sprintf(`rule "%s" for relation "%s" does not exist, skipping`, name, old.Name())}, nil
 		}
-		return view.RelationChange{}, view.RuleMissing(name, old)
+		return RelationChange{}, RuleMissing(name, old)
 	}
 	if err := catalogAccess.Check(auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-		return view.RelationChange{}, err
+		return RelationChange{}, err
 	}
 	if old.RelationKind == catalog.MaterializedViewRelation {
-		return view.RelationChange{}, sqlError("0A000", "rules on materialized views are not supported")
+		return RelationChange{}, sqlError("0A000", "rules on materialized views are not supported")
 	}
 	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.PartitionedRelation && old.RelationKind != catalog.ViewRelation {
-		return view.RelationChange{}, analyze.TableKindError(old, "change")
+		return RelationChange{}, analyze.TableKindError(old, "change")
 	}
 	next := *old
 	next.Rules = stored.RulesPayload(slices.Clone(stored.RulesOf(old)))
@@ -70,20 +69,20 @@ func planRule(h view.Host, auth ddl.Authority, stmt parser.Statement, locked ids
 		if strings.EqualFold(s.Event, "SELECT") {
 			definition, querySources, err := planSelectRule(h, auth, s, old, ref, name, input)
 			if err != nil {
-				return view.RelationChange{}, err
+				return RelationChange{}, err
 			}
 			next.View = stored.ViewPayload(definition)
 			sources = querySources
 		} else {
 			if name == "_RETURN" {
-				return view.RelationChange{}, sqlError("42P17", "non-view rule must not be named \"_RETURN\"")
+				return RelationChange{}, sqlError("42P17", "non-view rule must not be named \"_RETURN\"")
 			}
 			if index >= 0 && !s.Replace {
-				return view.RelationChange{}, view.RuleDuplicate(name, old)
+				return RelationChange{}, RuleDuplicate(name, old)
 			}
 			definition, err := bindRuleDefinition(h, auth, old, ref, s, input)
 			if err != nil {
-				return view.RelationChange{}, err
+				return RelationChange{}, err
 			}
 			if index >= 0 {
 				definition.OID = stored.RulesOf(old)[index].OID
@@ -91,7 +90,7 @@ func planRule(h view.Host, auth ddl.Authority, stmt parser.Statement, locked ids
 			} else {
 				definition.OID, err = h.AllocateOID()
 				if err != nil {
-					return view.RelationChange{}, err
+					return RelationChange{}, err
 				}
 				next.Rules = stored.RulesPayload(append(stored.RulesOf(&next), definition))
 			}
@@ -108,36 +107,36 @@ func planRule(h view.Host, auth ddl.Authority, stmt parser.Statement, locked ids
 		}
 	case *parser.AlterRule:
 		if old.View != nil && name == "_RETURN" {
-			return view.RelationChange{}, sqlError("42P17", "renaming an ON SELECT rule is not allowed")
+			return RelationChange{}, sqlError("42P17", "renaming an ON SELECT rule is not allowed")
 		}
 		if index < 0 {
-			return view.RelationChange{}, view.RuleMissing(name, old)
+			return RelationChange{}, RuleMissing(name, old)
 		}
-		if view.RuleIndex(old, s.Rename.Text) >= 0 || old.View != nil && s.Rename.Text == "_RETURN" {
-			return view.RelationChange{}, view.RuleDuplicate(s.Rename.Text, old)
+		if RuleIndex(old, s.Rename.Text) >= 0 || old.View != nil && s.Rename.Text == "_RETURN" {
+			return RelationChange{}, RuleDuplicate(s.Rename.Text, old)
 		}
 		stored.RulesOf(&next)[index].Name = s.Rename.Text
 	case *parser.DropRule:
 		if old.View != nil && name == "_RETURN" {
-			return view.RelationChange{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop rule _RETURN on view %s because view %s requires it", old.Name(), old.Name()), Hint: fmt.Sprintf("You can drop view %s instead.", old.Name())}
+			return RelationChange{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop rule _RETURN on view %s because view %s requires it", old.Name(), old.Name()), Hint: fmt.Sprintf("You can drop view %s instead.", old.Name())}
 		}
 		next.Rules = stored.RulesPayload(append(stored.RulesOf(&next)[:index], stored.RulesOf(&next)[index+1:]...))
 	}
 	slices.SortFunc(stored.RulesOf(&next), func(a, b stored.Rule) int { return strings.Compare(a.Name, b.Name) })
 	next.ObjectRevision, err = h.Revision()
 	if err != nil {
-		return view.RelationChange{}, err
+		return RelationChange{}, err
 	}
 	if next.View != old.View {
 		next.View = stored.ViewOf(&next).With(func(p *stored.ViewParts) { p.QuoteRevision = next.Revision() })
 	}
-	return view.RelationChange{Ref: ref, Next: &next, Sources: sources}, nil
+	return RelationChange{Ref: ref, Next: &next, Sources: sources}, nil
 }
 
 // planSelectRule checks and freezes CREATE OR REPLACE RULE _RETURN AS ON
 // SELECT on the view old: the new definition keeps the view's options and
 // check option. It returns the definition and its query sources.
-func planSelectRule(h view.Host, auth ddl.Authority, s *parser.CreateRule, old *catalog.Relation, ref ids.ObjectRef, name string, input sqltype.InputEnvironment) (*stored.View, []catalog.Descriptor, error) {
+func planSelectRule(h Host, auth ddl.Authority, s *parser.CreateRule, old *catalog.Relation, ref ids.ObjectRef, name string, input sqltype.InputEnvironment) (*stored.View, []catalog.Descriptor, error) {
 	if old.RelationKind != catalog.ViewRelation {
 		return nil, nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`relation "%s" cannot have ON SELECT rules`, old.Name()), Detail: "This operation is not supported for tables."}
 	}
@@ -172,12 +171,12 @@ func planSelectRule(h view.Host, auth ddl.Authority, s *parser.CreateRule, old *
 	if parser.HasModifyingCTE(query) {
 		return nil, nil, sqlError("0A000", "rules on SELECT must not contain data-modifying statements in WITH")
 	}
-	if err := view.RuleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
+	if err := RuleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
 		return nil, nil, err
 	}
 	current := stored.ViewOf(old)
 	temporary := current.Temporary() != (ids.SessionToken{})
-	definition, err := freezeViewDefinition(h, h.AccessView(auth).Catalog, h.TemporaryOwner(auth), query, b, current.Barrier(), current.Invoker(), current.RuleOID(), catalog.ViewRelation, temporary)
+	definition, err := FreezeDefinition(h, h.AccessView(auth).Catalog, h.TemporaryOwner(auth), query, b, current.Barrier(), current.Invoker(), current.RuleOID(), catalog.ViewRelation, temporary)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -109,7 +109,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	old, err := createViewTarget(auth.View, auth, createView, ns, scope.lockedRef)
+	old, err := view.CreateTarget(auth.View, auth, createView, ns, scope.lockedRef)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -123,7 +123,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	options, err := checkCreateView(auth.Catalog, createView, b, old)
+	options, err := view.CheckCreate(auth.Catalog, createView, b, old)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -132,7 +132,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 	stage := e.BeginCatalogStage(base)
 	stage.authorizeLocked(auth, op.Session)
 	defer e.DiscardCatalogStage(stage)
-	err = stageCreateView(ddlHost{e: e, op: op, stage: stage}, auth, createView, old, ns, b, options, scope.viewCreationOrZero().Persistence == "temporary")
+	err = view.StageCreate(ddlHost{e: e, op: op, stage: stage}, auth, createView, old, ns, b, options, scope.viewCreationOrZero().Persistence == "temporary")
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err

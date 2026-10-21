@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"slices"
@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -17,7 +16,7 @@ import (
 // bindRuleDefinition binds and freezes a CREATE RULE on d (ref) that is not an
 // ON SELECT rule: its condition, then each action in order, with the
 // unsupported forms, parameters and RETURNING rejected as PostgreSQL does.
-func bindRuleDefinition(h view.Host, auth ddl.Authority, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule, input sqltype.InputEnvironment) (stored.Rule, error) {
+func bindRuleDefinition(h Host, auth ddl.Authority, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule, input sqltype.InputEnvironment) (stored.Rule, error) {
 	catalogView, owner := h.AccessView(auth).Catalog, h.TemporaryOwner(auth)
 	p := stored.RuleParts{Name: s.Name.Text, Event: strings.ToUpper(s.Event), Instead: s.Instead}
 	ns := &analyze.RuleNamespace{Relation: d, Ref: ref, Event: p.Event}
@@ -59,13 +58,13 @@ func bindRuleDefinition(h view.Host, auth ddl.Authority, d *catalog.Relation, re
 		if err != nil {
 			return stored.NewRule(p), err
 		}
-		if p.Condition != nil && view.RuleSetAction(b, action) {
+		if p.Condition != nil && RuleSetAction(b, action) {
 			return stored.NewRule(p), sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 		}
-		if err := view.ValidateRuleActionCTEs(action, b); err != nil {
+		if err := ValidateRuleActionCTEs(action, b); err != nil {
 			return stored.NewRule(p), err
 		}
-		b = view.RetainRuleCTEPresentation(catalogView, b)
+		b = RetainRuleCTEPresentation(catalogView, b)
 		b.Rule.Template = true
 		if b.Parameters.Count != 0 {
 			return stored.NewRule(p), sqlError("42P02", "there is no parameter $1")
@@ -84,7 +83,7 @@ func bindRuleDefinition(h view.Host, auth ddl.Authority, d *catalog.Relation, re
 			if providers > 1 {
 				return stored.NewRule(p), sqlError("0A000", "cannot have multiple RETURNING lists in a rule")
 			}
-			if err := view.RuleResultCheck(d, b.Returning.Schema, false); err != nil {
+			if err := RuleResultCheck(d, b.Returning.Schema, false); err != nil {
 				return stored.NewRule(p), err
 			}
 		}
@@ -99,6 +98,6 @@ func bindRuleDefinition(h view.Host, auth ddl.Authority, d *catalog.Relation, re
 		p.Actions = append(p.Actions, stored.NewRuleAction(stored.RuleActionParts{Syntax: action, Binding: b, Presentation: presentation, ModifierPresentations: modifiers}))
 	}
 	var err error
-	p.References, err = view.RuleReferences(h.Context(), catalogView, stored.NewRule(p))
+	p.References, err = RuleReferences(h.Context(), catalogView, stored.NewRule(p))
 	return stored.NewRule(p), err
 }

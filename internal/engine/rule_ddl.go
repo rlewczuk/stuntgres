@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// executeRule runs CREATE, ALTER and DROP RULE: planRule decides the change
+// executeRule runs CREATE, ALTER and DROP RULE: view.PlanRule decides the change
 // under Engine.mu, and publishRelationChangeLocked stages and publishes it.
 func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	e.mu.Lock()
@@ -19,7 +19,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	if err != nil {
 		return fail(err)
 	}
-	change, err := planRule(ddlHost{e: e, op: scope.op}, auth, stmt, scope.lockedRef, scope.input)
+	change, err := view.PlanRule(ddlHost{e: e, op: scope.op}, auth, stmt, scope.lockedRef, scope.input)
 	if err != nil {
 		return fail(err)
 	}

@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"stuntgres/internal/engine/analyze"
@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -64,7 +63,7 @@ func freezeRuleActionPresentation(catalogView catalog.Read, owner ids.SessionTok
 		from = &plan.SingletonNode{}
 	}
 	metadata.Query = &plan.Query{Root: &plan.ProjectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
-	metadata = view.RetainRuleCTEPresentation(catalogView, metadata)
+	metadata = RetainRuleCTEPresentation(catalogView, metadata)
 	presentation, err := stored.FreezeQueryPresentation(catalogView, owner, query, metadata, false, false, 0, "", false)
 	if err != nil {
 		return nil, err

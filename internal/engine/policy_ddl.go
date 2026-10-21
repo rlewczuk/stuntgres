@@ -10,7 +10,7 @@ import (
 )
 
 // executePolicy runs CREATE, ALTER and DROP POLICY: the preflight, then
-// planPolicy under Engine.mu, then publishRelationChangeLocked.
+// view.PlanPolicy under Engine.mu, then publishRelationChangeLocked.
 func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	op := scope.op
 	e.mu.Lock()
@@ -25,7 +25,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if err = view.PolicyPreflight(op, auth.View, stmt, false); err != nil {
 		return fail(err)
 	}
-	change, err := planPolicy(ddlHost{e: e, op: op}, auth, stmt, scope.lockedRef, scope.input)
+	change, err := view.PlanPolicy(ddlHost{e: e, op: op}, auth, stmt, scope.lockedRef, scope.input)
 	if err != nil {
 		return fail(err)
 	}

@@ -18,6 +18,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -83,7 +84,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		return nil, nil, false, err
 	}
 	if s.Form == parser.CreateMaterializedView {
-		definition, err := freezeViewDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
+		definition, err := view.FreezeDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
 		if err != nil {
 			return nil, nil, false, err
 		}
