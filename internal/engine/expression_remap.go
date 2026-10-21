@@ -462,13 +462,6 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 		}
 	}
 	var err error
-	usage := func(old sqltype.Usage) sqltype.Usage {
-		old.Type = typ(old.Type)
-		if m.collation != nil && err == nil {
-			old.Collation, err = m.collation(old.Collation)
-		}
-		return old
-	}
 	child := func(old plan.Node) plan.Node {
 		if err != nil {
 			return old
@@ -704,13 +697,8 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 			copy.Calls[i].Argument = expression(call.Argument)
 			copy.Calls[i].Ordinal = expression(call.Ordinal)
 			copy.Calls[i].DefaultValue = expression(call.DefaultValue)
-			switch p := call.Provider.(type) {
-			case functions.IntegralSum:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.NumericSum:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.FloatSum:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			if provider, ok := call.Provider.(functions.RemappableProvider); ok && err == nil {
+				err = m.provider(&copy.Calls[i].Provider, provider, nil)
 			}
 		}
 		next = &copy
@@ -744,106 +732,12 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 				}
 			}
 			copy.Calls[i].Routine = ref(call.Routine)
-			switch p := call.Provider.(type) {
-			case *functions.HypotheticalSet:
-				copy.Calls[i].Provider = functions.NewHypotheticalSet(usage(p.ResultUsage()), p.Operation())
-			case *functions.OrderedSet:
-				result, input, fraction := usage(p.ResultUsage()), typ(p.InputType()), typ(p.FractionType())
-				var comparison sqltype.Comparison
-				if err == nil {
-					comparison, err = sqltype.BindOrdering(usage(call.Argument.ResultUsage()))
-				}
-				if err == nil {
-					copy.Calls[i].Provider, err = functions.NewOrderedSet(result, input, fraction, p.Operation(), p.Array(), comparison)
-				}
-			case functions.CountProvider:
-				copy.Calls[i].Provider = functions.NewCountProvider(usage(p.ResultUsage()))
-			case functions.BooleanAggregateProvider:
-				copy.Calls[i].Provider = functions.NewBooleanAggregateProvider(usage(p.ResultUsage()), p.Conjunction())
-			case functions.IntervalAvg:
-				copy.Calls[i].Provider = p.Reconstruct(usage(p.ResultUsage()))
-			case functions.NumericAvg:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.FloatAvg:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.StatisticalAggregate:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.RegressionAggregate:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.RegressionCountAggregate:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.IntegralBitwiseAggregateProvider:
-				u := usage(p.ResultUsage())
-				if err == nil {
-					var bound sqltype.Bitwise
-					bound, err = sqltype.BindBitwise(p.Operator(), u.Type, u.Type)
-					if err == nil {
-						copy.Calls[i].Provider = functions.NewIntegralBitwiseAggregateProvider(u, p.Operator(), bound)
-					}
-				}
-			case functions.MoneySum:
-				u := usage(p.ResultUsage())
-				if err == nil {
-					var rebound functions.MoneySum
-					rebound, err = p.Reconstruct(u)
-					copy.Calls[i].Provider = rebound
-				}
-			case functions.IntervalSum:
-				copy.Calls[i].Provider = p.Reconstruct(usage(p.ResultUsage()))
-			case functions.BitStringAggregateProvider:
-				copy.Calls[i].Provider = functions.NewBitStringAggregateProvider(usage(p.ResultUsage()), p.Operator())
-			case functions.IntegralSum:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.NumericSum:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.FloatSum:
-				copy.Calls[i].Provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
-			case functions.AnyValue:
-				copy.Calls[i].Provider = p.Reconstruct(usage(p.ResultUsage()))
-			case functions.JSONArrayAggregateProvider:
-				input, result := usage(p.InputUsage()), usage(p.ResultUsage())
-				if err == nil {
-					var plan sqltype.JSONArrayAggregatePlan
-					plan, err = sqltype.BindJSONArrayAggregate(input, result, p.Absent())
-					if err == nil {
-						copy.Calls[i].Provider = functions.NewJSONArrayAggregateProvider(input, result, p.Absent(), plan)
-					}
-				}
-			case functions.JSONObjectAggregate:
-				key, input, result := usage(p.KeyUsage()), usage(p.InputUsage()), usage(p.ResultUsage())
-				if err == nil {
-					var rebound functions.JSONObjectAggregate
-					rebound, err = p.Reconstruct(key, input, result)
-					copy.Calls[i].Provider = rebound
-				}
-			case functions.ExtremaProvider:
-				result := usage(p.ResultUsage())
-				if err == nil {
-					_, conflict := p.Comparison().InputCollation()
-					var comparison sqltype.Comparison
-					comparison, err = sqltype.BindComparison(result.Type, result.Type, result.Collation, conflict)
-					if err == nil {
-						copy.Calls[i].Provider = functions.NewExtremaProvider(result, comparison, p.Maximum())
-					}
-				}
-			case functions.StringAggregateProvider:
-				copy.Calls[i].Provider = functions.NewStringAggregateProvider(usage(p.ResultUsage()))
-			case *functions.ArrayAggregateProvider:
-				copy.Calls[i].Provider = functions.NewArrayAggregateProvider(typ(p.ArgumentType()), usage(p.ResultUsage()), p.Arrays())
-			case functions.RangeAggregateProvider:
-				input, result := usage(p.InputUsage()), usage(p.ResultUsage())
-				if err == nil {
-					var bound sqltype.RangeAggregate
-					bound, err = sqltype.BindRangeAggregate(input.Type, p.Operation())
-					if err == nil && bound.ResultUsage() != result {
-						err = fmt.Errorf("stuntgres: inconsistent remapped range aggregate result")
-					}
-					if err == nil {
-						copy.Calls[i].Provider = functions.NewRangeAggregateProvider(input, result, p.Operation(), bound)
-					}
-				}
-			default:
+			provider, ok := call.Provider.(functions.RemappableProvider)
+			if !ok {
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
+			}
+			if err == nil {
+				err = m.provider(&copy.Calls[i].Provider, provider, call.Argument)
 			}
 			if call.Argument != nil {
 				copy.Calls[i].Argument = expression(call.Argument)
@@ -891,6 +785,31 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 		return nil, fmt.Errorf("stuntgres: unpersistable view query %T", node)
 	}
 	return next, err
+}
+
+// usage maps a usage's type and collation to their remapped generations.
+func (m *viewQueryRemapper) usage(old sqltype.Usage) (sqltype.Usage, error) {
+	old.Type = m.typ(old.Type)
+	if m.collation == nil {
+		return old, nil
+	}
+	var err error
+	old.Collation, err = m.collation(old.Collation)
+	return old, err
+}
+
+// provider replaces *slot with the remapped provider. On failure it keeps the
+// slot unchanged and returns the error.
+func (m *viewQueryRemapper) provider(slot *functions.AggregateProvider, provider functions.RemappableProvider, argument expr.Expr) error {
+	remap := functions.ProviderRemap{Type: m.typ, Usage: m.usage}
+	if argument != nil {
+		remap.Argument = argument.ResultUsage()
+	}
+	next, err := provider.Remap(remap)
+	if err == nil {
+		*slot = next
+	}
+	return err
 }
 
 // Ordinary descriptor renaming reowns only consumers of changed type
