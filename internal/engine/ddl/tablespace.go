@@ -1,4 +1,4 @@
-package engine
+package ddl
 
 import (
 	"context"
@@ -10,11 +10,12 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-const tablespacePhysicalUnsupported = "CREATE TABLESPACE physical locations are unsupported in embedded mode"
+// TablespacePhysicalUnsupported is the message CREATE TABLESPACE always ends with.
+const TablespacePhysicalUnsupported = "CREATE TABLESPACE physical locations are unsupported in embedded mode"
 
-// createTablespace validates CREATE TABLESPACE and then always fails: the
+// CreateTablespace validates CREATE TABLESPACE and then always fails: the
 // embedded engine has no physical locations. It never stages anything.
-func createTablespace(ctx context.Context, view access.View, s *parser.CreateTablespace) error {
+func CreateTablespace(ctx context.Context, view access.View, s *parser.CreateTablespace) error {
 	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
 		return err
@@ -40,5 +41,5 @@ func createTablespace(ctx context.Context, view access.View, s *parser.CreateTab
 	}
 	// WITH is retained structurally but cannot be applied without physical
 	// creation. Never allocate an OID, stage a row or pretend data was placed.
-	return sqlError("0A000", tablespacePhysicalUnsupported)
+	return sqlError("0A000", TablespacePhysicalUnsupported)
 }

@@ -1,19 +1,18 @@
-package engine
+package ddl
 
 import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-// stageAlterSchema stages ALTER SCHEMA RENAME TO or OWNER TO. It returns
+// StageAlterSchema stages ALTER SCHEMA RENAME TO or OWNER TO. It returns
 // false without error when there is nothing to publish (the owner is
 // already the target).
-func stageAlterSchema(h ddl.Host, auth ddl.Authority, s *parser.AlterSchema) (bool, error) {
+func StageAlterSchema(h Host, auth Authority, s *parser.AlterSchema) (bool, error) {
 	view := h.AccessView(auth)
 	old, err := lookupSchema(view.Catalog, s.Name)
 	if err != nil {

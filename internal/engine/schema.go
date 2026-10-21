@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -211,15 +212,15 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 			return nil, err
 		}
 	case *parser.CreateSchema:
-		if staged, err := stageCreateSchema(host, auth, s, input); err != nil || !staged {
+		if staged, err := ddl.StageCreateSchema(host, auth, s, input); err != nil || !staged {
 			return nil, err
 		}
 	case *parser.AlterSchema:
-		if staged, err := stageAlterSchema(host, auth, s); err != nil || !staged {
+		if staged, err := ddl.StageAlterSchema(host, auth, s); err != nil || !staged {
 			return nil, err
 		}
 	case *parser.DropSchema:
-		if staged, err := stageDropSchema(host, auth, s); err != nil || !staged {
+		if staged, err := ddl.StageDropSchema(host, auth, s); err != nil || !staged {
 			return nil, err
 		}
 	default:

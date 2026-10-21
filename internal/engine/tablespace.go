@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -16,5 +17,5 @@ func (e *Engine) executeCreateTablespace(op *session.Operation, stmt *parser.Cre
 	if err != nil {
 		return Result{}, err
 	}
-	return Result{}, createTablespace(op.Context(), auth.View, stmt)
+	return Result{}, ddl.CreateTablespace(op.Context(), auth.View, stmt)
 }

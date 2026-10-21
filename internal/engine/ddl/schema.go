@@ -1,4 +1,4 @@
-package engine
+package ddl
 
 import (
 	"fmt"
@@ -7,13 +7,12 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 )
 
 func schemaReserved(name string) error {
 	if strings.HasPrefix(name, "pg_") {
-		return roleDiagnostic("42939", fmt.Sprintf(`unacceptable schema name "%s"`, name), `The prefix "pg_" is reserved for system schemas.`)
+		return detailError("42939", fmt.Sprintf(`unacceptable schema name "%s"`, name), `The prefix "pg_" is reserved for system schemas.`)
 	}
 	return nil
 }
@@ -32,13 +31,13 @@ func lookupSchema(read catalog.Read, name string) (*catalog.Namespace, error) {
 }
 
 // checkSchemaOwner requires auth to own the schema d.
-func checkSchemaOwner(h ddl.Host, auth ddl.Authority, d *catalog.Namespace) error {
-	return ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), OwnerOnly: true})
+func checkSchemaOwner(h Host, auth Authority, d *catalog.Namespace) error {
+	return Check(h, auth, access.Requirement{Object: ObjectRef(h, auth, d.Address()), OwnerOnly: true})
 }
 
 // checkDatabaseCreate requires CREATE on the current database, as creating
 // or renaming a schema does.
-func checkDatabaseCreate(view access.View, auth ddl.Authority) error {
+func checkDatabaseCreate(view access.View, auth Authority) error {
 	ref := view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress)
 	rights, err := view.Effective(auth, ref, false)
 	if err != nil {

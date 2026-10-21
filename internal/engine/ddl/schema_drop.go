@@ -1,4 +1,4 @@
-package engine
+package ddl
 
 import (
 	"fmt"
@@ -6,16 +6,15 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-// stageDropSchema stages DROP SCHEMA with its dependents. It returns false
+// StageDropSchema stages DROP SCHEMA with its dependents. It returns false
 // without error when there is nothing to publish (IF EXISTS with no schema
 // left).
-func stageDropSchema(h ddl.SchemaHost, auth ddl.Authority, s *parser.DropSchema) (bool, error) {
+func StageDropSchema(h SchemaHost, auth Authority, s *parser.DropSchema) (bool, error) {
 	view := h.AccessView(auth)
 	seen := make(map[ids.ObjectAddress]bool)
 	var schemas []*catalog.Namespace
@@ -23,7 +22,7 @@ func stageDropSchema(h ddl.SchemaHost, auth ddl.Authority, s *parser.DropSchema)
 		d, err := lookupSchema(view.Catalog, name)
 		if err != nil {
 			if s.IfExists {
-				ddl.Notice(h, "00000", fmt.Sprintf(`schema "%s" does not exist, skipping`, name))
+				Notice(h, "00000", fmt.Sprintf(`schema "%s" does not exist, skipping`, name))
 				continue
 			}
 			return false, err
@@ -81,12 +80,12 @@ func stageDropSchema(h ddl.SchemaHost, auth ddl.Authority, s *parser.DropSchema)
 		}
 	}
 	for _, r := range dependent {
-		if err = h.RemoveObject(ddl.ObjectRef(h, auth, r.Address()), false); err != nil {
+		if err = h.RemoveObject(ObjectRef(h, auth, r.Address()), false); err != nil {
 			return false, err
 		}
 	}
 	for _, d := range schemas {
-		if err = h.RemoveObject(ddl.ObjectRef(h, auth, d.Address()), true); err != nil {
+		if err = h.RemoveObject(ObjectRef(h, auth, d.Address()), true); err != nil {
 			return false, err
 		}
 	}

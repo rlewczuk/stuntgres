@@ -1,4 +1,4 @@
-package engine
+package ddl
 
 import (
 	"fmt"
@@ -6,16 +6,15 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// stageCreateSchema stages CREATE SCHEMA and its table elements. It returns
+// StageCreateSchema stages CREATE SCHEMA and its table elements. It returns
 // false without error when there is nothing to publish (IF NOT EXISTS on an
 // existing schema).
-func stageCreateSchema(h ddl.SchemaHost, auth ddl.Authority, s *parser.CreateSchema, input sqltype.InputEnvironment) (bool, error) {
+func StageCreateSchema(h SchemaHost, auth Authority, s *parser.CreateSchema, input sqltype.InputEnvironment) (bool, error) {
 	view := h.AccessView(auth)
 	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
@@ -44,7 +43,7 @@ func stageCreateSchema(h ddl.SchemaHost, auth ddl.Authority, s *parser.CreateSch
 	}
 	if _, ok := view.Catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}); ok {
 		if s.IfNotExists {
-			ddl.Notice(h, "42P06", fmt.Sprintf(`schema "%s" already exists, skipping`, name))
+			Notice(h, "42P06", fmt.Sprintf(`schema "%s" already exists, skipping`, name))
 			return false, nil
 		}
 		return false, sqlError("42P06", fmt.Sprintf(`schema "%s" already exists`, name))
