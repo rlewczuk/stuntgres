@@ -260,7 +260,7 @@ func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State
 	}
 	proposal.Exclusion = &row
 	p := e.exclusions.ProjectionLocked(s.ticket)
-	ExclusionEditApply(edit, p, ref.Address, row)
+	edit.Apply(p, ref.Address, row)
 	s.installExclusionProjectionLocked(e, p)
 	return row, nil
 }
@@ -279,7 +279,7 @@ func (h *statementHost) DiscardExclusion(proposal *index.WriteCandidate) {
 		return
 	}
 	p := e.exclusions.ProjectionLocked(s.ticket)
-	ProjectionDiscardVersion(p, version)
+	p.DiscardVersion(version)
 	s.installExclusionProjectionLocked(e, p)
 }
 
@@ -306,6 +306,6 @@ func (h *statementHost) AdmitExclusion(idx ids.ObjectAddress, version ids.Versio
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	projected := e.exclusions.ProjectionLocked(s.ticket)
-	ProjectionAdmit(projected, idx, version)
+	projected.Admit(idx, version)
 	s.installExclusionProjectionLocked(e, projected)
 }

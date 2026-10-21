@@ -75,7 +75,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate vis
 	}
 	s.beginExclusionProjectionLocked(e)
 	p := e.exclusions.ProjectionLocked(s.ticket)
-	ProjectionEndRow(p, candidate.Ref.Address, parent.Constraints.Exclusion, candidate.Row, candidate.Version)
+	p.EndRow(candidate.Ref.Address, parent.Constraints.Exclusion, candidate.Row, candidate.Version)
 	s.installExclusionProjectionLocked(e, p)
 }
 
@@ -94,7 +94,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.Unique
 		if err != nil {
 			return uniqueConflict{}, false, err
 		}
-		current, found := OwnExclusionEntry(&scan.ExclusionScan, s.ticket, idx.Address(), candidate)
+		current, found := index.OwnExclusionEntry(&scan.ExclusionScan, s.ticket, idx.Address(), candidate)
 		if !found {
 			return uniqueConflict{}, false, nil
 		}
@@ -102,14 +102,14 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.Unique
 		if binding.TypeName != nil {
 			evaluation.Input.TypeDiagnosticName = binding.TypeName
 		}
-		visit, err := VisitExclusion(s.op, &evaluation, &scan.ExclusionScan, s.ticket, ref.Address, bound, current, purpose)
+		visit, err := index.VisitExclusion(s.op, &evaluation, &scan.ExclusionScan, s.ticket, ref.Address, bound, current, purpose)
 		if err != nil {
 			return uniqueConflict{}, false, err
 		}
 		if !s.writeHost().ExclusionScanCurrent(scan.ExclusionScan, idx.Address()) {
 			continue
 		}
-		deferred, err := ExclusionDeferred(binding.Parent, idx, recheck)
+		deferred, err := index.ExclusionDeferred(binding.Parent, idx, recheck)
 		if err != nil {
 			return uniqueConflict{}, false, err
 		}

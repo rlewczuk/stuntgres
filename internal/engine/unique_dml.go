@@ -29,7 +29,7 @@ retry:
 	if overlay := s.writeOverlay(); overlay != nil && s.uniqueBinding != nil && s.uniqueBinding.Ref == ref {
 		overlay.overlays = nil
 	}
-	b, err := BuildUniqueWriteBinding(ref, parent, view)
+	b, err := index.BuildUniqueWriteBinding(ref, parent, view)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +228,7 @@ retry:
 			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
 		outcome := uniqueConflict{parent: parent, index: idx, key: key, auth: auth, view: current, schema: probe.Schema}
-		lo, err := UniqueRootStart(ctx, &bound.Ordering, root.Entries, key)
+		lo, err := index.UniqueRootStart(ctx, &bound.Ordering, root.Entries, key)
 		if err != nil {
 			return uniqueConflict{}, err
 		}

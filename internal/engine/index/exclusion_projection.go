@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -110,4 +111,82 @@ func cloneExclusionProjection(old *ExclusionProjection) *ExclusionProjection {
 		p.Ended = maps.Clone(old.Ended)
 	}
 	return p
+}
+
+// Apply replaces row's entry on e.Index by its new one (none when
+// it is not a member) and ends the rows e excludes. Entries of other indexes
+// stay, so a later index insertion keeps the earlier projections.
+func (e ExclusionEdit) Apply(p *ExclusionProjection, parent ids.ObjectAddress, row storage.RowVersion) {
+	entries := p.Entries[e.Index]
+	next := make([]ExclusionEntry, 0, len(entries)+1)
+	for _, entry := range entries {
+		if entry.Row.Row != row.Row {
+			next = append(next, entry)
+		}
+	}
+	if e.Member {
+		next = append(next, ExclusionEntry{Row: row, Keys: e.Keys, Admitted: e.Admitted})
+	}
+	p.Entries[e.Index] = next
+	if len(e.Excluded) != 0 {
+		ends := maps.Clone(p.Ended[parent])
+		if ends == nil {
+			ends = make(map[ids.RowID]ids.VersionID)
+		}
+		for _, old := range e.Excluded {
+			ends[old.Row] = old.Version
+			if old.Base != 0 {
+				ends[old.Row] = old.Base
+			}
+		}
+		p.Ended[parent] = ends
+	}
+}
+
+// DiscardVersion drops every entry of version.
+func (p *ExclusionProjection) DiscardVersion(version ids.VersionID) {
+	for idx, entries := range p.Entries {
+		if !slices.ContainsFunc(entries, func(e ExclusionEntry) bool { return e.Row.Version == version }) {
+			continue
+		}
+		next := make([]ExclusionEntry, 0, len(entries)-1)
+		for _, entry := range entries {
+			if entry.Row.Version != version {
+				next = append(next, entry)
+			}
+		}
+		p.Entries[idx] = next
+	}
+}
+
+// EndRow ends row at version on parent and drops its entries from
+// every exclusion index of constraints.
+func (p *ExclusionProjection) EndRow(parent ids.ObjectAddress, constraints []catalog.ExclusionConstraint, row ids.RowID, version ids.VersionID) {
+	ends := maps.Clone(p.Ended[parent])
+	if ends == nil {
+		ends = make(map[ids.RowID]ids.VersionID)
+	}
+	ends[row] = version
+	p.Ended[parent] = ends
+	for _, c := range constraints {
+		entries := p.Entries[c.Index]
+		next := make([]ExclusionEntry, 0, len(entries))
+		for _, entry := range entries {
+			if entry.Row.Row != row {
+				next = append(next, entry)
+			}
+		}
+		p.Entries[c.Index] = next
+	}
+}
+
+// Admit marks version's entries on idx admitted.
+func (p *ExclusionProjection) Admit(idx ids.ObjectAddress, version ids.VersionID) {
+	entries := slices.Clone(p.Entries[idx])
+	for at := range entries {
+		if entries[at].Row.Version == version {
+			entries[at].Admitted = true
+		}
+	}
+	p.Entries[idx] = entries
 }

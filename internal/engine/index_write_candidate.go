@@ -93,7 +93,7 @@ func (s *StatementScope) existingUniqueOutput(bound *index.UniqueBoundKey, row s
 				}
 			}
 		}
-		ScopeRetainExistingOutput(s.indexes(), idx, row, output)
+		s.indexes().RetainExistingOutput(idx, row, output)
 		return read(output)
 	}
 	if purpose == index.ProbeRevalidation && row.Born == 0 {
@@ -103,7 +103,7 @@ func (s *StatementScope) existingUniqueOutput(bound *index.UniqueBoundKey, row s
 	if err != nil {
 		return false, nil, err
 	}
-	return ExistingRootOutput(bound, root, row, evaluation, purpose)
+	return index.ExistingRootOutput(bound, root, row, evaluation, purpose)
 }
 
 func (s *StatementScope) matchesExistingUnique(bound *index.UniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, key []sqltype.Value, purpose index.ProbePurpose) (bool, error) {
