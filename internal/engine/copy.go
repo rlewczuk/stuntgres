@@ -91,7 +91,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if readOnly && !temporaryDataTarget(auth, &b, syntax) {
 			return 0, sqlError("25006", "cannot execute COPY FROM in a read-only transaction")
 		}
-	} else if err = copyRelationKind(b.Relation, false); err != nil {
+	} else if err = CopyRelationKind(b.Relation, false); err != nil {
 		return 0, err
 	}
 	if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.Session.SessionToken); err != nil {
@@ -188,7 +188,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			b.Insert.Defaults[i] = nil
 		}
 	}
-	if err = copyRelationKind(b.Relation, true); err != nil {
+	if err = CopyRelationKind(b.Relation, true); err != nil {
 		return 0, err
 	}
 	e.mu.Lock()

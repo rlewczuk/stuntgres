@@ -92,7 +92,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 			var value sqltype.Value
 			value, err = merge.On.Eval(&owner)
 			if err == nil {
-				facts.Truth, err = mergeOnTruth(value)
+				facts.Truth, err = MergeOnTruth(value)
 				facts.Constant = true
 			}
 		} else {
@@ -119,7 +119,7 @@ func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 		return Result{}, err
 	}
-	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: mergeHasVirtualReads(b.Merge)}
+	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: MergeHasVirtualReads(b.Merge)}
 	if b.Returning != nil {
 		for _, expr := range b.Returning.Expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
@@ -136,8 +136,8 @@ func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 	}
 	complete := false
 	defer func() {
-		if !complete && rows.returning != nil {
-			rows.returning.Close()
+		if !complete && rows.Returning != nil {
+			rows.Returning.Close()
 		}
 	}()
 	if err := ctx.Err(); err != nil {
@@ -146,8 +146,8 @@ func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 	if err := stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
 		return Result{}, err
 	}
-	if rows.returning != nil && b.Returning.RegclassOutput && rows.returning.Count != 0 {
-		if err := e.captureRegclassOutput(scope.op, rows.returning); err != nil {
+	if rows.Returning != nil && b.Returning.RegclassOutput && rows.Returning.Count != 0 {
+		if err := e.captureRegclassOutput(scope.op, rows.Returning); err != nil {
 			return Result{}, err
 		}
 	}
@@ -155,9 +155,9 @@ func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 		return Result{}, err
 	}
 	complete = true
-	result := Result{Count: int64(len(rows.actions))}
-	if rows.returning != nil {
-		result.Rows = rows.returning
+	result := Result{Count: int64(len(rows.Actions))}
+	if rows.Returning != nil {
+		result.Rows = rows.Returning
 	}
 	return result, nil
 }

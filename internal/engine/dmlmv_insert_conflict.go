@@ -17,26 +17,26 @@ import (
 // affected count, the EXCLUDED frame and the write overlay.
 type insertConflictState struct {
 	*analyze.InsertConflict
-	selected      []ids.ObjectAddress
-	catalog       *catalog.State
-	checkpoint    lock.Checkpoint
-	statementKeys lock.Checkpoint
-	affected      int
-	frame         []sqltype.Value
+	Selected      []ids.ObjectAddress
+	Catalog       *catalog.State
+	Checkpoint    lock.Checkpoint
+	StatementKeys lock.Checkpoint
+	Affected      int
+	Frame         []sqltype.Value
 	insertWriteOverlay
 }
 
 // newInsertConflictState starts the arbitration state of one command over c,
 // or returns nil without a clause.
-func newInsertConflictState(c *analyze.InsertConflict) *insertConflictState {
+func NewInsertConflictState(c *analyze.InsertConflict) *insertConflictState {
 	if c == nil {
 		return nil
 	}
 	return &insertConflictState{InsertConflict: c}
 }
 
-func (c *insertConflictState) selectArbiters(ctx *exec.Context, parent *catalog.Relation, view catalog.Read) error {
-	c.selected = c.selected[:0]
+func (c *insertConflictState) SelectArbiters(ctx *exec.Context, parent *catalog.Relation, view catalog.Read) error {
+	c.Selected = c.Selected[:0]
 	if c.Constraint != (ids.ObjectAddress{}) && c.NamedIndex == (ids.ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")
 	}
@@ -54,12 +54,12 @@ func (c *insertConflictState) selectArbiters(ctx *exec.Context, parent *catalog.
 				if c.Update != nil && def.IsExclusion() {
 					return sqlError("42809", "ON CONFLICT DO UPDATE not supported with exclusion constraints")
 				}
-				c.selected = append(c.selected, index.Address())
+				c.Selected = append(c.Selected, index.Address())
 			}
 			continue
 		}
 		if len(c.Keys) == 0 {
-			c.selected = append(c.selected, index.Address())
+			c.Selected = append(c.Selected, index.Address())
 			continue
 		}
 		if !def.Unique {
@@ -68,7 +68,7 @@ func (c *insertConflictState) selectArbiters(ctx *exec.Context, parent *catalog.
 		if !def.Valid {
 			continue
 		}
-		matches, err := c.matches(parent, def)
+		matches, err := c.Matches(parent, def)
 		if err != nil {
 			return err
 		}
@@ -79,22 +79,22 @@ func (c *insertConflictState) selectArbiters(ctx *exec.Context, parent *catalog.
 		if def.Predicate != nil {
 			predicate = def.Predicate.Definition
 		}
-		implied, err := conflictPredicateImpliedBy(ctx, c.Predicate, predicate)
+		implied, err := ConflictPredicateImpliedBy(ctx, c.Predicate, predicate)
 		if err != nil {
 			return err
 		}
 		if implied {
-			c.selected = append(c.selected, index.Address())
+			c.Selected = append(c.Selected, index.Address())
 		}
 	}
-	if (len(c.Keys) != 0 || c.Constraint != (ids.ObjectAddress{})) && len(c.selected) == 0 {
+	if (len(c.Keys) != 0 || c.Constraint != (ids.ObjectAddress{})) && len(c.Selected) == 0 {
 		return sqlError("42P10", "there is no unique or exclusion constraint matching the ON CONFLICT specification")
 	}
-	c.catalog = view.State()
+	c.Catalog = view.State()
 	return nil
 }
 
-func (c *insertConflictState) matches(parent *catalog.Relation, idx *catalog.IndexDefinition) (bool, error) {
+func (c *insertConflictState) Matches(parent *catalog.Relation, idx *catalog.IndexDefinition) (bool, error) {
 	// Both directions compare sets, not key order/multiplicity. Decorations
 	// restrict a matching key occurrence without changing the expression set.
 	for _, target := range c.Keys {
@@ -143,19 +143,19 @@ func (c *insertConflictState) matches(parent *catalog.Relation, idx *catalog.Ind
 	return true, nil
 }
 
-func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *insertConflictState) analyze.Binding {
+func BindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *insertConflictState) analyze.Binding {
 	return analyze.Binding{Ref: ref, Relation: parent, Targets: action.Targets, Insert: analyze.InsertBinding{Conflict: action.InsertConflict}, QuerySources: action.Sources, Returning: action.Returning}
 }
 
-func (c *insertConflictState) markAffected(id ids.RowID, slot int) {
-	if c.affectedRows == nil {
-		c.affectedRows = make(map[ids.RowID]int)
+func (c *insertConflictState) MarkAffected(id ids.RowID, slot int) {
+	if c.AffectedRows == nil {
+		c.AffectedRows = make(map[ids.RowID]int)
 	}
-	c.affectedRows[id] = slot
-	c.affected++
+	c.AffectedRows[id] = slot
+	c.Affected++
 }
 
-func conflictUpdateCardinalityError() error {
+func ConflictUpdateCardinalityError() error {
 	d := sqlError("21000", "ON CONFLICT DO UPDATE command cannot affect row a second time").(*sqlstate.Error)
 	d.Hint = "Ensure that no rows proposed for insertion within the same command have duplicate constrained values."
 	return d

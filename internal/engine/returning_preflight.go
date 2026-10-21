@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 )
 
-func preflightReturning(c *exec.Context, output *analyze.Returning) (*analyze.Returning, error) {
+func PreflightReturning(c *exec.Context, output *analyze.Returning) (*analyze.Returning, error) {
 	var expressions []expr.Expr
 	for i, bound := range output.Expressions {
 		// Plan genuine SQL constants before importing frame coercions and before

@@ -111,7 +111,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						want bool
 					}{{matchingRef, !expression}, {ordinaryRef, false}} {
 						index := catalog.MustRelation(test.ref.Address).SQLIndex
-						got, err := newInsertConflictState(c).matches(parent, index)
+						got, err := NewInsertConflictState(c).Matches(parent, index)
 						if err != nil || got != test.want {
 							t.Fatalf("canonical inference match=%v want=%v error=%v", got, test.want, err)
 						}

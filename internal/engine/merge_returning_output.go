@@ -12,5 +12,5 @@ func newMergeReturningOutput(b analyze.Binding, s *StatementScope) *mergeReturni
 	}
 	rows := exec.NewFinalRows(b.Returning.Schema, 0)
 	rows.Output = s.output
-	return &mergeReturningOutput{returning: b.Returning, rows: rows, frame: make([]sqltype.Value, b.Merge.TargetWidth+b.Merge.SourceWidth)}
+	return &mergeReturningOutput{Returning: b.Returning, Rows: rows, Frame: make([]sqltype.Value, b.Merge.TargetWidth+b.Merge.SourceWidth)}
 }

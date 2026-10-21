@@ -93,7 +93,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	old := storage.RowVersion{Row: 7, Version: 11, Base: 5, Born: 3, Values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
 	physical := exec.QueryPhysicalRow{Leaf: exec.Leaf{Ref: ref(c), Relation: c, Storage: &storage.Relation{}}, Version: old, Hint: 6, Segment: &exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}}
 	proposed := []sqltype.Value{inheritanceQueryInt(e, 8), inheritanceQueryInt(e, 2)}
-	scattered := scatterMutationRow(physical, old, proposed, []int{0})
+	scattered := ScatterMutationRow(physical, old, proposed, []int{0})
 	want := []sqltype.Value{old.Values[0], old.Values[1], proposed[0]}
 	if !reflect.DeepEqual(scattered, want) || !reflect.DeepEqual(old.Values, []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}) {
 		t.Fatal("scatter lost child-only values or mutated predecessor", scattered, old)
@@ -111,7 +111,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		t.Fatal("prior-own provenance lost")
 	}
 	identity := exec.QueryPhysicalRow{}
-	if got := scatterMutationRow(identity, old, proposed, []int{0}); &got[0] != &proposed[0] {
+	if got := ScatterMutationRow(identity, old, proposed, []int{0}); &got[0] != &proposed[0] {
 		t.Fatal("identity scatter copied proposal")
 	}
 }

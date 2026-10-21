@@ -90,7 +90,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 	}
 	// Main SELECT/CTAS has an empty context; its admission must not reuse an
 	// auxiliary's target. Main DML already occupies its final occurrence.
-	root := statementCTERoot(statement)
+	root := StatementCTERoot(statement)
 	if !parser.ModifyingStatement(root) {
 		s.mutations = append(s.mutations, statementMutation{statement: root})
 	}

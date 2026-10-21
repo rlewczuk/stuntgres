@@ -22,7 +22,7 @@ func TestTruncateGraphPartitions(t *testing.T) {
 	left, right := roleTableRef(t, e, "left_leaf"), roleTableRef(t, e, "right_leaf")
 	oldLeft, oldRight := e.storage.Relations[left.Address], e.storage.Relations[right.Address]
 	scope := truncateUnitStage(t, e, s, "r")
-	if len(scope.truncateOrZero().relations) != 4 || len(scope.catalog.Storage) != 2 || e.storage.Relations[root.Address] != nil || e.storage.Relations[nested.Address] != nil {
+	if len(scope.truncateOrZero().Relations) != 4 || len(scope.catalog.Storage) != 2 || e.storage.Relations[root.Address] != nil || e.storage.Relations[nested.Address] != nil {
 		t.Fatal("virtual authorities became physical stores or a real leaf was omitted")
 	}
 	for _, ref := range []ids.ObjectRef{root, nested, left, right} {

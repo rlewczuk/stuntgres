@@ -19,7 +19,7 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	if err := exec.SelectQuerySources(op.Ctx, inputs); err != nil {
 		t.Fatal(err)
 	}
-	state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: mergeHasVirtualReads(b.Merge)}
+	state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: MergeHasVirtualReads(b.Merge)}
 	if !state.VirtualReads {
 		t.Fatal("MERGE action did not establish virtual demand")
 	}

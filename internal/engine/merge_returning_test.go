@@ -137,17 +137,17 @@ func TestMergeReturningPublication(t *testing.T) {
 				lockEmpty(t, e)
 				return
 			}
-			if err != nil || len(rows.actions) != 2 {
+			if err != nil || len(rows.Actions) != 2 {
 				t.Fatal(rows, err)
 			}
 			if phase == "noReturning" {
-				if rows.returning != nil || calls != 0 {
+				if rows.Returning != nil || calls != 0 {
 					t.Fatal("collector on no-output path")
 				}
 			} else {
-				defer rows.returning.Close()
-				if rows.returning.Count != 2 || calls != 2 {
-					t.Fatal("accepted output count", calls, rows.returning.Count)
+				defer rows.Returning.Close()
+				if rows.Returning.Count != 2 || calls != 2 {
+					t.Fatal("accepted output count", calls, rows.Returning.Count)
 				}
 			}
 			if err = stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
@@ -166,7 +166,7 @@ func TestMergeReturningPublication(t *testing.T) {
 			} else {
 				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 11, 21)
 			}
-			if phase == "success" && !reflect.DeepEqual(tuples(Result{Rows: rows.returning}), [][]driver.Value{{int64(10), int64(11)}, {int64(20), int64(21)}}) {
+			if phase == "success" && !reflect.DeepEqual(tuples(Result{Rows: rows.Returning}), [][]driver.Value{{int64(10), int64(11)}, {int64(20), int64(21)}}) {
 				t.Fatal("completed output changed")
 			}
 			if scope.view != nil || scope.ticket != nil || !scope.finished {

@@ -58,7 +58,7 @@ func TestInsertConflictPredicateConstantMatrix(t *testing.T) {
 			for j, bop := range operators {
 				a := f.comparison(t, aop, f.column, f.integerLiteral(t, 5))
 				b := f.comparison(t, bop, f.column, f.integerLiteral(t, c.constant))
-				got, err := conflictPredicateImpliedBy(&f.ctx, a, b)
+				got, err := ConflictPredicateImpliedBy(&f.ctx, a, b)
 				want := c.want[i][j] == 'T'
 				if err != nil || got != want {
 					t.Fatalf("x%s5 => x%s%d: %t %v want %t", aop, bop, c.constant, got, err, want)
@@ -100,13 +100,13 @@ func TestInsertConflictPredicateCompositionAndNull(t *testing.T) {
 		{f.comparison(t, "=", boolean, truthLiteral(plan.False)), negated, true},
 		{isNotTrue, negated, false}, {truthLiteral(plan.Unknown), positive, true}, {truthLiteral(plan.True), positive, false},
 	} {
-		got, err := conflictPredicateImpliedBy(&f.ctx, c.a, c.b)
+		got, err := ConflictPredicateImpliedBy(&f.ctx, c.a, c.b)
 		if err != nil || got != c.want {
 			t.Fatalf("%T => %T: got %t %v want %t", c.a, c.b, got, err, c.want)
 		}
 	}
 	reverse := f.comparison(t, "<", f.integerLiteral(t, 10), f.column)
-	got, err := conflictPredicateImpliedBy(&f.ctx, reverse, positive)
+	got, err := ConflictPredicateImpliedBy(&f.ctx, reverse, positive)
 	if err != nil || !got {
 		t.Fatal("commutation", got, err)
 	}
@@ -114,7 +114,7 @@ func TestInsertConflictPredicateCompositionAndNull(t *testing.T) {
 	other.Slot = 1
 	a := f.comparison(t, ">", f.column, other)
 	b := f.comparison(t, "<", other, f.column)
-	got, err = conflictPredicateImpliedBy(&f.ctx, a, b)
+	got, err = ConflictPredicateImpliedBy(&f.ctx, a, b)
 	if err != nil || !got {
 		t.Fatal("reverse columns", got, err)
 	}
@@ -130,7 +130,7 @@ func TestInsertConflictPredicateCurrentParameters(t *testing.T) {
 	}{{10, true}, {-1, false}, {0, true}} {
 		value := f.integerLiteral(t, c.n).Value
 		f.ctx.Parameters = []sqltype.Value{value}
-		got, err := conflictPredicateImpliedBy(&f.ctx, target, installed)
+		got, err := ConflictPredicateImpliedBy(&f.ctx, target, installed)
 		if err != nil || got != c.want {
 			t.Fatal(c.n, got, err)
 		}
@@ -160,7 +160,7 @@ func TestInsertConflictPredicateNegativeProviderProof(t *testing.T) {
 	}
 	a := f.comparison(t, ">", stable, literal("10"))
 	b := f.comparison(t, ">", stable, literal("0"))
-	got, err := conflictPredicateImpliedBy(&f.ctx, a, b)
+	got, err := ConflictPredicateImpliedBy(&f.ctx, a, b)
 	if err != nil || got {
 		t.Fatal("stable proof", got, err)
 	}
@@ -169,7 +169,7 @@ func TestInsertConflictPredicateNegativeProviderProof(t *testing.T) {
 	different := f.column
 	different.Scope = 2
 	b.Left = different
-	got, err = conflictPredicateImpliedBy(&f.ctx, a, b)
+	got, err = ConflictPredicateImpliedBy(&f.ctx, a, b)
 	if err != nil || got {
 		t.Fatal("foreign namespace proof", got, err)
 	}
@@ -193,7 +193,7 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 		column := plan.ColumnExpr{Info: expr.Info{Usage: high.Usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
 		a := f.comparison(t, "=", column, high)
 		b := f.comparison(t, ">", column, low)
-		got, err := conflictPredicateImpliedBy(&f.ctx, a, b)
+		got, err := ConflictPredicateImpliedBy(&f.ctx, a, b)
 		if err != nil || !got {
 			t.Fatal(c.id, got, err)
 		}
@@ -202,7 +202,7 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 	// same B-tree family; no inferred order theorem crosses that boundary.
 	a := f.comparison(t, ">", f.column, literal(sqltype.Numeric, "10"))
 	b := f.comparison(t, ">", f.column, f.integerLiteral(t, 0))
-	got, err := conflictPredicateImpliedBy(&f.ctx, a, b)
+	got, err := ConflictPredicateImpliedBy(&f.ctx, a, b)
 	if err != nil || got {
 		t.Fatal("cross-family theorem", got, err)
 	}
@@ -214,7 +214,7 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 	if !a.Predicate.SessionDependent() {
 		t.Fatal("fixture is not an actual session-dependent provider")
 	}
-	got, err = conflictPredicateImpliedBy(&f.ctx, a, b)
+	got, err = ConflictPredicateImpliedBy(&f.ctx, a, b)
 	if err != nil || got {
 		t.Fatal("session-dependent theorem", got, err)
 	}
@@ -226,7 +226,7 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 	right.Usage.Collation = sqltype.CollationRef{ID: 950, Derivation: sqltype.Default}
 	a = f.comparison(t, ">", left, text)
 	b = f.comparison(t, ">", right, otherText)
-	got, err = conflictPredicateImpliedBy(&f.ctx, a, b)
+	got, err = ConflictPredicateImpliedBy(&f.ctx, a, b)
 	if err != nil || got {
 		t.Fatal("different collation theorem", got, err)
 	}
@@ -234,7 +234,7 @@ func TestInsertConflictPredicateTypedProviders(t *testing.T) {
 	unrelated.Slot = 9
 	a = f.comparison(t, ">", f.column, f.integerLiteral(t, 10))
 	b = f.comparison(t, ">", unrelated, f.integerLiteral(t, 0))
-	got, err = conflictPredicateImpliedBy(&f.ctx, a, b)
+	got, err = ConflictPredicateImpliedBy(&f.ctx, a, b)
 	if err != nil || got {
 		t.Fatal("unrelated column theorem", got, err)
 	}

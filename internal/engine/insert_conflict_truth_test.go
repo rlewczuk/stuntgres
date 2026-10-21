@@ -46,7 +46,7 @@ func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 		{"different subjects", isTrue, insertConflictTruthTest(f, plan.ColumnExpr{Info: subject.Info, Scope: 2, Frame: 1}, plan.True, false), false},
 		{"proof-only negated comparison", insertConflictNot(f, f.comparison(t, "<=", f.column, f.integerLiteral(t, 0))), f.comparison(t, ">", f.column, f.integerLiteral(t, 0)), true},
 	} {
-		got, err := conflictPredicateImpliedBy(&f.ctx, c.a, c.b)
+		got, err := ConflictPredicateImpliedBy(&f.ctx, c.a, c.b)
 		if err != nil || got != c.want {
 			t.Fatal(c.name, got, err, c.want)
 		}
@@ -76,7 +76,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 		{"false truth", insertConflictTruthTest(f, isTrue, plan.False, false), [3]plan.Truth{plan.False, plan.True, plan.True}},
 		{"truth equality", f.comparison(t, "=", isTrue, falseLiteral), [3]plan.Truth{plan.False, plan.True, plan.True}},
 	} {
-		normalized, err := normalizeConflictPredicate(&ctx, c.node)
+		normalized, err := NormalizeConflictPredicate(&ctx, c.node)
 		if err != nil {
 			t.Fatal(c.name, err)
 		}
@@ -98,7 +98,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 	// old provider evaluator. These parent values detect that mismatch directly.
 	comparison := f.comparison(t, ">", f.column, f.integerLiteral(t, 0))
 	node := insertConflictTruthTest(f, insertConflictNot(f, comparison), plan.True, false)
-	normalized, err := normalizeConflictPredicate(&ctx, node)
+	normalized, err := NormalizeConflictPredicate(&ctx, node)
 	if err != nil {
 		t.Fatal(err)
 	}

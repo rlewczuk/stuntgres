@@ -19,12 +19,12 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	if err == nil {
 		for a, descriptor := range auth.Catalog.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
-			if !ok || !truncateOwnsSequence(d, s.truncateOrZero().selected) {
+			if !ok || !TruncateOwnsSequence(d, s.truncateOrZero().Selected) {
 				continue
 			}
-			s.truncate().sequences = append(s.truncateOrZero().sequences, truncateSequence{
-				ref:      e.catalog.Domain.Ref(s.txRef.Epoch(), a),
-				relation: d, generator: e.sequenceGeneratorLocked(s, a), committed: e.storage.Sequences[a],
+			s.truncate().Sequences = append(s.truncateOrZero().Sequences, truncateSequence{
+				Ref:      e.catalog.Domain.Ref(s.txRef.Epoch(), a),
+				Relation: d, Generator: e.sequenceGeneratorLocked(s, a), Committed: e.storage.Sequences[a],
 			})
 		}
 	}
@@ -32,18 +32,18 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	if err != nil {
 		return err
 	}
-	slices.SortFunc(s.truncateOrZero().sequences, func(a, b truncateSequence) int { return compareTruncateAddress(a.ref.Address, b.ref.Address) })
-	for _, observed := range s.truncateOrZero().sequences {
-		if err = s.acquireSequence(observed.ref, lock.AccessExclusive, true); err != nil {
+	slices.SortFunc(s.truncateOrZero().Sequences, func(a, b truncateSequence) int { return CompareTruncateAddress(a.Ref.Address, b.Ref.Address) })
+	for _, observed := range s.truncateOrZero().Sequences {
+		if err = s.acquireSequence(observed.Ref, lock.AccessExclusive, true); err != nil {
 			return err
 		}
 		e.mu.Lock()
 		auth, err = e.statementAuthorizationLocked(s.op, stmt)
 		if err == nil {
-			if auth.Catalog.Get(observed.ref.Address) != observed.relation || e.sequenceGeneratorLocked(s, observed.ref.Address) != observed.generator || observed.generator == nil || e.storage.Sequences[observed.ref.Address] != observed.committed {
+			if auth.Catalog.Get(observed.Ref.Address) != observed.Relation || e.sequenceGeneratorLocked(s, observed.Ref.Address) != observed.Generator || observed.Generator == nil || e.storage.Sequences[observed.Ref.Address] != observed.Committed {
 				err = ids.ErrCatalogReplaced
 			} else {
-				err = auth.Check(access.Requirement{Object: observed.ref, OwnerOnly: true})
+				err = auth.Check(access.Requirement{Object: observed.Ref, OwnerOnly: true})
 			}
 		}
 		e.mu.Unlock()
@@ -60,37 +60,37 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *CatalogStage) (map[ids.ObjectAddress]*storage.SequenceGenerator, error) {
 	e := s.engine()
 	var observed map[ids.ObjectAddress]*storage.SequenceGenerator
-	if len(s.truncateOrZero().sequences) != 0 {
-		observed = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(s.truncateOrZero().sequences))
+	if len(s.truncateOrZero().Sequences) != 0 {
+		observed = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(s.truncateOrZero().Sequences))
 	}
-	for _, sequence := range s.truncateOrZero().sequences {
-		a := sequence.ref.Address
-		if auth.Catalog.Get(a) != sequence.relation || e.sequenceGeneratorLocked(s, a) != sequence.generator || e.storage.Sequences[a] != sequence.committed {
+	for _, sequence := range s.truncateOrZero().Sequences {
+		a := sequence.Ref.Address
+		if auth.Catalog.Get(a) != sequence.Relation || e.sequenceGeneratorLocked(s, a) != sequence.Generator || e.storage.Sequences[a] != sequence.Committed {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if err := auth.Check(access.Requirement{Object: sequence.ref, OwnerOnly: true}); err != nil {
+		if err := auth.Check(access.Requirement{Object: sequence.Ref, OwnerOnly: true}); err != nil {
 			return nil, err
 		}
-		observed[a] = sequence.committed
+		observed[a] = sequence.Committed
 	}
 	// Host publication need not honor SQL locks. Do not silently omit an owned
 	// sequence added between closure capture and staging, even for an empty set.
 	for a, descriptor := range auth.Catalog.Descriptors() {
-		if d, ok := descriptor.(*catalog.Relation); ok && truncateOwnsSequence(d, s.truncateOrZero().selected) {
+		if d, ok := descriptor.(*catalog.Relation); ok && TruncateOwnsSequence(d, s.truncateOrZero().Selected) {
 			if _, captured := observed[a]; !captured {
 				return nil, catalog.Conflict{}
 			}
 		}
 	}
-	if len(s.truncateOrZero().sequences) != 0 {
-		stage.sequenceState().ResetGenerators(len(s.truncateOrZero().sequences))
+	if len(s.truncateOrZero().Sequences) != 0 {
+		stage.sequenceState().ResetGenerators(len(s.truncateOrZero().Sequences))
 	}
-	for _, sequence := range s.truncateOrZero().sequences {
+	for _, sequence := range s.truncateOrZero().Sequences {
 		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}
-		d := *sequence.relation
+		d := *sequence.Relation
 		d.ObjectRevision, d.SequencePlanStamp = rev, rev
 		if err = stage.Replace(&d); err != nil {
 			return nil, err
@@ -98,8 +98,8 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		stage.sequence.SetGenerator(d.Address(), &storage.SequenceGenerator{Last: d.Sequence.Start, Generation: rev})
 	}
 	session := s.op.Session
-	for _, sequence := range s.truncateOrZero().sequences {
-		a := sequence.ref.Address
+	for _, sequence := range s.truncateOrZero().Sequences {
+		a := sequence.Ref.Address
 		// Reset itself discards the initiating backend's old unused tail,
 		// even if it rolls back without another function demand. Its local
 		// source event also survives rollback, without changing observation

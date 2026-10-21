@@ -37,7 +37,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q
 			_ = scope.Finish(errors.New("unit rollback"))
 		}
 		if scope.insertReturning != nil {
-			_ = scope.insertReturning.rows.Close()
+			_ = scope.insertReturning.Rows.Close()
 		}
 		op.Done()
 	})
@@ -56,11 +56,11 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q
 	if err != nil {
 		t.Fatal(err)
 	}
-	conflict := newInsertConflictState(b.Insert.Conflict)
+	conflict := NewInsertConflictState(b.Insert.Conflict)
 	scope.insertConflict = conflict
 	if conflict != nil {
 		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if err := conflict.selectArbiters(&c, b.Relation, e.CatalogRead()); err != nil {
+		if err := conflict.SelectArbiters(&c, b.Relation, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		if err := preflightConflictUpdate(conflict, &c); err != nil {
@@ -188,11 +188,11 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 					t.Fatal(rows, calls, cursor.closes)
 				}
 				if failure {
-					if !errors.Is(err, injected) || scope.insertReturning.rows.Count != 1 {
-						t.Fatal(err, scope.insertReturning.rows.Count)
+					if !errors.Is(err, injected) || scope.insertReturning.Rows.Count != 1 {
+						t.Fatal(err, scope.insertReturning.Rows.Count)
 					}
-				} else if err != nil || scope.insertReturning.rows.Count != 2 {
-					t.Fatal(err, scope.insertReturning.rows.Count)
+				} else if err != nil || scope.insertReturning.Rows.Count != 2 {
+					t.Fatal(err, scope.insertReturning.Rows.Count)
 				}
 				if finished := scope.Finish(err); !errors.Is(finished, err) {
 					t.Fatal(finished, err)
@@ -241,7 +241,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 			t.Fatal(err)
 		}
 		accepted, retry, err := scope.Writes().appendAcceptedInsert(b.Ref, &index.WriteCandidate{Values: row})
-		if err != nil || accepted || !retry || len(scope.stage.rows[b.Ref.Address]) != 0 || scope.insertReturning.rows.Count != 0 {
+		if err != nil || accepted || !retry || len(scope.stage.rows[b.Ref.Address]) != 0 || scope.insertReturning.Rows.Count != 0 {
 			t.Fatal("stale provider admitted output", accepted, retry, err, scope.stage.rows)
 		}
 		calls := 0
@@ -249,8 +249,8 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		if _, err := scope.admitInsertProducer(b, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation); err != nil {
 			t.Fatal(err)
 		}
-		if scope.uniqueBinding == prior || calls != 1 || scope.insertReturning.rows.Count != 1 || len(scope.stage.rows[b.Ref.Address]) != 1 {
-			t.Fatal("retry did not freshly admit exactly one output", calls, scope.insertReturning.rows.Count)
+		if scope.uniqueBinding == prior || calls != 1 || scope.insertReturning.Rows.Count != 1 || len(scope.stage.rows[b.Ref.Address]) != 1 {
+			t.Fatal("retry did not freshly admit exactly one output", calls, scope.insertReturning.Rows.Count)
 		}
 		if err := scope.Finish(nil); err != nil {
 			t.Fatal(err)
@@ -285,8 +285,8 @@ func TestInsertReturningProducerClose(t *testing.T) {
 			if primary {
 				want, count = nextErr, 1
 			}
-			if !errors.Is(err, want) || rows.Values != nil || cursor.closes != 1 || scope.insertReturning.rows.Count != count || len(scope.stage.rows[b.Ref.Address]) != int(count) {
-				t.Fatal("veto did not follow actual staged/output prefix", rows, err, cursor.closes, scope.insertReturning.rows.Count)
+			if !errors.Is(err, want) || rows.Values != nil || cursor.closes != 1 || scope.insertReturning.Rows.Count != count || len(scope.stage.rows[b.Ref.Address]) != int(count) {
+				t.Fatal("veto did not follow actual staged/output prefix", rows, err, cursor.closes, scope.insertReturning.Rows.Count)
 			}
 			if err := scope.Finish(err); !errors.Is(err, want) {
 				t.Fatal(err)

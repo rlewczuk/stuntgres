@@ -60,9 +60,9 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		s.op.SnapshotNoticeThreshold()
 	}
 	selected := make(map[ids.ObjectAddress]int)
-	s.truncate().selected = selected
-	s.truncate().restart = stmt.RestartIdentity
-	s.truncate().foreignCascade = stmt.Mode == parser.DropCascade
+	s.truncate().Selected = selected
+	s.truncate().Restart = stmt.RestartIdentity
+	s.truncate().ForeignCascade = stmt.Mode == parser.DropCascade
 	expanded := make(map[ids.ObjectAddress]bool)
 	var open func(ids.ObjectRef, *truncateName, bool, bool, bool, bool) error
 	open = func(ref ids.ObjectRef, name *truncateName, privilege, only, recurse, cascade bool) error {
@@ -80,7 +80,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					err = ids.ErrCatalogReplaced
 				} else {
 					if !privilege {
-						otherTemporary, err = truncateOtherTemporary(auth.Catalog, before, s.op.Session.SessionToken)
+						otherTemporary, err = TruncateOtherTemporary(auth.Catalog, before, s.op.Session.SessionToken)
 					}
 					if err == nil && !otherTemporary {
 						err = checkTruncate(auth, ref, before, privilege && !cascade, only)
@@ -136,7 +136,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = e.truncateNameCurrent(auth, *name)
 			}
 			if err == nil && !privilege {
-				otherTemporary, err = truncateOtherTemporary(auth.Catalog, d, s.op.Session.SessionToken)
+				otherTemporary, err = TruncateOtherTemporary(auth.Catalog, d, s.op.Session.SessionToken)
 				if err == nil && otherTemporary {
 					err = ids.ErrCatalogReplaced
 				}
@@ -156,10 +156,10 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					s.owner.AccessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {
-					s.truncate().relations = append(s.truncateOrZero().relations, truncateRelation{ref: ref, relation: d, storage: current, privilege: privilege})
-					selected[ref.Address] = len(s.truncateOrZero().relations)
+					s.truncate().Relations = append(s.truncateOrZero().Relations, truncateRelation{Ref: ref, Relation: d, Storage: current, Privilege: privilege})
+					selected[ref.Address] = len(s.truncateOrZero().Relations)
 				} else if privilege {
-					s.truncate().relations[index-1].privilege = true
+					s.truncate().Relations[index-1].Privilege = true
 				}
 			}
 		}
@@ -176,7 +176,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					}
 					children = append(children, child)
 				}
-				slices.SortFunc(children, func(a, b *catalog.Relation) int { return compareTruncateAddress(a.Address(), b.Address()) })
+				slices.SortFunc(children, func(a, b *catalog.Relation) int { return CompareTruncateAddress(a.Address(), b.Address()) })
 			}
 		}
 		e.mu.Unlock()
@@ -194,7 +194,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var ref ids.ObjectRef
-		observation := truncateName{name: target.Name}
+		observation := truncateName{Name: target.Name}
 		if err == nil && s.txRef.Epoch() != e.catalog.state.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
@@ -206,7 +206,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			if !ok {
 				err = ids.ErrCatalogReplaced
 			} else {
-				observation.ref, observation.namespace = ref, descriptor.Namespace()
+				observation.Ref, observation.Namespace = ref, descriptor.Namespace()
 			}
 		}
 		e.mu.Unlock()
@@ -216,12 +216,12 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err = open(ref, &observation, true, target.Only, !target.Only, false); err != nil {
 			return err
 		}
-		s.truncate().names = append(s.truncateOrZero().names, observation)
+		s.truncate().Names = append(s.truncateOrZero().Names, observation)
 	}
 	for {
 		e.mu.Lock()
 		catalog := e.privateCatalogLocked(s.owner.Catalog)
-		inbound := truncateReferencers(catalog, selected)
+		inbound := TruncateReferencers(catalog, selected)
 		e.mu.Unlock()
 		if len(inbound) == 0 {
 			if stmt.RestartIdentity {
@@ -230,10 +230,10 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return nil
 		}
 		if stmt.Mode != parser.DropCascade {
-			return truncateForeignKeyError(inbound[0].parent.Name(), inbound[0].relation.Name())
+			return TruncateForeignKeyError(inbound[0].Parent.Name(), inbound[0].Relation.Name())
 		}
 		for _, candidate := range inbound {
-			ref := e.catalog.Domain.Ref(s.txRef.Epoch(), candidate.relation.Address())
+			ref := e.catalog.Domain.Ref(s.txRef.Epoch(), candidate.Relation.Address())
 			if err := open(ref, nil, true, false, false, true); err != nil {
 				return err
 			}

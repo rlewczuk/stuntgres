@@ -17,31 +17,31 @@ import (
 )
 
 type foreignKeyJob struct {
-	child, parent, index   *catalog.Relation
-	definition             catalog.ForeignKeyConstraint
-	comparisons            []table.ForeignKeyComparison
-	childKey               []sqltype.Value // Reused across final rows and waited probes.
-	deletePlan, updatePlan *foreignActionPlan
+	Child, Parent, Index   *catalog.Relation
+	Definition             catalog.ForeignKeyConstraint
+	Comparisons            []table.ForeignKeyComparison
+	ChildKey               []sqltype.Value // Reused across final rows and waited probes.
+	DeletePlan, UpdatePlan *foreignActionPlan
 }
 
-func sameForeignKeyDefinition(a, b catalog.ForeignKeyConstraint) bool {
+func SameForeignKeyDefinition(a, b catalog.ForeignKeyConstraint) bool {
 	return a.OID == b.OID && a.Target == b.Target && a.Index == b.Index && a.Full == b.Full && a.UpdateAction == b.UpdateAction && a.DeleteAction == b.DeleteAction && slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Referenced, b.Referenced) && slices.Equal(a.DeleteAttributes, b.DeleteAttributes)
 }
 
-func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
-	child, cok := view.Relation(job.child.Address())
-	parent, pok := view.Relation(job.parent.Address())
-	idx, iok := view.Relation(job.index.Address())
-	if !cok || !pok || !iok || idx.SQLIndex == nil || !index.SameRelationRowShape(child, job.child) || !index.SameRelationRowShape(parent, job.parent) || !index.SameIndexKeySemantics(idx, job.index) {
+func RefreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
+	child, cok := view.Relation(job.Child.Address())
+	parent, pok := view.Relation(job.Parent.Address())
+	idx, iok := view.Relation(job.Index.Address())
+	if !cok || !pok || !iok || idx.SQLIndex == nil || !index.SameRelationRowShape(child, job.Child) || !index.SameRelationRowShape(parent, job.Parent) || !index.SameIndexKeySemantics(idx, job.Index) {
 		return ids.ErrCatalogReplaced
 	}
 	found := false
 	for _, current := range child.Constraints.ForeignKeys {
-		if current.OID == job.definition.OID {
-			if !sameForeignKeyDefinition(current, job.definition) {
+		if current.OID == job.Definition.OID {
+			if !SameForeignKeyDefinition(current, job.Definition) {
 				return ids.ErrCatalogReplaced
 			}
-			job.definition = current
+			job.Definition = current
 			found = true
 			break
 		}
@@ -49,28 +49,28 @@ func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
 	if !found {
 		return ids.ErrCatalogReplaced
 	}
-	job.child, job.parent, job.index = child, parent, idx
+	job.Child, job.Parent, job.Index = child, parent, idx
 	return nil
 }
 
 // This authority is private to one statement and one captured physical child.
 // It never substitutes for the initiating target's admission or candidate view.
 type foreignActionAdmission struct {
-	ref               ids.ObjectRef
-	storage           *storage.Relation
-	relation          *catalog.Relation
-	tx                ids.TxRef
-	jobs              []foreignKeyJob
-	writable, mutated bool
+	Ref               ids.ObjectRef
+	Storage           *storage.Relation
+	Relation          *catalog.Relation
+	Tx                ids.TxRef
+	Jobs              []foreignKeyJob
+	Writable, Mutated bool
 }
 
 type foreignActionTransition struct {
-	relation  ids.ObjectAddress
-	old, next storage.RowVersion
-	owner     authorization.PrincipalRef // zero means the initiating statement's actor
+	Relation  ids.ObjectAddress
+	Old, Next storage.RowVersion
+	Owner     authorization.PrincipalRef // zero means the initiating statement's actor
 }
 
-func foreignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []sqltype.Value) bool {
+func ForeignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []sqltype.Value) bool {
 	for _, comparison := range comparisons {
 		if !sqltype.SameDatum(old[comparison.Parent], next[comparison.Parent]) {
 			return false
@@ -83,48 +83,48 @@ func foreignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []
 // referencing relations, row transitions, settling state, prepared check jobs
 // and the foreign-key targets of CREATE/ALTER TABLE.
 type foreignActionScope struct {
-	admissions     map[ids.ObjectAddress]*foreignActionAdmission
-	transitions    []foreignActionTransition
-	settling       bool
-	exclusionAdded bool // a new event admitted while settling actions
-	jobs           []foreignKeyJob
-	keyTargets     []ids.ObjectRef
-	alterKeys      []table.AlterForeignKeyAdmission
+	Admissions     map[ids.ObjectAddress]*foreignActionAdmission
+	Transitions    []foreignActionTransition
+	Settling       bool
+	ExclusionAdded bool // a new event admitted while settling actions
+	Jobs           []foreignKeyJob
+	KeyTargets     []ids.ObjectRef
+	AlterKeys      []table.AlterForeignKeyAdmission
 }
 
 type foreignActionPlan struct {
-	targets, parentSlots []int
-	defaults             []expr.Expr
-	defaultOrigins       []analyze.DefaultOrigin
-	conversions          []sqltype.CoercionPlan
-	convert              []bool
-	input                sqltype.InputEnvironment
-	domainChecks         bool
+	Targets, ParentSlots []int
+	Defaults             []expr.Expr
+	DefaultOrigins       []analyze.DefaultOrigin
+	Conversions          []sqltype.CoercionPlan
+	Convert              []bool
+	Input                sqltype.InputEnvironment
+	DomainChecks         bool
 }
 
-func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view catalog.Read) string {
+func ForeignActionQuery(job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view catalog.Read) string {
 	var q strings.Builder
-	deletion := action == parser.ForeignKeyCascade && event.next.Row == 0
+	deletion := action == parser.ForeignKeyCascade && event.Next.Row == 0
 	if deletion {
 		q.WriteString("DELETE FROM ONLY ")
 	} else {
 		q.WriteString("UPDATE ONLY ")
 	}
-	q.WriteString(catalog.QuoteIdentifier(view.Get(job.child.Namespace()).Name()))
+	q.WriteString(catalog.QuoteIdentifier(view.Get(job.Child.Namespace()).Name()))
 	q.WriteByte('.')
-	q.WriteString(catalog.QuoteIdentifier(job.child.Name()))
+	q.WriteString(catalog.QuoteIdentifier(job.Child.Name()))
 	offset := 0
 	if !deletion {
 		q.WriteString(" SET ")
-		attributes := job.definition.Attributes
-		if event.next.Row == 0 && len(job.definition.DeleteAttributes) != 0 {
-			attributes = job.definition.DeleteAttributes
+		attributes := job.Definition.Attributes
+		if event.Next.Row == 0 && len(job.Definition.DeleteAttributes) != 0 {
+			attributes = job.Definition.DeleteAttributes
 		}
 		for i, a := range attributes {
 			if i != 0 {
 				q.WriteString(", ")
 			}
-			q.WriteString(catalog.QuoteIdentifier(job.child.Columns[slices.Index(job.child.Attributes, a)].Name))
+			q.WriteString(catalog.QuoteIdentifier(job.Child.Columns[slices.Index(job.Child.Attributes, a)].Name))
 			q.WriteString(" = ")
 			switch action {
 			case parser.ForeignKeyCascade:
@@ -139,14 +139,14 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 		}
 	}
 	q.WriteString(" WHERE ")
-	for i, a := range job.definition.Attributes {
+	for i, a := range job.Definition.Attributes {
 		if i != 0 {
 			q.WriteString(" AND ")
 		}
-		childSlot := slices.Index(job.child.Attributes, a)
-		parentSlot := slices.Index(job.parent.Attributes, job.definition.Referenced[i])
+		childSlot := slices.Index(job.Child.Attributes, a)
+		parentSlot := slices.Index(job.Parent.Attributes, job.Definition.Referenced[i])
 		var comparison sqltype.IndexForeignKeyComparison
-		for _, c := range job.comparisons {
+		for _, c := range job.Comparisons {
 			if c.Child == childSlot {
 				comparison = c.Comparison
 				break
@@ -155,15 +155,15 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 		parentInput, childInput := comparison.InputTypes()
 		q.WriteByte('$')
 		q.WriteString(strconv.Itoa(offset + i + 1))
-		if job.parent.Columns[parentSlot].Usage.Type != parentInput {
+		if job.Parent.Columns[parentSlot].Usage.Type != parentInput {
 			q.WriteString("::")
 			q.WriteString(catalog.Identifier(parentInput.NamespaceName()))
 			q.WriteByte('.')
 			q.WriteString(catalog.Identifier(parentInput.Name()))
 		}
 		q.WriteString(" OPERATOR(pg_catalog.=) ")
-		q.WriteString(catalog.QuoteIdentifier(job.child.Columns[childSlot].Name))
-		if job.child.Columns[childSlot].Usage.Type != childInput {
+		q.WriteString(catalog.QuoteIdentifier(job.Child.Columns[childSlot].Name))
+		if job.Child.Columns[childSlot].Usage.Type != childInput {
 			q.WriteString("::")
 			q.WriteString(catalog.Identifier(childInput.NamespaceName()))
 			q.WriteByte('.')

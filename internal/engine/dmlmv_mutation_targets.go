@@ -8,17 +8,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func mutationPhysicalRow(source *exec.Source, index int, b analyze.Binding) exec.QueryPhysicalRow {
+func MutationPhysicalRow(source *exec.Source, index int, b analyze.Binding) exec.QueryPhysicalRow {
 	version := source.VersionAt(source.RawIndex(index))
 	return source.PhysicalRow(index, exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage}, version)
 }
 
 type mutationRowIdentity struct {
-	ref ids.ObjectRef
-	row ids.RowID
+	Ref ids.ObjectRef
+	Row ids.RowID
 }
 
-func scatterMutationRow(physical exec.QueryPhysicalRow, old storage.RowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
+func ScatterMutationRow(physical exec.QueryPhysicalRow, old storage.RowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
 	if physical.Segment == nil || physical.Segment.Layout == nil {
 		return named
 	}
@@ -30,7 +30,7 @@ func scatterMutationRow(physical exec.QueryPhysicalRow, old storage.RowVersion, 
 }
 
 // versionRows appends the logical row identities of versions to buf.
-func versionRows(buf []ids.RowID, versions []storage.RowVersion) []ids.RowID {
+func VersionRows(buf []ids.RowID, versions []storage.RowVersion) []ids.RowID {
 	for _, version := range versions {
 		buf = append(buf, version.Row)
 	}

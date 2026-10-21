@@ -181,13 +181,13 @@ func TestViewWriteDefaults(t *testing.T) {
 		ObjectAddress: indexAddress,
 		SQLIndex:      &catalog.IndexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
-	conflict := newInsertConflictState(&analyze.InsertConflict{})
+	conflict := NewInsertConflictState(&analyze.InsertConflict{})
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	if err := conflict.selectArbiters(&evaluation, view.PhysicalBinding(b).Relation, f.e.CatalogRead()); err != nil {
+	if err := conflict.SelectArbiters(&evaluation, view.PhysicalBinding(b).Relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if len(conflict.selected) != 1 || conflict.selected[0] != indexAddress || b.Relation != f.view {
-		t.Fatal("physical arbiter selection lost logical namespace", conflict.selected)
+	if len(conflict.Selected) != 1 || conflict.Selected[0] != indexAddress || b.Relation != f.view {
+		t.Fatal("physical arbiter selection lost logical namespace", conflict.Selected)
 	}
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
@@ -315,7 +315,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, updateCandidate{RowVersion: old, slot: 0})
+	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, updateCandidate{RowVersion: old, Slot: 0})
 	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
 	}

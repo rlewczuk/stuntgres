@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func mergeOnTruth(value sqltype.Value) (plan.Truth, error) {
+func MergeOnTruth(value sqltype.Value) (plan.Truth, error) {
 	if value.Type().IsDomain() {
 		var err error
 		value, err = value.BaseValue()
@@ -44,7 +44,7 @@ func mergeOnTruth(value sqltype.Value) (plan.Truth, error) {
 	return plan.False, fmt.Errorf("stuntgres: invalid MERGE ON carrier")
 }
 
-func mergeHasVirtualReads(merge *analyze.MergeBinding) bool {
+func MergeHasVirtualReads(merge *analyze.MergeBinding) bool {
 	if exec.QueryHasVirtualReads(merge.Source) || exec.BoundHasVirtualReads(merge.On) {
 		return true
 	}
@@ -78,39 +78,39 @@ func mergeHasVirtualReads(merge *analyze.MergeBinding) bool {
 // DELETE carries captured identity only; payload indexes name INSERT/UPDATE
 // rows. All records remain private until the sole statement Finish.
 type mergeActionRow struct {
-	action     parser.MergeAction
-	payload    int
-	deletion   visibility.DeleteCandidate
-	updateMode lock.MultiMode
+	Action     parser.MergeAction
+	Payload    int
+	Deletion   visibility.DeleteCandidate
+	UpdateMode lock.MultiMode
 }
 
 type mergeRows struct {
 	index.WriteBatch
-	predecessors []storage.RowVersion
-	actions      []mergeActionRow
-	returning    *exec.FinalRows
+	Predecessors []storage.RowVersion
+	Actions      []mergeActionRow
+	Returning    *exec.FinalRows
 }
 
 type mergeCandidate struct {
 	updateCandidate
-	class    parser.MergeMatch
-	deletion visibility.DeleteCandidate
+	Class    parser.MergeMatch
+	Deletion visibility.DeleteCandidate
 }
 
-func mergeCardinalityError() error {
+func MergeCardinalityError() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: "MERGE command cannot affect row a second time", Hint: "Ensure that not more than one source row matches any one target row."}
 }
 
-func mergeMatches(evaluation *exec.Context, on expr.Expr) (bool, error) {
+func MergeMatches(evaluation *exec.Context, on expr.Expr) (bool, error) {
 	value, err := on.Eval(evaluation)
 	if err != nil {
 		return false, err
 	}
-	truth, err := mergeOnTruth(value)
+	truth, err := MergeOnTruth(value)
 	return truth == plan.True, err
 }
 
-func selectMergeArm(merge *analyze.MergeBinding, evaluation *exec.Context, class parser.MergeMatch) (*analyze.MergeArm, error) {
+func SelectMergeArm(merge *analyze.MergeBinding, evaluation *exec.Context, class parser.MergeMatch) (*analyze.MergeArm, error) {
 	for i := range merge.Arms {
 		arm := &merge.Arms[i]
 		if arm.Match != class {

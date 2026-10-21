@@ -27,7 +27,7 @@ retry:
 		return b, nil
 	}
 	if overlay := s.writeOverlay(); overlay != nil && s.uniqueBinding != nil && s.uniqueBinding.Ref == ref {
-		overlay.overlays = nil
+		overlay.Overlays = nil
 	}
 	b, err := index.BuildUniqueWriteBinding(ref, parent, view)
 	if err != nil {
@@ -155,9 +155,9 @@ retry:
 	if binding.TypeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.TypeName
 	}
-	if action != nil && action.catalog != binding.Catalog {
+	if action != nil && action.Catalog != binding.Catalog {
 		view := e.catalog.read(binding.Catalog)
-		if err := action.selectArbiters(&evaluation, parent, view); err != nil {
+		if err := action.SelectArbiters(&evaluation, parent, view); err != nil {
 			return uniqueConflict{}, err
 		}
 	}
@@ -190,7 +190,7 @@ retry:
 			}
 			continue
 		}
-		if action != nil && !slices.Contains(action.selected, idx.Address()) {
+		if action != nil && !slices.Contains(action.Selected, idx.Address()) {
 			continue
 		}
 		member, key, err := candidate.UniqueOutput(bound, &evaluation, action != nil, purpose)
@@ -220,7 +220,7 @@ retry:
 		parent, idx = probe.Parent, probe.Index
 		current, root, versions := probe.View, probe.Root, probe.Versions
 		if check := s.insertConflict; check != nil {
-			if err := analyze.CheckBinding(auth, bindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
+			if err := analyze.CheckBinding(auth, BindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
 				return uniqueConflict{}, err
 			}
 		}
@@ -246,7 +246,7 @@ retry:
 			}
 			replaced := false
 			if c := s.writeOverlay(); c != nil {
-				_, replaced = c.affectedRows[entry.Row]
+				_, replaced = c.AffectedRows[entry.Row]
 				if !replaced {
 					_, replaced = s.insertOwnRow(ref, entry.Row)
 				}

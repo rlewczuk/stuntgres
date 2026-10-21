@@ -40,9 +40,9 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 	}
 	var candidates []deleteUsingCandidate
 	for i := range targetCount {
-		physical := mutationPhysicalRow(source, i, b)
+		physical := MutationPhysicalRow(source, i, b)
 		version := physical.Version
-		if b.CurrentOf != "" && (positioned.ref != physical.Leaf.Ref || version.Row != positioned.row) {
+		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || version.Row != positioned.Row) {
 			continue
 		}
 		candidate := physical.Deletion()
@@ -60,7 +60,7 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 				return Result{}, err
 			}
 			if matches {
-				candidates = append(candidates, deleteUsingCandidate{DeleteCandidate: candidate, sourceIndex: j, physical: physical})
+				candidates = append(candidates, deleteUsingCandidate{DeleteCandidate: candidate, SourceIndex: j, Physical: physical})
 			}
 		}
 	}
@@ -99,10 +99,10 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 		if !live {
 			continue
 		}
-		copy(frame, pair.physical.Values(current))
-		copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(pair.sourceIndex)))
+		copy(frame, pair.Physical.Values(current))
+		copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(pair.SourceIndex)))
 		evaluation.Row = frame
-		evaluation.BindQueryIdentity(stage.Source, stage.Index(pair.sourceIndex))
+		evaluation.BindQueryIdentity(stage.Source, stage.Index(pair.SourceIndex))
 		evaluation.PhysicalTable = candidate.Ref
 		if current.Version != candidate.Version {
 			if err := s.physicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {

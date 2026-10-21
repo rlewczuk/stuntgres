@@ -28,7 +28,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 	if scope.insertReturning != nil {
 		defer func() {
 			if !keepReturning {
-				scope.insertReturning.rows.Close()
+				scope.insertReturning.Rows.Close()
 			}
 		}()
 	}

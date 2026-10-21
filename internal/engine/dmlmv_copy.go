@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func copyRelationKind(relation *catalog.Relation, from bool) error {
+func CopyRelationKind(relation *catalog.Relation, from bool) error {
 	if !from && relation.RelationKind == catalog.MaterializedViewRelation && !relation.Populated {
 		d := sqlError("0A000", fmt.Sprintf("cannot copy from unpopulated materialized view \"%s\"", relation.Name())).(*sqlstate.Error)
 		d.Hint = "Use the REFRESH MATERIALIZED VIEW command."
@@ -49,25 +49,25 @@ func copyRelationKind(relation *catalog.Relation, from bool) error {
 // Physical input keeps its immediate codec/default/constraint events. Eligible
 // COPY buffers then own a distinct insertion flush, unlike ordinary INSERT.
 type copyInsertionCursor interface {
-	insertionOrigin() (line int64, textBytes int)
+	InsertionOrigin() (line int64, textBytes int)
 }
 
 type copyInsertionBuffer struct {
-	group     *partition.InsertGroup
-	positions []int
+	Group     *partition.InsertGroup
+	Positions []int
 }
 
 type copyInsertionState struct {
-	cursor       copyInsertionCursor
+	Cursor       copyInsertionCursor
 	single       bool
-	first, bytes int
-	lines        []int64
-	buffers      []copyInsertionBuffer
-	groups       map[*partition.InsertGroup]int
+	First, Bytes int
+	Lines        []int64
+	Buffers      []copyInsertionBuffer
+	Groups       map[*partition.InsertGroup]int
 }
 
-func newCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyInsertionState {
-	state := &copyInsertionState{cursor: cursor}
+func NewCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyInsertionState {
+	state := &copyInsertionState{Cursor: cursor}
 	for _, expression := range b.Insert.Defaults {
 		if exec.PlannedPhysicalVolatility(expression, true) == expr.Volatile {
 			state.single = true
@@ -77,11 +77,11 @@ func newCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyI
 	return state
 }
 
-func (state *copyInsertionState) full() bool {
-	return state.single || len(state.lines) >= 1000 || state.bytes >= 65535
+func (state *copyInsertionState) Full() bool {
+	return state.single || len(state.Lines) >= 1000 || state.Bytes >= 65535
 }
 
-func copyInsertionDiagnostic(err error, relation string, line int64) error {
+func CopyInsertionDiagnostic(err error, relation string, line int64) error {
 	var record *sqlstate.Error
 	if !errors.As(err, &record) {
 		return err
@@ -95,7 +95,7 @@ func copyInsertionDiagnostic(err error, relation string, line int64) error {
 }
 
 // copyLineTargets is built once per statement from the target columns.
-func copyLineTargets(b analyze.Binding) []copyfmt.Target {
+func CopyLineTargets(b analyze.Binding) []copyfmt.Target {
 	targets := make([]copyfmt.Target, len(b.Targets))
 	for i, target := range b.Targets {
 		targets[i] = copyfmt.Target{Name: b.Relation.Columns[target].Name, HasDefault: len(b.Insert.Defaults) != 0 && b.Insert.Defaults[target] != nil}

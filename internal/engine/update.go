@@ -143,7 +143,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	current := store.Versions
-	hint := candidate.slot
+	hint := candidate.Slot
 	if candidate.Born == 0 {
 		current = s.ownWrites[ref.Address]
 	}
@@ -251,9 +251,9 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 	// candidates but never discover rows that did not qualify in this snapshot.
 	var candidates []updateCandidate
 	for i := range source.Count() {
-		physical := mutationPhysicalRow(source, i, b)
+		physical := MutationPhysicalRow(source, i, b)
 		old := physical.Version
-		if b.CurrentOf != "" && (positioned.ref != physical.Leaf.Ref || old.Row != positioned.row) {
+		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || old.Row != positioned.Row) {
 			continue
 		}
 		for j := range sourceCount {
@@ -273,7 +273,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 				return Result{}, err
 			}
 			if matches {
-				candidates = append(candidates, updateCandidate{RowVersion: old, slot: physical.Hint, sourceIndex: j, physical: physical})
+				candidates = append(candidates, updateCandidate{RowVersion: old, Slot: physical.Hint, SourceIndex: j, Physical: physical})
 			}
 		}
 	}
@@ -309,7 +309,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		ref := candidate.physical.Leaf.Ref
+		ref := candidate.Physical.Leaf.Ref
 		if err := s.acquireUpdateRow(ref, candidate.Row); err != nil {
 			return Result{}, err
 		}
@@ -320,15 +320,15 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if !live {
 			continue
 		}
-		oldValues := candidate.physical.Values(old)
+		oldValues := candidate.Physical.Values(old)
 		eval.Row = oldValues
 		eval.PhysicalTable = ref
 		eval.OldRow = nil
 		if b.Update.From != nil {
 			copy(frame, oldValues)
-			copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(candidate.sourceIndex)))
+			copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(candidate.SourceIndex)))
 			eval.Row = frame
-			eval.BindQueryIdentity(stage.Source, stage.Index(candidate.sourceIndex))
+			eval.BindQueryIdentity(stage.Source, stage.Index(candidate.SourceIndex))
 		}
 		if old.Version != candidate.Version {
 			if err := s.physicalRowEvent(ref, old, lock.MultiNoKeyLock, 0); err != nil {
@@ -352,8 +352,8 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if b.Update.From != nil && updated[identity] {
 			continue
 		}
-		physicalRow := scatterMutationRow(candidate.physical, old, row, b.Targets)
-		if err := e.validateInheritedMutationRow(s, b, candidate.physical, schema, physicalRow, &eval); err != nil {
+		physicalRow := ScatterMutationRow(candidate.Physical, old, row, b.Targets)
+		if err := e.validateInheritedMutationRow(s, b, candidate.Physical, schema, physicalRow, &eval); err != nil {
 			return Result{}, err
 		}
 		keyChanged, err := s.uniqueKeyChanged(ref, old.Values, physicalRow)
@@ -396,8 +396,8 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := e.checkViewRow(s, &b, row, &eval); err != nil {
 			return Result{}, err
 		}
-		if candidate.physical.Segment != nil && candidate.physical.Segment.Layout != nil {
-			for i, slot := range candidate.physical.Segment.Layout {
+		if candidate.Physical.Segment != nil && candidate.Physical.Segment.Layout != nil {
+			for i, slot := range candidate.Physical.Segment.Layout {
 				row[i] = physicalRow[slot]
 			}
 		}

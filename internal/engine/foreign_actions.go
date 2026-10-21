@@ -109,7 +109,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 				e.mu.Unlock()
 				return nil, auth, ids.ErrCatalogReplaced
 			}
-			jobs = append(jobs, foreignKeyJob{child: child, parent: parent, index: index, definition: f})
+			jobs = append(jobs, foreignKeyJob{Child: child, Parent: parent, Index: index, Definition: f})
 			for _, a := range []ids.ObjectAddress{child.Address(), parent.Address()} {
 				ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)
 				if modes[ref] == 0 {
@@ -123,7 +123,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		}
 	}
 	e.mu.Unlock()
-	slices.SortFunc(jobs, func(a, b foreignKeyJob) int { return cmp.Compare(a.definition.OID, b.definition.OID) })
+	slices.SortFunc(jobs, func(a, b foreignKeyJob) int { return cmp.Compare(a.Definition.OID, b.Definition.OID) })
 	refs := make([]ids.ObjectRef, 0, len(modes))
 	for ref := range modes {
 		refs = append(refs, ref)
@@ -140,14 +140,14 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	e.mu.Unlock()
 	for i := range jobs {
 		job := &jobs[i]
-		if err = refreshForeignActionJob(auth.Catalog, job); err != nil {
+		if err = RefreshForeignActionJob(auth.Catalog, job); err != nil {
 			return nil, auth, err
 		}
-		job.comparisons, err = table.BindForeignKeyComparison(auth.Catalog, job.child, job.parent, job.index, job.definition)
+		job.Comparisons, err = table.BindForeignKeyComparison(auth.Catalog, job.Child, job.Parent, job.Index, job.Definition)
 		if err != nil {
 			return nil, auth, err
 		}
-		job.childKey = make([]sqltype.Value, len(job.comparisons))
+		job.ChildKey = make([]sqltype.Value, len(job.Comparisons))
 	}
 	return jobs, auth, nil
 }
@@ -163,11 +163,11 @@ func (s *StatementScope) settleForeignActions() error {
 	if len(jobs) == 0 {
 		// An empty job list needs no slot: nil reads as no jobs.
 		if s.foreignActionsSlot != nil {
-			s.foreignActionsSlot.jobs = jobs
+			s.foreignActionsSlot.Jobs = jobs
 		}
 		return nil
 	}
-	s.foreignActions().jobs = jobs
+	s.foreignActions().Jobs = jobs
 	e := s.engine()
 	// Borrow the initiating predecessor/successor images before any action merge.
 	for a, rows := range s.stage.rows {
@@ -182,7 +182,7 @@ func (s *StatementScope) settleForeignActions() error {
 			}
 			old, ok := image.Previous(next.Row)
 			if ok {
-				s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: a, old: old, next: next})
+				s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, foreignActionTransition{Relation: a, Old: old, Next: next})
 			} else if next.Base != 0 {
 				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
 			}
@@ -208,28 +208,28 @@ func (s *StatementScope) settleForeignActions() error {
 				}
 			}
 			if ok {
-				s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: a, old: old})
+				s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, foreignActionTransition{Relation: a, Old: old})
 			}
 		}
 	}
-	s.foreignActions().settling = true
-	defer func() { s.foreignActions().settling = false; s.foreignActionAuth = nil }()
-	for at := 0; at < len(s.foreignActionsOrZero().transitions); at++ {
-		event := s.foreignActionsOrZero().transitions[at]
+	s.foreignActions().Settling = true
+	defer func() { s.foreignActions().Settling = false; s.foreignActionAuth = nil }()
+	for at := 0; at < len(s.foreignActionsOrZero().Transitions); at++ {
+		event := s.foreignActionsOrZero().Transitions[at]
 		if err = s.op.Context().Err(); err != nil {
 			return err
 		}
 		for i := range jobs {
 			job := &jobs[i]
-			if job.parent.Address() != event.relation {
+			if job.Parent.Address() != event.Relation {
 				continue
 			}
-			action := job.definition.DeleteAction
-			if event.next.Row != 0 {
-				if foreignActionSameKey(job.comparisons, event.old.Values, event.next.Values) {
+			action := job.Definition.DeleteAction
+			if event.Next.Row != 0 {
+				if ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
 					continue
 				}
-				action = job.definition.UpdateAction
+				action = job.Definition.UpdateAction
 			}
 			if action == parser.ForeignKeyNoAction {
 				continue

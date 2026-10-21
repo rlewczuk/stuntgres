@@ -11,24 +11,24 @@ import (
 
 // This consumer deliberately does not change SELECT's exact-conjunction mask.
 // It proves SQL TRUE => TRUE with the owned immutable comparison providers.
-func conflictPredicateImpliedBy(ctx *exec.Context, a, b expr.Expr) (bool, error) {
+func ConflictPredicateImpliedBy(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	if b == nil {
 		return true, nil
 	}
 	if a == nil {
 		return false, nil
 	}
-	a, err := normalizeConflictPredicate(ctx, a)
+	a, err := NormalizeConflictPredicate(ctx, a)
 	if err != nil {
 		return false, err
 	}
-	b, err = normalizeConflictPredicate(ctx, b)
+	b, err = NormalizeConflictPredicate(ctx, b)
 	if err != nil {
 		return false, err
 	}
 	return conflictPredicateProof(ctx, a, b)
 }
-func normalizeConflictPredicate(ctx *exec.Context, node expr.Expr) (expr.Expr, error) {
+func NormalizeConflictPredicate(ctx *exec.Context, node expr.Expr) (expr.Expr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -44,11 +44,11 @@ func normalizeConflictPredicate(ctx *exec.Context, node expr.Expr) (expr.Expr, e
 	}
 	switch n := node.(type) {
 	case plan.LogicalExpr:
-		left, err := normalizeConflictPredicate(ctx, n.Left)
+		left, err := NormalizeConflictPredicate(ctx, n.Left)
 		if err != nil {
 			return nil, err
 		}
-		right, err := normalizeConflictPredicate(ctx, n.Right)
+		right, err := NormalizeConflictPredicate(ctx, n.Right)
 		if err != nil {
 			return nil, err
 		}
@@ -74,11 +74,11 @@ func normalizeConflictPredicate(ctx *exec.Context, node expr.Expr) (expr.Expr, e
 		}
 		return n, nil
 	case plan.ComparisonExpr:
-		left, err := normalizeConflictPredicate(ctx, n.Left)
+		left, err := NormalizeConflictPredicate(ctx, n.Left)
 		if err != nil {
 			return nil, err
 		}
-		right, err := normalizeConflictPredicate(ctx, n.Right)
+		right, err := NormalizeConflictPredicate(ctx, n.Right)
 		if err != nil {
 			return nil, err
 		}
@@ -104,30 +104,30 @@ func normalizeConflictPredicate(ctx *exec.Context, node expr.Expr) (expr.Expr, e
 		return n, nil
 	case plan.SelectedOperatorExpr:
 		var err error
-		n.Provider, err = normalizeConflictPredicate(ctx, n.Provider)
+		n.Provider, err = NormalizeConflictPredicate(ctx, n.Provider)
 		return n, err
 	case plan.ArithmeticExpr:
-		left, err := normalizeConflictPredicate(ctx, n.Left)
+		left, err := NormalizeConflictPredicate(ctx, n.Left)
 		if err != nil {
 			return nil, err
 		}
-		right, err := normalizeConflictPredicate(ctx, n.Right)
+		right, err := NormalizeConflictPredicate(ctx, n.Right)
 		n.Left, n.Right = left, right
 		return n, err
 	case plan.NullTestExpr:
-		child, err := normalizeConflictPredicate(ctx, n.Child)
+		child, err := NormalizeConflictPredicate(ctx, n.Child)
 		n.Child = child
 		return n, err
 	case plan.TruthTestExpr:
-		child, err := normalizeConflictPredicate(ctx, n.Child)
+		child, err := NormalizeConflictPredicate(ctx, n.Child)
 		n.Child = child
 		return n, err
 	case plan.CoercionExpr:
-		child, err := normalizeConflictPredicate(ctx, n.Child)
+		child, err := NormalizeConflictPredicate(ctx, n.Child)
 		n.Child = child
 		return n, err
 	case plan.CollationExpr:
-		child, err := normalizeConflictPredicate(ctx, n.Child)
+		child, err := NormalizeConflictPredicate(ctx, n.Child)
 		n.Child = child
 		return n, err
 	}

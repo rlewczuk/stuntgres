@@ -13,7 +13,7 @@ func (s *StatementScope) writeOverlay() *insertWriteOverlay {
 		return &s.insertConflict.insertWriteOverlay
 	}
 	if s.insertReturning != nil {
-		return &s.insertReturning.overlay
+		return &s.insertReturning.Overlay
 	}
 	return nil
 }
@@ -23,16 +23,16 @@ func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (storage.
 		return storage.RowVersion{}, false
 	}
 	c := s.writeOverlay()
-	if c.ownRowSlots == nil {
-		c.ownRowSlots = make(map[ids.ObjectAddress]map[ids.RowID]int)
+	if c.OwnRowSlots == nil {
+		c.OwnRowSlots = make(map[ids.ObjectAddress]map[ids.RowID]int)
 	}
-	slots := c.ownRowSlots[ref.Address]
+	slots := c.OwnRowSlots[ref.Address]
 	if slots == nil {
 		slots = make(map[ids.RowID]int, len(s.ownWrites[ref.Address]))
 		for slot, row := range s.ownWrites[ref.Address] {
 			slots[row.Row] = slot
 		}
-		c.ownRowSlots[ref.Address] = slots
+		c.OwnRowSlots[ref.Address] = slots
 	}
 	slot, found := slots[id]
 	if !found {
@@ -59,34 +59,34 @@ func addInsertWriteKey(o *insertWriteKeyOverlay, s *StatementScope, bound *index
 
 func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *index.UniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose index.ProbePurpose) (storage.RowVersion, bool, error) {
 	c := s.writeOverlay()
-	if c.overlays == nil {
-		c.overlays = make(map[*index.UniqueBoundKey]*insertWriteKeyOverlay)
+	if c.Overlays == nil {
+		c.Overlays = make(map[*index.UniqueBoundKey]*insertWriteKeyOverlay)
 	}
-	o := c.overlays[bound]
+	o := c.Overlays[bound]
 	if o == nil {
-		o = &insertWriteKeyOverlay{stage: make(map[uint64][]int), own: make(map[uint64][]int)}
-		c.overlays[bound] = o
+		o = &insertWriteKeyOverlay{Stage: make(map[uint64][]int), Own: make(map[uint64][]int)}
+		c.Overlays[bound] = o
 	}
-	if !o.ownReady {
+	if !o.OwnReady {
 		for slot, row := range s.ownWrites[ref.Address] {
-			if err := addInsertWriteKey(o, s, bound, evaluation, row, slot, o.own, purpose); err != nil {
+			if err := addInsertWriteKey(o, s, bound, evaluation, row, slot, o.Own, purpose); err != nil {
 				return storage.RowVersion{}, false, err
 			}
 		}
-		o.ownReady = true
+		o.OwnReady = true
 	}
 	stage := s.stage.rows[ref.Address]
-	for o.stageCount < len(stage) {
-		if err := addInsertWriteKey(o, s, bound, evaluation, stage[o.stageCount], o.stageCount, o.stage, purpose); err != nil {
+	for o.StageCount < len(stage) {
+		if err := addInsertWriteKey(o, s, bound, evaluation, stage[o.StageCount], o.StageCount, o.Stage, purpose); err != nil {
 			return storage.RowVersion{}, false, err
 		}
-		o.stageCount++
+		o.StageCount++
 	}
 	hash, err := index.UniqueKeyHash(evaluation.Context, bound.Ordering, bound.Grouping, key)
 	if err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	for overlayIndex, slots := range [2][]int{o.stage[hash], o.own[hash]} {
+	for overlayIndex, slots := range [2][]int{o.Stage[hash], o.Own[hash]} {
 		rows := stage
 		if overlayIndex == 1 {
 			rows = s.ownWrites[ref.Address]
@@ -94,7 +94,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *index
 		for _, slot := range slots {
 			row := rows[slot]
 			if overlayIndex == 1 {
-				if _, shadowed := c.affectedRows[row.Row]; shadowed {
+				if _, shadowed := c.AffectedRows[row.Row]; shadowed {
 					continue
 				}
 			}

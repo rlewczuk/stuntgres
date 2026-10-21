@@ -40,7 +40,7 @@ func foreignActionUnitScope(t *testing.T, e *Engine, session *session.Session, q
 func foreignActionUnitJob(t *testing.T, jobs []foreignKeyJob, name string) *foreignKeyJob {
 	t.Helper()
 	for i := range jobs {
-		if jobs[i].child.Name() == name {
+		if jobs[i].Child.Name() == name {
 			return &jobs[i]
 		}
 	}
@@ -80,7 +80,7 @@ func TestForeignActionsDefinition(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE c RENAME b TO author")
 	next := e.CatalogRead()
 	current := next.MustRelation(ref.Address)
-	if !slices.Equal(current.Constraints.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.Constraints.ForeignKeys[0]) {
+	if !slices.Equal(current.Constraints.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !SameForeignKeyDefinition(original, current.Constraints.ForeignKeys[0]) {
 		t.Fatal("slot/name rewrite retargeted action", original, current.Constraints.ForeignKeys[0])
 	}
 	text, err := (stored.Deparser{View: next, Relation: current, Path: []ids.ObjectAddress{current.Namespace()}}).ForeignKeyConstraintSQL(current, current.Constraints.ForeignKeys[0])
@@ -117,14 +117,14 @@ func TestForeignActionsEquality(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if foreignActionSameKey(comparisons, []sqltype.Value{old}, []sqltype.Value{next}) {
+			if ForeignActionSameKey(comparisons, []sqltype.Value{old}, []sqltype.Value{next}) {
 				t.Fatal("SQL equality suppressed representation transition")
 			}
 			equal, err := table.ForeignKeyRowsMatch(context.Background(), comparisons, []sqltype.Value{old}, []sqltype.Value{next}, sqltype.InputEnvironment{})
 			if err != nil || !equal {
 				t.Fatal("matching lost selected supporting equality", equal, err)
 			}
-			if !foreignActionSameKey(comparisons, []sqltype.Value{next}, []sqltype.Value{next}) {
+			if !ForeignActionSameKey(comparisons, []sqltype.Value{next}, []sqltype.Value{next}) {
 				t.Fatal("identical datum created an event")
 			}
 		})
@@ -144,13 +144,13 @@ func TestForeignActionsAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	job := foreignActionUnitJob(t, jobs, "c")
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.child.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.Child.Address())
 	children, err := scope.captureForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	old := children.Committed[0]
-	value, _ := sqltype.Integer(job.child.Columns[0].Usage.Type, 2)
+	value, _ := sqltype.Integer(job.Child.Columns[0].Usage.Type, 2)
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]storage.RowVersion{old}
 	if err = scope.stage.replace(ref, predecessor[:], index.WriteBatch{Values: replacement[:]}); err == nil {
@@ -168,23 +168,23 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, true); err != nil {
 		t.Fatal(err)
 	}
-	ownerAuth := foreignActionOwner(auth, job.child.Owner)
+	ownerAuth := foreignActionOwner(auth, job.Child.Owner)
 	scope.foreignActionAuth = &ownerAuth
-	scope.foreignActions().settling = true
+	scope.foreignActions().Settling = true
 	if err = scope.stage.replace(ref, predecessor[:], index.WriteBatch{Values: replacement[:]}); err != nil {
 		t.Fatal(err)
 	}
 	scope.foreignActionAuth = nil
-	scope.foreignActions().settling = false
+	scope.foreignActions().Settling = false
 	next := scope.stage.rows[ref.Address][0]
-	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(scope.foreignActionsOrZero().transitions) != 1 || scope.foreignActionsOrZero().transitions[0].old.Version != old.Version || scope.foreignActionsOrZero().transitions[0].next.Version != next.Version {
-		t.Fatal("physical lineage was not recorded", old, next, scope.foreignActionsOrZero().transitions)
+	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(scope.foreignActionsOrZero().Transitions) != 1 || scope.foreignActionsOrZero().Transitions[0].Old.Version != old.Version || scope.foreignActionsOrZero().Transitions[0].Next.Version != next.Version {
+		t.Fatal("physical lineage was not recorded", old, next, scope.foreignActionsOrZero().Transitions)
 	}
 	if scope.lockedRef != named || scope.lockedStorage != stored || scope.lockedDescriptor != descriptor {
 		t.Fatal("child action spoofed initiating admission")
 	}
-	admission := scope.foreignActionsOrZero().admissions[ref.Address]
-	if !admission.mutated || admission.tx != scope.txRef || admission.storage != children.Storage {
+	admission := scope.foreignActionsOrZero().Admissions[ref.Address]
+	if !admission.Mutated || admission.Tx != scope.txRef || admission.Storage != children.Storage {
 		t.Fatal("missing captured physical child authority", admission)
 	}
 	foreign := ref
@@ -195,21 +195,21 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err == nil {
 		t.Fatal("unrelated child was authorized")
 	}
-	originalJob := admission.jobs[0]
-	admission.jobs[0].definition.DeleteAction = parser.ForeignKeyRestrict
+	originalJob := admission.Jobs[0]
+	admission.Jobs[0].Definition.DeleteAction = parser.ForeignKeyRestrict
 	e.mu.Lock()
 	err = scope.validateForeignActionLocked(e, ref)
 	e.mu.Unlock()
-	admission.jobs[0] = originalJob
+	admission.Jobs[0] = originalJob
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed action definition authority survived", err)
 	}
-	originalStorage := admission.storage
-	admission.storage = &storage.Relation{}
+	originalStorage := admission.Storage
+	admission.Storage = &storage.Relation{}
 	e.mu.Lock()
 	err = scope.validateForeignActionLocked(e, ref)
 	e.mu.Unlock()
-	admission.storage = originalStorage
+	admission.Storage = originalStorage
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("foreign child storage survived", err)
 	}
@@ -231,12 +231,12 @@ func TestForeignActionsClosure(t *testing.T) {
 		t.Fatal(rows)
 	}
 	var events []foreignActionTransition
-	for _, event := range scope.foreignActionsOrZero().transitions {
-		if event.relation == ref.Address {
+	for _, event := range scope.foreignActionsOrZero().Transitions {
+		if event.Relation == ref.Address {
 			events = append(events, event)
 		}
 	}
-	if len(events) != 2 || events[0].old.Row != events[1].old.Row || events[0].next.Version != events[1].old.Version || events[0].next.Version == events[1].next.Version || rows[0].Version != events[1].next.Version || events[0].next.Base != events[1].next.Base {
+	if len(events) != 2 || events[0].Old.Row != events[1].Old.Row || events[0].Next.Version != events[1].Old.Version || events[0].Next.Version == events[1].Next.Version || rows[0].Version != events[1].Next.Version || events[0].Next.Base != events[1].Next.Base {
 		t.Fatal("diamond lost an actual row transition", events, rows)
 	}
 	expected, _ := sqltype.Integer(rows[0].Values[1].Type(), 2)

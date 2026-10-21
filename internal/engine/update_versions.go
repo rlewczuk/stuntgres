@@ -50,12 +50,12 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, ba
 		}
 	}
 	if s.foreignActionAuth != nil {
-		admission := s.foreignActionsOrZero().admissions[ref.Address]
-		if admission == nil || !admission.writable {
+		admission := s.foreignActionsOrZero().Admissions[ref.Address]
+		if admission == nil || !admission.Writable {
 			return errors.New("stuntgres: missing writable internal action admission")
 		}
 		var small [8]ids.RowID
-		if s.engine().locks.MissingRowGrant(s.ticket, ref, versionRows(small[:0], old)) >= 0 {
+		if s.engine().locks.MissingRowGrant(s.ticket, ref, VersionRows(small[:0], old)) >= 0 {
 			return errors.New("stuntgres: internal action replacement requires its row grant")
 		}
 	}
@@ -143,8 +143,8 @@ retry:
 			return errors.New("stuntgres: distinct replacement without conflict update")
 		}
 		for _, predecessor := range old {
-			if _, affected := s.insertConflict.affectedRows[predecessor.Row]; affected {
-				return conflictUpdateCardinalityError()
+			if _, affected := s.insertConflict.AffectedRows[predecessor.Row]; affected {
+				return ConflictUpdateCardinalityError()
 			}
 		}
 	}

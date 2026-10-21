@@ -67,7 +67,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
 	var copyInsert *copyInsertionState
 	if producer, ok := cursor.(copyInsertionCursor); ok && scope != nil && (unique || scope.partitionInsert != nil) {
-		copyInsert = newCopyInsertionState(producer, b)
+		copyInsert = NewCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}
@@ -124,7 +124,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			if copyInsert != nil {
 				recordCopyInsertion(copyInsert, scope, b, &candidate, len(rows.Values))
 				rows.Append(candidate)
-				if copyInsert.full() {
+				if copyInsert.Full() {
 					if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 						return index.WriteBatch{}, err
 					}
@@ -206,13 +206,13 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			recordCopyInsertion(copyInsert, scope, b, &candidate, len(rows.Values))
 		}
 		rows.Append(candidate)
-		if copyInsert != nil && copyInsert.full() {
+		if copyInsert != nil && copyInsert.Full() {
 			if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 				return index.WriteBatch{}, err
 			}
 		}
 	}
-	if copyInsert != nil && len(copyInsert.lines) != 0 {
+	if copyInsert != nil && len(copyInsert.Lines) != 0 {
 		if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 			return index.WriteBatch{}, err
 		}

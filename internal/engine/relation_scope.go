@@ -40,7 +40,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 		return s.prepareViewCreation(view)
 	}
-	if parser.HasModifyingCTE(statementCTERoot(stmt)) {
+	if parser.HasModifyingCTE(StatementCTERoot(stmt)) {
 		return s.acquireCTEMutations(stmt, execute)
 	}
 	if merge, ok := stmt.(*parser.Merge); ok {

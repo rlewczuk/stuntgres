@@ -34,7 +34,7 @@ func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) err
 		}
 		for address, descriptor := range current.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
-			if !ok || !truncateOwnsSequence(d, fence.targets) {
+			if !ok || !TruncateOwnsSequence(d, fence.targets) {
 				continue
 			}
 			if _, observed := fence.sequences[address]; observed {
@@ -62,7 +62,7 @@ func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) err
 			}
 		}
 		if d.Inheritance != nil || d.Membership != nil {
-			otherTemporary, err := truncateOtherTemporary(current, d, fence.token)
+			otherTemporary, err := TruncateOtherTemporary(current, d, fence.token)
 			if err != nil {
 				return catalog.Conflict{}
 			}
@@ -102,7 +102,7 @@ func (s *StatementScope) stageTruncate() error {
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	for _, named := range s.truncateOrZero().names {
+	for _, named := range s.truncateOrZero().Names {
 		if lookupErr := e.truncateNameCurrent(auth, named); lookupErr != nil {
 			e.mu.Unlock()
 			return lookupErr
@@ -111,15 +111,15 @@ func (s *StatementScope) stageTruncate() error {
 	changes := s.owner.Catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, s.op.Session)
-	for _, selected := range s.truncateOrZero().relations {
-		ref := selected.ref
+	for _, selected := range s.truncateOrZero().Relations {
+		ref := selected.Ref
 		d, ok := auth.Catalog.Relation(ref.Address)
 		store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-		if !ok || d.Namespace() != selected.relation.Namespace() || !index.SameRelationRowShape(d, selected.relation) || store != selected.storage {
+		if !ok || d.Namespace() != selected.Relation.Namespace() || !index.SameRelationRowShape(d, selected.Relation) || store != selected.Storage {
 			err = ids.ErrCatalogReplaced
 			break
 		}
-		if err = checkTruncate(auth, ref, d, selected.privilege, false); err != nil {
+		if err = checkTruncate(auth, ref, d, selected.Privilege, false); err != nil {
 			break
 		}
 		if err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE"); err != nil {
@@ -167,25 +167,25 @@ func (s *StatementScope) stageTruncate() error {
 	if err == nil {
 		// Recheck closure against the same coherent catalog used to capture stores.
 		// SQL installation is blocked by selected AX; host replacement is fenced.
-		if len(truncateReferencers(auth.Catalog, s.truncateOrZero().selected)) != 0 {
+		if len(TruncateReferencers(auth.Catalog, s.truncateOrZero().Selected)) != 0 {
 			err = catalog.Conflict{}
 		}
 	}
 	var sequences map[ids.ObjectAddress]*storage.SequenceGenerator
-	if err == nil && s.truncateOrZero().restart {
+	if err == nil && s.truncateOrZero().Restart {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.AddFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.Session.SessionToken, restart: s.truncateOrZero().restart, sequences: sequences})
+		changes.AddFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().Selected, token: s.op.Session.SessionToken, restart: s.truncateOrZero().Restart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		return err
 	}
-	for _, selected := range s.truncateOrZero().relations {
-		address := selected.ref.Address
-		if selected.relation.RelationKind != catalog.PartitionedRelation && selected.relation.RelationKind != catalog.ForeignRelation {
+	for _, selected := range s.truncateOrZero().Relations {
+		address := selected.Ref.Address
+		if selected.Relation.RelationKind != catalog.PartitionedRelation && selected.Relation.RelationKind != catalog.ForeignRelation {
 			if err := index.TransportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage.recordIndexCandidate, address, changes.Storage[address].Replacement); err != nil {
 				return err
 			}
@@ -202,18 +202,18 @@ func (s *StatementScope) stageTruncate() error {
 
 // A name observation is a fence, not permission to replay on a new relation.
 func (e *Engine) truncateNameCurrent(auth AuthorizationView, named truncateName) error {
-	ref, err := e.resolveRelationReference(auth, named.name, true)
+	ref, err := e.resolveRelationReference(auth, named.Name, true)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42P01" || diagnostic.Code == "3F000") {
 		return ids.ErrCatalogReplaced
 	}
 	if err != nil {
 		return err
 	}
-	if ref != named.ref {
+	if ref != named.Ref {
 		return ids.ErrCatalogReplaced
 	}
 	descriptor, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || descriptor.Namespace() != named.namespace {
+	if !ok || descriptor.Namespace() != named.Namespace {
 		return ids.ErrCatalogReplaced
 	}
 	return nil

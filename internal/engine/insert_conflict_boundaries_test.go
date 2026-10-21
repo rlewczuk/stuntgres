@@ -43,7 +43,7 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 		for _, failure := range []string{"none", "next", "close"} {
 			f := insertConflictUniqueFixture(t)
 			scope, ref := insertConflictUnitScope(t, f)
-			b := bindingForConflict(ref, f.parent, scope.insertConflict)
+			b := BindingForConflict(ref, f.parent, scope.insertConflict)
 			cursor := &insertConflictInputCursor{schema: f.parent.Columns, rows: [][]sqltype.Value{insertConflictUnitRow(t, f, 10), insertConflictUnitRow(t, f, 20), insertConflictUnitRow(t, f, 30)}}
 			injected := errors.New("owned cursor failure")
 			if failure == "next" {
@@ -109,7 +109,7 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	if err := f.e.SetObjectACL(context.Background(), ref, acl(authorization.InsertPrivilege)); err != nil {
 		t.Fatal(err)
 	}
-	b := bindingForConflict(ref, f.parent, newInsertConflictState(&analyze.InsertConflict{Targets: []int{0, 1}, Reads: []int{0, 1}}))
+	b := BindingForConflict(ref, f.parent, NewInsertConflictState(&analyze.InsertConflict{Targets: []int{0, 1}, Reads: []int{0, 1}}))
 	check := func(want string) {
 		t.Helper()
 		f.e.mu.Lock()

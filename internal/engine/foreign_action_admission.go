@@ -17,20 +17,20 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	admission := s.foreignActionsOrZero().admissions[ref.Address]
-	if admission == nil || admission.ref != ref || admission.tx != s.txRef || s.owner.Ref != s.txRef {
+	admission := s.foreignActionsOrZero().Admissions[ref.Address]
+	if admission == nil || admission.Ref != ref || admission.Tx != s.txRef || s.owner.Ref != s.txRef {
 		return errors.New("stuntgres: missing internal action admission")
 	}
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-	if !ok || !index.SameRelationRowShape(admission.relation, current) || e.privateStorageLocked(s.owner.Catalog, ref.Address) != admission.storage {
+	if !ok || !index.SameRelationRowShape(admission.Relation, current) || e.privateStorageLocked(s.owner.Catalog, ref.Address) != admission.Storage {
 		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
-	for _, captured := range admission.jobs {
-		if err := refreshForeignActionJob(view, &captured); err != nil {
+	for _, captured := range admission.Jobs {
+		if err := RefreshForeignActionJob(view, &captured); err != nil {
 			return err
 		}
 	}
@@ -72,7 +72,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() || ref.Address != job.child.Address() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() || ref.Address != job.Child.Address() {
 		return ids.ErrCatalogReplaced
 	}
 	if !held {
@@ -80,31 +80,31 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	}
 	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
 	storage := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if !ok || !index.SameRelationRowShape(current, job.child) || storage == nil {
+	if !ok || !index.SameRelationRowShape(current, job.Child) || storage == nil {
 		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
-	if err := refreshForeignActionJob(view, job); err != nil {
+	if err := RefreshForeignActionJob(view, job); err != nil {
 		return err
 	}
-	if s.foreignActionsOrZero().admissions == nil {
-		s.foreignActions().admissions = make(map[ids.ObjectAddress]*foreignActionAdmission)
+	if s.foreignActionsOrZero().Admissions == nil {
+		s.foreignActions().Admissions = make(map[ids.ObjectAddress]*foreignActionAdmission)
 	}
-	if previous := s.foreignActionsOrZero().admissions[ref.Address]; previous != nil {
+	if previous := s.foreignActionsOrZero().Admissions[ref.Address]; previous != nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
 			return err
 		}
 		present := false
-		for _, captured := range previous.jobs {
-			present = present || captured.definition.OID == job.definition.OID
+		for _, captured := range previous.Jobs {
+			present = present || captured.Definition.OID == job.Definition.OID
 		}
 		if !present {
-			previous.jobs = append(previous.jobs, *job)
+			previous.Jobs = append(previous.Jobs, *job)
 		}
-		previous.writable = previous.writable || writable
+		previous.Writable = previous.Writable || writable
 		return nil
 	}
-	s.foreignActions().admissions[ref.Address] = &foreignActionAdmission{ref: ref, storage: storage, relation: current, tx: s.txRef, jobs: []foreignKeyJob{*job}, writable: writable}
+	s.foreignActions().Admissions[ref.Address] = &foreignActionAdmission{Ref: ref, Storage: storage, Relation: current, Tx: s.txRef, Jobs: []foreignKeyJob{*job}, Writable: writable}
 	return nil
 }
 
@@ -117,7 +117,7 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	stored := s.foreignActionsOrZero().admissions[ref.Address].storage
+	stored := s.foreignActionsOrZero().Admissions[ref.Address].Storage
 	if index.UniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 		return storage.RowVersion{}, false, nil
 	}
@@ -154,7 +154,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return err
 	}
-	if !s.foreignActionsOrZero().admissions[ref.Address].writable {
+	if !s.foreignActionsOrZero().Admissions[ref.Address].Writable {
 		return errors.New("stuntgres: read-only internal action admission")
 	}
 	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
@@ -163,7 +163,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if index.UniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
 		return nil
 	}
-	stored := s.foreignActionsOrZero().admissions[ref.Address].storage
+	stored := s.foreignActionsOrZero().Admissions[ref.Address].Storage
 	candidate := visibility.DeleteCandidate{Ref: ref, Storage: stored, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
 	if old.Born != 0 {
 		candidate.Base = old.Version
@@ -171,18 +171,18 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if err := w.stageDeletionLocked(e, candidate, old); err != nil {
 		return err
 	}
-	s.foreignActions().admissions[ref.Address].mutated = true
-	s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: ref.Address, old: old, owner: s.foreignActionsOrZero().admissions[ref.Address].relation.Owner})
+	s.foreignActions().Admissions[ref.Address].Mutated = true
+	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, foreignActionTransition{Relation: ref.Address, Old: old, Owner: s.foreignActionsOrZero().Admissions[ref.Address].Relation.Owner})
 	return nil
 }
 
 func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, next storage.RowVersion) {
-	if !s.foreignActionsOrZero().settling {
+	if !s.foreignActionsOrZero().Settling {
 		return
 	}
-	admission := s.foreignActionsOrZero().admissions[ref.Address]
-	admission.mutated = true
-	s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.Owner})
+	admission := s.foreignActionsOrZero().Admissions[ref.Address]
+	admission.Mutated = true
+	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, foreignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: admission.Relation.Owner})
 }
 
 func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {

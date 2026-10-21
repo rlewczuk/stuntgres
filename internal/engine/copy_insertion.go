@@ -8,9 +8,9 @@ import (
 )
 
 func recordCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.Binding, candidate *index.WriteCandidate, position int) {
-	line, size := state.cursor.insertionOrigin()
-	state.lines = append(state.lines, line)
-	state.bytes += size
+	line, size := state.Cursor.InsertionOrigin()
+	state.Lines = append(state.Lines, line)
+	state.Bytes += size
 	if s.partitionInsert == nil {
 		return
 	}
@@ -18,16 +18,16 @@ func recordCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze
 	// Freeze the already-validated physical destination before the next input
 	// overwrites the current partition projection. No second generation Eval.
 	candidate.Values = s.partitionStoredRow(candidate.Values)
-	if state.groups == nil {
-		state.groups = make(map[*partition.InsertGroup]int)
+	if state.Groups == nil {
+		state.Groups = make(map[*partition.InsertGroup]int)
 	}
-	at, exists := state.groups[group]
+	at, exists := state.Groups[group]
 	if !exists {
-		at = len(state.buffers)
-		state.groups[group] = at
-		state.buffers = append(state.buffers, copyInsertionBuffer{group: group})
+		at = len(state.Buffers)
+		state.Groups[group] = at
+		state.Buffers = append(state.Buffers, copyInsertionBuffer{Group: group})
 	}
-	state.buffers[at].positions = append(state.buffers[at].positions, position)
+	state.Buffers[at].Positions = append(state.Buffers[at].Positions, position)
 }
 
 func flushCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
@@ -45,13 +45,13 @@ func flushCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.
 			}
 		}
 		if err != nil {
-			return copyInsertionDiagnostic(s.copyCommandError(err), b.Relation.Name(), state.lines[position-state.first])
+			return CopyInsertionDiagnostic(s.copyCommandError(err), b.Relation.Name(), state.Lines[position-state.First])
 		}
 		rows.Set(position, candidate)
 		return nil
 	}
 	if s.partitionInsert == nil {
-		for i := state.first; i < len(rows.Values); i++ {
+		for i := state.First; i < len(rows.Values); i++ {
 			if err := insert(i, nil); err != nil {
 				return err
 			}
@@ -59,20 +59,25 @@ func flushCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.
 	} else {
 		// REL18 flushes relation buffers in first-use order; each buffer owns
 		// row-outer, ObjectID-ordered index insertion, not a global row sort.
-		for i := range state.buffers {
-			buffer := &state.buffers[i]
-			for _, position := range buffer.positions {
-				if err := insert(position, buffer.group); err != nil {
+		for i := range state.Buffers {
+			buffer := &state.Buffers[i]
+			for _, position := range buffer.Positions {
+				if err := insert(position, buffer.Group); err != nil {
 					return err
 				}
 			}
-			buffer.positions = buffer.positions[:0]
+			buffer.Positions = buffer.Positions[:0]
 		}
 	}
-	state.first, state.bytes = len(rows.Values), 0
-	state.lines = state.lines[:0]
+	state.First, state.Bytes = len(rows.Values), 0
+	state.Lines = state.Lines[:0]
 	return nil
 }
 
-func (c *copyCursor) insertionOrigin() (int64, int)       { return c.in.Number(), len(c.in.Line()) }
-func (c *copyBinaryCursor) insertionOrigin() (int64, int) { return c.in.Number(), 0 }
+func (c *copyCursor) InsertionOrigin() (int64, int)       { return c.in.Number(), len(c.in.Line()) }
+func (c *copyBinaryCursor) InsertionOrigin() (int64, int) { return c.in.Number(), 0 }
+
+var (
+	_ copyInsertionCursor = (*copyCursor)(nil)
+	_ copyInsertionCursor = (*copyBinaryCursor)(nil)
+)

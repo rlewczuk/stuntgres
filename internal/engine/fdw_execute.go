@@ -163,7 +163,7 @@ func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Bind
 		if err := s.engine().checkViewRow(s, &b, row, evaluation); err != nil {
 			return err
 		}
-		return projectForeignReturning(b, output, row, nil, evaluation)
+		return ProjectForeignReturning(b, output, row, nil, evaluation)
 	})
 	if err != nil {
 		if output != nil {
@@ -239,7 +239,7 @@ func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modificati
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, foreignMutationRow{row: values, identity: exec.CopyForeignCells(identity)})
+		rows = append(rows, foreignMutationRow{Row: values, Identity: exec.CopyForeignCells(identity)})
 	}
 	return rows, nil
 }
@@ -307,9 +307,9 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			evaluation.Row = candidate.row
+			evaluation.Row = candidate.Row
 			if from != nil {
-				copy(frame, candidate.row)
+				copy(frame, candidate.Row)
 				copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(i)))
 				evaluation.Row = frame
 				evaluation.BindQueryIdentity(stage.Source, stage.Index(i))
@@ -325,13 +325,13 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 				continue
 			}
 			identityChecked = true
-			if !seen.Add(candidate.identity) {
+			if !seen.Add(candidate.Identity) {
 				continue
 			}
 			var returned catalog.ForeignRow
 			var present bool
 			if b.Update != nil {
-				row, err := evaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.row)
+				row, err := evaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.Row)
 				if err != nil {
 					return Result{}, err
 				}
@@ -342,16 +342,16 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 				if err != nil {
 					return Result{}, err
 				}
-				returned, present, err = m.Source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.identity), input)
+				returned, present, err = m.Source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.Identity), input)
 				if err != nil {
 					return Result{}, exec.ForeignCallbackError(err)
 				}
 			} else {
-				input, exportErr := m.Export(ctx, candidate.row, s.foreignWrites())
+				input, exportErr := m.Export(ctx, candidate.Row, s.foreignWrites())
 				if exportErr != nil {
 					return Result{}, exportErr
 				}
-				returned, present, err = m.Source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.identity), input)
+				returned, present, err = m.Source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.Identity), input)
 			}
 			if err != nil {
 				return Result{}, exec.ForeignCallbackError(err)
@@ -368,7 +368,7 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 					return Result{}, err
 				}
 			}
-			if err := projectForeignReturning(b, output, actual, candidate.row, evaluation); err != nil {
+			if err := ProjectForeignReturning(b, output, actual, candidate.Row, evaluation); err != nil {
 				return Result{}, err
 			}
 			count++

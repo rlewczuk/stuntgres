@@ -9,18 +9,18 @@ import (
 
 type updateCandidate struct {
 	storage.RowVersion
-	slot        int
-	sourceIndex int
-	physical    exec.QueryPhysicalRow
+	Slot        int
+	SourceIndex int
+	Physical    exec.QueryPhysicalRow
 }
 
 type deleteUsingCandidate struct {
 	visibility.DeleteCandidate
-	sourceIndex int
-	physical    exec.QueryPhysicalRow
+	SourceIndex int
+	Physical    exec.QueryPhysicalRow
 }
 
-func statementCTERoot(statement parser.Statement) parser.Statement {
+func StatementCTERoot(statement parser.Statement) parser.Statement {
 	switch s := statement.(type) {
 	case *parser.CreateQueryTable:
 		return s.Query

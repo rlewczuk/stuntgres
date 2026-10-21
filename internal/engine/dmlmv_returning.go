@@ -10,48 +10,48 @@ import (
 )
 
 type insertReturningOutput struct {
-	binding analyze.Binding
-	rows    *exec.FinalRows
-	overlay insertWriteOverlay
+	Binding analyze.Binding
+	Rows    *exec.FinalRows
+	Overlay insertWriteOverlay
 }
 
 // This execution-private collector never escapes before executeMerge's staging
 // and the request's sole Finish. It reuses one full target-first/source frame.
 type mergeReturningOutput struct {
-	returning *analyze.Returning
-	rows      *exec.FinalRows
-	frame     []sqltype.Value
+	Returning *analyze.Returning
+	Rows      *exec.FinalRows
+	Frame     []sqltype.Value
 }
 
-func (o *mergeReturningOutput) project(b analyze.Binding, c *exec.Context, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
+func (o *mergeReturningOutput) Project(b analyze.Binding, c *exec.Context, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
 	if o == nil {
 		return nil
 	}
 	evaluation := *c
 	evaluation.Scope, evaluation.Frame = 1, 1
 	evaluation.MergeReturning, evaluation.MergeAction, evaluation.MergeSourcePresent = true, action, sourcePresent
-	evaluation.Row, evaluation.OldRow = o.frame, old
+	evaluation.Row, evaluation.OldRow = o.Frame, old
 	evaluation.PhysicalTable = b.Ref
 	if action == parser.MergeDeleteAction {
 		row = old
 	}
-	copy(o.frame, row)
-	copy(o.frame[b.Merge.TargetWidth:], source)
-	for i, expr := range o.returning.Expressions {
+	copy(o.Frame, row)
+	copy(o.Frame[b.Merge.TargetWidth:], source)
+	for i, expr := range o.Returning.Expressions {
 		value, err := expr.Eval(&evaluation)
 		if err != nil {
 			return err
 		}
-		if value.Type() == nil || !value.Type().Concrete() || value.Type() != o.rows.Columns[i].Usage.Type {
+		if value.Type() == nil || !value.Type().Concrete() || value.Type() != o.Rows.Columns[i].Usage.Type {
 			return errors.New("stuntgres: invalid finalized MERGE value")
 		}
-		o.rows.Values = append(o.rows.Values, value)
+		o.Rows.Values = append(o.Rows.Values, value)
 	}
-	o.rows.Count++
+	o.Rows.Count++
 	return nil
 }
 
-func projectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
+func ProjectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
 	if output == nil {
 		return nil
 	}
@@ -79,6 +79,6 @@ func projectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old
 }
 
 type foreignMutationRow struct {
-	row      []sqltype.Value
-	identity catalog.ForeignRowIdentity
+	Row      []sqltype.Value
+	Identity catalog.ForeignRowIdentity
 }

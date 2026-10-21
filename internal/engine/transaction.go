@@ -536,7 +536,7 @@ retry:
 		}
 	}
 	if s.insertConflict != nil && s.insertConflict.Update == nil {
-		s.insertConflict.affected = len(rows)
+		s.insertConflict.Affected = len(rows)
 	}
 	if len(rows) == 0 {
 		return nil

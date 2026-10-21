@@ -200,8 +200,8 @@ func (h *statementHost) captureExclusionScan(ref ids.ObjectRef, b *index.UniqueW
 	if err != nil {
 		return index.ExclusionScan{}, AuthorizationView{}, err
 	}
-	if admission := s.foreignActionsOrZero().admissions[ref.Address]; admission != nil && admission.mutated {
-		auth = foreignActionOwner(auth, admission.relation.Owner)
+	if admission := s.foreignActionsOrZero().Admissions[ref.Address]; admission != nil && admission.Mutated {
+		auth = foreignActionOwner(auth, admission.Relation.Owner)
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)

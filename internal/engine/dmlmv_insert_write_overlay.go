@@ -9,14 +9,14 @@ import (
 // prior-own prefix. Provider hashes only select buckets; matches supplies the
 // installed ordering equality, predicate, and expression-key semantics.
 type insertWriteKeyOverlay struct {
-	stage      map[uint64][]int
-	own        map[uint64][]int
-	stageCount int
-	ownReady   bool
+	Stage      map[uint64][]int
+	Own        map[uint64][]int
+	StageCount int
+	OwnReady   bool
 }
 
 type insertWriteOverlay struct {
-	affectedRows map[ids.RowID]int
-	ownRowSlots  map[ids.ObjectAddress]map[ids.RowID]int
-	overlays     map[*index.UniqueBoundKey]*insertWriteKeyOverlay
+	AffectedRows map[ids.RowID]int
+	OwnRowSlots  map[ids.ObjectAddress]map[ids.RowID]int
+	Overlays     map[*index.UniqueBoundKey]*insertWriteKeyOverlay
 }

@@ -181,8 +181,8 @@ func TestForeignActionsDiagnostics(t *testing.T) {
 	if !errors.As(err, &d) || *d != want {
 		t.Fatal(d, err, want)
 	}
-	admission := scope.foreignActionsOrZero().admissions[ref.Address]
-	if admission == nil || admission.ref != ref || admission.tx != scope.txRef || scope.lockedRef != named || len(scope.stage.rows[ref.Address]) != 0 || e.storage.Relations[ref.Address].Versions[0].Row != row {
+	admission := scope.foreignActionsOrZero().Admissions[ref.Address]
+	if admission == nil || admission.Ref != ref || admission.Tx != scope.txRef || scope.lockedRef != named || len(scope.stage.rows[ref.Address]) != 0 || e.storage.Relations[ref.Address].Versions[0].Row != row {
 		t.Fatal("local report bypassed captured child authority")
 	}
 }

@@ -11,12 +11,12 @@ import (
 func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 	e := s.engine()
 	var groups []fdw.TruncateGroup
-	for _, selected := range s.truncateOrZero().relations {
-		if selected.relation.RelationKind != catalog.ForeignRelation {
+	for _, selected := range s.truncateOrZero().Relations {
+		if selected.Relation.RelationKind != catalog.ForeignRelation {
 			continue
 		}
 		e.mu.Lock()
-		source, err := e.captureForeignSourceLocked(s, selected.ref, selected.relation, authorization.PrincipalRef{}, nil, plan.RowMark{})
+		source, err := e.captureForeignSourceLocked(s, selected.Ref, selected.Relation, authorization.PrincipalRef{}, nil, plan.RowMark{})
 		e.mu.Unlock()
 		if err != nil {
 			return nil, err
@@ -31,7 +31,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 		}
 		if index < 0 {
 			index = len(groups)
-			groups = append(groups, fdw.TruncateGroup{Source: f, Request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().foreignCascade, RestartIdentity: s.truncateOrZero().restart}})
+			groups = append(groups, fdw.TruncateGroup{Source: f, Request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().ForeignCascade, RestartIdentity: s.truncateOrZero().Restart}})
 		}
 		groups[index].Request.Tables = append(groups[index].Request.Tables, exec.CopyForeignRequest(f.Request))
 	}
