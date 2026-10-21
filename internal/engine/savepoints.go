@@ -180,7 +180,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.Session.PublishTimeoutSettingsLocked(t.Session.Settings, false, time.Now())
 			t.Isolation, t.ReadOnly = mark.Isolation, mark.ReadOnly
 			t.Deferrable = mark.Deferrable
-			t.Session.Settings.CurrentIsolation = isolationText(t.Isolation)
+			t.Session.Settings.CurrentIsolation = session.IsolationText(t.Isolation)
 			t.Session.Settings.CurrentReadOnly = t.ReadOnly
 			t.Session.Settings.CurrentDeferrable = t.Deferrable
 			exclusion := exclusionMarkOrZero(mark.Exclusion)

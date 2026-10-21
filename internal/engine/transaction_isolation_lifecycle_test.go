@@ -146,12 +146,12 @@ func TestTransactionIsolationAbortCharacteristics(t *testing.T) {
 					t.Fatal(state, isolation, readOnly)
 				}
 				a.Settings.Mu.Lock()
-				defaultIsolation := isolationFromText(a.Settings.Value("default_transaction_isolation"))
+				defaultIsolation := session.IsolationFromText(a.Settings.Value("default_transaction_isolation"))
 				defaultReadOnly := a.Settings.Value("default_transaction_read_only") == "on"
 				projectedIsolation, projectedReadOnly := a.Settings.CurrentIsolation, a.Settings.CurrentReadOnly
 				a.Settings.Mu.Unlock()
 				if defaultIsolation != baseline.isolation || defaultReadOnly != baseline.readOnly ||
-					projectedIsolation != isolationText(baseline.isolation) || projectedReadOnly != baseline.readOnly {
+					projectedIsolation != session.IsolationText(baseline.isolation) || projectedReadOnly != baseline.readOnly {
 					t.Fatal(defaultIsolation, defaultReadOnly, projectedIsolation, projectedReadOnly)
 				}
 				sessionSQL(t, a, end)
