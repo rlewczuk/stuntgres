@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
@@ -66,20 +65,6 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 		batch.Set(i, candidate)
 	}
 	return nil
-}
-
-// The mixed lane may need ordinary prior-own keys again after catalog drift.
-// Freeze actual probe data by immutable row/version, not CHECK truth or values.
-func (s *StatementScope) retainExistingIndexOutput(idx *catalog.Relation, row storage.RowVersion, output storage.IndexOutput) {
-	if s.indexesOrZero().ExistingOutputs == nil {
-		s.indexes().ExistingOutputs = make(map[ids.ObjectAddress]map[index.RowIdentity]storage.IndexOutput)
-	}
-	outputs := s.indexesOrZero().ExistingOutputs[idx.Address()]
-	if outputs == nil {
-		outputs = make(map[index.RowIdentity]storage.IndexOutput)
-		s.indexes().ExistingOutputs[idx.Address()] = outputs
-	}
-	outputs[index.RowIdentity{Row: row.Row, Version: row.Version}] = output
 }
 
 // Only actual blocking-grant continuations call this, never a row Eval or an

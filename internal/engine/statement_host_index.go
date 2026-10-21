@@ -3,8 +3,6 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -262,31 +260,7 @@ func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State
 	}
 	proposal.Exclusion = &row
 	p := e.exclusions.ProjectionLocked(s.ticket)
-	entries := p.Entries[edit.Index]
-	next := make([]index.ExclusionEntry, 0, len(entries)+1)
-	for _, entry := range entries {
-		if entry.Row.Row != row.Row {
-			next = append(next, entry)
-		}
-	}
-	if edit.Member {
-		next = append(next, index.ExclusionEntry{Row: row, Keys: edit.Keys, Admitted: edit.Admitted})
-	}
-	// A later index insertion preserves the projections of earlier indexes.
-	p.Entries[edit.Index] = next
-	if len(edit.Excluded) != 0 {
-		ends := maps.Clone(p.Ended[ref.Address])
-		if ends == nil {
-			ends = make(map[ids.RowID]ids.VersionID)
-		}
-		for _, old := range edit.Excluded {
-			ends[old.Row] = old.Version
-			if old.Base != 0 {
-				ends[old.Row] = old.Base
-			}
-		}
-		p.Ended[ref.Address] = ends
-	}
+	ExclusionEditApply(edit, p, ref.Address, row)
 	s.installExclusionProjectionLocked(e, p)
 	return row, nil
 }
@@ -305,18 +279,7 @@ func (h *statementHost) DiscardExclusion(proposal *index.WriteCandidate) {
 		return
 	}
 	p := e.exclusions.ProjectionLocked(s.ticket)
-	for idx, entries := range p.Entries {
-		if !slices.ContainsFunc(entries, func(e index.ExclusionEntry) bool { return e.Row.Version == version }) {
-			continue
-		}
-		next := make([]index.ExclusionEntry, 0, len(entries)-1)
-		for _, entry := range entries {
-			if entry.Row.Version != version {
-				next = append(next, entry)
-			}
-		}
-		p.Entries[idx] = next
-	}
+	ProjectionDiscardVersion(p, version)
 	s.installExclusionProjectionLocked(e, p)
 }
 
@@ -343,12 +306,6 @@ func (h *statementHost) AdmitExclusion(idx ids.ObjectAddress, version ids.Versio
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	projected := e.exclusions.ProjectionLocked(s.ticket)
-	entries := slices.Clone(projected.Entries[idx])
-	for at := range entries {
-		if entries[at].Row.Version == version {
-			entries[at].Admitted = true
-		}
-	}
-	projected.Entries[idx] = entries
+	ProjectionAdmit(projected, idx, version)
 	s.installExclusionProjectionLocked(e, projected)
 }

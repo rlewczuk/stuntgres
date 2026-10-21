@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -12,7 +11,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func (s *StatementScope) beginExclusionProjectionLocked(e *Engine) {
@@ -77,22 +75,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate vis
 	}
 	s.beginExclusionProjectionLocked(e)
 	p := e.exclusions.ProjectionLocked(s.ticket)
-	ends := maps.Clone(p.Ended[candidate.Ref.Address])
-	if ends == nil {
-		ends = make(map[ids.RowID]ids.VersionID)
-	}
-	ends[candidate.Row] = candidate.Version
-	p.Ended[candidate.Ref.Address] = ends
-	for _, c := range parent.Constraints.Exclusion {
-		entries := p.Entries[c.Index]
-		next := make([]index.ExclusionEntry, 0, len(entries))
-		for _, entry := range entries {
-			if entry.Row.Row != candidate.Row {
-				next = append(next, entry)
-			}
-		}
-		p.Entries[c.Index] = next
-	}
+	ProjectionEndRow(p, candidate.Ref.Address, parent.Constraints.Exclusion, candidate.Row, candidate.Version)
 	s.installExclusionProjectionLocked(e, p)
 }
 
@@ -111,18 +94,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.Unique
 		if err != nil {
 			return uniqueConflict{}, false, err
 		}
-		own := scan.Pending[s.ticket]
-		var current index.ExclusionEntry
-		found := false
-		if own != nil {
-			for _, entry := range own.Entries[idx.Address()] {
-				if entry.Row.Row == candidate.Row && entry.Row.Version == candidate.Version {
-					current = entry
-					found = true
-					break
-				}
-			}
-		}
+		current, found := OwnExclusionEntry(&scan.ExclusionScan, s.ticket, idx.Address(), candidate)
 		if !found {
 			return uniqueConflict{}, false, nil
 		}
@@ -130,108 +102,30 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *index.Unique
 		if binding.TypeName != nil {
 			evaluation.Input.TypeDiagnosticName = binding.TypeName
 		}
-		potential := false
-		var wait *lock.Ticket
-		var hit uniqueConflict
-		visit := func(entry index.ExclusionEntry, owner *lock.Ticket, committed bool) error {
-			if owner == s.ticket && entry.Row.Row == candidate.Row {
-				return nil
-			}
-			if owner != nil && owner != s.ticket && !entry.Admitted {
-				return nil
-			}
-			if own != nil && own.Ended[ref.Address][entry.Row.Row] == entry.Row.Version && committed {
-				return nil
-			}
-			match, err := index.ExclusionKeysMatch(s.op.Context(), idx.SQLIndex, current.Keys, entry.Keys)
-			if err != nil || !match {
-				return err
-			}
-			if purpose != index.ProbeRevalidation && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
-				if err := bound.Ordering.FillKeys(entry.Row.Values, bound.Scratch, &evaluation); err != nil {
-					return err
-				}
-				match, err = index.ExclusionKeysMatch(s.op.Context(), idx.SQLIndex, current.Keys, bound.Scratch)
-				if err != nil || !match {
-					return err
-				}
-			}
-			if committed {
-				for ticket, p := range scan.Pending {
-					if ticket != s.ticket && p.Ended[ref.Address][entry.Row.Row] == entry.Row.Version {
-						potential = true
-						wait = ticket
-						return nil
-					}
-				}
-			}
-			potential = true
-			if owner != nil && owner != s.ticket {
-				wait = owner
-				return nil
-			}
-			if hit.index == nil {
-				existing := entry.Keys
-				if purpose != index.ProbeRevalidation && idx.SQLIndex.HasRuntimeDomainKeyConversion() {
-					existing = slices.Clone(bound.Scratch)
-				} else if committed && scan.Root.Hash != nil {
-					existing = slices.Clone(existing)
-				}
-				hit = uniqueConflict{parent: binding.Parent, index: idx, key: current.Keys, existing: existing, auth: scan.auth, view: scan.View, schema: scan.Schema, row: entry.Row, committed: committed}
-			}
-			return nil
-		}
-		if scan.Root != nil {
-			if scan.Root.Hash != nil {
-				var keys [1]sqltype.Value
-				for _, bucket := range scan.Root.Hash.Buckets {
-					for _, entry := range bucket {
-						row, err := index.ConflictEntryVersion(scan.Versions, storage.IndexEntry{Row: entry.Row, Version: entry.Version, Position: entry.Position})
-						if err != nil {
-							return uniqueConflict{}, false, err
-						}
-						keys[0] = entry.Key
-						if err := visit(index.ExclusionEntry{Row: row, Keys: keys[:]}, nil, true); err != nil {
-							return uniqueConflict{}, false, err
-						}
-					}
-				}
-			} else {
-				for _, entry := range scan.Root.Entries {
-					row, err := index.ConflictEntryVersion(scan.Versions, entry)
-					if err != nil {
-						return uniqueConflict{}, false, err
-					}
-					if err := visit(index.ExclusionEntry{Row: row, Keys: entry.Keys}, nil, true); err != nil {
-						return uniqueConflict{}, false, err
-					}
-				}
-			}
-		}
-		for ticket, p := range scan.Pending {
-			for _, entry := range p.Entries[idx.Address()] {
-				if err := visit(entry, ticket, false); err != nil {
-					return uniqueConflict{}, false, err
-				}
-			}
+		visit, err := VisitExclusion(s.op, &evaluation, &scan.ExclusionScan, s.ticket, ref.Address, bound, current, purpose)
+		if err != nil {
+			return uniqueConflict{}, false, err
 		}
 		if !s.writeHost().ExclusionScanCurrent(scan.ExclusionScan, idx.Address()) {
 			continue
 		}
-		c := index.ExclusionDefinition(binding.Parent, idx)
-		if c == nil {
-			return uniqueConflict{}, false, ids.ErrCatalogReplaced
+		deferred, err := ExclusionDeferred(binding.Parent, idx, recheck)
+		if err != nil {
+			return uniqueConflict{}, false, err
 		}
-		if c.Deferrable && !recheck {
-			return uniqueConflict{}, potential, nil
+		if deferred {
+			return uniqueConflict{}, visit.Potential, nil
 		}
-		if wait != nil {
-			if err := s.writeHost().WaitTransaction(wait, lock.CompletionTransaction); err != nil {
+		if visit.Wait != nil {
+			if err := s.writeHost().WaitTransaction(visit.Wait, lock.CompletionTransaction); err != nil {
 				return uniqueConflict{}, false, err
 			}
 			continue
 		}
-		return hit, potential, nil
+		if !visit.Hit {
+			return uniqueConflict{}, visit.Potential, nil
+		}
+		return uniqueConflict{parent: binding.Parent, index: idx, key: visit.Key, existing: visit.Existing, auth: scan.auth, view: scan.View, schema: scan.Schema, row: visit.Row, committed: visit.Committed}, visit.Potential, nil
 	}
 }
 func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, action *insertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {

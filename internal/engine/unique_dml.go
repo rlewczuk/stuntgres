@@ -29,125 +29,9 @@ retry:
 	if overlay := s.writeOverlay(); overlay != nil && s.uniqueBinding != nil && s.uniqueBinding.Ref == ref {
 		overlay.overlays = nil
 	}
-	b := &index.UniqueWriteBinding{Ref: ref, Parent: parent, Catalog: view.State()}
-	var indexes []*catalog.Relation
-	var checkedNonunique []*catalog.Relation
-	for _, descriptor := range view.Descriptors() {
-		idx, ok := descriptor.(*catalog.Relation)
-		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Parent != parent.Address() || !idx.SQLIndex.Live {
-			continue
-		}
-		if idx.SQLIndex.Ready && idx.SQLIndex.RequiresInsertionOutput() {
-			b.Checked = true
-			if !idx.SQLIndex.Unique && !idx.SQLIndex.IsExclusion() {
-				checkedNonunique = append(checkedNonunique, idx)
-			}
-		}
-		if !idx.SQLIndex.Unique && !idx.SQLIndex.IsExclusion() {
-			continue
-		}
-		// REL18 row-key eligibility is independent of readiness/validity.
-		// An expression anywhere excludes the whole index; INCLUDE is payload.
-		var slots [32]int
-		if len(idx.SQLIndex.Keys) > len(slots) {
-			return nil, errors.New("stuntgres: invalid unique index key count")
-		}
-		simple := true
-		for at, key := range idx.SQLIndex.Keys {
-			attribute, node, err := index.CatalogKey(parent, key)
-			if err != nil {
-				return nil, err
-			}
-			if node != nil {
-				simple = false
-				break
-			}
-			slots[at] = slices.Index(parent.Attributes, attribute)
-		}
-		if idx.SQLIndex.Unique && simple && idx.SQLIndex.Predicate == nil {
-			for _, slot := range slots[:len(idx.SQLIndex.Keys)] {
-				if !slices.Contains(b.KeySlots, slot) {
-					b.KeySlots = append(b.KeySlots, slot)
-				}
-			}
-		}
-		if idx.SQLIndex.Ready {
-			indexes = append(indexes, idx)
-		}
-	}
-	slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
-		if a.Address().ObjectID < b.Address().ObjectID {
-			return -1
-		}
-		if a.Address().ObjectID > b.Address().ObjectID {
-			return 1
-		}
-		return 0
-	})
-	b.Keys = make([]index.UniqueBoundKey, len(indexes))
-	for i, idx := range indexes {
-		bound := &b.Keys[i]
-		bound.Index = idx
-		bound.Parent = parent
-		if idx.SQLIndex.IsExclusion() {
-			bound.Ordering, err = index.BindExclusionOrdering(parent, idx.SQLIndex)
-		} else {
-			bound.Ordering, err = index.BindIndexOrdering(parent, idx.SQLIndex)
-		}
-		if err != nil {
-			return nil, err
-		}
-		n := len(idx.SQLIndex.Keys)
-		if idx.SQLIndex.Method != catalog.GistMethod {
-			bound.Grouping = make([]sqltype.Grouping, n)
-		}
-		bound.Key, bound.Scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
-		for j, key := range idx.SQLIndex.Keys {
-			usage, usageErr := index.KeyUsage(parent, key)
-			if usageErr != nil {
-				return nil, usageErr
-			}
-			if idx.SQLIndex.Method == catalog.GistMethod {
-				continue
-			}
-			// network_ops owns typed comparison but not generic grouping. Its
-			// claims use the existing comparator-based shared bucket.
-			if key.Class.Family == "network_ops" {
-				continue
-			}
-			bound.Grouping[j], err = sqltype.BindGrouping(usage)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	if len(checkedNonunique) != 0 {
-		b.Insertion = make([]index.InsertionBinding, 0, len(b.Keys)+len(checkedNonunique))
-		for i := range b.Keys {
-			key := &b.Keys[i]
-			b.Insertion = append(b.Insertion, index.InsertionBinding{Index: key.Index, Unique: key})
-		}
-		for _, idx := range checkedNonunique {
-			bound := index.InsertionBinding{Index: idx, Parent: parent}
-			if idx.SQLIndex.Method == catalog.HashMethod {
-				bound.Hash, err = index.BindHashIndex(parent, idx.SQLIndex)
-			} else {
-				bound.Ordering, err = index.BindIndexKeys(parent, idx.SQLIndex)
-			}
-			if err != nil {
-				return nil, err
-			}
-			b.Insertion = append(b.Insertion, bound)
-		}
-		slices.SortFunc(b.Insertion, func(a, b index.InsertionBinding) int {
-			if a.Index.Address().ObjectID < b.Index.Address().ObjectID {
-				return -1
-			}
-			if a.Index.Address().ObjectID > b.Index.Address().ObjectID {
-				return 1
-			}
-			return 0
-		})
+	b, err := BuildUniqueWriteBinding(ref, parent, view)
+	if err != nil {
+		return nil, err
 	}
 	if err := b.InheritConsumedPrograms(s.indexBindings[ref.Address]); err != nil {
 		return nil, err
@@ -344,18 +228,9 @@ retry:
 			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
 		outcome := uniqueConflict{parent: parent, index: idx, key: key, auth: auth, view: current, schema: probe.Schema}
-		lo, hi := 0, len(root.Entries)
-		for lo < hi {
-			mid := lo + (hi-lo)/2
-			cmp, err := bound.Ordering.CompareKeys(ctx, root.Entries[mid], storage.IndexEntry{Keys: key})
-			if err != nil {
-				return uniqueConflict{}, err
-			}
-			if cmp < 0 {
-				lo = mid + 1
-			} else {
-				hi = mid
-			}
+		lo, err := UniqueRootStart(ctx, &bound.Ordering, root.Entries, key)
+		if err != nil {
+			return uniqueConflict{}, err
 		}
 		for at := lo; at < len(root.Entries); at++ {
 			entry := root.Entries[at]
