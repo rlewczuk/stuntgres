@@ -1,6 +1,9 @@
 package control
 
 import (
+	"context"
+	"io"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
@@ -62,4 +65,22 @@ type Capture struct {
 	// their prerequisites, including providers shared with deferred defaults.
 	InlinePredecessors map[ids.OID][]ids.OID
 	DeferDefaults      bool
+}
+
+// Dump orders a captured catalog and writes it to dst as a SQL script. It
+// takes over capture: it sorts and completes it in place. Dump reads no engine
+// state; it renders against the capture's catalog and role reads only.
+func Dump(ctx context.Context, capture *Capture, dst io.Writer) error {
+	ctx = regobj.ACLItemOutputContext(ctx, capture.ACLOutput)
+	script, err := buildDumpScript(ctx, capture)
+	if err != nil {
+		return err
+	}
+	w := &dumpWriter{ctx: ctx, dst: dst}
+	for _, section := range dumpSections {
+		if err := section.emit(ctx, script, w); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
 }

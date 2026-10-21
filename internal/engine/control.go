@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -64,9 +64,8 @@ func bootstrapNamespaceDumpable(d *catalog.Namespace) bool {
 // no physical roots; their actual ancestry and incomplete validity are retained.
 //
 // Dump reads engine state only in captureDumpLocked, under Engine.mu, through
-// the Collect tables (dumpCollectors). It then orders the captured graph and
-// writes dumpSections, whose event section uses the Emit table
-// (dumpPhaseEmitters).
+// the Collect tables (dumpCollectors). It then hands the capture to
+// control.Dump, which orders the captured graph and writes the script.
 func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if dst == nil {
 		return fmt.Errorf("stuntgres: nil dump writer")
@@ -80,18 +79,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
-	ctx = regobj.ACLItemOutputContext(ctx, capture.ACLOutput)
-	script, err := buildDumpScript(ctx, capture)
-	if err != nil {
-		return err
-	}
-	w := &dumpWriter{ctx: ctx, dst: dst}
-	for _, section := range dumpSections {
-		if err := section.emit(ctx, script, w); err != nil {
-			return err
-		}
-	}
-	return ctx.Err()
+	return control.Dump(ctx, capture, dst)
 }
 
 type contextReader struct {

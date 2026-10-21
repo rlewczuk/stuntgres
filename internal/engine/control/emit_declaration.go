@@ -1,4 +1,4 @@
-package engine
+package control
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -70,7 +69,7 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 
 // emitDumpIndex writes an index definition, the physical primary-key
 // cleanup that follows it, and records its name as occupied.
-func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx control.OwnedStatement) error {
+func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx OwnedStatement) error {
 	if err := w.setOwner(idx.Owner); err != nil {
 		return err
 	}

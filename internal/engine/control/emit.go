@@ -1,4 +1,4 @@
-package engine
+package control
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
@@ -196,7 +195,7 @@ func emitDumpRetiredConstraints(_ context.Context, s *dumpScript, w *dumpWriter,
 }
 
 func emitDumpDomainChecks(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	text, err := typedef.DomainInvalidDumpStatement(ctx, control.Presenter{}, s.CatalogView, s.domainNodes[event.OID])
+	text, err := typedef.DomainInvalidDumpStatement(ctx, Presenter{}, s.CatalogView, s.domainNodes[event.OID])
 	if err != nil {
 		return err
 	}
