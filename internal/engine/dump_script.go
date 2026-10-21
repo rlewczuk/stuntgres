@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 )
@@ -107,29 +106,13 @@ func (s *dumpScript) addDeclarationEdges() error {
 			}
 		}
 	}
-	for _, d := range s.operators {
-		if d.Function == 0 && operatorShellGenerator(s.catalogView, d) != nil {
-			continue
-		}
-		id := d.Address().ObjectID
-		s.graph[dump.Event{OID: id}] = nil
-		for _, dependency := range routine.OperatorDependencyAddresses(s.catalogView, d) {
-			if dependency.ClassID == ids.NamespaceClassID {
-				continue
-			}
-			predecessor, err := dumpPredecessor(s.catalogView, dependency, d.Address())
-			if err != nil {
-				return err
-			}
-			if predecessor != 0 {
-				s.graph[dump.Event{OID: id}] = append(s.graph[dump.Event{OID: id}], dump.Event{OID: predecessor})
-			}
-		}
+	if err := operatorDumpDependencies(dumpResolver{}, s.catalogView, s.operators, s.graph); err != nil {
+		return err
 	}
 	// Reconstruct final links, not allocation history: asymmetric links remain
 	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
 	operatorDumpEvents(s.catalogView, s.operators, s.graph)
-	if err := sqlRoutineDumpEvents(s.catalogView, s.sqlRoutines, s.graph); err != nil {
+	if err := sqlRoutineDumpEvents(dumpResolver{}, s.catalogView, s.sqlRoutines, s.graph); err != nil {
 		return err
 	}
 	for event, predecessors := range s.graph {
@@ -237,31 +220,12 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 		return err
 	}
 	for _, d := range s.sqlRoutines {
-		declaration, err := sqlRoutineDumpStatement(s.catalogView, s.domainRoles, d)
+		declaration, err := sqlRoutineDumpStatement(dumpPresenter{}, s.catalogView, s.domainRoles, d)
 		if err != nil {
 			return err
 		}
 		s.declarations[d.Address().ObjectID] = declaration
 	}
-	s.operatorLinks = make(map[ids.OID]string)
-	for _, d := range s.operators {
-		if d.Function == 0 && operatorShellGenerator(s.catalogView, d) != nil {
-			continue
-		}
-		declaration, err := operatorDumpDeclaration(ctx, s.catalogView, s.domainRoles, d)
-		if err != nil {
-			return err
-		}
-		s.declarations[d.Address().ObjectID] = declaration
-		if d.Function != 0 {
-			text, err := operatorDumpLinks(s.catalogView, d)
-			if err != nil {
-				return err
-			}
-			if text != "" {
-				s.operatorLinks[d.Address().ObjectID] = text
-			}
-		}
-	}
-	return nil
+	s.operatorLinks, err = operatorDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, s.operators, s.declarations)
+	return err
 }

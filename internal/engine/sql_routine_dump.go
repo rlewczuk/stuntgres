@@ -8,11 +8,10 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 )
 
-func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, events dump.Graph) error {
+func sqlRoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.Procedure, events dump.Graph) error {
 	for _, d := range routines {
 		key := dump.Event{OID: d.Address().ObjectID}
 		events[key] = nil
@@ -21,7 +20,7 @@ func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, even
 			if i < len(d.SQL.Inputs) {
 				usage = d.SQL.Inputs[i]
 			}
-			predecessor, err := dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}, d.Address())
+			predecessor, err := r.Predecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}, d.Address())
 			if err != nil {
 				return err
 			}
@@ -33,7 +32,7 @@ func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, even
 	return nil
 }
 
-func sqlRoutineDumpStatement(view catalog.Read, roles authorization.Read, d *catalog.Procedure) (dump.Statement, error) {
+func sqlRoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Procedure) (dump.Statement, error) {
 	owner, err := roles.Descriptor(d.Owner)
 	if err != nil {
 		return dump.Statement{}, err
@@ -51,13 +50,13 @@ func sqlRoutineDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 		if i != 0 {
 			sql.WriteString(", ")
 		}
-		name, err := regobj.ColumnDeclaration(view, catalog.Column{Usage: input})
+		name, err := p.ColumnDeclaration(view, catalog.Column{Usage: input})
 		if err != nil {
 			return dump.Statement{}, err
 		}
 		sql.WriteString(name)
 	}
-	result, err := regobj.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
+	result, err := p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
 	if err != nil {
 		return dump.Statement{}, err
 	}

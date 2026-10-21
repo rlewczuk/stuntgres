@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -133,13 +132,11 @@ func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 
 func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Operator)
-	if err := (routine.OperatorProvider{}).Validate(c.catalogView, t); err != nil {
-		return err
-	}
-	if !routine.OperatorSeeded(t) {
+	dumped, err := operatorDumped(c.catalogView, t)
+	if dumped {
 		c.operators = append(c.operators, t)
 	}
-	return nil
+	return err
 }
 
 func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {

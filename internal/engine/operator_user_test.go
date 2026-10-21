@@ -584,7 +584,7 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	auth.Recapture(e.CatalogRead())
-	declaration, err := operatorDumpDeclaration(context.Background(), auth.Catalog, auth.Roles, shell)
+	declaration, err := operatorDumpDeclaration(context.Background(), dumpPresenter{}, auth.Catalog, auth.Roles, shell)
 	if err != nil {
 		t.Fatal(err)
 	}
