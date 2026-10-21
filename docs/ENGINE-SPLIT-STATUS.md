@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `d12bb058f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 99, 103, 104, 107 and 111). Steps 8–17 were
+Last verified against `master` at `26f7aea0c` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 99, 97, 103, 104, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -21,7 +21,6 @@ after each lands.
 - **Stored-SQL package:** 69 (stored 22c).
 - **Upper features, packages:** 83 (index 23b).
 - **Upper features, refined:** 105 (role 28c, docs only).
-- **Upper features, decisions:** 97 (fdw 26d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -74,6 +73,8 @@ Item 96 (fdw 26c, docs only) is done, so fdw 26d (item 97) is ready; fdw
 26e (item 98) then needs 97 and table 24d (item 89).
 Item 68 (stored 22b) is done, so stored 22c (item 69) and index 23b
 (item 83) are ready; stored 22d (item 70) waits for 69.
+Item 97 (fdw 26d) is done; fdw 26e (item 98) still waits for table 24d
+(item 89), and DML 29c (item 109) for 108, 85, 89, 93 and 102.
 
 ## Task tree
 
@@ -506,7 +507,8 @@ Item 68 (stored 22b) is done, so stored 22c (item 69) and index 23b
   - [x] 26b — `fdw` created and clean set moved
     (`6bce27045`, `f2df07054`, `fe35300c3`, `5e3147354`, then the docs commit)
   - [x] 26c — Host refined (docs only; the docs commit)
-  - [ ] 26d — Wrapper, server, mapping, import and grant decisions moved
+  - [x] 26d — Wrapper, server, mapping, import and grant decisions moved
+    (`743eb4d47`, `6fe2aeaa2`, `e942c6231`, then the docs commit)
   - [ ] 26e — Foreign-table decisions moved
 - [ ] **Step 27 — `view`** ([prompt](ENGINE-SPLIT-view.md); 27b needs 22c,
   24b)
@@ -1153,8 +1155,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `ImportSelected`, `ImportedTable`; GRANT a pure `PlanGrant` with no
     host; `grantWarning` to `authorization`; 26d move set and commit
     sequence written · docs only, no checks needed
-97. [ ] FDW 26d: wrapper, server, mapping, import and grant decisions —
-    [fdw](ENGINE-SPLIT-fdw.md) 26d · needs 96
+97. [x] FDW 26d: wrapper, server, mapping, import and grant decisions —
+    [fdw](ENGINE-SPLIT-fdw.md) 26d · needs 96 (`743eb4d47`, `6fe2aeaa2`,
+    `e942c6231`, then the docs commit) · `fdw.Host` on `ddlHost`;
+    `StageDDL`, `PlanImport`, `ImportSelected`, `ImportedTable`, `PlanGrant`
+    in `fdw`; the root keeps `Engine.mu`, stage begin and discard, callbacks,
+    the GRANT journal writes and publication; `GrantWarning` was moved by
+    28b · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 98. [ ] FDW 26e: foreign-table decisions — [fdw](ENGINE-SPLIT-fdw.md) 26e ·
     needs 97, 89
 99. [x] View 27a: in place — [view](ENGINE-SPLIT-view.md) 27a · needs —
