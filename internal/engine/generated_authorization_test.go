@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -39,7 +40,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *
 		err = e.bindCreateGenerations(admin, auth, d, []analyze.ColumnDeclaration{{}, {Generation: generation}}, sqltype.InputEnvironment{})
 	}
 	if err == nil {
-		err = e.assignDefinitionOIDsLocked(d)
+		err = table.AssignDefinitionOIDs(ddlHost{e: e}, d)
 	}
 	e.mu.Unlock()
 	if err != nil {

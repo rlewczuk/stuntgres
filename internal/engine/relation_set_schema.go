@@ -164,7 +164,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 				return fail(typeCollision(r))
 			}
 		}
-		frontier, terminal := e.catalog.advanceRevisionFrontier(0, r)
+		frontier, terminal := catalog.AdvanceRevisionFrontier(0, r)
 		if terminal {
 			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 		}

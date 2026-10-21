@@ -41,7 +41,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
 		}
 	}
-	d, err := e.newTableDescriptorLocked(namespace, name, auth.State.CurrentUser, slices.Clone(parent.Columns), nil)
+	d, err := table.NewRelation(ddlHost{e: e}, namespace, name, auth.State.CurrentUser, slices.Clone(parent.Columns), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err = e.bindCreateChecks(op, auth, syntax, d, scope.input, inherited); err != nil {
 		return nil, err
 	}
-	if err = e.assignDefinitionOIDsLocked(d); err != nil {
+	if err = table.AssignDefinitionOIDs(ddlHost{e: e}, d); err != nil {
 		return nil, err
 	}
 	h := ddlHost{e: e, op: op, stage: stage}

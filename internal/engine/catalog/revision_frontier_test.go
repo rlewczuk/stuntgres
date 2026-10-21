@@ -1,13 +1,12 @@
-package engine
+package catalog
 
 import (
 	"testing"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func TestCatalogStoreRevisionFrontier(t *testing.T) {
+func TestAdvanceRevisionFrontier(t *testing.T) {
 	const max = ids.DefinitionRevision(^uint64(0))
 	cases := []struct {
 		name                             string
@@ -28,20 +27,18 @@ func TestCatalogStoreRevisionFrontier(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s := catalogStore{nextRevision: 37}
-			d := &catalog.Relation{ObjectRevision: tc.revision, SequencePlanStamp: tc.stamp}
-			got, terminal := s.advanceRevisionFrontier(tc.candidate, d)
+			d := &Relation{ObjectRevision: tc.revision, SequencePlanStamp: tc.stamp}
+			got, terminal := AdvanceRevisionFrontier(tc.candidate, d)
 			if got != tc.want || terminal != tc.terminal {
 				t.Fatalf("frontier = (%d, %v), want (%d, %v)", got, terminal, tc.want, tc.terminal)
 			}
-			if s.nextRevision != 37 || d.ObjectRevision != tc.revision || d.SequencePlanStamp != tc.stamp {
-				t.Fatal("pure frontier calculation mutated allocator or descriptor")
+			if d.ObjectRevision != tc.revision || d.SequencePlanStamp != tc.stamp {
+				t.Fatal("pure frontier calculation mutated the descriptor")
 			}
 		})
 	}
-	s := catalogStore{nextRevision: 37}
-	got, terminal := s.advanceRevisionFrontier(10, &catalog.Namespace{ObjectRevision: 12})
-	if got != 13 || terminal || s.nextRevision != 37 {
-		t.Fatalf("namespace frontier = (%d, %v), allocator %d", got, terminal, s.nextRevision)
+	got, terminal := AdvanceRevisionFrontier(10, &Namespace{ObjectRevision: 12})
+	if got != 13 || terminal {
+		t.Fatalf("namespace frontier = (%d, %v)", got, terminal)
 	}
 }

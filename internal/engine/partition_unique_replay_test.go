@@ -25,13 +25,13 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Re
 	leaf := inheritanceUnitRelation(e, "unique_replay_leaf", 47202, "k")
 	leaf.RelationKind = catalog.TableRelation
 	e.mu.Lock()
-	for _, table := range [3]*catalog.Relation{root, mid, leaf} {
-		table.Columns[0].Nullable = false
-		table.Constraints.NotNull = []catalog.NotNullConstraint{{Name: table.Name() + "_nn", Attribute: 1}}
-		table.History.HasIndexes = true
+	for _, tbl := range [3]*catalog.Relation{root, mid, leaf} {
+		tbl.Columns[0].Nullable = false
+		tbl.Constraints.NotNull = []catalog.NotNullConstraint{{Name: tbl.Name() + "_nn", Attribute: 1}}
+		tbl.History.HasIndexes = true
 		// Stored NOT NULL facts need real catalog identities before validation,
 		// just as the canonical CREATE producer assigns them.
-		if err := e.assignDefinitionOIDsLocked(table); err != nil {
+		if err := table.AssignDefinitionOIDs(ddlHost{e: e}, tbl); err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}

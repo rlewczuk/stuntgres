@@ -140,7 +140,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		}
 		owner = directive.State.CurrentUser
 	}
-	d, err := e.newTableDescriptorLocked(ns.Address, name, owner, columns, names)
+	d, err := table.NewRelation(ddlHost{e: e}, ns.Address, name, owner, columns, names)
 	if err != nil {
 		return nil, nil, false, err
 	}

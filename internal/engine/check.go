@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -172,10 +171,4 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 	}
 	slices.SortFunc(d.Constraints.Check, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
-}
-
-// Provider references join the incumbent dependency stage. Owner-local column
-// dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
-func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.CheckDependencyEdge, error) {
-	return table.CheckDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }

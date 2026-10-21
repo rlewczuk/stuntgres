@@ -29,7 +29,7 @@ func alterTablespaceKind(d *catalog.Relation) error {
 	case catalog.TableRelation, catalog.PartitionedRelation, catalog.IndexRelation, catalog.MaterializedViewRelation:
 		return nil
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action SET TABLESPACE cannot be performed on relation "%s"`, d.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(d))}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action SET TABLESPACE cannot be performed on relation "%s"`, d.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", catalog.RelationDiagnosticKind(d))}
 }
 
 func tablespaceOnlyActions(actions []parser.AlterTableAction) bool {

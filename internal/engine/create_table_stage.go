@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -62,7 +61,7 @@ func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView
 		}
 		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
 	}
-	d, err := e.newTableDescriptorLocked(ns, name, owner, b.Create.Columns, b.Create.ColumnIndex)
+	d, err := table.NewRelation(ddlHost{e: e}, ns, name, owner, b.Create.Columns, b.Create.ColumnIndex)
 	if err != nil {
 		return err
 	}
@@ -128,7 +127,7 @@ func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView
 	if err := stored.RefreshGenerationChecks(d, auth.Catalog); err != nil {
 		return err
 	}
-	if err := e.assignDefinitionOIDsLocked(d); err != nil {
+	if err := table.AssignDefinitionOIDs(ddlHost{e: e}, d); err != nil {
 		return err
 	}
 	// PostgreSQL resolves raw column modifiers again while building the
@@ -178,31 +177,4 @@ func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView
 		return err
 	}
 	return e.stageCreateForeignKeys(auth, stage, d, s, foreignTargets)
-}
-
-// The table identity owner is shared by declared and query-derived schemas.
-// The caller transfers a private column slice; source definitions are not mutated.
-func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []catalog.Column, index map[string]int) (*catalog.Relation, error) {
-	oid, err := e.catalog.allocateOIDLocked()
-	if err != nil {
-		return nil, err
-	}
-	revision, err := e.catalog.revisionLocked()
-	if err != nil {
-		return nil, err
-	}
-	if index == nil {
-		index = make(map[string]int, len(columns))
-		for i, column := range columns {
-			index[column.Name] = i
-		}
-	}
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns, ObjectName: name, ObjectRevision: revision, Owner: owner, Columns: columns, Index: index, Attributes: make([]int32, len(columns))}
-	d.ColumnMeta.HighWater = int32(len(columns))
-	for i := range columns {
-		d.Attributes[i] = int32(i + 1)
-		d.Columns[i].OriginTable = uint32(oid)
-		d.Columns[i].OriginAttribute = int16(i + 1)
-	}
-	return d, nil
 }

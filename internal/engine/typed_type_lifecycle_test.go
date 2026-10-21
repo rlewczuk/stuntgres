@@ -15,8 +15,8 @@ import (
 )
 
 func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
-	e, source, table := typedUnitCatalog(t, false)
-	stage := typedRenameStage(t, e, source, table)
+	e, source, tbl := typedUnitCatalog(t, false)
+	stage := typedRenameStage(t, e, source, tbl)
 	defer e.DiscardCatalogStage(stage)
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
@@ -25,9 +25,9 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	late := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(late)
 	e.mu.Lock()
-	attached, err := e.newTableDescriptorLocked(table.Namespace(), "late", table.Owner, append([]catalog.Column(nil), table.Columns...), table.Index)
+	attached, err := table.NewRelation(ddlHost{e: e}, tbl.Namespace(), "late", tbl.Owner, append([]catalog.Column(nil), tbl.Columns...), tbl.Index)
 	if err == nil {
-		attached.OfType = table.OfType
+		attached.OfType = tbl.OfType
 		err = e.stageRowTypeLocked(late, attached)
 	}
 	e.mu.Unlock()
@@ -44,7 +44,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("late attachment was missed", changes, err)
 	}
-	if source.Columns[1].Name != "note" || table.Columns[1].Name != "note" {
+	if source.Columns[1].Name != "note" || tbl.Columns[1].Name != "note" {
 		t.Fatal("failed source alteration leaked")
 	}
 }

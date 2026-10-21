@@ -63,7 +63,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal(next, attribute, err)
 	}
 	e.mu.Lock()
-	err = e.assignDefinitionOIDsLocked(next)
+	err = table.AssignDefinitionOIDs(ddlHost{e: e}, next)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

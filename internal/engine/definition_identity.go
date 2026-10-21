@@ -10,68 +10,6 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func (e *Engine) assignDefinitionOIDsLocked(d *catalog.Relation) error {
-	for i := range d.Constraints.NotNull {
-		if d.Constraints.NotNull[i].OID == 0 {
-			id, err := e.catalog.allocateOIDLocked()
-			if err != nil {
-				return err
-			}
-			d.Constraints.NotNull[i].OID = id
-		}
-	}
-	for _, attr := range d.Attributes {
-		def, ok := d.ColumnMeta.Defaults[attr]
-		if ok && def.OID == 0 {
-			id, err := e.catalog.allocateOIDLocked()
-			if err != nil {
-				return err
-			}
-			def.OID = id
-			d.ColumnMeta.Defaults[attr] = def
-		}
-	}
-	for _, attr := range d.Attributes {
-		definition, exists := d.ColumnMeta.Generations[attr]
-		if exists && definition.OID == 0 {
-			id, err := e.catalog.allocateOIDLocked()
-			if err != nil {
-				return err
-			}
-			definition.OID = id
-			d.ColumnMeta.Generations[attr] = definition
-		}
-	}
-	for i := range d.Constraints.Check {
-		if d.Constraints.Check[i].OID == 0 {
-			id, err := e.catalog.allocateOIDLocked()
-			if err != nil {
-				return err
-			}
-			d.Constraints.Check[i].OID = id
-		}
-	}
-	for i := range d.Constraints.Unique {
-		if d.Constraints.Unique[i].OID == 0 {
-			id, err := e.catalog.allocateOIDLocked()
-			if err != nil {
-				return err
-			}
-			d.Constraints.Unique[i].OID = id
-		}
-	}
-	for i := range d.Constraints.ForeignKeys {
-		if d.Constraints.ForeignKeys[i].OID == 0 {
-			id, err := e.catalog.allocateOIDLocked()
-			if err != nil {
-				return err
-			}
-			d.Constraints.ForeignKeys[i].OID = id
-		}
-	}
-	return nil
-}
-
 // Replacement retains temporary objects and imports persistent definitions.
 // Reserve the entire candidate before allocating collision replacements.
 func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {

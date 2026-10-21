@@ -101,7 +101,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 			if err = access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), descriptor); err != nil {
 				break
 			}
-			nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, descriptor)
+			nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
 		}
 		if err == nil {
 			var prepared index.RemintedIndexStorage

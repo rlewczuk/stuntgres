@@ -94,24 +94,3 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 	}
 	return nil
 }
-func relationDiagnosticKind(r *catalog.Relation) string {
-	if r.RelationKind == catalog.ForeignRelation {
-		return "foreign table"
-	}
-	if r.RelationKind == catalog.CompositeRelation {
-		return "composite type"
-	}
-	if r.RelationKind == catalog.MaterializedViewRelation {
-		return "materialized view"
-	}
-	if r.RelationKind == catalog.IndexRelation {
-		return "index"
-	}
-	if r.RelationKind == catalog.ViewRelation {
-		return "view"
-	}
-	if r.RelationKind == catalog.SequenceRelation {
-		return "sequence"
-	}
-	return "table"
-}

@@ -261,7 +261,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)
 						}
-						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, Target: target, Root: root, OID: rule.OID, Label: "rule " + catalog.DependencyIdentifier(rule.Name) + " on " + relationDiagnosticKind(d) + " " + name, Relation: d})
+						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, Target: target, Root: root, OID: rule.OID, Label: "rule " + catalog.DependencyIdentifier(rule.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
 					}
 				}
 				if d.View != nil {
@@ -278,7 +278,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)
 						}
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: relationDiagnosticKind(d) + " " + name, Relation: d})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
 					}
 					continue
 				}
@@ -309,7 +309,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					column := a
 					column.SubID = d.Attributes[i]
 					if typedef.UsageDependsOn(c.Usage, target) {
-						direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, Relation: d, Column: c.Name})
+						direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + catalog.RelationDiagnosticKind(d) + " " + name, Relation: d, Column: c.Name})
 					}
 					if droppedColumns[column] {
 						continue

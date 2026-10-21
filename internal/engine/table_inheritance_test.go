@@ -92,7 +92,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !analyze.SameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
 		t.Fatal(child.ColumnMeta.Defaults, p.ColumnMeta.Defaults)
 	}
-	if err := e.assignDefinitionOIDsLocked(child); err != nil {
+	if err := table.AssignDefinitionOIDs(ddlHost{e: e}, child); err != nil {
 		t.Fatal(err)
 	}
 	if child.Constraints.NotNull[0].OID == p.Constraints.NotNull[0].OID || child.ColumnMeta.Defaults[1].OID == p.ColumnMeta.Defaults[1].OID {

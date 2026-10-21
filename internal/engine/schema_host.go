@@ -35,5 +35,5 @@ func (h ddlHost) AddCascadeNotice(line string) {
 }
 
 func (h ddlHost) RelationDiagnostic(a ddl.Authority, relation *catalog.Relation) (kind, name string) {
-	return relationDiagnosticKind(relation), relationDiagnosticName(ddlAuthorityOf(a), relation)
+	return catalog.RelationDiagnosticKind(relation), relationDiagnosticName(ddlAuthorityOf(a), relation)
 }

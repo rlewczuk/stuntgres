@@ -333,7 +333,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	e.mu.Lock()
 	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err == nil {
-		err = e.assignDefinitionOIDsLocked(&next)
+		err = table.AssignDefinitionOIDs(ddlHost{e: e}, &next)
 	}
 	e.mu.Unlock()
 	if err != nil {

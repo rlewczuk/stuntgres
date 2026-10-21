@@ -511,7 +511,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		next.Constraints.Check = slices.Clone(next.Constraints.Check)
 		next.Constraints.NotNull = slices.Clone(next.Constraints.NotNull)
 		e.mu.Lock()
-		err = e.assignDefinitionOIDsLocked(next)
+		err = table.AssignDefinitionOIDs(ddlHost{e: e}, next)
 		e.mu.Unlock()
 		if err != nil {
 			return Result{}, err

@@ -138,7 +138,7 @@ func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		parent := view.MustRelation(d.SQLIndex.Parent)
 		return "constraint " + catalog.DependencyIdentifier(d.SQLIndex.Constraint.Name) + " on table " + dependencyRelationName(view, parent, path)
 	}
-	object := relationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)
+	object := catalog.RelationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)
 	if target.SubID != 0 {
 		for i, attribute := range d.Attributes {
 			if attribute == target.SubID {
@@ -196,7 +196,7 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 		dependents = append(dependents, supportedDependent{oid: edge.Check.OID, target: edge.Target, label: label, checkOwner: edge.Relation.Address().ObjectID, checkOrdinal: edge.Check.Ordinal})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, supportedDependent{oid: edge.View.Address().ObjectID, target: edge.Target, view: edge.View.Address(), label: relationDiagnosticKind(edge.View) + " " + dependencyRelationName(catalogView, edge.View, path)})
+		dependents = append(dependents, supportedDependent{oid: edge.View.Address().ObjectID, target: edge.Target, view: edge.View.Address(), label: catalog.RelationDiagnosticKind(edge.View) + " " + dependencyRelationName(catalogView, edge.View, path)})
 	}
 	for _, edge := range foreign {
 		if !edge.Automatic {
@@ -298,7 +298,7 @@ func ruleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddre
 					if observe != nil {
 						observe(d.Address())
 					}
-					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(catalogView, d, path)})
+					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + dependencyRelationName(catalogView, d, path)})
 					break
 				}
 			}
