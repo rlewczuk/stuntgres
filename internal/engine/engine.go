@@ -161,12 +161,12 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 			}}
 		}
-		d.Comment = namespaceCommentBaseline(ns.oid)
+		d.Comment = catalog.NamespaceCommentBaseline(ns.oid)
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
 	for _, typ := range types {
-		d := &catalog.Type{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
+		d := &catalog.Type{SQLType: typ, Comment: catalog.BuiltinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
 			d.ObjectRevision = 1
 		}

@@ -273,7 +273,7 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 	if valid && ns.Temporary != (ids.SessionToken{}) {
 		return nil
 	}
-	if valid && ns.Comment != namespaceCommentBaseline(a.ObjectID) {
+	if valid && ns.Comment != catalog.NamespaceCommentBaseline(a.ObjectID) {
 		c.schemaComments = append(c.schemaComments, dumpComment{ns.Name(), ns.Comment})
 	}
 	if valid && (a.ObjectID == ids.PublicNamespaceOID || a.ObjectID == ids.PGCatalogNamespaceOID || a.ObjectID == ids.PGToastNamespaceOID || a.ObjectID == 13229) &&

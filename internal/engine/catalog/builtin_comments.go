@@ -1,4 +1,4 @@
-package engine
+package catalog
 
 import (
 	"stuntgres/internal/engine/ids"
@@ -7,7 +7,9 @@ import (
 
 // Descriptions from PostgreSQL REL_18_0 pg_namespace.dat and pg_type.dat.
 // Only descriptors already represented by the native catalog are seeded.
-func namespaceCommentBaseline(oid ids.OID) string {
+
+// NamespaceCommentBaseline is the seeded comment of a built-in schema.
+func NamespaceCommentBaseline(oid ids.OID) string {
 	switch oid {
 	case ids.PGCatalogNamespaceOID:
 		return "system catalog schema"
@@ -19,7 +21,8 @@ func namespaceCommentBaseline(oid ids.OID) string {
 	return ""
 }
 
-func builtinTypeComment(id sqltype.ID) string {
+// BuiltinTypeComment is the seeded comment of a built-in type.
+func BuiltinTypeComment(id sqltype.ID) string {
 	switch id {
 	case 16:
 		return "boolean, format 't'/'f'"
