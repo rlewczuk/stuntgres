@@ -13,8 +13,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
-	view := e.catalog.read(next)
+// reownExpressions remaps and retags every stored expression of next after
+// its objects were renumbered by mapping (or, with typesOnly, after only
+// their types changed). view is the catalog view of next; its owner supplies
+// the reference domain.
+func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
+	domain := view.Owner().Domain
 	collation := typedef.RemappedCollationCapabilities(next, mapping)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		if old == (ids.ObjectRef{}) || typesOnly {
@@ -26,7 +30,7 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			target.SubID = old.Address.SubID
 			old.Address = target
 		}
-		old = e.catalog.Domain.Ref(old.Epoch, old.Address)
+		old = domain.Ref(old.Epoch, old.Address)
 		old.Epoch = next.Epoch()
 		return old
 	}
@@ -304,7 +308,7 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 }
 
 func (e *Engine) remapCatalogExpressions(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
-	return e.reownCatalogExpressions(next, mapping, false)
+	return reownExpressions(e.catalog.read(next), next, mapping, false)
 }
 
 // Imported rules have identities outside the descriptor address map. Reserve

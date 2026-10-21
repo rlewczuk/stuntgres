@@ -18,7 +18,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if err := reownCatalogScalarTypes(next, nil, nil); err != nil {
 		return err
 	}
-	if err := e.reownCatalogExpressions(next, nil, true); err != nil {
+	if err := reownExpressions(e.catalog.read(next), next, nil, true); err != nil {
 		return err
 	}
 	// ALTER changes executable domain recipes, unlike mere retained-value

@@ -185,7 +185,7 @@ func TestDomainDefaultRemapInternal(t *testing.T) {
 	if _, err := typedef.ReownDomainTypes(next, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := source.reownCatalogExpressions(next, nil, true); err != nil {
+	if err := reownExpressions(source.catalog.read(next), next, nil, true); err != nil {
 		t.Fatal(err)
 	}
 	remapped := source.catalog.read(next)

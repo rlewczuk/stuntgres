@@ -88,7 +88,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if err := source.reownCatalogExpressions(next, nil, true); err != nil {
+	if err := reownExpressions(source.catalog.read(next), next, nil, true); err != nil {
 		t.Fatal(err)
 	}
 	view := source.catalog.read(next)

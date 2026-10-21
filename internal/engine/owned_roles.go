@@ -96,7 +96,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 		if err == nil && providersChanged {
 			candidate := e.stageRead(stage).State()
-			err = e.reownCatalogExpressions(candidate, nil, false)
+			err = reownExpressions(e.catalog.read(candidate), candidate, nil, false)
 			if err == nil {
 				for a, d := range candidate.Descriptors() {
 					if old := stage.Get(a); old != nil {

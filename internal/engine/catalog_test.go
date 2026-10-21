@@ -263,7 +263,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		e.mu.Lock()
 		next := catalog.CloneState(e.catalog.state)
 		next.SetEpoch(epoch)
-		err := e.reownCatalogExpressions(next, nil, false)
+		err := reownExpressions(e.catalog.read(next), next, nil, false)
 		if err == nil {
 			e.catalog.state = next
 		}

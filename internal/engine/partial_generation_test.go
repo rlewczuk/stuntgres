@@ -92,7 +92,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			// A nonempty relation mapping and newer epoch must not change
 			// references in the typesOnly pass.
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{f.parent.Address(): {ClassID: ids.RelationClassID, ObjectID: 30000}}
-			if err := f.e.reownCatalogExpressions(next, mapping, true); err != nil {
+			if err := reownExpressions(f.e.catalog.read(next), next, mapping, true); err != nil {
 				t.Fatal(err)
 			}
 			reowned := next.MustRelation(index.Address())
@@ -153,7 +153,7 @@ func TestPartialIndexPredicateTypeGenerationUnchanged(t *testing.T) {
 	if stored.ExpressionTypesChanged(f.index, typ) {
 		t.Fatal("unchanged partial predicate reported a generation change")
 	}
-	if err := f.e.reownCatalogExpressions(next, nil, true); err != nil {
+	if err := reownExpressions(f.e.catalog.read(next), next, nil, true); err != nil {
 		t.Fatal(err)
 	}
 	for address, descriptor := range f.e.catalog.state.Descriptors() {
