@@ -61,9 +61,9 @@ private restore stage, and install the replacement catalog atomically.
 
 | What | Where | Replaced by |
 |---|---|---|
-| Switch #1: Dump descriptor kinds | `control.go:265`–`800` | 18c Collect table |
-| Switch #2: Dump phase emission | `control.go:1095`–`1190` | 18c Emit table |
-| Switch #3: Restore statement allow-list and per-statement hooks | `control.go:1836`–`2071`, plus the hook calls around it | 30a hook table |
+| Switch #1: Dump descriptor kinds | was `control.go:265`–`800` | done in 18c: `dumpCollectors` and `dumpRelationCollectors` (`dump_collect.go`, `dump_collect_relation.go`) |
+| Switch #2: Dump phase emission | was `control.go:1095`–`1190` | done in 18c: `dumpPhaseEmitters` (`dump_emit.go`) and `dumpSections` (`dump_sections.go`) |
+| Switch #3: Restore statement allow-list and per-statement hooks | `control.go:276`–`512` (since 18c), plus the hook calls around it | 30a hook table |
 | `remapPreparedCatalog` (descriptor-kind switch over owners and ACLs) | `principal_remap.go:16` | `catalog` 5i (done: `catalog.RemapPrincipals`); mapper construction stays in the root |
 | `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `catalog_expression_reown.go:15` | `stored` 22c (`ReownExpressions`) |
 | `remapViewRuleOIDs` | `catalog_expression_reown.go:312` | stays in the root: it allocates OIDs (the `stored` prompt) |
@@ -72,7 +72,7 @@ private restore stage, and install the replacement catalog atomically.
 `reownCatalogScalarTypes` (`domain_remap.go:14`) is a fifth walk of the
 same kind; it goes with `ReownExpressions` in 22c.
 
-### Restore, step by step (`control.go:1682`–`2291`)
+### Restore, step by step (`control.go:122`–`729` since 18c)
 
 1. `stage := e.restoreStage()` (`principal_remap.go:276`): a private
    engine with the source roles, database and foreign definitions.
@@ -140,9 +140,9 @@ owners, materialized snapshots, domain replays, ...).
 
 ### What stays in the root (all sub-steps)
 
-- `Engine.mu` and the Dump snapshot capture (`captureDumpLocked` after
-  18c): catalog state, roles, row versions, frontier, sequences,
-  `foreignNamespaces`.
+- `Engine.mu` and the Dump snapshot capture (`captureDumpLocked` and the
+  Collect tables, `dump_capture.go`, since 18c): catalog state, roles, row
+  versions, frontier, sequences, `foreignNamespaces`.
 - `restoreStage` (`principal_remap.go:276`): it reads `e.roles`,
   `e.catalog`, the foreign definitions and builds a private `*Engine`.
 - `replaceCatalog` (`catalog.go:1306`): `persistentReplacementCatalog`,
@@ -247,8 +247,9 @@ locked capture, plus `restore_hooks.go`, `restore_replay.go`,
 Follow 30b. Expected shape:
 
 1. Create `internal/engine/control` with `errors.go` and `README.md`.
-2. Move the Dump graph assembly and emission (`control.go:800`–`1661`),
-   the Restore loop (`control.go:1682`–`2291` minus stage creation and
+2. Move the Dump graph assembly and emission (`dump_script.go`,
+   `dump_emit.go`, `dump_emit_declaration.go`, `dump_sections.go` since
+   18c), the Restore loop (`control.go:122`–`729` minus stage creation and
    publication), `contextReader`, `bootstrapNamespaceDumpable`, the hook
    and table entry types and `restoreRun` (if 30b keeps it there).
 3. The root keeps thin `Engine.Dump` and `Engine.Restore` methods: capture
