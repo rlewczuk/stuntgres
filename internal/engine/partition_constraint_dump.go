@@ -13,14 +13,15 @@ import (
 
 type partitionConstraintReplay struct {
 	original  catalog.Read
+	resolver  dump.Resolver
 	temporary map[ids.ObjectAddress]string
 	occupied  map[ids.ObjectAddress]map[string]bool
 }
 
 // Reserve names against the entire captured namespace, not just objects that
 // happen to have been emitted. Temporary names depend on logical order, not OIDs.
-func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partitionConstraintReplay) {
-	replay := &partitionConstraintReplay{original: view, temporary: make(map[ids.ObjectAddress]string), occupied: make(map[ids.ObjectAddress]map[string]bool)}
+func partitionConstraintDumpCatalog(r dump.Resolver, view catalog.Read) (catalog.Read, *partitionConstraintReplay) {
+	replay := &partitionConstraintReplay{original: view, resolver: r, temporary: make(map[ids.ObjectAddress]string), occupied: make(map[ids.ObjectAddress]map[string]bool)}
 	var tables []*catalog.Relation
 	reserved := make(map[ids.ObjectAddress]map[string]bool)
 	for key := range view.Names() {
@@ -142,7 +143,7 @@ func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *
 		if root := index.PartitionReplayVirtualUniqueRoot(r.original, idx); root != nil && !index.PartitionReplayOnlyExclusion(root) {
 			return
 		}
-		if partitionConstraintCreator(r.original, idx) != event {
+		if partitionConstraintCreator(r.resolver, r.original, idx) != event {
 			return
 		}
 		used := r.occupied[idx.Namespace()]

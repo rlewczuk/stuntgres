@@ -109,7 +109,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	}
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
-	catalogView, constraintReplay := partitionConstraintDumpCatalog(catalogView)
+	catalogView, constraintReplay := partitionConstraintDumpCatalog(dumpResolver{}, catalogView)
 	domainRoles := e.roles.read(e.catalog.owner(), catalogView, e.roles.published)
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err

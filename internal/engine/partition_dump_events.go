@@ -49,7 +49,7 @@ func partitionDumpLateIndexTables(view catalog.Read) map[ids.ObjectAddress]bool 
 // Extend the existing declaration graph in place. The same source-priority
 // scheduler owns declarations, names, physical data, constraint origins and
 // captured membership/index edges; there is no independent topology sorter.
-func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Graph, declarations []dump.Event, tables []table.DumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
+func partitionDumpEvents(ctx context.Context, r dump.Resolver, view catalog.Read, graph dump.Graph, declarations []dump.Event, tables []table.DumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
 	lateTables := partitionDumpLateIndexTables(view)
 	lateIndexes := make(map[ids.OID]bool)
 	for oid := range indexIndices {
@@ -135,7 +135,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 			}
 			return dump.Event{OID: address.ObjectID, Phase: dump.Rename}, true, nil
 		}
-		oid, err := dumpPredecessor(view, address, ids.ObjectAddress{})
+		oid, err := r.Predecessor(view, address, ids.ObjectAddress{})
 		return dump.Event{OID: oid}, oid != 0, err
 	}
 	lateNames := make(map[ids.OID]bool)
@@ -166,12 +166,12 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 	seen := make(map[dump.Event]bool)
 	renameOrder := replay.finalRenameOrder()
 	for _, idx := range renameOrder {
-		provider, err := dumpPredecessor(view, idx.Address(), ids.ObjectAddress{})
+		provider, err := r.Predecessor(view, idx.Address(), ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
 		event := dump.Event{OID: idx.Address().ObjectID, Phase: dump.Rename}
-		creator := partitionConstraintCreator(view, idx)
+		creator := partitionConstraintCreator(r, view, idx)
 		graph[event] = []dump.Event{earlyTail, creator}
 		lateNames[idx.Address().ObjectID] = lateDeclarations[provider] || creator.Phase == dump.TableAttachment
 		if root := index.PartitionReplayVirtualUniqueRoot(view, idx); root != nil && !index.PartitionReplayOnlyExclusion(root) {
@@ -493,7 +493,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 			continue
 		}
 		names = append(names, dump.Event{OID: index.Address().ObjectID, Phase: dump.Rename})
-		creator := partitionConstraintCreator(view, index)
+		creator := partitionConstraintCreator(r, view, index)
 		if !slices.Contains(creators, creator) {
 			creators = append(creators, creator)
 		}

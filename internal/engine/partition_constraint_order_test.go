@@ -35,7 +35,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				}
 			}
 			view := e.catalog.read(state)
-			_, replay := partitionConstraintDumpCatalog(view)
+			_, replay := partitionConstraintDumpCatalog(dumpResolver{}, view)
 			// Exact ordinals, not just uniqueness, define canonical table allocation.
 			for i, index := range indexes {
 				want := fmt.Sprintf("__stuntgres_partition_key_%d", i+1)

@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func partitionConstraintCreator(view catalog.Read, idx *catalog.Relation) dump.Event {
+func partitionConstraintCreator(r dump.Resolver, view catalog.Read, idx *catalog.Relation) dump.Event {
 	root := index.PartitionReplayVirtualUniqueRoot(view, idx)
 	if root != nil && (!index.PartitionReplayOnlyExclusion(root) || root.Address() == idx.Address()) {
 		return dump.Event{OID: root.Address().ObjectID}
@@ -21,7 +21,7 @@ func partitionConstraintCreator(view catalog.Read, idx *catalog.Relation) dump.E
 	// ATTACH. Its name is an attachment prerequisite, not an attachment output.
 	// Only EXCLUDE's mandatory fresh clones use membership creator readiness.
 	if !idx.SQLIndex.IsExclusion() || idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || index.PartitionReplayUsingIndex(view, idx) {
-		oid, _ := dumpPredecessor(view, idx.Address(), ids.ObjectAddress{})
+		oid, _ := r.Predecessor(view, idx.Address(), ids.ObjectAddress{})
 		return dump.Event{OID: oid}
 	}
 	table := view.MustRelation(idx.SQLIndex.Parent)

@@ -200,7 +200,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		}
 	}
 	viewOrder := dump.DeclarationIDs(declarationOrder)
-	if err := partitionDumpEvents(ctx, s.originalCatalog, s.graph, dump.DeclarationEvents(viewOrder), s.tables, s.indexIndices, s.constraintReplay, s.deferDefaults); err != nil {
+	if err := partitionDumpEvents(ctx, dumpResolver{}, s.originalCatalog, s.graph, dump.DeclarationEvents(viewOrder), s.tables, s.indexIndices, s.constraintReplay, s.deferDefaults); err != nil {
 		return nil, err
 	}
 	s.invalidReplay = partitionInvalidDumpEvents(s.originalCatalog, s.graph, s.indexIndices)

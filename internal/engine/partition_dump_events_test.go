@@ -73,8 +73,8 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, replay := partitionConstraintDumpCatalog(f.view)
-			if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
+			_, replay := partitionConstraintDumpCatalog(dumpResolver{}, f.view)
+			if err := partitionDumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
 			order, err := dump.Order(context.Background(), graph, map[ids.OID]ids.OID{good.Address().ObjectID: 1})

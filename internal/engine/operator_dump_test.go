@@ -41,7 +41,7 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 	routine.OperatorDumpEvents(view, operators, graph)
 	declarations := dump.DeclarationEvents([]ids.OID{a, x, b, y})
 	replay := &partitionConstraintReplay{original: view}
-	if err := partitionDumpEvents(context.Background(), view, graph, declarations, nil, nil, replay, false); err != nil {
+	if err := partitionDumpEvents(context.Background(), dumpResolver{}, view, graph, declarations, nil, nil, replay, false); err != nil {
 		t.Fatal(err)
 	}
 	routine.NormalizeOperatorDumpPredecessors(view, graph)

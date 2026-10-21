@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -18,9 +19,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
+func partitionDumpPredecessors(r dump.Resolver, view catalog.Read, d *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
 	add := func(address ids.ObjectAddress) error {
-		id, err := dumpPredecessor(view, address, d.Address())
+		id, err := r.Predecessor(view, address, d.Address())
 		if err != nil {
 			return err
 		}

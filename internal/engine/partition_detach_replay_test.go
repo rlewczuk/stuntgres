@@ -39,7 +39,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 			tables := []table.DumpRelation{{Descriptor: f.root}, {Descriptor: f.leaf}}
 			indices := map[ids.OID]int{pi: 0, ci: 1}
 			replay := &partitionConstraintReplay{original: f.view, temporary: map[ids.ObjectAddress]string{}}
-			if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
+			if err := partitionDumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
 			plans := partitionInvalidDumpEvents(f.view, graph, indices)
@@ -134,8 +134,8 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	// rename barrier. Stored REGCLASS data must wait for that original identity.
 	tables := []table.DumpRelation{{Descriptor: f.root}, {Descriptor: f.leaf}, {Descriptor: consumer, Columns: consumer.Columns, Attributes: consumer.Attributes, Defaults: consumer.ColumnMeta.Defaults, Versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value}}}}}
 	indices := map[ids.OID]int{pi: 0, ci: 1, li: 2}
-	_, replay := partitionConstraintDumpCatalog(f.view)
-	if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
+	_, replay := partitionConstraintDumpCatalog(dumpResolver{}, f.view)
+	if err := partitionDumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 		t.Fatal(err)
 	}
 	partitionInvalidDumpEvents(f.view, graph, indices)

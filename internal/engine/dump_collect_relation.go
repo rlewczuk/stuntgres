@@ -324,7 +324,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			predecessors = append(predecessors, predecessor)
 		}
 	}
-	predecessors, err := partitionDumpPredecessors(c.catalogView, r, predecessors)
+	predecessors, err := partitionDumpPredecessors(dumpResolver{}, c.catalogView, r, predecessors)
 	if err != nil {
 		return tableDumpEdges{}, err
 	}
