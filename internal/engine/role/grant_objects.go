@@ -49,7 +49,7 @@ func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Des
 		return nil, nil, sqlError("42501", "permission denied for "+noun+" "+d.Name())
 	}
 	var warning *sqlstate.Error
-	if notice, ok := GrantWarning(d.Name(), "", requested, available, all, s.Revoke); ok {
+	if notice, ok := authorization.GrantWarning(d.Name(), "", requested, available, all, s.Revoke); ok {
 		warning = &notice
 	}
 	if available == 0 {

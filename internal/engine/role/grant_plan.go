@@ -14,31 +14,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// GrantWarning is the WARNING GRANT and REVOKE raise when they grant or
-// revoke fewer privileges than requested; false when there is none.
-func GrantWarning(relation, column string, requested, available authorization.Privileges, all, revoke bool) (sqlstate.Error, bool) {
-	if available == requested || available != 0 && all {
-		return sqlstate.Error{}, false
-	}
-	message, code := "no privileges were granted", "01007"
-	if available != 0 {
-		message = "not all privileges were granted"
-	}
-	if revoke {
-		code = "01006"
-		message = "no privileges could be revoked"
-		if available != 0 {
-			message = "not all privileges could be revoked"
-		}
-	}
-	if column == "" {
-		message += fmt.Sprintf(` for "%s"`, relation)
-	} else {
-		message += fmt.Sprintf(` for column "%s" of relation "%s"`, column, relation)
-	}
-	return sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message}, true
-}
-
 type columnGrantRequest struct {
 	sub  int32
 	name string
@@ -277,7 +252,7 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 				return ObjectGrantChange{}, false, sqlError("42501", "permission denied for "+noun+" "+relation.Name())
 			}
 		}
-		if warning, ok := GrantWarning(relation.Name(), "", targetMask, available, req.tableAll, s.Revoke); ok {
+		if warning, ok := authorization.GrantWarning(relation.Name(), "", targetMask, available, req.tableAll, s.Revoke); ok {
 			warn(warning)
 		}
 		if available != 0 {
@@ -355,7 +330,7 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 				return ObjectGrantChange{}, false, sqlError("42501", fmt.Sprintf(`permission denied for column "%s" of relation "%s"`, column.name, relation.Name()))
 			}
 		}
-		if warning, ok := GrantWarning(relation.Name(), column.name, column.mask, available, column.mask == authorization.ColumnGrantPrivileges, s.Revoke); ok {
+		if warning, ok := authorization.GrantWarning(relation.Name(), column.name, column.mask, available, column.mask == authorization.ColumnGrantPrivileges, s.Revoke); ok {
 			warn(warning)
 		}
 		// System attributes participate in release diagnostics, not native storage.
