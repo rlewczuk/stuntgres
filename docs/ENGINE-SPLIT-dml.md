@@ -90,7 +90,8 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 | `physicalRowEvent`, `flushPhysicalEvents` (`physical_row_events.go`) | root row-lock area (`statement_host_row_lock.go`) | 29a |
 | FK probe records (`foreign_key_probe.go`: `findForeignKeyParent`, `prepareForeignKeyChild`, `foreignKeyRows`, `probeForeignKeyIndex`); also used by `foreign_key_restore.go` | `table` | 24b; `dml` imports them |
 | `inheritance_query*.go` (`captureInheritanceQueryPrefix`, `inheritanceQueryClosure`, `inheritanceQueryLeaves`, `sourceOnly`); also used by SELECT admission (`query_admission.go`) | `table` (clean helpers, 24b); the scope methods stay with root query admission | 24b |
-| COPY codecs (`copy_options.go`, `copy_force.go`, `copy_text.go`, `copy_csv.go`, `copy_binary.go`) | `copyfmt` | 19 |
+| COPY codecs (options, FORCE binding, `ResolveColumns`, text/CSV `LineReader`, `BinaryReader`) | `copyfmt` (done, 19b) | 19 |
+| COPY execution (`copy.go`, `copy_text.go`, `copy_binary.go`, `copy_insertion.go`: cursors' `Next`/`diagnostic`, `copyOutput`, `copyBinaryOutput`) | `dml` | 29b |
 | COPY protocol and reservation (`copy_admission.go`, `protocol_copy.go`, `protocol_copy_query.go`, `CopyBoundary`, `StatementScope.Copy`/`CopyProtocol`) | root (public facade) | — |
 
 **`statementMutation`** (`cte_mutation_scope.go:16`) is the per-command
@@ -121,8 +122,8 @@ TRUNCATE records `truncateScope`, `truncateRelation`,
 `foreignKeyJob`, `foreignActionScope`, `foreignActionTransition`,
 `foreignActionPlan`, `foreignActionQuery`, and the inheritance target
 helpers `mutationRowIdentity`, `scatterMutationRow`, `mutationPhysicalRow`,
-`versionRows`, and COPY's `copyInsertion*` records and `copyTargets`,
-`copyRelationKind`); about 0.5k goes to `copyfmt`; the rest to the owners
+`versionRows`, and COPY's `copyInsertion*` records and `copyRelationKind`;
+`copyTargets` is now `copyfmt.ResolveColumns`); about 0.5k goes to `copyfmt`; the rest to the owners
 in the table above. Measurement dumps:
 `.cswd/tmp/ENGINE-SPLIT-POSTPONED-PLAN/dml/`.
 

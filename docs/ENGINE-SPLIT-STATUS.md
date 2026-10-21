@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `205d59485` (items 55, 56, 58, 60, 61, 64, 67, 71, 72, 73, 74 and 75). Steps 8–17 were
+Last verified against `master` at `f51e6d8f9` (items 55, 56, 58, 59, 60, 61, 64, 67, 71, 72, 73, 74 and 75). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,8 +18,7 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 57 (dump 18c), 59 (copyfmt 19b), 62 (ddl 20c, docs only),
-  65 (regobj 21b).
+- **Seams:** 57 (dump 18c), 62 (ddl 20c, docs only), 65 (regobj 21b).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
 - **Follow-ups in existing packages:** 76 (exec 11f),
   77 (analyze 12f), 78 (session 13f), 79 (access B6).
@@ -39,7 +38,9 @@ Item 72 (catalog 5i) is done, so table 24a (item 86) is ready.
 Item 75 (exec 11e) is done, so exec 11f (item 76) is ready; index 23b
 (item 83) still waits for 82 and 68. Item 61 (ddl 20b) is done, so ddl 20c
 (item 62) is ready; the Part B refines that build on it (items 84, 96, 101
-and 105) still wait for their own earlier items.
+and 105) still wait for their own earlier items. Item 59 (copyfmt 19b) is
+done and closes step 19; DML 29b (item 108) still waits for 107, 83, 87,
+91, 95 and 100.
 
 ## Task tree
 
@@ -412,10 +413,11 @@ and 105) still wait for their own earlier items.
   - [x] 18b — `dump` created and graph records moved (`fd27cb76f`,
     `6d4ca83c9`, `929c3a8d0`, `4fced3bba`, then the docs commit)
   - [ ] 18c — Collect/Emit provider tables replace Dump switches #1 and #2
-- [ ] **Step 19 — `copyfmt`** ([prompt](ENGINE-SPLIT-copyfmt.md); needs —)
+- [x] **Step 19 — `copyfmt`** ([prompt](ENGINE-SPLIT-copyfmt.md); needs —)
   - [x] 19a — COPY cursors split into codec and DML parts, in place
     (`b2d22701d`, `50cc79234`, `decb25737`, `9118a9cf0`, then the docs commit)
-  - [ ] 19b — `copyfmt` created and codecs moved
+  - [x] 19b — `copyfmt` created and codecs moved (`9e19cdd1a`, `644babd76`, `3b0f57c68`,
+    then the docs commit)
 - [ ] **Step 20 — `ddl`** ([prompt](ENGINE-SPLIT-ddl.md); needs —)
   - [x] 20a — One `Authority`, `Stage` and `Host` contract
   - [x] 20b — One root staging adapter (`b0d3e53b7`, `d25058ea5`, then the
@@ -858,8 +860,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     the codec, 913 clean lines; allocations unchanged · selected
     unit/`RACE=1` and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-59. [ ] COPY codecs 19b: `copyfmt` created, codecs moved —
-    [copyfmt](ENGINE-SPLIT-copyfmt.md) 19b · needs 58
+59. [x] COPY codecs 19b: `copyfmt` created, codecs moved —
+    [copyfmt](ENGINE-SPLIT-copyfmt.md) 19b · needs 58 (`9e19cdd1a`, `644babd76`, `3b0f57c68`,
+    then the docs commit) · options, FORCE binding, `LineReader`,
+    `BinaryReader`; `copyTargets` is `copyfmt.ResolveColumns`; no aliases;
+    allocations unchanged · selected unit/`RACE=1` and dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 60. [x] DDL 20a: one `Authority`, `Stage` and `Host` contract —
     [ddl](ENGINE-SPLIT-ddl.md) 20a · needs — (`3ec2314b9`, `19701cafd`,
     `578ed8479`, `201947f6d`, then the docs commit) · `routine`, `typedef`

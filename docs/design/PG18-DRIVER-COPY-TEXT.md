@@ -28,6 +28,8 @@ grant and publication revalidation is retained; no second binding authority is u
 
 A reusable cursor reads text through a mutex-free I/O wrapper. Framing recognizes consistent LF/CR/CRLF, final unterminated rows, escaped physical line endings, and standalone raw `\.` termination. Field splitting is escape-aware; decoding handles traditional backslash controls, octal/hex and escaped delimiters. Markers match raw fields. Raw/decoded bytes pass the existing canonical UTF8/NUL text-input validation.
 
+The framing, splitting and decoding codec is `internal/engine/copyfmt`; see [its README](../../internal/engine/copyfmt/README.md).
+
 Actual `sqltype.Usage` input environments provide scalar/domain/array and symbolic catalog codecs; COPY does not parse SQL literal strings or duplicate a type switch. Omission masks distinguish SQL NULL from effective DEFAULT markers. The shared INSERT binding/default helper and row assembly fill identities/defaults, compute generated values, check constraints, assemble all rows privately and invoke existing partition/write publication once. No per-row INSERT execution, partial row publication or parallel DML is introduced. Constant default preflight follows existing folding; a folded NULL is not an effective DEFAULT value. Sequence allocations remain governed by existing sequence semantics rather than fictional transactional sequence rollback.
 
 COPY error context is attached at the actual stage: line/column for conversion, raw line for framing/field/default diagnostics, line-only for constraint contexts where the server does so. Already supplied contexts and primary errors win; object fields are not guessed from names in prose. A late row, reader, cancellation or publication failure discards the complete statement stage.
