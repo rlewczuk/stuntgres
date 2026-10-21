@@ -201,8 +201,8 @@ expressions); the authority adapters (`analysis_authority.go`:
 `StatementDescription` wrappers of `CheckSignature`), the retag walker the
 host lends the binder (`MapBoundExpression`, `MapBoundQueryExpression`),
 query preflight (`query_preflight.go`; expression preflight is in `exec`)
-and the captured input
-resolvers with their retarget methods (`captured_input_target.go`); stored
+and the captured input constructors (`captured_input.go`; the resolvers and
+their retarget methods are in `regobj`); stored
 view definitions, which the binder reads only through the host's
 `StoredViewVolatile`, `CaptureRetainedViewInput` and `ValidateViewReadGraph`
 (`query_cte_volatility.go`, `view_retained_input.go`, `view_cycles.go`); query set preflight

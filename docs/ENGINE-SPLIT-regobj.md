@@ -419,9 +419,73 @@ no aliases remain; the checks in §8.3 pass.
     reference selections under Targeted tests in quick mode and with
     `REFERENCE=1` (on the `8cf863131` replay); `make quickcheck` on the replayed branch. `make bench`
     not needed.
-- [ ] 21c — Input resolvers moved (item 66)
+- [x] 21c — Input resolvers moved (item 66) (`8565a61e7`, `fc8a45cdd`, `b65da8100`, then the docs
+  commit) · selected unit/`RACE=1` and dual-mode proof and quickcheck
+  passed; racecheck/finalcheck skipped at user request
+  - Started at `c02c9d97e`; rebased onto `92ce8c794` (ddl 20d, partition
+    25a) and `bfeb5f38a` (index 23a) before the docs commit. Re-measured:
+    the six resolver types were where the inventory says, but more root
+    code reached into them than it lists: `captured_input_target.go` (the retarget methods),
+    identical cursor detach blocks in `protocol_portal.go` and
+    `sql_cursor.go`, field pokes in `analysis_host.go`
+    (`ResolveOperatorText`, `ResolveRegtypeText`), a literal in
+    `object_address_lookup.go`, and `resolveParsedTypeName` callers in
+    `routine_host.go`, `role_grant_routines.go` and
+    `object_address_lookup.go`.
+  - `8565a61e7` (authority, in place): `regobj.Authority`, `InputCapture`
+    and `NoticeHost` (`regobj/input_authority.go`). The resolvers hold an
+    `InputCapture` and call `View.CanUse(Environment, ref)` and the
+    `catalog.Definition*At` readers. The constructors moved into the root
+    `captured_input.go`; `inputCapture` reads the database, token and
+    TEMP namespace and then drops the session and settings, as before, so
+    the environment is the same stripped `AuthorizationView`.
+    `statementHost.TypeNameNotice` implements `NoticeHost`. The seam test
+    `TestTypeInputNoticesFollowTheCurrentHost` was written first and
+    failed (no notice reached the host).
+  - `fc8a45cdd` (call sites, in place): the analysis host retargets its
+    fresh captures (`RetargetOperator`/`RetargetRegtype`) instead of
+    setting fields; one `detachCursorInput` replaces the two cursor
+    blocks; `regclass_capture.go` became `regclass_lookup.go` (it keeps
+    `Engine.regclassLocked`). `frontier` over the move set (output in
+    `.cswd/tmp/PG18-ENGINE-SPLIT-REGOBJ-RESOLVERS/frontier-21c.txt`): OUT
+    is `sqlError` only.
+  - `b65da8100` (move): five files and `captured_input_target.go` moved
+    with `git mv`; `ClassInput` joined `regobj/regclass_input.go`. Names:
+    `capturedRegclassInput` → `ClassInput`, `capturedRegtypeInput` →
+    `TypeInput`, `capturedOperatorInput` → `OperatorInput`,
+    `capturedRoutineInput` → `RoutineInput`, `capturedRegTSInput` →
+    `TextSearchInput`, `capturedRegObjectInput` → `ObjectInput`;
+    `resolveParsedTypeName` → `ResolveParsedTypeName`,
+    `detachCursorInput` → `DetachCursorInput`. New `New*Input`
+    constructors and the `TypeInput.Authority`/`Path` readers (used by
+    `TestMaterializedRefreshOwnerContext`). `regobj` now also imports
+    `access` and `typedef` (L9). The `definition*` wrappers on
+    `AuthorizationView` stay; each still has other root users.
+  - Deviation: `NoticeHost.TypeNameNotice` takes the notice level as well
+    as the diagnostic. The type-modifier WARNING
+    (`TestReferenceSQLCursorRegtypeWarnings`) also goes to the current
+    execution's operation, not only the parser NOTICE. A resolver with an
+    execution authority asserts `Host.(NoticeHost)` at each call; a
+    typed-nil `*statementHost` or a nil `op` emits nothing, as `scopeOf`
+    did.
+  - Tests: `captured_input_target_test.go` and the new
+    `regtype_input_notice_test.go` moved into `regobj`. The portal and
+    position copy checks of `TestRoutineDiagnosticOwnership` became
+    `regobj.TestRoutineInputParameterAndLiteralCopies`; the diagnostic
+    half stays in the engine. Adapted only:
+    `TestRegObjectAliasCapturedAuthority` (constructor),
+    `TestRegTSProviderResolution` (builds its input from an
+    `InputCapture` with the overridden path and recaptures the copy's
+    view), and `TestMaterializedRefreshOwnerContext` (readers; it reads
+    `materializedPopulation` through the environment). None deleted.
+  - Verification: build and vet (only the known `composites`,
+    `copylocks` and `lostcancel` findings) after every commit; the
+    targeted units, with `-race` on the notice, cursor and materialized
+    refresh tests; the reference selections under Targeted tests in quick
+    mode and with `REFERENCE=1`; `make quickcheck` on the rebased branch.
+    `make bench` not needed.
 
-Outstanding aliases: none (21b added none).
+Outstanding aliases: none (21b and 21c added none).
 
 ### Notes for later steps
 
