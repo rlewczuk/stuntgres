@@ -14,7 +14,7 @@ type seriesSignature struct {
 	result sqltype.ID
 }
 
-// Include released nonselected signatures: execution scope cannot alter overload
+// Keep every released overload in resolution so execution admission cannot alter
 // ambiguity, implicit input selection, or genuine missing-signature diagnostics.
 var seriesSignatures = [...]seriesSignature{
 	{[4]sqltype.ID{sqltype.Int4, sqltype.Int4}, 2, sqltype.Int4},
@@ -165,6 +165,9 @@ func (b *Binder) bindSeries(raw parser.FunctionExpr, visible bool) (expr.Expr, e
 	}
 	s := candidates[0]
 	properties := expr.Properties{Volatility: expr.Immutable, StageDependent: true}
+	if s.result == sqltype.Timestamptz && s.arity == 3 {
+		properties.Volatility = expr.Stable
+	}
 	for i, arg := range args {
 		u := b.Type(s.args[i]).Usage()
 		if unknown[i] {
@@ -210,9 +213,6 @@ func (b *Binder) bindSeries(raw parser.FunctionExpr, visible bool) (expr.Expr, e
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
-	}
-	if s.result != sqltype.Int4 && s.result != sqltype.Int8 && s.result != sqltype.Numeric && s.result != sqltype.Timestamp {
-		return nil, expr.ErrorAt("0A000", "generate_series with temporal arguments is unsupported", raw.Pos)
 	}
 	switch b.Clause.AggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":

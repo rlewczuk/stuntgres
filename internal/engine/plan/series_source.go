@@ -20,14 +20,14 @@ func (e SeriesExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}
-	if len(e.Args) != 2 && len(e.Args) != 3 {
+	if len(e.Args) < 2 || len(e.Args) > 4 || len(e.Args) == 4 && e.Usage.Type.ID() != sqltype.Timestamptz {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid series arguments")
 	}
-	if e.Usage.Type.ID() == sqltype.Timestamp {
-		if len(e.Args) != 3 {
+	if e.Usage.Type.ID() == sqltype.Timestamp || e.Usage.Type.ID() == sqltype.Timestamptz {
+		if len(e.Args) < 3 {
 			return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid timestamp series arguments")
 		}
-		var values [3]sqltype.Value
+		var values [4]sqltype.Value
 		for i, arg := range e.Args {
 			value, err := arg.Eval(ctx)
 			if err != nil {
@@ -35,7 +35,13 @@ func (e SeriesExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 			}
 			values[i] = value
 		}
-		cursor, err := sqltype.OpenTimestampSeries(ctx.FunctionContext(), values[0], values[1], values[2])
+		var cursor sqltype.TimestampSeriesCursor
+		var err error
+		if e.Usage.Type.ID() == sqltype.Timestamptz {
+			cursor, err = sqltype.OpenTimestamptzSeries(ctx.FunctionContext(), values[0], values[1], values[2], ctx.FunctionInput(), values[3:len(e.Args)]...)
+		} else {
+			cursor, err = sqltype.OpenTimestampSeries(ctx.FunctionContext(), values[0], values[1], values[2])
+		}
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}

@@ -93,12 +93,15 @@ func TestSeriesBinding(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42725" {
 		t.Fatal(err)
 	}
-	_, err = b.BindFunction(nullCountRaw("generate_series",
+	dateSeries, err := b.BindFunction(nullCountRaw("generate_series",
 		parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "date"}, Text: "2020-01-01"},
 		parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "date"}, Text: "2020-01-02"},
 		parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "interval"}, Text: "1 day"}))
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "generate_series with temporal arguments is unsupported" {
-		t.Fatal("DATE category fabricated temporal ambiguity", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dateSeries.ResultUsage().Type.ID() != sqltype.Timestamptz || dateSeries.(plan.SeriesExpr).IntrinsicVolatility() != expr.Stable || !exec.SourceAdmitted(dateSeries) {
+		t.Fatal("DATE category did not select executable preferred timestamptz", dateSeries)
 	}
 }
 

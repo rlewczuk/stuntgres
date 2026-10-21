@@ -260,8 +260,7 @@ stored views preserve symbolic arguments and width, never live cursors.
 Dump/Restore replays eligible views and literal stored data under its existing
 whitelist; it does not enable INSERT query sources or CTAS during Restore.
 
-Plain timestamp series executes as described below; timestamptz signatures
-participate in truthful overload resolution but remain non-executable.
+Plain timestamp and timezone-aware timestamptz series execute as described below.
 INSERT VALUES remains excluded; FROM providers use the shared source lane below.
 Public coverage and commands live in [reference/numeric](../reference/numeric/README.md#integer-target-series-selected-proof).
 
@@ -289,7 +288,7 @@ ordinary numeric addition retains its normal overflow checks.
 Held executions open fresh state, and existing final publication and mutation
 staging preserve cancellation/failure atomicity. Symbolic view arguments and
 materialized literal data survive native Dump/Reset/Restore; live cursors never
-do. Timestamptz, INSERT VALUES and Restore query-source exclusions are unchanged.
+do. INSERT VALUES and Restore query-source exclusions are unchanged.
 See [selected numeric proof and smoke](../reference/numeric/README.md#numeric-series-selected-proof).
 
 ## Timestamp series
@@ -314,6 +313,67 @@ publication and mutation staging prevent partial results on failure/cancellation
 Views and native Dump/Restore retain symbolic calls and typed persisted data,
 never cursors; Restore's query-source whitelist is unchanged.
 See [selected proof and smoke](../reference/numeric/README.md#timestamp-series-selected-proof).
+
+## Timezone-aware series
+
+`generate_series(timestamptz,timestamptz,interval)` advances in the executing
+session's TimeZone. Its four-argument overload adds a strict TEXT zone operand,
+resolved once using the actual input environment: session-known abbreviations,
+the configured abbreviation set, then named/POSIX zones. Fixed abbreviations keep
+their offset; dynamic abbreviations select full owning rules, not a forced
+seasonal offset. In particular, New York's EST abbreviation is fixed−05, while
+explicit America/New_York uses both standard and daylight rules. Release-compatible
+zone lookup clips explicit text to at most255bytes at an encoding-safe boundary.
+
+Month and day components use local calendar arithmetic with month-end clamping,
+then the microsecond component adds literal elapsed time. With New York bounds
+`2024-03-09 12:00-05` through `2024-03-11 13:00-04`, `1 day` yields UTC instants
+Mar9 17:00, Mar10 16:00, Mar11 16:00; `24 hours` yields17:00 on all three dates.
+The existing gap/fold authority and iterative month clamping apply. A positive
+mixed-sign interval may stall or reverse; no progress guard is imposed.
+
+Output is unconstrained TIMESTAMPTZ (OID1184, typmod−1), even for NULL or
+direction-empty results. Finite values use the existing time.Time adapter;
+infinite values retain the existing infinity codec. Three-argument intrinsic
+volatility is Stable, four-argument intrinsic volatility Immutable; argument
+volatility can raise either, and neither SRF is scalar-folded. Each held Execute
+opens a fresh invocation and captures current stepping settings. Rendering uses
+the independently captured statement output environment; offset-qualified
+endpoint constants isolate that from Prepare-time literal parsing.
+
+Every demanded operand is evaluated once before provider strictness. Any NULL
+formal gives typed empty output and suppresses provider zone/step validation,
+not independently demanded input errors. Otherwise explicit zone lookup precedes
+step checks and direction checks, including infinite endpoints. Invalid zones
+raise22023 `time zone "No/Such_Zone" not recognized`; zero/net-zero and infinite
+steps retain the timestamp-series22023 messages. Timestamp infinities are legal;
+use bounded target demand or cancellation, never unbounded FROM probes. Checked
+successor overflow raises22008 before emitting even an equal-bound current row.
+PostgreSQL Bind and the native UTF8 text codec reject embedded NUL text with22021
+`invalid byte sequence for encoding "UTF8": 0x00` before provider strictness.
+The public diagnostic Context is `unnamed portal parameter $1`, without a
+parameter-value suffix.
+
+Compatible repeated parameters retain one inferred type. Reusing one parameter
+for incompatible endpoint and interval destinations retains the generic native
+binder's0A000 `parameter reused with different destination types`, without
+Detail/Position; PostgreSQL reports42P08 with its conflict Detail and Position.
+This support does not widen generic parameter conflict inference or pg_proc's
+public column projection. Existing projected routine identity/result/volatility/
+strictness/parallel/arity attributes and actual EXECUTE controls remain public;
+unprojected declaration attributes are covered by provider-authority units.
+
+Target zip/padding, FROM/ROWS FROM, ordinality and lateral sources use the existing
+pipeline. Native eager final publication and staged INSERT SELECT/CTAS prevent
+partial results, rows or relations on late failure/cancellation. Views preserve
+symbolic calls: after native Dump/Reset/Restore, three arguments use the querying
+session's zone and an explicit named fourth argument keeps its zone. CTAS/data
+rows preserve actual instants and dump canonical UTC values. Settings and live
+cursors are not serialized; retained rows/schema stay immutable across settings,
+writes and control replacement. Same-/fresh-Driver replay and actual emitted SQL
+replay on PostgreSQL exercise that contract. Restore's query-source exclusions
+are unchanged, including0A000 for an INSERT SELECT in a restore script.
+See [selected proof and smoke](../reference/numeric/README.md#timezone-aware-series-selected-proof).
 
 ## Array target subscripts
 
@@ -358,7 +418,7 @@ See [selected proof](../reference/numeric/README.md#array-target-subscripts-sele
 
 ## Function sources
 
-Existing integer/bigint/numeric/plain-timestamp `generate_series` and `generate_subscripts` calls use the
+Existing integer/bigint/numeric/timestamp/timestamptz `generate_series` and `generate_subscripts` calls use the
 same typed source stage as supported string, JSON, `jsonb_path_query` and regexp
 calls. Output aliases preserve positional names and types, including empty metadata.
 Comma sources form Cartesian products; `ROWS FROM` zips to the longest member

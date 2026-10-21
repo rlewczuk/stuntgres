@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
 	"time"
 
@@ -137,7 +136,6 @@ func TestReferenceSeriesRestrictions(t *testing.T) {
 }
 
 func TestReferenceSeriesBoundaries(t *testing.T) {
-	// Plain timestamp is executable; timestamptz remains a capability boundary.
 	seriesScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, tc := range []struct {
 			q           string
@@ -158,11 +156,6 @@ func TestReferenceSeriesBoundaries(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET TIME ZONE 'UTC'", 0))
 				}
 				s := fixture.Select(tc.q, tc.cols, tc.types, tc.rows)
-				if !b.PG && (tc.types[0] == "TIMESTAMPTZ" || strings.Contains(tc.q, "::timestamptz")) {
-					message := "generate_series with temporal arguments is unsupported"
-					s = fixture.ErrorDiagnostic(tc.q, seriesDiagnostic(tc.q, "generate_series", "0A000", message, ""))
-					s.SelectRows = true
-				}
 				seriesBoth(t, p, b, c, s)
 			})
 		}

@@ -1378,8 +1378,9 @@ Calls can be nested or zipped with other target SRFs, with typed NULL padding.
 Held statements retain inferred widths but open fresh invocations each time.
 Views retain symbolic calls; native Dump/Reset/Restore preserves those views and
 literal persisted query results, not generator state. Numeric overloads now use
-the same lanes with exact decimal arithmetic (see below). Plain timestamp
-series also executes; timestamptz and INSERT VALUES expansion remain exclusions. FROM source support is described below. See
+the same lanes with exact decimal arithmetic (see below). Plain timestamp and
+timezone-aware timestamptz series also execute; INSERT VALUES expansion remains
+excluded. FROM source support is described below. See
 [query contracts](docs/QUERIES.md#integer-target-series) and
 [selected proof and feature smoke](reference/numeric/README.md#integer-target-series-selected-proof).
 
@@ -1410,6 +1411,26 @@ or cancellation for nonterminating calls. Successor overflow raises `22008`
 before emitting the current row, including an equal endpoint under LIMIT1.
 Existing target/FROM, held statement, ACL, view and native replay lanes are reused.
 See [timestamp series proof](reference/numeric/README.md#timestamp-series-selected-proof).
+
+### Timezone-aware series — change note
+
+`generate_series(timestamptz,timestamptz,interval[,text])` advances calendar
+months and days in the executing session's TimeZone, or in the explicit fourth
+argument's zone. Literal hours remain elapsed time: across New York's March2024
+spring transition, daily noon emits17:00Z,16:00Z,16:00Z, while24-hour steps emit
+17:00Z each day. Explicit named zones keep their full DST rules; fixed
+abbreviations retain their offsets, and dynamic abbreviations use their full
+owning zone. Zone lookup uses the invocation's session/abbreviation environment.
+
+Held executions capture current settings afresh, independently of output
+presentation. Empty results still expose TIMESTAMPTZ metadata. Strict NULL,
+zero/infinite step diagnostics, legal infinite endpoints, mixed-sign behavior
+and advance-before-emission overflow follow the existing timestamp cursor.
+Native views retain symbolic three-/four-argument calls across Dump/Reset/Restore;
+persisted query results retain actual instants, not session settings or cursors.
+Existing atomic publication, cancellation and routine EXECUTE authority apply.
+See [timezone series contracts](docs/QUERIES.md#timezone-aware-series) and
+[selected proof and smoke](reference/numeric/README.md#timezone-aware-series-selected-proof).
 
 
 Change note: scalar REGOPER and REGOPERATOR retain unsigned operator OIDs through

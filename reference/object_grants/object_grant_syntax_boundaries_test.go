@@ -268,18 +268,30 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select("SELECT generate_series(TIMESTAMP '2020-01-01',TIMESTAMP '2020-01-02',INTERVAL '1 day')::text AS v ORDER BY v", []string{"v"}, []string{"TEXT"}, [][]any{{"2020-01-01 00:00:00"}, {"2020-01-02 00:00:00"}}))
 		})
-		// Timestamptz remains lookup-only. Retain unsupported-target atomicity.
-		lookupOnly := "pg_catalog.generate_series(timestamp with time zone,timestamp with time zone,interval)"
-		if b.PG {
-			defer objectGrantRoutineCleanup(t, p, c, []string{lookupOnly})
-			run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+lookupOnly+" TO og_object_reader", 0))
-		} else {
-			fixture.RoleGrantError(run, "GRANT EXECUTE ON FUNCTION "+lookupOnly+" TO og_object_reader", "0A000", "routine privileges are unsupported for unimplemented routines in embedded mode")
-		}
+		// Timestamptz series now grants and executes through the same provider.
+		timestamptz := "pg_catalog.generate_series(timestamp with time zone,timestamp with time zone,interval)"
+		defer objectGrantRoutineCleanup(t, p, c, []string{timestamptz})
+		run(fixture.Exec("SET TIME ZONE 'UTC'", 0))
+		run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+timestamptz+" TO og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Select("SELECT generate_series(TIMESTAMPTZ '2024-03-09 17:00+00',TIMESTAMPTZ '2024-03-10 17:00+00',INTERVAL '1 day')::text AS v ORDER BY v", []string{"v"}, []string{"TEXT"}, [][]any{{"2024-03-09 17:00:00+00"}, {"2024-03-10 17:00:00+00"}}))
+		})
 		defer objectGrantRoutineCleanup(t, p, c, []string{"pg_catalog.abs(integer)"})
 		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION pg_catalog.abs(integer) FROM PUBLIC", 0))
-		late := "GRANT EXECUTE ON FUNCTION pg_catalog.abs(integer)," + lookupOnly + " TO og_object_reader"
+		late := "GRANT EXECUTE ON FUNCTION pg_catalog.abs(integer)," + timestamptz + " TO og_object_reader"
+		run(fixture.Exec(late, 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Select("SELECT abs(-7::integer) AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			run(fixture.Select("SELECT generate_series(TIMESTAMPTZ '2024-03-09 17:00+00',TIMESTAMPTZ '2024-03-09 17:00+00',INTERVAL '1 day')::text AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"2024-03-09 17:00:00+00"}}))
+		})
+		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION pg_catalog.abs(integer) FROM og_object_reader", 0))
+		// isfinite(timestamptz) has a released identity but no execution provider.
+		// Preserve the original late-target failure atomicity, without keeping
+		// an obsolete boundary on the now executable series overload.
+		lookupOnly := "pg_catalog.isfinite(timestamp with time zone)"
+		late = "GRANT EXECUTE ON FUNCTION pg_catalog.abs(integer)," + lookupOnly + " TO og_object_reader"
 		if b.PG {
+			defer objectGrantRoutineCleanup(t, p, c, []string{lookupOnly})
 			run(fixture.Exec(late, 0))
 			fixture.RoleGrantActor(run, "og_object_reader", func() {
 				run(fixture.Select("SELECT abs(-7::integer) AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))

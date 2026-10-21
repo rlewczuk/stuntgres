@@ -2,6 +2,73 @@
 
 ## Testing
 
+### Timezone-aware series selected proof
+
+Untagged `timestamptz_series_*_test.go` defines independent UTC instants for
+session/explicit zones, DST day versus24hours, month clamping, gaps/folds,
+reverse/mixed-sign steps and legal infinite endpoints. Direct and real held
+statements cover inferred formals, repeated parameters, metadata, current
+Execute settings and independent physical sessions. Full diagnostics include
+zone-before-step validation, strict NULLs, successor overflow, encoding-safe
+255-byte zone clipping and the common native/PostgreSQL22021 NUL rejection
+before provider strictness, documented in [query contracts](../../docs/QUERIES.md#timezone-aware-series).
+Stock abbreviation cases include session EST priority over Australia and LHDT's
+full Lord_Howe owner. Catalog identities939/6274 and real EXECUTE deny/regrant
+consumers use the common routine authority.
+The incompatible repeated endpoint/step parameter witness preserves the common
+native binder's0A000 `parameter reused with different destination types`,
+without Detail/Position, versus PostgreSQL42P08 with its exact conflict Detail
+and source Position. Compatible repeated formals still execute on both backends.
+RoutineMetadata asserts the existing public pg_proc OID/result/volatility/
+strictness/parallel/arity projection and real deny/grant/execute/revoke behavior.
+The RoutineAuthority unit independently checks exact provider signatures,
+set-returning status, no defaults and nonvariadic flags; no additional pg_proc
+columns or generic parameter-resolution behavior are enabled by this part.
+
+Finite FROM/ordinality/ROWS FROM/lateral, late mutation failure, actual active
+cancellation and eager native publication preserve existing ownership. Native
+controls genuinely Dump/Reset/Restore symbolic three-/four-argument views and
+persisted instants into same/fresh Driver engines; retained rows/schema remain
+stable. Real mode replays actual emitted SQL on PostgreSQL. Every changed/new
+definition requires both modes after its last change. Root runs these selectors
+with external900-second deadlines.
+
+Fast precancellation/no-publication and retained-row context cancellation are
+native API assertions only. PostgreSQL cancellation observes active server
+admission, cancels through the server and joins completion; both backends retain
+same-owner/preheld recovery and mutation sentinel/failed-CTAS checks. No fast
+precanceled pq nil-output or transport-health assumption is made.
+
+```sh
+make check RUN='^TestReferenceTimestamptzSeries(Values|Zones|Infinity|Diagnostics)$'
+make check RUN='^TestReferenceTimestamptzSeries(Values|Zones|Infinity|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceTimestamptzSeries(Binding|Session|Metadata|RoutineMetadata)$'
+make check RUN='^TestReferenceTimestamptzSeries(Binding|Session|Metadata|RoutineMetadata)$' REFERENCE=1
+make check RUN='^TestReferenceTimestamptzSeries(Composition|Lifecycle|Atomicity|Controls)$'
+make check RUN='^TestReferenceTimestamptzSeries(Composition|Lifecycle|Atomicity|Controls)$' REFERENCE=1
+make check RUN='^TestReferenceSeriesBoundaries$'
+make check RUN='^TestReferenceSeriesBoundaries$' REFERENCE=1
+make check RUN='^TestReferenceObjectGrantNativeBoundaries$'
+make check RUN='^TestReferenceObjectGrantNativeBoundaries$' REFERENCE=1
+make check RUN='^Test(TimestamptzSeries(Cursor|Calendar|Zones|Sign|Overflow|Lifecycle|Hooks|RoutineAuthority|Parser)|SeriesBinding)$'
+make check RUN='^TestReferenceTimestamptzSeries(Session|Lifecycle|Atomicity|Controls)$' RACE=1
+make check RUN='^TestReferenceTimestamptzSeries(Session|Lifecycle|Atomicity|Controls)$' RACE=1 REFERENCE=1
+make check RUN='^TestReferenceTimestamptzSeriesFeatureSmoke$'
+make check RUN='^TestReferenceTimestamptzSeriesFeatureSmoke$' REFERENCE=1
+```
+
+FeatureSmoke invokes the permanent Values, Session, Metadata, Diagnostics,
+Composition, Atomicity and Controls witnesses with fresh fixtures. Expected
+observations are exact NY17/16/16Z versus24hour17/17/17Z, held session rebinding
+versus fixed explicit zone, empty/nonempty TIMESTAMPTZ schema, full validation
+diagnostics, typed zip padding/ordinality, unchanged mutation sentinels and real
+native same-/fresh-engine roundtrip plus PostgreSQL dump replay. Quiet package
+success/exit0 is expected, not claimed observed here. Shared-cursor changes also
+require both selected modes over the TimestampSeries witnesses below.
+Whole-project Docker-free verification remains `make quickcheck`, separate from
+postintegration `make finalcheck`; root owns all verification evidence.
+
+
 ### Timestamp series selected proof
 
 Untagged `timestamp_series_*_test.go` defines independent civil rows, iterative
@@ -166,8 +233,8 @@ INT4/INT8 values, endpoints, NULL empties, checked overflow, metadata and actual
 held reuse. Overload/decorations/context expectations are independent and
 resolved against pinned PostgreSQL18.0, including legal ALL and window keys.
 DATE endpoints plus INTERVAL step resolve to the preferred TIMESTAMPTZ signature:
-Boundaries asserts exact UTC dates on PG and the full native temporal capability
-diagnostic, never a fabricated ambiguity or native temporal execution.
+Boundaries now asserts exact UTC dates/types on both backends, including the
+explicit-zone form, rather than retaining an obsolete native capability error.
 Composition reuses zip/padding/nested target stages; huge finite series with
 LIMIT3 must return only1,2,3 without whole-series materialization.
 

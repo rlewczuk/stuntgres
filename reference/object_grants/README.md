@@ -4,9 +4,13 @@
 
 Timestamp `generate_series(timestamp,timestamp,interval)` is a genuine executable
 routine938. RoutineSchemaKinds proves deny→grant→execute→revoke→deny after
-removing PUBLIC execute. NativeBoundaries retains standalone and late-target
-atomicity using the still-excluded timestamptz overload. Run both migrated
-definitions in both modes (external900-second deadline per command):
+removing PUBLIC execute. Timestamptz overloads939/6274 also execute.
+NativeBoundaries now grants and executes the original three-argument target
+and its multi-target route. Its still-unimplemented `isfinite(timestamptz)`
+late target retains the independent native failure-atomicity assertion.
+Both selected timezone overloads' catalog/deny/grant/execute/revoke witnesses
+are in [numeric](../numeric/README.md#timezone-aware-series-selected-proof).
+Run both migrated definitions in both modes (external900-second deadline):
 
 ```sh
 make check RUN='^TestReferenceObjectGrant(RoutineSchemaKinds|NativeBoundaries)$'
