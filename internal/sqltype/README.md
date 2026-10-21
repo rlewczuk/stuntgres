@@ -55,6 +55,15 @@ Descriptor validation, context-before-NULL, strict full demand and retained
 Boolean-prefix behavior remain owned by those consumers. Input/ordinary errors
 are never suppressed by SQLSTATE; unsupported arithmetic/scalar methods remain
 `0A000`.
+Raw pgcrypto AES and BF use one parser/dispatch in `pgcrypto_raw.go`, not separate
+type grammars. AES owns its stdlib block loop; BF CBC/ECB/CFB64 uses the same
+fixed Blowfish P/S state, constants, Feistel function and expansion as bcrypt.
+Raw key packing is separate (unsigned bytes including NUL, first56, empty-zero);
+bcrypt's terminating-NUL and2x sign-extension protocol is unchanged. Per-call
+schedules/feedback, immutable input strings and one builder-owned output avoid
+payload-sized scratch or frame caches. Complete PKCS-run validation is shared;
+CFB64 streams arbitrary tails and treats valid padding options as no-ops.
+
 
 ## Testing
 
@@ -90,6 +99,26 @@ make check RACE=1 RUN='^TestPgcrypto(DES(Protocol|Cancellation)|MD5Cancellation)
 The public direct/prepared/control scenarios and actual feature smoke belong to
 [`reference/catalogs`](../../reference/catalogs/README.md); they require both
 native and real pinned PostgreSQL modes before integration.
+
+Raw BF units supplement the public SQL proofs with independent primitive encrypt
+AND decrypt vectors, unsigned raw packing/56-byte clipping, full padding-run
+validation (including preceding-data acceptance), deterministic cancellation at
+entry/mid-data/final publication and concurrent distinct schedules/modes.
+Allocation inputs (short/1MiB data and a1.5MiB key) are prebuilt. Calibrated
+`testing.Benchmark` iterations evaluate batches of16 and byte totals normalize
+to one evaluation without integer truncation; warmed `testing.AllocsPerRun(20)`
+supplies exact kernel counts. The independent budgets remain output plus32KiB
+fixed scratch and16 allocations/call. Data-growth residual bytes and oversized-key
+extra bytes must each fit that same32KiB allowance; key allocation counts must
+match exactly. This catches payload/key-sized copies without requiring unrelated
+process byte noise in separate benchmark runs to be identical. These are
+behavioral/resource tests, not source/wiring tests.
+
+```sh
+make check RUN='^TestPgcrypto(BF(Vectors|KeySchedule|Padding|Cancellation|IsolationAndAllocations)|AES(Vectors|KeyIV|Padding|Parser|Cancellation|Carrier)|Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEncoding|Allocations|Cancellation))$'
+make check RACE=1 RUN='^TestPgcryptoBF(Cancellation|IsolationAndAllocations)$'
+```
+
 
 `TestProtocolValueCodecs` exercises real unavailable receive/send diagnostics,
 domain receiver declaration versus invocation/base-error precedence, the builtin

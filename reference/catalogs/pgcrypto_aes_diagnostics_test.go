@@ -186,17 +186,21 @@ func TestReferencePgcryptoAESNullAndDemand(t *testing.T) {
 
 func TestReferencePgcryptoAESUnsupported(t *testing.T) {
 	pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-		for _, typ := range []string{"aes-cfb", "rijndael-cfb", "bf", "blowfish", "bf-cbc", "bf-ecb", "bf-cfb", "blowfish-cbc", "blowfish-ecb", "blowfish-cfb", "des", "des-cbc", "des-ecb", "3des", "3des-cbc", "3des-ecb", "des3-cbc", "des3-ecb", "cast5", "cast5-cbc", "cast5-ecb"} {
+		for _, typ := range []string{"aes-cfb", "rijndael-cfb", "des", "des-cbc", "des-ecb", "3des", "3des-cbc", "3des-ecb", "des3-cbc", "des3-ecb", "cast5", "cast5-cbc", "cast5-ecb"} {
 			if pg {
-				// Actual pinned OpenSSL provider outcomes, not native capability
-				// parity. Only the witnessed encrypt signature is asserted here.
+				// Pinned18.6 default-plus-legacy provider observations; native
+				// exclusions below are intentionally unchanged.
 				switch typ {
 				case "aes-cfb", "rijndael-cfb":
 					pgcryptoResult(t, p, c, r, "encrypt", "SELECT encrypt('foo','key',$1)", "e5b6f9", typ)
 				case "3des", "3des-cbc", "3des-ecb", "des3-cbc", "des3-ecb":
 					pgcryptoResult(t, p, c, r, "encrypt", "SELECT encrypt('foo','key',$1)", "bfe34a5f2fe205ce", typ)
 				default:
-					aesErrorRoutes(t, p, c, r, "SELECT encrypt('foo','key',$1)", fixture.Diagnostic{Code: "39000", Message: "encrypt error: Cipher cannot be initialized"}, typ)
+					expected := "bfe34a5f2fe205ce"
+					if strings.HasPrefix(typ, "cast5") {
+						expected = "2dfb96d858cf0e57"
+					}
+					aesHeldResult(t, p, c, r, "encrypt", "SELECT encrypt('foo','key',$1)", expected, typ)
 				}
 				continue
 			}

@@ -1500,7 +1500,7 @@ arguments survive stored rendering, generated/default/CHECK/view consumers and
 native Dump/Reset/Restore; no always-on builtin aliases are installed.
 
 
-## Installed pgcrypto hashing, bcrypt passwords, raw AES and random data
+## Installed pgcrypto hashing, bcrypt passwords, raw AES/BF and random data
 
 Registered pgcrypto1.4 installs fourteen scalar overloads: digest(TEXT,TEXT),
 digest(BYTEA,TEXT), hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT),
@@ -1581,21 +1581,35 @@ arbitrary shared-library loading remain excluded.
 Pgcrypto members must carry only their genuine provider identity; simultaneous
 crypto/fuzzy markers are rejected by both manifest and descriptor admission.
 
-Raw encryption implements AES CBC/ECB only, with default CBC/PKCS and explicit
-`pad:none`; observed rijndael spellings denote these same AES modes. Raw slots
-infer BYTEA, not TEXT, and keys/IVs contain uninterpreted octets. Keys choose
-16/24/32 bytes, zero-padding short keys and clipping beyond32; IVs choose the
-first16 bytes with zero suffixes when short. ECB ignores a nonnull IV.
-Strict NULL still evaluates demanded siblings. A complete PKCS block is added
-to aligned/empty plaintext; nopad never strips data and requires block alignment.
-Invalid lengths/padding raise39000 with the actual function's English primary.
+Raw encryption implements AES CBC/ECB and Blowfish CBC/ECB/CFB64, with default
+CBC. Observed rijndael spellings denote AES; bf/blowfish spellings select BF,
+including explicit -cbc/-ecb/-cfb aliases. Raw slots infer BYTEA, not TEXT, and
+keys/IVs contain uninterpreted octets. AES keys choose16/24/32 bytes, zero-padding
+short keys and clipping beyond32; AES IVs choose the first16 bytes/right-zero-fill.
+BF keys cycle unsigned octets, including NUL, without a terminating byte, and
+clip beyond56 bytes; an empty key equals one zero byte. BF IVs use the first8
+bytes/right-zero-fill. Omitted IVs are zero. ECB ignores a nonnull IV, but a NULL
+IV remains strict; demanded siblings still evaluate before NULL suppression.
+
+CBC/ECB PKCS padding adds1..block-size bytes, including a complete block for
+aligned/empty plaintext. Nopad preserves suffix bytes and requires alignment.
+Padded decryption validates every byte of the actual padding run, not preceding
+data. Invalid lengths/padding raise39000 with the actual function's English
+primary and no partial result. CFB64 accepts arbitrary lengths, including empty
+and partial tails; valid default/pkcs/none padding choices are no-ops.
+
 Cipher type strings use ASCII folding and UTF8-safe63-byte clipping without trim
-or notices. Malformed/unknown options and unknown ciphers retain22023; recognized
-CFB, Blowfish, DES/3DES and CAST5 cipher inventory is native0A000, not a false
-PostgreSQL unknown-algorithm claim. These exclusions do not expand native modes.
-The stdlib AES block loop uses fixed key/IV/block scratch, one owned result and
-bounded cancellation polling. Each frame reconstructs its own key and mode.
-Raw AES provides no authentication: wrong keys/IVs are not guaranteed to fail.
+or notices. All options parse before cipher lookup, empty slash segments are
+accepted and the final pad value wins. Malformed/unknown options and unknown
+ciphers retain22023. Recognized AES-CFB, DES/3DES and CAST5 raw cipher inventory
+remains native0A000, not a false PostgreSQL unknown-algorithm claim.
+BF reuses bcrypt's actual fixed Blowfish primitive/constants, with distinct raw
+key packing and reverse-round block decryption; password semantics are unchanged.
+AES/BF loops keep fixed per-call scratch and one owned output, poll context at
+most64KiB apart and retain no schedule/key/IV/mode in stored expression plans.
+Raw AES/BF supplies no authentication: wrong keys/IVs and corrupted CFB ciphertext
+are not guaranteed to fail. Test-only oracle legacy-provider configuration is
+not a native provider option or an external production crypto dependency.
 See [PostgreSQL raw encryption](https://www.postgresql.org/docs/18/pgcrypto.html#PGCRYPTO-RAW-ENC-FUNCS).
 
 ## Installed uuid-ossp version 4

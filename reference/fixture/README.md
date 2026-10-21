@@ -78,6 +78,22 @@ suppressed by Go's quiet runner; the real-backend metadata assertions still run.
 These checks do not replace whole-project Docker-free quickcheck or post-merge
 finalcheck.
 
+### Test-only legacy crypto oracle
+
+Catalog `TestMain` opts into `WithLegacyCryptoProvider()` through `Main`.
+The existing single pinned container receives a reader-backed OpenSSL
+configuration before startup and `OPENSSL_CONF=/tmp/stuntgres-openssl.cnf`;
+both `default` and `legacy` providers are explicitly activated. Other reference
+packages remain default-off. No host temporary file, second container, native
+configuration or production OpenSSL dependency is introduced.
+
+Actual BF known-answer SQL plus unchanged AES fixtures prove this setup, not a
+configuration-path or option-wiring unit test. Legacy activation also changes
+the catalog oracle's DES/CAST initialization outcomes; native exclusions remain
+unchanged. BF oracle-first selectors and discovery status are documented in
+[catalog testing](../catalogs/README.md#raw-bf-oracle-first-proof).
+
+
 ### Shared grant scenario helpers
 
 `role_grant_columns.go` owns the common helpers used by both

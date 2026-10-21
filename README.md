@@ -5126,14 +5126,19 @@ scalar overloads: immutable digest(TEXT,TEXT), digest(BYTEA,TEXT),
 hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT) return raw BYTEA; immutable
 crypt(TEXT,TEXT) and volatile gen_salt(TEXT[,INT4]) return TEXT.
 Immutable encrypt/decrypt(BYTEA,BYTEA,TEXT) and
-encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT) return BYTEA using raw AES CBC/ECB,
-with PKCS padding by default or explicit `pad:none`. Unknown data/key/IV operands
-infer BYTEA; known TEXT operands require explicit casts. AES keys right-zero-pad
-to16/24/32 bytes and clip beyond32; IVs right-zero-pad or clip to16 bytes, default
-to zero and are ignored by ECB. Aligned plaintext gets a full PKCS padding block;
-nopad requires block alignment. Malformed padding/length raises operation-specific
-39000. Type normalization follows digest/HMAC; invalid cipher/options raise22023,
-while recognized excluded cipher modes are explicit native0A000 boundaries.
+encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT) return BYTEA using raw AES CBC/ECB
+or Blowfish CBC/ECB/CFB64. CBC is the default; CBC/ECB use PKCS padding by default
+or explicit `pad:none`. CFB64 accepts arbitrary lengths and valid padding choices
+are no-ops. Unknown data/key/IV operands infer BYTEA; known TEXT needs explicit
+casts. AES keys right-zero-pad to16/24/32 bytes and clip beyond32, with16-byte IVs.
+BF cycles unsigned raw key octets including NUL, clips beyond56 bytes and treats
+an empty key like one zero octet; its IV is8 bytes. IVs right-zero-pad or clip,
+default to zero and are ignored by ECB (but NULL IV remains strict). CBC/ECB add
+a complete PKCS block to aligned/empty plaintext; nopad requires alignment.
+Malformed padding/length raises operation-specific39000. Invalid cipher/options
+raise22023; AES-CFB, DES/3DES and CAST5 raw modes remain native0A000 boundaries.
+BF and bcrypt share one standard-library-only Blowfish primitive, not AES or an
+external crypto provider; each invocation owns its schedule and feedback state.
 Raw encryption supplies no integrity protection; see
 [PostgreSQL raw encryption functions](https://www.postgresql.org/docs/18/pgcrypto.html#PGCRYPTO-RAW-ENC-FUNCS).
 Volatile gen_random_bytes(INT4), gen_random_uuid() and fips_mode() return BYTEA,
@@ -5189,7 +5194,9 @@ add `REFERENCE=1` for pinned PostgreSQL. Run the native actual-mode witness in
 separate processes with `env GODEBUG=fips140=off make check RUN='^TestReferencePgcryptoRandomFIPSMode$'`
 and `env GODEBUG=fips140=on make check RUN='^TestReferencePgcryptoRandomFIPSMode$'`.
 Raw AES smoke: `make check RUN='^TestReferencePgcryptoAESFeatureSmoke$'`;
-add `REFERENCE=1` for pinned PostgreSQL. Password smoke:
+raw BF smoke: `make check RUN='^TestReferencePgcryptoBFFeatureSmoke$'`.
+Add `REFERENCE=1` for pinned PostgreSQL (catalog oracle activates both default
+and legacy OpenSSL providers, test-only). Password smoke:
 `make check RUN='^TestReferencePgcryptoPasswordFeatureSmoke$'`;
 add `REFERENCE=1` for the pinned PostgreSQL counterpart. Digest/HMAC smoke remains
 `make check RUN='^TestReferencePgcryptoFeatureSmoke$'`.

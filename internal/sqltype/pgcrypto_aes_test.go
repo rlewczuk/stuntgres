@@ -25,7 +25,7 @@ func TestPgcryptoAESVectors(t *testing.T) {
 	key := aesUnitHex(t, "2b7e151628aed2a6abf7158809cf4f3c")
 	iv := aesUnitHex(t, "000102030405060708090a0b0c0d0e0f")
 	for _, tc := range []struct{ fn, input, want string }{{"encrypt_iv", plain, cipher}, {"decrypt_iv", cipher, plain}} {
-		got, err := pgcryptoAES(context.Background(), tc.fn, tc.input, key, iv, "aes/pad:none")
+		got, err := pgcryptoRaw(context.Background(), tc.fn, tc.input, key, iv, "aes/pad:none")
 		if err != nil || got != tc.want {
 			t.Fatalf("%s got %x err=%v", tc.fn, got, err)
 		}
@@ -83,13 +83,13 @@ func TestPgcryptoAESPadding(t *testing.T) {
 		for i := 16 - pad; i < 16; i++ {
 			block[i] = byte(pad)
 		}
-		n, valid := pgcryptoAESUnpad(&block)
+		n, valid := pgcryptoRawUnpad(block[:])
 		if !valid || n != 16-pad {
 			t.Fatal(pad, n, valid)
 		}
 		if pad > 1 {
 			block[16-pad] ^= 1
-			if _, valid := pgcryptoAESUnpad(&block); valid {
+			if _, valid := pgcryptoRawUnpad(block[:]); valid {
 				t.Fatal("incomplete padding validation", pad)
 			}
 		}
@@ -97,7 +97,7 @@ func TestPgcryptoAESPadding(t *testing.T) {
 	for _, pad := range []byte{0, 17, 255} {
 		var block [16]byte
 		block[15] = pad
-		if _, valid := pgcryptoAESUnpad(&block); valid {
+		if _, valid := pgcryptoRawUnpad(block[:]); valid {
 			t.Fatal("invalid pad accepted", pad)
 		}
 	}
@@ -105,15 +105,27 @@ func TestPgcryptoAESPadding(t *testing.T) {
 
 func TestPgcryptoAESParser(t *testing.T) {
 	for _, tc := range []struct {
-		typ                       string
-		ecb, padding, unsupported bool
+		typ     string
+		cipher  pgcryptoRawCipher
+		mode    pgcryptoRawMode
+		padding bool
 	}{
-		{"aes", false, true, false}, {"rijndael-cbc", false, true, false},
-		{"aes-ecb//pad:pkcs/pad:none/", true, false, false}, {"rijndael-ecb/pad:none/pad:pkcs", true, true, false},
-		{"aes-cfb/pad:none", false, false, true}, {"bf", false, true, true},
+		{"aes", pgcryptoCipherAES, pgcryptoModeCBC, true},
+		{"rijndael-cbc", pgcryptoCipherAES, pgcryptoModeCBC, true},
+		{"aes-ecb//pad:pkcs/pad:none/", pgcryptoCipherAES, pgcryptoModeECB, false},
+		{"rijndael-ecb/pad:none/pad:pkcs", pgcryptoCipherAES, pgcryptoModeECB, true},
+		{"aes-cfb/pad:none", pgcryptoCipherExcluded, pgcryptoModeCBC, false},
+		{"bf", pgcryptoCipherBF, pgcryptoModeCBC, true},
+		{"blowfish-cbc", pgcryptoCipherBF, pgcryptoModeCBC, true},
+		{"bf-ecb/pad:none", pgcryptoCipherBF, pgcryptoModeECB, false},
+		{"blowfish-ecb", pgcryptoCipherBF, pgcryptoModeECB, true},
+		{"bf-cfb", pgcryptoCipherBF, pgcryptoModeCFB64, true},
+		{"blowfish-cfb/pad:bogus/pad:none", pgcryptoCipherBF, pgcryptoModeCFB64, false},
+		{"des", pgcryptoCipherExcluded, pgcryptoModeCBC, true},
+		{"cast5", pgcryptoCipherExcluded, pgcryptoModeCBC, true},
 	} {
-		got, err := parsePgcryptoAES(tc.typ)
-		if err != nil || got != (pgcryptoAESOptions{ecb: tc.ecb, padding: tc.padding, unsupported: tc.unsupported}) {
+		got, err := parsePgcryptoRaw(tc.typ)
+		if err != nil || got != (pgcryptoRawOptions{cipher: tc.cipher, mode: tc.mode, padding: tc.padding}) {
 			t.Fatal(tc, got, err)
 		}
 	}
@@ -121,7 +133,7 @@ func TestPgcryptoAESParser(t *testing.T) {
 		{"unknown/pad", "Badly formatted type"}, {"aes-cfb/foo:x", "Unknown option"},
 		{"aes-cfb/pad:bogus", "No such cipher algorithm"}, {"aes-128-cbc", "No such cipher algorithm"},
 	} {
-		_, err := parsePgcryptoAES(tc.typ)
+		_, err := parsePgcryptoRaw(tc.typ)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" || diagnostic.Message != "Cannot use \""+tc.typ+"\": "+tc.reason {
 			t.Fatal(tc, err)
@@ -146,7 +158,7 @@ func TestPgcryptoAESCancellation(t *testing.T) {
 	for _, fn := range []string{"encrypt_iv", "decrypt_iv"} {
 		for _, after := range []int{1, 2, 3, 4} {
 			ctx := &aesCancelContext{Context: context.Background(), after: after}
-			got, err := pgcryptoAES(ctx, fn, strings.Repeat("x", 131072), "key", "iv", "aes/pad:none")
+			got, err := pgcryptoRaw(ctx, fn, strings.Repeat("x", 131072), "key", "iv", "aes/pad:none")
 			if !errors.Is(err, context.Canceled) || got != "" || ctx.calls != after {
 				t.Fatal(fn, after, len(got), ctx.calls, err)
 			}

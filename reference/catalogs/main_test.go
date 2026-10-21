@@ -6,4 +6,4 @@ import (
 	"testing"
 )
 
-func TestMain(m *testing.M) { os.Exit(fixture.Main(m)) }
+func TestMain(m *testing.M) { os.Exit(fixture.Main(m, fixture.WithLegacyCryptoProvider())) }

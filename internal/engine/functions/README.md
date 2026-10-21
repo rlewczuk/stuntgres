@@ -1048,11 +1048,17 @@ DES at eight bytes, folds all xdes bytes and polls cancellation. MD5-crypt strea
 passwords through the existing context-aware hash helper, with eight-byte salt
 truncation. Exact2a/2x bcrypt semantics remain unchanged;2b/2y use DES fallback.
 SHA-crypt remains unsupported. Six digest algorithms return raw BYTEA.
-The same carrier supports the four BYTEA-only raw AES overloads, including four
-children for `_iv`; unknown raw slots infer BYTEA rather than HMAC's TEXT
-preference. `internal/sqltype/pgcrypto_aes.go` owns stdlib AES CBC/ECB, PKCS/none,
-fixed effective key/IV buffers, full padding validation and bounded cancellation.
-Neither the comparable signature plan nor the carrier retains frame key/IV/mode.
+The same four BYTEA-only raw overloads support AES CBC/ECB and BF CBC/ECB/CFB64,
+including four children for `_iv`; unknown raw slots infer BYTEA rather than
+HMAC's TEXT preference. `internal/sqltype/pgcrypto_raw.go` owns the one shared
+parser/dispatch and complete PKCS-run validation. AES retains stdlib block
+encryption; raw BF and bcrypt share the actual Blowfish primitive/constants in
+`pgcrypto_blowfish.go` and `pgcrypto_blowfish_constants.go`. Raw BF cycles unsigned
+key bytes including NUL (first56; empty equals zero), unlike bcrypt's password
+packing. CBC/ECB use PKCS/none; CFB64 accepts arbitrary tails and valid pads have
+no effect. Fixed per-call schedules/key/IV/feedback scratch, one owned output and
+bounded cancellation avoid payload staging/per-block allocation. Neither the
+comparable signature plan nor carrier retains frame key/IV/mode/schedule.
 crypt/gen_salt return TEXT. Volatile gen_salt and gen_random_bytes request
 entropy once only after demanded children, strict NULL handling and count/name
 validation. Random bytes validate1..1024 before using at most1024 bytes of scratch.
@@ -1679,6 +1685,10 @@ make check RUN='^TestPgcrypto(Password(Entropy|Volatility)|Bcrypt(Vectors|Passwo
 make check RUN='^TestPgcryptoAES(Vectors|KeyIV|Padding|Parser|Cancellation|Carrier)$'
 make check RUN='^TestReferencePgcryptoAESFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferencePgcryptoAESFeatureSmoke$'
+make check RUN='^TestPgcryptoBF(Vectors|KeySchedule|Padding|Cancellation|IsolationAndAllocations)$'
+make check RACE=1 RUN='^TestPgcryptoBF(Cancellation|IsolationAndAllocations)$'
+make check RUN='^TestReferencePgcryptoBFFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoBFFeatureSmoke$'
 ```
 
 ```sh

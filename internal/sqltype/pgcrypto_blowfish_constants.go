@@ -3,7 +3,7 @@ package sqltype
 // Blowfish Pi constants from PostgreSQL REL_18_0 contrib/pgcrypto/crypt-blowfish.c.
 // Written by Solar Designer, 1998–2002, and placed in the public domain.
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_0/contrib/pgcrypto/crypt-blowfish.c
-var pgcryptoBcryptInitial = pgcryptoBcryptState{
+var pgcryptoBlowfishInitial = pgcryptoBlowfishState{
 	p: [18]uint32{
 		0x243f6a88, 0x85a308d3, 0x13198a2e, 0x03707344,
 		0xa4093822, 0x299f31d0, 0x082efa98, 0xec4e6c89,

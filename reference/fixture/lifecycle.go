@@ -46,13 +46,34 @@ func referenceStart() error {
 	if trackCommitTimestamp {
 		tracking = "on"
 	}
-	Container, err = postgres.Run(ctx, referenceImage,
+	options := []testcontainers.ContainerCustomizer{
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
 		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
 		testcontainers.WithCmdArgs("-c", "max_prepared_transactions=100",
 			"-c", "log_line_prefix=timeout-oracle|%p|%c|%e|",
 			"-c", "track_commit_timestamp="+tracking),
-		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}))
+		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}),
+	}
+	if legacyCryptoProvider {
+		const path = "/tmp/stuntgres-openssl.cnf"
+		const config = `openssl_conf = openssl_init
+[openssl_init]
+providers = provider_sect
+[provider_sect]
+default = default_sect
+legacy = legacy_sect
+[default_sect]
+activate = 1
+[legacy_sect]
+activate = 1
+`
+		options = append(options,
+			testcontainers.WithEnv(map[string]string{"OPENSSL_CONF": path}),
+			testcontainers.WithFiles(testcontainers.ContainerFile{
+				Reader: strings.NewReader(config), ContainerFilePath: path, FileMode: 0o644,
+			}))
+	}
+	Container, err = postgres.Run(ctx, referenceImage, options...)
 	if err != nil {
 		return fmt.Errorf("container: %w", err)
 	}

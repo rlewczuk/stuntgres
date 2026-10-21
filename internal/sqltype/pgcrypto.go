@@ -58,12 +58,12 @@ func BindPgcrypto(name string, result Usage, args ...Usage) (PgcryptoPlan, error
 			return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
 		}
 		input = args[0].Type.ID()
-		rawAES := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
+		rawCipher := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
 		if name == "gen_random_bytes" {
 			if input != Int4 {
 				return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
 			}
-		} else if rawAES && input != Bytea || !rawAES && input != Text && (input != Bytea || name != "digest" && name != "hmac") {
+		} else if rawCipher && input != Bytea || !rawCipher && input != Text && (input != Bytea || name != "digest" && name != "hmac") {
 			return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
 		}
 	}
@@ -182,7 +182,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 				return Value{}, err
 			}
 		}
-		output, err := pgcryptoAES(ctx, p.name, data, key, iv, name)
+		output, err := pgcryptoRaw(ctx, p.name, data, key, iv, name)
 		if err != nil {
 			return Value{}, err
 		}

@@ -13,54 +13,6 @@ import (
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_0/contrib/pgcrypto/crypt-blowfish.c
 const pgcryptoBcryptAlphabet = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
-type pgcryptoBcryptState struct {
-	p [18]uint32
-	s [4][256]uint32
-}
-
-func (s *pgcryptoBcryptState) f(x uint32) uint32 {
-	return ((s.s[0][byte(x>>24)] + s.s[1][byte(x>>16)]) ^ s.s[2][byte(x>>8)]) + s.s[3][byte(x)]
-}
-
-func (s *pgcryptoBcryptState) encrypt(left, right uint32) (uint32, uint32) {
-	left ^= s.p[0]
-	for i := 1; i <= 16; i += 2 {
-		right ^= s.f(left) ^ s.p[i]
-		left ^= s.f(right) ^ s.p[i+1]
-	}
-	return right ^ s.p[17], left
-}
-
-// expand never allocates. Salt is mixed into every encrypted block only for
-// the initial expansion; subsequent password/salt expansions pass nil.
-func (s *pgcryptoBcryptState) expand(key []uint32, salt *[4]uint32) {
-	for i := range s.p {
-		s.p[i] ^= key[i%len(key)]
-	}
-	var left, right uint32
-	position := 0
-	for i := 0; i < len(s.p); i += 2 {
-		if salt != nil {
-			left ^= salt[position&3]
-			right ^= salt[(position+1)&3]
-			position += 2
-		}
-		left, right = s.encrypt(left, right)
-		s.p[i], s.p[i+1] = left, right
-	}
-	for box := range s.s {
-		for i := 0; i < len(s.s[box]); i += 2 {
-			if salt != nil {
-				left ^= salt[position&3]
-				right ^= salt[(position+1)&3]
-				position += 2
-			}
-			left, right = s.encrypt(left, right)
-			s.s[box][i], s.s[box][i+1] = left, right
-		}
-	}
-}
-
 func pgcryptoBcryptKey(password string, signed bool) (key [18]uint32) {
 	position := 0
 	for i := range key {
@@ -151,7 +103,7 @@ func pgcryptoBcrypt(ctx context.Context, password, salt string) (string, error) 
 		return "", err
 	}
 	key := pgcryptoBcryptKey(password, salt[2] == 'x')
-	state := pgcryptoBcryptInitial
+	state := pgcryptoBlowfishInitial
 	state.expand(key[:], &saltWords)
 	for round, rounds := uint64(0), uint64(1)<<cost; round < rounds; round++ {
 		if err := ctx.Err(); err != nil {

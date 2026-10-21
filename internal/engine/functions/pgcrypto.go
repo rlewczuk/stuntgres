@@ -11,7 +11,7 @@ import (
 
 func PgcryptoInput(name string, args []Argument, text, bytea, integer sqltype.Usage) (sqltype.Usage, Resolution) {
 	count := 2
-	rawAES := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
+	rawCipher := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
 	switch name {
 	case "digest", "crypt":
 	case "hmac", "encrypt", "decrypt":
@@ -45,7 +45,7 @@ func PgcryptoInput(name string, args []Argument, text, bytea, integer sqltype.Us
 		return sqltype.Usage{}, Missing
 	}
 	input := text
-	if rawAES {
+	if rawCipher {
 		input = bytea
 	}
 	for _, arg := range args[:count-1] {

@@ -2159,7 +2159,7 @@ make check RUN='^TestAvailableExtensions(ShapeAndOwnership|Projection|MetadataVa
 make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceAvailableExtensions(Transactions|Controls|JoinConsistency))$'
 ```
 
-### Pgcrypto hashing, passwords, raw AES and random/FIPS selected proof
+### Pgcrypto hashing, passwords, raw AES/BF and random/FIPS selected proof
 
 The native registry contains unaccent1.1, the two-wrapper intagg1.1,
 selected-type intarray1.5, selected-function fuzzystrmatch1.2, bounded
@@ -2253,6 +2253,89 @@ Provider validation rejects simultaneous crypto and fuzzy markers before provide
 dispatch; the private mutation unit checks both descriptor and parent validation.
 These are source assertions requiring fresh selected native and pinned-reference
 proof; test definitions alone are not passing evidence.
+
+#### Raw BF oracle-first proof
+
+The catalog oracle opts into the test-only default-plus-legacy OpenSSL setup
+described in [fixture testing](../fixture/README.md#test-only-legacy-crypto-oracle).
+The new BF scenarios use only public APIs and the same bodies in both modes.
+Published PostgreSQL release/Schneier vectors independently specify ECB,
+CBC/PKCS, short/full56-byte keys and the complete29-byte CFB64 vector, in both
+directions. Pinned18.6 observations supply literal key/IV/padding boundaries,
+corrupted-CFB plaintext and full diagnostics/stages, including the consumer
+CHECK's computed-row Detail. Empty raw keys agree with a single zero byte.
+
+The erroneous assumption that `0000000001030303` has invalid padding was
+corrected from the oracle: the trailing three03 bytes are valid and preceding01
+is data. The permanent positive regression decrypts literal `cfe05dc46975bc21`
+to `0000000001`; separate first/middle-run mismatches still fail. The first-byte
+CBC witness uses observed zero-block ciphertext and an explicit XOR IV, not a
+native-computed expected ciphertext.
+
+Raw BF shares bcrypt's actual Blowfish primitive/constants, with distinct unsigned
+raw key packing and reverse-round decryption. Per-call CBC/ECB/CFB64 loops keep
+fixed scratch and one owned output; no new member or algorithm-specific ACL
+identity is installed. AESUnsupported retains native AES-CFB/DES/3DES/CAST raw
+exclusions and literal PG DES/CAST positives under legacy. Discovery probes and
+backend filters are removed. Private primitive/key/padding/cancellation/isolation
+and allocation tests supplement the public SQL; no startup-wiring test substitutes
+for actual BF and AES outputs. Definitions and implementation still require
+root-owned verification; earlier discovery/native-red failures are not passes.
+
+BF reader SELECT grants belong to two transient forwarding views over the
+actual stored table and decrypt view, not to the persistent consumers. The raw
+encrypt call stays outside its forwarding view so direct/new/held EXECUTE
+revocation checks retain genuine caller authority, including NULL/bad payload
+and same-held regrant recovery. The held role statement closes first, then
+teardown drops the forwarding views, removes explicit reader schema/function
+privileges, restores PUBLIC EXECUTE and drops the reader.
+All native Dump/Reset/Restore, retained rows/metadata, fresh recipe and refused
+replay witnesses run BEFORE this reader phase. The reader witness is last in
+both backend flows, and no Dump follows it: ordinary REVOKE leaves relation and
+routine ACLs explicitly marked, which native Dump intentionally cannot serialize.
+This sequencing retains all actual BF consumers/rows/dependencies and permission
+assertions without adding ACL serialization or invoking DROP OWNED's unrelated
+whole-catalog cleanup path.
+
+Selected public proof (external900-second deadline per command):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePgcryptoBF(Vectors|CFB64|KeyAndIV|PaddingAndDiagnostics|TypeGrammar)$'
+make check RUN='^TestReferencePgcryptoBF(Vectors|CFB64|KeyAndIV|PaddingAndDiagnostics|TypeGrammar)$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(BF(OverloadsAndFrames|ConsumersAndControls|FeatureSmoke)|AESUnsupported)$'
+make check RUN='^TestReferencePgcrypto(BF(OverloadsAndFrames|ConsumersAndControls|FeatureSmoke)|AESUnsupported)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoAES(NISTVectors|PostgresFixtures|KeyAndIV|OverloadsAndFrames|PaddingAndDiagnostics|TypeGrammar|NullAndDemand)$'
+make check RUN='^TestReferencePgcryptoAES(NISTVectors|PostgresFixtures|KeyAndIV|OverloadsAndFrames|PaddingAndDiagnostics|TypeGrammar|NullAndDemand)$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(AES(Identity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)|InstalledIdentity)$'
+make check RUN='^TestReferencePgcrypto(AES(Identity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)|InstalledIdentity)$'
+```
+
+Actual standalone BF feature smoke, not a startup/dependency-only substitute:
+
+```sh
+make check RUN='^TestReferencePgcryptoBFFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoBFFeatureSmoke$'
+```
+
+It exercises fixed ECB/CBC/IV/fullCFB bytes, NULL,22023/39000 and held recovery;
+the native phase additionally owns Dump/Reset/Restore, retained rows/metadata,
+fresh DEFAULT/generated writes and the same fourteen-member inventory.
+Every changed public definition requires both selected modes before review or
+integration, plus whole-project Docker-free quickcheck. Private proof:
+
+```sh
+make check RUN='^TestPgcrypto(BF(Vectors|KeySchedule|Padding|Cancellation|IsolationAndAllocations)|AES(Vectors|KeyIV|Padding|Parser|Cancellation|Carrier)|Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEncoding|Allocations|Cancellation))$'
+make check RACE=1 RUN='^TestPgcryptoBF(Cancellation|IsolationAndAllocations)$'
+```
+
+Private resource witnesses assert deterministic context cancellation before/mid/
+final publication in both directions/all modes, per-call/concurrent schedule
+isolation and output-plus32KiB/16-allocation ceilings. Calibrated16-evaluation
+batches normalize bytes per call; warmed AllocsPerRun retains exact key allocation
+count equality. Data/key byte differentials use the same fixed32KiB allowance,
+not exact equality between noisy process-wide samples. A1.5MiB key copy still
+fails the independent absolute/differential bounds. Existing bcrypt regressions
+retain password protocol semantics.
 
 Hashing and AES control workloads are deliberately separate fixture owners.
 The hashing `pgcryptoConsumerCase` helper creates the real SQL seed and supplies
@@ -2468,9 +2551,9 @@ for defaults/generated/CHECK/index/view/nested recipes, exercise all fourteen
 held/direct calls through Reset/Restore and force actual cross-class collisions.
 Named owners, unread bytes/metadata, detached output ownership, live fresh writes
 and refused replay atomicity are public API witnesses, not serialized-cipher-state
-tests. Native CFB/legacy cipher exclusions assert0A000 separately from pinned
-OpenSSL successes or exact initialization failures; these are intentional
-capability differences, not backend-parity substitutions.
+tests. Native AES-CFB/DES/3DES/CAST raw exclusions assert0A000 separately from
+pinned OpenSSL positive outputs under the catalog's test-only legacy setup;
+these intentional capability differences do not exclude BF CBC/ECB/CFB64.
 
 Each new or changed definition and helper caller needs both selected modes:
 
