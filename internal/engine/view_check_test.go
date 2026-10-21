@@ -75,7 +75,7 @@ func TestViewCheckDeclaration(t *testing.T) {
 func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScope, op *session.Operation) analyze.Binding {
 	t.Helper()
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Update{}); err != nil {
+	if err := bindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	return physicalBinding(b)
@@ -116,7 +116,7 @@ func TestViewCheckStack(t *testing.T) {
 				viewOf(layers[1]).checkOption = viewCheckMode(middle)
 				viewOf(layers[0]).checkOption = viewCheckMode(leaf)
 				b := analyze.Binding{Relation: layers[2], Ref: refs[2]}
-				if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{}); err != nil {
+				if err := bindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
 					t.Fatal(err)
 				}
 				var want, got []string

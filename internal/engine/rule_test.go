@@ -383,7 +383,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
-		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {
+		if err := bindViewWrite(f.e.catalog.owner(), auth.Catalog, &mapped, &parser.Update{}); err != nil {
 			t.Fatal(err)
 		}
 		if mapped.Ref != f.viewRef || mapped.Relation != f.view || physicalBinding(mapped).Ref != f.baseRef || mapped.Targets[0] != 1 {

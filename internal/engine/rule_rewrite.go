@@ -766,7 +766,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	}
 	if current.RelationKind == catalog.ViewRelation && !matched {
 		b.ViewWrite = nil
-		if err := e.bindViewWrite(&b, auth, stmt); err != nil {
+		if err := bindViewWrite(e.catalog.owner(), auth.Catalog, &b, stmt); err != nil {
 			return -1, err
 		}
 		return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
@@ -1025,7 +1025,7 @@ func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth Authorizat
 	}
 	prior := viewWriteOf(b.ViewWrite)
 	b.ViewWrite = nil
-	if err := e.bindViewWrite(&b, auth, stmt, b.Ref); err != nil {
+	if err := bindViewWrite(e.catalog.owner(), auth.Catalog, &b, stmt, b.Ref); err != nil {
 		return -1, err
 	}
 	if b.ViewWrite != nil && prior != nil {
