@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `71235c83b` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 86, 90, 94, 95, 96, 97, 99, 103, 104, 105, 107 and 111). Steps 8–17 were
+Last verified against `master` at `b6b282564` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86, 90, 94, 95, 96, 97, 99, 103, 104, 105, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -17,8 +17,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); 87 is the only broad item ready.
 
 - **Upper features, packages:** 87 (table 24b, **broad**).
-- **Upper features, refined:** 84 (index 23c, docs only).
-- **Upper features, decisions:** 106 (role 28d).
+- **Upper features, decisions:** 85a (index 23d.1), 106 (role 28d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -74,7 +73,7 @@ Item 68 (stored 22b) is done, so stored 22c (item 69) and index 23b
 Item 69 (stored 22c) is done, so stored 22d (item 70, broad) is ready;
 view 27b (item 100) still waits for table 24b (item 87).
 Item 97 (fdw 26d) is done; fdw 26e (item 98) still waits for table 24d
-(item 89), and DML 29c (item 109) for 108, 85, 89, 93 and 102.
+(item 89), and DML 29c (item 109) for 108, 85b, 89, 93 and 102.
 Item 83 (index 23b) is done, so index 23c (item 84, docs only) and table
 24b (item 87, broad) are ready; DML 29b (item 108) still waits for 87, 91
 and 100, and control 30b (item 112) for 70, 87, 91 and 100.
@@ -82,6 +81,10 @@ Item 70 (stored 22d) is done and closes step 22; control 30b (item 112)
 still waits for 87, 91 and 100, and table 24b (item 87, broad) no longer
 competes with another ready broad item.
 Item 105 (role 28c, docs only) is done, so role 28d (item 106) is ready.
+Item 84 (index 23c, docs only) is done and split 23d into 23d.1 (item
+85a, DDL decisions) and 23d.2 (item 85b, write-time decisions): 85a is
+ready, 85b needs 85a's seam commit; table 24c (item 88) still waits for
+87, table 24d (item 89) needs 85a and DML 29c (item 109) needs 85b.
 
 ## Task tree
 
@@ -496,8 +499,11 @@ Item 105 (role 28c, docs only) is done, so role 28d (item 106) is ready.
     (`61d7f49b6`, `36cdc6168`, `98ee18fcf`, `dec8ce2ea`, `b29db018c`, `79bc16332`, `040604526`, docs)
   - [x] 23b — `index` created and clean set moved (`5d34f151d`,
     `b372d8d83`, `0f4efc1d7`, `ef8ed94f9`, docs)
-  - [ ] 23c — Host refined (docs only)
-  - [ ] 23d — Handler decisions moved
+  - [x] 23c — Host refined (docs only) (the docs commit)
+  - [ ] 23d.1 — DDL decisions moved (CREATE INDEX, ALTER/DROP INDEX,
+    REINDEX, constraint and partitioned indexes)
+  - [ ] 23d.2 — Write-time decisions moved (unique and exclusion
+    enforcement)
 - [ ] **Step 24 — `table`**, with inheritance ([prompt](ENGINE-SPLIT-table.md);
   24a needs 5i, 24b needs 23b, 18b, B6)
   - [x] 24a — In place: renames, slots, cuts (`56270ba2f`, `4dcdf411c`,
@@ -1129,10 +1135,22 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     helpers; no aliases; ran broad (about 210 files qualified) · selected
     unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
     skipped at user request
-84. [ ] Index 23c: host refined (docs only) — [index](ENGINE-SPLIT-index.md)
-    23c · needs 83, 61
-85. [ ] Index 23d: handler decisions moved — [index](ENGINE-SPLIT-index.md)
+84. [x] Index 23c: host refined (docs only) — [index](ENGINE-SPLIT-index.md)
+    23c · needs 83, 61 (the docs commit) · `index.Host` on `ddlHost` =
+    `ddl.Host` + `AddDomainBase`, `RemoveObject`,
+    `TrustedRestoreDestination`, `RelationDiagnostic` (existing) and
+    `IndexStage`, `DescriptorStage`, `ACLOutput`, `DefinitionReader`,
+    `LookupCollation`, `BindIndexExpression`, `BindIndexPredicate`; DROP
+    staging and validity over narrow stage interfaces; `table.Host` embeds
+    `index.Host`, table-owned edges hoisted; `index.WriteHost` on
+    `statementHost` with self-locking windows and waits, registry
+    primitives root-only, probe loops root until `dml`; SET CONSTRAINTS
+    stays; 23d split into 85a/85b with move sets and commit sequences ·
+    docs only, no checks needed
+85a. [ ] Index 23d.1: DDL decisions moved — [index](ENGINE-SPLIT-index.md)
     23d · needs 84
+85b. [ ] Index 23d.2: write-time decisions moved —
+    [index](ENGINE-SPLIT-index.md) 23d · needs 84, 85a's seam commit
 86. [x] Table 24a: in place — [table](ENGINE-SPLIT-table.md) 24a · needs 72
     (`56270ba2f`, `4dcdf411c`, `b210c6777`, `260ed66c6`, `5b4ac930a`,
     `36249b2b4`, `e247d07c6`, then the docs commit) · files renamed
@@ -1148,7 +1166,7 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 88. [ ] Table 24c: host refined (docs only) — [table](ENGINE-SPLIT-table.md)
     24c · needs 87, 84
 89. [ ] Table 24d: handler decisions moved — [table](ENGINE-SPLIT-table.md)
-    24d · needs 88, 85
+    24d · needs 88, 85a
 90. [x] Partition 25a: in place — [partition](ENGINE-SPLIT-partition.md) 25a ·
     needs — (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit) ·
     `partitionProof` takes the context and input environment;
@@ -1249,7 +1267,7 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 108. [ ] DML 29b: `dml` created, clean set moved — [dml](ENGINE-SPLIT-dml.md)
      29b · needs 107, 59, 83, 87, 91, 95, 100
 109. [ ] DML 29c: host refined (docs only) — [dml](ENGINE-SPLIT-dml.md) 29c ·
-     needs 108, 85, 89, 93, 97, 102
+     needs 108, 85b, 89, 93, 97, 102
 110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109
 111. [x] Control 30a: Restore hook table, in place —
      [control](ENGINE-SPLIT-control.md) 30a · needs 57 (`dc839f171`,

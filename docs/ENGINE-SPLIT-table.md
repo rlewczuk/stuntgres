@@ -12,7 +12,7 @@ constraints, verification, documentation and report.
 - **Needs:** 24a: catalog 5i (linear item 72). 24b: 24a, index 23b (item
   83), `dump` 18b (item 56) and access B6 (item 79); 23b already brings
   `stored` 22b (item 68) and `regobj` 21b (item 65). 24c: 24b and index
-  23c (item 84). 24d: 24c and index 23d (item 85). Read the sequence
+  23c (item 84). 24d: 24c and index 23d.1 (item 85a). Read the sequence
   prompt's "Notes for later steps" (identity and serial staging belong
   here).
 - **Effort:** high for 24a; xhigh for 24b (broad), 24c and 24d.
@@ -564,5 +564,19 @@ Outstanding aliases: none yet.
   moves with the materialized snapshot records.
 - `typedef`: `typed_inheritance.go`'s clean part moves here, not to
   `typedef` (it uses `columnTransformation`).
+- Index 23c refine (question 3 of 24c): `table.Host` embeds `index.Host`
+  (one `ddlHost` implements both), and `table` calls the 23d.1 `index`
+  functions directly: `StageUniqueDefinitions`/`StageCreateUniques`,
+  `StageExclusion`/`StageCreateExclusions`, `RebuildAlterUniques`,
+  `RebuildAlterExclusions`, `CaptureUsingIndexes`, `PrepareUsingIndex`,
+  `StageUsingIndex`. 23d.1 hoists the table-owned edges to today's
+  callers, which become table code: the LIKE source capture
+  (`captureLikeSource`) before unique staging,
+  `rebuildAlterNotNullsLocked` right after `RebuildAlterUniques` (order
+  uniques, NOT NULL, exclusions), the `usingIndexNotNullCandidate`
+  preparation before `PrepareUsingIndex`. `incompatibleNotValid` becomes
+  `index.IncompatibleNotValid`. The `CaptureUsingIndexes` caller in
+  `alter_table.go` holds `Engine.mu` across the call (one window with
+  `evolveStageIndexesLocked`).
 - `analyze` (12f, done): `closedRegclassDefault` (used by
   `defaultReplayDeferrable`) is now `analyze.ClosedRegclassDefault`.
