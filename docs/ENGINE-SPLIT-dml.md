@@ -137,7 +137,7 @@ of eight owners:
   `flushPhysicalEvents`, `repeatableConflict`, `latestUpdateRow`,
   `latestDeleteRow`, `latestMergeRow`, `latestConflictUpdateRow`;
 - index: `bindUniqueWrite`, `checkUniqueRow`, `claimUniqueRow`,
-  `probeUniqueRow`, `uniqueKeyChanged`, `discardExclusionCandidate`,
+  `probeUniqueRow`, `uniqueKeyChanged`, `DiscardExclusion` (a write host method since 23d.2),
   `projectExclusionDeletionLocked`, `validateIndexCandidates`,
   `revalidateIndexRows`, `insertOwnRow`;
 - table: `validateInsertRow`, `validatePhysicalInsertRow`,
@@ -406,7 +406,13 @@ Outstanding aliases: none yet.
   overlay, own writes and foreign action owners, so they are `dml`'s.
   29c embeds `index.WriteHost` in `dml.Host` and decides whether the
   per-row interface calls cost anything measurable (23d.2 calls the
-  concrete methods).
+  concrete methods). Done in 23d.2: the probe and scan captures also
+  return the `AuthorizationView` only through the concrete root methods
+  `captureUniqueProbe`/`captureExclusionScan` (the exported methods drop
+  it), so 29c must carry that authority across with `uniqueConflict`; the
+  decisions are `index.BuildUniqueWriteBinding`, `UniqueRootStart`,
+  `ExistingRootOutput`, `OwnExclusionEntry`, `VisitExclusion`,
+  `ExclusionDeferred`, `ExclusionShapeEntries` and the projection edits.
 - Table 24c: `evaluateInsertValuesRow` (`identity.go`; callers
   `insert.go`, `merge_rows.go`, `fdw_execute.go`) is DML, not identity
   code; it stays in the root through 24d and moves with the INSERT
