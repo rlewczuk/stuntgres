@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -16,7 +17,7 @@ import (
 // version path, the target namespace, the trust and CREATE checks, then the
 // extension row, the provider's base members and the update actions along the
 // path. It returns nil without error for a skipped IF NOT EXISTS.
-func StageCreate(host Host, auth Authority, view access.View, s *parser.CreateExtension) (Stage, error) {
+func StageCreate(host Host, auth ddl.Authority, view access.View, s *parser.CreateExtension) (Stage, error) {
 	key := ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}
 	if view.Catalog.NameAddress(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
@@ -80,7 +81,7 @@ func StageCreate(host Host, auth Authority, view access.View, s *parser.CreateEx
 		if !registration.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
 		}
-		rights, err := auth.Effective(view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
+		rights, err := view.Effective(auth, view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
 		if err != nil {
 			return nil, err
 		}
