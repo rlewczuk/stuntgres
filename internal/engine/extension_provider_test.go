@@ -109,7 +109,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
-		if d.Namespace() != ext.TargetNamespace || extension.Membership(d) != ext.Address() {
+		if d.Namespace() != ext.TargetNamespace || catalog.ExtensionMembership(d) != ext.Address() {
 			t.Fatal("broken member placement")
 		}
 		if _, ok := d.(*catalog.TSTemplate); ok {

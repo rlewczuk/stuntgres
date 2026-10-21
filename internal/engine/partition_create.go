@@ -188,7 +188,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			layout, err := inheritanceQueryLayout(p.parent, leaf)
+			layout, err := catalog.InheritanceQueryLayout(p.parent, leaf)
 			if err != nil {
 				return err
 			}

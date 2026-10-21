@@ -12,7 +12,7 @@ import (
 )
 
 func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, statement parser.Statement, d *catalog.Relation) error {
-	if !hierarchyRelation(d) {
+	if !catalog.HierarchyRelation(d) {
 		return nil
 	}
 	message := ""
@@ -78,7 +78,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 // These newly admitted mutation forms finish ordinary analysis and ACL checks,
 // but must not demand defaults, capture virtual storage or publish routed effects.
 func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) error {
-	if d == nil || !hierarchyRelation(d) {
+	if d == nil || !catalog.HierarchyRelation(d) {
 		return nil
 	}
 	switch syntax := statement.(type) {
@@ -174,7 +174,7 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partitionAppendCompatible(old, d) {
 		return ids.ErrCatalogReplaced
 	}
-	if hierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
+	if catalog.HierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
 		if s.partitionRelations == nil {
 			s.partitionRelations = make(map[ids.ObjectAddress]*catalog.Relation)
 		}
@@ -280,7 +280,7 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 // child manifest may cross the read admission fence; no name/shape retargeting.
 func partitionAppendCompatible(old, current *catalog.Relation) bool {
 	if old == nil || current == nil || old.Partition == nil || current.Partition == nil ||
-		!relationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
+		!catalog.RelationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
 		old.Membership != current.Membership || old.Inheritance != current.Inheritance ||
 		old.Partition.Strategy != current.Partition.Strategy ||
 		len(old.Partition.Keys) != len(current.Partition.Keys) ||

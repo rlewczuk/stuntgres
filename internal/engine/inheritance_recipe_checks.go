@@ -43,7 +43,7 @@ func prepareGenerationPlaceholders(view catalog.Read, tables []dumpRelation) {
 				}
 			}
 		}
-		for _, child := range inheritanceChildren(view, table.descriptor.Address()) {
+		for _, child := range catalog.InheritanceChildren(view, table.descriptor.Address()) {
 			if target := byAddress[child.Address()]; target != nil {
 				include(target)
 			}
@@ -449,7 +449,7 @@ func inheritedRecipeConnected(view catalog.Read, target, start ids.ObjectAddress
 				}
 			}
 		}
-		for _, child := range inheritanceChildren(view, address) {
+		for _, child := range catalog.InheritanceChildren(view, address) {
 			if appendTarget(child.Address()) {
 				return true
 			}
@@ -480,7 +480,7 @@ func capturedGenerationReplayPlan(view catalog.Read) (map[ids.ObjectAddress]*dum
 		if namespace, ok := view.Namespace(table.Namespace()); !ok || namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if !inheritanceParticipant(view, table) {
+		if !catalog.InheritanceParticipant(view, table) {
 			continue
 		}
 		captured := dumpRelation{descriptor: table, columns: table.Columns, attributes: table.Attributes, defaults: table.ColumnMeta.Defaults}

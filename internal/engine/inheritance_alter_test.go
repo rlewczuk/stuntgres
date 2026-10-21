@@ -33,7 +33,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 						origins = append(origins, catalog.InheritanceOrigin{Parent: q.Address(), Attribute: 1})
 					}
 					c.Inheritance = &catalog.TableInheritance{Parents: parents, Columns: map[int32]catalog.InheritedColumn{2: {Local: true}, 7: {Local: local, Origins: origins}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
-					original := cloneInheritance(c.Inheritance)
+					original := catalog.CloneInheritance(c.Inheritance)
 					next := *p
 					next.ObjectRevision++
 					action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}}
@@ -51,7 +51,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 							nn[i].Constraint = 23000 + ids.OID(i)
 						}
 						c.Inheritance.NotNull[7] = catalog.InheritedConstraint{Local: local, Origins: nn}
-						original = cloneInheritance(c.Inheritance)
+						original = catalog.CloneInheritance(c.Inheritance)
 						next.Constraints.NotNull = nil
 						action = parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "fact"}}
 					case "check":
@@ -64,7 +64,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 							checks[i].Constraint = 23000 + ids.OID(i)
 						}
 						c.Inheritance.Checks["fact"] = catalog.InheritedConstraint{Local: local, Origins: checks}
-						original = cloneInheritance(c.Inheritance)
+						original = catalog.CloneInheritance(c.Inheritance)
 						next.Constraints.Check = nil
 						action = parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "fact"}}
 					}
@@ -186,7 +186,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	for _, kind := range []string{"kind", "usage", "origin"} {
 		next := *c
 		next.Columns = append([]catalog.Column(nil), c.Columns...)
-		next.Inheritance = cloneInheritance(c.Inheritance)
+		next.Inheritance = catalog.CloneInheritance(c.Inheritance)
 		switch kind {
 		case "kind":
 			next.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24001, Kind: catalog.GenerationStored, Expression: expression(2)}}
@@ -318,7 +318,7 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 	for _, name := range []string{"p", "c", "leaf"} {
 		table := retiredUnitTable(t, e, name)
 		originals[name] = table
-		graphs[name] = cloneInheritance(table.Inheritance)
+		graphs[name] = catalog.CloneInheritance(table.Inheritance)
 		if name != "p" {
 			fact := table.Inheritance.Checks["ck"]
 			if fact.Local || len(fact.Origins) != 1 {

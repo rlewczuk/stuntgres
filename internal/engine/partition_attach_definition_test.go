@@ -22,7 +22,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	child := inheritanceUnitRelation(e, "child", 32001, "payload", "k")
 	child.Attributes = []int32{2, 9}
 	child.ColumnMeta.HighWater = 9
-	layout, err := inheritanceQueryLayout(parent, child)
+	layout, err := catalog.InheritanceQueryLayout(parent, child)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	if !sqltype.SameDatum(logical[0], one) || !sqltype.SameDatum(logical[1], two) || !sqltype.SameDatum(physical[0], two) {
 		t.Fatal("physical tuple rewritten")
 	}
-	inverse, err := inheritanceQueryLayout(child, parent)
+	inverse, err := catalog.InheritanceQueryLayout(child, parent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	if !reflect.DeepEqual(back.MapValues(logical), physical) {
 		t.Fatal("inverse mapping")
 	}
-	identity, err := inheritanceQueryLayout(parent, parent)
+	identity, err := catalog.InheritanceQueryLayout(parent, parent)
 	if err != nil || identity != nil {
 		t.Fatal(identity, err)
 	}

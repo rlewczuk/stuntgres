@@ -147,7 +147,7 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			}
 			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
-				next.Inheritance = cloneInheritance(old.Inheritance)
+				next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 				provenance := next.Inheritance.NotNull[constraint.Attribute]
 				provenance.Local = true
 				next.Inheritance.NotNull[constraint.Attribute] = provenance
@@ -166,13 +166,13 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			}
 			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
-				next.Inheritance = cloneInheritance(old.Inheritance)
+				next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 				provenance := next.Inheritance.NotNull[constraint.Attribute]
 				provenance.Local = true
 				next.Inheritance.NotNull[constraint.Attribute] = provenance
 				return &next, nil
 			}
-			if constraint.NotValid && a.NoInherit && !constraint.NoInherit && len(inheritanceChildren(view, old.Address())) != 0 {
+			if constraint.NotValid && a.NoInherit && !constraint.NoInherit && len(catalog.InheritanceChildren(view, old.Address())) != 0 {
 				return nil, sqlError("42P16", "constraint must be validated on child tables too")
 			}
 		}
@@ -193,9 +193,9 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 	name := a.Constraint.Text
 	if adding {
 		if name == "" {
-			name = generatedConstraintName(old.Name(), old.Columns[slot].Name, "not_null", constraintNames(view, old.Namespace(), old, op.Definition))
+			name = catalog.GeneratedConstraintName(old.Name(), old.Columns[slot].Name, "not_null", catalog.ConstraintNames(view, old.Namespace(), old, op.Definition))
 		}
-		if relationConstraintNameExists(old, name) {
+		if catalog.RelationConstraintNameExists(old, name) {
 			return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.Name()))
 		}
 	}

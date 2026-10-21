@@ -23,7 +23,7 @@ func (e *Engine) bindDomainChecks(op *session.Operation, auth AuthorizationView,
 }
 
 func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	used := constraintNames(auth.Catalog, d.ObjectNamespace, nil)
+	used := catalog.ConstraintNames(auth.Catalog, d.ObjectNamespace, nil)
 	installed := make(map[string]bool)
 	for _, check := range d.DomainChecks {
 		installed[check.Name] = true
@@ -42,7 +42,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *session.Operati
 		}
 		name := check.Name.Text
 		if name == "" {
-			name = generatedConstraintName(d.Name(), "", "check", used)
+			name = catalog.GeneratedConstraintName(d.Name(), "", "check", used)
 		}
 		if installed[name] {
 			return sqlError("42710", fmt.Sprintf("constraint %q for domain %q already exists", name, d.Name()))

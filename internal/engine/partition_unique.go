@@ -324,7 +324,7 @@ func (e *Engine) stagePartitionIndexChild(op *session.Operation, stage *CatalogS
 	}
 	suffix := "idx"
 	addition := strings.Join(labels, "_")
-	used := constraintNames(view, child.Namespace(), child)
+	used := catalog.ConstraintNames(view, child.Namespace(), child)
 	for key := range view.Names() {
 		if key.ClassID == ids.RelationClassID && key.Namespace == child.Namespace() {
 			used[key.Name] = true
@@ -340,7 +340,7 @@ func (e *Engine) stagePartitionIndexChild(op *session.Operation, stage *CatalogS
 			addition = ""
 		}
 	}
-	name := generatedConstraintName(child.Name(), addition, suffix, used)
+	name := catalog.GeneratedConstraintName(child.Name(), addition, suffix, used)
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return nil, err

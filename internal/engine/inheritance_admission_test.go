@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -106,7 +107,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if stage.Base.State() == base.State() || len(inheritanceChildren(stage.Base, firstChild.Address())) != 1 {
+				if stage.Base.State() == base.State() || len(catalog.InheritanceChildren(stage.Base, firstChild.Address())) != 1 {
 					t.Fatal("late child omitted")
 				}
 				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {

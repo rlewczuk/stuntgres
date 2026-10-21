@@ -48,7 +48,7 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 	}
 	qualifier := analyze.QueryQualifier{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}
 	ns := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: d.Columns}
-	used := constraintNames(auth.Catalog, d.Namespace(), d)
+	used := catalog.ConstraintNames(auth.Catalog, d.Namespace(), d)
 	installed := make(map[string]bool, len(d.Constraints.NotNull)+len(d.Constraints.Check))
 	start := 0
 	for _, c := range d.Constraints.Check {
@@ -107,7 +107,7 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 			if len(uses) == 1 {
 				column = d.Columns[uses[0]].Name
 			}
-			name = generatedConstraintName(d.Name(), column, "check", used)
+			name = catalog.GeneratedConstraintName(d.Name(), column, "check", used)
 		}
 		if current[name] {
 			return sqlError("42710", `check constraint "`+name+`" already exists`)

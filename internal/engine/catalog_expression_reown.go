@@ -272,7 +272,7 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			d = &copy
 			next.SetDescriptor(address, d)
 		}
-		if hierarchyRelation(d) {
+		if catalog.HierarchyRelation(d) {
 			var err error
 			d, err = remapPartitionDescriptor(view, d, ref, typ, mapping, typesOnly, collation)
 			if err != nil {

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `0053d0111` (items 55, 56, 58, 60, 64, 67, 71, 73 and 74). Steps 8–17 were
+Last verified against `master` at `8b959063d` (items 55, 56, 58, 60, 64, 67, 71, 72, 73 and 74). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -21,9 +21,9 @@ after each lands.
 - **Seams:** 57 (dump 18c), 59 (copyfmt 19b), 61 (ddl 20b),
   65 (regobj 21b).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
-- **Follow-ups in existing packages:** 72 (catalog 5i), 75 (exec 11e),
+- **Follow-ups in existing packages:** 75 (exec 11e),
   77 (analyze 12f), 78 (session 13f), 79 (access B6).
-- **Upper features, in place:** 82 (index 23a), 90 (partition 25a),
+- **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
@@ -32,9 +32,10 @@ planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Item 74
 (catalog 5j) is done, so regobj 21b (item 65) is ready; stored 22c
 (item 69) still waits for 22b (item 68). Item 73 (plan 10e) is done;
-index 23b (item 83) still waits for 82, 68, 72 and 75. Item 56 (dump
+index 23b (item 83) still waits for 82, 68 and 75. Item 56 (dump
 18b) is done, so dump 18c (item 57), routine 14e (item 80) and typedef 15e
 (item 81) are ready; stored 22b (item 68) still waits for 65 and 77.
+Item 72 (catalog 5i) is done, so table 24a (item 86) is ready.
 
 ## Task tree
 
@@ -480,7 +481,10 @@ index 23b (item 83) still waits for 82, 68, 72 and 75. Item 56 (dump
   - [ ] 30c — `control` created and drivers moved
 - [ ] **Second-round follow-ups in existing packages** (each in its step's
   prompt file; F6 is listed under step 3)
-  - [ ] 5i — Pure helpers moved into `catalog` ([catalog](ENGINE-SPLIT-catalog.md))
+  - [x] 5i — Pure helpers moved into `catalog` ([catalog](ENGINE-SPLIT-catalog.md))
+    (`a81741ca9`, `167ed0a8e`, `cab75ed1a`, `bd4de2c3f`, `7fcac5c5a`,
+    `86e3fd0e4`, `71759a72e`, docs) *(racecheck/finalcheck skipped at user
+    request)*
   - [x] 5j — Payload accessors replace five host and runtime methods
     ([catalog](ENGINE-SPLIT-catalog.md)) (`946137fa2`, `f4e53eef6`, then the
     docs commit)
@@ -894,8 +898,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `view_remap.go`; remaining `case functions.` matches recorded · selected
     unit and dual-mode proof, quickcheck and a byte-identical public probe
     passed; racecheck/finalcheck skipped at user request
-72. [ ] Catalog 5i: pure helpers moved down —
-    [catalog](ENGINE-SPLIT-catalog.md) 5i · needs —
+72. [x] Catalog 5i: pure helpers moved down —
+    [catalog](ENGINE-SPLIT-catalog.md) 5i · needs — (`a81741ca9`,
+    `167ed0a8e`, `cab75ed1a`, `bd4de2c3f`, `7fcac5c5a`, `86e3fd0e4`,
+    `71759a72e`, then the docs commit) · hierarchy, constraint-naming,
+    definition-OID, tablespace and namespace helpers, `ExtensionMembership`
+    and `RemapPrincipals` in `catalog`; `structuralNull` in `plan`; the
+    physical NOT NULL validators and `sameRelationRowShape` stay in the root ·
+    selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 73. [x] Plan 10e: node-tree output and generation helpers —
     [plan](ENGINE-SPLIT-plan.md) 10e · needs — (`fd104099c`, `8ec047f40`,
     `9b8cf388f`, then the docs commit) · `plan.BoundTree`,

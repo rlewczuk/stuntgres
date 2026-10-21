@@ -110,7 +110,7 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 				if old.IsExclusion() {
 					label = "excl"
 				}
-				constraints = constraintNames(read, destination.Namespace(), destination)
+				constraints = catalog.ConstraintNames(read, destination.Namespace(), destination)
 			}
 			name := generatedRelationName(destination.Name(), strings.Join(labels, "_"), label, func(name string) bool {
 				return constraints[name] || name == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: name})) != 0

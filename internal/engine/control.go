@@ -338,13 +338,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 				}
-				if extension.Membership(t) == (ids.ObjectAddress{}) {
+				if catalog.ExtensionMembership(t) == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 				}
 				continue
 			case *catalog.TSTemplate, *catalog.TSDictionary:
-				if extension.Membership(t) == (ids.ObjectAddress{}) {
+				if catalog.ExtensionMembership(t) == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 				}
@@ -1160,7 +1160,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			t := tables[tableIndices[oid]]
 			owner := t.owner
-			if event.Phase == dump.InheritanceChecks || event.Phase == dump.RetiredConstraints || event.Phase == dump.InheritedForeignKeys || event.Phase == dump.InvalidConstraints && inheritanceParticipant(originalCatalog, t.descriptor) {
+			if event.Phase == dump.InheritanceChecks || event.Phase == dump.RetiredConstraints || event.Phase == dump.InheritedForeignKeys || event.Phase == dump.InvalidConstraints && catalog.InheritanceParticipant(originalCatalog, t.descriptor) {
 				owner = "postgres"
 			}
 			if err := setOwner(owner); err != nil {

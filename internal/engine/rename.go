@@ -62,7 +62,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 		if err := inheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
 		}
-		if inheritanceParticipant(auth.Catalog, old) {
+		if catalog.InheritanceParticipant(auth.Catalog, old) {
 			return e.renameInheritanceColumnLocked(scope, op, auth, old, column, destination, only)
 		}
 		if old.RelationKind == catalog.SequenceRelation {

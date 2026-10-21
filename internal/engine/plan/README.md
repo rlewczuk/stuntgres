@@ -44,6 +44,9 @@ It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
   identity against the extension providers.
 - **Three-valued logic** (`expression.go`): `Truth`, `True`, `False`,
   `Unknown` and `TruthOf`.
+- **Structural NULL** (`structural_null.go`): `StructuralNull` recognizes a
+  literal NULL under transparent collation and coercion nodes; the engine's
+  column-default elision uses it (moved here in catalog 5i).
 - **Walkers** shared by binding and execution: `WalkExpression`,
   `ExpressionChildren`, `WalkDemandedExpression` and
   `LiteralSearchedCaseMatch` (`expression_walk.go`);

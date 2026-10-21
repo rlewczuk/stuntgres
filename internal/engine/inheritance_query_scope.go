@@ -15,7 +15,7 @@ func inheritanceQueryClosure(view catalog.Read, root *catalog.Relation, token id
 	if err := visit(root); err != nil {
 		return err
 	}
-	children := inheritanceChildren(view, root.Address())
+	children := catalog.InheritanceChildren(view, root.Address())
 	if len(children) == 0 {
 		return nil
 	}
@@ -37,7 +37,7 @@ func inheritanceQueryClosure(view catalog.Read, root *catalog.Relation, token id
 			if err := visit(child); err != nil {
 				return err
 			}
-			if err := walk(inheritanceChildren(view, child.Address())); err != nil {
+			if err := walk(catalog.InheritanceChildren(view, child.Address())); err != nil {
 				return err
 			}
 		}

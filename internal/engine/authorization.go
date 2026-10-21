@@ -315,7 +315,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	}
 	state := catalog.CloneState(e.catalog.state)
 	if parameter, ok := next.(*catalog.Parameter); ok {
-		installParameterGrant(state, parameter)
+		catalog.InstallParameterGrant(state, parameter)
 	} else {
 		state.SetDescriptor(addr, next)
 	}

@@ -57,7 +57,7 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			}
 			seen[a] = true
 			member := v.Get(a)
-			if member == nil || member.Namespace() != d.TargetNamespace || Membership(member) != d.Address() {
+			if member == nil || member.Namespace() != d.TargetNamespace || catalog.ExtensionMembership(member) != d.Address() {
 				return invalid()
 			}
 		}
@@ -106,19 +106,6 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 	}
 	return nil
-}
-func Membership(d catalog.Descriptor) ids.ObjectAddress {
-	switch d := d.(type) {
-	case *catalog.Type:
-		return d.Extension
-	case *catalog.Procedure:
-		return d.Extension
-	case *catalog.TSTemplate:
-		return d.Extension
-	case *catalog.TSDictionary:
-		return d.Extension
-	}
-	return ids.ObjectAddress{}
 }
 
 // validateInstalledProcedure checks a procedure installed by an extension and

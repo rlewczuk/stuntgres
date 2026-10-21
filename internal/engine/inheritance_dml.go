@@ -145,7 +145,7 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 		if i != 0 {
 			target = s.inheritedTargets[i-1]
 		}
-		layout, err := inheritanceQueryLayout(b.Relation, target.Relation)
+		layout, err := catalog.InheritanceQueryLayout(b.Relation, target.Relation)
 		if err != nil {
 			source.Close()
 			return nil, err

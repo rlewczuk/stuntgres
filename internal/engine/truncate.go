@@ -183,7 +183,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var children []*catalog.Relation
 		if err == nil && recurse && !expanded[ref.Address] {
 			expanded[ref.Address] = true
-			children = inheritanceChildren(auth.Catalog, ref.Address)
+			children = catalog.InheritanceChildren(auth.Catalog, ref.Address)
 			if d.Partition != nil {
 				for _, address := range d.Partition.Children {
 					child, ok := auth.Catalog.Relation(address)

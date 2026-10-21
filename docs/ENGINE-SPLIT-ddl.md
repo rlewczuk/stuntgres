@@ -163,7 +163,7 @@ The second planning round gave schema-level DDL no package of its own
 |---|---|---|
 | CREATE/ALTER/DROP SCHEMA decisions (`schema.go`) | `ddl` | 20d |
 | CREATE TABLESPACE decisions (`executeCreateTablespace`) | `ddl` | 20d |
-| `tablespaceLocation`, `tablespaceName` (`tablespace.go`) | `catalog` | 5i |
+| `tablespaceLocation`, `tablespaceName` (`tablespace.go`) | `catalog` (done: `ValidateTablespaceLocation`, `ValidateTablespaceName`) | 5i |
 | Namespace-object dispatch (`stageSchemaLocked`'s other cases), `executeSchema` | root | — |
 | `schemaTableLocked`, `newTableDescriptorLocked` (`schema.go`) | `table` | 24a rename, 24d |
 | SET SCHEMA (`alter_schema.go`, `alterSchemaLocked`) | `table` | 24 |
@@ -171,18 +171,18 @@ The second planning round gave schema-level DDL no package of its own
 | RENAME (`rename.go`, `renameRelationLocked`) | `table` | 24 |
 | Search path (`schema_path.go`: `referencePath`, `creationNamespace`, `lookupNamespaces`) | root | — |
 | COMMENT (`comment.go`, `comment_inquiry.go`) | root | — |
-| Seed comments (`comment_builtin.go`: `builtinTypeComment`, `namespaceCommentBaseline`) | `catalog` or `pgcatalog` | 5i decides |
+| Seed comments (`comment_builtin.go`: `builtinTypeComment`, `namespaceCommentBaseline`) | `catalog` or `pgcatalog` | 20d decides (5i left them) |
 | DROP pipeline (`drop_provider.go`, `dropProvider`, 37 methods) | root; a `ddl` removal interface when a feature needs it | 24c |
 | Object identity (`object_identity.go`, clean part of `object_address_lookup.go`) | `regobj` | 21b |
 | `object_address.go`, `lookupObjectAddress` | root | — |
-| Definition identity, clean part (`definitionOIDUsed`, `reserveDefinitionOIDs`, `validateDefinitionOIDs`, `structuralNull`) | `catalog` | 5i |
+| Definition identity, clean part (done: `catalog.DefinitionOIDUsed`, `ReserveDefinitionOIDs`, `ValidateDefinitionOIDs`; `structuralNull` is `plan.StructuralNull`) | `catalog`, `plan` | 5i |
 | `assignDefinitionOIDsLocked` | root | — |
 | `remapDefinitionOIDsLocked` | `control` | 30 |
 | `definition_reader.go` (`stageDefinitionReader`, the `AuthorizationView.definition*` wrappers) | root | — |
-| `namespaceChildren` (`namespace_children.go`) | `catalog` | 5i |
+| `namespaceChildren` (`namespace_children.go`) | `catalog` (done: `NamespaceChildren`) | 5i |
 | `namespace_inquiry.go`, `parameter_input.go` | root (function and protocol glue) | — |
 | `builtin_catalog.go`, `initializeTablespaces` | root (seeding) | — |
-| `parameter_catalog.go` (`parameterProvider`, GRANT ON PARAMETER) | root, or `catalog` for the provider | 5i decides |
+| `parameter_catalog.go` (`parameterProvider`, GRANT ON PARAMETER) | root; 5i moved `installParameterGrant` to `catalog.InstallParameterGrant` | 5i |
 | `resolveGrantTablespace` | `role` | 28 |
 
 ## Part A
@@ -425,7 +425,7 @@ Outstanding aliases: none yet.
   do not declare another `Authority` or `Stage`.
 - 24c designs the general removal interface (dependents, cascade notices,
   prepared drops over `dropProvider`); 20d adds only `RemoveObject`.
-- 5i moves `tablespaceLocation`, `tablespaceName` and `namespaceChildren`
-  into `catalog`; 20d then calls them there. If 5i has not landed, leave
-  them in the root and record it.
+- 5i moved `tablespaceLocation`, `tablespaceName` and `namespaceChildren`
+  into `catalog` (`ValidateTablespaceLocation`, `ValidateTablespaceName`,
+  `NamespaceChildren`); 20d calls them there.
 - Step 28 takes `resolveGrantTablespace`.

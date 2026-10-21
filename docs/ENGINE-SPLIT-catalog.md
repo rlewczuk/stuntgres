@@ -142,6 +142,8 @@ and the postponed `view` package); see the notes for later steps.
 ### 5i — Pure helpers move down (linear item 72)
 
 Added when the postponed packages were planned (measured at `c154e14fb`).
+**Done; four helpers below turned out not to be clean and stayed in the
+root, and `structuralNull` went to `plan` — see 5i results.**
 Steps 20 and 23–25 need these clean root helpers below them. Each reads
 only catalog records (`reach`: clean). Move them into `catalog` with
 exported names and qualify the callers; no aliases.
@@ -271,7 +273,10 @@ startup regression. 5f completes the step; optional 5g is done too.
 - [x] 5h — One revision-frontier helper; private `Candidate` overlay methods
   (the commit that records this status) *(quickcheck passed; further racecheck
   and finalcheck skipped at user request)*
-- [ ] 5i — Pure helpers moved into `catalog` (linear item 72)
+- [x] 5i — Pure helpers moved into `catalog` (linear item 72) (`a81741ca9`,
+  `167ed0a8e`, `cab75ed1a`, `bd4de2c3f`, `7fcac5c5a`, `86e3fd0e4`,
+  `71759a72e`, then the commit that records this status) *(quickcheck
+  passed; racecheck/finalcheck skipped at user request)*
 - [x] 5j — Payload accessors replace five host and runtime methods
   (linear item 74) (`946137fa2`, `f4e53eef6`, then the commit that records
   this status) *(racecheck/finalcheck skipped at user request)*
@@ -776,6 +781,78 @@ keeps its constants; it is not a catalog alias.
   regression was demonstrated; timing equivalence, optimization or target
   attainment is not claimed. Startup optimization remains outside this part.
 
+5i results:
+
+- **Re-measured** at `b5cdd1efe`. All 24 listed helpers existed, but
+  `frontier` and an import check found 9 that reach above `catalog`, which
+  the planning round missed: `reach` "clean" means no god-struct use, not
+  "imports only lower packages". User decisions: move the clean set plus two
+  cheap enablers, leave the rest in the root, and wait for 5j for the
+  definition-OID helpers. 5j merged during this session, so they moved
+  too (last code commit).
+- **Moved into `catalog`** (exported, callers qualified, no aliases):
+  `InheritanceChildren`, `InheritanceHasChildren`, `InheritanceParticipant`,
+  `CloneInheritance`, `InheritanceQueryLayout`, `HierarchyRelation`,
+  `SamePartitionColumnUsage` (`inheritance.go`); `ConstraintNames`,
+  `RelationConstraintNameExists`, `GeneratedConstraintName`
+  (`constraint_names.go`); `RelationDefiningAuthorityCompatible`
+  (`relation_compare.go`); `PhysicalPrimaryForAttribute`,
+  `CapturePhysicalPrimarySupport` (`physical_primary_support.go`);
+  `ValidateTablespaceLocation`, `ValidateTablespaceName` and the location
+  limit (`tablespace_validate.go`), with a private `sqlError` copy
+  (`sql_error.go`), so `catalog` now imports `sqlstate`;
+  `NamespaceChildren` (`namespace_children.go`); `InstallParameterGrant`
+  (`parameter_catalog.go`); `DefinitionOIDUsed`, `ReserveDefinitionOIDs`,
+  `ValidateDefinitionOIDs` (`definition_identity.go`), which now read rule
+  OIDs through 5j's `Relation.VisitRules` behind a `HasRules` check, so
+  rule-less relations allocate no visitor closure on the OID allocation
+  path (startup stays at 5053 allocs/op). `remapDefinitionOIDsLocked`
+  stays in the root (it rewrites rule OIDs; `control` 30).
+- **Enablers.** `extension.Membership`, a switch over catalog records, is
+  `catalog.ExtensionMembership` (12 callers in the engine, `extension` and
+  tests); it freed `namespaceChildren`. `structuralNull` reads only `plan`
+  nodes, so it is `plan.StructuralNull`, not a catalog helper.
+- **Principal remap.** `catalog.RemapPrincipals(state, PrincipalRemap)`
+  holds the ACL remap, the descriptor-kind switch (same order, errors and
+  copies) and the default-ACL rewrite. `PrincipalRemap` carries the
+  principal mapper, the seeded-owner mapper and `OperatorSeeded`
+  (`routine.OperatorSeeded`, which reads the routine inventory). The root
+  `remapPreparedCatalog` keeps database retention, `replacementPrincipalMapper`,
+  the seeded-owner closure (it reads `Engine.roles`) and
+  `ValidateDefaultACLs`.
+- **Stayed in the root.** `physicalNotNullOriginValid`,
+  `physicalPrimarySupportValid` and `validatePhysicalNotNull` call
+  `storedReferenceEpochValid` (which needs `pgDependPinned` and
+  `procedureProvider`) and `indexCatalogKey` (`plan` collation and column
+  nodes). `sameRelationRowShape` calls `analyze.SameStatementUsage`.
+- **"5i decides" items from the ddl prompt.** `parameterProvider` stays in
+  the root; only `installParameterGrant` moved. The seed comments
+  (`comment_builtin.go`) were not examined; 20d decides.
+- **Tests.** `TestTablespaceNameValidation` and
+  `TestTablespaceCanonicalPaths` moved to
+  `catalog/tablespace_validate_test.go` (their diagnostic helper is copied;
+  `TestTablespaceExecutorNoPublication` stays and keeps it). Other engine
+  tests that call moved helpers name them qualified. No test deleted.
+- **Proof.** Build, layering (`catalog` imports only `authorization`,
+  `expr`, `ids`, `proc`, `parser`, `sqlstate`, `sqltype`), targeted unit
+  selections per commit and full quickcheck passed, before and after the
+  rebase onto `0053d0111` (the later rebase onto `8b959063d` resolved one
+  `control.go` line and was rebuilt per commit). Public selection
+  `^TestReference(Tablespace(Syntax|PathNamePrecedence|RealDuplicate|CatalogDiagnostics)|InheritanceQuery(Forms|Consumers)|InheritanceNotNullNameCollision|SchemaLifecycle|PartitionAttachSchema|ExtensionDropBasic|PGParameterACLGrantedEntries|RoleRestoreOwnerReset|ForeignKeyNotNullNameCollision|CheckNames|DomainDefaultNullMetadata)$`
+  passed in quick and `REFERENCE=1` modes. Startup allocations are
+  unchanged (5053 allocs/op on master and branch; timing noise around 1 ms
+  on both). `make deps` lists only module paths. Racecheck/finalcheck
+  skipped at user request.
+- **Method.** `mvpkg.sh` (movedecl, movex, impfix) for the plain moves; hand
+  edits for tablespace, `ExtensionMembership` and `RemapPrincipals`; string
+  literals compared before and after each move. impfix splits import groups
+  even where the import set is unchanged, so the commits were replayed with
+  an import-block restore (`.cswd/tmp/PG18-ENGINE-SPLIT-CATALOG-HELPERS/impblock.py`);
+  the replay changed only import lines. Replay on an explicit base commit,
+  never on `master` by name: `master` moved during the session and a
+  replay onto it silently reverted the newer commits. Two locals named
+  `catalog` were renamed `view` where they captured a new `catalog.X` call.
+
 5j results:
 
 - **Seam.** `RulesPayload` gained `Len` and `Visit` over
@@ -830,6 +907,9 @@ Notes for later steps:
   similar store grouping such as 6a, alongside another broad rewrite.
 - Revision-frontier policy is now owned by the pure store helper in 5h;
   successful publication still owns committing the speculative scalar.
+- 5i left in the root: the physical NOT NULL validators (homes re-measured
+  in 23b/24b, which sit above `plan`) and `sameRelationRowShape` (until
+  `analyze.SameStatementUsage` has a home below `analyze`).
 - `foreignNamespaces` is replaced in the same Restore publication as
   `state` (`catalog.go`). Whoever moves the FDW state must keep that
   publication point.

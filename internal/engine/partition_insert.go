@@ -36,7 +36,7 @@ type partitionInsertGroup struct {
 }
 
 func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth AuthorizationView, target *catalog.Relation) error {
-	if !hierarchyRelation(target) {
+	if !catalog.HierarchyRelation(target) {
 		return nil
 	}
 	state := &partitionInsertState{catalog: auth.Catalog, auth: auth, target: target}
@@ -52,7 +52,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 				}
 			}
 		}
-		layout, err := inheritanceQueryLayout(d, target)
+		layout, err := catalog.InheritanceQueryLayout(d, target)
 		if err != nil {
 			return err
 		}

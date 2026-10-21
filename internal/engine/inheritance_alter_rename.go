@@ -18,7 +18,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *sessio
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if only && inheritanceHasChildren(auth.Catalog, root.Address()) {
+	if only && catalog.InheritanceHasChildren(auth.Catalog, root.Address()) {
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", fmt.Sprintf(`inherited column "%s" must be renamed in child tables too`, column))
 	}
@@ -112,7 +112,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 			}
 		}
 	}
-	if raw.Only && !noInherit && inheritanceHasChildren(auth.Catalog, root.Address()) {
+	if raw.Only && !noInherit && catalog.InheritanceHasChildren(auth.Catalog, root.Address()) {
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", fmt.Sprintf(`inherited constraint "%s" must be renamed in child tables too`, name))
 	}
@@ -153,7 +153,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 			return Result{}, err
 		}
 		if next.Inheritance != nil {
-			next.Inheritance = cloneInheritance(next.Inheritance)
+			next.Inheritance = catalog.CloneInheritance(next.Inheritance)
 			if kind == 'c' {
 				next.Inheritance.Checks[raw.NewName.Text] = next.Inheritance.Checks[name]
 				delete(next.Inheritance.Checks, name)

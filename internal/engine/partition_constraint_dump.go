@@ -33,7 +33,7 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 	}
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
-		if ok && hierarchyRelation(table) && (len(table.Constraints.Unique) != 0 || len(table.Constraints.Exclusion) != 0) {
+		if ok && catalog.HierarchyRelation(table) && (len(table.Constraints.Unique) != 0 || len(table.Constraints.Exclusion) != 0) {
 			tables = append(tables, table)
 		}
 	}
@@ -162,7 +162,7 @@ func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *
 			}
 			addition = strings.Join(labels, "_")
 		}
-		name := generatedConstraintName(child.Name(), addition, suffix, used)
+		name := catalog.GeneratedConstraintName(child.Name(), addition, suffix, used)
 		used[name] = true
 		renames = append(renames, rename{index, name})
 		if event.Phase == dump.TableAttachment && child.Partition != nil {

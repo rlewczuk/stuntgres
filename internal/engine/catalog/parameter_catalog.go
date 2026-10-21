@@ -24,3 +24,16 @@ func (*Parameter) Namespace() ids.ObjectAddress { return ids.ObjectAddress{} }
 func (d *Parameter) Name() string { return d.ObjectName }
 
 func (*Parameter) Kind() ids.ObjectKind { return ids.ParameterObject }
+
+// InstallParameterGrant changes only the detached central catalog candidate.
+// Both the descriptor and name entry disappear when the ACL returns to sA for
+// the owner alone. Explicit empty ACLs are not the default baseline.
+func InstallParameterGrant(candidate *State, d *Parameter) {
+	if !d.ACL.Explicit || authorization.MatchesDefaultBaseline(d.ACL, d.Owner, authorization.DefaultParameters, false) {
+		candidate.RemoveDescriptor(d.Address())
+		candidate.UnbindName(DescriptorNameKey(d))
+		return
+	}
+	candidate.SetDescriptor(d.Address(), d)
+	candidate.BindName(DescriptorNameKey(d), d.Address())
+}

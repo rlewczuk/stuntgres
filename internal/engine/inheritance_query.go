@@ -9,29 +9,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Graph validation establishes name/origin identity; live row layout still has
-// to be translated, because earlier parents may precede this named parent.
-func inheritanceQueryLayout(parent, child *catalog.Relation) ([]int, error) {
-	identity := len(parent.Columns) == len(child.Columns)
-	for i, column := range parent.Columns {
-		slot, ok := child.Index[column.Name]
-		if !ok || !samePartitionColumnUsage(child.Columns[slot].Usage, column.Usage) {
-			return nil, ids.ErrCatalogReplaced
-		}
-		identity = identity && slot == i
-	}
-	if identity {
-		return nil, nil
-	}
-	layout := make([]int, len(parent.Columns))
-	for i, column := range parent.Columns {
-		layout[i] = child.Index[column.Name]
-	}
-	return layout, nil
-}
-
 func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf exec.Leaf, token ids.SessionToken) (*exec.Source, error) {
-	if leaf.Only || !inheritanceHasChildren(catalogView, leaf.Ref.Address) {
+	if leaf.Only || !catalog.InheritanceHasChildren(catalogView, leaf.Ref.Address) {
 		return captureQueryPrefix(view, leaf.Ref)
 	}
 	pin := view.Retain()
@@ -43,7 +22,7 @@ func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.Vi
 		child := leaf
 		child.Ref.Address, child.Relation = physical.Address(), physical
 		child.Storage = view.Data().GenerationAt(physical.Address())
-		layout, err := inheritanceQueryLayout(leaf.Relation, physical)
+		layout, err := catalog.InheritanceQueryLayout(leaf.Relation, physical)
 		if err != nil {
 			return err
 		}

@@ -24,7 +24,7 @@ func (provider *dropProvider) ownedExpressionDependencies(targets []ids.ObjectAd
 	// earlier pass. Ordinary column projection retains its existing ordering.
 	for address, descriptor := range provider.removalDescriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || relation.RelationKind != catalog.TableRelation || !inheritanceParticipant(provider.base, relation) {
+		if !ok || relation.RelationKind != catalog.TableRelation || !catalog.InheritanceParticipant(provider.base, relation) {
 			continue
 		}
 		present := false

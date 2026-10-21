@@ -11,8 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hierarchyRelation(d *catalog.Relation) bool { return d.Partition != nil || d.Membership != nil }
-
 func validatePartitionDescriptor(view catalog.Read, d *catalog.Relation) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid partition hierarchy descriptor") }
 	if (d.Partition != nil) != (d.RelationKind == catalog.PartitionedRelation) {
@@ -137,7 +135,7 @@ func validatePartitionDescriptor(view catalog.Read, d *catalog.Relation) error {
 		}
 		for _, c := range parent.Columns {
 			slot, exists := d.Index[c.Name]
-			if !exists || !samePartitionColumnUsage(c.Usage, d.Columns[slot].Usage) || !c.Nullable && d.Columns[slot].Nullable {
+			if !exists || !catalog.SamePartitionColumnUsage(c.Usage, d.Columns[slot].Usage) || !c.Nullable && d.Columns[slot].Nullable {
 				return invalid()
 			}
 		}

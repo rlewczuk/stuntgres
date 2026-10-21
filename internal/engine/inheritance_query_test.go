@@ -70,7 +70,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	e := New()
 	parent := inheritanceQueryUnitColumns(e, 20000, "a", "x")
 	child := inheritanceQueryUnitColumns(e, 20001, "y", "a", "x", "z")
-	layout, err := inheritanceQueryLayout(parent, child)
+	layout, err := catalog.InheritanceQueryLayout(parent, child)
 	if err != nil || !reflect.DeepEqual(layout, []int{1, 2}) {
 		t.Fatal(layout, err)
 	}
@@ -84,7 +84,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	if next := segment.MapValues(values); &next[0] != &mapped[0] || !reflect.DeepEqual(next, values[1:3]) {
 		t.Fatal(next)
 	}
-	identity, err := inheritanceQueryLayout(parent, parent)
+	identity, err := catalog.InheritanceQueryLayout(parent, parent)
 	if err != nil || identity != nil {
 		t.Fatal(identity, err)
 	}
@@ -93,7 +93,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 		t.Fatal("identity mapping copied rows")
 	}
 	empty := inheritanceQueryUnitColumns(e, 20002)
-	zero, err := inheritanceQueryLayout(empty, child)
+	zero, err := catalog.InheritanceQueryLayout(empty, child)
 	if err != nil || zero == nil || len(zero) != 0 {
 		t.Fatal("zero-column projection lost nonidentity mapping", zero, err)
 	}
@@ -101,7 +101,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 		t.Fatal(values)
 	}
 	child.Columns[1].Usage = testUsage(e, sqltype.Int8)
-	if _, err := inheritanceQueryLayout(parent, child); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := catalog.InheritanceQueryLayout(parent, child); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 }

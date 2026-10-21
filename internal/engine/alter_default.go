@@ -35,7 +35,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*catalog.Relation)
-	if hierarchyRelation(old) && !partitionDefaultReplayAllowed(e, op, auth, s) {
+	if catalog.HierarchyRelation(old) && !partitionDefaultReplayAllowed(e, op, auth, s) {
 		return fail(sqlError("0A000", "altering partition hierarchies is unsupported"))
 	}
 	if err := analyze.TableKindError(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
@@ -64,7 +64,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 		}
 		return fail(diagnostic)
 	}
-	if inheritanceParticipant(auth.Catalog, old) {
+	if catalog.InheritanceParticipant(auth.Catalog, old) {
 		return e.alterInheritanceDefaultLocked(scope, op, auth, s, old)
 	}
 	var definition catalog.ColumnDefault

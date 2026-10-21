@@ -95,7 +95,7 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 		return indexCapability("index storage parameters are unsupported", s.WithPos)
 	}
 	name := raw.Name.Text
-	used := constraintNames(auth.Catalog, parent.Namespace(), parent)
+	used := catalog.ConstraintNames(auth.Catalog, parent.Namespace(), parent)
 	for key := range auth.Catalog.Names() {
 		if key.ClassID == ids.RelationClassID && key.Namespace == parent.Namespace() {
 			used[key.Name] = true
@@ -106,7 +106,7 @@ func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnviro
 		for i := range s.Keys {
 			labels[i] = columns[i].Name
 		}
-		name = generatedConstraintName(parent.Name(), strings.Join(labels, "_"), "excl", used)
+		name = catalog.GeneratedConstraintName(parent.Name(), strings.Join(labels, "_"), "excl", used)
 	} else {
 		if _, altering := stage.Base.Find(parent.Address()); altering {
 			if auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {

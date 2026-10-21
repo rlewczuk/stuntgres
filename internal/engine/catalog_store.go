@@ -73,7 +73,7 @@ func (s *catalogStore) allocateOIDLocked() (ids.OID, error) {
 		}
 		usedRule := false
 		for _, descriptor := range s.state.Descriptors() {
-			if definitionOIDUsed(descriptor, n) {
+			if catalog.DefinitionOIDUsed(descriptor, n) {
 				usedRule = true
 				break
 			}

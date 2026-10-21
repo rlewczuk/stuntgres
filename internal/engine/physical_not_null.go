@@ -8,29 +8,6 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func physicalPrimaryForAttribute(table *catalog.Relation, attribute int32) *catalog.UniqueConstraint {
-	for i := range table.Constraints.Unique {
-		constraint := &table.Constraints.Unique[i]
-		if constraint.Primary && slices.Contains(constraint.Attributes, attribute) {
-			return constraint
-		}
-	}
-	return nil
-}
-
-func capturePhysicalPrimarySupport(table *catalog.Relation, primary *catalog.UniqueConstraint) *catalog.PhysicalPrimarySupport {
-	for _, proof := range table.Constraints.PhysicalNotNull {
-		if proof.Support != nil && proof.Support.Constraint == primary.OID && proof.Support.Index == primary.Index {
-			return proof.Support
-		}
-	}
-	keys := make([]catalog.PhysicalPrimaryKeyUsage, len(primary.Attributes))
-	for i, attribute := range primary.Attributes {
-		keys[i] = catalog.PhysicalPrimaryKeyUsage{attribute, table.Columns[table.IndexForAttribute(attribute)].Usage}
-	}
-	return &catalog.PhysicalPrimarySupport{Constraint: primary.OID, Index: primary.Index, Keys: keys}
-}
-
 // The caller is the affected historical-only NN branch of real TYPE cleanup.
 // It has not rebound the primary yet; the ordinary TYPE rebuilder still owns
 // fresh key/index identities and supplies the completed binding below.
@@ -38,7 +15,7 @@ func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotN
 	if old.Inheritance == nil || fact.OID == 0 || fact.NotValid || fact.NoInherit || !slices.Contains(old.Constraints.NotNull, fact) {
 		return catalog.PhysicalNotNullProof{}, false
 	}
-	primary := physicalPrimaryForAttribute(old, fact.Attribute)
+	primary := catalog.PhysicalPrimaryForAttribute(old, fact.Attribute)
 	if primary == nil {
 		return catalog.PhysicalNotNullProof{}, false
 	}
@@ -56,7 +33,7 @@ func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotN
 	ref := parent.Domain().Ref(parent.Epoch, old.Address())
 	cause := &catalog.PhysicalNotNullCause{Kind: catalog.PhysicalNotNullTypeCleanup, Ref: ref, Origin: ref, Attribute: fact.Attribute, RemovedNN: fact.OID, Primary: primary.OID, Index: primary.Index, Usage: old.Columns[slot].Usage}
 	cause.Self = cause
-	return catalog.PhysicalNotNullProof{Cause: cause, Usage: old.Columns[slot].Usage, Support: capturePhysicalPrimarySupport(candidate, primary)}, true
+	return catalog.PhysicalNotNullProof{Cause: cause, Usage: old.Columns[slot].Usage, Support: catalog.CapturePhysicalPrimarySupport(candidate, primary)}, true
 }
 
 func physicalNotNullOriginValid(view catalog.Read, table *catalog.Relation, attribute int32, proof catalog.PhysicalNotNullProof) bool {
@@ -102,7 +79,7 @@ func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinar
 		if ordinary[attribute] || !physicalNotNullOriginValid(view, table, attribute, proof) {
 			return fmt.Errorf("stuntgres: invalid physical not-null origin")
 		}
-		primary := physicalPrimaryForAttribute(table, attribute)
+		primary := catalog.PhysicalPrimaryForAttribute(table, attribute)
 		if proof.Support == nil {
 			if primary != nil {
 				return fmt.Errorf("stuntgres: missing physical not-null primary binding")
@@ -164,7 +141,7 @@ func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, ch
 	var support *catalog.PhysicalPrimarySupport
 	copied := next.Constraints.PhysicalNotNull != nil && len(next.Constraints.PhysicalNotNull) != len(parent.Constraints.PhysicalNotNull)
 	for attribute, proof := range next.Constraints.PhysicalNotNull {
-		primary := physicalPrimaryForAttribute(&next, attribute)
+		primary := catalog.PhysicalPrimaryForAttribute(&next, attribute)
 		if primary == nil && (proof.Support != nil || proof.Retired == nil && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag) {
 			return nil, fmt.Errorf("stuntgres: missing rebuilt physical not-null primary")
 		}
@@ -214,10 +191,10 @@ func transitionPhysicalNotNull(old, next *catalog.Relation) {
 	prunePhysicalNotNull(next)
 	copied := len(old.Constraints.PhysicalNotNull) != len(next.Constraints.PhysicalNotNull)
 	for attribute, proof := range next.Constraints.PhysicalNotNull {
-		if proof.Support == nil || physicalPrimaryForAttribute(next, attribute) != nil {
+		if proof.Support == nil || catalog.PhysicalPrimaryForAttribute(next, attribute) != nil {
 			continue
 		}
-		previous := physicalPrimaryForAttribute(old, attribute)
+		previous := catalog.PhysicalPrimaryForAttribute(old, attribute)
 		if previous == nil || previous.OID != proof.Support.Constraint || previous.Index != proof.Support.Index {
 			continue
 		}

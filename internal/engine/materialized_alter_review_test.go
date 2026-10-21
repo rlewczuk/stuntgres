@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -359,7 +360,7 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	if d.View == other.View || d.RowType == other.RowType || &d.Columns[0] == &other.Columns[0] || &d.Attributes[0] == &other.Attributes[0] {
 		t.Fatal("fixture lacks distinct genuine defining authorities")
 	}
-	if !relationDefiningAuthorityCompatible(d, d) || relationDefiningAuthorityCompatible(d, nil) {
+	if !catalog.RelationDefiningAuthorityCompatible(d, d) || catalog.RelationDefiningAuthorityCompatible(d, nil) {
 		t.Fatal("defining-authority identity/live contract")
 	}
 	for _, axis := range []string{"producer", "rowtype", "columns", "attributes"} {
@@ -378,7 +379,7 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 			case "attributes":
 				expected.Attributes = other.Attributes
 			}
-			if relationDefiningAuthorityCompatible(&expected, d) {
+			if catalog.RelationDefiningAuthorityCompatible(&expected, d) {
 				t.Fatal("compatibility waived isolated genuine defining authority", axis)
 			}
 		})

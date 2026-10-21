@@ -5,8 +5,8 @@ The catalog object model and its immutable snapshots: descriptors, `State`,
 copy-on-write overlay `Candidate`. "Catalog" here means the data, not DDL.
 The package sits at layer L3 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
-imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser` and the
-standard library, and never the engine or its sibling `functions`. The lower
+imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
+`sqlstate` and the standard library, and never the engine or its sibling `functions`. The lower
 `proc` package owns immutable SQL definitions and private frames, not catalog authority.
 
 ## What it owns
@@ -139,6 +139,26 @@ standard library, and never the engine or its sibling `functions`. The lower
   `DefinitionArrayAt`, `DefinitionNamespaceAt`, `DefinitionRelationAt`,
   `DefinitionLookupAt`, `DefinitionProceduresNamedAt`,
   `IndexedDefinitionProcedures`) that the binder and engine DDL share.
+- **Pure record helpers** (5i). Helpers that read only catalog records,
+  shared by DDL, query admission and restore: the hierarchy reads
+  `InheritanceChildren`, `InheritanceHasChildren`, `InheritanceParticipant`,
+  `CloneInheritance`, `InheritanceQueryLayout`, `HierarchyRelation` and
+  `SamePartitionColumnUsage` (`inheritance.go`); constraint naming
+  `ConstraintNames`, `RelationConstraintNameExists` and
+  `GeneratedConstraintName` (`constraint_names.go`);
+  `RelationDefiningAuthorityCompatible` (`relation_compare.go`);
+  `PhysicalPrimaryForAttribute` and `CapturePhysicalPrimarySupport`
+  (`physical_primary_support.go`); `ValidateTablespaceLocation` and
+  `ValidateTablespaceName` (`tablespace_validate.go`, with the private
+  `sqlError` copy in `sql_error.go`); `ExtensionMembership` and
+  `NamespaceChildren`; `InstallParameterGrant`; the definition-OID checks
+  `DefinitionOIDUsed`, `ReserveDefinitionOIDs` and `ValidateDefinitionOIDs`
+  (`definition_identity.go`).
+- **Principal remap** (`principal_remap.go`). `RemapPrincipals` rewrites the
+  owners, ACLs, policy roles and default ACL records of an unpublished
+  private candidate through a `PrincipalRemap` (principal and seeded-owner
+  mappers, an operator-seeded predicate). The engine builds the mappers and
+  validates the default ACLs afterwards.
 - **reg\* alias references** (`alias_references.go`): `AliasAddress` and the
   walkers `WalkAliasReferences(At)` and `WalkAliasDependencies(At)` visit the
   existing objects a reg* value names, for dependency recording and replay.
@@ -173,7 +193,9 @@ DDL commands, `CatalogStage` and its publication coordination (storage row
 shapes, index candidates, domain validation, materialized replacement, role
 candidates), publication itself, the `catalogStore` allocators, seeding, the
 transaction catalog journal, and the validators that need engine services:
-relation, type, extension, procedure, operator and parameter validation, the
+relation, type, extension, procedure, operator and parameter validation,
+the physical NOT NULL validators, `sameRelationRowShape`, definition-OID
+assignment and remapping, the restore principal mapper, the
 `DefinitionReader` implementations
 (stored-SQL rendering, expression nodes, the operator inventory, settings
 definitions, extension implementations). Those register through the same
@@ -207,3 +229,4 @@ external900-second deadline; public dual-mode proof is documented in
 - Candidate ownership: `make check RUN='^TestCandidate(PrivateUpdates|RenameRemovalReuse|DefaultObservations|RetainedState)$'`.
 - Revision frontiers: `make check RUN='^Test(CatalogStoreRevisionFrontier|AlterDropColumnRevisionFrontier(Failures|Terminal)?|AlterSchema(WholeCandidate|OverflowAndSkip))$'`.
 - Retained policy/index authority: `make check RUN='^Test(DefaultPrivileges(CloneStage|RetainedMessage|SchemaLifecycle|CreationFence)|SQLRoutineStagedLookup|CatalogCopiesStayIndependent|UserOperatorIndex(CopyOnWrite|PublicationAndOverlay)|BuiltinProcedureNamesCopyOnEdit)$'`.
+- Tablespace validators: `make check RUN='^TestTablespace(NameValidation|CanonicalPaths)$'`.

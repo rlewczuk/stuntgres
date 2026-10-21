@@ -108,7 +108,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if replacement.Address() == c.Address() || e.storage.Relations[replacement.Address()] == oldStorage || e.storage.Relations[c.Address()] != nil {
 		t.Fatal("replacement did not change physical identity and storage")
 	}
-	if children := inheritanceChildren(e.CatalogRead(), p.Address()); len(children) != 1 || children[0] != replacement {
+	if children := catalog.InheritanceChildren(e.CatalogRead(), p.Address()); len(children) != 1 || children[0] != replacement {
 		t.Fatal("replacement graph not published")
 	}
 	if err = holder.Finish(nil); err != nil {

@@ -183,7 +183,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition := d.ColumnMeta.Generations[2]
-	if definition.OID == 0 || !structuralNull(definition.Expression) || len(d.ColumnMeta.Defaults) != 0 {
+	if definition.OID == 0 || !plan.StructuralNull(definition.Expression) || len(d.ColumnMeta.Defaults) != 0 {
 		t.Fatal("generated NULL pruned/conflated", definition)
 	}
 	candidate := catalog.CloneState(view.State())
@@ -193,7 +193,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)
 	}
-	if !definitionOIDUsed(d, definition.OID) {
+	if !catalog.DefinitionOIDUsed(d, definition.OID) {
 		t.Fatal("definition identity not reserved")
 	}
 	for _, mutate := range []func(*catalog.ColumnGeneration){

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -31,7 +32,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if before.State() == view.State() || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.ObjectNamespace, Name: d.Name()})) != 0 {
 		t.Fatal("published into immutable prior root")
 	}
-	if err := validateDefinitionOIDs(view); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateDomainCheckDefinitions(view, d); err != nil {
@@ -71,10 +72,10 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 		}
 	}
 	long := strings.Repeat("é", 31)
-	if got := generatedConstraintName(long, "", "check", map[string]bool{}); got != strings.Repeat("é", 28)+"_check" {
+	if got := catalog.GeneratedConstraintName(long, "", "check", map[string]bool{}); got != strings.Repeat("é", 28)+"_check" {
 		t.Fatal("UTF8 clipping", got)
 	}
-	if !constraintNames(view, d.ObjectNamespace, nil)["a_first"] {
+	if !catalog.ConstraintNames(view, d.ObjectNamespace, nil)["a_first"] {
 		t.Fatal("domain constraint missing from namespace generator")
 	}
 }
@@ -229,7 +230,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 			t.Fatal("VALUE retained old base generation")
 		}
 	})
-	if err := validateDefinitionOIDs(view); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
 }

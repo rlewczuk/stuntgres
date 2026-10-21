@@ -1828,6 +1828,13 @@ exist. Each item is a new sub-step in that package's prompt file.
   clean part of definition identity, `namespaceChildren` and tablespace
   validation; the principal-remap descriptor switch as a catalog
   function.
+  Done (item 72): the hierarchy helpers, constraint naming, the two
+  physical primary helpers, `relationDefiningAuthorityCompatible`,
+  definition-OID checks, tablespace validation, `namespaceChildren` (with
+  `extension.Membership` as `catalog.ExtensionMembership`) and
+  `catalog.RemapPrincipals`; `structuralNull` went to `plan`. The physical
+  NOT NULL validators and `sameRelationRowShape` stay in the root (they
+  reach `plan`, `analyze` and root providers).
 - **Catalog 5j — payload accessors.** `RulesPayload.Len`, a rule visitor
   with each rule's identity, `ViewPayload.Options` and a `PolicyPayload`
   expression visitor let `analyze`, `regobj` and
@@ -2023,7 +2030,7 @@ package-specific scope. This section holds the rules every session follows.
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 view literal capture, result nullability protocol and conditional closure hook done (selected proof/quickcheck passed; racecheck/finalcheck waived by user); `SQLJSON` rendering done (selected dual-mode/quickcheck passed; remaining checks, including full racecheck/finalcheck, waived by user); function sources done (proof and specific LIKE-observer failure waiver recorded in the functions prompt); Tier C done: ACL, catalog inquiry, transaction inquiries, advisory/blocking and sequence calls moved (sequence calls: selected dual-mode/quickcheck passed, racecheck/finalcheck skipped at user request); F3 aliases removed |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g, optional 5h); 5j done (payload readers replace five host and runtime methods; racecheck/finalcheck skipped at user request); 5i planned |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5h); 5i done (pure helpers moved, some left in the root) and 5j done (payload readers replace five host and runtime methods) (racecheck/finalcheck skipped at user request) |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B5, names cleanup; B5 moved the binding walkers into `analyze`, racecheck/finalcheck skipped at user request) |

@@ -127,7 +127,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	// Real inherited origins, not mere graph connectivity, remain mandatory.
 	before := e.catalog.state
 	child := *before.MustRelation(refs["c"].Address)
-	child.Inheritance = cloneInheritance(child.Inheritance)
+	child.Inheritance = catalog.CloneInheritance(child.Inheritance)
 	child.Inheritance.Columns[2] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: refs["q"].Address, Attribute: 1}}}
 	changed := catalog.CloneState(before)
 	changed.SetDescriptor(child.Address(), &child)

@@ -694,7 +694,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		view = e.stageRead(s)
 	}
 	if view.State() != nil {
-		if err := validateDefinitionOIDs(view); err != nil {
+		if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 			return nil, err
 		}
 	}
@@ -1329,7 +1329,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		return ChangeSet{}, err
 	}
 	targetRoles := e.Roles()
-	if err := validateDefinitionOIDs(replacement); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(replacement); err != nil {
 		return ChangeSet{}, err
 	}
 	for _, d := range replacement.Descriptors() {
@@ -1345,7 +1345,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	relationAddresses := make([]ids.ObjectAddress, 0, replacement.DescriptorCount())
 	hasHierarchy := false
 	for a, d := range replacement.Descriptors() {
-		if relation, ok := d.(*catalog.Relation); ok && hierarchyRelation(relation) {
+		if relation, ok := d.(*catalog.Relation); ok && catalog.HierarchyRelation(relation) {
 			hasHierarchy = true
 		}
 		if r, ok := d.(*catalog.Relation); ok && r.RelationKind.Stored() {
@@ -1434,7 +1434,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if hasHierarchy {
 			candidate := e.catalog.read(next)
 			for _, descriptor := range next.Descriptors() {
-				if relation, ok := descriptor.(*catalog.Relation); ok && hierarchyRelation(relation) {
+				if relation, ok := descriptor.(*catalog.Relation); ok && catalog.HierarchyRelation(relation) {
 					if err := validatePartitionDescriptor(candidate, relation); err != nil {
 						return ChangeSet{}, err
 					}

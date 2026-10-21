@@ -360,7 +360,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	}
 	next := *old
 	next.ObjectRevision++
-	next.Inheritance = cloneInheritance(old.Inheritance)
+	next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 	provenance.Local = repair.local
 	provenance.Retired = records
 	if fact.check {

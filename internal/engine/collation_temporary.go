@@ -71,7 +71,7 @@ func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 		for _, ns := range namespaces {
 			owned[ns.Address()] = true
 		}
-		children, captureErr := namespaceChildren(base, owned)
+		children, captureErr := catalog.NamespaceChildren(base, owned)
 		e.mu.Unlock()
 		if captureErr != nil {
 			return captureErr

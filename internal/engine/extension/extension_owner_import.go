@@ -56,7 +56,7 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 			}
 			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
 			d := candidate.Get(a)
-			if d == nil || Membership(d) != ext.Address() {
+			if d == nil || catalog.ExtensionMembership(d) != ext.Address() {
 				return false, fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
 			switch d := d.(type) {

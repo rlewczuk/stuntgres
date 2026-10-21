@@ -225,7 +225,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	if _, err := (pgRenderer{view: view}).sql(context.Background(), trap, pgRenderParent{}); err == nil || calls != 0 {
 		t.Fatal(err, calls)
 	}
-	if structuralNull(trap) || calls != 0 {
+	if plan.StructuralNull(trap) || calls != 0 {
 		t.Fatal("NULL producer evaluated")
 	}
 	for _, input := range []string{"", "x", string([]byte{0xff, 0})} {
@@ -245,7 +245,7 @@ func TestDeparseConstraintsDefinitionIdentityAndNullProducer(t *testing.T) {
 	if len(d.ColumnMeta.Defaults) != 1 || d.ColumnMeta.Defaults[3].OID == 0 || d.Constraints.Check[0].OID == 0 || d.Constraints.NotNull[0].OID == 0 {
 		t.Fatal(d.ColumnMeta.Defaults, d.Constraints.Check, d.Constraints.NotNull)
 	}
-	if err := validateDefinitionOIDs(view); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
 	old := d.ColumnMeta.Defaults[3].OID
@@ -381,7 +381,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 		e.catalog.nextOID = id
 		next, err := e.catalog.allocateOIDLocked()
 		e.mu.Unlock()
-		if err != nil || next == id || definitionOIDUsed(d, next) {
+		if err != nil || next == id || catalog.DefinitionOIDUsed(d, next) {
 			t.Fatal(id, next, err)
 		}
 	}
@@ -390,7 +390,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
 	copy.Constraints.Check[0].OID = d.ColumnMeta.Defaults[1].OID
 	bad.SetDescriptor(d.Address(), &copy)
-	if err := validateDefinitionOIDs(e.catalog.read(bad)); err == nil {
+	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
 	}
 	e.mu.Lock()
@@ -399,7 +399,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateDefinitionOIDs(e.catalog.read(bad)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(bad)); err != nil {
 		t.Fatal(err)
 	}
 	if d.Constraints.Check[0].OID == d.ColumnMeta.Defaults[1].OID {

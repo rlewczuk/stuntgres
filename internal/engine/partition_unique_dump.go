@@ -143,7 +143,7 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, inde
 				}
 				addition = strings.Join(labels, "_")
 			}
-			name := generatedConstraintName(child.Name(), addition, suffix, used)
+			name := catalog.GeneratedConstraintName(child.Name(), addition, suffix, used)
 			used[name] = true
 			renames = append(renames, rename{childIndex, name})
 			reserve(childIndex)

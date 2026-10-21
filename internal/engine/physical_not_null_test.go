@@ -219,7 +219,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	e, source, old, _ := physicalNotNullFixture(t)
 	local := *old
-	local.Inheritance = cloneInheritance(old.Inheritance)
+	local.Inheritance = catalog.CloneInheritance(old.Inheritance)
 	provenance := local.Inheritance.NotNull[1]
 	provenance.Local = true
 	local.Inheritance.NotNull[1] = provenance
@@ -249,7 +249,7 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 		t.Fatal(err)
 	}
 	forged := *rebuilt
-	forged.Inheritance = cloneInheritance(rebuilt.Inheritance)
+	forged.Inheritance = catalog.CloneInheritance(rebuilt.Inheritance)
 	stale := provenance
 	stale.Retired = slices.Clone(provenance.Retired)
 	stale.Retired[0].Own++
@@ -292,7 +292,7 @@ func TestInheritanceRetiredLocalCheckReconstruction(t *testing.T) {
 		t.Fatal(err)
 	}
 	forged := *current
-	forged.Inheritance = cloneInheritance(current.Inheritance)
+	forged.Inheritance = catalog.CloneInheritance(current.Inheritance)
 	stale := provenance
 	stale.Retired = slices.Clone(provenance.Retired)
 	stale.Retired[0].Own++

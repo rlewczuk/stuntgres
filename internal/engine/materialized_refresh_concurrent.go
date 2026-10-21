@@ -272,7 +272,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 }
 
 func sameMaterializedLineage(old, current *catalog.Relation, a, b *storage.Relation) bool {
-	return old != nil && current != nil && old.RelationKind == catalog.MaterializedViewRelation && current.RelationKind == catalog.MaterializedViewRelation && old.Populated && current.Populated && a != nil && b != nil && a.MaterializedLineage != nil && a.MaterializedLineage == b.MaterializedLineage && relationDefiningAuthorityCompatible(old, current)
+	return old != nil && current != nil && old.RelationKind == catalog.MaterializedViewRelation && current.RelationKind == catalog.MaterializedViewRelation && old.Populated && current.Populated && a != nil && b != nil && a.MaterializedLineage != nil && a.MaterializedLineage == b.MaterializedLineage && catalog.RelationDefiningAuthorityCompatible(old, current)
 }
 
 // A producer snapshot may outlive a compatible source publication, never a

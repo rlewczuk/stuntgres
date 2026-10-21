@@ -173,7 +173,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if !ok {
 		return fmt.Errorf("stuntgres: missing foreign-key parent")
 	}
-	if hierarchyRelation(child) || hierarchyRelation(parent) {
+	if catalog.HierarchyRelation(child) || catalog.HierarchyRelation(parent) {
 		return sqlError("0A000", "foreign keys involving partition hierarchies are unsupported")
 	}
 	if parent.RelationKind != catalog.TableRelation {
@@ -265,16 +265,16 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if err := foreignKeyReferencesAllowed(auth, parent, referenced); err != nil {
 		return err
 	}
-	used := constraintNames(view, child.Namespace(), child)
+	used := catalog.ConstraintNames(view, child.Namespace(), child)
 	name := raw.Name.Text
 	if name == "" {
 		labels := make([]string, len(raw.Columns))
 		for i, column := range raw.Columns {
 			labels[i] = column.Text
 		}
-		name = generatedConstraintName(child.Name(), strings.Join(labels, "_"), "fkey", used)
+		name = catalog.GeneratedConstraintName(child.Name(), strings.Join(labels, "_"), "fkey", used)
 	}
-	if relationConstraintNameExists(child, name) {
+	if catalog.RelationConstraintNameExists(child, name) {
 		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.Name()))
 	}
 	f := catalog.ForeignKeyConstraint{Name: name, Attributes: local, Target: parent.Address(), Referenced: referenced, Index: index.Address(), Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid}
