@@ -156,7 +156,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 }
 
 func executeDelete(s *StatementScope, b analyze.Binding, view *visibility.View, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
-	source, err := s.captureMutationSource(s.op.Context(), view, b)
+	source, err := s.Command.CaptureSource(s.op.Context(), view, b)
 	if err != nil {
 		if inputs != nil {
 			inputs.Close()

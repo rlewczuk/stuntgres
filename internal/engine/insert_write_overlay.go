@@ -10,11 +10,11 @@ import (
 )
 
 func (s *StatementScope) writeOverlay() *dml.InsertWriteOverlay {
-	if s.insertConflict != nil && s.insertConflict.Update != nil {
-		return &s.insertConflict.InsertWriteOverlay
+	if s.InsertConflict != nil && s.InsertConflict.Update != nil {
+		return &s.InsertConflict.InsertWriteOverlay
 	}
-	if s.insertReturning != nil {
-		return &s.insertReturning.Overlay
+	if s.InsertReturning != nil {
+		return &s.InsertReturning.Overlay
 	}
 	return nil
 }

@@ -27,8 +27,8 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 // a rule action runs, over the statement's private catalog. Like the
 // selection, it keeps the fields written before an error.
 func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Binding, stmt parser.Statement) error {
-	rls, command, applies := view.RowSecurityTarget(scope.rls, b, stmt)
-	scope.rls = rls
+	rls, command, applies := view.RowSecurityTarget(scope.RLS, b, stmt)
+	scope.RLS = rls
 	if !applies {
 		return nil
 	}
@@ -41,6 +41,6 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	scope.rls, err = view.SelectRowSecurity(scope.rls, auth.View, scope.rowSecurity, b, stmt, command)
+	scope.RLS, err = view.SelectRowSecurity(scope.RLS, auth.View, scope.rowSecurity, b, stmt, command)
 	return err
 }

@@ -590,7 +590,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 // A complete projected row is constrained before another identity source row
 // is demanded. This does not publish rows: the caller still stages one batch.
 func (e *Engine) validateInsertRow(scope *StatementScope, b analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
-	if scope.partitionInsert != nil {
+	if scope.PartitionInsert != nil {
 		return scope.validatePartitionInsert(b, row, evaluation)
 	}
 	return e.validatePhysicalInsertRow(scope, b, &b, schema, row, evaluation)
@@ -605,7 +605,7 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b analyze.Bind
 	if err := table.EvaluateGenerations(evaluation.Context, b.Relation, row, evaluation); err != nil {
 		return err
 	}
-	if err := access.RowSecurityProposal(scope.rls.Proposal, scope.rls.ProposalTable); err != nil {
+	if err := access.RowSecurityProposal(scope.RLS.Proposal, scope.RLS.ProposalTable); err != nil {
 		return err
 	}
 	violation, err := table.PhysicalRowViolation(b.Relation, row, evaluation)

@@ -249,7 +249,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if scope.uniqueBinding != nil {
+	if scope.UniqueBinding != nil {
 		t.Fatal("Finish retained statement binding")
 	}
 	sessionSQL(t, a, "ALTER TABLE t DROP extra")

@@ -75,12 +75,12 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	}); err != nil {
 		return err
 	}
-	s.partitionInsert = state
+	s.PartitionInsert = state
 	return nil
 }
 
 func (s *StatementScope) validatePartitionInsert(b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
-	state := s.partitionInsert
+	state := s.PartitionInsert
 	state.NamedRow = row
 	if state.Target.Partition != nil {
 		if err := s.validateTargetPartitionConstraint(b, row, evaluation); err != nil {
@@ -115,7 +115,7 @@ func (s *StatementScope) validatePartitionInsert(b analyze.Binding, row []sqltyp
 }
 
 func (s *StatementScope) validateTargetPartitionConstraint(b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
-	state := s.partitionInsert
+	state := s.PartitionInsert
 	for child := state.Target; child.Membership != nil; {
 		parent := state.Catalog.MustRelation(child.Membership.Parent)
 		accepts, err := partition.Accepts(state.Catalog, parent, child, state.RowFor(parent, row), evaluation)
@@ -141,11 +141,11 @@ func (s *StatementScope) validateTargetPartitionConstraint(b analyze.Binding, ro
 // reordered tuple can reuse that payload when there is no logical RETURNING
 // consumer; otherwise storage must own a separate immutable physical tuple.
 func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value {
-	state := s.partitionInsert
+	state := s.PartitionInsert
 	if state.Layouts[state.Destination.Address()] == nil {
 		return row
 	}
-	if s.insertReturning != nil {
+	if s.InsertReturning != nil {
 		return slices.Clone(state.PhysicalRow)
 	}
 	copy(row, state.PhysicalRow)
@@ -153,7 +153,7 @@ func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value
 }
 
 func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partition.InsertGroup {
-	state := s.partitionInsert
+	state := s.PartitionInsert
 	address := state.Destination.Address()
 	group := state.Groups[address]
 	if group == nil {
@@ -168,27 +168,27 @@ func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partition.I
 }
 
 func (s *StatementScope) checkInsertUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch) error {
-	if s.partitionInsert == nil {
+	if s.PartitionInsert == nil {
 		return s.checkUniqueRow(ref, candidate, nil, prefix)
 	}
 	group := s.partitionInsertionGroup(ref)
-	s.uniqueBinding = group.Unique
+	s.UniqueBinding = group.Unique
 	candidate.Values = s.partitionStoredRow(candidate.Values)
 	if err := s.checkUniqueRow(group.Ref, candidate, nil, group.Rows); err != nil {
 		return err
 	}
-	group.Unique = s.uniqueBinding
+	group.Unique = s.UniqueBinding
 	group.Rows.Append(*candidate)
 	return nil
 }
 
 func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
-	if s.partitionInsert == nil {
+	if s.PartitionInsert == nil {
 		return s.Writes().applyInsertBatch(ref, rows)
 	}
 	count := 0
-	for _, group := range s.partitionInsert.Order {
-		s.uniqueBinding = group.Unique
+	for _, group := range s.PartitionInsert.Order {
+		s.UniqueBinding = group.Unique
 		if err := s.Writes().applyValidated(group.Ref, group.Rows); err != nil {
 			return 0, err
 		}

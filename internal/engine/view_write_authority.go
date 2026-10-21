@@ -147,7 +147,7 @@ func (s *StatementScope) acquireViewWriteTarget(w *view.Write) error {
 	if storage == nil && current.RelationKind != catalog.ForeignRelation {
 		return ids.ErrCatalogReplaced
 	}
-	s.viewWrite = w
+	s.ViewWrite = w
 	s.lockedRef, s.lockedDescriptor, s.lockedStorage = w.Ref, current, storage
 	return nil
 }

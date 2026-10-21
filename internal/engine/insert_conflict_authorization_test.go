@@ -144,7 +144,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := action.SelectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = action
+	scope.InsertConflict = action
 	prefix := insertConflictUnitRow(t, f, 30)
 	if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: prefix}, index.WriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal("authorized prefix", admitted, err)
@@ -259,8 +259,8 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := scope.gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
-	if err := scope.insertConflict.SelectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
+	scope.InsertConflict = dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
+	if err := scope.InsertConflict.SelectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	accepted := make([][]sqltype.Value, 0, 2)

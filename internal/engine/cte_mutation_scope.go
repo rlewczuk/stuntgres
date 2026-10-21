@@ -4,10 +4,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -16,20 +13,16 @@ import (
 // Command-local state is switched inside one statement owner. Stage, view,
 // operation, ticket, constraint queues and publication never move with it.
 // The embedded context keeps single-command statements allocation-free.
-// Fields are grouped by owner; every group is a value, so activateMutation
+// The DML groups are dml.Command; every group is a value, so activateMutation
 // and the rule and SQL routine save/restore copy the whole mutation at once.
 type statementMutation struct {
 	statement parser.Statement
 	mutationTarget
-	inheritedTargets []exec.Leaf // Inheritance expansion of the target (table, dml).
-	viewWrite        *view.Write // Auto-updatable view lowering (view).
-	mutationIndexes
-	mutationInsert
-	mutationPartition
-	rls view.RowSecurity
+	dml.Command
 }
 
-// mutationTarget is the admitted, locked command target (dml).
+// mutationTarget is the admitted, locked command target. It stays in the
+// engine: statement lock admission and DDL read it.
 type mutationTarget struct {
 	lockedRef             ids.ObjectRef
 	lockedDescriptor      catalog.Descriptor
@@ -38,24 +31,6 @@ type mutationTarget struct {
 	admittedTargetName    parser.ObjectName
 	admittedTargetLexical ids.ObjectRef
 	routineDependencies   []catalog.ExpressionDependency // Borrowed immutable manifest follows command activation.
-}
-
-// mutationIndexes holds the unique and exclusion write bindings (index).
-type mutationIndexes struct {
-	uniqueBinding *index.UniqueWriteBinding
-	indexBindings map[ids.ObjectAddress]*index.UniqueWriteBinding
-}
-
-// mutationInsert holds INSERT's ON CONFLICT and RETURNING state (dml).
-type mutationInsert struct {
-	insertConflict  *dml.InsertConflictState
-	insertReturning *dml.InsertReturningOutput
-}
-
-// mutationPartition holds INSERT partition routing (partition).
-type mutationPartition struct {
-	partitionInsert    *partition.InsertState
-	partitionRelations map[ids.ObjectAddress]*catalog.Relation
 }
 
 func (s *StatementScope) activateMutation(index int) {

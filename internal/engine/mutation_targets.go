@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -12,8 +11,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/view"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -44,7 +41,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			e.mu.Unlock()
 			return nil
 		}
-		for _, target := range s.inheritedTargets {
+		for _, target := range s.InheritedTargets {
 			if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, target); err != nil {
 				e.mu.Unlock()
 				return err
@@ -55,7 +52,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			if child.Address() == root.Address() {
 				return nil
 			}
-			for _, target := range s.inheritedTargets {
+			for _, target := range s.InheritedTargets {
 				if target.Ref.Address == child.Address() {
 					return nil
 				}
@@ -96,7 +93,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			e.mu.Lock()
 			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.Catalog), s.owner.Catalog, target)
 			if err == nil {
-				s.inheritedTargets = append(s.inheritedTargets, target)
+				s.InheritedTargets = append(s.InheritedTargets, target)
 				e.markTemporaryAccessLocked(s, target.Ref)
 			}
 			e.mu.Unlock()
@@ -105,71 +102,6 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 		}
 	}
-}
-
-func (s *StatementScope) mutationTargetRefs(ref ids.ObjectRef) []ids.ObjectRef {
-	refs := make([]ids.ObjectRef, 1, len(s.inheritedTargets)+1)
-	refs[0] = ref
-	for _, target := range s.inheritedTargets {
-		refs = append(refs, target.Ref)
-	}
-	return refs
-}
-
-func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
-	if ref == s.lockedRef {
-		return s.lockedStorage
-	}
-	for _, target := range s.inheritedTargets {
-		if target.Ref == ref {
-			return target.Storage
-		}
-	}
-	return nil
-}
-
-// Capture the already admitted manifest, never rediscover a graph after the
-// command view has frozen its roots. Each segment retains real physical rows.
-func (s *StatementScope) captureMutationSource(ctx context.Context, dataView *visibility.View, b analyze.Binding) (*exec.Source, error) {
-	if s.rls.TargetDenied {
-		return view.CaptureDeniedQuerySource(dataView, b.Ref)
-	}
-	if len(s.inheritedTargets) == 0 {
-		return exec.CaptureSource(ctx, dataView, b.Ref)
-	}
-	pin := dataView.Retain()
-	if pin == nil {
-		return nil, errors.New("stuntgres: visibility view is released")
-	}
-	source := &exec.Source{Ref: b.Ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0, len(s.inheritedTargets)+1), InheritanceEnds: make([]int, len(s.inheritedTargets)+1)}
-	root := exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage, Only: true}
-	for i := 0; i <= len(s.inheritedTargets); i++ {
-		target := root
-		if i != 0 {
-			target = s.inheritedTargets[i-1]
-		}
-		layout, err := catalog.InheritanceQueryLayout(b.Relation, target.Relation)
-		if err != nil {
-			source.Close()
-			return nil, err
-		}
-		prefix, err := exec.CaptureSource(ctx, dataView, target.Ref)
-		if err != nil {
-			source.Close()
-			return nil, err
-		}
-		segment := exec.InheritanceQuerySegment{Leaf: target, Prefix: prefix, Layout: layout}
-		if layout != nil {
-			segment.Scratch = make([]sqltype.Value, len(layout))
-		}
-		source.Inheritance = append(source.Inheritance, segment)
-		total := prefix.Count()
-		if i != 0 {
-			total += source.InheritanceEnds[i-1]
-		}
-		source.InheritanceEnds[i] = total
-	}
-	return source, nil
 }
 
 // Physical generation/checks use the full physical proposal; diagnostic values
@@ -250,4 +182,10 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 		}
 	}
 	return nil
+}
+
+// mutationStorage is the storage of ref when it is the admitted target or
+// one of its inherited targets, else nil.
+func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
+	return s.Command.Storage(s.lockedRef, s.lockedStorage, ref)
 }

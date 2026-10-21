@@ -251,7 +251,7 @@ func TestViewCheckCancellation(t *testing.T) {
 	if err := scope.Finish(err); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(originals, f.e.storage.Relations[f.base.Address()].Versions) || len(scope.stage.rows) != 0 || scope.viewWrite != nil || f.e.visibility.CommitSeq() != 1 {
+	if !reflect.DeepEqual(originals, f.e.storage.Relations[f.base.Address()].Versions) || len(scope.stage.rows) != 0 || scope.ViewWrite != nil || f.e.visibility.CommitSeq() != 1 {
 		t.Fatal("cancelled check installed stage")
 	}
 	lockEmpty(t, f.e)
@@ -300,7 +300,7 @@ func TestViewCheckFinish(t *testing.T) {
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(originals, f.e.storage.Relations[f.base.Address()].Versions) || len(scope.stage.rows) != 0 || scope.viewWrite != nil || f.e.visibility.CommitSeq() != 1 {
+	if !reflect.DeepEqual(originals, f.e.storage.Relations[f.base.Address()].Versions) || len(scope.stage.rows) != 0 || scope.ViewWrite != nil || f.e.visibility.CommitSeq() != 1 {
 		t.Fatal("Finish veto installed checked row")
 	}
 	lockEmpty(t, f.e)

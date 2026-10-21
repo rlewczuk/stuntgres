@@ -44,13 +44,13 @@ type ruleCommandScratch struct {
 }
 
 func (s *StatementScope) ruleScratch() ruleCommandScratch {
-	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.viewWrite, sources: s.querySources, unique: s.uniqueBinding, conflict: s.insertConflict, returning: s.insertReturning, partition: s.partitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, ruleAction: s.ruleAction, quotes: s.quoteCaptures}
+	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.ViewWrite, sources: s.querySources, unique: s.UniqueBinding, conflict: s.InsertConflict, returning: s.InsertReturning, partition: s.PartitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, ruleAction: s.ruleAction, quotes: s.quoteCaptures}
 }
 func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.statementMutation = c.mutation
 	s.lockedRef, s.lockedDescriptor, s.lockedStorage = c.ref, c.descriptor, c.storage
-	s.viewWrite, s.querySources = c.viewWrite, c.sources
-	s.uniqueBinding, s.insertConflict, s.insertReturning, s.partitionInsert = c.unique, c.conflict, c.returning, c.partition
+	s.ViewWrite, s.querySources = c.viewWrite, c.sources
+	s.UniqueBinding, s.InsertConflict, s.InsertReturning, s.PartitionInsert = c.unique, c.conflict, c.returning, c.partition
 	s.queryLocks, s.queryLockAdmission = c.locks, c.admission
 	s.ruleAction = c.ruleAction
 	s.quoteCaptures = c.quotes

@@ -111,7 +111,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 	stage := e.BeginCatalogStage(catalog)
 	stage.authorizeLocked(auth, op.Session)
 	stage.indexes().Output = scope.output
-	for address := range scope.partitionRelations {
+	for address := range scope.PartitionRelations {
 		stage.domainBases = append(stage.domainBases, catalog.Get(address))
 	}
 	e.mu.Unlock()

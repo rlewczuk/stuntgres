@@ -103,7 +103,7 @@ retry:
 	e := s.engine()
 	e.mu.Lock()
 	admission := e.privateCatalogLocked(s.owner.Catalog).State()
-	if binding := s.uniqueBinding; binding != nil && binding.Catalog != admission {
+	if binding := s.UniqueBinding; binding != nil && binding.Catalog != admission {
 		e.mu.Unlock()
 		s.owner.Mu.Unlock()
 		if err := s.revalidateIndexRows(ref, old, &batch); err != nil {
@@ -125,7 +125,7 @@ retry:
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if s.foreignActionAuth != nil || !conflictDistinct && s.mutationStorage(ref) == nil && s.partitionRelations[ref.Address] == nil {
+	if s.foreignActionAuth != nil || !conflictDistinct && s.mutationStorage(ref) == nil && s.PartitionRelations[ref.Address] == nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
 			return err
 		}
@@ -140,11 +140,11 @@ retry:
 		}
 	}
 	if conflictDistinct {
-		if s.insertConflict == nil || s.insertConflict.Update == nil {
+		if s.InsertConflict == nil || s.InsertConflict.Update == nil {
 			return errors.New("stuntgres: distinct replacement without conflict update")
 		}
 		for _, predecessor := range old {
-			if _, affected := s.insertConflict.AffectedRows[predecessor.Row]; affected {
+			if _, affected := s.InsertConflict.AffectedRows[predecessor.Row]; affected {
 				return dml.ConflictUpdateCardinalityError()
 			}
 		}

@@ -24,7 +24,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	if err := partition.RejectForeignKeys(syntax); err != nil {
 		return nil, err
 	}
-	for _, observed := range scope.partitionRelations {
+	for _, observed := range scope.PartitionRelations {
 		stage.domainBases = append(stage.domainBases, observed)
 	}
 	var parent *catalog.Relation

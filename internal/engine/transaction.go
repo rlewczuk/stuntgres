@@ -496,10 +496,10 @@ retry:
 	e := s.engine()
 	e.mu.Lock()
 	admission := e.privateCatalogLocked(s.owner.Catalog).State()
-	if binding := s.uniqueBinding; binding != nil && binding.Catalog != admission {
+	if binding := s.UniqueBinding; binding != nil && binding.Catalog != admission {
 		e.mu.Unlock()
 		s.owner.Mu.Unlock()
-		if s.insertConflict != nil && s.insertConflict.Update == nil {
+		if s.InsertConflict != nil && s.InsertConflict.Update == nil {
 			var err error
 			batch, err = s.revalidateConflictRows(ref, batch)
 			rows = batch.Values
@@ -536,8 +536,8 @@ retry:
 			return errors.New("stuntgres: invalid staged row width")
 		}
 	}
-	if s.insertConflict != nil && s.insertConflict.Update == nil {
-		s.insertConflict.Affected = len(rows)
+	if s.InsertConflict != nil && s.InsertConflict.Update == nil {
+		s.InsertConflict.Affected = len(rows)
 	}
 	if len(rows) == 0 {
 		return nil

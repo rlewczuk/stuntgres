@@ -73,7 +73,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 	view := e.privateCatalogLocked(changes)
 	input := s.input
 	var programmeAuth AuthorizationView
-	if len(s.domains.preparedChecks) != 0 || len(s.routinePrograms) != 0 || len(s.indexBindings) != 0 {
+	if len(s.domains.preparedChecks) != 0 || len(s.routinePrograms) != 0 || len(s.IndexBindings) != 0 {
 		var err error
 		programmeAuth, err = s.writeAuthorizationLocked(e)
 		if err != nil {

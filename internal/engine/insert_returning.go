@@ -21,10 +21,10 @@ func (s *StatementScope) beginInsertReturning(b analyze.Binding) {
 	}
 	rows := exec.NewFinalRows(b.Returning.Schema, 0)
 	rows.Output = s.output
-	s.insertReturning = &dml.InsertReturningOutput{Binding: b, Rows: rows}
+	s.InsertReturning = &dml.InsertReturningOutput{Binding: b, Rows: rows}
 }
 func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exec.Context) error {
-	output := s.insertReturning
+	output := s.InsertReturning
 	if output == nil {
 		return nil
 	}
@@ -45,7 +45,7 @@ func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exe
 	return nil
 }
 func (s *StatementScope) finishInsertReturning() (Result, error) {
-	output := s.insertReturning
+	output := s.InsertReturning
 	if output.Binding.Returning.RegclassOutput && output.Rows.Count != 0 {
 		if err := s.engine().captureRegclassOutput(s.op, output.Rows); err != nil {
 			return Result{}, err
@@ -60,20 +60,20 @@ func (s *StatementScope) finishInsertReturning() (Result, error) {
 // Revalidate the proposal before output, never output before possible filtering.
 func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *index.WriteCandidate, evaluation *exec.Context) (bool, error) {
 	row := candidate.Values
-	if s.insertConflict != nil && s.insertConflict.Update != nil {
+	if s.InsertConflict != nil && s.InsertConflict.Update != nil {
 		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
 	}
 	proposal := *candidate
-	if s.partitionInsert != nil {
+	if s.PartitionInsert != nil {
 		group := s.partitionReturningGroup(ref)
 		ref = group.Ref
 		proposal.Values = s.partitionStoredRow(row)
-		defer func() { group.Unique = s.uniqueBinding }()
+		defer func() { group.Unique = s.UniqueBinding }()
 	}
 	for {
 		admitted := true
 		var err error
-		if s.partitionInsert != nil {
+		if s.PartitionInsert != nil {
 			err = s.checkUniqueRow(ref, &proposal, nil, index.WriteBatch{})
 		} else {
 			admitted, err = s.admitInsertRow(ref, &proposal, index.WriteBatch{}, evaluation)
@@ -125,11 +125,11 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 		return false, false, ids.ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.Catalog)
-	if s.uniqueBinding == nil || s.uniqueBinding.Catalog != catalog.State() {
+	if s.UniqueBinding == nil || s.UniqueBinding.Catalog != catalog.State() {
 		return false, true, nil
 	}
 	parent, ok := catalog.Relation(ref.Address)
-	if !ok || !index.SameRelationRowShape(s.uniqueBinding.Parent, parent) {
+	if !ok || !index.SameRelationRowShape(s.UniqueBinding.Parent, parent) {
 		return false, false, ids.ErrCatalogReplaced
 	}
 	if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
@@ -144,8 +144,8 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 	}
 	auth.Catalog = catalog
 	auth.Recapture(auth.Catalog)
-	b := s.insertReturning.Binding
-	if b.ViewWrite == nil && s.partitionInsert == nil {
+	b := s.InsertReturning.Binding
+	if b.ViewWrite == nil && s.PartitionInsert == nil {
 		b.Ref, b.Relation = ref, parent
 	}
 	if err = analyze.CheckBinding(auth, b, &parser.Insert{}); err != nil {
@@ -175,7 +175,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 	return true, false, nil
 }
 func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partition.InsertGroup {
-	state := s.partitionInsert
+	state := s.PartitionInsert
 	address := state.Destination.Address()
 	group := state.Groups[address]
 	if group == nil {
@@ -186,7 +186,7 @@ func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partition.I
 		state.Groups[address] = group
 		state.Order = append(state.Order, group)
 	}
-	s.uniqueBinding = group.Unique
+	s.UniqueBinding = group.Unique
 	return group
 }
 
@@ -194,10 +194,10 @@ func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partition.I
 // not retain a duplicate producer prefix. Upsert projects at its action seam.
 func (s *StatementScope) admitInsertProducer(b analyze.Binding, candidate *index.WriteCandidate, prefix index.WriteBatch, c *exec.Context) (bool, error) {
 	row := candidate.Values
-	if s.insertReturning == nil {
+	if s.InsertReturning == nil {
 		return s.admitInsertRow(b.Ref, candidate, prefix, c)
 	}
-	if s.insertConflict == nil || s.insertConflict.Update == nil {
+	if s.InsertConflict == nil || s.InsertConflict.Update == nil {
 		if err := s.engine().checkViewRow(s, &b, row, c); err != nil {
 			return false, err
 		}

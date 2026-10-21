@@ -288,16 +288,16 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 	}
 	var single physicalBatch
 	single.ref = b.Ref
-	if len(s.inheritedTargets) == 0 {
+	if len(s.InheritedTargets) == 0 {
 		capacity := min(len(candidates), source.Count())
 		single.old = make([]storage.RowVersion, 0, capacity)
 		single.rows.Values = make([][]sqltype.Value, 0, capacity)
 	}
 	batches := []physicalBatch(nil)
-	if len(s.inheritedTargets) != 0 && len(candidates) != 0 {
-		batches = make([]physicalBatch, len(s.inheritedTargets)+1)
+	if len(s.InheritedTargets) != 0 && len(candidates) != 0 {
+		batches = make([]physicalBatch, len(s.InheritedTargets)+1)
 		batches[0].ref = b.Ref
-		for i, target := range s.inheritedTargets {
+		for i, target := range s.InheritedTargets {
 			batches[i+1].ref = target.Ref
 		}
 		for i := range batches {
@@ -511,8 +511,8 @@ func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schem
 // Capture only immutable authority under metadata locks. Provider output runs
 // unlocked; disclosure uses the named target's supplied-column manifest.
 func (e *Engine) rowConstraintDetail(s *StatementScope, b *analyze.Binding, row []sqltype.Value) (string, error) {
-	if s != nil && s.partitionInsert != nil && b != nil && b.Relation.Address() == s.partitionInsert.Target.Address() {
-		row = s.partitionInsert.NamedRow
+	if s != nil && s.PartitionInsert != nil && b != nil && b.Relation.Address() == s.PartitionInsert.Target.Address() {
+		row = s.PartitionInsert.NamedRow
 	}
 	return e.rowDiagnosticDetail(s, b, row, false)
 }

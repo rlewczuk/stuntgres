@@ -9,9 +9,9 @@ import (
 // Catalog-drift staging can refresh grants and immutable providers, but cannot
 // manufacture a new checked insertion occurrence after the producer finished.
 func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
-	prior := s.uniqueBinding
+	prior := s.UniqueBinding
 	if prior != nil && prior.Ref != ref {
-		prior = s.indexBindings[ref.Address]
+		prior = s.IndexBindings[ref.Address]
 	}
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
@@ -43,7 +43,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 		if err := s.readmitPreparedPrograms(auth); err != nil {
 			return err
 		}
-		if s.indexBindings[prior.Ref.Address] != prior {
+		if s.IndexBindings[prior.Ref.Address] != prior {
 			if err := prior.ReadmitPrograms(routineAccessOf(auth)); err != nil {
 				return err
 			}
@@ -72,7 +72,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 // for this fresh coherent authority capture. All checks after unlock are pure
 // graph admission: no provider, CHECK truth, codec or output replay.
 func (s *StatementScope) readmitProgramsAfterWait() error {
-	if len(s.domains.preparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.indexBindings) == 0 {
+	if len(s.domains.preparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.IndexBindings) == 0 {
 		return nil
 	}
 	e := s.engine()

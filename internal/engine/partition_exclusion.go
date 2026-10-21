@@ -28,7 +28,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *s
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	stage.indexes().Output = scope.output
-	for _, descriptor := range scope.partitionRelations {
+	for _, descriptor := range scope.PartitionRelations {
 		stage.domainBases = append(stage.domainBases, descriptor)
 	}
 	err = partition.StageExclusions(ddlHost{e: e, op: op, stage: stage}, auth, scope.input, table, raw)

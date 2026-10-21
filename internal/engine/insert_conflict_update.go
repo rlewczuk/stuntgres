@@ -20,7 +20,7 @@ import (
 // restarted after a row wait; defaults, the source and SET are never replayed.
 func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate *index.WriteCandidate, proposalEvaluation *exec.Context) error {
 	proposal := candidate.Values
-	c := s.insertConflict
+	c := s.InsertConflict
 	e := s.engine()
 	journal := s.uniqueJournal()
 	journal.BeginDelta()
@@ -43,7 +43,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			if err != nil {
 				return err
 			}
-			if c.Catalog != s.uniqueBinding.Catalog {
+			if c.Catalog != s.UniqueBinding.Catalog {
 				journal.RestoreDelta()
 				s.writeHost().DiscardExclusion(candidate)
 				continue
@@ -51,15 +51,15 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			if other.index != nil {
 				return other.diagnostic(s, ref)
 			}
-			if s.viewWrite != nil {
-				b := dml.BindingForConflict(ref, s.viewWrite.BaseRelation, c)
-				b.ViewWrite = view.ViewWriteSlotOf(s.viewWrite)
+			if s.ViewWrite != nil {
+				b := dml.BindingForConflict(ref, s.ViewWrite.BaseRelation, c)
+				b.ViewWrite = view.ViewWriteSlotOf(s.ViewWrite)
 				b.Targets = c.Targets
 				if err := e.checkViewRow(s, &b, proposal, &evaluation); err != nil {
 					return err
 				}
 			}
-			if s.insertReturning != nil {
+			if s.InsertReturning != nil {
 				_, retry, err := s.Writes().appendAcceptedInsert(ref, candidate)
 				if err != nil {
 					return err
@@ -86,7 +86,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		s.writeHost().DiscardExclusion(candidate)
 		mode := lock.ForNoKeyUpdate
 		for _, target := range c.UpdateTargets {
-			for _, key := range s.uniqueBinding.KeySlots {
+			for _, key := range s.UniqueBinding.KeySlots {
 				if target == key {
 					mode = lock.ForUpdate
 				}
@@ -178,7 +178,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.checkUniqueRow(ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
 			return err
 		}
-		b.ViewWrite = view.ViewWriteSlotOf(s.viewWrite)
+		b.ViewWrite = view.ViewWriteSlotOf(s.ViewWrite)
 		if err := e.checkViewRow(s, &b, row, &evaluation); err != nil {
 			return err
 		}
@@ -216,7 +216,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	}
 	auth.Catalog = catalog
 	auth.Recapture(auth.Catalog)
-	if err := analyze.CheckBinding(auth, dml.BindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
+	if err := analyze.CheckBinding(auth, dml.BindingForConflict(ref, parent, s.InsertConflict), &parser.Insert{}); err != nil {
 		return storage.RowVersion{}, nil, "", false, err
 	}
 	namespace, ok := catalog.Namespace(parent.Namespace())
@@ -228,7 +228,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if candidate.committed {
 		row, _, found = storage.RowByID(store.Versions, candidate.row.Row, candidate.position)
 	} else {
-		if slot, ok := s.insertConflict.AffectedRows[candidate.row.Row]; ok {
+		if slot, ok := s.InsertConflict.AffectedRows[candidate.row.Row]; ok {
 			row, found = s.stage.rows[ref.Address][slot], true
 		}
 		if !found {

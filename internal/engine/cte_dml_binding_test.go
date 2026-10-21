@@ -41,7 +41,7 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 			t.Fatal("wrong exact target occurrence", i, mutation.lockedRef)
 		}
 		seen[mutation.statement] = true
-		if mutation.insertReturning != nil || mutation.uniqueBinding != nil || mutation.partitionInsert != nil {
+		if mutation.InsertReturning != nil || mutation.UniqueBinding != nil || mutation.PartitionInsert != nil {
 			t.Fatal("Prepare retained executable target state")
 		}
 	}

@@ -130,8 +130,8 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		}
 		worker.Mu.Unlock()
 		if scope == nil || scope.lockedRef != ref || scope.view == nil ||
-			scope.insertConflict == nil || len(scope.insertConflict.Selected) != 1 ||
-			request.Resource.Address != scope.insertConflict.Selected[0] || request.Resource.Epoch != ref.Epoch {
+			scope.InsertConflict == nil || len(scope.InsertConflict.Selected) != 1 ||
+			request.Resource.Address != scope.InsertConflict.Selected[0] || request.Resource.Epoch != ref.Epoch {
 			t.Fatal("wrong admitted source/conflict capture", scope, request.Resource)
 		}
 		captured := scope.view.Load()

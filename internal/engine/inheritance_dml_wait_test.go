@@ -112,8 +112,8 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 	if !replace && !errors.Is(err, context.Canceled) {
 		t.Fatal("physical wait ignored cancellation", err)
 	}
-	if len(s.inheritedTargets) != 0 {
-		t.Fatal("failed wait admitted a descendant", s.inheritedTargets)
+	if len(s.InheritedTargets) != 0 {
+		t.Fatal("failed wait admitted a descendant", s.InheritedTargets)
 	}
 	s.Finish(err)
 	holder.Finish(nil)

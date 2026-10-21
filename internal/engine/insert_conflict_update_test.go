@@ -56,7 +56,7 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q 
 	if err := preflightConflictUpdate(conflict, &evaluation); err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = conflict
+	scope.InsertConflict = conflict
 	return op, scope, b
 }
 
@@ -327,8 +327,8 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		if failure == "close" {
 			consumed, affected = 2, 2
 		}
-		if cursor.position != consumed || cursor.nextCalls != consumed+1 || scope.insertConflict.Affected != affected {
-			t.Fatal("consumed proposals and once-only mixed action accounting", cursor.position, cursor.nextCalls, scope.insertConflict.Affected)
+		if cursor.position != consumed || cursor.nextCalls != consumed+1 || scope.InsertConflict.Affected != affected {
+			t.Fatal("consumed proposals and once-only mixed action accounting", cursor.position, cursor.nextCalls, scope.InsertConflict.Affected)
 		}
 		if finishErr := scope.Finish(err); !errors.Is(finishErr, injected) {
 			t.Fatal("primary veto lost", finishErr)

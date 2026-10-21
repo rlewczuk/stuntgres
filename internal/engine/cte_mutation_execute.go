@@ -183,7 +183,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 				leaves = append([]exec.Leaf(nil), leaves...)
 			}
 			leaves = append(leaves, exec.Leaf{Ref: mutation.lockedRef, Relation: mutation.lockedDescriptor.(*catalog.Relation), Only: true})
-			leaves = append(leaves, mutation.inheritedTargets...)
+			leaves = append(leaves, mutation.InheritedTargets...)
 		}
 	}
 	if len(scope.mutations) == 0 && b.Ref.Domain() != nil {

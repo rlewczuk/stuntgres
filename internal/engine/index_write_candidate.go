@@ -15,7 +15,7 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 	if len(batch.Values) == 0 {
 		return nil
 	}
-	binding := s.uniqueBinding
+	binding := s.UniqueBinding
 	if binding == nil || binding.Ref != ref {
 		var err error
 		binding, err = s.bindUniqueWrite(ref)

@@ -155,7 +155,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				next.SetDescriptor(old.Address(), &changed)
 				e.catalog.state = next
 				// The exact descendant authority was admitted before the wait.
-				reader.partitionRelations[old.Address()] = old
+				reader.PartitionRelations[old.Address()] = old
 			}
 			if err := holder.Finish(nil); err != nil {
 				t.Fatal(err)

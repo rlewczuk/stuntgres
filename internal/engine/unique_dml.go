@@ -21,21 +21,21 @@ retry:
 	if err != nil {
 		return nil, err
 	}
-	if b := s.uniqueBinding; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
+	if b := s.UniqueBinding; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
 		return b, nil
 	}
-	if b := s.indexBindings[ref.Address]; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
-		s.uniqueBinding = b
+	if b := s.IndexBindings[ref.Address]; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
+		s.UniqueBinding = b
 		return b, nil
 	}
-	if overlay := s.writeOverlay(); overlay != nil && s.uniqueBinding != nil && s.uniqueBinding.Ref == ref {
+	if overlay := s.writeOverlay(); overlay != nil && s.UniqueBinding != nil && s.UniqueBinding.Ref == ref {
 		overlay.Overlays = nil
 	}
 	b, err := index.BuildUniqueWriteBinding(ref, parent, view)
 	if err != nil {
 		return nil, err
 	}
-	if err := b.InheritConsumedPrograms(s.indexBindings[ref.Address]); err != nil {
+	if err := b.InheritConsumedPrograms(s.IndexBindings[ref.Address]); err != nil {
 		return nil, err
 	}
 	if b.Checked {
@@ -47,12 +47,12 @@ retry:
 			goto retry
 		}
 	}
-	s.uniqueBinding = b
+	s.UniqueBinding = b
 	if b.Checked {
-		if s.indexBindings == nil {
-			s.indexBindings = make(map[ids.ObjectAddress]*index.UniqueWriteBinding)
+		if s.IndexBindings == nil {
+			s.IndexBindings = make(map[ids.ObjectAddress]*index.UniqueWriteBinding)
 		}
-		s.indexBindings[ref.Address] = b
+		s.IndexBindings[ref.Address] = b
 	}
 	return b, nil
 }
@@ -227,12 +227,12 @@ retry:
 			return uniqueConflict{}, err
 		}
 		if probe.Stale {
-			s.uniqueBinding = nil
+			s.UniqueBinding = nil
 			goto retry
 		}
 		parent, idx = probe.Parent, probe.Index
 		current, root, versions := probe.View, probe.Root, probe.Versions
-		if check := s.insertConflict; check != nil {
+		if check := s.InsertConflict; check != nil {
 			if err := s.checkWriteBinding(probe.Authority, dml.BindingForConflict(ref, parent, check)); err != nil {
 				return uniqueConflict{}, err
 			}

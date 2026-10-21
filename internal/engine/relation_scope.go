@@ -696,7 +696,7 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		}
 		s.activateMutation(active)
 	}
-	if len(s.querySources) == 0 && s.lockedRef.Domain() == nil && len(s.partitionRelations) == 0 {
+	if len(s.querySources) == 0 && s.lockedRef.Domain() == nil && len(s.PartitionRelations) == 0 {
 		return nil
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
@@ -745,19 +745,19 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	} else if current != s.lockedDescriptor {
 		return ids.ErrCatalogReplaced
 	}
-	for _, target := range s.inheritedTargets {
+	for _, target := range s.InheritedTargets {
 		if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, target); err != nil {
 			return err
 		}
 	}
-	for address, captured := range s.partitionRelations {
+	for address, captured := range s.PartitionRelations {
 		current, _ := view.Relation(address)
 		if current != captured && !partition.AppendCompatible(captured, current) {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	if s.viewWrite != nil {
-		for _, layer := range s.viewWrite.Layers {
+	if s.ViewWrite != nil {
+		for _, layer := range s.ViewWrite.Layers {
 			current, ok := view.Relation(layer.Ref.Address)
 			if !ok || current.View != layer.Relation.View || !index.SameRelationRowShape(current, layer.Relation) {
 				return ids.ErrCatalogReplaced

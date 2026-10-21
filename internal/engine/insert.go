@@ -26,10 +26,10 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 	}
 	scope.beginInsertReturning(b)
 	keepReturning := false
-	if scope.insertReturning != nil {
+	if scope.InsertReturning != nil {
 		defer func() {
 			if !keepReturning {
-				scope.insertReturning.Rows.Close()
+				scope.InsertReturning.Rows.Close()
 			}
 		}()
 	}
@@ -55,7 +55,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		if scope.insertReturning != nil {
+		if scope.InsertReturning != nil {
 			result, err := scope.finishInsertReturning()
 			keepReturning = err == nil
 			return result, err
@@ -88,7 +88,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		defer evaluation.Query.Source.Close()
 	}
 	var rows index.WriteBatch
-	if scope.insertReturning == nil {
+	if scope.InsertReturning == nil {
 		rows.Values = make([][]sqltype.Value, 0, len(b.Insert.Rows))
 	}
 	for i, source := range b.Insert.Rows {
@@ -174,7 +174,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	if scope.insertReturning != nil {
+	if scope.InsertReturning != nil {
 		result, err := scope.finishInsertReturning()
 		keepReturning = err == nil
 		return result, err

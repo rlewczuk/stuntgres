@@ -362,7 +362,7 @@ func TestViewWriteCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := f.e.storage.Relations[f.base.Address()].Versions
-	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.visibility.CommitSeq() != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
+	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.visibility.CommitSeq() != 1 || len(scope.stage.rows) != 0 || scope.ViewWrite != nil {
 		t.Fatal("canceled stage published or retained resources")
 	}
 	lockState := f.e.locks.Inspect()

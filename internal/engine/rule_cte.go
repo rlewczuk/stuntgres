@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -136,7 +137,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		physical := view.PhysicalBinding(rewrite.Command.Binding)
 		scope.mutations[scope.activeMutation] = scope.statementMutation
 		rewrite.Mutation = len(scope.mutations)
-		scope.mutations = append(scope.mutations, statementMutation{statement: rewrite.Command.Syntax, mutationTarget: mutationTarget{lockedRef: physical.Ref, lockedDescriptor: physical.Relation, lockedStorage: physical.Storage}, viewWrite: view.ViewWriteOf(rewrite.Command.Binding.ViewWrite)})
+		scope.mutations = append(scope.mutations, statementMutation{statement: rewrite.Command.Syntax, mutationTarget: mutationTarget{lockedRef: physical.Ref, lockedDescriptor: physical.Relation, lockedStorage: physical.Storage}, Command: dml.Command{ViewWrite: view.ViewWriteOf(rewrite.Command.Binding.ViewWrite)}})
 	}
 	return refs, nil
 }
