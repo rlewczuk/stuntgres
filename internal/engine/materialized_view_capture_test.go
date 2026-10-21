@@ -47,7 +47,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			if err != nil || skipped {
 				t.Fatalf("freeze stage: %v skipped=%v", err, skipped)
 			}
-			if len(viewOf(d).literals) == 0 {
+			if len(viewOf(d).Literals()) == 0 {
 				t.Fatal("missing frozen literal occurrences")
 			}
 			if len(b.QuerySources) != 0 && (len(viewOf(d).columns) == 0 || len(viewOf(d).namespaces) == 0) {

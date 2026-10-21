@@ -349,7 +349,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	var oid, rule ids.OID
 	if old != nil {
-		oid, rule = old.Address().ObjectID, viewOf(old).rule
+		oid, rule = old.Address().ObjectID, viewOf(old).RuleOID()
 	} else {
 		oid, err = e.catalog.allocateOIDLocked()
 		if err == nil {

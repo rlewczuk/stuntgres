@@ -153,11 +153,11 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		return nil
 	}
 	principal := d.Owner
-	if viewOf(d).invoker {
+	if viewOf(d).Invoker() {
 		principal = invoker
 	}
 	ancestors = append(ancestors, ref)
-	for _, source := range viewOf(d).sources {
+	for _, source := range viewOf(d).Sources() {
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.Catalog)
 		child, ok := view.Relation(source.ref.Address)

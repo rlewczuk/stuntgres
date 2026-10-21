@@ -65,7 +65,7 @@ func inheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 			}
 			active = append(active, d.Address())
 			defer func() { active = active[:len(active)-1] }()
-			for i, child := range viewOf(d).sources {
+			for i, child := range viewOf(d).Sources() {
 				if child.analysisOnly {
 					continue
 				}
@@ -114,7 +114,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			return ids.ErrCatalogReplaced
 		}
 		roots = append([]exec.Leaf(nil), roots...)
-		for _, leaf := range viewOf(d).sources {
+		for _, leaf := range viewOf(d).Sources() {
 			if leaf.analysisOnly {
 				continue
 			}

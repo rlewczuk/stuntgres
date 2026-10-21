@@ -105,7 +105,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				return fail(err)
 			}
 			temporary := viewOf(old).temporary != (ids.SessionToken{})
-			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).barrier, viewOf(old).invoker, viewOf(old).rule, catalog.ViewRelation, temporary)
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).barrier, viewOf(old).Invoker(), viewOf(old).RuleOID(), catalog.ViewRelation, temporary)
 			if err != nil {
 				return fail(err)
 			}
@@ -138,7 +138,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				sources = append(sources, action.binding.QuerySources...)
 			}
 			if definition.conditionPresentation != nil {
-				for _, source := range definition.conditionPresentation.sources {
+				for _, source := range definition.conditionPresentation.Sources() {
 					d := auth.Catalog.MustRelation(source.ref.Address)
 					sources = append(sources, exec.Leaf{Ref: source.ref, Relation: d})
 				}

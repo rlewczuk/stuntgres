@@ -263,7 +263,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			}
 			var source *exec.Source
 			if captureErr == nil {
-				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).sources[0].only}, op.Session.SessionToken)
+				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).Sources()[0].only}, op.Session.SessionToken)
 			}
 			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.Catalog, parent.Address()) == parentStorage
 			e.mu.Unlock()

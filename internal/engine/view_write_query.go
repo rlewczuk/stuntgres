@@ -36,13 +36,13 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 		return plan.RewriteQueryExpressions(root, rewrite)
 	}
 	mapOccurrence := func(occurrence int) (int, error) {
-		if occurrence < 0 || occurrence >= len(definition.sources) {
+		if occurrence < 0 || occurrence >= len(definition.Sources()) {
 			return 0, ids.ErrCatalogReplaced
 		}
 		key := viewWriteOccurrence{definition, occurrence}
 		slot, found := w.queryOccurrences[key]
 		if !found {
-			leaf := definition.sources[occurrence]
+			leaf := definition.Sources()[occurrence]
 			relation, ok := view.Relation(leaf.ref.Address)
 			if !ok {
 				return 0, ids.ErrCatalogReplaced
@@ -153,7 +153,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 				}
 				current := auth.Catalog.MustRelation(layer.ref.Address)
 				source.Principal = current.Owner
-				if viewOf(current).invoker {
+				if viewOf(current).Invoker() {
 					source.Principal = auth.State.CurrentUser
 				}
 				break

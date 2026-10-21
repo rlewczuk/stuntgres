@@ -100,11 +100,11 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 		return ids.ErrCatalogReplaced
 	}
 	principal := d.Owner
-	if definition.invoker {
+	if definition.Invoker() {
 		principal = invoker
 	}
 	auth.State.CurrentUser = principal
-	for _, leaf := range definition.sources {
+	for _, leaf := range definition.Sources() {
 		source, ok := auth.Catalog.Relation(leaf.ref.Address)
 		if !ok || !storedViewReferenceValid(auth.Catalog, d, leaf.ref) {
 			return ids.ErrCatalogReplaced

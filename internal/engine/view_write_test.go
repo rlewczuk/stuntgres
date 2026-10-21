@@ -118,11 +118,11 @@ func TestViewWriteMapping(t *testing.T) {
 	compact.Attributes = []int32{11, 19}
 	compact.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[2]}
 	compact.Columns[0].Name = "renamed"
-	slot, err := stableViewSlot(&compact, viewOf(f.view).sources[0], 1)
+	slot, err := stableViewSlot(&compact, viewOf(f.view).Sources()[0], 1)
 	if err != nil || slot != 0 {
 		t.Fatal(slot, err)
 	}
-	if _, err := stableViewSlot(&compact, viewOf(f.view).sources[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := stableViewSlot(&compact, viewOf(f.view).Sources()[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing identity admitted", err)
 	}
 	// Reject the first released classifier reason rather than a later group

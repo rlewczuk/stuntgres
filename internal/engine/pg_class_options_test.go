@@ -43,7 +43,7 @@ func TestPgClassOptionHistory(t *testing.T) {
 	e := New()
 	original := &viewDefinition{query: &plan.Query{Root: &plan.SingletonNode{}}, options: old, barrier: true, invoker: false, checkOption: viewCheckNone, rule: 200001}
 	mapped, err := remapFrozenPresentation(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
-	if err != nil || mapped == original || mapped.rule != original.rule || mapped.barrier != original.barrier || mapped.invoker != original.invoker || !reflect.DeepEqual(mapped.options, old) {
+	if err != nil || mapped == original || mapped.RuleOID() != original.RuleOID() || mapped.barrier != original.barrier || mapped.Invoker() != original.Invoker() || !reflect.DeepEqual(mapped.options, old) {
 		t.Fatal("remap lost installed options", mapped, err)
 	}
 	mapped.options = transformViewOptions(mapped.options, []parser.ViewOption{option("security_invoker", "true")}, false)

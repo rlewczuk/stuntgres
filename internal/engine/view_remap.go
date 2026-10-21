@@ -988,16 +988,16 @@ func (e *Engine) remapViewRuleOIDs(next *catalog.State) error {
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
 		if view, ok := descriptor.(*catalog.Relation); ok && view.View != nil {
-			if viewOf(view).rule == 0 {
+			if viewOf(view).RuleOID() == 0 {
 				return fmt.Errorf("stuntgres: invalid imported view rule identity")
 			}
-			reserved[viewOf(view).rule] |= ruleOID
+			reserved[viewOf(view).RuleOID()] |= ruleOID
 			views = append(views, view)
 		}
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].Address().ObjectID < views[j].Address().ObjectID })
 	for _, view := range views {
-		rule := viewOf(view).rule
+		rule := viewOf(view).RuleOID()
 		if reserved[rule]&(descriptorOID|claimedOID) != 0 {
 			for {
 				candidate, err := e.catalog.allocateOIDLocked()

@@ -320,8 +320,8 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				return err
 			}
 			child := *c
-			child.QuoteOrigin = exec.QuoteOrigin{Owner: n.Ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision}
-			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = viewOf(d).dependencies, nil, d
+			child.QuoteOrigin = exec.QuoteOrigin{Owner: n.Ref, Definition: viewOf(d).RuleOID(), Revision: viewOf(d).quoteRevision}
+			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = viewOf(d).Dependencies(), nil, d
 			child.RoutineRecipe, child.RoutineGraft = true, false
 			root, storedReads, err := prepareStoredExecutionRoot(&child, viewOf(d), outputUses)
 			if err != nil {

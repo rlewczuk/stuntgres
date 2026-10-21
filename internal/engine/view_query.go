@@ -26,13 +26,13 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	e.mu.Unlock()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.QuoteCaptures = scope.quoteCaptures
-	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.rule, Revision: definition.quoteRevision}
+	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.quoteRevision}
 	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || viewOf(consumer) != definition {
 		return nil, nil, ids.ErrCatalogReplaced
 	}
 	evaluation.RoutineRecipe, evaluation.RoutineConsumer = true, consumer
-	evaluation.RoutineChecks = definition.dependencies
+	evaluation.RoutineChecks = definition.Dependencies()
 	evaluation.RoutineAuthority = &auth
 	root, reads, err := prepareStoredExecutionRoot(&evaluation, definition, outputUses)
 	if err == nil {
@@ -49,11 +49,11 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	consumer = catalog.MustRelation(ref.Address)
 	relationPrincipal := consumer.Owner
-	if definition.invoker {
+	if definition.Invoker() {
 		relationPrincipal = invoker
 	}
-	leaves := make([]exec.Leaf, len(definition.sources))
-	for i, leaf := range definition.sources {
+	leaves := make([]exec.Leaf, len(definition.Sources()))
+	for i, leaf := range definition.Sources() {
 		relation := catalog.MustRelation(leaf.ref.Address)
 		use, err := storedViewUseReference(catalog, consumer, leaf.ref)
 		if err != nil {
@@ -87,7 +87,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	// Detach bundle ownership before replacing execution-local occurrences.
 	sources := source.Sources
 	source.Sources = nil
-	for i, leaf := range definition.sources {
+	for i, leaf := range definition.Sources() {
 		child := source
 		if sources != nil {
 			child = sources[i]
@@ -134,7 +134,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	// replacements retain their existing per-node ancestry rules.
 	source.RoutineRecipe = consumer
 	if recipe := viewOf(consumer); recipe != nil {
-		source.RoutineChecks = recipe.dependencies
+		source.RoutineChecks = recipe.Dependencies()
 	}
 	return root, source, nil
 }
@@ -162,10 +162,10 @@ func prepareStoredExecutionRoot(c *exec.Context, definition *viewDefinition, out
 	}
 	reads := queryExecutionSourceReads(root, nil)
 	if source, ok := root.(*plan.SourceNode); ok {
-		if source.Occurrence < 0 || source.Occurrence >= len(definition.sources) {
+		if source.Occurrence < 0 || source.Occurrence >= len(definition.Sources()) {
 			return nil, nil, fmt.Errorf("stuntgres: invalid stored source occurrence")
 		}
-		attributes := definition.sources[source.Occurrence].attributes
+		attributes := definition.Sources()[source.Occurrence].attributes
 		if outputUses == nil {
 			reads[source.Occurrence] = attributes
 		} else {

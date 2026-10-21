@@ -602,19 +602,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				sql += "ALTER MATERIALIZED VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + " DEPENDS ON EXTENSION " + catalog.QuoteIdentifier(extension.Name()) + ";\n"
 			}
-			for _, leaf := range viewOf(r).sources {
+			for _, leaf := range viewOf(r).Sources() {
 				if err := addPredecessor(leaf.ref.Address); err != nil {
 					e.mu.Unlock()
 					return err
 				}
 			}
-			for _, dependency := range viewOf(r).dependencies {
+			for _, dependency := range viewOf(r).Dependencies() {
 				if err := addPredecessor(dependency.Ref.Address); err != nil {
 					e.mu.Unlock()
 					return err
 				}
 			}
-			for _, literal := range viewOf(r).literals {
+			for _, literal := range viewOf(r).Literals() {
 				if err := regclassReplayReferences(e.catalog.read(e.catalog.state), literal, addPredecessor); err != nil {
 					e.mu.Unlock()
 					return err

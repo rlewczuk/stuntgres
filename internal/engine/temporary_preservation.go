@@ -104,7 +104,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				if condition == nil {
 					continue
 				}
-				for _, leaf := range condition.presentation.sources {
+				for _, leaf := range condition.presentation.Sources() {
 					if _, retained := temporary[leaf.ref.Address]; retained {
 						continue
 					}
@@ -112,7 +112,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
 					}
 				}
-				for _, dependency := range condition.presentation.dependencies {
+				for _, dependency := range condition.presentation.Dependencies() {
 					address := dependency.Ref.Address
 					address.SubID = 0
 					if _, retained := temporary[address]; retained {
@@ -223,13 +223,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					retainQuery(right)
 				}
 				retainQuery(definition.query.Root)
-				for _, literal := range definition.literals {
+				for _, literal := range definition.Literals() {
 					retainBuiltin(literal.ResultUsage().Type)
 				}
 				for _, usage := range definition.castUsages {
 					retainBuiltin(usage.Type)
 				}
-				for ref, captured := range definition.references {
+				for ref, captured := range definition.References() {
 					address := ref.Address
 					address.SubID = 0
 					switch provider := e.catalog.state.Get(address).(type) {
@@ -659,7 +659,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 		if !ok || consumer.View == nil {
 			continue
 		}
-		for ref, captured := range viewOf(consumer).references {
+		for ref, captured := range viewOf(consumer).References() {
 			address := ref.Address
 			address.SubID = 0
 			old, ok := e.catalog.state.Relation(address)

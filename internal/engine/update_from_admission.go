@@ -58,7 +58,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		}
 		active = append(active, ref)
 		defer func() { active = active[:len(active)-1] }()
-		for i, child := range viewOf(relation).sources {
+		for i, child := range viewOf(relation).Sources() {
 			if child.analysisOnly {
 				continue
 			}
@@ -109,7 +109,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				visited = make(map[ids.ObjectRef]bool)
 			}
 			visited[ref] = true
-			for _, child := range viewOf(relation).sources {
+			for _, child := range viewOf(relation).Sources() {
 				if child.analysisOnly {
 					continue
 				}

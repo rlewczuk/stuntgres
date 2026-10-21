@@ -137,7 +137,7 @@ func rowSecurityLayers(view catalog.Read, b analyze.Binding) []access.RowSecurit
 	layers := make([]access.RowSecurityLayer, 0, len(viewWriteOf(b.ViewWrite).layers))
 	for _, layer := range viewWriteOf(b.ViewWrite).layers {
 		current := view.MustRelation(layer.ref.Address)
-		layers = append(layers, access.RowSecurityLayer{Owner: current.Owner, Invoker: viewOf(current).invoker})
+		layers = append(layers, access.RowSecurityLayer{Owner: current.Owner, Invoker: viewOf(current).Invoker()})
 	}
 	return layers
 }

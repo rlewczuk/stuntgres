@@ -109,7 +109,7 @@ func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[
 			expression(constraint.Expression)
 		}
 		if relation.View != nil {
-			for _, literal := range viewOf(relation).literals {
+			for _, literal := range viewOf(relation).Literals() {
 				check(literal.Value)
 			}
 		}

@@ -254,7 +254,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	// Every stored arm is still admitted, including one whose identity expired.
 	d := *e.catalog.state.MustRelation(set.Address)
 	definition := *viewOf(&d)
-	definition.sources = append([]viewLeaf(nil), definition.sources...)
+	definition.sources = append([]viewLeaf(nil), definition.Sources()...)
 	definition.sources[1].ref.Epoch++
 	d.View = &definition
 	e.catalog.state.SetDescriptor(set.Address, &d)

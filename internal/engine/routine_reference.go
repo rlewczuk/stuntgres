@@ -27,6 +27,6 @@ func selectExpressionRecipe(c *exec.Context, recipe *catalog.Relation) error {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	c.RoutineChecks = viewOf(recipe).dependencies
+	c.RoutineChecks = viewOf(recipe).Dependencies()
 	return nil
 }

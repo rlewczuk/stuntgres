@@ -141,7 +141,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 			if expression == nil {
 				continue
 			}
-			for _, leaf := range expression.presentation.sources {
+			for _, leaf := range expression.presentation.Sources() {
 				if descriptor, ok := auth.Catalog.Descriptor(leaf.ref.Address); ok {
 					stage.querySources = append(stage.querySources, descriptor)
 				}

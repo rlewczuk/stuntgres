@@ -51,7 +51,7 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	view := e.stageRead(stage)
-	if !d.RelationKind.Stored() || d.Populated || d.View == nil || viewOf(d).rule == 0 {
+	if !d.RelationKind.Stored() || d.Populated || d.View == nil || viewOf(d).RuleOID() == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
 	if err := (relationProvider{}).Validate(view, d); err != nil {
@@ -125,10 +125,10 @@ func TestMaterializedViewDefinition(t *testing.T) {
 		t.Fatal(err)
 	}
 	source.Attributes[1] = 9
-	if definition.query != b.Query || definition.syntax != viewOf(d).syntax || definition.rule == 0 || definition.rule == viewOf(d).rule {
+	if definition.query != b.Query || definition.syntax != viewOf(d).syntax || definition.RuleOID() == 0 || definition.RuleOID() == viewOf(d).RuleOID() {
 		t.Fatal("definition rebound or lost fresh rule identity")
 	}
-	if !reflect.DeepEqual(definition.sources[0].attributes, []int32{1, 3}) || !reflect.DeepEqual(definition.sources[0].reads, []int32{3}) || definition.dependencies[0] != b.Dependencies[0] {
+	if !reflect.DeepEqual(definition.Sources()[0].attributes, []int32{1, 3}) || !reflect.DeepEqual(definition.Sources()[0].reads, []int32{3}) || definition.Dependencies()[0] != b.Dependencies[0] {
 		t.Fatal("frozen hidden-attribute/source dependencies changed")
 	}
 }

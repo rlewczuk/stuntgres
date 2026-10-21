@@ -312,8 +312,8 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 		if err := admitRoutineCall(&evaluation, retained, false, false); err != nil {
 			t.Fatal("stored original manifest admission", err)
 		}
-		missing := make([]catalog.ExpressionDependency, 0, len(viewOf(recipe).dependencies))
-		for _, dependency := range viewOf(recipe).dependencies {
+		missing := make([]catalog.ExpressionDependency, 0, len(viewOf(recipe).Dependencies()))
+		for _, dependency := range viewOf(recipe).Dependencies() {
 			if dependency.Ref.Address != captured.Address() {
 				missing = append(missing, dependency)
 			}

@@ -469,7 +469,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	local := e.catalog.state.MustRelation(localAddress)
 	retainedView := e.catalog.state.MustRelation(viewAddress)
 	var procedureRef ids.ObjectRef
-	for ref := range viewOf(retainedView).references {
+	for ref := range viewOf(retainedView).References() {
 		if ref.Address == ext.Members[1] {
 			procedureRef = ref
 		}
