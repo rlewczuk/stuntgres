@@ -1855,33 +1855,33 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			for _, element := range s.Elements {
 				if element.Column != nil {
 					for _, constraint := range element.Column.Constraints {
-						if err := restoreScalar(constraint.Default, true); err != nil {
+						if err := dump.RestoreScalar(constraint.Default, true); err != nil {
 							return err
 						}
 						if constraint.Generation != nil {
-							if err := restoreScalar(constraint.Generation.Expression, true); err != nil {
+							if err := dump.RestoreScalar(constraint.Generation.Expression, true); err != nil {
 								return err
 							}
 						}
 						if constraint.Check != nil {
-							if err := restoreScalar(constraint.Check.Expression, true); err != nil {
+							if err := dump.RestoreScalar(constraint.Check.Expression, true); err != nil {
 								return err
 							}
 						}
 					}
 				}
 				if element.Check != nil {
-					if err := restoreScalar(element.Check.Expression, true); err != nil {
+					if err := dump.RestoreScalar(element.Check.Expression, true); err != nil {
 						return err
 					}
 				}
 				if element.Exclusion != nil {
 					for _, key := range element.Exclusion.Index.Keys {
-						if err := restoreScalar(key.Expression, true); err != nil {
+						if err := dump.RestoreScalar(key.Expression, true); err != nil {
 							return err
 						}
 					}
-					if err := restoreScalar(element.Exclusion.Index.Predicate, true); err != nil {
+					if err := dump.RestoreScalar(element.Exclusion.Index.Predicate, true); err != nil {
 						return err
 					}
 				}
@@ -1958,7 +1958,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			for _, tuple := range [2][]parser.PartitionDatum{s.Bound.Lower, s.Bound.Upper} {
 				for _, datum := range tuple {
 					if datum.Kind == 0 {
-						if err := restoreScalar(datum.Expression, true); err != nil {
+						if err := dump.RestoreScalar(datum.Expression, true); err != nil {
 							return err
 						}
 					}
@@ -2047,12 +2047,12 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 					}
 					bound := step.Subscript
 					if bound.Lower != nil {
-						if err := restoreScalar(bound.Lower, false); err != nil {
+						if err := dump.RestoreScalar(bound.Lower, false); err != nil {
 							return err
 						}
 					}
 					if bound.Upper != nil {
-						if err := restoreScalar(bound.Upper, false); err != nil {
+						if err := dump.RestoreScalar(bound.Upper, false); err != nil {
 							return err
 						}
 					}
@@ -2060,7 +2060,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 			for _, row := range s.Rows {
 				for _, v := range row {
-					if err := restoreScalar(v, false); err != nil {
+					if err := dump.RestoreScalar(v, false); err != nil {
 						return err
 					}
 				}

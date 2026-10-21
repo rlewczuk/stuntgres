@@ -81,7 +81,7 @@ func restoreDomainAlter(raw *parser.AlterDomain) error {
 	if raw == nil || raw.Action != parser.DomainAddCheck || raw.Check == nil || !raw.Check.NotValid || raw.Check.NoInherit || raw.Check.Name.Text == "" || raw.Constraint != raw.Check.Name || raw.IfExists || raw.Mode != 0 || len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text == "pg_temp" || strings.HasPrefix(raw.Name.Parts[0].Text, "pg_temp_") {
 		return sqlError("0A000", "restore accepts only qualified named NOT VALID domain CHECK additions")
 	}
-	return restoreScalar(raw.Check.Expression, true)
+	return dump.RestoreScalar(raw.Check.Expression, true)
 }
 
 // Only the constructor's actual fresh ref, immediately after the captured owner

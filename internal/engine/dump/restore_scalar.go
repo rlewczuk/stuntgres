@@ -1,4 +1,4 @@
-package engine
+package dump
 
 import (
 	"fmt"
@@ -8,30 +8,31 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Stored CREATE expressions retain their binder's admission rules. INSERT
-// expressions retain the existing Restore whitelist. Both modes reject every
-// parameter reached through the shared recursive visitor.
-func restoreScalar(raw parser.Expr, stored bool) error {
+// RestoreScalar validates one Restore scalar. Stored CREATE expressions
+// (stored) retain their binder's admission rules; INSERT expressions retain
+// the Restore whitelist. Both modes reject every parameter reached through
+// the shared recursive visitor.
+func RestoreScalar(raw parser.Expr, stored bool) error {
 	switch r := raw.(type) {
 	case parser.SQLJSONExpr:
 		for _, child := range r.Args {
-			if err := restoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
 		if r.Query != nil {
-			return restoreSQLJSONQuery(r.Query, stored)
+			return RestoreSQLJSONQuery(r.Query, stored)
 		}
 		return nil
 	case parser.JSONPredicateExpr:
-		return restoreScalar(r.Child, stored)
+		return RestoreScalar(r.Child, stored)
 	case parser.SubqueryExpr:
 		if r.Left != nil {
-			if err := restoreScalar(r.Left, stored); err != nil {
+			if err := RestoreScalar(r.Left, stored); err != nil {
 				return err
 			}
 		}
-		if err := restoreSQLJSONQuery(r.Query, stored); err != nil {
+		if err := RestoreSQLJSONQuery(r.Query, stored); err != nil {
 			return err
 		}
 		if !stored {
@@ -96,85 +97,85 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 			}
 		}
 		for _, child := range r.Args {
-			if err := restoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.CaseExpr:
 		if r.Test != nil {
-			if err := restoreScalar(r.Test, stored); err != nil {
+			if err := RestoreScalar(r.Test, stored); err != nil {
 				return err
 			}
 		}
 		for _, arm := range r.Arms {
-			if err := restoreScalar(arm.Condition, stored); err != nil {
+			if err := RestoreScalar(arm.Condition, stored); err != nil {
 				return err
 			}
-			if err := restoreScalar(arm.Result, stored); err != nil {
+			if err := RestoreScalar(arm.Result, stored); err != nil {
 				return err
 			}
 		}
 		if r.Else != nil {
-			return restoreScalar(r.Else, stored)
+			return RestoreScalar(r.Else, stored)
 		}
 		return nil
 	case parser.ConditionalExpr:
 		for _, child := range r.Args {
-			if err := restoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.LogicalExpr:
-		if err := restoreScalar(r.Left, stored); err != nil {
+		if err := RestoreScalar(r.Left, stored); err != nil {
 			return err
 		}
 		if r.Right != nil {
-			return restoreScalar(r.Right, stored)
+			return RestoreScalar(r.Right, stored)
 		}
 		return nil
 	case parser.PredicateExpr:
-		if err := restoreScalar(r.Left, stored); err != nil {
+		if err := RestoreScalar(r.Left, stored); err != nil {
 			return err
 		}
 		if r.Right != nil {
-			return restoreScalar(r.Right, stored)
+			return RestoreScalar(r.Right, stored)
 		}
 		return nil
 	case parser.CollateExpr:
-		return restoreScalar(r.Child, stored)
+		return RestoreScalar(r.Child, stored)
 	case parser.CastExpr:
-		return restoreScalar(r.Child, stored)
+		return RestoreScalar(r.Child, stored)
 	case parser.RegclassExpr:
-		return restoreScalar(r.Child, stored)
+		return RestoreScalar(r.Child, stored)
 	case parser.FieldExpr:
-		return restoreScalar(r.Base, stored)
+		return RestoreScalar(r.Base, stored)
 	case parser.RowExpr:
 		for _, field := range r.Fields {
-			if err := restoreScalar(field, stored); err != nil {
+			if err := RestoreScalar(field, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.InListExpr:
-		if err := restoreScalar(r.Left, stored); err != nil {
+		if err := RestoreScalar(r.Left, stored); err != nil {
 			return err
 		}
 		for _, item := range r.Items {
-			if err := restoreScalar(item, stored); err != nil {
+			if err := RestoreScalar(item, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.ArrayComparisonExpr:
-		if err := restoreScalar(r.Left, stored); err != nil {
+		if err := RestoreScalar(r.Left, stored); err != nil {
 			return err
 		}
-		return restoreScalar(r.Right, stored)
+		return RestoreScalar(r.Right, stored)
 	case parser.ArrayExpr:
 		for _, element := range r.Elements {
-			if err := restoreScalar(element, stored); err != nil {
+			if err := RestoreScalar(element, stored); err != nil {
 				return err
 			}
 		}
@@ -182,17 +183,17 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 	case parser.SubscriptExpr:
 		var storage [13]parser.Expr
 		for _, child := range r.Children(&storage) {
-			if err := restoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
 		return nil
 	case parser.TimeZoneExpr:
-		if err := restoreScalar(r.Value, stored); err != nil {
+		if err := RestoreScalar(r.Value, stored); err != nil {
 			return err
 		}
 		if !r.Local {
-			return restoreScalar(r.Zone, stored)
+			return RestoreScalar(r.Zone, stored)
 		}
 		return nil
 	case parser.ParameterExpr:
@@ -218,7 +219,7 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 			}
 		}
 		for _, child := range r.Args {
-			if err := restoreScalar(child, stored); err != nil {
+			if err := RestoreScalar(child, stored); err != nil {
 				return err
 			}
 		}
@@ -231,7 +232,8 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 	}
 }
 
-func restoreSQLJSONQuery(query *parser.Select, stored bool) error {
+// RestoreSQLJSONQuery rejects every parameter in a SQL/JSON query.
+func RestoreSQLJSONQuery(query *parser.Select, stored bool) error {
 	return parser.VisitQueryExpressions(query, func(raw parser.Expr) error {
 		if parameter, ok := raw.(parser.ParameterExpr); ok {
 			return expr.ErrorAt("42P02", "parameters are not allowed in restore", parameter.Pos)

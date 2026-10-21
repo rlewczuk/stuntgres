@@ -362,7 +362,7 @@ func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterT
 	if action.Action != parser.AddCheck || action.Check == nil || action.Check.NotValid || action.Check.Name.Text == "" || action.IfExists || action.IfNotExists {
 		return reject()
 	}
-	if err := restoreScalar(action.Check.Expression, true); err != nil {
+	if err := dump.RestoreScalar(action.Check.Expression, true); err != nil {
 		return err
 	}
 	e.mu.Lock()

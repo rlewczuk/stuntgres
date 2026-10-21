@@ -1,0 +1,98 @@
+package dump
+
+import (
+	"errors"
+	"testing"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+)
+
+func selectTarget(t *testing.T, sql string) parser.Expr {
+	t.Helper()
+	statements, err := parser.Parse(sql)
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	return statements[0].(*parser.Select).Targets[0]
+}
+
+func TestRestoreScalarSubscriptModes(t *testing.T) {
+	column := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "a"}}}}
+	bound := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "abs"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}}}
+	raw := parser.SubscriptExpr{Base: column, Subscripts: []parser.ArraySubscript{{Upper: bound}}}
+	if err := RestoreScalar(raw, true); err != nil {
+		t.Fatal("stored binder must retain column/function admission", err)
+	}
+	if err := RestoreScalar(raw, false); err == nil {
+		t.Fatal("INSERT Restore whitelist expanded")
+	}
+	position := parser.Position{Character: 49}
+	bound.Args = []parser.Expr{parser.ParameterExpr{Number: 1, Pos: position}}
+	raw.Subscripts[0].Upper = bound
+	err := RestoreScalar(raw, true)
+	var diagnostic interface{ SQLState() string }
+	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "42P02" {
+		t.Fatal(err)
+	}
+	state, ok := err.(*sqlstate.Error)
+	if !ok || state.Message != "parameters are not allowed in restore" || state.Position != "49" {
+		t.Fatal(err)
+	}
+}
+
+func TestRestoreScalarReferenceLiteralBoundary(t *testing.T) {
+	literal := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `"public"."anchor"`}}
+	if err := RestoreScalar(parser.RegclassExpr{Child: literal}, false); err != nil {
+		t.Fatal("canonical stored reference literal rejected", err)
+	}
+	if err := RestoreScalar(parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, false); err != nil {
+		t.Fatal("ordinary stored NULL rejected", err)
+	}
+	for _, tc := range []struct {
+		name     string
+		child    parser.Expr
+		accepted bool
+	}{
+		{"absent", nil, false},
+		{"null_cast", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, true},
+		{"numeric", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, true},
+		{"parameter", parser.ParameterExpr{Number: 1}, false},
+		{"column", parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "n"}}}}, false},
+		{"otherwise_restorable_call", parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "upper"}}}, Args: []parser.Expr{literal}}, true},
+		{"effect", parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "nextval"}}}, Args: []parser.Expr{literal}}, false},
+		{"query", parser.SubqueryExpr{Query: &parser.Select{Targets: []parser.Expr{literal}}}, false},
+		{"nested_cast", parser.CastExpr{Child: literal, TypeName: parser.TypeName{Name: "text"}}, true},
+		{"nested_reference", parser.RegclassExpr{Child: literal}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := RestoreScalar(parser.RegclassExpr{Child: tc.child}, false)
+			if tc.name == "parameter" {
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" || diagnostic.Message != "parameters are not allowed in restore" {
+					t.Fatal("existing parameter rejection lost", err)
+				}
+				return
+			}
+			if tc.accepted {
+				if err != nil {
+					t.Fatal("selected restorable scalar child rejected", err)
+				}
+			} else if err == nil || err.Error() != "stuntgres: invalid restore scalar" {
+				t.Fatal("unsupported scalar child admitted", err)
+			}
+		})
+	}
+}
+
+func TestRestoreScalarCastParameterGuard(t *testing.T) {
+	raw := selectTarget(t, "SELECT CAST($1::text AS int4) FROM t")
+	err := RestoreScalar(raw, false)
+	var d *sqlstate.Error
+	if !errors.As(err, &d) || d.Code != "42P02" || d.Position != "13" {
+		t.Fatal(err)
+	}
+	if err := RestoreScalar(selectTarget(t, "SELECT CAST('42'::text AS int4) FROM t"), false); err != nil {
+		t.Fatal(err)
+	}
+}

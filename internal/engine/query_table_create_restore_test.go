@@ -146,49 +146,6 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	}
 }
 
-func TestQueryTableCreateRestoreReferenceLiteralBoundary(t *testing.T) {
-	literal := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `"public"."anchor"`}}
-	if err := restoreScalar(parser.RegclassExpr{Child: literal}, false); err != nil {
-		t.Fatal("canonical stored reference literal rejected", err)
-	}
-	if err := restoreScalar(parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, false); err != nil {
-		t.Fatal("ordinary stored NULL rejected", err)
-	}
-	for _, tc := range []struct {
-		name     string
-		child    parser.Expr
-		accepted bool
-	}{
-		{"absent", nil, false},
-		{"null_cast", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, true},
-		{"numeric", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, true},
-		{"parameter", parser.ParameterExpr{Number: 1}, false},
-		{"column", parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "n"}}}}, false},
-		{"otherwise_restorable_call", parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "upper"}}}, Args: []parser.Expr{literal}}, true},
-		{"effect", parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "nextval"}}}, Args: []parser.Expr{literal}}, false},
-		{"query", parser.SubqueryExpr{Query: &parser.Select{Targets: []parser.Expr{literal}}}, false},
-		{"nested_cast", parser.CastExpr{Child: literal, TypeName: parser.TypeName{Name: "text"}}, true},
-		{"nested_reference", parser.RegclassExpr{Child: literal}, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			err := restoreScalar(parser.RegclassExpr{Child: tc.child}, false)
-			if tc.name == "parameter" {
-				var diagnostic *sqlstate.Error
-				if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" || diagnostic.Message != "parameters are not allowed in restore" {
-					t.Fatal("existing parameter rejection lost", err)
-				}
-				return
-			}
-			if tc.accepted {
-				if err != nil {
-					t.Fatal("selected restorable scalar child rejected", err)
-				}
-			} else if err == nil || err.Error() != "stuntgres: invalid restore scalar" {
-				t.Fatal("unsupported scalar child admitted", err)
-			}
-		})
-	}
-}
 
 func TestQueryTableCreateXIDScalarReownership(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Xid, sqltype.Cid, sqltype.Xid8} {
