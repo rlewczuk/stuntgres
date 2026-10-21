@@ -283,8 +283,8 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 	} else {
 		err = stage.Replace(d)
 	}
-	if err == nil && old == nil && stage.OldNameCount() != 0 {
-		err = e.reownStagedTypeGenerationsLocked(stage)
+	if err == nil && old == nil {
+		err = ddlHost{e: e, op: op, stage: stage}.ReownDisplacedTypes()
 	}
 	e.mu.Unlock()
 	if err != nil {

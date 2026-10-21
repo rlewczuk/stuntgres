@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -82,9 +83,10 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	}
 	var using, check *stored.Policy
 	if !drop {
-		using, err = e.bindPolicyExpression(scope, auth, old, rawUsing)
+		h := ddlHost{e: e, op: op}
+		using, err = h.BindPolicyExpression(auth, old, rawUsing, scope.input)
 		if err == nil {
-			check, err = e.bindPolicyExpression(scope, auth, old, rawCheck)
+			check, err = h.BindPolicyExpression(auth, old, rawCheck, scope.input)
 		}
 		if err != nil {
 			return fail(err)

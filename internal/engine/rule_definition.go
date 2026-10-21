@@ -7,9 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -19,31 +17,14 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 	p := stored.RuleParts{Name: s.Name.Text, Event: strings.ToUpper(s.Event), Instead: s.Instead}
 	ns := &analyze.RuleNamespace{Relation: d, Ref: ref, Event: p.Event}
 	if s.Condition != nil {
-		binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-		binder.Target.RuleNamespace = ns
-		binder.Params.NoParameters = true
-		binder.Query.Auth = &auth
-		binder.Clause.AggregateClause = "WHERE"
-		binder.Query.Frame = 1
-		binder.Query.NextQueryFrame = 1
-		var err error
-		p.Condition, err = binder.Bind(s.Condition, analyze.ExpressionPolicy{Context: analyze.FilterContext})
+		h := ddlHost{e: e, op: scope.op}
+		condition, query, b, err := h.BindRuleCondition(auth, ns, s.Condition, scope.input)
+		p.Condition = condition
 		if err != nil {
 			return stored.NewRule(p), err
 		}
-		normalizedCondition := binder.NormalizeStoredExpression(s.Condition)
-		if err := binder.CaptureViewLiterals(normalizedCondition, p.Condition, analyze.ViewTargetLiteral, 0); err != nil {
-			return stored.NewRule(p), err
-		}
-		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
-		b := analyze.Binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: p.Condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{p.Condition}, Frame: binder.FrameID(), Syntax: query}}, Dependencies: binder.Dependencies, QuerySources: binder.Query.Sources, Capture: analyze.ViewCapture{Columns: binder.Capture.Columns, Literals: binder.Capture.Literals, CastUsages: binder.Capture.CastUsages, Composites: binder.Capture.Composites, Collations: binder.Capture.Collations, Namespaces: binder.Capture.Namespaces}, Prepared: analyze.PreparedCaptures{SequenceConstants: binder.Prepared.SequenceConstants, RegtypeConstants: binder.Prepared.RegtypeConstants}}
-		b.Capture.RoutineRefs = binder.Capture.RoutineRefs
-		b.Capture.OperatorRefs = binder.Capture.OperatorRefs
-		for i := range b.QuerySources {
-			b.QuerySources[i].FrozenAttributes = slices.Clone(b.QuerySources[i].Relation.Attributes)
-		}
 		p.ConditionBinding = &b
-		p.ConditionPresentation, err = stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
+		p.ConditionPresentation, err = stored.FreezeQueryPresentation(auth.Catalog, h.TemporaryOwner(auth), query, b, false, false, 0, "", false)
 		if err != nil {
 			return stored.NewRule(p), err
 		}
