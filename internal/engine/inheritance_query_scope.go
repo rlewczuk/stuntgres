@@ -210,3 +210,12 @@ type inheritanceScope struct {
 func (i *inheritanceScope) endStatement() {
 	i.relations, i.catalog = nil, catalog.Read{}
 }
+
+// inheritancePlan is the recursing ALTER's plan record, nil when the statement
+// is not recursing through an inheritance tree. Its methods are nil-safe.
+func (scope *StatementScope) inheritancePlan() *table.InheritanceAlterPlan {
+	if state := scope.inheritance.alter; state != nil {
+		return &state.InheritanceAlterPlan
+	}
+	return nil
+}

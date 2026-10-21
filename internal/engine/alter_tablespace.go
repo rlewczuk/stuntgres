@@ -3,11 +3,9 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 func validateAlterTablespaceMove(destination ids.ObjectRef) error {
@@ -15,21 +13,6 @@ func validateAlterTablespaceMove(destination ids.ObjectRef) error {
 		return sqlError("22023", "only shared relations can be placed in pg_global tablespace")
 	}
 	return nil
-}
-
-func checkAlterTablespaceCreate(auth AuthorizationView, ref ids.ObjectRef) error {
-	if ref.Address.ObjectID == 1663 {
-		return nil
-	}
-	return auth.CheckCreate(ref)
-}
-
-func alterTablespaceKind(d *catalog.Relation) error {
-	switch d.RelationKind {
-	case catalog.TableRelation, catalog.PartitionedRelation, catalog.IndexRelation, catalog.MaterializedViewRelation:
-		return nil
-	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action SET TABLESPACE cannot be performed on relation "%s"`, d.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", catalog.RelationDiagnosticKind(d))}
 }
 
 func tablespaceOnlyActions(actions []parser.AlterTableAction) bool {
@@ -67,7 +50,7 @@ func (e *Engine) alterAllTablespaceLocked(scope *StatementScope, auth Authorizat
 	if source.Address.ObjectID == 1664 || destination.Address.ObjectID == 1664 {
 		return Result{}, sqlError("22023", "cannot move relations in to or out of pg_global tablespace")
 	}
-	if err := checkAlterTablespaceCreate(auth, destination); err != nil {
+	if err := ddl.CheckAlterTablespaceCreate(auth.View, auth, destination); err != nil {
 		return Result{}, err
 	}
 	if source.Address == destination.Address {

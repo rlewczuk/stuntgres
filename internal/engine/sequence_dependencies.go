@@ -55,12 +55,6 @@ func (provider *dropProvider) OwnedExpressionDependencies(targets []ids.ObjectAd
 	})
 }
 
-// Every owner supplies the same complete expression traversal; real SQL
-// additionally acquires its existing grants. No view-only automatic fallback.
-func stageOwnedSequenceDependencies(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, prepare func(ids.ObjectRef) error) error {
-	return stageDropProvider(context.Background(), stage, nil, nil, nil).ownedSequences(targets, prepare)
-}
-
 func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepare func(ids.ObjectRef) error) error {
 	for a, d := range provider.InputDescriptors() {
 		if provider.Removed(a) {

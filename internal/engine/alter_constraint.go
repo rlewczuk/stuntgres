@@ -58,7 +58,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 	if err := e.bindColumnChecks(op, auth, raw, &next, scope.input, true, inherited); err != nil {
 		return prepared, err
 	}
-	if err := scope.inheritanceOnlyCreatedConstraint(parent, &next); err != nil {
+	if err := scope.inheritancePlan().OnlyCreatedConstraint(parent, &next); err != nil {
 		return prepared, err
 	}
 	if scope.inheritance.alter != nil && scope.inheritance.alter.Descendant && next.Inheritance != nil {
@@ -117,7 +117,7 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, 
 		return nil, err
 	}
 	*scans = append(*scans, prepared.Scans...)
-	scope.recordInheritanceChecks(parent, &next, raw, prepared.Ordinal)
+	scope.inheritancePlan().RecordChecks(parent, &next, raw, prepared.Ordinal)
 	return &next, nil
 }
 

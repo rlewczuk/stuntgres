@@ -45,7 +45,7 @@ func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *session.Ope
 			if err != nil {
 				return fail(err)
 			}
-			if err := checkAlterTablespaceCreate(auth, destination); err != nil {
+			if err := ddl.CheckAlterTablespaceCreate(auth.View, auth, destination); err != nil {
 				return fail(err)
 			}
 			if prepared.Destination.Address.ObjectID != 0 {
@@ -74,7 +74,7 @@ func alterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 	label := "ALTER COLUMN ... SET NOT NULL"
 	switch action {
 	case parser.SetTablespace:
-		return alterTablespaceKind(original)
+		return ddl.AlterTablespaceKind(original)
 	case parser.DropNotNull:
 		label = "ALTER COLUMN ... DROP NOT NULL"
 	case parser.AddNotNull, parser.AddCheck, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AddUsingIndex:

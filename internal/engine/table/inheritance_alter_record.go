@@ -1,15 +1,16 @@
-package engine
+package table
 
 import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog.Relation, a parser.AlterTableAction) {
-	state := scope.inheritance.alter
+// RecordAction records the inherited events of one action applied to before.
+// It does nothing when plan is nil (not recursing).
+func (plan *InheritanceAlterPlan) RecordAction(before, after *catalog.Relation, a parser.AlterTableAction) {
+	state := plan
 	if state == nil {
 		return
 	}
@@ -18,7 +19,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 	case parser.AddColumn:
 		if slot, exists := after.Index[a.Definition.Name]; exists {
 			if _, old := before.Index[a.Definition.Name]; !old {
-				events = append(events, table.InheritanceAlterEvent{Action: a, Attribute: after.Attributes[slot]})
+				events = append(events, InheritanceAlterEvent{Action: a, Attribute: after.Attributes[slot]})
 			}
 		}
 	case parser.DropColumn:
@@ -28,7 +29,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 			}
 			action := a
 			action.Column = parser.Identifier{Text: before.Columns[slot].Name}
-			event := table.InheritanceAlterEvent{Action: action, Attribute: attribute}
+			event := InheritanceAlterEvent{Action: action, Attribute: attribute}
 			for _, c := range before.Constraints.NotNull {
 				if c.Attribute == attribute && !slices.ContainsFunc(after.Constraints.NotNull, func(next catalog.NotNullConstraint) bool { return next.OID == c.OID }) {
 					event.RetiredNotNull = append(event.RetiredNotNull, c)
@@ -49,7 +50,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 				action := a
 				action.Action = parser.DropNotNull
 				action.Column = parser.Identifier{Text: before.Columns[before.IndexForAttribute(old.Attribute)].Name}
-				events = append(events, table.InheritanceAlterEvent{Action: action, Attribute: old.Attribute, Constraint: old.OID})
+				events = append(events, InheritanceAlterEvent{Action: action, Attribute: old.Attribute, Constraint: old.OID})
 			}
 		}
 		for _, old := range before.Constraints.Check {
@@ -57,12 +58,12 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 				action := a
 				action.Action = parser.DropConstraint
 				action.Constraint = parser.Identifier{Text: old.Name}
-				events = append(events, table.InheritanceAlterEvent{Action: action, Constraint: old.OID})
+				events = append(events, InheritanceAlterEvent{Action: action, Constraint: old.OID})
 			}
 		}
 	case parser.AlterColumnType, parser.SetExpression, parser.DropExpression:
 		if !state.Only {
-			events = append(events, table.InheritanceAlterEvent{Action: a})
+			events = append(events, InheritanceAlterEvent{Action: a})
 		}
 	}
 	if !state.Only {
@@ -79,14 +80,16 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 			if validation || a.Action == parser.SetNotNull {
 				action.Action = parser.SetNotNull
 			}
-			events = append(events, table.InheritanceAlterEvent{Action: action, Attribute: next.Attribute, Validation: validation})
+			events = append(events, InheritanceAlterEvent{Action: action, Attribute: next.Attribute, Validation: validation})
 		}
 	}
 	state.Events[before.Address()] = events
 }
 
-func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Relation, raw []*parser.CheckConstraint, start int) {
-	state := scope.inheritance.alter
+// RecordChecks records the inheritable CHECKs that raw added to before,
+// numbered from start. It does nothing when plan is nil or ONLY.
+func (plan *InheritanceAlterPlan) RecordChecks(before, after *catalog.Relation, raw []*parser.CheckConstraint, start int) {
+	state := plan
 	if state == nil || state.Only {
 		return
 	}
@@ -100,25 +103,29 @@ func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Rela
 		}
 		definition := *raw[index]
 		definition.Name = parser.Identifier{Text: c.Name}
-		state.Events[before.Address()] = append(state.Events[before.Address()], table.InheritanceAlterEvent{Action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, Constraint: c.OID})
+		state.Events[before.Address()] = append(state.Events[before.Address()], InheritanceAlterEvent{Action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, Constraint: c.OID})
 	}
 }
 
-func (scope *StatementScope) inheritanceNotNullMode(column string) table.NotNullRecursion {
-	state := scope.inheritance.alter
+// NotNullMode is how SET NOT NULL on column recurses at this node; a nil plan
+// is direct.
+func (plan *InheritanceAlterPlan) NotNullMode(column string) NotNullRecursion {
+	state := plan
 	if state != nil && state.Descendant {
 		if state.Validating[column] {
-			return table.NotNullValidation
+			return NotNullValidation
 		}
-		return table.NotNullInherited
+		return NotNullInherited
 	}
-	return table.NotNullDirect
+	return NotNullDirect
 }
 
-// ONLY's fresh-fact prohibition uses the actual phase input, including earlier
-// DROP effects. Existing compatible facts can still merge/localize genuinely.
-func (scope *StatementScope) inheritanceOnlyCreatedConstraint(before, after *catalog.Relation) error {
-	state := scope.inheritance.alter
+// OnlyCreatedConstraint rejects a fresh inheritable fact added under ONLY to a
+// parent with children. ONLY's fresh-fact prohibition uses the actual phase
+// input, including earlier DROP effects. Existing compatible facts can still
+// merge/localize genuinely. A nil plan allows everything.
+func (plan *InheritanceAlterPlan) OnlyCreatedConstraint(before, after *catalog.Relation) error {
+	state := plan
 	if state == nil || !state.Only || state.Descendant || len(state.Targets) < 2 {
 		return nil
 	}

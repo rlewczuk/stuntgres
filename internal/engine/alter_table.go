@@ -282,15 +282,15 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 					addedIndexes = append(addedIndexes, next.Constraints.Exclusion[len(next.Constraints.Exclusion)-1].Index)
 				}
 			} else {
-				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
+				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, scope.inheritancePlan().NotNullMode(action.Column.Text))
 			}
 			if err == nil && action.Action == parser.AddNotNull {
-				err = scope.inheritanceOnlyCreatedConstraint(before, next)
+				err = scope.inheritancePlan().OnlyCreatedConstraint(before, next)
 			}
 			if err != nil {
 				return Result{}, err
 			}
-			scope.recordInheritanceAlterAction(before, next, action)
+			scope.inheritancePlan().RecordAction(before, next, action)
 		}
 		if pass == 0 {
 			if definition != nil {
@@ -371,7 +371,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 					if err != nil {
 						break
 					}
-					scope.recordInheritanceAlterAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
+					scope.inheritancePlan().RecordAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
 				}
 			}
 		}
@@ -390,7 +390,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				} else {
 					next, err = table.UsingIndexNotNullCandidate(op, auth.Catalog, stageDefinitionReader{stage}, next, captured)
 					if err == nil {
-						err = scope.inheritanceOnlyCreatedConstraint(before, next)
+						err = scope.inheritancePlan().OnlyCreatedConstraint(before, next)
 					}
 					if err == nil {
 						attachments[index].NotNullPrepared = true
@@ -399,7 +399,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				if err != nil {
 					break
 				}
-				scope.recordInheritanceAlterAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
+				scope.inheritancePlan().RecordAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
 			}
 		}
 		if err == nil && pass == 6 {

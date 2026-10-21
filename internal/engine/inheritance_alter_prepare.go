@@ -97,7 +97,7 @@ phases:
 					additions = append(additions, step.added)
 				}
 			case parser.SetNotNull, parser.AddNotNull, parser.DropNotNull, parser.DropConstraint:
-				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
+				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, scope.inheritancePlan().NotNullMode(action.Column.Text))
 			case parser.DropIdentity:
 				step.identity, err = e.prepareIdentityDropDefinition(scope, auth, next, action)
 				if err == nil {
@@ -112,7 +112,7 @@ phases:
 			step.notices = op.DetachNotices()
 			op.Notices = previousNotices
 			if err == nil && action.Action == parser.AddNotNull {
-				err = scope.inheritanceOnlyCreatedConstraint(step.old, next)
+				err = scope.inheritancePlan().OnlyCreatedConstraint(step.old, next)
 			}
 			if err == nil {
 				step.next = next
@@ -128,7 +128,7 @@ phases:
 				break phases
 			}
 			prepared.steps[index] = step
-			scope.recordInheritanceAlterAction(step.old, next, action)
+			scope.inheritancePlan().RecordAction(step.old, next, action)
 		}
 		if phase == 0 {
 			op.Definition = reader
@@ -173,14 +173,14 @@ phases:
 					break phases
 				}
 				reader.AppendDescriptor(next)
-				scope.recordInheritanceAlterAction(before, next, action)
+				scope.inheritancePlan().RecordAction(before, next, action)
 			}
 			for i, captured := range prepared.usingIndexes {
 				before := next
 				var err error
 				next, err = table.UsingIndexNotNullCandidate(op, auth.Catalog, reader, next, captured)
 				if err == nil {
-					err = scope.inheritanceOnlyCreatedConstraint(before, next)
+					err = scope.inheritancePlan().OnlyCreatedConstraint(before, next)
 				}
 				prepared.usingNotNull = append(prepared.usingNotNull, inheritancePreparedAction{old: before, next: next, err: err})
 				if err != nil {
@@ -189,7 +189,7 @@ phases:
 				}
 				prepared.usingIndexes[i].NotNullPrepared = true
 				reader.AppendDescriptor(next)
-				scope.recordInheritanceAlterAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
+				scope.inheritancePlan().RecordAction(before, next, parser.AlterTableAction{Action: parser.AddNotNull})
 			}
 		}
 		if phase == 6 {
@@ -219,7 +219,7 @@ phases:
 				break phases
 			}
 			if len(raw) != 0 {
-				scope.recordInheritanceChecks(next, prepared.checks.Next, raw, prepared.checks.Ordinal)
+				scope.inheritancePlan().RecordChecks(next, prepared.checks.Next, raw, prepared.checks.Ordinal)
 				next = prepared.checks.Next
 				reader.AppendDescriptor(next)
 			}

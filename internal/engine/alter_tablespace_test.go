@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
@@ -71,12 +72,12 @@ func TestAlterTablespacePreparation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.PartitionedRelation, catalog.IndexRelation, catalog.MaterializedViewRelation} {
-		if err := alterTablespaceKind(&catalog.Relation{RelationKind: kind}); err != nil {
+		if err := ddl.AlterTablespaceKind(&catalog.Relation{RelationKind: kind}); err != nil {
 			t.Fatal(kind, err)
 		}
 	}
 	for _, kind := range []catalog.RelationKind{catalog.ViewRelation, catalog.SequenceRelation, catalog.ForeignRelation} {
-		err := alterTablespaceKind(&catalog.Relation{ObjectName: "t", RelationKind: kind})
+		err := ddl.AlterTablespaceKind(&catalog.Relation{ObjectName: "t", RelationKind: kind})
 		var got *sqlstate.Error
 		if !errors.As(err, &got) || got.Code != "42809" || got.Detail == "" {
 			t.Fatal(kind, err)
