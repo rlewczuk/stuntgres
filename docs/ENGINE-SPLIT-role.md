@@ -483,12 +483,59 @@ root. The checks in §8.3 pass.
   attributes, membership and default-privilege installation stay as they
   are; 28d move set and commit sequence written. Docs only, no checks
   needed.
-- [ ] 28d — Handler decisions moved
+- [x] 28d — Handler decisions moved (`c320c6ec8`, `d0ad04e54`, `1ef3f87f9`, `0a0c9ef3e`, `6455845cc`, then the docs commit).
+  Re-measured at `b6b282564`: the 28c files were unchanged since
+  `42a45f774`, so the 28c plan applied as written. Moved, with their names
+  in `role`:
+  - shared needs down: `fdw.OwnershipEligibility` →
+    `access.ForeignOwnershipEligibility` (callers `fdw/stage.go`, REASSIGN
+    OWNED); `resolveGrantTablespace` → `ddl.TablespaceRef` (GRANT, ALTER
+    TABLESPACE, ALTER TABLE SET TABLESPACE);
+  - seam (`host.go`, root `role_host.go`): `Host` and `StageHost` on
+    `ddlHost`; `ddlHost.SearchNamespaces` maps `ids.ProcedureClassID` to
+    the function lookup;
+  - grants (`grant_targets.go`, `database_grant.go`): unexported
+    `objectGrantTargets`, `grantObject`, `grantRoutine` and
+    `grantRoutineArgumentDisplay`; `ObjectGrantRequest(h, auth, s)` (no
+    callback); `PlanDatabaseGrant`;
+  - role DDL (`roles.go`): `SetRoleTarget`, `SessionAuthorizationTarget`,
+    `PlanDropRoles`, `DropRolesPlan`;
+  - ownership (`ownership.go`, `owned_stage.go`): `PlanTypeOwnership`,
+    `PlanDatabaseOwnership`, `PlanRelationOwnership`, `OwnerChange`,
+    `StageOwned`, `OwnedDependentsError`.
+  Root files deleted: `role_grant_objects.go`, `role_grant_routines.go`;
+  `dropRolesLocked` became the install-only `publishDroppedRolesLocked`.
+  The commits 3a/3b ported the functions in place into `rolepkg_*.go`
+  staging files; the move commit renamed them by script (no `role.` text
+  in string literals) and the string-literal multiset is unchanged. Tests:
+  new `TestRoleHostStageless` (`role_host_test.go`, observed failing
+  first); `TestDDLHostSearchNamespacesMapsClasses` also checks the
+  procedure class; `TestObjectGrantPlanWarningsBeforeError` resolves its
+  target through the host instead of a callback. None moved or deleted.
+  Verified with the 28c unit selection (plus `DDLHost`, `Tablespace`,
+  `Database`, `Domain`), `RACE=1` over the role-switch, connection-limit,
+  password and session-identity units, the quick and `REFERENCE=1`
+  selections of the 28c proof, and quickcheck; racecheck and finalcheck
+  skipped at user request; no bench (no startup path changed).
 
 Outstanding aliases: none (28b added none).
 
 ### Notes for later steps
 
+- 28d, for later steps:
+  - `role.Host` is served by a stage-less `ddlHost{e, op}`; a later role
+    host method must not read `h.stage`.
+  - `OwnedDependentsError` takes the rendered primary; `executeOwned`
+    renders it with `dependencyObject` on any dependents error, though only
+    a 2BP01 uses it.
+  - The `catalog.RoutineIdentity` literal in `grantRoutine` stays unkeyed
+    (verbatim from the root); `go vet` flags it, as it does many root
+    literals.
+  - The role root remainder for the end-state review (item 114):
+    `executeRole`, `executeRoleAttributes`, `membershipLocked`,
+    `objectGrantLocked`, `executeDatabaseGrant`,
+    `alterDefaultPrivilegesLocked`, the ALTER OWNER executors and
+    `executeOwned` are orchestration only.
 - 28b, for 28c/28d and other steps:
   - `authorization.GrantWarning` is in place, so fdw 26d's first commit
     is done.

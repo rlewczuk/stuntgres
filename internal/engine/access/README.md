@@ -34,8 +34,10 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
 - **Ownership** (`ownership.go`): `OwnershipSuccessor`,
   `OwnershipEligibility`, `OwnershipDatabaseCreate`, `SchemaOwner` and
   `OwnershipRoleOperand`, which share the `current_user`/`session_user`
-  string protocol, and `OwnershipRoot`, the bulk-root rule of REASSIGN and
-  DROP OWNED.
+  string protocol, `OwnershipRoot`, the bulk-root rule of REASSIGN and
+  DROP OWNED, and `ForeignOwnershipEligibility`, the owner change rule of
+  foreign-data wrappers and servers that ALTER SERVER (`fdw`) and REASSIGN
+  OWNED (`role`) share.
 - **Owned objects** (`owned.go`): `OwnedRoots`, `OwnershipRelationLocks`,
   `OwnedPolicies` and `OwnedMembershipCandidate`, the pure parts of
   REASSIGN and DROP OWNED. `OwnershipRoot` and `OwnedRoots` take the
@@ -84,11 +86,10 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 - View capture (`authorizationLocked`, `statementAuthorizationLocked`,
   `operationAuthorization`), role publication (`roleStore`) and the catalog
   authority fences.
-- Role DDL, GRANT/REVOKE, ALTER DEFAULT PRIVILEGES and the ownership
-  statements; `SetObjectACL` and `SetRoleReferences`. Their request and
-  plan functions and the ownership staging are in
-  [`role`](../role/README.md), which calls this package over the captured
-  `View`.
+- The lock windows, staging and publication of role DDL, GRANT/REVOKE,
+  ALTER DEFAULT PRIVILEGES and the ownership statements; `SetObjectACL` and
+  `SetRoleReferences`. Their decisions are in [`role`](../role/README.md),
+  which calls this package over the captured `View`.
 - Search path resolution and `temporaryNamespace`, RLS configuration and the
   walkers over view definitions, view writes and rule programs
   (`CheckViewWrite`, `checkViewRowMarks*`, the `row_security_setting.go`
