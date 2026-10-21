@@ -1,7 +1,6 @@
-package engine
+package exec
 
 import (
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -11,30 +10,30 @@ import (
 // Conditional planning folds immutable SQL constants; the common post-child
 // strict-NULL rule can additionally eliminate a call using an execution-known
 // parameter. It neither substitutes parameters generally nor runs domain truth.
-func simplifyConditional(c *exec.Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+func SimplifyConditional(c *Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	node, changed, err := simplifyConditionalNode(c, expression, decisiveDefaults)
 	if err != nil {
 		return nil, false, err
 	}
-	node, folded, err := foldStrictParameterNull(c, node)
+	node, folded, err := FoldStrictParameterNull(c, node)
 	return node, changed || folded, err
 }
 
-func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
+func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
 	if expression == nil {
 		return nil, false, nil
 	}
-	if err := exec.EvaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
-	recipe, recipeErr := exec.ExpressionRecipeDescriptor(expression)
+	recipe, recipeErr := ExpressionRecipeDescriptor(expression)
 	if recipeErr != nil {
 		return nil, false, recipeErr
 	}
 	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
 		parent := c
 		local := *c
-		if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
+		if err := SelectExpressionRecipe(&local, recipe); err != nil {
 			return nil, false, err
 		}
 		c = &local
@@ -42,7 +41,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	}
 	changed := false
 	child := func(old expr.Expr) (expr.Expr, error) {
-		node, did, err := simplifyConditional(c, old, decisiveDefaults)
+		node, did, err := SimplifyConditional(c, old, decisiveDefaults)
 		changed = changed || did
 		return node, err
 	}
@@ -50,7 +49,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	switch e := expression.(type) {
 	case plan.RowExpr:
 		var did bool
-		e, did, err = plan.MapRow(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		e, did, err = plan.MapRow(e, func(old expr.Expr) (expr.Expr, bool, error) { return SimplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
 			return nil, false, err
 		}
@@ -78,7 +77,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	case plan.ArrayExpr:
 		var elements []expr.Expr
 		for i, old := range e.Elements {
-			next, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			next, did, failure := SimplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -96,7 +95,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 		expression = e
 	case plan.SubscriptExpr:
 		var did bool
-		e, did, err = plan.MapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		e, did, err = plan.MapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) { return SimplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
 			return nil, false, err
 		}
@@ -125,7 +124,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 					var view sqltype.Value
 					view, err = arm.TestPlan.Apply(c.Context, test.Value, c.Input, c.Output)
 					if err == nil && !view.IsNull() && !condition.Value.IsNull() {
-						if err := exec.AdmitCaseEquality(c, arm); err != nil {
+						if err := AdmitCaseEquality(c, arm); err != nil {
 							return nil, false, err
 						}
 						match, err = arm.Equality.EqualValues(c.Context, view, condition.Value, c.Input)
@@ -247,7 +246,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 		if err == nil {
 			e.Right, err = child(e.Right)
 		}
-		if err == nil && arithmeticSetConstantNull(expression.(plan.ArithmeticExpr), e) {
+		if err == nil && ArithmeticSetConstantNull(expression.(plan.ArithmeticExpr), e) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		expression = e
@@ -273,7 +272,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	case plan.ScalarArrayComparisonExpr:
 		var replaced bool
 		e, replaced, err = plan.MapScalarArrayChildren(e, func(old expr.Expr) (expr.Expr, bool, error) {
-			return simplifyConditional(c, old, decisiveDefaults)
+			return SimplifyConditional(c, old, decisiveDefaults)
 		})
 		changed = changed || replaced
 		expression = e
@@ -287,7 +286,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 		if decisiveDefaults {
 			// Reuse the existing consumed-default AND/OR policy before
 			// visiting a right child that a decisive left constant excludes.
-			return preflightCoercionsWithPolicy(c, e, true)
+			return PreflightCoercionsWithPolicy(c, e, true)
 		}
 		e.Left, err = child(e.Left)
 		if err == nil {
@@ -307,7 +306,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 		}
 		expression = e
 	case plan.ExtensionPathsExpr:
-		arg, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
+		arg, did, failure := SimplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
 		}
@@ -317,7 +316,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	case plan.InstalledSoundexExpr:
 		var args []expr.Expr
 		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			node, did, failure := SimplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -339,7 +338,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	case plan.InstalledMetaphoneExpr:
 		var args []expr.Expr
 		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			node, did, failure := SimplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -361,7 +360,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	case plan.InstalledLevenshteinExpr:
 		var args []expr.Expr
 		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			node, did, failure := SimplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -385,7 +384,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	case plan.InstalledCryptoExpr:
 		var args []expr.Expr
 		for i, old := range e.Args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			node, did, failure := SimplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -406,7 +405,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 		}
 		expression = e
 	case plan.InstalledTextExpr:
-		next, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
+		next, did, failure := SimplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
 		}
@@ -429,8 +428,8 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 		return nil, false, err
 	}
 	p := expression.Properties()
-	if _, literal := expression.(plan.LiteralExpr); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && conditionalConstantInputs(expression) {
-		value, err := exec.EvaluatePlanningExpression(c, expression)
+	if _, literal := expression.(plan.LiteralExpr); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && ConditionalConstantInputs(expression) {
+		value, err := EvaluatePlanningExpression(c, expression)
 		if err != nil {
 			return nil, false, err
 		}
@@ -454,7 +453,7 @@ func plannedConditionalResult(info expr.Info, node expr.Expr) expr.Expr {
 // pruning identify ordinary immutable constants. A runtime domain barrier is
 // different: its literal physical child has not consumed CHECK truth. Neither
 // checked conversions nor enclosing barriers belong in this foldable set.
-func conditionalConstantInputs(node expr.Expr) bool {
+func ConditionalConstantInputs(node expr.Expr) bool {
 	if node.Properties().RuntimeDomainConversion {
 		return false
 	}
@@ -467,7 +466,7 @@ func conditionalConstantInputs(node expr.Expr) bool {
 	case plan.BitwiseExpr:
 		return literal(e.Left) && (e.Right == nil || literal(e.Right))
 	case plan.SelectedOperatorExpr:
-		return conditionalConstantInputs(e.Provider)
+		return ConditionalConstantInputs(e.Provider)
 	case plan.ArithmeticExpr:
 		return literal(e.Left) && (e.Right == nil || literal(e.Right))
 	case plan.LikeExpr:

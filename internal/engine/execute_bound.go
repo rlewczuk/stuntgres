@@ -79,7 +79,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 		if inserting {
-			b.ArrayTargets, err = preflightArrayTargets(&evaluation, b.ArrayTargets)
+			b.ArrayTargets, err = exec.PreflightArrayTargets(&evaluation, b.ArrayTargets)
 			if err != nil {
 				return Result{}, err
 			}
@@ -96,7 +96,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					if len(b.Expressions) == 1 && len(b.Insert.IdentityDiscard) != 0 && b.Insert.IdentityDiscard[b.Targets[j]] {
 						continue
 					}
-					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
+					folded, changed, foldErr := exec.PreflightCoercions(&evaluation, expression)
 					if foldErr != nil {
 						return Result{}, analyze.InsertValueError(auth.Catalog, foldErr, destination.Columns[destinationTargets[j]], b.Insert.Rows[i][j], nil)
 					}
@@ -148,7 +148,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				}
 			}
 			if err == nil && b.Predicate != nil {
-				b.Predicate, _, err = preflightCoercions(&evaluation, b.Predicate)
+				b.Predicate, _, err = exec.PreflightCoercions(&evaluation, b.Predicate)
 			}
 		}
 		if err == nil && b.Returning != nil {
@@ -165,7 +165,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			for i, group := range viewWriteOf(b.ViewWrite).checks {
 				var predicates []expr.Expr
 				for j, expression := range group.predicates {
-					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
+					folded, changed, foldErr := exec.PreflightCoercions(&evaluation, expression)
 					if foldErr != nil {
 						return Result{}, foldErr
 					}
@@ -197,7 +197,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 			defaultEvaluation := evaluation
 			applyDefaultOrigin(bindingDefaultOrigin(&b, i), &defaultEvaluation)
-			folded, changed, foldErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
+			folded, changed, foldErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
 				return Result{}, foldErr
 			}

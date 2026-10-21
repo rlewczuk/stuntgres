@@ -1,8 +1,6 @@
-package engine
+package exec
 
 import (
-	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 )
@@ -10,10 +8,10 @@ import (
 // Simplification of caller children precedes SQL wrapper evaluation/inlining.
 // A partial constant body addition can fail during inlining even when another
 // pair uses table columns. Stable zoned addition is never ordinarily folded.
-func simplifyOverlapsRoute(c *exec.Context, e functions.DatetimeOverlaps) (functions.DatetimeOverlaps, bool, error) {
+func SimplifyOverlapsRoute(c *Context, e functions.DatetimeOverlaps) (functions.DatetimeOverlaps, bool, error) {
 	old := e.WrapperContext
 	oldFolded := e.Folded
-	e.WrapperContext = !analyze.OverlapsInlineSafe(e)
+	e.WrapperContext = !OverlapsInlineSafe(e)
 	all := true
 	for _, arg := range e.Args {
 		if _, ok := arg.(plan.LiteralExpr); !ok {
@@ -38,7 +36,7 @@ func simplifyOverlapsRoute(c *exec.Context, e functions.DatetimeOverlaps) (funct
 			if e.Folded[pair].Type() != nil {
 				continue
 			}
-			if err := exec.AdmitOverlapsPair(c, e, pair); err != nil {
+			if err := AdmitOverlapsPair(c, e, pair); err != nil {
 				return e, false, err
 			}
 			end, err := e.Plan.DurationEnd(c.Context, pair, start.Value, interval.Value, c.Input)

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -12,7 +14,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func networkOperatorTyped(typ, text string) parser.Expr {
@@ -199,7 +200,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	family.Property = parameter.Property
 	for _, frame := range [][]sqltype.Value{{v4}, {v6}, {sqltype.Null(inet)}, {v4}} {
 		c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: frame}}
-		folded, changed, err := preflightCoercions(c, family)
+		folded, changed, err := exec.PreflightCoercions(c, family)
 		if frame[0] == v4 {
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "22023" || d.Position != "" {
@@ -218,7 +219,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	for _, barrier := range []expr.Properties{{RowDependent: true}, {StageDependent: true}, {DomainDependent: true}, {RuntimeDomainConversion: true}, {Volatility: expr.Stable}, {Volatility: expr.Volatile}} {
 		lazy := family
 		lazy.Property = expr.MergeProperties(lazy.Property, barrier)
-		if _, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{v4}}}, lazy); err != nil || changed {
+		if _, changed, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: []sqltype.Value{v4}}}, lazy); err != nil || changed {
 			t.Fatal("network preflight crossed barrier", barrier, changed, err)
 		}
 	}
@@ -251,7 +252,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := plan.ArithmeticExpr{Info: expr.Info{Usage: tc.result.Usage(), Property: expr.Properties{ParameterDependent: true}}, Left: tc.left, Right: tc.right, Provider: provider, Operator: tc.op}
-		_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: tc.frame}}, n)
+		_, _, err = exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: tc.frame}}, n)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Context != tc.context || d.Position != "" {
 			t.Fatal(err)
@@ -303,10 +304,10 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}
-	if networkOperatorExecutionConstant(nil, c) {
+	if exec.NetworkOperatorExecutionConstant(nil, c) {
 		t.Fatal("absent root is not an available expression")
 	}
-	if networkOperatorExecutionConstant(plan.BitwiseExpr{}, c) {
+	if exec.NetworkOperatorExecutionConstant(plan.BitwiseExpr{}, c) {
 		t.Fatal("absent-only operands are not execution ready")
 	}
 
@@ -314,10 +315,10 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !networkOperatorExecutionConstant(node, c) {
+	if !exec.NetworkOperatorExecutionConstant(node, c) {
 		t.Fatal("absent unary right operand blocked readiness")
 	}
-	folded, changed, err := preflightCoercions(c, node)
+	folded, changed, err := exec.PreflightCoercions(c, node)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -359,7 +360,7 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 		Left:  plan.LiteralExpr{Info: expr.Info{Usage: inet.Usage()}, Value: address},
 		Right: offset, Provider: add, Operator: sqltype.ArithmeticAdd,
 	}
-	folded, changed, err = preflightCoercions(c, root)
+	folded, changed, err = exec.PreflightCoercions(c, root)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

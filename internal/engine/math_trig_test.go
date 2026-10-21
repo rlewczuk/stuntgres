@@ -72,7 +72,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("execution domain diagnostic", err)
 	}
-	_, _, err = preflightCoercions(c, node)
+	_, _, err = exec.PreflightCoercions(c, node)
 	diagnostic = nil
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("constant execution preflight", err)
@@ -83,7 +83,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 		if err != nil {
 			t.Fatal("binding demanded constant sibling", err)
 		}
-		_, _, err = preflightCoercions(c, node)
+		_, _, err = exec.PreflightCoercions(c, node)
 		diagnostic = nil
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 			t.Fatal("constant child before strict NULL", query, err)
@@ -102,7 +102,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 				t.Fatal("direct execution domain diagnostic", err)
 			}
-			_, _, err = preflightCoercions(c, node)
+			_, _, err = exec.PreflightCoercions(c, node)
 			diagnostic = nil
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 				t.Fatal("direct constant execution preflight", err)

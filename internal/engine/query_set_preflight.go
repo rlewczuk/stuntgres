@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -19,7 +20,7 @@ func preflightQuerySet(c *exec.Context, n *plan.SetProjectNode) (plan.Node, erro
 	}
 	roots := make([]expr.Expr, len(template.Expressions))
 	for i, expression := range template.Expressions {
-		folded, _, err := preflightCoercions(c, expression)
+		folded, _, err := exec.PreflightCoercions(c, expression)
 		if err != nil {
 			return nil, err
 		}

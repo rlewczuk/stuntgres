@@ -12,11 +12,11 @@ func preflightReturning(c *exec.Context, output *analyze.Returning) (*analyze.Re
 		// Plan genuine SQL constants before importing frame coercions and before
 		// tuple/index demand. Row-dependent output still executes after insertion
 		// preparation; an imported parameter must not become a SQL constant.
-		planned, changed, err := simplifyConditional(c, bound, false)
+		planned, changed, err := exec.SimplifyConditional(c, bound, false)
 		if err != nil {
 			return nil, err
 		}
-		folded, converted, err := preflightCoercions(c, planned)
+		folded, converted, err := exec.PreflightCoercions(c, planned)
 		changed = changed || converted
 		if err != nil {
 			return nil, err

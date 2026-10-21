@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -20,7 +21,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 	case *plan.SetProjectNode:
 		return preflightQuerySet(c, n)
 	case *plan.WindowNode:
-		return plan.RewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) { return preflightCoercions(c, expr) }, func(child plan.Node) (plan.Node, error) {
+		return plan.RewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) { return exec.PreflightCoercions(c, expr) }, func(child plan.Node) (plan.Node, error) {
 			if child == n {
 				return child, nil
 			}
@@ -37,11 +38,11 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		copy.SetNode = *bound.(*plan.SetNode)
 		if n.Cycle != nil {
 			recipe := *n.Cycle
-			recipe.Mark, _, err = preflightCoercions(c, recipe.Mark)
+			recipe.Mark, _, err = exec.PreflightCoercions(c, recipe.Mark)
 			if err != nil {
 				return nil, err
 			}
-			recipe.Fallback, _, err = preflightCoercions(c, recipe.Fallback)
+			recipe.Fallback, _, err = exec.PreflightCoercions(c, recipe.Fallback)
 			if err != nil {
 				return nil, err
 			}
@@ -91,7 +92,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		}
 		var expressions []expr.Expr
 		for i, operand := range n.Expressions {
-			folded, changed, err := preflightCoercions(c, operand)
+			folded, changed, err := exec.PreflightCoercions(c, operand)
 			if err != nil {
 				return nil, err
 			}
@@ -134,7 +135,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		for i, row := range n.Rows {
 			var expressions []expr.Expr
 			for j, expression := range row {
-				folded, changed, err := preflightCoercions(c, expression)
+				folded, changed, err := exec.PreflightCoercions(c, expression)
 				if err != nil {
 					return nil, err
 				}
@@ -172,7 +173,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		}
 		var keys []expr.Expr
 		for i, key := range n.Keys {
-			folded, replacement, err := preflightCoercions(c, key)
+			folded, replacement, err := exec.PreflightCoercions(c, key)
 			if err != nil {
 				return nil, err
 			}
@@ -191,7 +192,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 				if expression == nil {
 					continue
 				}
-				folded, replacement, err := preflightCoercions(c, expression)
+				folded, replacement, err := exec.PreflightCoercions(c, expression)
 				if err != nil {
 					return nil, err
 				}
@@ -210,7 +211,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			}
 			var order []plan.SortKey
 			for k, key := range call.Order {
-				folded, replacement, err := preflightCoercions(c, key.Expression)
+				folded, replacement, err := exec.PreflightCoercions(c, key.Expression)
 				if err != nil {
 					return nil, err
 				}
@@ -244,7 +245,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			return &copy, nil
 		}
 	case *plan.FilterNode:
-		predicate, changed, err := preflightCoercions(c, n.Predicate)
+		predicate, changed, err := exec.PreflightCoercions(c, n.Predicate)
 		if err != nil {
 			return nil, err
 		}
@@ -275,7 +276,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			if key.Expression.CollationIndeterminate() {
 				return nil, analyze.SetOrderCollationError()
 			}
-			folded, changed, err := preflightCoercions(c, key.Expression)
+			folded, changed, err := exec.PreflightCoercions(c, key.Expression)
 			if err != nil {
 				return nil, err
 			}
@@ -288,7 +289,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		}
 		var outputs []expr.Expr
 		for i, operand := range n.Outputs {
-			folded, changed, err := preflightCoercions(c, operand)
+			folded, changed, err := exec.PreflightCoercions(c, operand)
 			if err != nil {
 				return nil, err
 			}
@@ -319,7 +320,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		// may fail here, but checked conversion truth stays in each runtime row.
 		var expressions []expr.Expr
 		for i, expression := range n.Expressions {
-			folded, changed, err := preflightCoercions(c, expression)
+			folded, changed, err := exec.PreflightCoercions(c, expression)
 			if err != nil {
 				return nil, err
 			}
@@ -392,14 +393,14 @@ func preflightJoin(c *exec.Context, n *plan.JoinNode) (plan.Node, error) {
 	predicate := n.Predicate
 	changed := false
 	if predicate != nil {
-		predicate, changed, err = preflightCoercions(c, predicate)
+		predicate, changed, err = exec.PreflightCoercions(c, predicate)
 		if err != nil {
 			return nil, err
 		}
 	}
 	var merges []expr.Expr
 	for i, expression := range n.Merges {
-		folded, replacement, err := preflightCoercions(c, expression)
+		folded, replacement, err := exec.PreflightCoercions(c, expression)
 		if err != nil {
 			return nil, err
 		}
@@ -436,7 +437,7 @@ func preflightSet(c *exec.Context, n *plan.SetNode) (plan.Node, error) {
 	for side, expressions := range [2][]expr.Expr{n.LeftExpressions, n.RightExpressions} {
 		var next []expr.Expr
 		for i, expression := range expressions {
-			folded, different, err := preflightCoercions(c, expression)
+			folded, different, err := exec.PreflightCoercions(c, expression)
 			if err != nil {
 				return nil, err
 			}
@@ -481,7 +482,7 @@ func preflightDistinct(c *exec.Context, n *plan.DistinctNode) (plan.Node, error)
 	}
 	var expressions []expr.Expr
 	for i, expression := range n.Expressions {
-		folded, changed, err := preflightCoercions(c, expression)
+		folded, changed, err := exec.PreflightCoercions(c, expression)
 		if err != nil {
 			return nil, err
 		}
@@ -514,7 +515,7 @@ func preflightDistinctOn(c *exec.Context, n *plan.DistinctOnNode) (plan.Node, er
 	var expressions []expr.Expr
 	if !n.PresenceOnly {
 		for i, expression := range n.Expressions {
-			folded, changed, err := preflightCoercions(c, expression)
+			folded, changed, err := exec.PreflightCoercions(c, expression)
 			if err != nil {
 				return nil, err
 			}
@@ -541,7 +542,7 @@ func preflightFunctionFrom(c *exec.Context, n *plan.FunctionFromNode) (plan.Node
 	// Plan every child before simplifying a source call. Keep the analyzed
 	// call carrier: it owns aliases, record expansion and the fixed stage width.
 	planned, err := plan.RewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) {
-		return preflightCoercions(c, expr)
+		return exec.PreflightCoercions(c, expr)
 	})
 	if err != nil {
 		return nil, err
@@ -552,7 +553,7 @@ func preflightFunctionFrom(c *exec.Context, n *plan.FunctionFromNode) (plan.Node
 		if !exec.StrictScalarFunctionSource(call) {
 			continue
 		}
-		next, _, err := simplifyConditional(c, call, false)
+		next, _, err := exec.SimplifyConditional(c, call, false)
 		if err != nil {
 			return nil, err
 		}

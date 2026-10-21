@@ -65,7 +65,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 		plan.LiteralExpr{Info: expr.Info{Usage: numeric.Usage()}, Value: sqltype.Null(numeric)},
 		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, mask)},
 	}}
-	simplified, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, n, false)
+	simplified, _, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, n, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -161,8 +161,8 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		wrapper := plan.ArithmeticExpr{Info: original.Info, Left: original, Right: null, Provider: arithmetic, Operator: sqltype.ArithmeticAdd}
 		ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
 		for _, fold := range []func() (expr.Expr, bool, error){
-			func() (expr.Expr, bool, error) { return preflightCoercions(ctx, wrapper) },
-			func() (expr.Expr, bool, error) { return simplifyConditional(ctx, wrapper, false) },
+			func() (expr.Expr, bool, error) { return exec.PreflightCoercions(ctx, wrapper) },
+			func() (expr.Expr, bool, error) { return exec.SimplifyConditional(ctx, wrapper, false) },
 		} {
 			node, changed, err := fold()
 			value, ok := node.(plan.LiteralExpr)
@@ -177,7 +177,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		parameter.Property.ParameterDependent = true
 		retained := wrapper
 		retained.Right = parameter
-		if arithmeticSetConstantNull(retained, retained) {
+		if exec.ArithmeticSetConstantNull(retained, retained) {
 			t.Fatal("imported parameter became a physical NULL proof")
 		}
 		peer := seriesUnit(t, d, 10, 11)
@@ -226,10 +226,10 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
 		func() (expr.Expr, bool, error) {
-			return preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
+			return exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
 		},
 		func() (expr.Expr, bool, error) {
-			return simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
+			return exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 		},
 	} {
 		n, _, err := fold()

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -25,7 +26,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 	if err := validateQueryJoinExecution(&owner, merge.Source, catalog, 0); err != nil {
 		return err
 	}
-	merge.On, _, err = preflightCoercions(&owner, merge.On)
+	merge.On, _, err = exec.PreflightCoercions(&owner, merge.On)
 	if err != nil {
 		return err
 	}
@@ -34,7 +35,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 	}
 	for i := range merge.Arms {
 		arm := &merge.Arms[i]
-		arm.Condition, _, err = preflightCoercions(&owner, arm.Condition)
+		arm.Condition, _, err = exec.PreflightCoercions(&owner, arm.Condition)
 		if err != nil {
 			return err
 		}
@@ -58,7 +59,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 			if len(arm.Input.Insert.IdentityDiscard) != 0 && arm.Input.Insert.IdentityDiscard[arm.Input.Targets[j]] {
 				continue
 			}
-			folded, _, err := preflightCoercions(&owner, expression)
+			folded, _, err := exec.PreflightCoercions(&owner, expression)
 			if err != nil {
 				return analyze.InsertValueError(catalog, err, arm.Input.Relation.Columns[arm.Input.Targets[j]], arm.Syntax[j], nil)
 			}
@@ -70,7 +71,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 			}
 			defaultOwner := owner
 			applyDefaultOrigin(bindingDefaultOrigin(&arm.Input, j), &defaultOwner)
-			arm.Input.Insert.Defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
+			arm.Input.Insert.Defaults[j], _, err = exec.PreflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err
 			}
@@ -151,7 +152,7 @@ func mergeHasVirtualReads(merge *analyze.MergeBinding) bool {
 				}
 			}
 			for _, target := range arm.Input.Update.ArrayTargets {
-				if assignmentTargetHasVirtualReads(target) {
+				if exec.AssignmentTargetHasVirtualReads(target) {
 					return true
 				}
 			}

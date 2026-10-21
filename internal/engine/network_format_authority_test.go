@@ -115,7 +115,7 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 			// No original routine manifest is available for computation. A known-NULL
 			// formal must prune without invoking/admitting the selected routine.
 			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
-			planned, changed, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+			planned, changed, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil || !changed {
 				t.Fatal("known NULL was not pruned before admission", changed, err)
 			}
@@ -131,7 +131,7 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 			// The original analyzed expression and its manifest are not replaced by
 			// the execution-local NULL result. Restoring authority permits real work.
 			evaluation.RoutineChecks = b.Dependencies
-			again, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+			again, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil {
 				t.Fatal(err)
 			}

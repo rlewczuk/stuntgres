@@ -25,7 +25,7 @@ func preflightUpdate(c *exec.Context, original *analyze.UpdateBinding, sourceDem
 func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBinding, planConstants bool, sourceDemand ...func(*analyze.UpdateBinding) (plan.Node, error)) (*analyze.UpdateBinding, error) {
 	result := original
 	var assignments []expr.Expr
-	targets, err := preflightArrayTargetsWithPlanning(c, original.ArrayTargets, planConstants)
+	targets, err := exec.PreflightArrayTargetsWithPlanning(c, original.ArrayTargets, planConstants)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 			applyDefaultOrigin(original.DefaultOrigins[i], &recipe)
 			owner = &recipe
 		}
-		folded, changed, err := preflightUpdateExpression(owner, expression, planConstants)
+		folded, changed, err := exec.PreflightUpdateExpression(owner, expression, planConstants)
 		if err != nil {
 			return nil, err
 		}
@@ -59,7 +59,7 @@ func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 		result = &private
 	}
 	if original.Predicate != nil {
-		folded, changed, err := preflightUpdateExpression(c, original.Predicate, planConstants)
+		folded, changed, err := exec.PreflightUpdateExpression(c, original.Predicate, planConstants)
 		if err != nil {
 			return nil, err
 		}
@@ -92,21 +92,6 @@ func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 		}
 	}
 	return result, nil
-}
-
-func preflightUpdateExpression(c *exec.Context, expression expr.Expr, planConstants bool) (expr.Expr, bool, error) {
-	changed := false
-	if planConstants {
-		// Plan SQL constants before importing execution-frame coercions:
-		// imported parameter literals must not become SQL constants.
-		next, did, err := simplifyConditional(c, expression, false)
-		if err != nil {
-			return nil, false, err
-		}
-		expression, changed = next, did
-	}
-	next, did, err := preflightCoercions(c, expression)
-	return next, changed || did, err
 }
 
 // SQL waits never retain replacement admission or state/manager mutexes.
@@ -229,7 +214,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b analyze
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 		}
 		for _, target := range b.Update.ArrayTargets {
-			state.VirtualReads = state.VirtualReads || assignmentTargetHasVirtualReads(target)
+			state.VirtualReads = state.VirtualReads || exec.AssignmentTargetHasVirtualReads(target)
 		}
 		if b.Returning != nil {
 			for _, expression := range b.Returning.Expressions {

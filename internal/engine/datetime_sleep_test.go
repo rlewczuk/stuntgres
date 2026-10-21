@@ -41,7 +41,7 @@ func TestDatetimeSleepBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, x)
+		folded, changed, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, x)
 		if err != nil || !changed {
 			t.Fatal(folded, changed, err)
 		}

@@ -228,7 +228,7 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 	local.RoutineChecks = binder.Dependencies
 	local.RoutineReferences = nil
 	local.RoutineConsumer = nil
-	node, _, err = preflightCoercionsWithPolicy(&local, node, false)
+	node, _, err = exec.PreflightCoercionsWithPolicy(&local, node, false)
 	if err != nil {
 		return sqltype.Value{}, 0, err
 	}

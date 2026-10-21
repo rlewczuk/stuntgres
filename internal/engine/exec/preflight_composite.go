@@ -1,7 +1,6 @@
-package engine
+package exec
 
 import (
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -9,7 +8,7 @@ import (
 
 // preflightComposite preflights a function node's children and then applies
 // the fold the node names through expr.Preflighting.
-func preflightComposite(c *exec.Context, node expr.Composite, decisiveDefaults bool) (expr.Expr, bool, error) {
+func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) (expr.Expr, bool, error) {
 	kind := expr.PreflightSimplify
 	if hook, ok := node.(expr.Preflighting); ok {
 		kind = hook.PreflightFold()
@@ -23,7 +22,7 @@ func preflightComposite(c *exec.Context, node expr.Composite, decisiveDefaults b
 		}
 	}
 	mapped, changed, err := expr.MapSubstituted(node, func(child expr.Expr) (expr.Expr, bool, error) {
-		return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		return PreflightCoercionsWithPolicy(c, child, decisiveDefaults)
 	})
 	if err != nil {
 		return nil, false, err
@@ -48,7 +47,7 @@ func preflightComposite(c *exec.Context, node expr.Composite, decisiveDefaults b
 		// Parameter expressions deliberately remain symbolic after child
 		// preflight. Apply the ordinary typed-frame strict-NULL proof before
 		// planning computation can admit a routine that will not be invoked.
-		pruned, folded, err := foldStrictParameterNull(c, next)
+		pruned, folded, err := FoldStrictParameterNull(c, next)
 		if err != nil {
 			return nil, false, err
 		}
@@ -74,16 +73,16 @@ func preflightComposite(c *exec.Context, node expr.Composite, decisiveDefaults b
 			next, changed = specialized.(expr.Composite), true
 		}
 	}
-	folded, simplified, err := simplifyConditional(c, next, decisiveDefaults)
+	folded, simplified, err := SimplifyConditional(c, next, decisiveDefaults)
 	return folded, changed || simplified, err
 }
 
 // preflightEvaluate folds an immutable call that depends on no row, stage or
 // domain into its value.
-func preflightEvaluate(c *exec.Context, node expr.Expr, changed bool) (expr.Expr, bool, error) {
+func preflightEvaluate(c *Context, node expr.Expr, changed bool) (expr.Expr, bool, error) {
 	p := node.Properties()
 	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-		value, err := exec.EvaluatePlanningExpression(c, node)
+		value, err := EvaluatePlanningExpression(c, node)
 		return preflightValue(c, expr.InfoOf(node), value, err)
 	}
 	return node, changed, nil
@@ -91,7 +90,7 @@ func preflightEvaluate(c *exec.Context, node expr.Expr, changed bool) (expr.Expr
 
 func literalNullChild(node expr.Composite) bool {
 	for _, child := range node.Children() {
-		if exec.RandomLiteralNull(child) {
+		if RandomLiteralNull(child) {
 			return true
 		}
 	}

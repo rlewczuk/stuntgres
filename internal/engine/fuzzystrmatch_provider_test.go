@@ -255,7 +255,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err != nil || !strings.Contains(stored, "daitch_mokotoff") {
 		t.Fatal("stored renderer", stored, err)
 	}
-	folded, _, err := simplifyConditional(ctx, n, false)
+	folded, _, err := exec.SimplifyConditional(ctx, n, false)
 	if err != nil {
 		t.Fatal(err)
 	}

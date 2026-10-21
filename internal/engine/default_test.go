@@ -230,7 +230,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			d := view.MustRelation(ref.Address)
 			original := d.ColumnMeta.Defaults[d.Attributes[0]]
 			c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-			planned, changed, err := preflightCoercionsWithPolicy(c, original.Expression, true)
+			planned, changed, err := exec.PreflightCoercionsWithPolicy(c, original.Expression, true)
 			if err != nil || !changed {
 				t.Fatal(planned, changed, err)
 			}
@@ -248,7 +248,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			}
 			// The same original node still demands both branches under ordinary
 			// preflight. No flag or execution-folded node leaks into the catalog.
-			_, _, err = preflightCoercions(c, original.Expression)
+			_, _, err = exec.PreflightCoercions(c, original.Expression)
 			state(t, err, "22P02")
 			if err := (relationProvider{}).Validate(view, d); err != nil {
 				t.Fatal("execution planning changed the stored definition", err)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -12,7 +14,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
@@ -55,10 +56,10 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if children != 1 {
 		t.Fatal("lost traversal", children)
 	}
-	if !plan.GenerationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
+	if !plan.GenerationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !exec.ConditionalConstantInputs(next) {
 		t.Fatal("immutable carrier properties")
 	}
-	folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, next)
+	folded, changed, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, next)
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
 	}

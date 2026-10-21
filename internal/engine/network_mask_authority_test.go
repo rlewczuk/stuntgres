@@ -190,14 +190,14 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 				}
 			}
 			setParameters(tc.bad)
-			_, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+			_, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, false)
 			diagnostic, ok := err.(interface{ SQLState() string })
 			if !ok || diagnostic.SQLState() != "22023" || err.Error() != "stuntgres: "+tc.message {
 				t.Fatal("provider error lost before row demand", err)
 			}
 			// A failed execution-local fold must not alter the analyzed node.
 			setParameters(tc.good)
-			planned, changed, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+			planned, changed, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil || !changed {
 				t.Fatal("same analyzed expression did not recover", changed, err)
 			}
@@ -218,7 +218,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 			t.Fatal(err)
 		}
 		evaluation.Parameters = []sqltype.Value{input}
-		planned, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+		planned, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, false)
 		if err != nil || !planned.Properties().RowDependent {
 			t.Fatal("preflight forced a row-dependent mask", expression, err)
 		}
@@ -235,7 +235,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 			// A known-NULL strict call must disappear before planning admission.
 			// Deliberately omit its routine manifest: no provider can be invoked.
 			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
-			planned, changed, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+			planned, changed, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil || !changed {
 				t.Fatal("known NULL reached routine admission", changed, err)
 			}
@@ -253,7 +253,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 			}
 			evaluation.Parameters[0] = nonnull
 			evaluation.RoutineChecks = b.Dependencies
-			again, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+			again, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil {
 				t.Fatal("known NULL changed original expression authority", err)
 			}
@@ -263,7 +263,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 			}
 			if kind := node.(functions.NetworkFormat).Kind; kind == sqltype.NetworkMerge || kind == sqltype.NetworkSetMasklen {
 				evaluation.RoutineChecks = []catalog.ExpressionDependency{}
-				if _, _, err := preflightCoercionsWithPolicy(&evaluation, node, false); err == nil {
+				if _, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, false); err == nil {
 					t.Fatal("nonnull provider bypassed original routine authority")
 				}
 			}

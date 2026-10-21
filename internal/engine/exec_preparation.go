@@ -7,22 +7,27 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/sqltype"
 )
 
 func init() { exec.InstallPreparation(enginePreparation{}) }
 
 type enginePreparation struct{}
 
-func (enginePreparation) PreflightCoercions(c *exec.Context, e expr.Expr) (expr.Expr, bool, error) {
-	return preflightCoercions(c, e)
-}
-
-func (enginePreparation) PreflightCoercionsWithPolicy(c *exec.Context, e expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
-	return preflightCoercionsWithPolicy(c, e, decisiveDefaults)
-}
-
 func (enginePreparation) AdmitExpression(c *exec.Context, e expr.Expr, view catalog.Read) error {
 	return validateExpressionJoinExecution(c, e, view)
+}
+
+func (enginePreparation) PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
+	return preflightQuery(c, node)
+}
+
+func (enginePreparation) PrepareDomainConversion(c *exec.Context, source, target *sqltype.Descriptor) error {
+	return prepareDomainConversion(c, source, target)
+}
+
+func (enginePreparation) SpecializeRuleParameters(c *exec.Context, e expr.Expr) (expr.Expr, bool, error) {
+	return specializeRuleParameterExpression(c, e)
 }
 
 func (enginePreparation) DomainCatalog(c *exec.Context) catalog.Read {

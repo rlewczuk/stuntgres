@@ -114,7 +114,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		for i := range e.Args {
 			null := e
 			null.Args[i] = plan.LiteralExpr{Info: b.Info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(e.Args[i].ResultUsage().Type)}
-			simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, null, false)
+			simplified, changed, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, null, false)
 			if err != nil || !changed || !plan.GenerationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
 			}
@@ -185,7 +185,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Args[1] = plan.CoercionExpr{Info: b.Info(b.Type(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Child: text, Plan: coercionPlan, Mode: sqltype.Explicit}
-	_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, e)
+	_, _, err = exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {
 		t.Fatal(err)

@@ -201,7 +201,7 @@ func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 			checkEvaluation.RoutineChecks = check.Dependencies
 			checkEvaluation.RoutineReferences, checkEvaluation.RoutineConsumer = nil, nil
 			checkEvaluation.RoutineProgram = &phase.admission
-			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, check.Expression, true)
+			node, changed, err := exec.PreflightCoercionsWithPolicy(&checkEvaluation, check.Expression, true)
 			c.PreparedDomainChecks = checkEvaluation.PreparedDomainChecks
 			if err != nil {
 				return err

@@ -6,13 +6,14 @@ import (
 	"math"
 	"runtime"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 type aggregateProbeProvider struct {
@@ -299,7 +300,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	if !projected.Properties().StageDependent {
 		t.Fatal("group dependence lost")
 	}
-	folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, projected)
+	folded, _, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, projected)
 	if err != nil || !folded.Properties().StageDependent {
 		t.Fatal("group result evaluated during preflight", err)
 	}

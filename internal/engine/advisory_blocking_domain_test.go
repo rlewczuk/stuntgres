@@ -101,7 +101,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	}
 	original := boundCase.(functions.BlockingInquiry)
 	original.Property.RowDependent = true
-	simplified, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
+	simplified, _, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 	if err != nil {
 		t.Fatal(err)
 	}

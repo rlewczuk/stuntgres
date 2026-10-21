@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -15,7 +17,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func metaphoneUnitExpression(t *testing.T, e *Engine) plan.InstalledMetaphoneExpr {
@@ -132,7 +133,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if err := validateInstalledMetaphone(retagged.(plan.InstalledMetaphoneExpr), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	folded, _, err := simplifyConditional(ctx, n, false)
+	folded, _, err := exec.SimplifyConditional(ctx, n, false)
 	if err != nil {
 		t.Fatal(err)
 	}

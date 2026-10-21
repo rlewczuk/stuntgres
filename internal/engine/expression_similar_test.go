@@ -3,12 +3,13 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func similarUnitTypes() (*sqltype.Descriptor, *sqltype.Descriptor) {
@@ -40,11 +41,11 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	}
 	null := plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}
 	node := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: null, Right: normalizer, Provider: mp, Operator: "~"}
-	_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
+	_, _, err = exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
 	state(t, err, "22025")
 	normalizer.Pattern = null
 	node.Right = normalizer
-	folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
+	folded, _, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
 	if err != nil {
 		t.Fatal(err)
 	}

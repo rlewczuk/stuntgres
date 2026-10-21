@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -10,7 +12,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestIdentifierExtremaInitialization(t *testing.T) {
@@ -45,9 +46,9 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 					t.Fatal("extrema initialization boundary", diagnostic, err, calls)
 				}
 			}
-			_, _, err = preflightCoercions(evaluation, node)
+			_, _, err = exec.PreflightCoercions(evaluation, node)
 			assert(err)
-			_, _, err = simplifyConditional(evaluation, node, false)
+			_, _, err = exec.SimplifyConditional(evaluation, node, false)
 			assert(err)
 			_, err = node.Eval(evaluation)
 			assert(err)

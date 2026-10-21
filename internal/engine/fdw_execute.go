@@ -311,7 +311,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 			}
 			for _, target := range b.Update.ArrayTargets {
-				state.VirtualReads = state.VirtualReads || assignmentTargetHasVirtualReads(target)
+				state.VirtualReads = state.VirtualReads || exec.AssignmentTargetHasVirtualReads(target)
 			}
 		}
 		if b.Returning != nil {

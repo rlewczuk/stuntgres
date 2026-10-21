@@ -70,7 +70,7 @@ func TestStrictParameterNullPlanning(t *testing.T) {
 	planners := []struct {
 		name string
 		run  func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error)
-	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}}
+	}{{"preflight", exec.PreflightCoercionsWithPolicy}, {"conditional", exec.SimplifyConditional}}
 	for _, planner := range planners {
 		t.Run(planner.name, func(t *testing.T) {
 			e, op, scope := strictNullUnitFixture(t)
@@ -142,7 +142,7 @@ func TestStrictParameterNullBoundaries(t *testing.T) {
 	node, b, evaluation := strictNullUnitBind(t, e, op, scope, "abs($1::integer)")
 	for _, frame := range [][]sqltype.Value{nil, make([]sqltype.Value, 1)} {
 		evaluation.Parameters = frame
-		if _, folded, err := foldStrictParameterNull(&evaluation, node); err != nil || folded {
+		if _, folded, err := exec.FoldStrictParameterNull(&evaluation, node); err != nil || folded {
 			t.Fatal("uninitialized parameter became a NULL constant", folded, err)
 		}
 	}
@@ -150,20 +150,20 @@ func TestStrictParameterNullBoundaries(t *testing.T) {
 	row, _, rowEvaluation := strictNullUnitBind(t, e, op, scope, "abs(v)")
 	rowEvaluation.Row = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 	rowEvaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
-	if _, folded, err := foldStrictParameterNull(&rowEvaluation, row); err != nil || folded {
+	if _, folded, err := exec.FoldStrictParameterNull(&rowEvaluation, row); err != nil || folded {
 		t.Fatal("row demand was pruned", folded, err)
 	}
 	// A strict SRF initializes even with NULL parameters: it is not scalar.
 	set, setBinder, setEvaluation := strictNullUnitBind(t, e, op, scope, "generate_series($1::integer,$2::integer)")
 	setEvaluation.Parameters = []sqltype.Value{sqltype.Null(setBinder.Params.Parameters[1].Type), sqltype.Null(setBinder.Params.Parameters[2].Type)}
-	if _, folded, err := foldStrictParameterNull(&setEvaluation, set); err != nil || folded {
+	if _, folded, err := exec.FoldStrictParameterNull(&setEvaluation, set); err != nil || folded {
 		t.Fatal("SRF initialization was pruned", folded, err)
 	}
 	// A real domain conversion cannot be replaced by the physical NULL of its
 	// input; its CHECK truth remains an actual later consumption boundary.
 	domain, domainBinder, domainEvaluation := strictNullUnitBind(t, e, op, scope, "abs(($1::integer)::strict_null_checked)")
 	domainEvaluation.Parameters = []sqltype.Value{sqltype.Null(domainBinder.Params.Parameters[1].Type)}
-	if _, folded, err := foldStrictParameterNull(&domainEvaluation, domain); err != nil || folded {
+	if _, folded, err := exec.FoldStrictParameterNull(&domainEvaluation, domain); err != nil || folded {
 		t.Fatal("domain barrier was discarded", folded, err)
 	}
 	_, err := domain.Eval(&domainEvaluation)
@@ -177,7 +177,7 @@ func TestStrictParameterNullCompoundSemantics(t *testing.T) {
 	for _, planner := range []struct {
 		name string
 		run  func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error)
-	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}} {
+	}{{"preflight", exec.PreflightCoercionsWithPolicy}, {"conditional", exec.SimplifyConditional}} {
 		t.Run(planner.name, func(t *testing.T) {
 			e, op, scope := strictNullUnitFixture(t)
 			for _, tc := range []struct {

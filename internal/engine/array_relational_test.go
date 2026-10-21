@@ -464,7 +464,7 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 	if err != nil || changed || &next.(functions.ArrayRandom).Args[0] != &call.Args[0] {
 		t.Fatal("unchanged child mapping copied")
 	}
-	for _, f := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
+	for _, f := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){exec.SimplifyConditional, exec.PreflightCoercionsWithPolicy} {
 		mapped, _, err := f(c, call, false)
 		if err != nil || exec.PlannedPhysicalVolatility(mapped, false) != expr.Volatile {
 			t.Fatal("lost volatile provider", err)

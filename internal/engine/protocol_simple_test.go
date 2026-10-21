@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -11,7 +13,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 type protocolDisposalProbe struct {
@@ -150,7 +151,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			t.Fatal(err)
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true}}
-		mapped, _, err := preflightCoercions(&evaluation, original)
+		mapped, _, err := exec.PreflightCoercions(&evaluation, original)
 		if err != nil || !mapped.Properties().ParameterDependent {
 			t.Fatal("planning crossed imported parameter barrier", err)
 		}
@@ -176,7 +177,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 				}
 				exists := subqueryTestExpression(t, e, plan, parser.SubqueryExists)
 				planning := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
-				prepared, _, err := preflightCoercions(&planning, exists)
+				prepared, _, err := exec.PreflightCoercions(&planning, exists)
 				if tc.code != "" {
 					var diagnostic *sqlstate.Error
 					if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {

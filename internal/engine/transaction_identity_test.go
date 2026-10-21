@@ -259,7 +259,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if tc.name == "pg_xact_status" || tc.name == "pg_get_multixact_members" {
 			intrinsic = expr.Volatile
 		}
-		if exec.PlannedVolatility(n) != intrinsic || conditionalConstantInputs(n) || plan.GenerationImmutable(n) {
+		if exec.PlannedVolatility(n) != intrinsic || exec.ConditionalConstantInputs(n) || plan.GenerationImmutable(n) {
 			t.Fatal("unsafe constant/volatility admission", tc.name)
 		}
 		count := 0

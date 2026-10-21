@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -13,8 +16,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"sync"
-	"testing"
 )
 
 func stringSplitMarker(t *testing.T, b *analyze.Binder, pos int, args ...expr.Expr) functions.String {
@@ -422,7 +423,7 @@ func TestStringSplitExpansion(t *testing.T) {
 	if !reflect.DeepEqual(rows, [][]any{{"a", "x", "s"}, {"b", nil, "s"}}) || !reflect.DeepEqual(order, []int{0, 1, 2, 3, 3, 3}) {
 		t.Fatal(rows, order)
 	}
-	if first.Plan.Name() != "string_to_table" || !first.Properties().StageDependent || conditionalConstantInputs(first) {
+	if first.Plan.Name() != "string_to_table" || !first.Properties().StageDependent || exec.ConditionalConstantInputs(first) {
 		t.Fatal("lost set marker", first.Properties())
 	}
 	if _, err := first.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); err == nil {
@@ -558,7 +559,7 @@ func TestStringSplitBinding(t *testing.T) {
 		}
 		n := mapped.(functions.String)
 		if n.Plan.Name() == "string_to_table" {
-			if conditionalConstantInputs(n) || !n.Properties().StageDependent {
+			if exec.ConditionalConstantInputs(n) || !n.Properties().StageDependent {
 				t.Fatal("foldable set marker")
 			}
 			continue
@@ -590,7 +591,7 @@ func TestStringSplitBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	folded, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bound, false)
+	folded, _, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bound, false)
 	if err != nil {
 		t.Fatal(err)
 	}

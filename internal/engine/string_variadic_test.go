@@ -82,7 +82,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	}
 	node := bound.(functions.StringVariadic)
 	oldGroup := exec.QuoteCaptureCandidate{}
-	_, _, err = foldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &oldGroup}}, node)
+	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &oldGroup}}, node)
 	if err != nil || len(oldGroup.Entries) != 1 {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal("retag source mutated or authority not replaced")
 	}
 	candidate := exec.QuoteCaptureCandidate{Entries: oldGroup.Entries}
-	_, _, err = foldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &candidate}}, fresh)
+	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &candidate}}, fresh)
 	if err != nil || !candidate.Private || len(candidate.Entries) != 1 || candidate.Entries[0].Value.Type() != types[sqltype.Text] || oldGroup.Entries[0].Value.Type() != node.Usage.Type {
 		t.Fatal("coincident OID adopted or source group mutated", err)
 	}
@@ -125,7 +125,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		return ref
 	}, nil)
-	if err != nil || quoteOriginOf(remapped.(functions.StringVariadic)).Owner != targetRef || quoteOriginOf(stamped) != origins[2] {
+	if err != nil || exec.QuoteOriginOf(remapped.(functions.StringVariadic)).Owner != targetRef || exec.QuoteOriginOf(stamped) != origins[2] {
 		t.Fatal("view quote origin remap lost target ownership or mutated source", err)
 	}
 	stampedRetagged, _, err := retagBoundTypes(binder.BindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
@@ -142,7 +142,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			occurrence = occurrence.WithOrigin(origin)
 			ambient = exec.QuoteOrigin{} // Lowered view nodes override caller-root context.
 		}
-		folded, _, err := foldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &collision, QuoteOrigin: ambient}}, occurrence)
+		folded, _, err := exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &collision, QuoteOrigin: ambient}}, occurrence)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,7 +175,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	}
 	sealed := exec.QuoteCaptureCandidate{Entries: published, Sealed: true}
 	missing := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, "local")}}}
-	_, _, err = foldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &sealed}}, missing)
+	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &sealed}}, missing)
 	if err != nil || sealed.Private || len(sealed.Entries) != 4 {
 		t.Fatal("sealed executor group admitted row-time publication", err)
 	}
@@ -242,7 +242,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			}
 			for _, predicate := range predicates {
 				plan.WalkExpression(predicate, func(expression expr.Expr) {
-					if quote, ok := expression.(functions.StringVariadic); ok && quoteOriginOf(quote) != (exec.QuoteOrigin{}) {
+					if quote, ok := expression.(functions.StringVariadic); ok && exec.QuoteOriginOf(quote) != (exec.QuoteOrigin{}) {
 						t.Fatal("execution lowering stamped the stored source tree")
 					}
 				})
@@ -427,7 +427,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		for _, attribute := range relation.Attributes[1:3] {
 			node := relation.ColumnMeta.Defaults[attribute].Expression.(functions.StringVariadic)
-			if quoteOriginOf(node) != (exec.QuoteOrigin{}) {
+			if exec.QuoteOriginOf(node) != (exec.QuoteOrigin{}) {
 				t.Fatal("MERGE stamped catalog DEFAULT source")
 			}
 		}
@@ -628,7 +628,7 @@ func TestStringVariadicBoundedCancellationAndSizes(t *testing.T) {
 		if name == "concat" {
 			_, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 		} else {
-			_, _, err = foldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &group}}, node)
+			_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &group}}, node)
 		}
 		if !errors.Is(err, context.Canceled) || group.Private || group.Entries != nil {
 			t.Fatal("cancellation exposed a scalar or partial capture", name, err)

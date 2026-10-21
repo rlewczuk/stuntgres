@@ -2,13 +2,14 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestCatalogInquiryRetainedVolatility(t *testing.T) {
@@ -22,7 +23,7 @@ func TestCatalogInquiryRetainedVolatility(t *testing.T) {
 	if node.Properties().Volatility != expr.Volatile || plannedIntrinsicVolatility(node) != expr.Volatile {
 		t.Fatal("analysis fallback lost eliminated-arm volatility", node.Properties())
 	}
-	simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node, false)
+	simplified, changed, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

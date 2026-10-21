@@ -161,10 +161,10 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
 		func() (expr.Expr, bool, error) {
-			return preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
+			return exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
 		},
 		func() (expr.Expr, bool, error) {
-			return simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
+			return exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 		},
 	} {
 		n, _, err := fold()

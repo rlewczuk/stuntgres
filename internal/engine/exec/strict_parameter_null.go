@@ -1,7 +1,6 @@
-package engine
+package exec
 
 import (
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -12,7 +11,7 @@ import (
 // argument, but a separate known-NULL argument can discard runtime siblings,
 // including domain coercions. No domain truth or provider is sampled here.
 // The analyzed tree and its original dependency manifest remain untouched.
-func foldStrictParameterNull(c *exec.Context, node expr.Expr) (expr.Expr, bool, error) {
+func FoldStrictParameterNull(c *Context, node expr.Expr) (expr.Expr, bool, error) {
 	if node == nil || len(c.Parameters) == 0 || !node.Properties().ParameterDependent {
 		return node, false, nil
 	}
@@ -22,20 +21,20 @@ func foldStrictParameterNull(c *exec.Context, node expr.Expr) (expr.Expr, bool, 
 		// making the whole NULL-aware or multi-comparison expression strict.
 		return node, false, nil
 	}
-	selected, err := exec.ExpressionRoutineDescriptor(node)
+	selected, err := ExpressionRoutineDescriptor(node)
 	if err != nil {
 		return nil, false, err
 	}
-	if !exec.StrictScalarRoutine(selected) {
+	if !StrictScalarRoutine(selected) {
 		return node, false, nil
 	}
 	null := false
 	var failure error
-	exec.StrictRoutineArguments(node, func(argument expr.Expr) {
+	StrictRoutineArguments(node, func(argument expr.Expr) {
 		if null || failure != nil {
 			return
 		}
-		null, failure = executionKnownNullArgument(c, argument)
+		null, failure = ExecutionKnownNullArgument(c, argument)
 	})
 	if failure != nil {
 		return nil, false, failure
@@ -47,7 +46,10 @@ func foldStrictParameterNull(c *exec.Context, node expr.Expr) (expr.Expr, bool, 
 	return plan.LiteralExpr{Info: info, Value: sqltype.ResultNull(info.Usage)}, true, nil
 }
 
-func executionKnownNullArgument(c *exec.Context, node expr.Expr) (bool, error) {
+// ExecutionKnownNullArgument reports whether node is known NULL from a
+// literal or the typed parameter frame alone, never by evaluating an
+// operator, function or domain.
+func ExecutionKnownNullArgument(c *Context, node expr.Expr) (bool, error) {
 	if node == nil || node.Properties().RuntimeDomainConversion {
 		return false, nil
 	}
@@ -62,18 +64,18 @@ func executionKnownNullArgument(c *exec.Context, node expr.Expr) (bool, error) {
 		value, err := e.Eval(c) // Typed frame access only; no operator/function/domain Eval.
 		return value.IsNull(), err
 	case plan.CollationExpr:
-		return executionKnownNullArgument(c, e.Child)
+		return ExecutionKnownNullArgument(c, e.Child)
 	case plan.CoercionExpr:
 		if e.Usage.Type == nil || e.Usage.Type.IsDomain() {
 			return false, nil
 		}
-		return executionKnownNullArgument(c, e.Child)
+		return ExecutionKnownNullArgument(c, e.Child)
 	case plan.CaseExpr:
 		// Existing conditional planning preserves conservative properties on
 		// this already-decided native CASE carrier, rather than adding a cast
 		// or substituting parameters throughout the analyzed expression.
 		if e.Test == nil && len(e.Arms) == 0 {
-			return executionKnownNullArgument(c, e.Otherwise)
+			return ExecutionKnownNullArgument(c, e.Otherwise)
 		}
 	}
 	return false, nil

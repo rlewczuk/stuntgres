@@ -1872,7 +1872,14 @@ exist. Each item is a new sub-step in that package's prompt file.
   `conditional_plan.go`, `conditional_fold.go`), once routine admission
   lives in `exec`. `query_preflight.go` and `query_set_preflight.go` name
   `analyze` symbols, so 11f measures whether they go to `analyze` or stay;
-  `preflightReturning` stays with `dml`.
+  `preflightReturning` stays with `dml`. Done (item 76): the family moved
+  with its clean helpers (array/UPDATE value preflight, string variadic
+  folding, view qualification mapping, the OVERLAPS route; the OVERLAPS cost
+  model moved down from `analyze`). It reaches the root through
+  `Preparation.PreflightQuery`, `PrepareDomainConversion` and
+  `SpecializeRuleParameters`. Query preflight stays in the root: it reaches
+  the retag walker, rule producer demand (headed for `stored`) and window
+  pruning (12f), so it fits neither `exec` nor `analyze` yet.
 - **Analyze 12f.** The clean query-legality helpers (`query_graph.go`,
   the clean parts of `query_lock_admission.go` and `query_join_legality.go`,
   `query_window_prune.go`) and `closedRegclassDefault` (`serial.go`, next
@@ -2056,7 +2063,7 @@ package-specific scope. This section holds the rules every session follows.
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10e): `plan` created, IR, node types and installed extension nodes moved, aliases removed; 10e moved node-tree output and the generation helpers (racecheck/finalcheck skipped by user) |
-| 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request); 11e done (preparation seam, routine admission moved; racecheck/finalcheck skipped at user request); 11f planned |
+| 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request); 11e done (preparation seam, routine admission moved; racecheck/finalcheck skipped at user request); 11f done (expression preflight moved; query preflight stays; racecheck/finalcheck skipped at user request) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c; 12d: 12c, 11c | done (12a–12e): `binding` split per statement kind, binder fields grouped, host seam, `analyze` created, areas prepared in place and the binder moved (12d.1–12d.6), aliases removed; the driver imports `analyze` for `ParameterInfo` (racecheck/finalcheck skipped at user request) |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c refined (state moves, the scope and orchestration stay; decisions 7, 10 and 11 settled); 13d.1 done (`session` created, journal moved with aliases), 13d.2 done (statement lease), 13d.3 done (engine edges: `session.Host`, `engineOf`, owner root functions) 13d.4 done (root payloads: session payload, owner extension, savepoint and operation slots; notification polling on `Engine`) 13d.5 done (file splits: 15 moving-only files; 192 members the root reads exported) and 13d.6 done (session state moved into `session` with type and constant aliases; `Host.NewOperation`); 13e done (aliases removed; the driver and `cmd/stuntgres` import `session`, decision 11 applied) (racecheck/finalcheck skipped at user request) |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c refined (`DDLHost` on a scope-free root `schemaHost`, authority as an opaque value, dumps wait for a dump seam); 14d done (operator and CREATE FUNCTION staging moved behind `DDLHost`; racecheck/finalcheck skipped at user request) |

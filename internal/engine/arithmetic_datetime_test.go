@@ -38,7 +38,7 @@ func TestDatetimeArithmeticBindingAndPhysicalVolatility(t *testing.T) {
 		if node.ResultUsage().Type != b.Type(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || plan.GenerationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node, node.Properties())
 		}
-		folded, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node, false)
+		folded, changed, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node, false)
 		if err != nil {
 			t.Fatal(err)
 		}

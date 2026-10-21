@@ -78,14 +78,14 @@ func TestDefaultArithmeticPlanningScopedPolicy(t *testing.T) {
 	ref := roleTableRef(t, e, "d")
 	node := view.MustRelation(ref.Address).ColumnMeta.Defaults[1].Expression
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	ordinary, changed, err := preflightCoercions(ctx, node)
+	ordinary, changed, err := exec.PreflightCoercions(ctx, node)
 	if err != nil || changed {
 		t.Fatal("ordinary arithmetic must remain row-owned", changed, err)
 	}
 	if _, ok := ordinary.(plan.ArithmeticExpr); !ok {
 		t.Fatal("ordinary arithmetic was folded")
 	}
-	_, _, err = preflightCoercionsWithPolicy(ctx, node, true)
+	_, _, err = exec.PreflightCoercionsWithPolicy(ctx, node, true)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || diagnostic.Message != "division by zero" {
 		t.Fatal(err)

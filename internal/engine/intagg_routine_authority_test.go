@@ -89,7 +89,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				if tc.name == "enum_parameter" {
 					evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
-					folded, changed, err := foldStrictParameterNull(&evaluation, node)
+					folded, changed, err := exec.FoldStrictParameterNull(&evaluation, node)
 					if err != nil || changed || !reflect.DeepEqual(folded, node) {
 						t.Fatal("NULL enum folded into scalar", changed, err)
 					}

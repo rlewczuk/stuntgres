@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -15,7 +17,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func levenshteinUnitExpression(t *testing.T, e *Engine) plan.InstalledLevenshteinExpr {
@@ -112,7 +113,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	if err != nil || !strings.Contains(stored, "levenshtein_less_equal") || !strings.Contains(stored, "sitting") || !strings.Contains(stored, "20") {
 		t.Fatal(stored, err)
 	}
-	folded, _, err := simplifyConditional(ctx, n, false)
+	folded, _, err := exec.SimplifyConditional(ctx, n, false)
 	if err != nil {
 		t.Fatal(err)
 	}
