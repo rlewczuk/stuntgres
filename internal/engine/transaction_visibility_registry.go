@@ -85,7 +85,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, idx ids.ObjectAddr
 			continue
 		}
 		if owner := e.locks.TransactionTicket(ref); owner != nil {
-			if err := s.waitCompletion(owner, lock.CompletionVirtual); err != nil {
+			if err := s.writeHost().WaitTransaction(owner, lock.CompletionVirtual); err != nil {
 				return err
 			}
 		}

@@ -40,7 +40,7 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 				return false, err
 			}
 			manager.RestoreUnique(s.ticket, action.checkpoint)
-			s.discardExclusionCandidate(ref, candidate)
+			s.writeHost().DiscardExclusion(candidate)
 			return false, nil
 		}
 		other, err := s.probeUniqueRow(ref, candidate, nil, prefix, nil, purpose)

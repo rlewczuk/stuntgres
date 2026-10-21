@@ -26,23 +26,6 @@ func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, k
 	e.mu.Unlock()
 }
 
-func (s *StatementScope) waitCompletion(owner *lock.Ticket, purpose lock.CompletionPurpose) error {
-	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext, CompletionPurpose: purpose}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.CompletionOf(owner), lock.TransactionCompletion, policy)
-	if request != nil {
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
-		}
-		err = request.Wait()
-	}
-	if err == nil && request != nil {
-		return s.readmitProgramsAfterWait()
-	}
-	return err
-}
-
 func (s *StatementScope) waitIndexWriters(idx ids.ObjectAddress) error {
 	e := s.engine()
 	owners, err := e.locks.IndexWriters(s.ticket, s.lockedRef)
@@ -58,7 +41,7 @@ func (s *StatementScope) waitIndexWriters(idx ids.ObjectAddress) error {
 	}
 	defer e.clearIndexBuildWait(idx, s.txRef, index.WaitWriters)
 	for _, owner := range owners {
-		if err := s.waitCompletion(owner, lock.CompletionVirtual); err != nil {
+		if err := s.writeHost().WaitTransaction(owner, lock.CompletionVirtual); err != nil {
 			return err
 		}
 	}

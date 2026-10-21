@@ -84,6 +84,10 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   `using_index.go`, `using_index_prepare.go`, `partition_unique.go`,
   `partition_attach.go`, `partition_drop.go`, `property.go`): see
   "The DDL host" below.
+- **Write decisions** (23d.2; `write_host.go`, `unique_probe.go`,
+  `exclusion_visit.go`, `exclusion_shape.go`, and additions to
+  `unique_binding.go`, `exclusion_projection.go`, `scope.go`): see
+  "The write host" below.
 
 Names settled in 23b: types and functions lost a leading `index` prefix
 (`indexOrdering` is `Ordering`, `indexJournal` is `Journal`,
@@ -168,6 +172,58 @@ stays as a forwarder); `lookupIndexClass` → `LookupClass`; `bindIndexKey`
 decision → `Property`. `generatedRelationName` went to `ddl` as
 `GeneratedRelationName`.
 
+## The write host
+
+`WriteHost` is the engine side of write-time unique and exclusion
+enforcement: the `Engine.mu` windows and the lock waits around this
+package's decisions. `*statementHost` implements it
+(`statement_host_index.go`). Each method either takes `Engine.mu` itself
+for one window and never waits (the caller must not hold it), or waits
+with the caller holding nothing; none takes a callback or an evaluation
+context.
+
+- Windows: `UniqueParent`, `BindingAuthority` (stale means rebind; it
+  readmits the prepared programs after unlocking), `CaptureUniqueProbe`
+  (`UniqueProbe`: parent, index, view, schema, root and, when asked, the
+  head versions), `ExistingIndexRoot`, `CaptureExclusionScan`
+  (`ExclusionScan`), `ExclusionScanCurrent`, `PublishExclusion` (epoch and
+  state check, row identity, the `ExclusionEdit` and install in one
+  window), `DiscardExclusion`, `OwnExclusionKeys` and `AdmitExclusion`
+  (standalone windows; the admit window checks no epoch, as before).
+- Waits: `ClaimUniqueKey` (pin, unique claim with the operation's lock
+  policy, the `replacementMu` release and re-acquire, program readmission
+  after a wait) and `WaitTransaction`.
+
+The probe and scan captures read the write authority in the same window.
+The engine's probe loops call the concrete `captureUniqueProbe` and
+`captureExclusionScan`, which also return the `AuthorizationView`; the
+exported methods drop it, so no view is boxed per probe. The loops call
+the concrete methods, never the interface.
+
+Pure decisions over captured values:
+
+- `BuildUniqueWriteBinding` binds a parent's unique, exclusion and checked
+  insertion indexes; the engine adds the consumed programs and authority.
+- `UniqueRootStart` (the committed-root lower bound) and
+  `ExistingRootOutput` (a row's output read from a captured root).
+- `OwnExclusionEntry`, `VisitExclusion` (the committed-root and pending
+  passes; an `ExclusionVisit` with the potential flag, the owner to wait
+  for and the first hit) and `ExclusionDeferred`. The visit takes the
+  operation and asks it for its context per comparison.
+- Projection edits: `ExclusionEdit.Apply`, and `ExclusionProjection`'s
+  `DiscardVersion`, `EndRow`, `Admit` and `ReplaceShape`;
+  `ExclusionShapeEntries` projects an ALTER's surviving writes. Each edit
+  works on a `ProjectionLocked` copy and replaces slices and maps, so an
+  installed projection never changes.
+- `Scope.RetainExistingOutput`.
+
+Names settled in 23d.2 (engine name → `index` name): `uniqueParent` →
+`UniqueParent`; `acquireUnique` → `ClaimUniqueKey`; `waitCompletion` →
+`WaitTransaction`; `discardExclusionCandidate` → `DiscardExclusion`;
+`exclusionScan`'s plain fields → `ExclusionScan`;
+`exclusionScanCurrent` → `ExclusionScanCurrent`;
+`retainExistingIndexOutput` → `Scope.RetainExistingOutput`.
+
 ## State slots and registries
 
 - **Registries.** `WaitRegistry` (CONCURRENTLY build waits, read by
@@ -208,10 +264,17 @@ CONSTRAINTS, `InspectIndex`, the `IndexProperty` snapshot read, and thin
 wrappers that build a `ddlHost` for callers outside the moved set
 (`stageUsingIndex`, `prepareUsingIndexMetadata`, `bindIndexKey`,
 `stagePartitionIndexChild`, ...) until table 24d and partition 25d move
-them. The write-time enforcement on `StatementScope` (unique probe and
-claim, the exclusion probe and projection) stays until 23d.2 moves its
-decisions behind `index.WriteHost`. `exclusionScan` and `uniqueConflict`
-keep their `AuthorizationView` (one allocation per probe otherwise).
+them. The write-time loops stay on `StatementScope` until `dml`: the unique
+probe and claim (`probeUniqueRow`, `claimUniqueRow`, `checkUniqueRow`,
+`bindUniqueWrite`, `existingUniqueOutput`, `revalidateIndexRows`), the
+exclusion probe and admission (`probeExclusion`, `probeExclusionRow`,
+`publishExclusionCandidate`) and the ALTER shape window
+(`prepareExclusionShape`). They interleave ON CONFLICT arbiters, the
+insert write overlay, own writes and deletes and foreign action owners.
+`exclusionScan` and `uniqueConflict` keep their `AuthorizationView` (one
+allocation per probe otherwise). `projectExclusionDeletionLocked`,
+savepoint restore and the publication resets stay engine callers of the
+registry primitives.
 
 ## Testing
 
@@ -220,7 +283,7 @@ matrix). Most index tests build an engine and stay in the root package:
 
 ```sh
 make check RUN='^Test(Index|Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex|PartitionDetach(Unique|UsingIndex)Replay|PartitionAttachIndex|PartitionConstraint|PrimaryKey)'
-make check RACE=1 RUN='^Test(ConcurrentIndex|Exclusion|UniqueClaim|HashIndexMergeCancellation)'
+make check RACE=1 RUN='^Test(ConcurrentIndex|Exclusion|UniqueClaim|HashIndexMergeCancellation|IndexWriteHost)'
 ```
 
 Two fixtures find index code by stack-frame name:

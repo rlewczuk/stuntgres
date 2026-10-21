@@ -154,7 +154,7 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	indexRef.Address = bound.Index.Address()
 	oldKey := insertConflictUnitRow(t, f, 10)[:1]
 	newKey := insertConflictUnitRow(t, f, 20)[:1]
-	if err := scope.acquireUnique(indexRef, bound, oldKey); err != nil {
+	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, oldKey); err != nil {
 		t.Fatal(err)
 	}
 	// UniqueKey requests admit only uniqueClaim. Stronger modes belong to
@@ -165,10 +165,10 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	}
 	manager.BeginUniqueDelta(scope.ticket)
 	defer manager.EndUniqueDelta(scope.ticket)
-	if err := scope.acquireUnique(indexRef, bound, oldKey); err != nil {
+	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, oldKey); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.acquireUnique(indexRef, bound, newKey); err != nil {
+	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, newKey); err != nil {
 		t.Fatal(err)
 	}
 	row := lock.Resource{ObjectRef: ref, Row: 99}
@@ -194,7 +194,7 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 		t.Fatal("prior unique claim lost or fresh candidate retained", keys)
 	}
 	// The same mark remains active across a retry; accepted keys survive end.
-	if err := scope.acquireUnique(indexRef, bound, newKey); err != nil {
+	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, newKey); err != nil {
 		t.Fatal(err)
 	}
 	manager.EndUniqueDelta(scope.ticket)
@@ -203,7 +203,7 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	}
 	// A later release cannot be resurrected by a stale candidate journal.
 	manager.BeginUniqueDelta(scope.ticket)
-	if err := scope.acquireUnique(indexRef, bound, insertConflictUnitRow(t, f, 30)[:1]); err != nil {
+	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, insertConflictUnitRow(t, f, 30)[:1]); err != nil {
 		t.Fatal(err)
 	}
 	manager.Restore(scope.ticket, nil)

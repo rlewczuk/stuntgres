@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `bbc6d23a8` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 103, 104, 105, 106, 107, 111 and 112). Steps 8–17 were
+Last verified against `master` at `edba54105` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 103, 104, 105, 106, 107, 111 and 112). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -17,8 +17,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now.
 
 - **DML and Dump/Restore:** 108 (DML 29b), 113 (control 30c).
-- **Upper features, decisions:** 85b (index 23d.2), 89a (table 24d.1), 102
-  (view 27d).
+- **Upper features, decisions:** 89a (table 24d.1), 102 (view 27d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -111,6 +110,8 @@ ready; the end-state review (item 114) still waits for 98, 110 and 113.
 Item 101 (view 27c) is done, so view 27d (item 102) is ready; it and table
 24d.1 (item 89a) both want `creationError` in `ddl`, and whichever lands
 first moves it.
+Item 85b (index 23d.2) is done and closes step 23; DML 29c (item 109)
+still waits for 108, 89a, 89b, 93 and 102.
 
 ## Task tree
 
@@ -519,7 +520,7 @@ first moves it.
     then the docs commit)
   - [x] 22d — Aliases removed *(broad)*
     (`b4cdcf403`, `ffd4a418d`, then the docs commit)
-- [ ] **Step 23 — `index`** ([prompt](ENGINE-SPLIT-index.md); 23b needs 22b,
+- [x] **Step 23 — `index`** ([prompt](ENGINE-SPLIT-index.md); 23b needs 22b,
   5i, 10e, 11e)
   - [x] 23a — In place: renames, wait and exclusion registries, cuts
     (`61d7f49b6`, `36cdc6168`, `98ee18fcf`, `dec8ce2ea`, `b29db018c`, `79bc16332`, `040604526`, docs)
@@ -529,8 +530,8 @@ first moves it.
   - [x] 23d.1 — DDL decisions moved (CREATE INDEX, ALTER/DROP INDEX,
     REINDEX, constraint and partitioned indexes) (`5e230528b`, `e46899fe6`,
     `506da64a4`, `a92895430`, docs)
-  - [ ] 23d.2 — Write-time decisions moved (unique and exclusion
-    enforcement)
+  - [x] 23d.2 — Write-time decisions moved (unique and exclusion
+    enforcement) (`8b8d9e3af`, `b63014942`, `2f9b50b4b`, docs)
 - [ ] **Step 24 — `table`**, with inheritance ([prompt](ENGINE-SPLIT-table.md);
   24a needs 5i, 24b needs 23b, 18b, B6)
   - [x] 24a — In place: renames, slots, cuts (`56270ba2f`, `4dcdf411c`,
@@ -1190,8 +1191,18 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `ddl.GeneratedRelationName`; table edges hoisted to the callers; no
     aliases · selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-85b. [ ] Index 23d.2: write-time decisions moved —
+85b. [x] Index 23d.2: write-time decisions moved —
     [index](ENGINE-SPLIT-index.md) 23d · needs 84, 85a's seam commit
+    (`8b8d9e3af`, `b63014942`, `2f9b50b4b`, then the docs commit) ·
+    `index.WriteHost` on `*statementHost` (self-locking windows, the
+    unique-claim and transaction waits; the captures return the authority
+    only through concrete root methods); `BuildUniqueWriteBinding`,
+    `UniqueRootStart`, `ExistingRootOutput`, `OwnExclusionEntry`,
+    `VisitExclusion`, `ExclusionDeferred`, the projection edits,
+    `ExclusionShapeEntries` and `Scope.RetainExistingOutput` in `index`;
+    probe loops stay root; no new per-row allocation; no aliases · selected
+    unit, `RACE=1` and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 86. [x] Table 24a: in place — [table](ENGINE-SPLIT-table.md) 24a · needs 72
     (`56270ba2f`, `4dcdf411c`, `b210c6777`, `260ed66c6`, `5b4ac930a`,
     `36249b2b4`, `e247d07c6`, then the docs commit) · files renamed

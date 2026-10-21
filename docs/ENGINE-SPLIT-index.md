@@ -927,7 +927,12 @@ listed above. The checks in §8.3 pass.
   rebuilds, USING INDEX, the partitioned-index staging and `Property` are
   `index` functions over `index.Host` on `ddlHost`; no aliases. See the
   23d.1 record.
-- [ ] 23d.2 — Write-time decisions moved (linear item 85b)
+- [x] 23d.2 — Write-time decisions moved (linear item 85b; `8b8d9e3af`,
+  `b63014942`, `2f9b50b4b`, then the docs commit). `index.WriteHost` on
+  `*statementHost` holds the windows and waits; the unique binding, root lower
+  bound, existing output, exclusion visit, projection edits and ALTER shape
+  entries are `index` functions; the probe loops stay root until `dml`; no
+  aliases. See the 23d.2 record.
 
 Outstanding aliases: none (23b added none).
 
@@ -1181,6 +1186,75 @@ re-measure found the 23c findings unchanged; 24b had moved
   snapshot (NOT NULL oracle drift). racecheck, finalcheck and bench skipped
   at user request (no startup change).
 
+### 23d.2 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-INDEX-WRITE-DECISIONS`, started at
+master `116432550` and rebased onto `edba54105` (docs-only commits in
+between). Scripts in `.cswd/tmp/PG18-ENGINE-SPLIT-INDEX-WRITE-DECISIONS/`
+(`c3.py`, `dropimports.py`, `escape.py`, `lits.sh`, `docs-edit.py`).
+
+| Commit | Change |
+|---|---|
+| `8b8d9e3af` | Seam, test first: `index.WriteHost`, `UniqueProbe`, `ExclusionScan`, `ExclusionEdit`; `statement_host_index.go` carves the `*statementHost` methods out of today's windows; `acquireUnique` and `waitCompletion` removed, every caller uses the host |
+| `b63014942` | Port in place: the pure decisions as root functions in `idxwmv_unique.go`/`idxwmv_exclusion.go`; `frontier` OUT empty |
+| `2f9b50b4b` | Move into `index` (`c3.py`: new `unique_probe.go`, `exclusion_visit.go`, `exclusion_shape.go`; additions to `unique_binding.go`, `exclusion_projection.go`, `scope.go`) and qualify the root callers |
+
+- **Deviations from the 23c sketch.** (1) The probe and scan captures read
+  the write authority in the same window as their plain fields, but `index`
+  types cannot hold the root `AuthorizationView` and boxing it would allocate
+  per probe. The concrete root methods `captureUniqueProbe` and
+  `captureExclusionScan` return the view as well; the exported
+  `CaptureUniqueProbe`/`CaptureExclusionScan` drop it and serve the interface
+  assertion and the seam test. 29c decides how the authority crosses. (2)
+  `UniqueRootRange` is `UniqueRootStart`: it returns only the lower bound, and
+  the equal-run loop stays in the root because it checks DML state and
+  compares lazily. (3) The exclusion visit is `OwnExclusionEntry` (so the
+  evaluation context is still built only after the own entry is found),
+  `VisitExclusion` returning an `ExclusionVisit`, and the free function
+  `ExclusionDeferred`. `VisitExclusion` takes the `*session.Operation` and
+  calls `Context()` per key comparison, as before: that context can change
+  while COPY input is held. (4) The edits are methods: `ExclusionEdit.Apply`
+  and `ExclusionProjection.DiscardVersion`, `EndRow`, `Admit`, `ReplaceShape`;
+  `ExclusionShapeEntries` is the ALTER shape loop.
+- **Lock windows.** Unchanged: each `WriteHost` window is today's, in the
+  same order with the same errors. `AdmitExclusion` keeps its standalone
+  window with no epoch check, as before. `heads` (the head versions of the ON
+  CONFLICT probe) is computed before the capture from the bound index;
+  `SameIndexKeySemantics` compares the keys (with their derived-key pointers),
+  so the refreshed index has the same runtime domain conversion and the result
+  is the same.
+- **Per-row path.** `go build -gcflags=-m` before and after (per enclosing
+  function, positions dropped): every allocation site moved with its code;
+  `Admit` and `RetainExistingOutput` are now inlined into their callers, so
+  their sites are reported twice without a runtime change. The only new escape
+  is the ALTER shape entries map, which `ExclusionShapeEntries` returns (once
+  per ALTER TABLE, not per row). New direct calls replace inline code:
+  `index.UniqueRootStart`, `ExistingRootOutput`, `OwnExclusionEntry`,
+  `VisitExclusion`, `ExclusionDeferred`, `ExclusionEdit.Apply`, and the
+  concrete `*statementHost` window methods. No interface dispatch on the
+  per-row path.
+- **Tests.** New `index_write_host_test.go` (the seam test, observed failing
+  first): `PublishExclusion` and `DiscardExclusion` each advance the registry
+  generation once, so a scan captured before them is not current and one
+  captured after is. `insert_conflict_update_stage_test.go` calls
+  `writeHost().ClaimUniqueKey` instead of `acquireUnique`. None moved or
+  deleted.
+- **Checks.** `index` imports nothing above it (`go list`); the
+  string-literal multiset changed only by import paths. Targeted units (the
+  index, unique, exclusion, ON CONFLICT, MERGE, UPDATE, DELETE, COPY,
+  savepoint, transaction, partition and ALTER selections) passed per commit,
+  as did `RACE=1` over `ConcurrentIndex`, `Exclusion`, `UniqueClaim`,
+  `UniqueLifetime`, `HashIndexMergeCancellation`, `InsertConflictUpdate` and
+  the new seam test; the quick-mode reference selection passed and quickcheck
+  passed. With `REFERENCE=1` the selection (index, unique, exclusion, ON
+  CONFLICT, ALTER ADD CONSTRAINT and partition constraint/exclusion tests)
+  passed except 15 `/postgres` leaves: three of
+  `TestReferenceAlterAddConstraintDiagnostics` (55000 "cannot create not-null
+  constraint") and 12 of `TestReferencePartitionExclusion*`, which fail
+  identically on a clean `edba54105` snapshot (oracle drift); every stuntgres
+  leaf passed. racecheck, finalcheck and bench skipped at user request (no
+  startup change).
+
 ### Notes for later steps
 
 - 23b layering (done in 23b): `index_partition_replay.go` still calls
@@ -1191,8 +1265,8 @@ re-measure found the 23c findings unchanged; 24b had moved
   table prompt sends to `table` (24b), above `index`. 23b must move that
   chain into `index` (it is clean catalog reading) or leave these
   predicates in the root.
-- 23d.2 (85b): 23d.1 did not touch the write path. `index.Host` and the
-  23d.1 functions are DDL-only; `WriteHost` is separate (decision 8).
+- 23d.2 (done): `index.Host` and the 23d.1 functions are DDL-only;
+  `WriteHost` is separate (decision 8).
 - 24d (89): the table handlers already call the `index` staging directly
   with a `ddlHost`; the wrappers `stageUsingIndex`,
   `prepareUsingIndexMetadata` and `stagePartitionConstraintDrop` go with
@@ -1225,8 +1299,10 @@ re-measure found the 23c findings unchanged; 24b had moved
 - Step 29 (`dml`): the `StatementScope` methods left in `unique_dml.go`,
   `index_write_candidate.go`, `index_insertion.go` and
   `exclusion_admission.go` (the probe, claim and exclusion loops, with
-  `uniqueConflict` and `exclusionScan`) are DML's. After 23d.2 they call
+  `uniqueConflict` and `exclusionScan`) are DML's. Since 23d.2 they call
   the `index` decisions directly and the root windows as
-  `*statementHost` methods; `dml.Host` embeds `index.WriteHost` (29c).
+  `*statementHost` methods (`s.writeHost()`); `dml.Host` embeds
+  `index.WriteHost` (29c), which then also settles how the probe and scan
+  authority crosses (the 23d.2 deviation 1).
   `insert_write_overlay.go` is ON CONFLICT state and belongs to `dml`.
 - `storage.RowByID` (23a) is also used by the DML update and merge code.

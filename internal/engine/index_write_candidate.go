@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -95,123 +93,17 @@ func (s *StatementScope) existingUniqueOutput(bound *index.UniqueBoundKey, row s
 				}
 			}
 		}
-		s.retainExistingIndexOutput(idx, row, output)
+		s.indexes().RetainExistingOutput(idx, row, output)
 		return read(output)
 	}
 	if purpose == index.ProbeRevalidation && row.Born == 0 {
 		return false, nil, ids.ErrCatalogReplaced
 	}
-	e := s.engine()
-	e.mu.Lock()
-	current := e.privateCatalogLocked(s.owner.Catalog)
-	currentIndex, ok := current.Relation(idx.Address())
-	if !ok || !index.SameIndexKeySemantics(idx, currentIndex) {
-		e.mu.Unlock()
-		return false, nil, ids.ErrCatalogReplaced
+	root, err := s.writeHost().ExistingIndexRoot(idx)
+	if err != nil {
+		return false, nil, err
 	}
-	root := e.storage.IndexRoots[idx.Address()]
-	if changes := s.owner.Catalog; changes != nil && index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()] != nil {
-		root = index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()]
-	}
-	e.mu.Unlock()
-	if root == nil {
-		return false, nil, fmt.Errorf("stuntgres: existing index root is missing")
-	}
-	if purpose == index.ProbeRevalidation {
-		if root.Hash != nil {
-			if root.Hash.RowEntries != nil {
-				entry := root.Hash.RowEntries[row.Row]
-				if entry == nil {
-					return false, nil, nil
-				}
-				if entry.Version != row.Version {
-					return false, nil, ids.ErrCatalogReplaced
-				}
-				bound.Scratch[0] = entry.Key
-				return true, bound.Scratch, nil
-			}
-			for _, bucket := range root.Hash.Buckets {
-				for _, entry := range bucket {
-					if entry.Row == row.Row {
-						if entry.Version != row.Version {
-							return false, nil, ids.ErrCatalogReplaced
-						}
-						bound.Scratch[0] = entry.Key
-						return true, bound.Scratch, nil
-					}
-				}
-			}
-		} else {
-			if idx.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
-				return false, nil, nil
-			}
-			if root.RowEntries != nil {
-				ordinal, exists := root.RowEntries[row.Row]
-				if !exists || ordinal < 0 || ordinal >= len(root.Entries) {
-					return false, nil, ids.ErrCatalogReplaced
-				}
-				entry := root.Entries[ordinal]
-				if entry.Row != row.Row || entry.Version != row.Version {
-					return false, nil, ids.ErrCatalogReplaced
-				}
-				return true, entry.Keys, nil
-			}
-			for _, entry := range root.Entries {
-				if entry.Row == row.Row {
-					if entry.Version != row.Version {
-						return false, nil, ids.ErrCatalogReplaced
-					}
-					return true, entry.Keys, nil
-				}
-			}
-		}
-		return false, nil, nil
-	}
-	if root.Hash != nil {
-		if !idx.SQLIndex.HasRuntimeDomainKeyConversion() {
-			if err := bound.Ordering.FillKeys(row.Values, bound.Scratch, evaluation); err != nil {
-				return false, nil, err
-			}
-			if bound.Scratch[0].IsNull() {
-				return false, nil, nil
-			}
-			h, err := root.Hash.Binding.Provider.Hash(evaluation.Context, bound.Scratch[0])
-			if err != nil {
-				return false, nil, err
-			}
-			for _, entry := range root.Hash.Buckets[h] {
-				if entry.Row == row.Row && entry.Version == row.Version {
-					return true, bound.Scratch, nil
-				}
-			}
-			return false, nil, nil
-		}
-		entry := root.Hash.RowEntries[row.Row]
-		if entry == nil {
-			return false, nil, nil
-		}
-		if entry.Row != row.Row || entry.Version != row.Version {
-			return false, nil, fmt.Errorf("stuntgres: existing hash key version changed")
-		}
-		bound.Scratch[0] = entry.Key
-		return true, bound.Scratch, nil
-	}
-	if idx.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
-		return false, nil, nil
-	}
-	if idx.SQLIndex.HasRuntimeDomainKeyConversion() {
-		ordinal, ok := root.RowEntries[row.Row]
-		if !ok || ordinal < 0 || ordinal >= len(root.Entries) {
-			return false, nil, fmt.Errorf("stuntgres: existing index key identity is missing")
-		}
-		entry := root.Entries[ordinal]
-		if entry.Row != row.Row || entry.Version != row.Version {
-			return false, nil, fmt.Errorf("stuntgres: existing index key version changed")
-		}
-		return true, entry.Keys, nil
-	}
-	err := bound.Ordering.FillKeys(row.Values, bound.Scratch, evaluation)
-	return true, bound.Scratch, err
+	return index.ExistingRootOutput(bound, root, row, evaluation, purpose)
 }
 
 func (s *StatementScope) matchesExistingUnique(bound *index.UniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, key []sqltype.Value, purpose index.ProbePurpose) (bool, error) {
