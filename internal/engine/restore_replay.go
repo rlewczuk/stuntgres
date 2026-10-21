@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
 )
 
 // restoreReplay is an operation's native Restore replay and materialized
@@ -42,4 +43,33 @@ func operationReplayOrZero(op *session.Operation) restoreReplay {
 		return *r
 	}
 	return restoreReplay{}
+}
+
+// prepareRestoreReplayFlags sets the operation's replay flags for one
+// admitted Restore statement. restoreRun.execute clears defaultReplay,
+// partitionAttach and commentAuthority after execution; tableDestination
+// and insertAuthority stay set until the next statement's prepare.
+func prepareRestoreReplayFlags(_ *restoreRun, op *session.Operation, stmt parser.Statement) error {
+	replay := operationReplay(op)
+	replay.tableDestination = restoreTableDestination(stmt)
+	_, replay.insertAuthority = stmt.(*parser.Insert)
+	_, replay.commentAuthority = stmt.(*parser.Comment)
+	_, replay.defaultReplay = stmt.(*parser.AlterTableDefault)
+	_, replay.partitionAttach = stmt.(*parser.AlterTableAttachPartition)
+	return nil
+}
+
+// restoreTableDestination reports the creations Restore replays with
+// trusted importer provenance (the tableDestination flag).
+func restoreTableDestination(stmt parser.Statement) bool {
+	switch s := stmt.(type) {
+	case *parser.CreateTable, *parser.CreateDomain, *parser.CreateEnum, *parser.CreateComposite,
+		*parser.CreatePolicy, *parser.CreateRule, *parser.CreateSequence, *parser.CreateView,
+		*parser.CreateIndex, *parser.CreateCollation, *parser.CreateConversion, *parser.AlterConversion,
+		*parser.CreateOperator, *parser.AlterOperator, *parser.CreateExtension:
+		return true
+	case *parser.CreateQueryTable:
+		return s.Form == parser.CreateMaterializedView
+	}
+	return false
 }
