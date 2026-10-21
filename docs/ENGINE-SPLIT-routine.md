@@ -300,8 +300,9 @@ The dump seam the 14b and 14c notes waited for is step 18 (`dump`):
    and `sqlRoutineDumpStatement` (`sql_routine_dump.go`) move into
    `routine`. They already use `dump.Event` and `dump.Statement` (18b);
    they take a `dump.Presenter` (type declarations with a nil reader,
-   routine identity) and a `dump.Resolver` instead of the root's
-   `catalogTypeDeclaration`, `routineIdentityByOID` and `dumpPredecessor`.
+   routine identity) and a `dump.Resolver` instead of
+   `regobj.TypeDeclaration`, `regobj.RoutineIdentityByOID` (moved in 21b;
+   `routine` must not import `regobj`) and the root's `dumpPredecessor`.
    The root adapters are `dumpPresenter` and `dumpResolver`.
 2. The root passes its presenter (after step 21, the one in `regobj`).
 3. Dump output stays byte-identical: run the Dump/Restore reference

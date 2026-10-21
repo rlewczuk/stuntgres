@@ -247,7 +247,7 @@ schema-level DDL 23, DML 18 distinct declarations.
 | Helper | Today | Goes to |
 |---|---|---|
 | `pgRenderer`, `pgRenderParent`, `deparseAttribute`, `scalarRenderer`, `remapBoundExpression`, `collationDisplayName`, `relationDiagnosticNameAt` | root presentation code | `stored` (22b) |
-| `remapOperatorDatum`, `remapRoutineDatum`, `remapRegTSDatum`, `remapCatalogAliasDatum`, `remapRegclassDatum` | reg* files, `domain_remap.go` | `regobj` (21a/21b) |
+| `remapOperatorDatum`, `remapRoutineDatum`, `remapRegTSDatum`, `remapCatalogAliasDatum`, `remapRegclassDatum` | reg* files, `domain_remap.go` | `regobj` (done in 21b: `Remap{Operator,Routine,TextSearch,Alias,Class}Datum`) |
 | `sameRelationRowShape`, `physicalNotNullOriginValid`, `physicalPrimarySupportValid` | `relation_scope.go`, `physical_not_null.go` | root: 5i could not move them (`analyze.SameStatementUsage`, `storedReferenceEpochValid`, `indexCatalogKey`); re-measure in 23b |
 | `generationHasTableOID` | `plan.GenerationHasTableOID` (`plan/generation.go`) | done in 10e |
 | `preflightCoercionsWithPolicy`, `validateExpressionJoinExecution`, `routineAdmissionProgram` | `exec.PreflightCoercionsWithPolicy`, `exec.AdmitExpression`, `exec.RoutineProgram` | done in 11e |

@@ -353,15 +353,15 @@ The dump seam the 15c notes waited for is step 18 (`dump`):
    renders domain checks through `scalarRenderer`: add a check-rendering
    `Presenter` method here (the dump prompt leaves it to this item). 18b
    left `Presenter.Literal` out because no dump producer called
-   `catalogLiteralSQL`; add it here if one of these needs it, as
+   `catalogLiteralSQL` (now `regobj.Literal`); add it here if one of these needs it, as
    `Literal(ctx, view, value sqltype.Value, usage sqltype.Usage)` with the
    root adapter rebuilding the `plan.LiteralExpr`.
 3. Dump output stays byte-identical: run the Dump/Restore reference
    selections in both modes.
 
 Not here: type-declaration and literal rendering
-(`catalogTypeDeclaration*`, `catalogColumnDeclaration`, `catalogLiteral*`)
-goes to `regobj` (step 21); `domain_remap.go`, `view_deparse_composite.go`,
+(`regobj.TypeDeclaration*`, `ColumnDeclaration`, `Literal*`) moved to
+`regobj` in 21b; `domain_remap.go`, `view_deparse_composite.go`,
 `collation_display.go`, `collation_validation.go` and `record_shape.go`
 are presentation and go to `stored` (22b); `typed_inheritance.go` and
 `typed_mutation.go` use ALTER TABLE records and go with `table` (step
