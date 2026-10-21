@@ -634,7 +634,10 @@ Part B: the type DDL handlers live in `typedef`. The checks in §8.3 pass.
   - Stays in the root: `dumpColumnPredecessors` and
     `domainInvalidDumpEvents` (graph edges through `dumpPredecessor`), the
     Emit entry `emitDumpDomainChecks` (it takes the root `dumpScript`; step
-    30) and the domain owner transfer in `emitDumpStatement`.
+    30) and the domain owner transfer in `emitDumpStatement`. Control 30b:
+    in 30c `domainInvalidDumpEvents` becomes
+    `typedef.DomainInvalidDumpEvents` over a `dump.Resolver`; the emitters
+    and `dumpColumnPredecessors` move to `control`.
   - Tests: new seam test `TestDumpPresenterDomainExpressions`
     (`dump_presenter_test.go`), written first and observed failing.
     `TestCollationDumpLosslessBootstrapSelection` was only qualified; none

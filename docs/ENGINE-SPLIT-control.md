@@ -67,7 +67,7 @@ private restore stage, and install the replacement catalog atomically.
 | `remapPreparedCatalog` (descriptor-kind switch over owners and ACLs) | `principal_remap.go:16` | `catalog` 5i (done: `catalog.RemapPrincipals`); mapper construction stays in the root |
 | `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `catalog_expression_reown.go:15` | done: `stored.ReownExpressions` (22c); `remapCatalogExpressions` stays as the Restore entry |
 | `remapViewRuleOIDs` | `catalog_expression_reown.go:312` | stays in the root: it allocates OIDs (the `stored` prompt) |
-| `dumpPredecessor` (descriptor-kind dependency resolver) | `dump_resolver.go` (was `view_dump.go`, then `dump_graph.go`) | root `dumpResolver` implements `dump.Resolver` (18b); 30b decides whether it moves with the drivers |
+| `dumpPredecessor` (descriptor-kind dependency resolver) | `dump_resolver.go` (was `view_dump.go`, then `dump_graph.go`) | root `dumpResolver` implements `dump.Resolver` (18b); 30b: clean, it moves as `control.Resolver` in 30c |
 
 `reownCatalogScalarTypes` (`domain_remap.go:14`) is a fifth walk of the
 same kind; it goes with `ReownExpressions` in 22c.
@@ -200,65 +200,243 @@ owners, materialized snapshots, domain replays, ...).
 
 ## Part B
 
-### 30b — Refine `control.Host` (docs only)
+### 30b — Refine `control.Host` (docs only; linear item 112)
 
-Write the result into this file and wait for approval. Re-measure with
-`frontier` on the moving set: `control.go` without `Reset` and without the
-locked capture, plus `restore_hooks.go`, `restore_replay.go`,
-`contextReader`, `bootstrapNamespaceDumpable`.
+Re-measure with `frontier` on the moving set, write the host, the move set
+and the commit sequence into this file, then wait for approval. The draft
+host had `CaptureDump`, `NewRestoreStage` with a `Stage` (`StartSession`,
+`Execute` returning `Outcome{Created; Rows}`, `ExecuteDomainReplayInsert`,
+`CatalogRead`, `OwnerAuthorization`), root-passed Dump and Restore tables
+and `Publish`.
 
-**Host sketch (to confirm or correct):**
+**30b refine (approved; measured at `116432550`).** `frontier` over
+`control.go` without `Reset`, `restore_hooks.go`, `restore_run.go`,
+`restore_admit.go`, `restore_steps_table.go`,
+`restore_steps_inheritance.go`, `restore_steps_features.go`,
+`restore_owner_directive.go`, `restore_replay.go`, `dump_script.go`,
+`dump_emit.go`, `dump_emit_declaration.go` and `dump_sections.go` (output
+in `.cswd/tmp/PG18-ENGINE-SPLIT-CONTROL-REFINE/frontier-control.txt`):
 
-- **Dump capture.** `CaptureDump(ctx) (Capture, error)`: the root takes
-  `Engine.mu`, runs `captureDumpLocked` and returns an immutable record
-  (catalog and role views, collected per-kind lists, table dump records,
-  sequence dump state, priorities). After unlock `control` assembles the
-  graph and emits; it never reads engine state again.
-- **Restore stage.** `NewRestoreStage(ctx) (Stage, error)` wraps
-  `restoreStage`; `Stage` offers `StartSession`, `Execute(op, stmt)`
-  returning a narrow `Outcome{Created ids.ObjectRef; Rows exec.RowResult}`
-  (never the root `Result`), `ExecuteDomainReplayInsert`, `CatalogRead`,
-  and `OwnerAuthorization(op)` for owner directives.
-- **Hooks.** The `[]restoreHook` table and the Dump Collect/Emit tables
-  are passed in by the root (rule 8); `control` declares the entry types.
-- **Publication.** `Publish(ctx, stage, op) error` wraps `replaceCatalog`.
+- **Dump is clean after the unlock.** The script build, the Emit table and
+  the sections read only `dumpCapture` fields and four helpers that name
+  no root declaration themselves: `dumpPredecessor`,
+  `dumpColumnPredecessors` and `dumpResolver` (`dump_resolver.go`),
+  `dumpPresenter`, `physicalNotNullDumpDependencies` and
+  `domainInvalidDumpEvents`. `dumpCapture.recipePlan` is read only by the
+  collectors.
+- **Restore: the driver, the walkers and the hook type are clean; the
+  entries are not.** The 66 entries call about 45 root `Engine` methods
+  on `r.stage`, and `restoreRun` holds root records
+  (`restoredPhysicalNotNull`, `restoredPhysicalForeignKeyProvider`) whose
+  fields the entries change. After entries read only `Result.created`;
+  only `restoreRun.execute` reads `Result.Rows`.
+- **Not in the moving set.** `bootstrapNamespaceDumpable` has one caller,
+  the namespace Collect entry (`dump_collect.go`).
+  `validateTemporaryCollationDump` runs only inside `captureDumpLocked`.
+  `contextReader` has no user outside `Engine.Restore`.
+  `restore_replay.go` is read by about 58 root handler sites
+  (`operationReplay`, `operationReplayOrZero`).
 
-**Questions the refine settles:**
+Decisions:
 
-1. Whether `restoreRun` moves into `control` (likely: it holds only
-   records of feature packages after their Part A) or stays a root type
-   behind the hooks.
-2. Whether `dumpPredecessor` moves with the drivers as the default
-   `dump.Resolver` (only if `reach` reports it clean after 22a) or stays a
-   root function passed in.
-3. Whether `validateTemporaryCollationDump` (builds a `CatalogStage`) gets
-   a host method or a reader cut (pattern 6).
-4. Which hook bodies are still root `Engine` methods at that point (they
-   stay root and are reached through the table); list each with its
-   owner's Part B item.
-5. The import list of `control`: expected `dump`, `stored`, `regobj`,
-   `typedef`, `routine`, `sequence`, `extension`, `index`, `table`,
-   `partition`, `view`, `fdw`, `session`, `catalog`, `authorization`,
-   `exec`, `parser`, `sqltype`, `sqlstate`. `control` must not import the
-   root, and nothing but the root may import `control`.
+1. **Dump gets no host.** The root keeps `Engine.mu`, `captureDumpLocked`,
+   the Collect tables (`dumpCollectors`, `dumpRelationCollectors`),
+   `dumpSource` and `recipePlan`, which moves from the capture into
+   `dumpCollection`. The capture becomes `control.Capture` with exported
+   fields (`CatalogView`, `OriginalCatalog`, `OriginalRoles`,
+   `DomainRoles`, `ConstraintReplay`, `ACLOutput`, `Preamble`, `Schemas`,
+   `SchemaComments`, `Sequences`, `Domains`, `Collations`, `Conversions`,
+   `Operators`, `SQLRoutines`, `Tables`, `Materialized`, `Views`,
+   `Indexes`, `ViewIndices`, `TableIndices`, `IndexIndices`, `Composites`,
+   `Graph`, `InlinePredecessors`, `DeferDefaults`); `dumpSchema`,
+   `dumpView` and `dumpComment` become `control.Schema`,
+   `control.OwnedStatement` and `control.SchemaComment`. The capture is
+   handed over: Dump sorts and completes it in place, as today, and the
+   root never reads it after the call.
+   - `control.Dump(ctx context.Context, capture *Capture, dst io.Writer)
+     error` sets the ACL output context, builds the script, writes the
+     sections and returns `ctx.Err()`.
+   - The Emit table (`dumpPhaseEmitters`) and the section list
+     (`dumpSections`) become `control`'s own tables: they name only
+     `control` emitters and feature packages, so nothing needs to pass
+     them in. This corrects the sketch; rule 8 holds because a feature
+     still adds an entry instead of editing a switch.
+   - The root `Engine.Dump` keeps the nil-writer check, the context check
+     and the lock window, then calls `control.Dump`.
+2. **Resolver and presenter (question 2).** `dumpPredecessor` is clean, so
+   it moves: `control.Resolver` (its `Predecessor` method is
+   `dumpPredecessor`), `control.ColumnPredecessors` and `control.Presenter`.
+   The root collectors and `captureDumpLocked`, and about 14 root tests,
+   name them. Two graph helpers go lower instead, each over a
+   `dump.Resolver` like `routine.OperatorDumpDependencies`:
+   - `physicalNotNullDumpDependencies` → `table.PhysicalNotNullDumpDependencies`
+     (table 24c decided this for 24d.3, item 89c; whichever of 30c and
+     89c lands first moves it, and the other skips it);
+   - `domainInvalidDumpEvents` → `typedef.DomainInvalidDumpEvents` (15e
+     left it in the root only because of `dumpPredecessor`).
+   `emitDumpDomainChecks` moves with the Emit table.
+3. **`validateTemporaryCollationDump` (question 3)** needs neither a host
+   method nor a reader cut: it is part of the locked capture, which stays
+   in the root.
+4. **`control.Host` is the root's side of one Restore.** A root
+   `restoreHost{target *Engine; run *restoreRun}` implements it; only
+   `Start` and `Publish` touch `target`, and no entry sees it.
+   - `Begin(source string, statements []parser.Statement) error` records
+     the script on the run and pairs the domain replays
+     (`typedef.PairDomainReplay`).
+   - `Start(ctx context.Context) (op *session.Operation, end func(), err
+     error)` starts the stage session as the bootstrap superuser, acquires
+     the operation and runs
+     `startCaptures(target.retiredArchiveHighWater())`. `end` runs today's
+     deferred steps in today's order: the replay-flag resets, `op.Done`,
+     then `RequestEnd(session.CleanClose)` and `WaitEnd`. If `Acquire`
+     fails, `Start` ends the session itself before returning the error.
+   - `Statement(index int)` resets the per-statement state (`r.cur`).
+   - `Execute(op *session.Operation, stmt parser.Statement) (Outcome,
+     error)` is today's `restoreRun.execute`: the domain-replay INSERT
+     dispatch, the replay-flag resets, closing rows and `DetachNotices`.
+   - `Publish(ctx context.Context, op *session.Operation) error` is
+     `target.replaceCatalog(ctx, stage, stage.CatalogRead(), op)`.
+   `control.Restore[R any](ctx context.Context, host Host, hooks []Hook[R],
+   run R, src io.Reader) error` reads through `contextReader`, checks the
+   context, parses with the decode walk, then calls `Begin`, `Start`, and
+   per statement `Statement`, before, admit, prepare, `Execute` and after;
+   then finish and `Publish`, with `end` deferred. The root `Engine.Restore`
+   keeps the nil-reader and context checks and builds the stage
+   (`restoreStage`) before the input is read, as today.
+   Corrections to the sketch: no `NewRestoreStage` or `Stage` interface;
+   `CatalogRead` and the owner authorization stay off the host, because
+   only entries use them; `Outcome` is `{Created ids.ObjectRef}` without
+   rows, because rows are closed before the after entries run.
+5. **`restoreRun` stays a root type for good (question 1).** It binds the
+   entries to the stage `*Engine`, which `control` must never hold.
+   `control` declares the generic entry type `Hook[R any]` (`Name`,
+   `Decode`, `Before`, `Admit`, `Prepare`, `After`, `Finish`, with the
+   30a signatures over `R`), `Admission` (`NotHandled`, `Admitted`,
+   `Consumed`), `Outcome`, the rejection text and the walkers. The root
+   composes `restoreHooks` as `[]control.Hook[*restoreRun]` at package
+   initialization. Entry signatures change only from `Result` to
+   `control.Outcome` and to the `control` admission constants; the
+   `restoreAdmitKind`, `restoreAdmitChecked` and `restoreAdmitReplayed`
+   adapters stay root, bound to `*restoreRun`. Because `control` never
+   names the run's records, table 24d.3, partition 25d and view 27d stay
+   independent of 30c.
+6. **Every hook body stays a root `Engine` method (question 4)**, reached
+   through the table:
+   - table, NOT NULL and foreign keys: `preparePhysicalNotNullConstructor`,
+     `capturePhysicalNotNullConstructor`, `prepareDeferredPhysicalPrimary`,
+     `preparePhysicalCompetingUnique`, `capturePhysicalForeignKeyProvider`,
+     `capturePhysicalSelfForeignKey`, `capturePhysicalImportIndex`,
+     `captureRestoredNotNulls`, `pairRestoredNotNull`,
+     `validateRestoredDefault`, `restoreNoInheritNotNull`,
+     `restorePhysicalNotNull`, `restoreAttributeRank`; their cores move in
+     24d.3 (item 89c) and the wrappers stay (24c).
+     `captureRestoredForeignKeys`, `resolveRestoredForeignKeyTargets` and
+     `bindRestoredForeignKeys` stay whole (24c group D);
+   - inheritance: `captureInheritedForeignKey`,
+     `closeRestoredRecipesForData`, `pairRestoredGeneration`,
+     `captureRestoredGeneration`, `captureRestoredPlaceholders`,
+     `captureInheritedOwner`, `restoreInheritedOwner`,
+     `restoreInheritedCheck`, `captureHistoricalFacts`,
+     `restoreRetiredConstraint` and `retiredArchiveHighWater` (the host's
+     `Start`); cores in 24d.3 (item 89c);
+   - partition: `beginPartitionCheckReplay`,
+     `beginPartitionUsingIndexReplay`, `beginPartitionUniqueReplay`,
+     `capturePartitionReplayTeardown`, `validatePartitionReplayTeardown`.
+     They stay root for good (`Engine.mu` windows on the stage and the
+     operation replay slot); this corrects the partition note that step 30
+     owns them;
+   - typedef: `captureRestoredDomainOwner`, `restoreDomainOwner`,
+     `executeDomainReplayInsert` (the host's `Execute`); 15d and 15e are
+     done;
+   - extension `importExtensionOwners` (16d done), view
+     `importMaterializedSnapshots` (stays after 27d, item 102), routine
+     `validateRestoredSQLRoutines` (14e done), sequence
+     `validateRestoreIdentityConfiguration` (17d moved its whitelist).
+   `restore_replay.go`, `restoreStage`, the rest of `principal_remap.go`,
+   the stage's `importTargets` and `replaceCatalog` stay in the root.
+7. **Imports of `control` (question 5), measured:** `catalog`, `dump`,
+   `ids`, `index` (through the resolver), `partition`, `regobj`,
+   `routine`, `sequence`, `session`, `stored`, `table`, `typedef`, `view`,
+   `expr`, `parser`, `sqltype`, `sqlstate`. Not `extension`, `fdw`, `exec`
+   or `authorization`: the entries that use them stay in the root. Only
+   the root imports `control`.
+8. **Errors and order.** Every message and SQLSTATE stays identical.
+   `control` gets its own `sqlError` (`errors.go`, the `view` shape) for
+   the rejection. Dump output stays byte-identical; Restore keeps the
+   phase order, the first-error rule and the deferred cleanup order of 30a.
 
-### 30c — Create `control` and move the drivers
+**Move set (30c; new names).** Into `control`:
 
-Follow 30b. Expected shape:
+- `dump.go`: `Dump`, `Capture`, `Schema`, `OwnedStatement`,
+  `SchemaComment`; `script.go` (from `dump_script.go`), `emit.go`,
+  `emit_declaration.go`, `sections.go` (unexported script, writer,
+  emitters and tables);
+- `resolver.go`: `Resolver`, `ColumnPredecessors`; `presenter.go`:
+  `Presenter`;
+- `restore.go`: `Restore`, `Host`, `Outcome`, `contextReader`;
+  `hooks.go`: `Hook`, `Admission`, the rejection text and the walkers;
+- `errors.go`, `README.md`.
 
-1. Create `internal/engine/control` with `errors.go` and `README.md`.
-2. Move the Dump graph assembly and emission (`dump_script.go`,
-   `dump_emit.go`, `dump_emit_declaration.go`, `dump_sections.go` since
-   18c), the Restore loop (`control.go:122`–`729` minus stage creation and
-   publication), `contextReader`, `bootstrapNamespaceDumpable`, the hook
-   and table entry types and `restoreRun` (if 30b keeps it there).
-3. The root keeps thin `Engine.Dump` and `Engine.Restore` methods: capture
-   or stage creation, then `control.Dump(ctx, capture, tables, w)` /
-   `control.Restore(ctx, host, hooks, r)`.
-4. No aliases: the root names `control.X` directly.
-5. Delete `control.go` from the root when it only holds `Reset`; move
-   `Reset` next to `replaceCatalog` (`catalog.go`) or into a short
-   `reset.go`.
+Into `table`: `PhysicalNotNullDumpDependencies` (unless 89c moved it).
+Into `typedef`: `DomainInvalidDumpEvents`.
+
+**Stays in the root.** `control.go` keeps the three public methods: `Reset`
+and thin `Dump` and `Restore` wrappers; it is not deleted.
+`bootstrapNamespaceDumpable` moves to `dump_collect.go`, next to its only
+caller. `dump_capture.go`, `dump_collect.go`, `dump_collect_relation.go`,
+`collation_seed_dump.go`, `restore_run.go` (with the new `restoreHost`),
+`restore_hooks.go` (the table only), `restore_admit.go`,
+`restore_steps_*.go`, `restore_owner_directive.go`, `restore_replay.go`,
+`principal_remap.go` and `replaceCatalog`.
+
+### 30c — Create `control` and move the drivers (linear item 113)
+
+Follow 30b. Not broad: about 30 files. Commit sequence:
+
+1. Graph helpers go down: `table.PhysicalNotNullDumpDependencies` (skip if
+   89c moved it) and `typedef.DomainInvalidDumpEvents`, each taking a
+   `dump.Resolver`; `dump_script.go` passes `dumpResolver{}`;
+   `domain_alter_constraint_test.go` is qualified.
+2. Create `internal/engine/control` with `errors.go` and a README stub;
+   move `dump_resolver.go` and `dump_presenter.go` as `Resolver`,
+   `ColumnPredecessors` and `Presenter`. The collectors, the capture and
+   the root tests name `control.Resolver{}`/`control.Presenter{}`.
+3. Capture record: `control.Capture` and its three records; the root
+   `dumpCollection` embeds `*control.Capture` beside `recipePlan` and
+   `source`; the collectors write the exported fields (`fieldrn`).
+4. Move `dump_script.go`, `dump_emit.go`, `dump_emit_declaration.go`,
+   `dump_sections.go` and the Dump body after the unlock into
+   `control.Dump`; `Engine.Dump` becomes the wrapper. Run the
+   byte-identity smoke (`.cswd/tmp/PG18-ENGINE-SPLIT-CONTROL-HOOKS/dumpsmoke`,
+   baseline taken on the starting master).
+5. Restore seam in place: root `restoreHost` with `Begin`, `Start`,
+   `Statement`, `Execute` and `Publish`; `Engine.Restore` walks through
+   it; `Result` stays for this commit.
+6. Unit test first, observed failing: a `control` driver test with a fake
+   `Host` and a synthetic table sees `Begin`, `Start`, then per statement
+   `Statement`, before, admit, prepare, `Execute` and after, then finish,
+   `Publish`, and `end` last; a failing step skips `Publish` but still runs
+   `end`. Then move the driver, `Hook`, `Admission`, `Outcome`, the
+   walkers and `contextReader` into `control`; the root entries adopt
+   `control.Outcome` and the admission constants. The five walker tests
+   of `restore_hooks_test.go` move to `control` over a test run type;
+   `TestRestoreAdmitsInsertTargetIndirection` stays in the root and calls
+   the INSERT entry (`restoreAdmitChecked(admitRestoreInsert)`).
+7. `bootstrapNamespaceDumpable` to `dump_collect.go`; check with `go list`
+   that only the root imports `control` and that `control` imports no root
+   code.
+8. Docs: the `control` README (what it owns, the host contract, the lock
+   and publication rules that stay in the root, the Capture hand-over,
+   `## Testing`); the root README's "Native Restore hook table" section
+   becomes a pointer; the `dump` and `regobj` READMEs' "what stays"
+   passages; `AGENTS.md` gets `control` in the subpackage brace list on
+   the same line; this file's Status, the §8 row and the status page.
+
+Proof: the units and reference selections of "Targeted tests", the
+control-transaction and publication units and `^TestReferenceControl`
+with `RACE=1`, the byte-identity smoke after commits 1–4 and 6, and
+quickcheck.
 
 ## Invariants
 
@@ -386,43 +564,43 @@ stage and the atomic replacement. The checks in §8.3 pass.
     at user request. An independent review compared the final table and
     every intermediate commit with the original loop and found no
     behavior difference.
-- [ ] 30b — Host refined (docs only)
+- [x] 30b — Host refined (docs only; the docs commit). Measured at
+  `116432550` with `frontier` (see the 30b refine above): Dump gets no
+  host, only the `control.Capture` record handed to `control.Dump`, and
+  the Emit table and sections become `control`'s own tables; `Resolver`,
+  `ColumnPredecessors` and `Presenter` move to `control`,
+  `physicalNotNullDumpDependencies` to `table` and
+  `domainInvalidDumpEvents` to `typedef`, both over a `dump.Resolver`;
+  Restore runs over a five-method `control.Host` (`Begin`, `Start`,
+  `Statement`, `Execute`, `Publish`) on a root `restoreHost`, with the
+  root-composed `[]control.Hook[*restoreRun]`; `restoreRun`, every hook
+  body, `restore_replay.go`, the stage and the publication stay in the
+  root. Docs only, no checks needed.
 - [ ] 30c — `control` created and the drivers moved
 
 Outstanding aliases: none (30a added none).
 
 ### Notes for later steps
 
-- 30b's moving set after 30a: the `Restore` driver and `restoreRun.execute`
-  (`control.go`), `restore_hooks.go`, `restore_run.go`, `restore_admit.go`,
-  `restore_steps_*.go`, `restore_owner_directive.go` and the replay-flag
-  entry in `restore_replay.go`.
-- `restoreRun` fields hold root records (`restoredForeignKeys`,
-  `restoredNotNull`, `restoredPhysicalNotNull`,
-  `physicalNotNullConstructor`, `restoredPhysicalForeignKeyProvider`,
-  `restoredGenerationRecipe`, `restoredHistoryAuthority`,
-  `partitionReplayTeardown`, `restoredInheritedOwner`,
-  `view.MaterializedSnapshot`), and every entry calls an `Engine` method on
-  `r.stage`. 30b question 1 therefore depends on those records reaching
-  their packages or becoming opaque to `control`.
-- `after` entries take the root `Result` but read only `created`; the
-  sketch's narrow `Outcome` can replace it. Entries communicate only
-  through `restoreRun`, so table order is part of the contract (see the
-  `restoreHooks` comment).
-
-- Item 112 (30b) needs items 80 (routine 14e) and 81 (typedef 15e): the
-  moved drivers call the routine and type dump statements, which must live
-  in their packages by then.
-- The hook bodies stay root `Engine` methods until their owners' Part B
-  (24d table, 25d partition, 15e typedef, 27d view); the table reaches
-  them, so 30c does not wait for those. Table 24c: the table hook bodies
-  stay root wrappers for good (authority, the trust check, `Engine.mu` and
-  the stage lifecycle); 24d.3 (item 89c) moves only their cores into
-  `table`. Partition 25c: likewise, the partition replay hooks
-  (`begin*Replay`, the `*ReplayAllowed` checks, the teardown capture and
-  validation) and the four trust checks stay root; 25d (item 93) moves only
-  the replay capture and match cores. The four trust checks repeat one
-  bootstrap-superuser test and can become one root helper.
-- `restore_replay.go` (`restoreReplay`, the `Operation` replay slot) is
-  read by feature handlers (`tableDestination`, `partitionAttach`, ...);
-  if it moves, it moves to the lowest package those handlers import.
+- 30c: entries communicate only through `restoreRun`, so table order is
+  part of the contract (see the `restoreHooks` comment); the move keeps
+  `restoreHooks` in today's order.
+- 30c: `restoreHost` holds the target engine only for `Start` (the
+  archive high water) and `Publish`; every entry still runs on the stage.
+- Table 24d.3 (item 89c) changes the types of `restoreRun` fields
+  (`restoredPhysicalNotNull`, `restoredPhysicalForeignKeyProvider` become
+  `table` records) without touching `control`, which never names them;
+  whichever of 30c and 89c lands second does not move
+  `physicalNotNullDumpDependencies` again.
+- The hook bodies stay root `Engine` methods for good, reached through the
+  table (decision 6 of 30b); table 24d.3 moves only their cores into
+  `table`, and partition 25d (item 93) only the replay capture and match
+  cores (25c).
+- Partition 25c noted that four root trust checks
+  (`partitionConstraintReplayImport`, `partitionDefaultReplayAllowed`,
+  `partitionAttachAuthorization`, `partitionParentAuthorization`) repeat
+  one bootstrap-superuser test. They are not in `control`'s moving set, so
+  folding them into one root helper is a separate root cleanup, not part
+  of 30c.
+- `restore_replay.go` (`restoreReplay`, the `Operation` replay slot) stays
+  in the root: about 58 root handler sites read it.

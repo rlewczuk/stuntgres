@@ -647,7 +647,8 @@ Decisions:
      `restoredPhysicalForeignKeyProvider` (their authority field becomes a
      `RoleRecord`), and `physicalNotNullDumpDependencies` over a
      `dump.Resolver` (the `routine.NormalizeOperatorDumpPredecessors`
-     precedent).
+     precedent). Control 30c moves it the same way if it lands first
+     (control 30b); then 24d.3 skips it.
    - B, split with no stage: `pairRestoredGeneration`,
      `captureRestoredGeneration`, `closeRestoredRecipesForData`,
      `restoreInheritedCheck`, `pairRestoredNotNull`,
