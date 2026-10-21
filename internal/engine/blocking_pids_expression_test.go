@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -11,7 +13,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestBlockingPidsTraversalReplay(t *testing.T) {
@@ -53,7 +54,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if b.SameGroupExpression(n, other) {
 			t.Fatal("different inquiries collapsed")
 		}
-		for _, rewrite := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
+		for _, rewrite := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){exec.SimplifyConditional, exec.PreflightCoercionsWithPolicy} {
 			next, _, err := rewrite(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, n, false)
 			if err != nil || next.Properties().Volatility != expr.Volatile {
 				t.Fatal("live recipe precomputed", next, err)

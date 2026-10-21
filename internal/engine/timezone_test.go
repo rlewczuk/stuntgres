@@ -2,13 +2,14 @@ package engine
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
@@ -37,7 +38,7 @@ func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
 			t.Fatal(query, node.Properties())
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{Zone: ny, TransactionStart: clock}, Output: sqltype.OutputEnvironment{Zone: ny}}}
-		planned, _, err := preflightCoercions(&evaluation, node)
+		planned, _, err := exec.PreflightCoercions(&evaluation, node)
 		if err != nil {
 			t.Fatal(query, err)
 		}

@@ -55,7 +55,7 @@ func TestMathHyperbolicEvaluationPhase(t *testing.T) {
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 			t.Fatal("execution diagnostic", err)
 		}
-		_, _, err = preflightCoercions(c, node)
+		_, _, err = exec.PreflightCoercions(c, node)
 		diagnostic = nil
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 			t.Fatal("immutable preflight diagnostic", err)

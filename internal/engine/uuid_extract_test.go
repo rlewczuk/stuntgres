@@ -99,10 +99,10 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.UUIDExtractKind{functions.UUIDExtractTimestamp, functions.UUIDExtractVersion} {
 		node := uuidExtractEngineUnit(t, b, kind)
-		if !plan.GenerationImmutable(node) || exec.PlannedVolatility(node) != expr.Immutable || !conditionalConstantInputs(node) {
+		if !plan.GenerationImmutable(node) || exec.PlannedVolatility(node) != expr.Immutable || !exec.ConditionalConstantInputs(node) {
 			t.Fatal("immutable lifecycle")
 		}
-		folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node)
+		folded, changed, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node)
 		if err != nil || !changed {
 			t.Fatal(folded, changed, err)
 		}

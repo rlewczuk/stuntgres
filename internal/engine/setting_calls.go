@@ -103,7 +103,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	invoke := true
 	if s.Name == "current_setting" {
-		knownNull, err := executionKnownNullArgument(&evaluation, bound[0])
+		knownNull, err := exec.ExecutionKnownNullArgument(&evaluation, bound[0])
 		if err != nil {
 			return Result{}, err
 		}

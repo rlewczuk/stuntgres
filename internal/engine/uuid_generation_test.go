@@ -82,9 +82,9 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 				var planned expr.Expr
 				var changed bool
 				if preflight {
-					planned, changed, err = preflightCoercionsWithPolicy(evaluation, analyzed, decisive)
+					planned, changed, err = exec.PreflightCoercionsWithPolicy(evaluation, analyzed, decisive)
 				} else {
-					planned, changed, err = simplifyConditional(evaluation, analyzed, decisive)
+					planned, changed, err = exec.SimplifyConditional(evaluation, analyzed, decisive)
 				}
 				if err != nil || !changed {
 					t.Fatal("strict NULL simplification", preflight, decisive, changed, err)
@@ -109,7 +109,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		planned, _, err := preflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, analyzed, true)
+		planned, _, err := exec.PreflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, analyzed, true)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -11,7 +13,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func bitOperatorRaw(name string, args ...parser.Expr) parser.OperatorExpr {
@@ -139,12 +140,12 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal("width checked during analysis", err)
 	}
-	_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bad)
+	_, _, err = exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bad)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22026" || d.Message != "cannot AND bit strings of different sizes" || d.Position != "" {
 		t.Fatal(err)
 	}
-	folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, root)
+	folded, changed, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, root)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -162,7 +163,7 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	left := dependent.Left.(plan.LiteralExpr)
 	left.Property.ParameterDependent = true
 	dependent.Left = left
-	if _, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, dependent); err != nil || changed {
+	if _, changed, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, dependent); err != nil || changed {
 		t.Fatal("parameter-dependent bit expression folded", changed, err)
 	}
 }

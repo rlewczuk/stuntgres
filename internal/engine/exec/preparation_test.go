@@ -17,18 +17,14 @@ func TestMissingPreparationFailsLoudly(t *testing.T) {
 	var c Context
 	routes := map[string]func(){
 		"CheckDomain":        func() { _ = c.CheckDomain(context.Background(), nil, sqltype.Value{}) },
-		"PreflightCoercions": func() { _, _, _ = preparation.PreflightCoercions(&c, nil) },
 		"DomainCatalog":      func() { _ = preparation.DomainCatalog(&c) },
 		"ValidInstalledText": func() { _ = preparation.ValidInstalledText(plan.InstalledTextExpr{}) },
-		"PreflightCoercionsWithPolicy": func() {
-			_, _, _ = PreflightCoercionsWithPolicy(&c, nil, true)
-		},
-		"AdmitExpression": func() { _ = AdmitExpression(&c, nil, catalog.Read{}) },
-		"PreflightQuery":  func() { _, _ = PreflightQuery(&c, nil) },
+		"AdmitExpression":    func() { _ = AdmitExpression(&c, nil, catalog.Read{}) },
+		"PreflightQuery":     func() { _, _ = preflightQuery(&c, nil) },
 		"PrepareDomainConversion": func() {
-			_ = PrepareDomainConversion(&c, nil, nil)
+			_ = prepareDomainConversion(&c, nil, nil)
 		},
-		"SpecializeRuleParameters": func() { _, _, _ = SpecializeRuleParameters(&c, nil) },
+		"SpecializeRuleParameters": func() { _, _, _ = specializeRuleParameters(&c, nil) },
 		"ReturnsSet":               func() { _ = preparation.ReturnsSet(nil) },
 		"StoredReferenceValid": func() {
 			_ = preparation.StoredReferenceValid(catalog.Read{}, nil, ids.ObjectRef{})
@@ -49,18 +45,9 @@ func TestMissingPreparationFailsLoudly(t *testing.T) {
 
 type recordingPreparation struct{ calls int }
 
-func (p *recordingPreparation) PreflightCoercions(*Context, expr.Expr) (expr.Expr, bool, error) {
-	return nil, false, nil
-}
-
 func (p *recordingPreparation) CheckDomain(context.Context, *Context, *sqltype.Descriptor, sqltype.Value) error {
 	p.calls++
 	return nil
-}
-
-func (p *recordingPreparation) PreflightCoercionsWithPolicy(_ *Context, e expr.Expr, decisive bool) (expr.Expr, bool, error) {
-	p.calls++
-	return e, decisive, nil
 }
 
 func (p *recordingPreparation) AdmitExpression(*Context, expr.Expr, catalog.Read) error {
@@ -109,21 +96,17 @@ func TestInstallPreparation(t *testing.T) {
 	if err := c.CheckDomain(cancelled, nil, sqltype.Value{}); err != context.Canceled || recorder.calls != 1 {
 		t.Fatal(err, recorder.calls)
 	}
-	// The forwarders pass the policy through to the installed value.
-	if _, decisive, err := PreflightCoercionsWithPolicy(&c, nil, true); err != nil || !decisive || recorder.calls != 2 {
-		t.Fatal(err, decisive, recorder.calls)
-	}
-	if err := AdmitExpression(&c, nil, catalog.Read{}); err != nil || recorder.calls != 3 {
+	if err := AdmitExpression(&c, nil, catalog.Read{}); err != nil || recorder.calls != 2 {
 		t.Fatal(err, recorder.calls)
 	}
-	// The preflight hooks reach the installed value and return its results.
-	if node, err := PreflightQuery(&c, nil); err != nil || node != nil || recorder.calls != 4 {
+	// The forwarders and the preflight hooks reach the installed value and return its results.
+	if node, err := preflightQuery(&c, nil); err != nil || node != nil || recorder.calls != 3 {
 		t.Fatal(err, node, recorder.calls)
 	}
-	if err := PrepareDomainConversion(&c, nil, nil); err != nil || recorder.calls != 5 {
+	if err := prepareDomainConversion(&c, nil, nil); err != nil || recorder.calls != 4 {
 		t.Fatal(err, recorder.calls)
 	}
-	if _, changed, err := SpecializeRuleParameters(&c, nil); err != nil || !changed || recorder.calls != 6 {
+	if _, changed, err := specializeRuleParameters(&c, nil); err != nil || !changed || recorder.calls != 5 {
 		t.Fatal(err, changed, recorder.calls)
 	}
 }

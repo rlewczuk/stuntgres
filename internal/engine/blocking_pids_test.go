@@ -6,6 +6,8 @@ import (
 	"math"
 	"reflect"
 	"sort"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -14,7 +16,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func blockingUnitOwner(t *testing.T, e *Engine) (*session.Session, *lock.Ticket) {
@@ -118,7 +119,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 		t.Fatal("cached or aliased inquiry", before, after, err)
 	}
 	pruned := domainUnitBindSelect(t, e, op, "SELECT CASE WHEN false THEN pg_blocking_pids(1/0) ELSE '{}'::integer[] END").Root.(*plan.ProjectNode).Expressions[0]
-	planned, _, err := preflightCoercions(evaluation, pruned)
+	planned, _, err := exec.PreflightCoercions(evaluation, pruned)
 	if err != nil {
 		t.Fatal("undemanded branch preflight", err)
 	}

@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -11,7 +13,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
@@ -133,10 +134,10 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 			t.Fatalf("%s/%d lost intrinsic STABLE admission", signature.name, signature.arity)
 		}
 	}
-	if !conditionalConstantInputs(bound) {
+	if !exec.ConditionalConstantInputs(bound) {
 		t.Fatal("enum closedness")
 	}
-	simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
+	simplified, changed, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
 	if err != nil || changed {
 		t.Fatal("STABLE call folded", changed, err)
 	}

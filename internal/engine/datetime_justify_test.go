@@ -83,7 +83,7 @@ func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 		if err != nil || !v.IsNull() || v.Type() != e.ResultUsage().Type {
 			t.Fatal(v, err)
 		}
-		simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, e, false)
+		simplified, changed, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, e, false)
 		if err != nil || !changed {
 			t.Fatal(simplified, changed, err)
 		}

@@ -174,7 +174,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		defaultEvaluation := evaluation
 		applyDefaultOrigin(bindingDefaultOrigin(&b, i), &defaultEvaluation)
-		folded, _, planErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
+		folded, _, planErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 		if planErr != nil {
 			return 0, planErr
 		}

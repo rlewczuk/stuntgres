@@ -85,7 +85,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 		}
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: b.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
-	node, _, err = simplifyConditional(&evaluation, node, true)
+	node, _, err = exec.SimplifyConditional(&evaluation, node, true)
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
 	}

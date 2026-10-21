@@ -235,7 +235,7 @@ func TestJSONBSetConstantPreflight(t *testing.T) {
 	for _, q := range []string{`SELECT jsonb_set('{"a":1}','{a}','2')`, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'delete_key')`} {
 		b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		node := jsonbSetUnitBind(t, b, q)
-		next, changed, err := preflightCoercionsWithPolicy(eval, node, true)
+		next, changed, err := exec.PreflightCoercionsWithPolicy(eval, node, true)
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
@@ -245,7 +245,7 @@ func TestJSONBSetConstantPreflight(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	node := jsonbSetUnitBind(t, b, `SELECT jsonb_set_lax('{"a":1}','{a}','2',true,NULL)`)
-	_, _, err := preflightCoercionsWithPolicy(eval, node, true)
+	_, _, err := exec.PreflightCoercionsWithPolicy(eval, node, true)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22023" {
 		t.Fatal("NULL mode incorrectly strict-folded", err)

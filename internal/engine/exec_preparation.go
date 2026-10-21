@@ -14,14 +14,6 @@ func init() { exec.InstallPreparation(enginePreparation{}) }
 
 type enginePreparation struct{}
 
-func (enginePreparation) PreflightCoercions(c *exec.Context, e expr.Expr) (expr.Expr, bool, error) {
-	return preflightCoercions(c, e)
-}
-
-func (enginePreparation) PreflightCoercionsWithPolicy(c *exec.Context, e expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
-	return preflightCoercionsWithPolicy(c, e, decisiveDefaults)
-}
-
 func (enginePreparation) AdmitExpression(c *exec.Context, e expr.Expr, view catalog.Read) error {
 	return validateExpressionJoinExecution(c, e, view)
 }

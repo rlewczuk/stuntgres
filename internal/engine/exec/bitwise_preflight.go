@@ -1,7 +1,6 @@
-package engine
+package exec
 
 import (
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
@@ -16,7 +15,7 @@ func bitwiseConstantNull(node expr.Expr) bool {
 
 // Only network signatures opt into imported-parameter Execute planning.
 // Conservative properties survive folding; availability is not SQL constness.
-func networkOperatorExecutionConstant(node expr.Expr, c *exec.Context) bool {
+func NetworkOperatorExecutionConstant(node expr.Expr, c *Context) bool {
 	if node == nil {
 		return false
 	}
@@ -40,7 +39,7 @@ func networkOperatorExecutionConstant(node expr.Expr, c *exec.Context) bool {
 			return
 		}
 		found = true
-		constant = constant && networkOperatorExecutionConstant(child, c)
+		constant = constant && NetworkOperatorExecutionConstant(child, c)
 	})
 	return found && constant
 }

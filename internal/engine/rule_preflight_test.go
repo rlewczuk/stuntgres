@@ -18,12 +18,12 @@ import (
 func TestRuleStaticOperatorPreflight(t *testing.T) {
 	constant := preflightCast(t, "SELECT 1/(2-2) FROM t")
 	ordinary := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	if _, changed, err := preflightCoercions(&ordinary, constant); err != nil || changed {
+	if _, changed, err := exec.PreflightCoercions(&ordinary, constant); err != nil || changed {
 		t.Fatalf("ordinary arithmetic demand changed: changed=%v error=%v", changed, err)
 	}
 	planning := ordinary
 	planning.PlanStaticOperators = true
-	_, _, err := preflightCoercions(&planning, constant)
+	_, _, err := exec.PreflightCoercions(&planning, constant)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 		t.Fatalf("static operator error was not planned: %v", err)
@@ -35,7 +35,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	planning.Parameters = []sqltype.Value{value}
-	mapped, changed, err := preflightCoercions(&planning, parameter)
+	mapped, changed, err := exec.PreflightCoercions(&planning, parameter)
 	if err != nil || !changed {
 		t.Fatalf("parameter conversion preflight: changed=%v error=%v", changed, err)
 	}
@@ -59,13 +59,13 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				t.Fatal(err)
 			}
 			modeOnly := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true}}
-			mapped, _, err := preflightCoercions(&modeOnly, original)
+			mapped, _, err := exec.PreflightCoercions(&modeOnly, original)
 			if err != nil || !mapped.Properties().ParameterDependent {
 				t.Fatalf("mode-only parameter barrier lost: %v", err)
 			}
 			specializing := modeOnly
 			specializing.SpecializeRuleParameters = true
-			mapped, changed, err := preflightCoercions(&specializing, original)
+			mapped, changed, err := exec.PreflightCoercions(&specializing, original)
 			if text == "0" {
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 					t.Fatalf("supplied zero was not prepared: %v", err)
@@ -98,7 +98,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			recipe := original
 			recipe.Property = expr.MergeProperties(recipe.Property, barrier)
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true, SpecializeRuleParameters: true}}
-			mapped, changed, err := preflightCoercions(&evaluation, recipe)
+			mapped, changed, err := exec.PreflightCoercions(&evaluation, recipe)
 			if err != nil || !changed {
 				t.Fatalf("specialization crossed runtime barrier %+v: %v", barrier, err)
 			}
@@ -312,7 +312,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatalf("dead CASE revived source payload demand: %v", err)
 		}
-		preparedPredicate, _, err := preflightCoercions(&evaluation, private.Predicate)
+		preparedPredicate, _, err := exec.PreflightCoercions(&evaluation, private.Predicate)
 		if err != nil {
 			t.Fatal(err)
 		}

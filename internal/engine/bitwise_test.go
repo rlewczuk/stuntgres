@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
@@ -54,14 +55,14 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 		t.Fatal("SMALLINT bound shift count accepted")
 	}
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	ordinary, changed, err := preflightCoercions(ctx, root)
+	ordinary, changed, err := exec.PreflightCoercions(ctx, root)
 	if err != nil || changed {
 		t.Fatal(ordinary, changed, err)
 	}
 	if _, ok := ordinary.(plan.BitwiseExpr); !ok {
 		t.Fatal("ordinary node folded")
 	}
-	folded, changed, err := preflightCoercionsWithPolicy(ctx, root, true)
+	folded, changed, err := exec.PreflightCoercionsWithPolicy(ctx, root, true)
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
 	}
@@ -183,7 +184,7 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{bad}}}
-	for _, simplify := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){preflightCoercionsWithPolicy, simplifyConditional} {
+	for _, simplify := range []func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error){exec.PreflightCoercionsWithPolicy, exec.SimplifyConditional} {
 		for _, reverse := range []bool{false, true} {
 			root := plan.BitwiseExpr{Info: info, Left: null, Right: conversion, Provider: provider, Operator: sqltype.BitwiseAnd}
 			if reverse {
@@ -278,7 +279,7 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	planned, changed, err := preflightCoercionsWithPolicy(ctx, original, true)
+	planned, changed, err := exec.PreflightCoercionsWithPolicy(ctx, original, true)
 	if err != nil || !changed {
 		t.Fatal(planned, changed, err)
 	}

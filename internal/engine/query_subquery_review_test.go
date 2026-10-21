@@ -334,7 +334,7 @@ func TestQuerySubqueryLiteralDemandPreflight(t *testing.T) {
 	c := parent.Evaluation(context.Background())
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
 	c.Parameters = []sqltype.Value{sqltype.String(typ, "invalid")}
-	_, _, err := preflightCoercions(&c, query.Root.(*plan.ProjectNode).Expressions[0])
+	_, _, err := exec.PreflightCoercions(&c, query.Root.(*plan.ProjectNode).Expressions[0])
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" ||
 		diagnostic.Message != `invalid input syntax for type boolean: "invalid"` {

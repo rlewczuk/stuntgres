@@ -346,7 +346,7 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.
 	for _, expressions := range b.Expressions {
 		values := make([]sqltype.Value, len(d.Columns))
 		for i, expression := range expressions {
-			expression, _, err = preflightCoercionsWithPolicy(&evaluation, expression, false)
+			expression, _, err = exec.PreflightCoercionsWithPolicy(&evaluation, expression, false)
 			if err != nil {
 				return nil, err
 			}

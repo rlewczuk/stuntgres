@@ -44,7 +44,7 @@ func TestCatalogRelationsBinding(t *testing.T) {
 		if reference == nil || reference.RoutineOID() != sample.oid {
 			t.Fatal("wrong original declaration", reference)
 		}
-		if exec.PlannedVolatility(sample.node) != expr.Stable || plan.GenerationImmutable(sample.node) || conditionalConstantInputs(sample.node) {
+		if exec.PlannedVolatility(sample.node) != expr.Stable || plan.GenerationImmutable(sample.node) || exec.ConditionalConstantInputs(sample.node) {
 			t.Fatal("catalog inquiry lost STABLE symbolic semantics")
 		}
 	}

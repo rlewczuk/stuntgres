@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -11,7 +13,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestAdvisoryXactBindingTraversal(t *testing.T) {
@@ -92,9 +93,9 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 		for _, preflight := range []bool{false, true} {
 			var folded expr.Expr
 			if preflight {
-				folded, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound)
+				folded, _, err = exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound)
 			} else {
-				folded, _, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
+				folded, _, err = exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
 			}
 			if err != nil {
 				t.Fatal(err)

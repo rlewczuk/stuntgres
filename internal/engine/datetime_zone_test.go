@@ -3,6 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -11,8 +14,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 type datetimeZoneSignature struct {
@@ -131,7 +132,7 @@ func TestDatetimeZoneStrictConstantNullAndPrecancellation(t *testing.T) {
 	expression := node.(functions.DatetimeZoneCalendar)
 	expression.Args[0] = plan.LiteralExpr{Info: expr.InfoOf(expression.Args[0]), Value: sqltype.Null(expression.Args[0].ResultUsage().Type)}
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	simplified, changed, err := preflightCoercions(ctx, expression)
+	simplified, changed, err := exec.PreflightCoercions(ctx, expression)
 	if err != nil || !changed {
 		t.Fatal(simplified, changed, err)
 	}

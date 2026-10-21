@@ -294,7 +294,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	for _, planner := range []struct {
 		name string
 		run  func(*exec.Context, expr.Expr, bool) (expr.Expr, bool, error)
-	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}} {
+	}{{"preflight", exec.PreflightCoercionsWithPolicy}, {"conditional", exec.SimplifyConditional}} {
 		t.Run("domain_sibling_"+planner.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "($1::integer)+(NULL::strict_null_checked)::integer")
 			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
@@ -304,7 +304,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			before := expr.InfoOf(node)
 			proofs, barriers := 0, 0
 			exec.StrictRoutineArguments(node, func(argument expr.Expr) {
-				known, err := executionKnownNullArgument(&evaluation, argument)
+				known, err := exec.ExecutionKnownNullArgument(&evaluation, argument)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -343,7 +343,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
 		}
 		before := expr.InfoOf(node)
-		folded, changed, err := preflightCoercions(&evaluation, node)
+		folded, changed, err := exec.PreflightCoercions(&evaluation, node)
 		if err != nil || !changed || !exec.RandomLiteralNull(folded) {
 			t.Fatal("scalar NULL folding", changed, err)
 		}
@@ -395,7 +395,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	for _, text := range []string{"pg_describe_object($1::oid,23,1/0)"} {
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, text)
 		evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
-		_, _, err := preflightCoercions(&evaluation, node)
+		_, _, err := exec.PreflightCoercions(&evaluation, node)
 		want := sqlstate.Error{Code: "22012", Message: "division by zero"}
 		nullCountUnitDiagnostic(t, err, want)
 		for _, suffix := range []string{"", " WHERE FALSE"} {
@@ -441,7 +441,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		t.Fatal("valid typed domain import", err)
 	}
 	evaluation.Parameters = []sqltype.Value{value}
-	folded, _, err := preflightCoercions(&evaluation, node)
+	folded, _, err := exec.PreflightCoercions(&evaluation, node)
 	if err != nil || !exec.RandomLiteralNull(folded) {
 		t.Fatal("valid domain import then strict NULL", err)
 	}

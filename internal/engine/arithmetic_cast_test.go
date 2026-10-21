@@ -34,7 +34,7 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 			t.Fatal(err)
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
-		folded, changed, err := preflightCoercions(&evaluation, original)
+		folded, changed, err := exec.PreflightCoercions(&evaluation, original)
 		if err != nil || !changed {
 			t.Fatal("descendant preflight", tc.query, folded, changed, err)
 		}
@@ -72,7 +72,7 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 			t.Fatal(err)
 		}
 		evaluation.Parameters[0] = bad
-		_, _, err = preflightCoercions(&evaluation, original)
+		_, _, err = exec.PreflightCoercions(&evaluation, original)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" || diagnostic.Position != "" || diagnostic.Context != "" {
 			t.Fatal("original reused a folded frame", err)

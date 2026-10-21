@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -11,7 +13,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func jsonEachUnitMarker(t *testing.T, b *analyze.Binder, name, input string) functions.JSONEach {
@@ -80,11 +81,11 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if err != nil || !analyze.SameGroupExpression(original, clone) {
 			t.Fatal("stored reconstruction", clone, err)
 		}
-		folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
+		folded, _, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
 		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
-		folded, _, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
+		folded, _, err = exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}

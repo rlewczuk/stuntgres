@@ -58,7 +58,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 			if !p.RuntimeDomainConversion || p.DomainDependent || p.Volatility != expr.Immutable {
 				t.Fatal("runtime barrier conflated with VALUE or volatility", p)
 			}
-			prepared, _, err := preflightCoercions(&evaluation, node)
+			prepared, _, err := exec.PreflightCoercions(&evaluation, node)
 			if err != nil {
 				t.Fatal("preflight consumed CHECK truth", err)
 			}
@@ -73,7 +73,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 		})
 	}
 	physical, physicalContext := bind("SELECT (1::integer)::text")
-	physical, _, err := preflightCoercions(&physicalContext, physical)
+	physical, _, err := exec.PreflightCoercions(&physicalContext, physical)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	}
 	required := domainUnitType(t, e.CatalogRead(), "preflight_required").SQLType
 	fresh := analyze.DomainNullInputExpression(required.Usage())
-	prepared, _, err := preflightCoercions(&evaluation, fresh)
+	prepared, _, err := exec.PreflightCoercions(&evaluation, fresh)
 	if err != nil || !prepared.Properties().RuntimeDomainConversion {
 		t.Fatal("fresh NULL consumed during initialization", err)
 	}
@@ -115,7 +115,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	} {
 		t.Run(query, func(t *testing.T) {
 			node, evaluation := bind(query)
-			_, _, err := preflightCoercions(&evaluation, node)
+			_, _, err := exec.PreflightCoercions(&evaluation, node)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 				t.Fatal("retained recipe initialization lost constant error", err)
@@ -128,7 +128,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	} {
 		t.Run(query, func(t *testing.T) {
 			node, evaluation := bind(query)
-			prepared, _, err := preflightCoercions(&evaluation, node)
+			prepared, _, err := exec.PreflightCoercions(&evaluation, node)
 			if err != nil {
 				t.Fatal("eliminated conversion initialized CHECK recipes", err)
 			}

@@ -191,7 +191,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			}
 		}
 		for i, node := range nodes {
-			prepared, _, err := preflightCoercionsWithPolicy(&evaluation, node, true)
+			prepared, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, true)
 			if err != nil {
 				return err
 			}

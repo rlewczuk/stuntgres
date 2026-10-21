@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -11,7 +13,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 type rangeOperatorProbe struct {
@@ -100,10 +101,10 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if !analyze.SameGroupExpression(original, original) || analyze.SameGroupExpression(original, next) {
 		t.Fatal("wrong expression equivalence")
 	}
-	if !plan.GenerationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
+	if !plan.GenerationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !exec.ConditionalConstantInputs(next) {
 		t.Fatal("immutable carrier properties")
 	}
-	folded, did, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, next)
+	folded, did, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, next)
 	if err != nil || !did {
 		t.Fatal(folded, did, err)
 	}

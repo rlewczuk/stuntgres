@@ -6,6 +6,8 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -17,7 +19,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Spies exercise evaluator demand, not a substituted PostgreSQL oracle.
@@ -197,7 +198,7 @@ func TestConditionalPlanningDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, _, err = preflightCoercions(ctx, node)
+		_, _, err = exec.PreflightCoercions(ctx, node)
 		if tc.code == "" {
 			if err != nil {
 				t.Fatal(tc, err)
@@ -215,7 +216,7 @@ func TestConditionalPlanningDemand(t *testing.T) {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	ctx.Parameters = []sqltype.Value{sqltype.Boolean(boolean, true), sqltype.String(text, "bad")}
-	planned, _, err := preflightCoercions(ctx, node)
+	planned, _, err := exec.PreflightCoercions(ctx, node)
 	if err != nil {
 		t.Fatal("skipped parameter cast was eagerly evaluated", err)
 	}
@@ -693,7 +694,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			d := view.MustRelation(ref.Address)
 			original := d.ColumnMeta.Defaults[d.Attributes[0]]
 			c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-			planned, changed, err := preflightCoercionsWithPolicy(c, original.Expression, true)
+			planned, changed, err := exec.PreflightCoercionsWithPolicy(c, original.Expression, true)
 			if err != nil || !changed {
 				t.Fatal(planned, changed, err)
 			}
@@ -708,7 +709,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			if err != nil || truth == plan.Unknown || (truth == plan.True) != tc.want {
 				t.Fatal(truth, err, tc.want)
 			}
-			_, _, err = preflightCoercions(c, original.Expression)
+			_, _, err = exec.PreflightCoercions(c, original.Expression)
 			var diagnostic *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}
 			if !errors.As(err, &diagnostic) || *diagnostic != want {
@@ -742,7 +743,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 		run(t, e, "CREATE TABLE d(a BOOL DEFAULT ("+expr+"))")
 		ref := roleTableRef(t, e, "d")
 		d := e.CatalogRead().MustRelation(ref.Address)
-		_, _, err := preflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, d.ColumnMeta.Defaults[d.Attributes[0]].Expression, true)
+		_, _, err := exec.PreflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, d.ColumnMeta.Defaults[d.Attributes[0]].Expression, true)
 		state(t, err, "22P02")
 		run(t, e, "INSERT INTO d VALUES(FALSE)")
 	}

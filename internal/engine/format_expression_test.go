@@ -2,12 +2,13 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
-	"testing"
 
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -35,10 +36,10 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 		run  func() (expr.Expr, bool, error)
 	}{
 		{"preflight", func() (expr.Expr, bool, error) {
-			return preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node)
+			return exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node)
 		}},
 		{"conditional", func() (expr.Expr, bool, error) {
-			return simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node, false)
+			return exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, node, false)
 		}},
 	} {
 		got, changed, err := rewrite.run()

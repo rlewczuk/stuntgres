@@ -1,7 +1,6 @@
-package engine
+package exec
 
 import (
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -11,7 +10,7 @@ import (
 // simplifyCompositeNode simplifies a protocol node's children in order and
 // applies its strict-NULL and fold hooks. done reports that the result skips
 // the shared constant fold.
-func simplifyCompositeNode(c *exec.Context, node expr.Composite, decisiveDefaults bool) (result expr.Expr, changed, done bool, err error) {
+func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults bool) (result expr.Expr, changed, done bool, err error) {
 	strict := expr.StrictNone
 	if hook, ok := node.(expr.StrictFolding); ok {
 		strict = hook.StrictNull()
@@ -20,7 +19,7 @@ func simplifyCompositeNode(c *exec.Context, node expr.Composite, decisiveDefault
 		return strictNullLiteral(node, strict), true, true, nil
 	}
 	next, changed, err := expr.Map(node, func(child expr.Expr) (expr.Expr, bool, error) {
-		return simplifyConditional(c, child, decisiveDefaults)
+		return SimplifyConditional(c, child, decisiveDefaults)
 	})
 	if err != nil {
 		return nil, false, true, err
@@ -33,11 +32,11 @@ func simplifyCompositeNode(c *exec.Context, node expr.Composite, decisiveDefault
 		return next, changed, true, nil
 	case expr.FoldOverlapsRoute:
 		// The engine owns OVERLAPS inline admission and its folded pair ends.
-		routed, did, err := simplifyOverlapsRoute(c, next.(functions.DatetimeOverlaps))
+		routed, did, err := SimplifyOverlapsRoute(c, next.(functions.DatetimeOverlaps))
 		return routed, changed || did, false, err
 	case expr.FoldQuoteCapture:
 		// The engine owns the statement's quote-capture cache.
-		folded, did, err := foldStringVariadic(c, next.(functions.StringVariadic))
+		folded, did, err := FoldStringVariadic(c, next.(functions.StringVariadic))
 		return folded, changed || did, true, err
 	}
 	return next, changed, false, nil
@@ -52,7 +51,7 @@ func planningFold(node expr.Expr) expr.Fold {
 
 func anyRandomLiteralNull(children []expr.Expr) bool {
 	for _, child := range children {
-		if exec.RandomLiteralNull(child) {
+		if RandomLiteralNull(child) {
 			return true
 		}
 	}

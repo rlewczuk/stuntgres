@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -13,7 +15,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestRegexpScalarBinding(t *testing.T) {
@@ -83,7 +84,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 	if err != nil {
 		t.Fatal("Prepare compiled pattern", err)
 	}
-	_, _, err = preflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bound, true)
+	_, _, err = exec.PreflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bound, true)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2201B" || diagnostic.Position != "" {
 		t.Fatal(err)
@@ -91,7 +92,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 	node := bound.(functions.Regexp)
 	node.Args[1] = plan.ColumnExpr{Info: expr.Info{Usage: node.Args[1].ResultUsage(), Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}}, Slot: 0}
 	node.Property.RowDependent = true
-	_, _, err = preflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node, true)
+	_, _, err = exec.PreflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node, true)
 	if err != nil {
 		t.Fatal("row-dependent pattern preflight", err)
 	}

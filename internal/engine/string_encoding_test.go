@@ -3,12 +3,13 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
-	"testing"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -124,7 +125,7 @@ func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	if !b.SameGroupExpression(named, bind("SELECT to_ascii('é','LATIN1')")) || b.SameGroupExpression(named, bind("SELECT to_ascii('é',8)")) {
 		t.Fatal("overload structural identity")
 	}
-	folded, changed, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bind("SELECT unistr('plain')"))
+	folded, changed, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bind("SELECT unistr('plain')"))
 	if err != nil || !changed {
 		t.Fatal("immutable preflight", folded, changed, err)
 	}

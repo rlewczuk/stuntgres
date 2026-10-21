@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -156,7 +157,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	if err = input.End(); err != nil {
 		return ProtocolField{}, err
 	}
-	node, _, err = preflightCoercionsWithPolicy(&evaluation, node, true)
+	node, _, err = exec.PreflightCoercionsWithPolicy(&evaluation, node, true)
 	if err != nil {
 		return ProtocolField{}, err
 	}

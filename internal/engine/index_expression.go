@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -50,7 +51,7 @@ func (e *Engine) bindIndexExpression(op *session.Operation, input sqltype.InputE
 	}
 	// Preflight the complete analyzed definition before narrowing runtime
 	// demand, then admit volatility from the surviving physical providers.
-	execution, _, err = simplifyConditional(&evaluation, execution, true)
+	execution, _, err = exec.SimplifyConditional(&evaluation, execution, true)
 	if err != nil {
 		return nil, "", err
 	}

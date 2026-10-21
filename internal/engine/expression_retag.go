@@ -322,7 +322,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		}
 		rebound = n
 	case plan.ViewQualificationExpr:
-		mapped, replaced, failure := mapViewQualification(n, mapChild)
+		mapped, replaced, failure := exec.MapViewQualification(n, mapChild)
 		if failure != nil {
 			return nil, false, failure
 		}

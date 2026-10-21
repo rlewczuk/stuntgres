@@ -105,10 +105,10 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			if exec.PlannedPhysicalVolatility(call, false) != volatility || plan.GenerationImmutable(call) != (volatility == expr.Immutable) {
 				t.Fatal("lost intrinsic volatility")
 			}
-			if _, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, call, false); err != nil {
+			if _, _, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, call, false); err != nil {
 				t.Fatal(err)
 			}
-			if _, _, err := preflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, call, false); err != nil {
+			if _, _, err := exec.PreflightCoercionsWithPolicy(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, call, false); err != nil {
 				t.Fatal(err)
 			}
 		}

@@ -172,7 +172,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	// A decisive row with literal operands must simplify as a row, not fold
 	// each scalar pair independently and demand an unreachable string pair.
-	if _, _, err := simplifyConditional(ctx, mappedRow, false); err != nil {
+	if _, _, err := exec.SimplifyConditional(ctx, mappedRow, false); err != nil {
 		t.Fatal("row simplification crossed lexical frontier", err)
 	}
 	first := mappedRow.Comparisons[0]

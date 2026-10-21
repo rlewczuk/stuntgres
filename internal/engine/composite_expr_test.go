@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -9,7 +11,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func compositeExprUnitLiteral(value sqltype.Value) expr.Expr {
@@ -99,7 +100,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	}
 	t.Run("discarded immutable preflight", func(t *testing.T) {
 		node := preflightCast(t, "SELECT (ROW(7,1/0)).f1")
-		if _, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node); err == nil {
+		if _, _, err := exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node); err == nil {
 			t.Fatal("discarded immutable sibling omitted from execution preflight")
 		} else {
 			state(t, err, "22012")

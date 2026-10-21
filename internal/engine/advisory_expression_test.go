@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -16,7 +18,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestAdvisorySessionBindingTraversal(t *testing.T) {
@@ -127,9 +128,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			var folded expr.Expr
 			var changed bool
 			if preflight {
-				folded, changed, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound)
+				folded, changed, err = exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound)
 			} else {
-				folded, changed, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
+				folded, changed, err = exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
 			}
 			if err != nil || !changed || !plan.GenerationImmutable(folded) {
 				t.Fatal("literal NULL fold", folded, changed, err)
@@ -159,9 +160,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		bound = deferred
 		for _, preflight := range []bool{false, true} {
 			if preflight {
-				_, _, err = preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound)
+				_, _, err = exec.PreflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound)
 			} else {
-				_, _, err = simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
+				_, _, err = exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
 			}
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22P02", Message: "invalid input syntax for type integer: \"bad\""})
 		}

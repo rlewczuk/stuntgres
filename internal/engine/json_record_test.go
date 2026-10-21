@@ -90,7 +90,7 @@ func TestJSONRecordRemap(t *testing.T) {
 	if err != nil || !strings.Contains(text, "json_to_record(") || !strings.Contains(text, "::json") {
 		t.Fatal(text, err)
 	}
-	folded, _, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
+	folded, _, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original, false)
 	if err != nil || folded.ResultUsage() != original.ResultUsage() || exec.PlannedVolatility(folded) != expr.Stable {
 		t.Fatal("folded STABLE call", folded, err)
 	}

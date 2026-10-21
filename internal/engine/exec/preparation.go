@@ -11,16 +11,12 @@ import (
 )
 
 // Preparation is the runtime's route back into statement preparation:
-// preflight coercions and domain CHECK programmes reach routine admission and
-// the domain catalog, which stay in the engine. Unlike Host it must work
-// without a statement scope (DDL admission checks domains with none), so it is
-// one stateless package value rather than a host method.
+// coercion preflight and domain CHECK programmes reach query preflight, rule
+// parameter specialization, the domain programme state and the domain
+// catalog, which stay in the engine. Unlike Host it must work without a
+// statement scope (DDL admission checks domains with none), so it is one
+// stateless package value rather than a host method.
 type Preparation interface {
-	PreflightCoercions(c *Context, e expr.Expr) (expr.Expr, bool, error)
-	// PreflightCoercionsWithPolicy is PreflightCoercions with the constant
-	// planning policy: decisiveDefaults is true for consumed stored defaults,
-	// CHECK rows and standalone recipes.
-	PreflightCoercionsWithPolicy(c *Context, e expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error)
 	// AdmitExpression is planning-time execution admission of a prepared
 	// expression: routine EXECUTE, virtual generation and subquery join
 	// legality, read through view.
@@ -57,43 +53,29 @@ var preparation Preparation = missingPreparation{}
 // any statement executes.
 func InstallPreparation(p Preparation) { preparation = p }
 
-// PreflightCoercionsWithPolicy runs the installed coercion preflight with a
-// constant planning policy.
-func PreflightCoercionsWithPolicy(c *Context, e expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
-	return preparation.PreflightCoercionsWithPolicy(c, e, decisiveDefaults)
-}
-
 // AdmitExpression runs the installed execution admission of e.
 func AdmitExpression(c *Context, e expr.Expr, view catalog.Read) error {
 	return preparation.AdmitExpression(c, e, view)
 }
 
-// PreflightQuery runs the installed query preflight of node.
-func PreflightQuery(c *Context, node plan.Node) (plan.Node, error) {
+// preflightQuery runs the installed query preflight of node.
+func preflightQuery(c *Context, node plan.Node) (plan.Node, error) {
 	return preparation.PreflightQuery(c, node)
 }
 
-// PrepareDomainConversion runs the installed domain programme preparation
+// prepareDomainConversion runs the installed domain programme preparation
 // of a source to target conversion.
-func PrepareDomainConversion(c *Context, source, target *sqltype.Descriptor) error {
+func prepareDomainConversion(c *Context, source, target *sqltype.Descriptor) error {
 	return preparation.PrepareDomainConversion(c, source, target)
 }
 
-// SpecializeRuleParameters runs the installed rule parameter specialization
+// specializeRuleParameters runs the installed rule parameter specialization
 // of e.
-func SpecializeRuleParameters(c *Context, e expr.Expr) (expr.Expr, bool, error) {
+func specializeRuleParameters(c *Context, e expr.Expr) (expr.Expr, bool, error) {
 	return preparation.SpecializeRuleParameters(c, e)
 }
 
 type missingPreparation struct{}
-
-func (missingPreparation) PreflightCoercions(*Context, expr.Expr) (expr.Expr, bool, error) {
-	panic("exec: preparation not installed")
-}
-
-func (missingPreparation) PreflightCoercionsWithPolicy(*Context, expr.Expr, bool) (expr.Expr, bool, error) {
-	panic("exec: preparation not installed")
-}
 
 func (missingPreparation) AdmitExpression(*Context, expr.Expr, catalog.Read) error {
 	panic("exec: preparation not installed")

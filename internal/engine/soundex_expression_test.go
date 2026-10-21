@@ -3,11 +3,12 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
-	"testing"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -117,7 +118,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			if err := validateInstalledSoundex(retagged.(plan.InstalledSoundexExpr), e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			folded, _, err := simplifyConditional(ctx, n, false)
+			folded, _, err := exec.SimplifyConditional(ctx, n, false)
 			if err != nil {
 				t.Fatal(err)
 			}

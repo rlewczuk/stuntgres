@@ -81,7 +81,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	for _, i := range []int{0, 1, 2} {
 		n := e
 		n.Args[i] = plan.LiteralExpr{Info: b.Info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(n.Args[i].ResultUsage().Type)}
-		simplified, changed, err := simplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, n, false)
+		simplified, changed, err := exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, n, false)
 		if err != nil || !changed || exec.PlannedVolatility(simplified) != expr.Immutable || !plan.GenerationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)
 		}

@@ -1,11 +1,13 @@
-package engine
+package exec
 
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
 
-func mapViewQualification(e plan.ViewQualificationExpr, mapper func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
+// MapViewQualification applies mapper to a view qualification's private
+// predicates and user predicate, copying only what changed.
+func MapViewQualification(e plan.ViewQualificationExpr, mapper func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
 	changed := false
 	var private []expr.Expr
 	for i, x := range e.Predicates {

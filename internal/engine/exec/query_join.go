@@ -3,6 +3,7 @@ package exec
 import (
 	"context"
 	"fmt"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -16,7 +17,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 	// other operand yields no candidate; this does not produce either child.
 	if n.Predicate != nil {
 		evaluation := state.Evaluation(ctx)
-		predicate, changed, err := preparation.PreflightCoercions(&evaluation, n.Predicate)
+		predicate, changed, err := PreflightCoercions(&evaluation, n.Predicate)
 		if err != nil {
 			return Stage{}, err
 		}
