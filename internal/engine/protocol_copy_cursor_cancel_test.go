@@ -115,8 +115,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 			if binaryInput {
 				cursor = &copyBinaryCursor{
 					scope: scope, binding: text.binding,
-					header:   true,
-					reader:   bufio.NewReader(strings.NewReader(tc.input)),
+					in:       copyBinaryReader{header: true, reader: bufio.NewReader(strings.NewReader(tc.input))},
 					defaults: make([]bool, 1), omitted: make([]bool, 1),
 				}
 			}

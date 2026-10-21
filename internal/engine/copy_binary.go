@@ -17,22 +17,18 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-const copyBinarySignature = "PGCOPY\n\xff\r\n\x00"
-
+// copyBinaryCursor executes binary COPY FROM: it converts the fields its
+// binary reader frames into target values and attaches COPY diagnostics.
 type copyBinaryCursor struct {
 	scope             *StatementScope
 	binding           analyze.Binding
-	reader            *bufio.Reader
-	scratch           [4096]byte
-	payload           []byte
+	in                copyBinaryReader
 	defaults, omitted []bool
-	number            int64
 	column            string
-	header, ended     bool
 }
 
 func newCopyBinaryCursor(s *StatementScope, b analyze.Binding, r io.Reader) *copyBinaryCursor {
-	c := &copyBinaryCursor{scope: s, binding: b, reader: bufio.NewReader(copyReader{s, r}), defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
+	c := &copyBinaryCursor{scope: s, binding: b, in: copyBinaryReader{reader: bufio.NewReader(copyReader{s, r})}, defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
@@ -44,66 +40,13 @@ func newCopyBinaryCursor(s *StatementScope, b analyze.Binding, r io.Reader) *cop
 func (c *copyBinaryCursor) Schema() []catalog.Column { return nil }
 func (c *copyBinaryCursor) Close() error             { return nil }
 func (c *copyBinaryCursor) rowDefaults() []bool      { return c.defaults }
-func (c *copyBinaryCursor) readFixed(n int) ([]byte, error) {
-	_, err := io.ReadFull(c.reader, c.scratch[:n])
-	return c.scratch[:n], err
-}
-func binaryEOF(err error) bool { return err == io.EOF || err == io.ErrUnexpectedEOF }
-func (c *copyBinaryCursor) headerInput() error {
-	p, err := c.readFixed(len(copyBinarySignature))
-	if err != nil {
-		if !binaryEOF(err) {
-			return err
-		}
-		return sqlError("22P04", "COPY file signature not recognized")
-	}
-	if string(p) != copyBinarySignature {
-		return sqlError("22P04", "COPY file signature not recognized")
-	}
-	p, err = c.readFixed(4)
-	if err != nil {
-		if !binaryEOF(err) {
-			return err
-		}
-		return sqlError("22P04", "invalid COPY file header (missing flags)")
-	}
-	flags := binary.BigEndian.Uint32(p)
-	if flags&0x10000 != 0 {
-		return sqlError("22P04", "invalid COPY file header (WITH OIDS)")
-	}
-	if flags&0xffff0000 != 0 {
-		return sqlError("22P04", "unrecognized critical flags in COPY file header")
-	}
-	p, err = c.readFixed(4)
-	if err != nil {
-		if !binaryEOF(err) {
-			return err
-		}
-		return sqlError("22P04", "invalid COPY file header (missing length)")
-	}
-	length := int32(binary.BigEndian.Uint32(p))
-	if length < 0 {
-		return sqlError("22P04", "invalid COPY file header (missing length)")
-	}
-	for length > 0 {
-		n := min(int(length), len(c.scratch))
-		if _, err = c.readFixed(n); err != nil {
-			if !binaryEOF(err) {
-				return err
-			}
-			return sqlError("22P04", "invalid COPY file header (wrong length)")
-		}
-		length -= int32(n)
-	}
-	return nil
-}
 func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
 	wireInput := c.scope.op.CopyInput.Active.Load()
 	if wireInput {
 		ctx = c.scope.op.Context()
 	}
 	if err := ctx.Err(); err != nil {
-		if c.header && c.scope.op.CopyInput.Held() && session.PendingProtocolUserCancel(ctx) {
+		if c.in.header && c.scope.op.CopyInput.Held() && session.PendingProtocolUserCancel(ctx) {
 			// Refresh a context captured just before user cancellation only
 			// after binary startup has admitted the row-decoding phase.
 			ctx = c.scope.op.Context()
@@ -113,36 +56,19 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 			return false, c.diagnostic(err)
 		}
 	}
-	if c.ended {
-		return false, nil
-	}
-	if !c.header {
-		if err := c.headerInput(); err != nil {
+	if !c.in.header {
+		if err := c.in.headerInput(); err != nil {
 			return false, c.diagnostic(err)
 		}
-		c.header = true
+		c.in.header = true
 	}
-	c.number++
 	c.column = ""
-	p, err := c.readFixed(2)
+	count, ok, err := c.in.row()
 	if err != nil {
-		if binaryEOF(err) {
-			c.ended = true
-			return false, nil
-		}
 		return false, c.diagnostic(err)
 	}
-	count := int16(binary.BigEndian.Uint16(p))
-	if count == -1 {
-		c.ended = true
-		_, err := c.reader.ReadByte()
-		if err == io.EOF {
-			return false, nil
-		}
-		if err == nil {
-			err = sqlError("22P04", "received copy data after EOF marker")
-		}
-		return false, c.diagnostic(err)
+	if !ok {
+		return false, nil
 	}
 	if int(count) != len(c.binding.Targets) {
 		return false, c.diagnostic(sqlError("22P04", fmt.Sprintf("row field count is %d, expected %d", count, len(c.binding.Targets))))
@@ -151,15 +77,11 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 	for i, target := range c.binding.Targets {
 		column := c.binding.Relation.Columns[target]
 		c.column = column.Name
-		p, err = c.readFixed(4)
+		payload, null, err := c.in.field()
 		if err != nil {
-			if binaryEOF(err) {
-				err = sqlError("22P04", "unexpected EOF in COPY data")
-			}
 			return false, c.diagnostic(err)
 		}
-		length := int32(binary.BigEndian.Uint32(p))
-		if length == -1 {
+		if null {
 			if wireInput {
 				ctx = c.scope.op.Context()
 				if column.Usage.Type.IsDomain() {
@@ -175,30 +97,10 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 			c.column = ""
 			continue
 		}
-		if length < -1 {
-			return false, c.diagnostic(sqlError("22P04", "invalid field size"))
-		}
-		if length >= 1073741823 {
-			return false, c.diagnostic(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "54000", Message: "string buffer exceeds maximum allowed length (1073741823 bytes)", Detail: fmt.Sprintf("Cannot enlarge string buffer containing 0 bytes by %d more bytes.", length)})
-		}
-		// Grow with real bytes, not an attacker-controlled unfulfilled declaration.
-		c.payload = c.payload[:0]
-		for remaining := int(length); remaining > 0; {
-			n := min(remaining, len(c.scratch))
-			p, err = c.readFixed(n)
-			if err != nil {
-				if binaryEOF(err) {
-					err = sqlError("22P04", "unexpected EOF in COPY data")
-				}
-				return false, c.diagnostic(err)
-			}
-			c.payload = append(c.payload, p...)
-			remaining -= n
-		}
 		if wireInput {
 			ctx = c.scope.op.Context()
 		}
-		dst[i], err = column.Usage.Type.BinaryInputWithEnvironment(ctx, c.payload, column.Usage.Typmod, c.scope.input)
+		dst[i], err = column.Usage.Type.BinaryInputWithEnvironment(ctx, payload, column.Usage.Typmod, c.scope.input)
 		if err != nil {
 			return false, c.diagnostic(err)
 		}
@@ -215,10 +117,10 @@ func (c *copyBinaryCursor) diagnostic(err error) error {
 	}
 	err = c.scope.copyCommandError(err)
 	var record *sqlstate.Error
-	if !errors.As(err, &record) || c.number == 0 {
+	if !errors.As(err, &record) || c.in.number == 0 {
 		return err
 	}
-	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.Relation.Name(), c.number)
+	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.Relation.Name(), c.in.number)
 	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.Relation.Name())) {
 		return err
 	}
