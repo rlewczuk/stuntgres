@@ -66,7 +66,7 @@ none of `Engine`, `StatementScope`, `CatalogStage`).
 | Dump and Restore | `table_dump.go`, `constraint_dump.go`, `not_null_restore.go`, `physical_not_null_dump.go`, `physical_not_null_foreign_key.go`, `physical_not_null_restore.go`, `physical_not_null_restore_primary.go`, `physical_not_null_restore_syntax.go`, `foreign_key_restore.go`, `attribute_rank_restore.go` | 2.11k / 0.91k |
 
 Of the 1.39k clean DEFAULT lines, about 0.68k are `scalarRenderer`
-(declared in `default.go`: the type, `sql` at 618 lines, `functionSQL`,
+(declared in `default.go` when measured, in `scalar_renderer.go` since 22a: the type, `sql` at 618 lines, `functionSQL`,
 `record`, plus `defaultSQL` and `renderColumnDefault`). That is
 stored-SQL presentation and moves with `stored` (22b), not here.
 

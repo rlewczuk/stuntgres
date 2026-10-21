@@ -880,7 +880,7 @@ which open the node's `ACLExplodeCursor` (`string_set_query.go`,
 membership, which calls `BindACLContains`; raw/bound view literal pairing
 (`view_literals.go`); the closed-DEFAULT check (`aclexplode` is never
 closed); and the stored-default guard that rejects `pg_get_acl` and the
-access inquiries outside a relation-owned definition (`default.go`). The
+access inquiries outside a relation-owned definition (`scalar_renderer.go`). The
 aclitem and regrole input and output adapters (`aclitem_input.go`,
 `aclitem_output.go`, `regrole_input.go`, `regrole_output.go`) are statement
 input and output state over the role store, not function nodes, and stay

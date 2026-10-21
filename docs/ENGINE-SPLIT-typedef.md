@@ -357,7 +357,7 @@ The dump seam the 15c notes waited for is step 18 (`dump`):
 
 Not here: type-declaration and literal rendering
 (`catalogTypeDeclaration*`, `catalogColumnDeclaration`, `catalogLiteral*`)
-goes to `regobj` (step 21); `domain_remap.go`, `composite_render.go`,
+goes to `regobj` (step 21); `domain_remap.go`, `view_deparse_composite.go`,
 `collation_display.go`, `collation_validation.go` and `record_shape.go`
 are presentation and go to `stored` (22b); `typed_inheritance.go` and
 `typed_mutation.go` use ALTER TABLE records and go with `table` (step

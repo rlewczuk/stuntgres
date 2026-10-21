@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `351822746` (items 55 and 58). Steps 8–17 were
+Last verified against `master` at `1c5f5898a` (items 55, 58 and 67). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -19,7 +19,7 @@ files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
 - **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 60 (ddl 20a), 64 (regobj
-  21a), 67 (stored 22a).
+  21a).
 - **Follow-ups in existing packages:** 71 (functions F6), 72 (catalog 5i),
   73 (plan 10e), 74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f),
   78 (session 13f), 79 (access B6).
@@ -28,7 +28,7 @@ after each lands.
 
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
-(dump 18a) and 58 (copyfmt 19a) are done. Step 3
+(dump 18a), 58 (copyfmt 19a) and 67 (stored 22a) are done. Step 3
 stays open until F6 (item 71) closes F2.
 
 ## Task tree
@@ -415,7 +415,9 @@ stays open until F6 (item 71) closes F2.
   - [ ] 21c — Captured input resolvers moved
 - [ ] **Step 22 — `stored`** ([prompt](ENGINE-SPLIT-stored.md); 22b needs
   21b, F6, 18b and 12f, 22c needs 5j)
-  - [ ] 22a — In place: coverage cut, freeze cuts, accessors, renames
+  - [x] 22a — In place: coverage cut, freeze cut, accessors, renames
+    (`fc0f6dbe8`, `219495724`, `f9035b171`, `a0224bb18`, `905c53bad`,
+    `bec9e323f`, `89b74100f`, then the docs commit)
   - [ ] 22b — `stored` created, presentation set moved with aliases *(broad)*
   - [ ] 22c — Rule and policy payloads, remap protocol
   - [ ] 22d — Aliases removed *(broad)*
@@ -843,8 +845,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     [regobj](ENGINE-SPLIT-regobj.md) 21b · needs 64, 74
 66. [ ] regobj 21c: captured input resolvers moved —
     [regobj](ENGINE-SPLIT-regobj.md) 21c · needs 65
-67. [ ] stored 22a: in place (coverage cut, freeze cuts, accessors,
+67. [x] stored 22a: in place (coverage cut, freeze cuts, accessors,
     renames) — [stored](ENGINE-SPLIT-stored.md) 22a · needs —
+    (`fc0f6dbe8`, `219495724`, `f9035b171`, `a0224bb18`, `905c53bad`,
+    `bec9e323f`, `89b74100f`, then the docs commit) · coverage through
+    `indexCoverageReader` (32 declarations clean), `freezeQueryPresentation`
+    a function, `viewDefinition` read accessors, renames, name `stored` ·
+    selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 68. [ ] stored 22b: `stored` created, presentation set moved with aliases —
     [stored](ENGINE-SPLIT-stored.md) 22b · needs 67, 65, 71, 56, 77 ·
     **broad**

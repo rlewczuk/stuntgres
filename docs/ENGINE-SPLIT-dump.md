@@ -115,8 +115,8 @@ until its owner's Part B.
 | `inheritance_*_restore*.go` | 318+108+429+262 | table 24b; hooks |
 | `partition_dump.go`, `partition_dump_events.go`, `partition_constraint_dump.go`, `partition_invalid_dump.go`, `partition_unique_dump.go` | 360, 556, 215, 259, 184 | partition 25b |
 | `partition_remap.go`, `partition_*_replay.go`, `partition_detach_restore.go` | 151, 74+201+64, 82 | partition 25b; hooks |
-| `view_remap.go`, `frozen_presentation_remap.go` | 1,169 (1,101/47), 118 (108/0) | `stored` 22b and 22c |
-| `view_catalog_remap.go` | 302 (0/290) | `stored` 22c (`ReownExpressions`) |
+| `expression_remap.go` (was `view_remap.go`), `frozen_presentation_remap.go` | 1,169 (1,101/47), 118 (108/0) | `stored` 22b and 22c |
+| `catalog_expression_reown.go` (was `view_catalog_remap.go`) | 302 (0/290) | `stored` 22c (`ReownExpressions`) |
 | `rule_dump.go`, `rule_source_dump.go`, `rule_assignment_dump.go`, `update_row_dump.go`, `policy_dump.go`, `rls_base_dump.go`, `rule_remap.go`, `policy_remap.go` | 587, 56, 46, 76, 118, 44, 445, 34 | `stored` 22c |
 | `materialized_snapshot.go` | 365 (151/191) | view 27b; hook |
 | `regclass_dump.go`, `aclitem_dump.go`, `aclitem_remap.go` | 36, 149 (39/95), 70 (0/61) | `regobj` 21 (clean parts) |

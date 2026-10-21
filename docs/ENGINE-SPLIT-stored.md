@@ -55,9 +55,8 @@ cannot leave the root until it moves (ENGINE-SPLIT.md §2.7). It makes
 about 240 references to `analyze` (capture vocabulary such as `ViewLiteralPath`,
 `ViewFromRoot`, closed defaults, lookups), so it sits above `analyze`.
 
-`stored` is the proposed name: the package holds the frozen definitions,
-not only their rendering. `deparse` is the alternative; settle it in 22a
-(§7 decision 12) and use one name everywhere.
+The package is `stored` (settled in 22a, §7 decision 12): it holds the
+frozen definitions, not only their rendering, so `deparse` was rejected.
 
 What stays in the root: the `Engine` and scope entry points that capture
 or publish definitions (view, rule and policy DDL until step 27), the
@@ -85,13 +84,15 @@ Package imports of the set (qualified references): `plan` 562, `analyze`
 `authorization`, `parser`, `sqltype`, `sqlstate`. No `session`,
 `storage`, `visibility` or `lock`.
 
-**Whole files (43).** `view_deparse.go` (1,716), `expression_retag.go`
-(949), `view_render_sources.go`, `view_literal_validation.go`,
-`scalar_rendering.go`, `temporary_provenance.go`,
-`expression_references.go`, `deparse_rendering.go`, `query_cte_view.go`,
-`query_values_view.go`, `conditional_default.go`,
-`frozen_presentation_remap.go`, `policy_validation.go`,
-`string_view_sources.go`, `composite_render.go`, `procedure_provider.go`,
+**Whole files (45 after 22a).** `view_deparse.go` (1,716),
+`expression_remap.go` (1,120), `expression_retag.go` (949),
+`scalar_renderer.go` (706), `view_render_sources.go`,
+`view_literal_validation.go`, `scalar_rendering.go`,
+`temporary_provenance.go`, `expression_references.go`,
+`deparse_rendering.go`, `view_deparse_cte.go`, `view_deparse_values.go`,
+`conditional_default.go`, `frozen_presentation_remap.go`,
+`policy_validation.go`, `view_deparse_functions.go`,
+`view_deparse_composite.go`, `procedure_provider.go`,
 `routine_dependencies.go`, `view_composite_validation.go`,
 `collation_validation.go`, `rule_assignment.go`, `array_rendering.go`,
 `view_payload.go`, `catalog_pinning.go`, `routine_presentation.go`,
@@ -112,8 +113,7 @@ are used only by `expression_retag.go`; they move here, not to `exec`.
 
 | File | Moves | Stays |
 |---|---|---|
-| `default.go` | `scalarRenderer`, `defaultSQL`, `renderColumnDefault`, the `sql`, `functionSQL` and `record` methods (22a renames them to `scalar_renderer.go`) | `bindCreateDefaults`, `validateCookedDefaultTemporary` (table code, step 24) |
-| `view_remap.go` (1,169) | `remapBoundExpression`, `remapBoundExpressionWithQuery`, `remapScalarExpression`, `remapViewQuery`, `remapViewQueryMapped`, `viewQueryRemapper` and its methods, `catalogExpressionTypesChanged`, `remapQuoteOwner` | `Engine.remapCatalogExpressions`, `Engine.remapViewRuleOIDs` |
+| `view_definition.go` | `freezeQueryPresentation`, `frozenQueryDependencies` (22a made the freeze a function) | `Engine.freezeViewDefinitionLocked`, the wrapper that allocates a rule OID |
 | `deparse_renderer.go` | everything but `pgIdentifier` | `pgIdentifier` goes to `catalog` (21a) |
 | `view_dependencies.go` | `viewDefinition.Validate`, `validateViewLeaves`, `validateStoredSetNode` | dependency staging (step 27); the drop diagnostics go to a root `drop_diagnostics.go` (27a) |
 | `view.go` | `viewDefinition`, `viewLeaf`, `viewOptions`, `validateNamespaces`, `namespaceRoot` | CREATE VIEW handling (step 27) |
@@ -122,7 +122,7 @@ are used only by `expression_retag.go`; they move here, not to `exec`.
 | `query_graph.go` | nothing: analyze 12f (item 77) moves the whole file first; the set calls `analyze`'s exported names | — |
 | `view_write.go` | `viewWriteShape`, `viewDirectColumn`, `sameViewRelation` | view-write lowering (step 27) |
 | `unique.go` | `pgRenderer.uniqueConstraintSQL` | unique enforcement (step 23) |
-| `regtype_persistence.go`, `regproc_persistence.go` | the `scalarRenderer.record*` methods (21a puts them next to the renderer) | the reg* code (`regobj`) |
+| `regtype_persistence.go`, `regproc_persistence.go` | the `scalarRenderer.record*` methods (21a puts them next to the renderer in `scalar_renderer.go`) | the reg* code (`regobj`) |
 | `policy.go`, `policy_payload.go` | `policyExpression`, `policyExpressionOf`, its `DependsOn` and `Validate` | policy DDL (step 27) |
 | `policy_dump.go` | `policyExpressionSQL` | the dump groups (22c) |
 | `roles.go` | `relationVisibleAt`, `relationDiagnosticNameAt` | role code (step 28) |
@@ -223,7 +223,12 @@ One commit per item; `make build` and the targeted units after each.
    `policy_expression.go` (grep `freezeViewDefinitionLocked` and
    `freezeQueryPresentationLocked`). The function then joins the 22b set; re-run
    the fixed point.
-3. **Renames, so files say what they hold.**
+3. **Read accessors** (ENGINE-SPLIT.md §6). `viewDefinition` gets read-only
+   methods for the fields its readers outside the 22b set use: sources,
+   dependencies, invoker, rule (the existing `RuleOID`), references and
+   literals. Those readers switch to them; the set and every write keep
+   field access.
+4. **Renames, so files say what they hold.**
    - `scalarRenderer`, `defaultSQL`, `renderColumnDefault` and the
      renderer methods out of `default.go` into `scalar_renderer.go`;
      include the `record*` methods that 21a brought next to it.
@@ -236,11 +241,39 @@ One commit per item; `make build` and the targeted units after each.
      `view_deparse_values.go`, `string_view_sources.go` →
      `view_deparse_functions.go`, `composite_render.go` →
      `view_deparse_composite.go`.
-4. **Settle the name** (`stored` or `deparse`) and the exported names
+5. **Settle the name** (`stored` or `deparse`) and the exported names
    (table below). Write both into this file before 22b.
 
 **Open questions.** None known. If a cut does not make its declarations
 clean, stop and report the `reach` path instead of widening the cut.
+
+**Result (measured at `1c5f5898a`).**
+
+- Coverage cut: `reach` went from 1466 to 1504 clean declarations: the 32
+  predicted (`relationProvider.Validate`, `validateIndexDefinition`,
+  `indexDefinitionSQL`, `dumpPredecessor`, the partition dump and replay
+  helpers, the physical NOT NULL emitters, `domainInvalidDumpEvents`,
+  `sqlRoutineDumpEvents`) plus the six new declarations.
+  `partitionIndexCoverageComplete(view, index)` is kept as the catalog entry
+  point.
+- Freeze cut: `freezeQueryPresentation` is clean. It takes the consumer's
+  TEMP owner token (`catalogSourceTemporaryOwner(auth)`, zero without a
+  session) and never allocates. The `frontier` fixed point from `set4.txt`
+  plus `freezeQueryPresentation` and `frozenQueryDependencies` has the same
+  OUT as before; only `sqlError` gains a user.
+- Accessors: `Sources`, `Dependencies`, `Invoker`, `References` and
+  `Literals` sit in `view_payload.go` next to `RuleOID`. 138 reads in 56
+  root files (production and tests) were rewritten with a go/types pass.
+  Outside the set, 21 writes remain as field access: 16 in tests and 5 in
+  three production functions, `Engine.bindPolicyExpression` (dependencies),
+  `Engine.executeAlterView` (invoker), `Engine.remapViewRuleOIDs` (rule).
+- Renames: as listed. `scalar_renderer.go` and `expression_remap.go` are
+  now whole files of the set. `default.go` keeps the two table helpers;
+  `catalog_expression_reown.go` holds `reownCatalogExpressions`,
+  `remapCatalogExpressions` and `remapViewRuleOIDs`. The `record*` methods
+  stay in `regtype_persistence.go`/`regproc_persistence.go`, because 21a has
+  not run.
+- Name: `stored`, with the table in 22b step 2 as the final names.
 
 ### 22b — Create `stored` and move the set (broad)
 
@@ -248,7 +281,7 @@ clean, stop and report the `reach` path instead of widening the cut.
    `view_remap.go`) and 18b (`dump.CommentLiteral`) have landed. Re-run
    the fixed point from `set4.txt` plus the 22a additions; OUT must hold
    only `regobj`, `dump`, `catalog` and `sqlError`. Stop if not.
-2. **Names.** Proposed (record the final table in the README):
+2. **Names.** Settled in 22a (record the table in the README):
 
    | Root name | `stored` name |
    |---|---|
@@ -261,6 +294,7 @@ clean, stop and report the `reach` path instead of widening the cut.
    | `policyExpression`, `policyExpressionOf` | `Policy`, `PolicyOf` |
    | `pgDependRefs`, `pgDependExpressionRefs`, `pgDependQueryRefs` | `DependRefs`, `ExpressionDependRefs`, `QueryDependRefs` |
    | `validateInstalled*` | `ValidateInstalled*` |
+   | `viewDefinition.Sources`, `Dependencies`, `Invoker`, `RuleOID`, `References`, `Literals` | unchanged (exported in 22a) |
 
 3. **Export in place**, then **move** with the move driver (`mv.sh`):
    collect the partial-file declarations into a staging file, check OUT,
@@ -386,7 +420,11 @@ aliases remain; the checks in §8.3 pass.
 
 ## Status
 
-- [ ] 22a — In place: coverage and freeze cuts, renames, name settled (item 67)
+- [x] 22a — In place: coverage and freeze cuts, accessors, renames, name
+  settled (item 67) (`fc0f6dbe8`, `219495724`, `f9035b171`, `a0224bb18`,
+  `905c53bad`, `bec9e323f`, `89b74100f`, then the docs commit) · selected
+  unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
+  skipped at user request
 - [ ] 22b — `stored` created and presentation set moved *(broad)* (item 68)
 - [ ] 22c — Rule and policy payloads, `ReownExpressions` (item 69)
 - [ ] 22d — Aliases removed *(broad)* (item 70)
@@ -394,6 +432,18 @@ aliases remain; the checks in §8.3 pass.
 Outstanding aliases: none yet.
 
 ### Notes for later steps
+
+- 22b: three production writers outside the set still assign
+  `viewDefinition` fields on their copy (`bindPolicyExpression`,
+  `executeAlterView`, `remapViewRuleOIDs`), and 16 test sites do the same.
+  Give them a constructor or copy-with method when the type moves, not
+  exported fields. `viewLeaf` fields (`ref`, `only`, `mark`, ...) are still
+  read directly through `Sources()`; they need accessors or exports in 22b.
+- 21a (regobj): put the `scalarRenderer.record*` methods in
+  `scalar_renderer.go` (22a created it), not `default.go`.
+- Index 23a: the reader interface is `indexCoverageReader`
+  (`partition_index_attach.go`); `catalogCoverage` is the plain-catalog
+  implementation.
 
 - Step 27 (`view`) loses `rule_tree_mapper.go`, `rule_binding_map.go`,
   `refreshRuleBinding` and `refreshRuleConflict` to 22c: the rule remap
