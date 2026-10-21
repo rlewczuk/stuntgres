@@ -2017,7 +2017,14 @@ exist. Each item is a new sub-step in that package's prompt file.
 15. **Dump and Restore protocol.** Collect and Emit tables for Dump (18c)
     and a hook table for Restore (30a), composed by the root in today's
     order (pattern 5). The entry signatures are settled in 18c and 30a;
-    output and error order must stay byte-identical.
+    output and error order must stay byte-identical. Settled by 18c:
+    Collect entries are `{name, matches, collect(ctx, *dumpCollection,
+    address, descriptor)}`, first match wins, and relation kinds have
+    their own table after a shared prelude; the Emit table is indexed by
+    `dump.Phase`, each entry an `owner` rule (nil: the emitter switches
+    itself) and an `emit(ctx, *dumpScript, *dumpWriter, event)`; the
+    whole script is an ordered `dumpSections` list (see the `dump`
+    README).
 16. **One DDL contract.** One `ddl.Authority` and `ddl.Stage` for every
     package that stages catalog changes, with one root staging adapter
     (20a, 20b). Settled by 20a: the per-package markers went; one
@@ -2056,7 +2063,7 @@ package-specific scope. This section holds the rules every session follows.
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c refined (`typedef.StageHost` on 14c's `schemaHost`, authority as a value; stage handlers move, executors stay); 15d done (stage handlers and the ALTER ENUM/DOMAIN staging cores moved behind `StageHost` on `typedefHost`; racecheck/finalcheck skipped at user request) |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c refined (providers own staging behind `extension.Stage`, handler decisions behind `extension.Host`, one root adapter); 16d done: 16d.1 providers stage themselves, 16d.2 handler decisions moved behind `extension.Host` (racecheck/finalcheck skipped at user request) |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c refined (decisions move, orchestration stays; no `sequence.Host`); 17d done (handler, identity, serial, prepared-literal, call and Control decisions and the stage slot moved; orchestration stays in the root) (racecheck/finalcheck skipped at user request) |
-| 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b done (`dump` created: event graph, `Order`, `Statement`, `Group`, Restore scalar validators, `Resolver`/`Presenter` with root adapters; no aliases; racecheck/finalcheck skipped at user request); 18c planned |
+| 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b done (`dump` created: event graph, `Order`, `Statement`, `Group`, Restore scalar validators, `Resolver`/`Presenter` with root adapters; no aliases; racecheck/finalcheck skipped at user request); 18c done (`captureDumpLocked` unlocks once; ordered Collect tables, phase-indexed Emit table and section list; output byte-identical; racecheck/finalcheck skipped at user request) |
 | 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | done (19a cursors split in place; 19b `copyfmt` created and the codec moved: options, FORCE binding, `LineReader`, `BinaryReader`, no aliases; racecheck/finalcheck skipped at user request) |
 | 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b done (one root staging adapter `ddlHost`; racecheck/finalcheck skipped at user request); 20c–20d planned |
 | 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | 21a done in place (regclass, literal, namespace-visibility and identity files; `pgIdentifier` is `catalog.Identifier`; racecheck/finalcheck skipped at user request); 21b–21c planned |

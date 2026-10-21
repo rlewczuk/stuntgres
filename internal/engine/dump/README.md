@@ -50,6 +50,48 @@ helpers, so it stays in the root behind the `dumpResolver` adapter.
 and routine presentation helpers until `regobj` (step 21) owns them. The
 table dump record `dumpRelation` moves with `table` (step 24).
 
+### How `Engine.Dump` runs (root)
+
+`Engine.Dump` has three stages, each in its own root file:
+
+1. **Capture** (`dump_capture.go`). Dump takes `Engine.mu`, calls
+   `captureDumpLocked` and unlocks once. The capture checks portability,
+   builds the builtin-schema preamble and passes every descriptor to the
+   Collect tables. It returns a `dumpCapture`; nothing after the unlock
+   reads engine state.
+2. **Build** (`dump_script.go`). `buildDumpScript` renders the groups and
+   statements, completes the event graph, decides default deferral and
+   orders the events with `Order`.
+3. **Emit** (`dump_sections.go`, `dump_emit.go`,
+   `dump_emit_declaration.go`). `dumpSections` is the whole script in
+   order; its `events` section writes each ordered event through the Emit
+   table. `dumpWriter` writes text and tracks the `SET SESSION
+   AUTHORIZATION` owner.
+
+**Collect tables** (`dump_collect.go`, `dump_collect_relation.go`).
+`dumpCollectors` is an ordered list of
+`{name, matches(Descriptor), collect(ctx, *dumpCollection, address, Descriptor)}`
+entries. The first entry whose `matches` accepts a descriptor collects it;
+a descriptor no entry accepts is `unsupported catalog descriptor kind`.
+Objects in temporary namespaces are skipped before matching. The relation
+entry runs the checks shared by every relation, then
+`dumpRelationCollectors` (composite, index, view, sequence, table) in the
+same first-match way. Entries fill the capture and read locked engine
+state only through `dumpCollection.source`, which never outlives
+`Engine.mu`. Order is error precedence: keep it when adding an entry.
+
+**Emit table** (`dump_emit.go`). `dumpPhaseEmitters` is indexed by
+`Phase`. Each entry has an `owner` the event loop sets before the entry
+runs (`nil`: the emitter sets it, as `Declaration` and `DomainChecks` do;
+domain checks render before the owner switch so an error writes nothing)
+and an `emit`; an empty entry (`TableCompletion`) writes nothing. Table
+phases emit a copy of the captured `dumpRelation`.
+
+A feature package takes over an entry when its dump code moves (14e, 15e,
+23b, 24b, 25b, 27b): it exports the entry's function, and the root table
+names it in the same position. The entry types stay in the root until
+step 30 (`control`) declares them.
+
 ## Testing
 
 Package units:
@@ -71,3 +113,8 @@ Public behavior is covered by the Dump, Restore and Control reference tests
 make check RUN='^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)'
 make check RUN='^TestReferenceControl'
 ```
+
+Changes to the root Collect or Emit tables, or to the `Engine.mu` window,
+also need `make check RACE=1 RUN='^TestReferenceControl'` and a dump,
+restore and re-dump comparison against a `master` baseline (see 18b and 18c
+in [ENGINE-SPLIT-dump.md](../../../docs/ENGINE-SPLIT-dump.md)).

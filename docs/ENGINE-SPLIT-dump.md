@@ -405,9 +405,67 @@ place. Dump output is byte-identical and the checks in §8.3 pass.
     and `^TestReferenceControl`, `REFERENCE=1` for the six tests named
     under 18a, and quickcheck passed; racecheck/finalcheck skipped at
     user request.
-- [ ] 18c — Collect and Emit tables in `Engine.Dump`
+- [x] 18c — Collect and Emit tables in `Engine.Dump` (`82ccf9f5c`,
+  `5342c324b`, `56731f78c`, `45eac6657`, `4beca3bd7`, then the docs
+  commit). Measured at `205d59485`: `Engine.Dump`
+  was `control.go:72`–`1659` with 60 manual unlocks; it is now capture,
+  build, emit (about 30 lines), and `control.go` fell from 2,288 to 729
+  lines.
+  - **Capture** (`dump_capture.go`): `captureDumpLocked` returns a
+    `dumpCapture`; `Dump` unlocks `Engine.mu` once. The pre-loop checks are
+    `dumpPortable` and `dumpBuiltinSchemaPreamble`, in today's order.
+  - **Collect tables** (`dump_collect.go`, `dump_collect_relation.go`):
+    `dumpCollectors` (relation, database, parameter, tablespace, operator,
+    procedure, text search, extension, type, collation, conversion,
+    namespace; no match is `unsupported catalog descriptor kind`) and
+    `dumpRelationCollectors` (composite, index, view, sequence, table)
+    after the shared relation prelude. Case bodies moved unchanged.
+  - **Build** (`dump_script.go`): `buildDumpScript` returns a `dumpScript`
+    (groups, statements, both `Order` passes and the retry, declarations,
+    sequence statements).
+  - **Emit** (`dump_emit.go`, `dump_emit_declaration.go`,
+    `dump_sections.go`): `dumpPhaseEmitters` indexed by `dump.Phase`,
+    `dumpSections` for the whole script, `dumpWriter` for text and owner.
+    The CREATE TABLE text is built by `dumpTableCreateSQL` before anything
+    is written.
+  - **Signatures settled (decision 15):** collectors are
+    `{name, matches(catalog.Descriptor) bool, collect(ctx, *dumpCollection, ids.ObjectAddress, catalog.Descriptor) error}`
+    — the prompt's sketch gained `ctx`, because index and view entries
+    render SQL; relation entries also get the prelude's
+    `relationDumpContext{namespace, owner}`. Phase entries are
+    `{owner func(*dumpScript, dump.Event) string; emit func(ctx, *dumpScript, *dumpWriter, dump.Event) error}`
+    — the writer carries `emit`/`setOwner`, and a `nil` owner means the
+    emitter switches authority itself (`Declaration`; `DomainChecks`,
+    which renders before `SET` so a rendering error writes nothing).
+    Sections are `{name, emit(ctx, *dumpScript, *dumpWriter) error}`; the
+    prompt asked only for the trailing blocks, the leading ones joined so
+    the list is the whole script.
+  - **Non-verbatim substitutions** (each equal by construction): the view
+    entry's fresh `e.catalog.read(e.catalog.state)` is the capture's
+    `originalCatalog` (the same `catalog.NewRead(owner, state)` under the
+    same lock); `e.roles.domain.Principal(10)` is
+    `Principal(authorization.BootstrapPrincipalID)` (10); every inline
+    `if owner != currentOwner { SET ...; currentOwner = owner }` is
+    `dumpWriter.setOwner`, and the two unconditional ones are
+    `forceOwner`; `sequence.DumpStatements` runs at the end of
+    `buildDumpScript` instead of between the schema comments and the
+    sequence creation (it only sorts the captured sequence list).
+  - Tests: none moved, added or rewritten. No unit test pins the tables'
+    wiring (AGENTS.md); the smoke and the reference selections pin the
+    output.
+  - Verification: the byte-identity smoke
+    (`.cswd/tmp/PG18-ENGINE-SPLIT-DUMP-TABLES/dumpsmoke`, the five 18b
+    scenarios plus one with extensions, builtin schema renames and owner
+    changes, a non-postgres domain and inherited-table owner, a typed table,
+    a materialized view and a deferred regclass default, and five error
+    scenarios pinning first-error texts) matched the `205d59485` baseline
+    after every commit and after the rebase onto `8b70be811`; targeted units and quick-mode `*Dump*` after every
+    commit; quick-mode `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)`,
+    `^TestReferenceControl` and `RACE=1 ^TestReferenceControl`;
+    `REFERENCE=1` for the six tests named under 18a; quickcheck passed;
+    racecheck/finalcheck skipped at user request.
 
-Outstanding aliases: none (18b added none).
+Outstanding aliases: none (18b and 18c added none).
 
 ### Notes for later steps
 
@@ -416,6 +474,18 @@ Outstanding aliases: none (18b added none).
   `Presenter` methods its statements call.
 - `dumpRelation` (`table_dump.go:21`, 15 methods in 9 files) is the table
   dump record; it moves with `table` (24b), not here.
+- 18c entries per feature step: 14e takes the operator and procedure
+  collectors and the `OperatorLinks` emitter; 15e the type, collation and
+  conversion collectors and the `DomainChecks` emitter; 23b the index
+  collector and `emitDumpIndex`; 24b the table collector,
+  `tableDumpPredecessors`, `emitDumpTable`/`dumpTableCreateSQL` and the
+  table-phase emitters; 25b the attachment and invalid-index emitters;
+  27b the view collector and the materialized-snapshot section. A moved
+  entry keeps its position in the root table.
+- 30a can reuse the shape: Restore's hook table is the same "ordered
+  entries, first match wins" list; 30c moves `dumpScript` and the emit
+  files with the drivers, while `captureDumpLocked` and `dumpSource` stay
+  in the root.
 - `validateTemporaryCollationDump` stays in the root until the domain
   dependency closure gets a reader (pattern 6); 30b decides.
 - Restore uses the same records; its statement switch (#3) and hooks are
