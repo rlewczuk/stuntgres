@@ -13,56 +13,10 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) error {
-	var err error
-	plan.WalkExpression(node, func(node expr.Expr) {
-		if err != nil {
-			return
-		}
-		if call, ok := node.(functions.SequenceCall); ok {
-			err = sequence.ValidateDefaultTemporaryProvider(call.Temporary, consumer, parser.Position{})
-		}
-	})
-	return err
-}
-
-func bindCreateDefaults(b *analyze.Binder, columns []catalog.Column, declarations []analyze.ColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
-	var defaults map[int32]catalog.ColumnDefault
-	auth, err := b.BindingAuthorization()
-	if err != nil {
-		return nil, err
-	}
-	view := auth.ReadCatalog()
-	for slot := range declarations {
-		raw := declarations[slot].DefaultExpr
-		if raw == nil {
-			continue
-		}
-		node, err := b.BindDefault(raw, columns[slot])
-		if err != nil {
-			return nil, err
-		}
-		if omitColumnDefault(view, node, columns[slot].Usage) {
-			continue
-		}
-		definition := catalog.ColumnDefault{Expression: node}
-		_, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: capturedACLItemOutput{owner: b.Host.CatalogOwner(), roles: b.Host.Roles(auth)}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.Ctx, view, node)
-		if err != nil {
-			return nil, err
-		}
-		if defaults == nil {
-			defaults = make(map[int32]catalog.ColumnDefault)
-		}
-		defaults[int32(slot+1)] = definition
-	}
-	return defaults, nil
-}
 
 // One recursive serializer validates persisted scalar trees without Eval.
 // DEFAULT admits closed Immutable/Stable trees, selected UUID/time generation
