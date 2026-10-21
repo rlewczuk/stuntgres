@@ -104,8 +104,8 @@ between the commands of a writable CTE. Its fields, by owner:
 - `uniqueBinding`, `indexBindings` (index);
 - `insertConflict`, `insertReturning` (dml);
 - `partitionInsert`, `partitionRelations` (partition);
-- `rlsTargetDenied`, `rlsProposal`, `rlsMergeUpdate`, `rlsMergeInsert`,
-  `rlsProposalTable` (view; 27a slots them).
+- `rls` (`rowSecurityMutation`: target denial, proposal, the two MERGE
+  dispositions and the proposal table; view, grouped by 27a).
 
 **Clean set** (2.4k lines, by real owner): dml keeps about 1.0k (the ON
 CONFLICT state and the whole of `insert_conflict_predicate.go`,

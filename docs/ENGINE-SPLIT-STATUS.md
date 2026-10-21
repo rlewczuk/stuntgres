@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `bfeb5f38a` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90 and 94). Steps 8–17 were
+Last verified against `master` at `559d40ad7` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94 and 99). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,7 +20,7 @@ after each lands.
 
 - **Seams:** 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
-- **Upper features, in place:** 99 (view 27a), 103 (role 28a).
+- **Upper features, in place:** 103 (role 28a).
 - **Upper features, packages:** 95 (fdw 26b).
 - **DML, in place:** 107 (dml 29a).
 
@@ -59,7 +59,8 @@ Item 90 (partition 25a) is done; partition 25b (item 91) still waits
 for table 24b (item 87).
 Item 63 (ddl 20d) is done and closes step 20; only the end-state review
 (item 114) needs it. Item 66 (regobj 21c) is done and closes step 21; only
-item 114 needs it.
+item 114 needs it. Item 99 (view 27a) is done; view 27b (item 100) still
+waits for stored 22c (item 69) and table 24b (item 87).
 
 ## Task tree
 
@@ -493,7 +494,9 @@ item 114 needs it.
   - [ ] 26e — Foreign-table decisions moved
 - [ ] **Step 27 — `view`** ([prompt](ENGINE-SPLIT-view.md); 27b needs 22c,
   24b)
-  - [ ] 27a — In place: `access.View` cuts, slots, renames, dead code
+  - [x] 27a — In place: `access.View` cuts, slots, renames, dead code
+    (`87bfbb497`, `16260a489`, `a0254a5c3`, `57c781f25`, `7472271b6`,
+    `a5e32e52a`, `512cf3e1c`, `24b0bfde4`, then the docs commit)
   - [ ] 27b — `view` created and clean set moved *(broad)*
   - [ ] 27c — Host refined (docs only)
   - [ ] 27d — Handler decisions moved
@@ -1117,7 +1120,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     [fdw](ENGINE-SPLIT-fdw.md) 26d · needs 96
 98. [ ] FDW 26e: foreign-table decisions — [fdw](ENGINE-SPLIT-fdw.md) 26e ·
     needs 97, 89
-99. [ ] View 27a: in place — [view](ENGINE-SPLIT-view.md) 27a · needs —
+99. [x] View 27a: in place — [view](ENGINE-SPLIT-view.md) 27a · needs —
+    (`87bfbb497`, `16260a489`, `a0254a5c3`, `57c781f25`, `7472271b6`,
+    `a5e32e52a`, `512cf3e1c`, `24b0bfde4`, then the docs commit) · dead
+    code and test-only staging helpers deleted; `drop_diagnostics.go`;
+    `dropCascadeNames`; view-write lowering over the catalog owner and a
+    `catalog.Read`; opaque `ruleAuthority`; `ruleRewriter`; access helpers
+    over `access.View`; `rls` and `ruleAction` value groups; every 27b
+    move-set declaration clean · selected unit and dual-mode proof and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 100. [ ] View 27b: `view` created, clean set moved —
      [view](ENGINE-SPLIT-view.md) 27b · needs 99, 69, 87 · **broad**
 101. [ ] View 27c: host refined (docs only) — [view](ENGINE-SPLIT-view.md)

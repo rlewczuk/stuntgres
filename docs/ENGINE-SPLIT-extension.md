@@ -157,7 +157,7 @@ interface and move set; wait for approval.
     (`ownershipStage`, `referencePath`, `ownershipRelationLocks`,
     `acquireSequence`, `removeObjectLocked`, `stageExpressionDependencies`,
     `stageOwnedSequences`, the replacement read release, `publishOwnership`,
-    `viewCascadeNames`), the same shape DROP OWNED has in `owned_roles.go`.
+    `dropCascadeNames`), the same shape DROP OWNED has in `owned_roles.go`.
   - *Owner import and fence*: `importExtensionOwners` needs `Engine.mu`, the
     import authority (`importTargets`), the cloned state, `roles.read` and
     `reownCatalogExpressions`; its per-record matching loop reads only the

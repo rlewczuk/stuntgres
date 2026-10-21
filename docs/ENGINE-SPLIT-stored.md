@@ -453,7 +453,7 @@ Outstanding aliases: none yet.
 
 - Step 27 (`view`) loses `rule_tree_mapper.go`, `rule_binding_map.go`,
   `refreshRuleBinding` and `refreshRuleConflict` to 22c: the rule remap
-  needs them. Rule rewriting proper (`expandRulesLocked` and the rule
+  needs them. Rule rewriting proper (`ruleRewriter` and the rule
   program records) stays for step 27.
 - Analyze 12f must not take `query_cte_volatility.go`: `cteStoredViewVolatile`
   reads `viewDefinition`, which sits above `analyze`. It moves here (22b)

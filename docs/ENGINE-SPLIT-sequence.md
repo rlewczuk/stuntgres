@@ -129,7 +129,7 @@ staging of `identity.go` as the move set:
   functions, methods and fields): `AuthorizationView` (`Check`,
   `CheckCreate`, `Roles`, `stagedTemporary`, `catalogAuthorityLocked`),
   `CatalogStage` (`Create`, `Replace`, `creationACL`, `authorizeLocked`,
-  `dependencyPath`, `viewCascadeNames`), the journal install
+  `dependencyPath`, `dropCascadeNames`), the journal install
   (`catalogChangeLocked`, `privateCatalogLocked`), `allocateOIDLocked` and
   `revisionLocked`, the scope fields `catalog`, `catalogAuthority`, `owner`,
   `op`, `ticket` and `replacementRead`, the drop provider (`dropProvider`,
