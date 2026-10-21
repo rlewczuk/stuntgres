@@ -226,7 +226,29 @@ not grow.
 
 ## Status
 
-- [ ] 19a — Cursors split in place
+- [x] 19a — Cursors split in place (`b2d22701d`, `50cc79234`, `decb25737`, `9118a9cf0`, then the docs
+  commit; linear item 58). `CopyBoundary` moved to `protocol_copy.go`.
+  `copyTarget{name, hasDefault}` is built once per statement by
+  `copyLineTargets` in `copy_text.go`. `copyLineReader`
+  (`copy_line_reader.go`, with `readCSVLine`/`splitCSV` in `copy_csv.go`)
+  and `copyBinaryReader` (`copy_binary_reader.go`) hold the codec; the
+  cursors hold them as a value field `in`. Beyond the plan, so that `Next`
+  keeps only execution: `header` took the once-only HEADER guard,
+  `fieldNull` the CSV FORCE_NULL/FORCE_NOT_NULL classification, and the
+  binary reader got `row` (tuple count, `-1` trailer, trailing data) and
+  `field` (length word, size limits, payload) out of `Next`. The text
+  cursor clears its diagnostic column in `Next` instead of in `readLine`.
+  The text cursor's `defaults` and `omitted` share one backing array to
+  offset the targets slice. `reach`: every declaration in
+  `copy_options.go`, `copy_force.go`, `copy_csv.go`, `copy_line_reader.go`
+  and `copy_binary_reader.go` is clean (913 lines). Tests adapted:
+  `copy_csv_test.go` builds `copyLineReader` directly;
+  `protocol_terminal_test.go` and `protocol_copy_cursor_cancel_test.go`
+  build the cursors with `in:`. Allocations for 10,000-row COPY FROM,
+  master and branch alternated: text 30,083–30,086, CSV 30,080–30,083,
+  binary 20,084–20,085 allocs/op on both. Selected unit/`RACE=1` and
+  dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+  user request
 - [ ] 19b — `copyfmt` created and the codec moved
 
 Outstanding aliases: none yet.
@@ -239,6 +261,16 @@ Outstanding aliases: none yet.
   moves with the DML executors. The protocol half (`copy_admission.go`,
   `protocol_copy*.go`, `CopyBoundary`, `StatementScope.Copy` and
   `CopyProtocol`) stays in the root.
-- §6 estimated the codec at about 1.0k lines; measured, it is about 0.75k.
-  The insertion batching records (`copyInsertion*`) are execution, not
-  codec.
+- §6 estimated the codec at about 1.0k lines; after 19a it is 913 lines
+  in five whole files, because the binary tuple and field framing left
+  `Next` too. The insertion batching records (`copyInsertion*`) are
+  execution, not codec.
+- 19b: the codec moves as whole files: `copy_options.go`, `copy_force.go`,
+  `copy_csv.go`, `copy_line_reader.go`, `copy_binary_reader.go`.
+  `copyLineTargets` stays in the root (it reads `analyze.Binding`) and
+  builds `[]copyfmt.Target`. The root still reads reader fields: the text
+  cursor reads `fields` (`isDefault`, `decoded`), `number`, `line` and
+  `lineValid`; the binary cursor reads `number` and reads and sets
+  `header`; `copyOutput` reads the options. Export these fields or add
+  accessors. Besides the methods in step 2 above, export `fieldNull`, `row`
+  and `field`.

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `1dad6120d` (item 55). Steps 8–17 were
+Last verified against `master` at `351822746` (items 55 and 58). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,7 +18,7 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 56 (dump 18b), 58 (copyfmt 19a), 60 (ddl 20a), 64 (regobj
+- **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 60 (ddl 20a), 64 (regobj
   21a), 67 (stored 22a).
 - **Follow-ups in existing packages:** 71 (functions F6), 72 (catalog 5i),
   73 (plan 10e), 74 (catalog 5j), 75 (exec 11e), 77 (analyze 12f),
@@ -27,8 +27,8 @@ after each lands.
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
 Steps 1–17 and `access` (A1–B5) are done, and so is item 54, the second
-planning round: steps 18–30 and the follow-ups have prompt files. Item 55
-(dump 18a) is done. Step 3
+planning round: steps 18–30 and the follow-ups have prompt files. Items 55
+(dump 18a) and 58 (copyfmt 19a) are done. Step 3
 stays open until F6 (item 71) closes F2.
 
 ## Task tree
@@ -400,7 +400,8 @@ stays open until F6 (item 71) closes F2.
   - [ ] 18b — `dump` created and graph records moved
   - [ ] 18c — Collect/Emit provider tables replace Dump switches #1 and #2
 - [ ] **Step 19 — `copyfmt`** ([prompt](ENGINE-SPLIT-copyfmt.md); needs —)
-  - [ ] 19a — COPY cursors split into codec and DML parts, in place
+  - [x] 19a — COPY cursors split into codec and DML parts, in place
+    (`b2d22701d`, `50cc79234`, `decb25737`, `9118a9cf0`, then the docs commit)
   - [ ] 19b — `copyfmt` created and codecs moved
 - [ ] **Step 20 — `ddl`** ([prompt](ENGINE-SPLIT-ddl.md); needs —)
   - [ ] 20a — One `Authority`, `Stage` and `Host` contract
@@ -821,8 +822,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     [dump](ENGINE-SPLIT-dump.md) 18b · needs 55
 57. [ ] Dump 18c: Collect/Emit provider tables, in place —
     [dump](ENGINE-SPLIT-dump.md) 18c · needs 56
-58. [ ] COPY codecs 19a: cursors split, in place —
-    [copyfmt](ENGINE-SPLIT-copyfmt.md) 19a · needs —
+58. [x] COPY codecs 19a: cursors split, in place —
+    [copyfmt](ENGINE-SPLIT-copyfmt.md) 19a · needs — (`b2d22701d`, `50cc79234`, `decb25737`, `9118a9cf0`,
+    then the docs commit) · `copyLineReader` and `copyBinaryReader` hold
+    the codec, 913 clean lines; allocations unchanged · selected
+    unit/`RACE=1` and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 59. [ ] COPY codecs 19b: `copyfmt` created, codecs moved —
     [copyfmt](ENGINE-SPLIT-copyfmt.md) 19b · needs 58
 60. [ ] DDL 20a: one `Authority`, `Stage` and `Host` contract —

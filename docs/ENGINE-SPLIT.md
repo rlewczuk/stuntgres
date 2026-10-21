@@ -1461,11 +1461,12 @@ literals), and Dump output is byte-identical. Prompt file:
 
 ### Step 19 — `engine/copyfmt`: COPY codecs
 
-**Moves (19b, about 0.75k lines).** COPY options (`copy_options.go`), FORCE
+**Moves (19b, about 0.9k lines).** COPY options (`copy_options.go`), FORCE
 binding (`copy_force.go`), text and CSV encoding and decoding, binary
 framing and the line diagnostics. 19a first splits `copyCursor` and
 `copyBinaryCursor` into a codec part (reader, options, buffers) and a DML
-part (scope, binding, `Next`); that makes about 450 lines clean. The name
+part (scope, binding, `Next`); after it the codec is 913 clean lines in
+five files. The name
 avoids `copy`, which would shadow the builtin.
 
 **Stays.** The COPY protocol and reservation (`copy_admission.go`,
@@ -2026,7 +2027,7 @@ package-specific scope. This section holds the rules every session follows.
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c refined (providers own staging behind `extension.Stage`, handler decisions behind `extension.Host`, one root adapter); 16d done: 16d.1 providers stage themselves, 16d.2 handler decisions moved behind `extension.Host` (racecheck/finalcheck skipped at user request) |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c refined (decisions move, orchestration stays; no `sequence.Host`); 17d done (handler, identity, serial, prepared-literal, call and Control decisions and the stage slot moved; orchestration stays in the root) (racecheck/finalcheck skipped at user request) |
 | 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b–18c planned |
-| 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | planned (19a–19b) |
+| 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | 19a done (cursors split in place: `copyLineReader` and `copyBinaryReader` hold the codec; racecheck/finalcheck skipped at user request); 19b planned |
 | 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | planned (20a–20d) |
 | 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | planned (21a–21c) |
 | 22 | [`ENGINE-SPLIT-stored.md`](ENGINE-SPLIT-stored.md) | 22b: 21b, F6, 18b, 12f; 22c: 5j | planned (22a–22d) |
