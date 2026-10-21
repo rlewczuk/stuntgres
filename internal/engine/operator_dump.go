@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
@@ -238,20 +239,20 @@ func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles autho
 
 // Link events use raw endpoint declarations. Only semantic consumers are
 // redirected to completion; redirecting structural edges would invent cycles.
-func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph map[dumpEventKey][]dumpEventKey) {
+func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph dump.Graph) {
 	for _, source := range operators {
 		if source.Function == 0 {
 			continue
 		}
-		declaration := dumpEventKey{oid: source.Address().ObjectID}
+		declaration := dump.Event{OID: source.Address().ObjectID}
 		for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 			peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 			if peer == nil || peer.Function == 0 || routine.OperatorSeeded(peer) {
 				continue
 			}
-			target := dumpEventKey{oid: id}
+			target := dump.Event{OID: id}
 			if operatorDumpDeferredLink(view, source, kind, id) {
-				event := dumpEventKey{oid: declaration.oid, phase: dumpOperatorLinks}
+				event := dump.Event{OID: declaration.OID, Phase: dump.OperatorLinks}
 				graph[event] = append(graph[event], declaration, target)
 			} else {
 				// Completing the target clears the transient reciprocal field
@@ -262,14 +263,14 @@ func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph 
 	}
 }
 
-func normalizeOperatorDumpPredecessors(view catalog.Read, graph map[dumpEventKey][]dumpEventKey) {
+func normalizeOperatorDumpPredecessors(view catalog.Read, graph dump.Graph) {
 	for event, predecessors := range graph {
-		_, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.oid})
-		structural := event.phase == dumpOperatorLinks || operator && event.phase == dumpDeclaration
+		_, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.OID})
+		structural := event.Phase == dump.OperatorLinks || operator && event.Phase == dump.Declaration
 		unique := predecessors[:0]
 		for _, predecessor := range predecessors {
-			if !structural && predecessor.phase == dumpDeclaration {
-				completion := dumpEventKey{oid: predecessor.oid, phase: dumpOperatorLinks}
+			if !structural && predecessor.Phase == dump.Declaration {
+				completion := dump.Event{OID: predecessor.OID, Phase: dump.OperatorLinks}
 				if _, exists := graph[completion]; exists {
 					predecessor = completion
 				}

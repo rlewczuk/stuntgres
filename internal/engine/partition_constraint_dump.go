@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -120,12 +121,12 @@ func (r *partitionConstraintReplay) tableRenames(view catalog.Read, table *catal
 	if table.Membership == nil || partitionDumpNeedsAttach(view, table) {
 		return "", nil
 	}
-	return r.membershipRenames(view, table, dumpEventKey{oid: table.Address().ObjectID}), nil
+	return r.membershipRenames(view, table, dump.Event{OID: table.Address().ObjectID}), nil
 }
 
 // A populated ATTACH can create an entire inherited subtree in one SQL event.
 // Reserve that complete creation sequence before freeing any generated name.
-func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *catalog.Relation, event dumpEventKey) string {
+func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *catalog.Relation, event dump.Event) string {
 	type rename struct {
 		index     *catalog.Relation
 		generated string
@@ -164,7 +165,7 @@ func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *
 		name := generatedConstraintName(child.Name(), addition, suffix, used)
 		used[name] = true
 		renames = append(renames, rename{index, name})
-		if event.phase == dumpTableAttachment && child.Partition != nil {
+		if event.Phase == dump.TableAttachment && child.Partition != nil {
 			for _, address := range child.Partition.Children {
 				reserve(r.original.MustRelation(address), index)
 			}

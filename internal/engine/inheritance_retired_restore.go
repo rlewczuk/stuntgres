@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -392,7 +393,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	return nil
 }
 
-func retiredConstraintEvents(view catalog.Read, events map[dumpEventKey][]dumpEventKey, tables []dumpRelation) {
+func retiredConstraintEvents(view catalog.Read, events dump.Graph, tables []dumpRelation) {
 	for i := range tables {
 		table := tables[i].descriptor
 		graph := table.Inheritance
@@ -409,7 +410,7 @@ func retiredConstraintEvents(view catalog.Read, events map[dumpEventKey][]dumpEv
 		if !has {
 			continue
 		}
-		event := dumpEventKey{oid: table.Address().ObjectID, phase: dumpRetiredConstraints}
+		event := dump.Event{OID: table.Address().ObjectID, Phase: dump.RetiredConstraints}
 		seen := make(map[ids.ObjectAddress]bool)
 		var ready func(ids.ObjectAddress)
 		ready = func(address ids.ObjectAddress) {
@@ -417,7 +418,7 @@ func retiredConstraintEvents(view catalog.Read, events map[dumpEventKey][]dumpEv
 				return
 			}
 			seen[address] = true
-			addDumpDependency(events, event, dumpEventKey{oid: address.ObjectID, phase: dumpTableCompletion})
+			events.Add(event, dump.Event{OID: address.ObjectID, Phase: dump.TableCompletion})
 			if parent, ok := view.Relation(address); ok && parent.Inheritance != nil {
 				for _, ancestor := range parent.Inheritance.Parents {
 					ready(ancestor)

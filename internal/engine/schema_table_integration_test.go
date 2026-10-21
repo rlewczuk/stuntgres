@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"testing"
+
 )
 
 func TestSchemaTableIntegration(t *testing.T) {

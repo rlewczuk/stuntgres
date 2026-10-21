@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -43,14 +44,14 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 func TestIndexPropertyDumpRemappedTopology(t *testing.T) {
 	// Destination OIDs deliberately put the dependent view and index before
 	// their parent. Creation must still follow definition dependencies.
-	graph := map[dumpEventKey][]dumpEventKey{{oid: 30}: nil, {oid: 20}: {{oid: 30}}, {oid: 10}: {{oid: 20}}, {oid: 40}: {{oid: 20}}}
-	order, err := dumpOrder(context.Background(), graph, nil)
-	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{30, 20, 10, 40}) {
+	graph := dump.Graph{{OID: 30}: nil, {OID: 20}: {{OID: 30}}, {OID: 10}: {{OID: 20}}, {OID: 40}: {{OID: 20}}}
+	order, err := dump.Order(context.Background(), graph, nil)
+	if err != nil || !reflect.DeepEqual(dump.DeclarationIDs(order), []ids.OID{30, 20, 10, 40}) {
 		t.Fatal(order, err)
 	}
 	// A CHECK on the parent requiring its own ordinary index is a real cycle;
 	// this feature adds no successful constraint-deferral fallback.
-	if _, err := dumpOrder(context.Background(), map[dumpEventKey][]dumpEventKey{{oid: 30}: {{oid: 20}}, {oid: 20}: {{oid: 30}}}, nil); err == nil {
+	if _, err := dump.Order(context.Background(), dump.Graph{{OID: 30}: {{OID: 20}}, {OID: 20}: {{OID: 30}}}, nil); err == nil {
 		t.Fatal("cyclic index definition dependencies accepted")
 	}
 }

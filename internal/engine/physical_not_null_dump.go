@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -98,14 +99,14 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 
 // Track only actual moved providers in the existing event graph. Consumers do
 // not wait for unrelated keys, omitted TEMP objects, or synthetic catalog nodes.
-func physicalNotNullDumpDependencies(view catalog.Read, graph map[dumpEventKey][]dumpEventKey) error {
+func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error {
 	var deferred map[ids.ObjectAddress]*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
 		if !ok || len(table.Constraints.PhysicalNotNull) == 0 {
 			continue
 		}
-		if _, emitted := graph[dumpEventKey{oid: table.Address().ObjectID}]; !emitted {
+		if _, emitted := graph[dump.Event{OID: table.Address().ObjectID}]; !emitted {
 			continue
 		}
 		for i := range table.Constraints.Unique {
@@ -131,7 +132,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph map[dumpEventKey][
 		if !ok {
 			continue
 		}
-		event := dumpEventKey{oid: relation.Address().ObjectID}
+		event := dump.Event{OID: relation.Address().ObjectID}
 		if _, emitted := graph[event]; !emitted {
 			continue
 		}
@@ -145,7 +146,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph map[dumpEventKey][
 				if err != nil {
 					return err
 				}
-				addDumpDependency(graph, event, dumpEventKey{oid: oid})
+				graph.Add(event, dump.Event{OID: oid})
 			}
 			continue
 		}
@@ -174,7 +175,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph map[dumpEventKey][
 					}
 				}
 				if temporaryNN {
-					addDumpDependency(graph, event, dumpEventKey{oid: index.Address().ObjectID})
+					graph.Add(event, dump.Event{OID: index.Address().ObjectID})
 				}
 			}
 		}
@@ -200,7 +201,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph map[dumpEventKey][
 			if err != nil {
 				return err
 			}
-			addDumpDependency(graph, event, dumpEventKey{oid: oid})
+			graph.Add(event, dump.Event{OID: oid})
 		}
 	}
 	return nil

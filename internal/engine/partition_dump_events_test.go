@@ -2,12 +2,12 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strconv"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -59,16 +59,16 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			rowValues := slices.Clone(values)
 			rowValues[len(rowValues)-1] = sqltype.String(regclass, strconv.FormatUint(uint64(reference.Address().ObjectID), 10))
 			tables := []dumpRelation{{descriptor: f.root}, {descriptor: &other}, {descriptor: f.leaf, columns: f.leaf.Columns, attributes: f.leaf.Attributes, versions: []storage.RowVersion{{Row: 1, Version: 1, Values: rowValues}}}}
-			graph := make(map[dumpEventKey][]dumpEventKey)
+			graph := make(dump.Graph)
 			indices := make(map[ids.OID]int)
 			for _, table := range tables {
-				graph[dumpEventKey{oid: table.descriptor.Address().ObjectID}] = nil
+				graph[dump.Event{OID: table.descriptor.Address().ObjectID}] = nil
 			}
 			for _, index := range []*catalog.Relation{f.parent, f.child, &good, &leafGood, &otherGood} {
-				graph[dumpEventKey{oid: index.Address().ObjectID}] = []dumpEventKey{{oid: index.SQLIndex.Parent.ObjectID}}
+				graph[dump.Event{OID: index.Address().ObjectID}] = []dump.Event{{OID: index.SQLIndex.Parent.ObjectID}}
 				indices[index.Address().ObjectID] = len(indices)
 			}
-			declarations, err := dumpOrder(context.Background(), graph, nil)
+			declarations, err := dump.Order(context.Background(), graph, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -76,57 +76,36 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
-			order, err := dumpOrder(context.Background(), graph, map[ids.OID]ids.OID{good.Address().ObjectID: 1})
+			order, err := dump.Order(context.Background(), graph, map[ids.OID]ids.OID{good.Address().ObjectID: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
-			before := func(first, second dumpEventKey) {
+			before := func(first, second dump.Event) {
 				t.Helper()
 				a, b := slices.Index(order, first), slices.Index(order, second)
 				if a < 0 || b < 0 || a >= b {
 					t.Fatalf("required predecessor %v before %v: %v", first, second, order)
 				}
 			}
-			otherMember := dumpEventKey{oid: other.Address().ObjectID, phase: dumpTableAttachment}
-			leafMember := dumpEventKey{oid: f.leaf.Address().ObjectID, phase: dumpTableAttachment}
-			before(otherMember, dumpEventKey{oid: f.parent.Address().ObjectID})
-			before(dumpEventKey{oid: f.parent.Address().ObjectID}, leafMember)
-			before(otherMember, dumpEventKey{oid: good.Address().ObjectID})
-			before(leafMember, dumpEventKey{oid: good.Address().ObjectID})
-			before(dumpEventKey{oid: reference.Address().ObjectID}, dumpEventKey{oid: f.leaf.Address().ObjectID, phase: dumpRows})
-			before(dumpEventKey{oid: f.leaf.Address().ObjectID, phase: dumpRows}, dumpEventKey{oid: f.leaf.Address().ObjectID, phase: dumpInvalidConstraints})
+			otherMember := dump.Event{OID: other.Address().ObjectID, Phase: dump.TableAttachment}
+			leafMember := dump.Event{OID: f.leaf.Address().ObjectID, Phase: dump.TableAttachment}
+			before(otherMember, dump.Event{OID: f.parent.Address().ObjectID})
+			before(dump.Event{OID: f.parent.Address().ObjectID}, leafMember)
+			before(otherMember, dump.Event{OID: good.Address().ObjectID})
+			before(leafMember, dump.Event{OID: good.Address().ObjectID})
+			before(dump.Event{OID: reference.Address().ObjectID}, dump.Event{OID: f.leaf.Address().ObjectID, Phase: dump.Rows})
+			before(dump.Event{OID: f.leaf.Address().ObjectID, Phase: dump.Rows}, dump.Event{OID: f.leaf.Address().ObjectID, Phase: dump.InvalidConstraints})
 			if reference == f.parent {
-				before(dumpEventKey{oid: f.leaf.Address().ObjectID, phase: dumpInvalidConstraints}, leafMember)
+				before(dump.Event{OID: f.leaf.Address().ObjectID, Phase: dump.InvalidConstraints}, leafMember)
 			} else {
-				before(leafMember, dumpEventKey{oid: f.leaf.Address().ObjectID, phase: dumpRows})
+				before(leafMember, dump.Event{OID: f.leaf.Address().ObjectID, Phase: dump.Rows})
 			}
 			for _, child := range []*catalog.Relation{f.child, &leafGood, &otherGood} {
-				before(dumpEventKey{oid: child.Address().ObjectID, phase: dumpIndexAttachment}, dumpEventKey{oid: f.root.Address().ObjectID, phase: dumpTableCompletion})
+				before(dump.Event{OID: child.Address().ObjectID, Phase: dump.IndexAttachment}, dump.Event{OID: f.root.Address().ObjectID, Phase: dump.TableCompletion})
 			}
 			if f.parent.SQLIndex.Valid || f.child.SQLIndex.PartitionParent != f.parent.Address() || !good.SQLIndex.Valid || leafGood.SQLIndex.PartitionParent != good.Address() || otherGood.SQLIndex.PartitionParent != good.Address() {
 				t.Fatal("phase construction changed the captured incomplete or valid index tree")
 			}
 		})
-	}
-}
-
-func TestPartitionAttachDumpPhaseScheduler(t *testing.T) {
-	definition := dumpEventKey{oid: 90}
-	membership := dumpEventKey{oid: 20, phase: dumpTableAttachment}
-	data := dumpEventKey{oid: 20, phase: dumpRows}
-	check := dumpEventKey{oid: 20, phase: dumpInvalidConstraints}
-	graph := map[dumpEventKey][]dumpEventKey{definition: {membership}, membership: nil, data: {definition}, check: {data}}
-	order, err := dumpOrder(context.Background(), graph, map[ids.OID]ids.OID{90: 1})
-	if err != nil || !slices.Equal(order, []dumpEventKey{membership, definition, data, check}) {
-		t.Fatal("source priority bypassed a membership/name/data/origin predecessor", order, err)
-	}
-	addDumpDependency(graph, membership, check)
-	if _, err := dumpOrder(context.Background(), graph, nil); err == nil {
-		t.Fatal("cyclic phase dependencies accepted")
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if _, err := dumpOrder(ctx, graph, nil); !errors.Is(err, context.Canceled) {
-		t.Fatal("canceled phase scheduler", err)
 	}
 }

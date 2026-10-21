@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
@@ -139,8 +140,8 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 }
 
 func TestInheritanceControlsTopology(t *testing.T) {
-	order, err := dumpOrder(context.Background(), map[dumpEventKey][]dumpEventKey{{oid: 20001}: {{oid: 20003}, {oid: 20002}}, {oid: 20002}: nil, {oid: 20003}: nil}, nil)
-	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{20002, 20003, 20001}) {
+	order, err := dump.Order(context.Background(), dump.Graph{{OID: 20001}: {{OID: 20003}, {OID: 20002}}, {OID: 20002}: nil, {OID: 20003}: nil}, nil)
+	if err != nil || !reflect.DeepEqual(dump.DeclarationIDs(order), []ids.OID{20002, 20003, 20001}) {
 		t.Fatal(order, err)
 	}
 }

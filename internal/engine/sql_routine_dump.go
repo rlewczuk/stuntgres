@@ -6,13 +6,14 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
-func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, events map[dumpEventKey][]dumpEventKey) error {
+func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, events dump.Graph) error {
 	for _, d := range routines {
-		key := dumpEventKey{oid: d.Address().ObjectID}
+		key := dump.Event{OID: d.Address().ObjectID}
 		events[key] = nil
 		for i := range len(d.SQL.Inputs) + 1 {
 			usage := d.SQL.Result
@@ -24,7 +25,7 @@ func sqlRoutineDumpEvents(view catalog.Read, routines []*catalog.Procedure, even
 				return err
 			}
 			if predecessor != 0 {
-				events[key] = append(events[key], dumpEventKey{oid: predecessor})
+				events[key] = append(events[key], dump.Event{OID: predecessor})
 			}
 		}
 	}

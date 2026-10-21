@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -251,19 +252,19 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 	check.NotValid = true
 	copy := *d
 	copy.DomainChecks = []catalog.DomainCheckConstraint{check}
-	graph := map[dumpEventKey][]dumpEventKey{{oid: d.Address().ObjectID}: nil, {oid: provider.Address().ObjectID}: {{oid: d.Address().ObjectID}}, {oid: 50002, phase: dumpRows}: {{oid: 50002}}, {oid: 50002}: nil, {oid: 50002, phase: dumpTableCompletion}: {{oid: 50002, phase: dumpRows}}}
+	graph := dump.Graph{{OID: d.Address().ObjectID}: nil, {OID: provider.Address().ObjectID}: {{OID: d.Address().ObjectID}}, {OID: 50002, Phase: dump.Rows}: {{OID: 50002}}, {OID: 50002}: nil, {OID: 50002, Phase: dump.TableCompletion}: {{OID: 50002, Phase: dump.Rows}}}
 	if err := domainInvalidDumpEvents(context.Background(), view, graph, map[ids.OID]*catalog.Type{d.Address().ObjectID: &copy}); err != nil {
 		t.Fatal(err)
 	}
-	late := dumpEventKey{oid: d.Address().ObjectID, phase: dumpDomainChecks}
-	if !slices.Contains(graph[late], dumpEventKey{oid: provider.Address().ObjectID}) || !slices.Contains(graph[late], dumpEventKey{oid: 50002, phase: dumpTableCompletion}) || len(graph[dumpEventKey{oid: d.Address().ObjectID}]) != 0 {
+	late := dump.Event{OID: d.Address().ObjectID, Phase: dump.DomainChecks}
+	if !slices.Contains(graph[late], dump.Event{OID: provider.Address().ObjectID}) || !slices.Contains(graph[late], dump.Event{OID: 50002, Phase: dump.TableCompletion}) || len(graph[dump.Event{OID: d.Address().ObjectID}]) != 0 {
 		t.Fatal("post-data providers leaked into CREATE", graph)
 	}
-	if _, err := dumpOrder(context.Background(), graph, nil); err != nil {
+	if _, err := dump.Order(context.Background(), graph, nil); err != nil {
 		t.Fatal("invented CREATE cycle", err)
 	}
-	graph[dumpEventKey{oid: provider.Address().ObjectID}] = append(graph[dumpEventKey{oid: provider.Address().ObjectID}], late)
-	if _, err := dumpOrder(context.Background(), graph, nil); err == nil {
+	graph[dump.Event{OID: provider.Address().ObjectID}] = append(graph[dump.Event{OID: provider.Address().ObjectID}], late)
+	if _, err := dump.Order(context.Background(), graph, nil); err == nil {
 		t.Fatal("genuine unresolved cycle accepted")
 	}
 }

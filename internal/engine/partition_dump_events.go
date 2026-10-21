@@ -5,14 +5,9 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 )
-
-func addDumpDependency(graph map[dumpEventKey][]dumpEventKey, event, predecessor dumpEventKey) {
-	if !slices.Contains(graph[event], predecessor) {
-		graph[event] = append(graph[event], predecessor)
-	}
-}
 
 func partitionDumpIndexBacking(view catalog.Read, index, table ids.ObjectAddress) *catalog.Relation {
 	for _, descriptor := range view.Descriptors() {
@@ -22,22 +17,6 @@ func partitionDumpIndexBacking(view catalog.Read, index, table ids.ObjectAddress
 		}
 	}
 	return nil
-}
-
-func dumpEventDependsOn(graph map[dumpEventKey][]dumpEventKey, event, target dumpEventKey, seen map[dumpEventKey]bool) bool {
-	if event == target {
-		return true
-	}
-	if seen[event] {
-		return false
-	}
-	seen[event] = true
-	for _, predecessor := range graph[event] {
-		if dumpEventDependsOn(graph, predecessor, target, seen) {
-			return true
-		}
-	}
-	return false
 }
 
 // A preexisting incomplete manual index must not be present while ATTACH could
@@ -77,39 +56,39 @@ func partitionDumpLateIndexTables(view catalog.Read) map[ids.ObjectAddress]bool 
 // Extend the existing declaration graph in place. The same source-priority
 // scheduler owns declarations, names, physical data, constraint origins and
 // captured membership/index edges; there is no independent topology sorter.
-func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
+func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Graph, declarations []dump.Event, tables []dumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
 	lateTables := partitionDumpLateIndexTables(view)
 	lateIndexes := make(map[ids.OID]bool)
 	for oid := range indexIndices {
 		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		lateIndexes[oid] = index.SQLIndex.Constraint == nil && lateTables[index.SQLIndex.Parent] || partitionPreservedReplayBacking(view, index) || partitionPreservedReplayLocal(view, index)
 		if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && !partitionReplayOnlyExclusion(root) {
-			partitionVirtualUniqueMembershipReady(view, graph, dumpEventKey{oid: oid}, view.MustRelation(index.SQLIndex.Parent))
+			partitionVirtualUniqueMembershipReady(view, graph, dump.Event{OID: oid}, view.MustRelation(index.SQLIndex.Parent))
 		}
 	}
-	membership := func(table *catalog.Relation) dumpEventKey {
+	membership := func(table *catalog.Relation) dump.Event {
 		if partitionDumpNeedsAttach(view, table) {
-			return dumpEventKey{oid: table.Address().ObjectID, phase: dumpTableAttachment}
+			return dump.Event{OID: table.Address().ObjectID, Phase: dump.TableAttachment}
 		}
-		return dumpEventKey{oid: table.Address().ObjectID}
+		return dump.Event{OID: table.Address().ObjectID}
 	}
 	for _, t := range tables {
 		d := t.descriptor
 		event := membership(d)
-		if event.phase != dumpTableAttachment {
+		if event.Phase != dump.TableAttachment {
 			continue
 		}
-		graph[event] = []dumpEventKey{{oid: d.Address().ObjectID}, {oid: d.Membership.Parent.ObjectID}}
+		graph[event] = []dump.Event{{OID: d.Address().ObjectID}, {OID: d.Membership.Parent.ObjectID}}
 		if d.Partition != nil {
 			for _, child := range d.Partition.Children {
-				addDumpDependency(graph, event, membership(view.MustRelation(child)))
+				graph.Add(event, membership(view.MustRelation(child)))
 			}
 		}
 		if d.Membership.DefaultBound {
 			parent := view.MustRelation(d.Membership.Parent)
 			for _, child := range parent.Partition.Children {
 				if child != d.Address() && !partitionExclusionDefaultBefore(view, d, view.MustRelation(child)) {
-					addDumpDependency(graph, event, membership(view.MustRelation(child)))
+					graph.Add(event, membership(view.MustRelation(child)))
 				}
 			}
 		}
@@ -126,88 +105,88 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 		for _, child := range table.Partition.Children {
 			backing := partitionDumpIndexBacking(view, index.Address(), child)
 			if index.SQLIndex.Valid || partitionIndexPreservedInvalid(view, index) || backing == nil || !backing.SQLIndex.Valid {
-				addDumpDependency(graph, dumpEventKey{oid: oid}, membership(view.MustRelation(child)))
+				graph.Add(dump.Event{OID: oid}, membership(view.MustRelation(child)))
 			}
 		}
 	}
 	lateDeclarations := make(map[ids.OID]bool)
 	for _, event := range declarations {
-		lateDeclarations[event.oid] = lateIndexes[event.oid]
-		if _, exists := indexIndices[event.oid]; exists {
-			index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.oid})
+		lateDeclarations[event.OID] = lateIndexes[event.OID]
+		if _, exists := indexIndices[event.OID]; exists {
+			index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.OID})
 			if partitionReplayOnlyExclusion(index) {
-				lateDeclarations[event.oid] = true
+				lateDeclarations[event.OID] = true
 			}
 		}
-		if descriptor, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.oid}); ok && descriptor.Membership != nil && !partitionDumpNeedsAttach(view, descriptor) {
+		if descriptor, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.OID}); ok && descriptor.Membership != nil && !partitionDumpNeedsAttach(view, descriptor) {
 			parent := view.MustRelation(descriptor.Membership.Parent)
 			for _, index := range partitionIndexDeclarationOrder(view, parent) {
 				if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && partitionReplayOnlyExclusion(root) && partitionDumpIndexBacking(view, index.Address(), descriptor.Address()) != nil {
-					lateDeclarations[event.oid] = true
+					lateDeclarations[event.OID] = true
 				}
 			}
 		}
 		for _, predecessor := range graph[event] {
-			if predecessor.phase == dumpDeclaration {
-				lateDeclarations[event.oid] = lateDeclarations[event.oid] || lateDeclarations[predecessor.oid]
+			if predecessor.Phase == dump.Declaration {
+				lateDeclarations[event.OID] = lateDeclarations[event.OID] || lateDeclarations[predecessor.OID]
 			}
 		}
 	}
-	virtualNameReady := make(map[ids.ObjectAddress]dumpEventKey)
-	nameReady := func(address ids.ObjectAddress) (dumpEventKey, bool, error) {
+	virtualNameReady := make(map[ids.ObjectAddress]dump.Event)
+	nameReady := func(address ids.ObjectAddress) (dump.Event, bool, error) {
 		address.SubID = 0
 		if _, exists := replay.temporary[address]; exists {
 			index := view.MustRelation(address)
 			if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && !partitionReplayOnlyExclusion(root) {
 				return virtualNameReady[root.Address()], true, nil
 			}
-			return dumpEventKey{oid: address.ObjectID, phase: dumpRename}, true, nil
+			return dump.Event{OID: address.ObjectID, Phase: dump.Rename}, true, nil
 		}
 		oid, err := dumpPredecessor(view, address, ids.ObjectAddress{})
-		return dumpEventKey{oid: oid}, oid != 0, err
+		return dump.Event{OID: oid}, oid != 0, err
 	}
 	lateNames := make(map[ids.OID]bool)
 
 	// Retain the existing nonoperator definition chain. Operator declarations
 	// interleave through real prerequisites: chaining an unrelated type after
 	// an operator could make it wait for links whose endpoint needs that type.
-	var earlyTail dumpEventKey
+	var earlyTail dump.Event
 	for _, event := range declarations {
-		if event.phase != dumpDeclaration {
+		if event.Phase != dump.Declaration {
 			continue
 		}
-		if _, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.oid}); operator {
+		if _, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.OID}); operator {
 			continue
 		}
-		if lateDeclarations[event.oid] {
+		if lateDeclarations[event.OID] {
 			continue
 		}
-		if earlyTail != (dumpEventKey{}) {
-			addDumpDependency(graph, event, earlyTail)
+		if earlyTail != (dump.Event{}) {
+			graph.Add(event, earlyTail)
 		}
 		earlyTail = event
 	}
-	if earlyTail == (dumpEventKey{}) {
+	if earlyTail == (dump.Event{}) {
 		return nil
 	}
 	ready := earlyTail
-	seen := make(map[dumpEventKey]bool)
+	seen := make(map[dump.Event]bool)
 	renameOrder := replay.finalRenameOrder()
 	for _, index := range renameOrder {
 		provider, err := dumpPredecessor(view, index.Address(), ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
-		event := dumpEventKey{oid: index.Address().ObjectID, phase: dumpRename}
+		event := dump.Event{OID: index.Address().ObjectID, Phase: dump.Rename}
 		creator := partitionConstraintCreator(view, index)
-		graph[event] = []dumpEventKey{earlyTail, creator}
-		lateNames[index.Address().ObjectID] = lateDeclarations[provider] || creator.phase == dumpTableAttachment
+		graph[event] = []dump.Event{earlyTail, creator}
+		lateNames[index.Address().ObjectID] = lateDeclarations[provider] || creator.Phase == dump.TableAttachment
 		if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && !partitionReplayOnlyExclusion(root) {
 			// A definition creates the whole local tree. Complete its terminal
 			// names in captured logical order before any original-name consumer,
 			// independent of reminted root/leaf allocation order.
-			if previous := virtualNameReady[root.Address()]; previous != (dumpEventKey{}) {
-				addDumpDependency(graph, event, previous)
+			if previous := virtualNameReady[root.Address()]; previous != (dump.Event{}) {
+				graph.Add(event, previous)
 			}
 			virtualNameReady[root.Address()] = event
 		}
@@ -219,33 +198,33 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 			// that spelling alive through their declarations, then rename before
 			// original-name row/default replay consumers.
 			for _, declaration := range declarations {
-				if declaration.oid == provider || !lateDeclarations[declaration.oid] {
+				if declaration.OID == provider || !lateDeclarations[declaration.OID] {
 					continue
 				}
 				clear(seen)
-				if dumpEventDependsOn(graph, declaration, dumpEventKey{oid: provider}, seen) {
-					addDumpDependency(graph, event, declaration)
+				if graph.DependsOn(declaration, dump.Event{OID: provider}, seen) {
+					graph.Add(event, declaration)
 				}
 			}
 		}
 		if !lateNames[index.Address().ObjectID] {
-			addDumpDependency(graph, event, ready)
+			graph.Add(event, ready)
 			ready = event
 		}
 	}
 
 	lateRows := make(map[ids.OID]bool)
 	lateConstraints := make(map[ids.OID]bool)
-	rowSources := make(map[ids.OID][]dumpEventKey)
-	constraintSources := make(map[ids.OID][]dumpEventKey)
-	defaultSources := make(map[ids.OID][]dumpEventKey)
+	rowSources := make(map[ids.OID][]dump.Event)
+	constraintSources := make(map[ids.OID][]dump.Event)
+	defaultSources := make(map[ids.OID][]dump.Event)
 	lateDefaults := make(map[ids.OID]bool)
 	rowAfterMembership := make(map[ids.OID]bool)
 	checkAfterMembership := make(map[ids.OID]bool)
 	for i := range tables {
 		t := &tables[i]
 		oid := t.descriptor.Address().ObjectID
-		collect := func(destination *[]dumpEventKey, late *bool) func(ids.ObjectAddress) error {
+		collect := func(destination *[]dump.Event, late *bool) func(ids.ObjectAddress) error {
 			return func(address ids.ObjectAddress) error {
 				event, exists, err := nameReady(address)
 				if err != nil {
@@ -254,11 +233,11 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 				if exists && !slices.Contains(*destination, event) {
 					*destination = append(*destination, event)
 				}
-				*late = *late || event.phase == dumpDeclaration && lateDeclarations[event.oid] || event.phase == dumpRename && lateNames[event.oid]
+				*late = *late || event.Phase == dump.Declaration && lateDeclarations[event.OID] || event.Phase == dump.Rename && lateNames[event.OID]
 				return nil
 			}
 		}
-		var sources []dumpEventKey
+		var sources []dump.Event
 		late := lateDeclarations[oid]
 		if err := t.rowReplayReferences(ctx, view, collect(&sources, &late)); err != nil {
 			return err
@@ -269,7 +248,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 			var requireTree func(*catalog.Relation)
 			requireTree = func(d *catalog.Relation) {
 				event := membership(d)
-				late = late || event.phase == dumpTableAttachment
+				late = late || event.Phase == dump.TableAttachment
 				if !slices.Contains(sources, event) {
 					sources = append(sources, event)
 				}
@@ -285,13 +264,13 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 		target := membership(t.descriptor)
 		clear(seen)
 		after := false
-		if target.phase == dumpTableAttachment {
-			after = dumpEventDependsOn(graph, dumpEventKey{oid: oid}, target, seen)
+		if target.Phase == dump.TableAttachment {
+			after = graph.DependsOn(dump.Event{OID: oid}, target, seen)
 			for _, source := range sources {
-				after = after || dumpEventDependsOn(graph, source, target, seen)
+				after = after || graph.DependsOn(source, target, seen)
 			}
 		}
-		rowAfterMembership[oid] = target.phase == dumpTableAttachment && after
+		rowAfterMembership[oid] = target.Phase == dump.TableAttachment && after
 		sources, late = nil, lateRows[oid]
 		for _, check := range t.descriptor.Constraints.Check {
 			if !check.NotValid {
@@ -309,12 +288,12 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 		}
 		constraintSources[oid], lateConstraints[oid] = sources, late
 		after = rowAfterMembership[oid]
-		if target.phase == dumpTableAttachment {
+		if target.Phase == dump.TableAttachment {
 			for _, source := range sources {
-				after = after || dumpEventDependsOn(graph, source, target, seen)
+				after = after || graph.DependsOn(source, target, seen)
 			}
 		}
-		checkAfterMembership[oid] = target.phase == dumpTableAttachment && after
+		checkAfterMembership[oid] = target.Phase == dump.TableAttachment && after
 		sources, late = nil, lateDeclarations[oid]
 		if deferDefaults {
 			for attribute, definition := range t.defaults {
@@ -340,86 +319,86 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 		byOID[tables[i].descriptor.Address().ObjectID] = &tables[i]
 	}
 	for _, declaration := range declarations {
-		t := byOID[declaration.oid]
+		t := byOID[declaration.OID]
 		if t == nil || !deferDefaults || len(t.deferredDefinitions) == 0 {
 			continue
 		}
-		event := dumpEventKey{oid: declaration.oid, phase: dumpDefaults}
-		graph[event] = append([]dumpEventKey{ready, declaration}, defaultSources[declaration.oid]...)
-		if !lateDefaults[declaration.oid] {
+		event := dump.Event{OID: declaration.OID, Phase: dump.Defaults}
+		graph[event] = append([]dump.Event{ready, declaration}, defaultSources[declaration.OID]...)
+		if !lateDefaults[declaration.OID] {
 			ready = event
 		}
 	}
 	rowTail := ready
 	for _, declaration := range declarations {
-		if byOID[declaration.oid] == nil || lateRows[declaration.oid] {
+		if byOID[declaration.OID] == nil || lateRows[declaration.OID] {
 			continue
 		}
-		event := dumpEventKey{oid: declaration.oid, phase: dumpRows}
-		graph[event] = append([]dumpEventKey{rowTail}, rowSources[declaration.oid]...)
+		event := dump.Event{OID: declaration.OID, Phase: dump.Rows}
+		graph[event] = append([]dump.Event{rowTail}, rowSources[declaration.OID]...)
 		rowTail = event
 	}
 	invalidTail := rowTail
 	for _, declaration := range declarations {
-		t := byOID[declaration.oid]
-		if t == nil || !t.hasInvalidConstraints() || lateConstraints[declaration.oid] {
+		t := byOID[declaration.OID]
+		if t == nil || !t.hasInvalidConstraints() || lateConstraints[declaration.OID] {
 			continue
 		}
-		event := dumpEventKey{oid: declaration.oid, phase: dumpInvalidConstraints}
-		graph[event] = append([]dumpEventKey{invalidTail}, constraintSources[declaration.oid]...)
+		event := dump.Event{OID: declaration.OID, Phase: dump.InvalidConstraints}
+		graph[event] = append([]dump.Event{invalidTail}, constraintSources[declaration.OID]...)
 		invalidTail = event
 	}
 	for _, declaration := range declarations {
-		oid := declaration.oid
+		oid := declaration.OID
 		t := byOID[oid]
 		if t == nil {
 			continue
 		}
 		if lateRows[oid] {
-			event := dumpEventKey{oid: oid, phase: dumpRows}
-			graph[event] = append([]dumpEventKey{invalidTail, declaration}, rowSources[oid]...)
+			event := dump.Event{OID: oid, Phase: dump.Rows}
+			graph[event] = append([]dump.Event{invalidTail, declaration}, rowSources[oid]...)
 			if rowAfterMembership[oid] {
-				addDumpDependency(graph, event, membership(t.descriptor))
+				graph.Add(event, membership(t.descriptor))
 			}
 		}
 		if t.hasInvalidConstraints() && lateConstraints[oid] {
-			event := dumpEventKey{oid: oid, phase: dumpInvalidConstraints}
-			graph[event] = append([]dumpEventKey{{oid: oid, phase: dumpRows}, declaration}, constraintSources[oid]...)
+			event := dump.Event{OID: oid, Phase: dump.InvalidConstraints}
+			graph[event] = append([]dump.Event{{OID: oid, Phase: dump.Rows}, declaration}, constraintSources[oid]...)
 			if checkAfterMembership[oid] {
-				addDumpDependency(graph, event, membership(t.descriptor))
+				graph.Add(event, membership(t.descriptor))
 			}
 		}
-		complete := dumpEventKey{oid: oid, phase: dumpTableCompletion}
-		graph[complete] = []dumpEventKey{{oid: oid, phase: dumpRows}}
+		complete := dump.Event{OID: oid, Phase: dump.TableCompletion}
+		graph[complete] = []dump.Event{{OID: oid, Phase: dump.Rows}}
 		if t.hasInvalidConstraints() {
-			addDumpDependency(graph, complete, dumpEventKey{oid: oid, phase: dumpInvalidConstraints})
+			graph.Add(complete, dump.Event{OID: oid, Phase: dump.InvalidConstraints})
 		}
 		if deferDefaults && len(t.deferredDefinitions) != 0 {
-			addDumpDependency(graph, complete, dumpEventKey{oid: oid, phase: dumpDefaults})
+			graph.Add(complete, dump.Event{OID: oid, Phase: dump.Defaults})
 		}
 		if partitionDumpNeedsAttach(view, t.descriptor) {
 			event := membership(t.descriptor)
-			graph[event] = []dumpEventKey{declaration, invalidTail, {oid: t.descriptor.Membership.Parent.ObjectID}}
+			graph[event] = []dump.Event{declaration, invalidTail, {OID: t.descriptor.Membership.Parent.ObjectID}}
 			if !rowAfterMembership[oid] {
-				addDumpDependency(graph, event, dumpEventKey{oid: oid, phase: dumpRows})
+				graph.Add(event, dump.Event{OID: oid, Phase: dump.Rows})
 			}
 			if t.hasInvalidConstraints() && !checkAfterMembership[oid] {
-				addDumpDependency(graph, event, dumpEventKey{oid: oid, phase: dumpInvalidConstraints})
+				graph.Add(event, dump.Event{OID: oid, Phase: dump.InvalidConstraints})
 			}
 			if t.descriptor.Partition != nil {
 				if partitionReplayTopologyReady(view, t.descriptor) {
 					for _, child := range t.descriptor.Partition.Children {
-						addDumpDependency(graph, event, membership(view.MustRelation(child)))
+						graph.Add(event, membership(view.MustRelation(child)))
 					}
 				} else {
-					addDumpDependency(graph, event, complete)
+					graph.Add(event, complete)
 				}
 			}
 			parent := view.MustRelation(t.descriptor.Membership.Parent)
 			if t.descriptor.Membership.DefaultBound {
 				for _, child := range parent.Partition.Children {
 					if child != t.descriptor.Address() && !partitionExclusionDefaultBefore(view, t.descriptor, view.MustRelation(child)) {
-						addDumpDependency(graph, event, membership(view.MustRelation(child)))
+						graph.Add(event, membership(view.MustRelation(child)))
 					}
 				}
 			}
@@ -431,7 +410,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 					before = false
 				}
 				if index.SQLIndex.Parent == t.descriptor.Address() && !partitionPreservedReplayBacking(view, index) && !partitionPreservedReplayLocal(view, index) || index.SQLIndex.Parent == parent.Address() && before {
-					addDumpDependency(graph, event, dumpEventKey{oid: indexOID})
+					graph.Add(event, dump.Event{OID: indexOID})
 				}
 			}
 			for _, constraint := range t.descriptor.Constraints.Unique {
@@ -443,22 +422,22 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 					continue
 				}
 				if _, exists := replay.temporary[constraint.Index]; exists {
-					addDumpDependency(graph, event, dumpEventKey{oid: constraint.Index.ObjectID, phase: dumpRename})
+					graph.Add(event, dump.Event{OID: constraint.Index.ObjectID, Phase: dump.Rename})
 				}
 			}
 		}
 		if t.descriptor.Partition != nil {
 			for _, child := range t.descriptor.Partition.Children {
 				d := view.MustRelation(child)
-				addDumpDependency(graph, complete, membership(d))
-				addDumpDependency(graph, complete, dumpEventKey{oid: child.ObjectID, phase: dumpTableCompletion})
+				graph.Add(complete, membership(d))
+				graph.Add(complete, dump.Event{OID: child.ObjectID, Phase: dump.TableCompletion})
 			}
 		}
 	}
 	for indexOID := range indexIndices {
 		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID})
 		table := view.MustRelation(index.SQLIndex.Parent)
-		addDumpDependency(graph, dumpEventKey{oid: table.Address().ObjectID, phase: dumpTableCompletion}, dumpEventKey{oid: indexOID})
+		graph.Add(dump.Event{OID: table.Address().ObjectID, Phase: dump.TableCompletion}, dump.Event{OID: indexOID})
 	}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
@@ -470,21 +449,21 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 		if parent.SQLIndex.Constraint != nil || partitionDumpNeedsAttach(view, table) && !lateIndexes[parent.Address().ObjectID] {
 			continue // Ordinary ATTACH links this captured backing itself.
 		}
-		event := dumpEventKey{oid: index.Address().ObjectID, phase: dumpIndexAttachment}
-		graph[event] = []dumpEventKey{membership(table)}
+		event := dump.Event{OID: index.Address().ObjectID, Phase: dump.IndexAttachment}
+		graph[event] = []dump.Event{membership(table)}
 		for _, address := range []ids.ObjectAddress{index.Address(), parent.Address()} {
 			source, exists, err := nameReady(address)
 			if err != nil {
 				return err
 			}
 			if exists {
-				addDumpDependency(graph, event, source)
+				graph.Add(event, source)
 			}
 		}
 		if table.Partition != nil {
-			addDumpDependency(graph, event, dumpEventKey{oid: table.Address().ObjectID, phase: dumpTableCompletion})
+			graph.Add(event, dump.Event{OID: table.Address().ObjectID, Phase: dump.TableCompletion})
 		}
-		addDumpDependency(graph, dumpEventKey{oid: parent.SQLIndex.Parent.ObjectID, phase: dumpTableCompletion}, event)
+		graph.Add(dump.Event{OID: parent.SQLIndex.Parent.ObjectID, Phase: dump.TableCompletion}, event)
 	}
 	// Apply ONLY topology edges after membership events have their final
 	// predecessors; earlier attachment graph initialization is provisional.
@@ -496,11 +475,11 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 		table := view.MustRelation(index.SQLIndex.Parent)
 		for _, address := range table.Partition.Children {
 			child := membership(view.MustRelation(address))
-			declaration := dumpEventKey{oid: oid}
+			declaration := dump.Event{OID: oid}
 			if partitionDumpIndexBacking(view, index.Address(), address) == nil {
-				addDumpDependency(graph, declaration, child)
+				graph.Add(declaration, child)
 			} else {
-				addDumpDependency(graph, child, declaration)
+				graph.Add(child, declaration)
 			}
 		}
 	}
@@ -514,13 +493,13 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 			onlyTables[index.SQLIndex.Parent] = true
 		}
 	}
-	var names []dumpEventKey
-	var creators []dumpEventKey
+	var names []dump.Event
+	var creators []dump.Event
 	for _, index := range renameOrder {
 		if !onlyTables[index.SQLIndex.Parent] || !lateNames[index.Address().ObjectID] {
 			continue
 		}
-		names = append(names, dumpEventKey{oid: index.Address().ObjectID, phase: dumpRename})
+		names = append(names, dump.Event{OID: index.Address().ObjectID, Phase: dump.Rename})
 		creator := partitionConstraintCreator(view, index)
 		if !slices.Contains(creators, creator) {
 			creators = append(creators, creator)
@@ -528,21 +507,21 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 	}
 	for i, event := range names {
 		for _, creator := range creators {
-			addDumpDependency(graph, event, creator)
+			graph.Add(event, creator)
 		}
 		if i != 0 {
-			addDumpDependency(graph, event, names[i-1])
+			graph.Add(event, names[i-1])
 		}
 	}
 	for _, index := range renameOrder {
 		if !onlyTables[index.SQLIndex.Parent] {
 			continue
 		}
-		rows := dumpEventKey{oid: index.SQLIndex.Parent.ObjectID, phase: dumpRows}
-		name := dumpEventKey{oid: index.Address().ObjectID, phase: dumpRename}
+		rows := dump.Event{OID: index.SQLIndex.Parent.ObjectID, Phase: dump.Rows}
+		name := dump.Event{OID: index.Address().ObjectID, Phase: dump.Rename}
 		clear(seen)
-		if !dumpEventDependsOn(graph, name, rows, seen) {
-			addDumpDependency(graph, rows, name)
+		if !graph.DependsOn(name, rows, seen) {
+			graph.Add(rows, name)
 		}
 	}
 	if err := inheritanceRecipeEvents(ctx, view, graph, declarations, tables, nameReady); err != nil {

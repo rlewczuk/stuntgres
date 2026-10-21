@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -38,24 +39,24 @@ func partitionReplayOnlyExclusion(index *catalog.Relation) bool {
 	return index.SQLIndex != nil && index.SQLIndex.IsExclusion() && !index.SQLIndex.Valid && index.SQLIndex.PartitionParent == (ids.ObjectAddress{})
 }
 
-func partitionConstraintCreator(view catalog.Read, index *catalog.Relation) dumpEventKey {
+func partitionConstraintCreator(view catalog.Read, index *catalog.Relation) dump.Event {
 	root := partitionReplayVirtualUniqueRoot(view, index)
 	if root != nil && (!partitionReplayOnlyExclusion(root) || root.Address() == index.Address()) {
-		return dumpEventKey{oid: root.Address().ObjectID}
+		return dump.Event{OID: root.Address().ObjectID}
 	}
 	// UNIQUE can adopt a provider declared on the standalone child before
 	// ATTACH. Its name is an attachment prerequisite, not an attachment output.
 	// Only EXCLUDE's mandatory fresh clones use membership creator readiness.
 	if !index.SQLIndex.IsExclusion() || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || partitionReplayUsingIndex(view, index) {
 		oid, _ := dumpPredecessor(view, index.Address(), ids.ObjectAddress{})
-		return dumpEventKey{oid: oid}
+		return dump.Event{OID: oid}
 	}
 	table := view.MustRelation(index.SQLIndex.Parent)
-	creator := dumpEventKey{oid: table.Address().ObjectID}
+	creator := dump.Event{OID: table.Address().ObjectID}
 	for index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		table = view.MustRelation(index.SQLIndex.Parent)
 		if partitionDumpNeedsAttach(view, table) {
-			creator = dumpEventKey{oid: table.Address().ObjectID, phase: dumpTableAttachment}
+			creator = dump.Event{OID: table.Address().ObjectID, Phase: dump.TableAttachment}
 		}
 		index = view.MustRelation(index.SQLIndex.PartitionParent)
 	}
@@ -160,12 +161,12 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, inde
 	return sql.String()
 }
 
-func partitionVirtualUniqueMembershipReady(view catalog.Read, graph map[dumpEventKey][]dumpEventKey, event dumpEventKey, table *catalog.Relation) {
-	member := dumpEventKey{oid: table.Address().ObjectID}
+func partitionVirtualUniqueMembershipReady(view catalog.Read, graph dump.Graph, event dump.Event, table *catalog.Relation) {
+	member := dump.Event{OID: table.Address().ObjectID}
 	if partitionDumpNeedsAttach(view, table) {
-		member.phase = dumpTableAttachment
+		member.Phase = dump.TableAttachment
 	}
-	addDumpDependency(graph, event, member)
+	graph.Add(event, member)
 	if table.Partition != nil {
 		for _, address := range table.Partition.Children {
 			partitionVirtualUniqueMembershipReady(view, graph, event, view.MustRelation(address))

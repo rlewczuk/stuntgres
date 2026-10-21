@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -80,7 +81,7 @@ func prepareGenerationPlaceholders(view catalog.Read, tables []dumpRelation) {
 
 // The actual dependency graph, not rows-first reconstruction, orders physical
 // recipes and local CHECK definers. Recursive ADD rebuilds real diamond merges.
-func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
+func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph dump.Graph, declarations []dump.Event, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dump.Event, bool, error)) error {
 	selected := false
 	for i := range tables {
 		if tables[i].recipePlaceholders {
@@ -95,10 +96,10 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 	for i := range tables {
 		byOID[tables[i].descriptor.Address().ObjectID] = &tables[i]
 	}
-	components := make(map[ids.ObjectAddress][]dumpEventKey)
+	components := make(map[ids.ObjectAddress][]dump.Event)
 	var order []ids.ObjectAddress
 	for _, declaration := range declarations {
-		if table := byOID[declaration.oid]; table != nil && table.recipePlaceholders {
+		if table := byOID[declaration.OID]; table != nil && table.recipePlaceholders {
 			key := table.recipeComponent
 			if components[key] == nil {
 				order = append(order, key)
@@ -106,25 +107,25 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 			components[key] = append(components[key], declaration)
 		}
 	}
-	addProvider := func(event dumpEventKey) func(ids.ObjectAddress) error {
+	addProvider := func(event dump.Event) func(ids.ObjectAddress) error {
 		return func(address ids.ObjectAddress) error {
 			predecessor, exists, err := nameReady(address)
 			if err == nil && exists {
-				addDumpDependency(graph, event, predecessor)
+				graph.Add(event, predecessor)
 			}
 			return err
 		}
 	}
 	for _, component := range order {
-		var tail dumpEventKey
+		var tail dump.Event
 		prerequisites := components[component]
 		for _, declaration := range prerequisites {
-			table := byOID[declaration.oid]
+			table := byOID[declaration.OID]
 			if len(table.descriptor.ColumnMeta.Generations) == 0 {
 				continue
 			}
-			event := dumpEventKey{oid: declaration.oid, phase: dumpInheritanceRecipes}
-			graph[event] = append([]dumpEventKey(nil), prerequisites...)
+			event := dump.Event{OID: declaration.OID, Phase: dump.InheritanceRecipes}
+			graph[event] = append([]dump.Event(nil), prerequisites...)
 			add := addProvider(event)
 			for _, definition := range table.descriptor.ColumnMeta.Generations {
 				if err := regclassReplayReferences(view, definition.Expression, add); err != nil {
@@ -136,13 +137,13 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 					}
 				}
 			}
-			if tail != (dumpEventKey{}) {
-				addDumpDependency(graph, event, tail)
+			if tail != (dump.Event{}) {
+				graph.Add(event, tail)
 			}
 			tail = event
 		}
 		for _, declaration := range prerequisites {
-			table := byOID[declaration.oid]
+			table := byOID[declaration.OID]
 			local := false
 			for _, check := range table.descriptor.Constraints.Check {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
@@ -153,8 +154,8 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 			if !local {
 				continue
 			}
-			event := dumpEventKey{oid: declaration.oid, phase: dumpInheritanceChecks}
-			graph[event] = append([]dumpEventKey(nil), prerequisites...)
+			event := dump.Event{OID: declaration.OID, Phase: dump.InheritanceChecks}
+			graph[event] = append([]dump.Event(nil), prerequisites...)
 			add := addProvider(event)
 			for _, check := range table.descriptor.Constraints.Check {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
@@ -168,14 +169,14 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 					}
 				}
 			}
-			if tail != (dumpEventKey{}) {
-				addDumpDependency(graph, event, tail)
+			if tail != (dump.Event{}) {
+				graph.Add(event, tail)
 			}
 			tail = event
 		}
-		if tail != (dumpEventKey{}) {
+		if tail != (dump.Event{}) {
 			for _, declaration := range prerequisites {
-				addDumpDependency(graph, dumpEventKey{oid: declaration.oid, phase: dumpRows}, tail)
+				graph.Add(dump.Event{OID: declaration.OID, Phase: dump.Rows}, tail)
 			}
 		}
 	}
