@@ -78,9 +78,9 @@ func (h *statementHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, 
 	}
 	visible := false
 	if kind == functions.CollationVisibility {
-		visible = visibleCollation(scope.inquiry.visibilityCatalog, path, d)
+		visible = VisibleCollation(scope.inquiry.visibilityCatalog, path, d)
 	} else {
-		visible = namedObjectVisible(scope.inquiry.visibilityCatalog, path, d)
+		visible = NamedObjectVisible(scope.inquiry.visibilityCatalog, path, d)
 	}
 	return sqltype.Boolean(result, visible), nil
 }

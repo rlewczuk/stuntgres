@@ -123,7 +123,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 				// non-contextual stored expressions keep catalogLiteralSQL.
 				literal, err = destination.SQLLiteral(ctx, v)
 			} else {
-				literal, err = catalogLiteralSQL(ctx, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.columns[i].Usage}, Value: v})
+				literal, err = Literal(ctx, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.columns[i].Usage}, Value: v})
 			}
 			if err != nil {
 				return err
@@ -160,14 +160,14 @@ func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.
 			continue
 		}
 		for i, column := range t.columns {
-			if err := walkRoutineReferences(catalog, version.Values[i], add); err != nil {
+			if err := WalkRoutineReferences(catalog, version.Values[i], add); err != nil {
 				return err
 			}
 			if !column.Usage.Type.ContainsRegclass() {
 				continue
 			}
 			literal := plan.LiteralExpr{Info: expr.Info{Usage: column.Usage}, Value: version.Values[i]}
-			if err := regclassReplayReferences(catalog, literal, add); err != nil {
+			if err := ClassReplayReferences(catalog, literal, add); err != nil {
 				return err
 			}
 		}

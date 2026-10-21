@@ -86,7 +86,7 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		}
 		return typedef.DomainReplayNode{Kind: "composite", Members: &members}, nil
 	}
-	literal, err := catalogLiteralSQL(ctx, view, plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: v})
+	literal, err := Literal(ctx, view, plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: v})
 	if err != nil {
 		return n, err
 	}

@@ -113,7 +113,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		descriptor, _ := r.auth.definitionDescriptor(address)
 		if d, exists := descriptor.(*catalog.Collation); exists {
 			one := [1]collationCandidate{{address, d.Encoding}}
-			if selectCollation(one[:], 6) != (ids.ObjectAddress{}) {
+			if SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {
 				return uint32(address.ObjectID), nil
 			}
 		}

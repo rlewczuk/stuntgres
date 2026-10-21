@@ -81,7 +81,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	if err != nil || id != 91001 {
 		t.Fatal("first-path lookup", id, err)
 	}
-	if got := regTSSpelling(view, input.path, 91002, sqltype.Regdictionary, false); got != "reg_ts_right.unaccent" {
+	if got := TextSearchSpelling(view, input.path, 91002, sqltype.Regdictionary, false); got != "reg_ts_right.unaccent" {
 		t.Fatal("shadowed output", got)
 	}
 	for _, text := range []string{` "Reg.TS" . UNACCENT `, `"Reg.TS".unaccent`} {
@@ -90,13 +90,13 @@ func TestRegTSProviderResolution(t *testing.T) {
 			t.Fatal("quoted namespace", id, err)
 		}
 	}
-	if got := regTSSpelling(view, input.path, 91000, sqltype.Regdictionary, false); got != `"Reg.TS".unaccent` {
+	if got := TextSearchSpelling(view, input.path, 91000, sqltype.Regdictionary, false); got != `"Reg.TS".unaccent` {
 		t.Fatal("off-path quoting", got)
 	}
-	if got := regTSSpelling(view, input.path, 91000, sqltype.Regconfig, false); got != "91000" {
+	if got := TextSearchSpelling(view, input.path, 91000, sqltype.Regconfig, false); got != "91000" {
 		t.Fatal("cross-class output", got)
 	}
-	if got := regTSSpelling(view, input.path, 0, sqltype.Regdictionary, false); got != "-" {
+	if got := TextSearchSpelling(view, input.path, 0, sqltype.Regdictionary, false); got != "-" {
 		t.Fatal("zero output", got)
 	}
 	for _, tc := range []struct{ input, code string }{{"simple", "42704"}, {"reg_ts_missing.unaccent", "42704"}, {"a..b", "42602"}, {"a.b.c.d", "42601"}, {"reg_ts_foreign.public.unaccent", "0A000"}} {
@@ -111,7 +111,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	for _, alias := range []sqltype.ID{sqltype.Regdictionary, sqltype.Regconfig} {
 		typ, _ := view.LookupType(alias)
 		value, _ := sqltype.RegTSValue(typ, 91000)
-		if err := captureRegTSOutputValue(rows, view, input.path, value); err != nil {
+		if err := CaptureTextSearchOutputValue(rows, view, input.path, value); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -124,7 +124,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	ns := *next.MustNamespace(namespaces[0])
 	ns.ObjectName = "renamed"
 	next.State().SetDescriptor(ns.Address(), &ns)
-	if got := regTSSpelling(next, input.path, 91000, sqltype.Regdictionary, false); got != "renamed.unaccent" {
+	if got := TextSearchSpelling(next, input.path, 91000, sqltype.Regdictionary, false); got != "renamed.unaccent" {
 		t.Fatal("fresh spelling", got)
 	}
 	if got, err := rows.FormatRegdictionary(91000); err != nil || got != `"Reg.TS".unaccent` {
@@ -145,10 +145,10 @@ func TestRegTSProviderResolution(t *testing.T) {
 	if err != nil || id != 92002 {
 		t.Fatal("identifier byte truncation", id, err)
 	}
-	if got := regTSSpelling(quoted, input.path, 92001, sqltype.Regdictionary, false); got != `"Reg.TS"."Odd"".TS"` {
+	if got := TextSearchSpelling(quoted, input.path, 92001, sqltype.Regdictionary, false); got != `"Reg.TS"."Odd"".TS"` {
 		t.Fatal("embedded quote/dot output", got)
 	}
-	if got := regTSSpelling(quoted, input.path, 92003, sqltype.Regdictionary, false); got != `"Reg.TS"."select"` {
+	if got := TextSearchSpelling(quoted, input.path, 92003, sqltype.Regdictionary, false); got != `"Reg.TS"."select"` {
 		t.Fatal("keyword output", got)
 	}
 	id, err = input.ResolveRegdictionary(context.Background(), catalog.QuoteIdentifier(input.database)+`."Reg.TS".unaccent`)
@@ -164,19 +164,19 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 	config, _ := view.LookupType(sqltype.Regconfig)
 	live, _ := sqltype.RegTSValue(dictionary, 91000)
 	refs := []ids.ObjectAddress{}
-	if err := walkRegTSReferences(view, live, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{{ClassID: ids.TSDictionaryClassID, ObjectID: 91000}}) {
+	if err := WalkTextSearchReferences(view, live, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{{ClassID: ids.TSDictionaryClassID, ObjectID: 91000}}) {
 		t.Fatal("live reference", refs, err)
 	}
 	for _, alias := range []*sqltype.Descriptor{dictionary, config} {
 		for _, id := range []uint32{0, 4294967295} {
 			value, _ := sqltype.RegTSValue(alias, id)
-			if err := walkRegTSReferences(view, value, func(ids.ObjectAddress) error { t.Fatal("invented reference"); return nil }); err != nil {
+			if err := WalkTextSearchReferences(view, value, func(ids.ObjectAddress) error { t.Fatal("invented reference"); return nil }); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: dictionary.Usage()}, Value: live}
-	text, err := catalogLiteralSQL(ctx, view, literal)
+	text, err := Literal(ctx, view, literal)
 	if err != nil || !strings.Contains(text, `"Reg.TS".unaccent`) || strings.Contains(text, "91000") {
 		t.Fatal("qualified logical reference", text, err)
 	}
@@ -187,7 +187,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 		return a
 	}
 	for _, value := range []sqltype.Value{live, sqltype.Null(dictionary)} {
-		got, err := remapRegTSDatum(value, mapped)
+		got, err := RemapTextSearchDatum(value, mapped)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -219,7 +219,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := remapRegTSDatum(row, mapped)
+	got, err := RemapTextSearchDatum(row, mapped)
 	if err != nil {
 		t.Fatal(err)
 	}

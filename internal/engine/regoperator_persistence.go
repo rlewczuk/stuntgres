@@ -19,17 +19,17 @@ func (dumpOperatorOutput) FormatRegoper(id uint32) (string, error) {
 func (dumpOperatorOutput) FormatRegoperator(id uint32) (string, error) {
 	return strconv.FormatUint(uint64(id), 10), nil
 }
-func walkOperatorReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
-	return walkOperatorReferencesAt(view, nil, value, record)
+func WalkOperatorReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+	return WalkOperatorReferencesAt(view, nil, value, record)
 }
 
-func walkOperatorReferencesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func WalkOperatorReferencesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := walkOperatorReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
+			if err := WalkOperatorReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
 				return err
 			}
 		}
@@ -37,7 +37,7 @@ func walkOperatorReferencesAt(view catalog.Read, reader catalog.DefinitionReader
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := walkOperatorReferencesAt(view, reader, value.ArrayElement(i), record); err != nil {
+			if err := WalkOperatorReferencesAt(view, reader, value.ArrayElement(i), record); err != nil {
 				return err
 			}
 		}
@@ -55,7 +55,7 @@ func walkOperatorReferencesAt(view catalog.Read, reader catalog.DefinitionReader
 }
 
 // Custom allocated identities replay by exact qualified signature, never OID.
-func operatorLiteralSQL(view catalog.Read, value sqltype.Value) (string, error) {
+func OperatorLiteral(view catalog.Read, value sqltype.Value) (string, error) {
 	id, err := value.OperatorOID()
 	if err != nil {
 		return "", err
@@ -64,25 +64,25 @@ func operatorLiteralSQL(view catalog.Read, value sqltype.Value) (string, error) 
 	if !known || routine.OperatorSeeded(d) {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'::" + value.Type().BaseType().Name(), nil
 	}
-	text := operatorSpelling(view, nil, collectOperatorGroups(view), ids.OID(id), sqltype.Regoperator)
+	text := OperatorSpelling(view, nil, CollectOperatorGroups(view), ids.OID(id), sqltype.Regoperator)
 	literal := "'" + strings.ReplaceAll(text, "'", "''") + "'::regoperator"
 	if value.Type().BaseType().ID() == sqltype.Regoper {
 		literal += "::regoper"
 	}
 	return literal, nil
 }
-func remapOperatorDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
+func RemapOperatorDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return value, nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
-			return remapOperatorDatum(member, destination)
+			return RemapOperatorDatum(member, destination)
 		})
 	}
 	if value.Type().BaseType().IsArray() {
 		return value.MapArray(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
-			return remapOperatorDatum(member, destination)
+			return RemapOperatorDatum(member, destination)
 		})
 	}
 	id, err := value.OperatorOID()

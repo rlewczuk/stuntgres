@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func regtypeSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
+func TypeSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
 	return regtypeSpellingMode(view, path, id, false)
 }
 
@@ -64,7 +64,7 @@ func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID
 	}
 	d := view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 	name := regclassIdentifier(d.Name())
-	if !qualified && namedObjectVisible(view, path, d) {
+	if !qualified && NamedObjectVisible(view, path, d) {
 		return name
 	}
 	namespace := view.MustNamespace(d.Namespace())
@@ -105,16 +105,16 @@ func captureRegtypeOutputValue(rows *exec.FinalRows, view catalog.Read, path []i
 	if rows.RegtypeOutput == nil {
 		rows.RegtypeOutput = make(map[uint32]string)
 	}
-	rows.RegtypeOutput[id] = regtypeSpelling(view, path, ids.OID(id))
+	rows.RegtypeOutput[id] = TypeSpelling(view, path, ids.OID(id))
 	rows.Output.Regtype = rows
 	return nil
 }
 
 type catalogRegtypeOutput struct {
-	view catalog.Read
-	path []ids.ObjectAddress
+	View catalog.Read
+	Path []ids.ObjectAddress
 }
 
 func (r catalogRegtypeOutput) FormatRegtype(id uint32) (string, error) {
-	return regtypeSpelling(r.view, r.path, ids.OID(id)), nil
+	return TypeSpelling(r.View, r.Path, ids.OID(id)), nil
 }

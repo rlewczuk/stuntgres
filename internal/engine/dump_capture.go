@@ -99,8 +99,8 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	if err != nil {
 		return nil, err
 	}
-	aclOutput := capturedACLItemOutput{owner: e.catalog.owner(), roles: originalRoles, lossless: true}
-	ctx = aclItemOutputContext(ctx, aclOutput)
+	aclOutput := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: originalRoles, Lossless: true}
+	ctx = ACLItemOutputContext(ctx, aclOutput)
 	if err := preflightACLItemDump(ctx, originalCatalog, e.storage.Relations, e.visibility.CommitSeq(), aclOutput); err != nil {
 		return nil, err
 	}

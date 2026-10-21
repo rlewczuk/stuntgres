@@ -10,15 +10,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func routineLiteralSQL(view catalog.Read, value sqltype.Value) (string, error) {
+func RoutineLiteral(view catalog.Read, value sqltype.Value) (string, error) {
 	id, err := value.ProcedureOID()
 	if err != nil {
 		return "", err
 	}
-	if _, known := routineIdentityByOID(view, ids.OID(id)); id == 0 || !known {
+	if _, known := RoutineIdentityByOID(view, ids.OID(id)); id == 0 || !known {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'::" + value.Type().BaseType().Name(), nil
 	}
-	text := routineSpelling(view, nil, ids.OID(id), true, true)
+	text := RoutineSpelling(view, nil, ids.OID(id), true, true)
 	literal := "'" + strings.ReplaceAll(text, "'", "''") + "'::regprocedure"
 	if value.Type().BaseType().ID() == sqltype.Regproc {
 		literal += "::regproc"
@@ -28,17 +28,17 @@ func routineLiteralSQL(view catalog.Read, value sqltype.Value) (string, error) {
 
 // Only real descriptors create expression ownership dependencies. Source-fixed
 // lookup-only identities never invent providers or extension replay events.
-func walkRoutineReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
-	return walkRoutineReferencesAt(view, nil, value, record)
+func WalkRoutineReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+	return WalkRoutineReferencesAt(view, nil, value, record)
 }
 
-func walkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func WalkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := walkRoutineReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
+			if err := WalkRoutineReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
 				return err
 			}
 		}
@@ -46,7 +46,7 @@ func walkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader,
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := walkRoutineReferencesAt(view, reader, value.ArrayElement(i), record); err != nil {
+			if err := WalkRoutineReferencesAt(view, reader, value.ArrayElement(i), record); err != nil {
 				return err
 			}
 		}
@@ -60,7 +60,7 @@ func walkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader,
 	if _, exists := catalog.DescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
-	if owner := routineDescriptorOwner(view, ids.OID(id)); owner != nil {
+	if owner := RoutineDescriptorOwner(view, ids.OID(id)); owner != nil {
 		if _, exists := catalog.DescriptorAt(view, reader, owner.Address()); exists {
 			return record(owner.Address())
 		}
@@ -68,18 +68,18 @@ func walkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader,
 	return nil
 }
 
-func remapRoutineDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
+func RemapRoutineDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return value, nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
-			return remapRoutineDatum(member, destination)
+			return RemapRoutineDatum(member, destination)
 		})
 	}
 	if value.Type().BaseType().IsArray() {
 		return value.MapArray(value.Type(), func(element sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
-			return remapRoutineDatum(element, destination)
+			return RemapRoutineDatum(element, destination)
 		})
 	}
 	id, err := value.ProcedureOID()
@@ -113,7 +113,7 @@ func routineContainerLiteralAt(ctx context.Context, view catalog.Read, reader ca
 	if err != nil {
 		return "", err
 	}
-	declaration, err := catalogTypeDeclarationAt(view, reader, usage)
+	declaration, err := TypeDeclarationAt(view, reader, usage)
 	if err != nil {
 		return "", err
 	}
@@ -235,20 +235,20 @@ func routineContainerFragments(ctx context.Context, view catalog.Read, value sql
 		return append(result, routineFragment{text: ")"}), nil
 	}
 	if sqltype.IsRoutineAlias(physical.ID()) {
-		literal, err := routineLiteralSQL(view, value)
+		literal, err := RoutineLiteral(view, value)
 		if err != nil {
 			return nil, err
 		}
 		return []routineFragment{{text: "(" + literal + ")::oid::text", expression: true}}, nil
 	}
 	if sqltype.IsOperatorAlias(physical.ID()) {
-		literal, err := operatorLiteralSQL(view, value)
+		literal, err := OperatorLiteral(view, value)
 		if err != nil {
 			return nil, err
 		}
 		return []routineFragment{{text: "(" + literal + ")::oid::text", expression: true}}, nil
 	}
-	text, err := value.Type().OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpCatalogAliasOutput{view: view}, Regcollation: dumpCatalogAliasOutput{view: view}, Regnamespace: dumpCatalogAliasOutput{view: view}, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, RegTS: dumpRegTSOutput{view: view}, ACLItem: acl})
+	text, err := value.Type().OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{View: view}, Regtype: dumpCatalogAliasOutput{View: view}, Regcollation: dumpCatalogAliasOutput{View: view}, Regnamespace: dumpCatalogAliasOutput{View: view}, Regrole: RoleContextFormatter(ctx), Operator: dumpOperatorOutput{}, RegTS: dumpRegTSOutput{View: view}, ACLItem: acl})
 	if err != nil {
 		return nil, err
 	}

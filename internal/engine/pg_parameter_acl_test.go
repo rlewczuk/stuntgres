@@ -296,7 +296,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 		t.Fatal("immutable identity/root")
 	}
 	retained := &exec.FinalRows{}
-	if err := captureACLItemOutputValue(retained, capturedACLItemOutput{owner: e.catalog.owner(), roles: roles}, captured.Anonymous[0][2]); err != nil {
+	if err := CaptureACLItemOutputValue(retained, capturedACLItemOutput{Owner: e.catalog.owner(), Roles: roles}, captured.Anonymous[0][2]); err != nil {
 		t.Fatal(err)
 	}
 	request.Revoke, request.GrantOption = true, false

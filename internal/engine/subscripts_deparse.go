@@ -33,7 +33,7 @@ func (v *viewRenderer) subscriptsArraySQLAt(ctx context.Context, catalog catalog
 	if literal, ok := v.literals[literalPath]; ok && literal.ResultUsage() == usage {
 		return text, nil
 	}
-	declaration, err := catalogTypeDeclaration(catalog, usage)
+	declaration, err := TypeDeclaration(catalog, usage)
 	if err != nil {
 		return "", err
 	}

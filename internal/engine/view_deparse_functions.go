@@ -59,7 +59,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 			members := make([]string, shape.CompositeLen())
 			for j := range members {
 				member := shape.CompositeMember(j)
-				declaration, err := catalogTypeDeclaration(catalog, member.Usage)
+				declaration, err := TypeDeclaration(catalog, member.Usage)
 				if err != nil {
 					return viewRenderFrom{}, err
 				}

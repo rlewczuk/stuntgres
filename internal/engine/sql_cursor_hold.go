@@ -257,16 +257,16 @@ func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog ca
 		return err
 	}
 	for _, value := range rows.Values {
-		if err := captureRegroleOutputValue(rows, capturedRegroleOutput{owner: e.catalog.owner(), roles: auth.Roles, quoteAll: rows.Output.QuoteAllIdentifiers}, value); err != nil {
+		if err := CaptureRoleOutputValue(rows, capturedRegroleOutput{Owner: e.catalog.owner(), Roles: auth.Roles, QuoteAll: rows.Output.QuoteAllIdentifiers}, value); err != nil {
 			return err
 		}
-		if err := captureRegObjectOutputValue(rows, catalog, collationPath, value); err != nil {
+		if err := CaptureObjectOutputValue(rows, catalog, collationPath, value); err != nil {
 			return err
 		}
-		if err := captureACLItemOutputValue(rows, capturedACLItemOutput{owner: e.catalog.owner(), roles: auth.Roles}, value); err != nil {
+		if err := CaptureACLItemOutputValue(rows, capturedACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, value); err != nil {
 			return err
 		}
-		if err := captureRegclassOutputValue(rows, catalog, path, value); err != nil {
+		if err := CaptureClassOutputValue(rows, catalog, path, value); err != nil {
 			return err
 		}
 	}

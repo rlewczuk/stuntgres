@@ -115,7 +115,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		text := "ROW(" + strings.Join(parts, ", ") + ")"
 		if u.Type.ID() != 2249 {
-			declaration, err := catalogTypeDeclarationAt(view, r.definition, u)
+			declaration, err := TypeDeclarationAt(view, r.definition, u)
 			if err != nil {
 				return "", err
 			}
@@ -299,11 +299,11 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		aclOutput := r.aclOutput
 		if r.validation {
-			aclOutput = aclItemValidationOutput{owner: view.Owner()}
+			aclOutput = aclItemValidationOutput{Owner: view.Owner()}
 		} else if aclOutput == nil {
-			aclOutput = aclItemContextFormatter(ctx)
+			aclOutput = ACLItemContextFormatter(ctx)
 		}
-		return catalogLiteralWithACLAt(ctx, view, r.definition, n, aclOutput)
+		return LiteralWithACLAt(ctx, view, r.definition, n, aclOutput)
 	case plan.CollationExpr:
 		text, err := r.sql(ctx, view, n.Child)
 		if err != nil {
@@ -352,14 +352,14 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if n.Child.ResultUsage().Type.ID() == sqltype.Text {
 			inner, explicit := n.Child.(plan.CoercionExpr)
 			if !explicit || inner.Mode != sqltype.Explicit {
-				declaration, err := catalogTypeDeclarationAt(view, r.definition, n.Child.ResultUsage())
+				declaration, err := TypeDeclarationAt(view, r.definition, n.Child.ResultUsage())
 				if err != nil {
 					return "", err
 				}
 				child = "CAST(" + child + " AS " + declaration + ")"
 			}
 		}
-		declaration, err := catalogTypeDeclarationAt(view, r.definition, u)
+		declaration, err := TypeDeclarationAt(view, r.definition, u)
 		if err != nil {
 			return "", err
 		}
@@ -402,7 +402,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			}
 			cu := child.ResultUsage()
 			if literal, ok := child.(plan.LiteralExpr); ok && cu.Type.ID() != sqltype.Bit && (cu.Type.ID() != sqltype.Int4 || literal.Value.IsNull()) {
-				declaration, err := catalogTypeDeclaration(view, cu)
+				declaration, err := TypeDeclaration(view, cu)
 				if err != nil {
 					return "", err
 				}
@@ -491,7 +491,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			// Preserve each leaf's own width, not its parent's result width.
 			cu := child.ResultUsage()
 			if literal, ok := child.(plan.LiteralExpr); ok && (cu.Type.ID() != sqltype.Int4 || literal.Value.IsNull()) {
-				declaration, err := catalogTypeDeclaration(view, cu)
+				declaration, err := TypeDeclaration(view, cu)
 				if err != nil {
 					return "", err
 				}
@@ -706,7 +706,7 @@ func (r scalarRenderer) record(ref ids.ObjectRef) {
 }
 
 func (r scalarRenderer) recordRoutineReferences(view catalog.Read, value sqltype.Value) error {
-	return walkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
+	return WalkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
 		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 		return nil
 	})
@@ -720,10 +720,10 @@ func (r scalarRenderer) recordCatalogAliasDependencies(view catalog.Read, value 
 	if err := catalog.WalkAliasDependenciesAt(view, r.definition, value, record); err != nil {
 		return err
 	}
-	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
+	if err := WalkOperatorReferencesAt(view, r.definition, value, record); err != nil {
 		return err
 	}
-	return walkRegTSReferencesAt(view, r.definition, value, record)
+	return WalkTextSearchReferencesAt(view, r.definition, value, record)
 }
 
 func (r scalarRenderer) recordCatalogAliasReferences(view catalog.Read, value sqltype.Value) error {
@@ -734,8 +734,8 @@ func (r scalarRenderer) recordCatalogAliasReferences(view catalog.Read, value sq
 	if err := catalog.WalkAliasReferencesAt(view, r.definition, value, record); err != nil {
 		return err
 	}
-	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
+	if err := WalkOperatorReferencesAt(view, r.definition, value, record); err != nil {
 		return err
 	}
-	return walkRegTSReferencesAt(view, r.definition, value, record)
+	return WalkTextSearchReferencesAt(view, r.definition, value, record)
 }

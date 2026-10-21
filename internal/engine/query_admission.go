@@ -173,7 +173,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 			return err
 		}
 	}
-	scope.input.Regrole = capturedRegroleInput{roles: scope.inquiry.commentRoles}
+	scope.input.Regrole = capturedRegroleInput{Roles: scope.inquiry.commentRoles}
 	input := captureRegObjectsOnPath(scope.inquiry.deparseAuth, scope.inquiry.collationPath)
 	scope.input.Regcollation, scope.input.Regnamespace = input, input
 	return nil

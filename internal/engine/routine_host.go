@@ -28,7 +28,7 @@ func (h ddlHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signatu
 	if err != nil {
 		return catalog.RoutineIdentity{}, 0, err
 	}
-	identity, count := selectRoutine(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, &signature)
+	identity, count := SelectRoutine(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, &signature)
 	return identity, count, nil
 }
 

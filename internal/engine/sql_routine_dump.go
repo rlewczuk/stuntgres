@@ -50,13 +50,13 @@ func sqlRoutineDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 		if i != 0 {
 			sql.WriteString(", ")
 		}
-		name, err := catalogColumnDeclaration(view, catalog.Column{Usage: input})
+		name, err := ColumnDeclaration(view, catalog.Column{Usage: input})
 		if err != nil {
 			return dump.Statement{}, err
 		}
 		sql.WriteString(name)
 	}
-	result, err := catalogColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
+	result, err := ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
 	if err != nil {
 		return dump.Statement{}, err
 	}

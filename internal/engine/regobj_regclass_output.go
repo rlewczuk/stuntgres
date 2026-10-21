@@ -10,17 +10,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func captureRegclassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
-	if err := captureRegprocOutputValue(rows, catalog, path, value); err != nil {
+func CaptureClassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+	if err := CaptureProcOutputValue(rows, catalog, path, value); err != nil {
 		return err
 	}
 	if err := captureRegtypeOutputValue(rows, catalog, path, value); err != nil {
 		return err
 	}
-	if err := captureOperatorOutputValue(rows, catalog, path, value); err != nil {
+	if err := CaptureOperatorOutputValue(rows, catalog, path, value); err != nil {
 		return err
 	}
-	if err := captureRegTSOutputValue(rows, catalog, path, value); err != nil {
+	if err := CaptureTextSearchOutputValue(rows, catalog, path, value); err != nil {
 		return err
 	}
 	if value.IsNull() || !value.Type().ContainsRegclass() {
@@ -28,7 +28,7 @@ func captureRegclassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := captureRegclassOutputValue(rows, catalog, path, value.CompositeField(i)); err != nil {
+			if err := CaptureClassOutputValue(rows, catalog, path, value.CompositeField(i)); err != nil {
 				return err
 			}
 		}
@@ -36,7 +36,7 @@ func captureRegclassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := 0; i < value.ArrayLen(); i++ {
-			if err := captureRegclassOutputValue(rows, catalog, path, value.ArrayElement(i)); err != nil {
+			if err := CaptureClassOutputValue(rows, catalog, path, value.ArrayElement(i)); err != nil {
 				return err
 			}
 		}
@@ -63,13 +63,13 @@ func captureRegclassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path
 	if rows.RegclassOutput == nil {
 		rows.RegclassOutput = make(map[string]string)
 	}
-	rows.RegclassOutput[key] = regclassSpelling(catalog, path, ids.OID(n))
+	rows.RegclassOutput[key] = ClassSpelling(catalog, path, ids.OID(n))
 	rows.Output.Regclass = rows
 	return nil
 }
 
 // regclassSpelling uses only the statement's captured catalog and relation path.
-func regclassSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
+func ClassSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
 	return regclassSpellingAt(view, nil, path, id)
 }
 
@@ -98,11 +98,11 @@ func regclassIdentifier(name string) string {
 }
 
 type catalogRegclassOutput struct {
-	view       catalog.Read
-	path       []ids.ObjectAddress
+	View       catalog.Read
+	Path       []ids.ObjectAddress
 	definition catalog.DefinitionReader
 }
 
 func (r catalogRegclassOutput) FormatRegclass(id uint32) (string, error) {
-	return regclassSpellingAt(r.view, r.definition, r.path, ids.OID(id)), nil
+	return regclassSpellingAt(r.View, r.definition, r.Path, ids.OID(id)), nil
 }

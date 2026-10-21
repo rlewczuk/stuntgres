@@ -30,7 +30,7 @@ func evalSerialSequence(c *exec.Context, values [3]sqltype.Value, result *sqltyp
 	if scope.inquiry.deparseAuth.session != nil {
 		database = scope.inquiry.deparseAuth.session.DatabaseName
 	}
-	name, err = regclassQualifiedName(name, table, database)
+	name, err = ClassQualifiedName(name, table, database)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

@@ -23,7 +23,7 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 		descriptor, _ := auth.definitionDescriptor(a)
 		if d, ok := descriptor.(*catalog.Collation); ok {
 			one := [1]collationCandidate{{a, d.Encoding}}
-			if selectCollation(one[:], 6) != (ids.ObjectAddress{}) {
+			if SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {
 				return d, nil
 			}
 		}

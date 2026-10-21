@@ -16,7 +16,7 @@ func (s *StatementScope) formatRegTS(id uint32, alias sqltype.ID) (string, error
 	if text, ok := s.presentationOrZero().regTS[key]; ok {
 		return text, nil
 	}
-	text := regTSSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, id, alias, false)
+	text := TextSearchSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, id, alias, false)
 	if s.presentationOrZero().regTS == nil {
 		s.presentation().regTS = make(map[exec.RegTSOutputKey]string)
 	}

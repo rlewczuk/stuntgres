@@ -43,7 +43,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if original.RowType == reminted.RowType {
 		t.Fatal("fixture did not remint row-type identity")
 	}
-	value, err = remapCatalogAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
+	value, err = RemapAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
 		if address == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.RowType)}) {
 			return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(reminted.RowType)}
 		}

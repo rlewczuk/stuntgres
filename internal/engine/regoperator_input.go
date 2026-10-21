@@ -32,7 +32,7 @@ func (e *Engine) captureOperatorInput(auth AuthorizationView, op *session.Operat
 	if err != nil {
 		return capturedOperatorInput{}, err
 	}
-	return capturedOperatorInput{types: types, path: path, groups: collectOperatorGroups(auth.Catalog)}, nil
+	return capturedOperatorInput{types: types, path: path, groups: CollectOperatorGroups(auth.Catalog)}, nil
 }
 func (r capturedOperatorInput) OperatorParameter(slot int, empty bool) sqltype.OperatorResolver {
 	r.types = r.types.RegtypeParameter(slot, empty).(capturedRegtypeInput)
@@ -92,7 +92,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, err
 		}
 		path = []ids.ObjectAddress{ns}
 	}
-	return visibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
+	return VisibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
 }
 func (r capturedOperatorInput) ResolveRegoper(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {

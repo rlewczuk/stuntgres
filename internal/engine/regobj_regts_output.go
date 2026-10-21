@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func regTSSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, alias sqltype.ID, qualified bool) string {
+func TextSearchSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, alias sqltype.ID, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
@@ -40,13 +40,13 @@ func regTSSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, alias
 	return name
 }
 
-func captureRegTSOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func CaptureTextSearchOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegTS() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := captureRegTSOutputValue(rows, view, path, value.CompositeField(i)); err != nil {
+			if err := CaptureTextSearchOutputValue(rows, view, path, value.CompositeField(i)); err != nil {
 				return err
 			}
 		}
@@ -54,7 +54,7 @@ func captureRegTSOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := captureRegTSOutputValue(rows, view, path, value.ArrayElement(i)); err != nil {
+			if err := CaptureTextSearchOutputValue(rows, view, path, value.ArrayElement(i)); err != nil {
 				return err
 			}
 		}
@@ -71,7 +71,7 @@ func captureRegTSOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids
 	if rows.RegTSOutput == nil {
 		rows.RegTSOutput = make(map[exec.RegTSOutputKey]string)
 	}
-	rows.RegTSOutput[key] = regTSSpelling(view, path, id, key.Alias, false)
+	rows.RegTSOutput[key] = TextSearchSpelling(view, path, id, key.Alias, false)
 	rows.Output.RegTS = rows
 	return nil
 }

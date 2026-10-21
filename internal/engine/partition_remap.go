@@ -88,7 +88,7 @@ func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 					return nil, err
 				}
 				if !typesOnly && value.Type().ContainsRegclass() {
-					value, err = remapRegclassDatum(value, func(id ids.OID) ids.OID {
+					value, err = RemapClassDatum(value, func(id ids.OID) ids.OID {
 						if address, ok := mapping[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
@@ -99,7 +99,7 @@ func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 					}
 				}
 				if !typesOnly && (value.Type().ContainsRegtype() || value.Type().ContainsRegObject()) {
-					value, err = remapCatalogAliasDatum(value, func(source ids.ObjectAddress) ids.ObjectAddress {
+					value, err = RemapAliasDatum(value, func(source ids.ObjectAddress) ids.ObjectAddress {
 						if address, ok := mapping[source]; ok {
 							return address
 						}
@@ -110,7 +110,7 @@ func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 					}
 				}
 				if !typesOnly && value.Type().ContainsRegproc() {
-					value, err = remapRoutineDatum(value, func(id ids.OID) ids.OID {
+					value, err = RemapRoutineDatum(value, func(id ids.OID) ids.OID {
 						if address, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
@@ -121,7 +121,7 @@ func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 					}
 				}
 				if !typesOnly && value.Type().ContainsOperatorAlias() {
-					value, err = remapOperatorDatum(value, func(id ids.OID) ids.OID {
+					value, err = RemapOperatorDatum(value, func(id ids.OID) ids.OID {
 						if address, ok := mapping[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
@@ -132,7 +132,7 @@ func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 					}
 				}
 				if !typesOnly && value.Type().ContainsRegTS() {
-					value, err = remapRegTSDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
+					value, err = RemapTextSearchDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
 						if target, ok := mapping[address]; ok {
 							return target
 						}

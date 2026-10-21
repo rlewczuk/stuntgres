@@ -41,7 +41,7 @@ func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph dump.
 				}
 				return nil
 			}
-			if err := regclassReplayReferences(view, check.Expression, add); err != nil {
+			if err := ClassReplayReferences(view, check.Expression, add); err != nil {
 				return err
 			}
 			for _, dependency := range check.Dependencies {
@@ -58,7 +58,7 @@ func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph dump.
 }
 
 func domainInvalidDumpStatement(ctx context.Context, view catalog.Read, domain *catalog.Type) (string, error) {
-	qualified, err := catalogTypeDeclaration(view, domain.SQLType.Usage())
+	qualified, err := TypeDeclaration(view, domain.SQLType.Usage())
 	if err != nil {
 		return "", err
 	}

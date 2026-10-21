@@ -85,7 +85,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
-	ctx = aclItemOutputContext(ctx, capture.aclOutput)
+	ctx = ACLItemOutputContext(ctx, capture.aclOutput)
 	script, err := buildDumpScript(ctx, capture)
 	if err != nil {
 		return err

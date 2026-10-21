@@ -11,11 +11,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func routineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, signatureQualified, qualified bool) string {
+func RoutineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, signatureQualified, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
-	procedure, ok := routineIdentityByOID(view, id)
+	procedure, ok := RoutineIdentityByOID(view, id)
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
@@ -23,7 +23,7 @@ func routineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, si
 	if signatureQualified {
 		signature = &procedure.Signature
 	}
-	selected, count := selectRoutine(view, analyze.NamespaceSelection{Path: path}, procedure.Name, signature)
+	selected, count := SelectRoutine(view, analyze.NamespaceSelection{Path: path}, procedure.Name, signature)
 	name := regclassIdentifier(procedure.Name)
 	if qualified || count != 1 || selected.ID != id {
 		namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: procedure.Namespace})
@@ -35,7 +35,7 @@ func routineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, si
 	var text strings.Builder
 	text.WriteString(name)
 	text.WriteByte('(')
-	writeRoutineArguments(&text, view, path, procedure.Signature, false)
+	WriteRoutineArguments(&text, view, path, procedure.Signature, false)
 	text.WriteByte(')')
 	return text.String()
 }
@@ -43,7 +43,7 @@ func routineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, si
 // Signatures come from the validated catalog identity inventory. Diagnostics use
 // canonical builtin names and diagnostic path authority; regprocedure output
 // retains its own type visibility rules.
-func writeRoutineArguments(text *strings.Builder, view catalog.Read, path []ids.ObjectAddress, signature catalog.ProcedureSignature, diagnostic bool) {
+func WriteRoutineArguments(text *strings.Builder, view catalog.Read, path []ids.ObjectAddress, signature catalog.ProcedureSignature, diagnostic bool) {
 	first := true
 	if signature != "" {
 		for arg := range strings.SplitSeq(string(signature), ",") {
@@ -60,23 +60,23 @@ func writeRoutineArguments(text *strings.Builder, view catalog.Read, path []ids.
 					text.WriteString(catalog.TypeDiagnosticNameAt(view, typ, path))
 				}
 			} else {
-				text.WriteString(regtypeSpelling(view, path, ids.OID(oid)))
+				text.WriteString(TypeSpelling(view, path, ids.OID(oid)))
 			}
 		}
 	}
 }
 
-func regprocSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
-	return routineSpelling(view, path, id, false, false)
+func ProcSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
+	return RoutineSpelling(view, path, id, false, false)
 }
 
-func captureRegprocOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func CaptureProcOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := captureRegprocOutputValue(rows, view, path, value.CompositeField(i)); err != nil {
+			if err := CaptureProcOutputValue(rows, view, path, value.CompositeField(i)); err != nil {
 				return err
 			}
 		}
@@ -84,7 +84,7 @@ func captureRegprocOutputValue(rows *exec.FinalRows, view catalog.Read, path []i
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := captureRegprocOutputValue(rows, view, path, value.ArrayElement(i)); err != nil {
+			if err := CaptureProcOutputValue(rows, view, path, value.ArrayElement(i)); err != nil {
 				return err
 			}
 		}
@@ -110,22 +110,22 @@ func captureRegprocOutputValue(rows *exec.FinalRows, view catalog.Read, path []i
 			rows.RegprocOutput = output
 		}
 	}
-	output[id] = routineSpelling(view, path, ids.OID(id), signature, false)
+	output[id] = RoutineSpelling(view, path, ids.OID(id), signature, false)
 	rows.Output.Regproc = rows
 	return nil
 }
 
 // Catalog renderers use captured authority, never a live Rows lookup.
 type catalogRoutineOutput struct {
-	view      catalog.Read
-	path      []ids.ObjectAddress
+	View      catalog.Read
+	Path      []ids.ObjectAddress
 	qualified bool
 }
 
 func (r catalogRoutineOutput) FormatRegproc(id uint32) (string, error) {
-	return routineSpelling(r.view, r.path, ids.OID(id), false, r.qualified), nil
+	return RoutineSpelling(r.View, r.Path, ids.OID(id), false, r.qualified), nil
 }
 
 func (r catalogRoutineOutput) FormatRegprocedure(id uint32) (string, error) {
-	return routineSpelling(r.view, r.path, ids.OID(id), true, r.qualified), nil
+	return RoutineSpelling(r.View, r.Path, ids.OID(id), true, r.qualified), nil
 }

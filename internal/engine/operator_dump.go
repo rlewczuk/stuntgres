@@ -27,7 +27,7 @@ func operatorSQLSignature(view catalog.Read, d *catalog.Operator) (string, error
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing operator signature type")
 		}
-		text, err := catalogTypeDeclaration(view, t.Usage())
+		text, err := TypeDeclaration(view, t.Usage())
 		if err != nil {
 			return "", err
 		}
@@ -36,7 +36,7 @@ func operatorSQLSignature(view catalog.Read, d *catalog.Operator) (string, error
 	return operatorSQLName(view, d) + " (" + arguments[0] + ", " + arguments[1] + ")", nil
 }
 func operatorRoutineSQLName(view catalog.Read, id ids.OID) (string, error) {
-	identity, ok := routineIdentityByOID(view, id)
+	identity, ok := RoutineIdentityByOID(view, id)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing operator routine identity")
 	}
@@ -80,7 +80,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 			continue
 		}
 		t, _ := view.LookupType(sqltype.ID(id))
-		text, err := catalogTypeDeclaration(view, t.Usage())
+		text, err := TypeDeclaration(view, t.Usage())
 		if err != nil {
 			return dump.Statement{}, err
 		}

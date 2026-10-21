@@ -32,7 +32,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 	if err != nil || bits != "00001111" {
 		t.Fatal(bits, err)
 	}
-	literal, err := literalSQL(ctx, node.(plan.LiteralExpr))
+	literal, err := ConstantLiteral(ctx, node.(plan.LiteralExpr))
 	if err != nil || literal != "B'00001111'" {
 		t.Fatal(literal, err)
 	}

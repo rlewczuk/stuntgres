@@ -240,9 +240,9 @@ func (r engineCatalogRuntime) ValidateType(view catalog.Read, d *catalog.Type) e
 }
 func (r engineCatalogRuntime) TypeOutput(owner *catalog.Owner, view catalog.Read, roles authorization.Read) sqltype.OutputEnvironment {
 	return sqltype.OutputEnvironment{
-		Regclass: catalogRegclassOutput{view: view},
-		Regrole:  capturedRegroleOutput{owner: owner, roles: roles},
-		ACLItem:  capturedACLItemOutput{owner: owner, roles: roles},
+		Regclass: catalogRegclassOutput{View: view},
+		Regrole:  capturedRegroleOutput{Owner: owner, Roles: roles},
+		ACLItem:  capturedACLItemOutput{Owner: owner, Roles: roles},
 	}
 }
 func (r engineCatalogRuntime) ObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {

@@ -20,7 +20,7 @@ func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[
 	var failure error
 	check := func(value sqltype.Value) {
 		if failure == nil {
-			failure = preflightACLItemValue(ctx, output, value)
+			failure = PreflightACLItemValue(ctx, output, value)
 		}
 	}
 	expression := func(node expr.Expr) {

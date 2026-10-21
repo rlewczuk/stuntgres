@@ -82,7 +82,7 @@ func (h *statementHost) RowSecurityActive(c *exec.Context, relation functions.Ac
 		if err != nil {
 			return false, sqlError("42602", "invalid name syntax")
 		}
-		name, err = regclassQualifiedName(name, relation.Name, auth.session.DatabaseName)
+		name, err = ClassQualifiedName(name, relation.Name, auth.session.DatabaseName)
 		if err != nil {
 			return false, err
 		}

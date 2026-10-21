@@ -12,7 +12,7 @@ func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 	if text, ok := s.presentationOrZero().regproc[id]; ok {
 		return text, nil
 	}
-	text := regprocSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id))
+	text := ProcSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id))
 	if s.presentationOrZero().regproc == nil {
 		s.presentation().regproc = make(map[uint32]string)
 	}
@@ -26,7 +26,7 @@ func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
 	if text, ok := s.presentationOrZero().regprocedure[id]; ok {
 		return text, nil
 	}
-	text := routineSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id), true, false)
+	text := RoutineSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id), true, false)
 	if s.presentationOrZero().regprocedure == nil {
 		s.presentation().regprocedure = make(map[uint32]string)
 	}

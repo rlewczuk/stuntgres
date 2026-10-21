@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func regclassNumeric(text string, typ *sqltype.Descriptor) (uint32, bool, error) {
+func ClassNumeric(text string, typ *sqltype.Descriptor) (uint32, bool, error) {
 	input := text
 	if input == "-" {
 		input = "0"
@@ -30,7 +30,7 @@ func regclassNumeric(text string, typ *sqltype.Descriptor) (uint32, bool, error)
 	return n, true, err
 }
 
-func regclassQualifiedName(name parser.ObjectName, text, database string) (parser.ObjectName, error) {
+func ClassQualifiedName(name parser.ObjectName, text, database string) (parser.ObjectName, error) {
 	if len(name.Parts) > 3 {
 		return parser.ObjectName{}, sqlError("42601", "improper relation name (too many dotted names): "+text)
 	}

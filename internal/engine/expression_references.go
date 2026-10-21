@@ -91,13 +91,13 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 			})
 		}
 		if r.err == nil {
-			r.err = walkOperatorReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+			r.err = WalkOperatorReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 		if r.err == nil {
-			r.err = walkRegTSReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+			r.err = WalkTextSearchReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})

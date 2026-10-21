@@ -19,7 +19,7 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n plan.
 	}
 	text := "ARRAY[" + strings.Join(parts, ", ") + "]"
 	if len(parts) == 0 {
-		declaration, err := catalogTypeDeclarationAt(view, r.definition, n.Usage)
+		declaration, err := TypeDeclarationAt(view, r.definition, n.Usage)
 		if err != nil {
 			return "", err
 		}

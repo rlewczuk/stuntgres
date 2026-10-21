@@ -128,7 +128,7 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph dump.
 			graph[event] = append([]dump.Event(nil), prerequisites...)
 			add := addProvider(event)
 			for _, definition := range table.descriptor.ColumnMeta.Generations {
-				if err := regclassReplayReferences(view, definition.Expression, add); err != nil {
+				if err := ClassReplayReferences(view, definition.Expression, add); err != nil {
 					return err
 				}
 				for _, dependency := range definition.Dependencies {
@@ -159,7 +159,7 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph dump.
 			add := addProvider(event)
 			for _, check := range table.descriptor.Constraints.Check {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
-					if err := regclassReplayReferences(view, check.Expression, add); err != nil {
+					if err := ClassReplayReferences(view, check.Expression, add); err != nil {
 						return err
 					}
 					for _, dependency := range check.Dependencies {

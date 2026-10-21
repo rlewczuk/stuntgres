@@ -142,7 +142,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		if n.Usage.Type.ContainsRegclass() && !n.Value.IsNull() {
 			var failure error
-			n.Value, failure = remapRegclassDatum(n.Value, func(id ids.OID) ids.OID {
+			n.Value, failure = RemapClassDatum(n.Value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
@@ -151,7 +151,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		if (n.Usage.Type.ContainsRegtype() || n.Usage.Type.ContainsRegObject()) && !n.Value.IsNull() {
 			var failure error
-			n.Value, failure = remapCatalogAliasDatum(n.Value, func(address ids.ObjectAddress) ids.ObjectAddress {
+			n.Value, failure = RemapAliasDatum(n.Value, func(address ids.ObjectAddress) ids.ObjectAddress {
 				return ref(ids.ObjectRef{Address: address}).Address
 			})
 			if failure != nil {
@@ -160,7 +160,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		if n.Usage.Type.ContainsRegproc() && !n.Value.IsNull() {
 			var failure error
-			n.Value, failure = remapRoutineDatum(n.Value, func(id ids.OID) ids.OID {
+			n.Value, failure = RemapRoutineDatum(n.Value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
@@ -169,7 +169,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		if n.Usage.Type.ContainsOperatorAlias() && !n.Value.IsNull() {
 			var failure error
-			n.Value, failure = remapOperatorDatum(n.Value, func(id ids.OID) ids.OID {
+			n.Value, failure = RemapOperatorDatum(n.Value, func(id ids.OID) ids.OID {
 				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
@@ -178,7 +178,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		if n.Usage.Type.ContainsRegTS() && !n.Value.IsNull() {
 			var failure error
-			n.Value, failure = remapRegTSDatum(n.Value, func(address ids.ObjectAddress) ids.ObjectAddress {
+			n.Value, failure = RemapTextSearchDatum(n.Value, func(address ids.ObjectAddress) ids.ObjectAddress {
 				return ref(ids.ObjectRef{Address: address}).Address
 			})
 			if failure != nil {

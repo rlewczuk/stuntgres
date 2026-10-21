@@ -6,14 +6,14 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func routineIdentityByOID(view catalog.Read, id ids.OID) (catalog.RoutineIdentity, bool) {
+func RoutineIdentityByOID(view catalog.Read, id ids.OID) (catalog.RoutineIdentity, bool) {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
 		return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, true
 	}
 	if p, ok := catalog.BuiltinRoutineIdentityByOID(id); ok {
 		return p, true
 	}
-	if owner := routineDescriptorOwner(view, id); owner != nil {
+	if owner := RoutineDescriptorOwner(view, id); owner != nil {
 		for _, helper := range owner.Aggregate.Helpers {
 			if helper.ID == id {
 				return helper, true
@@ -30,7 +30,7 @@ func routineNamespaceVisible(view catalog.Read, namespace ids.ObjectAddress) boo
 
 // Exact signatures use both existing catalog NameKeys and the immutable release
 // signature index. The first candidate masks all later identical signatures.
-func selectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name string, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
+func SelectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name string, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	for i := range path.Count() {
 		namespace := path.At(i)
 		if !routineNamespaceVisible(view, namespace) {
@@ -59,9 +59,9 @@ func selectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name
 
 // Earlier schemas mask only identical signatures, not every same-named routine.
 // Bare-name selection stops after two candidates, the regproc ambiguity boundary.
-func selectRoutine(view catalog.Read, path analyze.NamespaceSelection, name string, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
+func SelectRoutine(view catalog.Read, path analyze.NamespaceSelection, name string, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	if signature != nil {
-		return selectExactRoutine(view, path, name, *signature)
+		return SelectExactRoutine(view, path, name, *signature)
 	}
 	var selected catalog.RoutineIdentity
 	count := 0
@@ -107,7 +107,7 @@ func selectRoutine(view catalog.Read, path analyze.NamespaceSelection, name stri
 
 // A helper's dependencies are dependencies on this real aggregate descriptor,
 // never invented ObjectRefs for metadata-only identities.
-func routineDescriptorOwner(view catalog.Read, id ids.OID) *catalog.Procedure {
+func RoutineDescriptorOwner(view catalog.Read, id ids.OID) *catalog.Procedure {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
 		return p
 	}

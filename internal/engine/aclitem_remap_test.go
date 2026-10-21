@@ -175,13 +175,13 @@ func TestACLItemStaleDump(t *testing.T) {
 	e := New()
 	aclUnitRoles(e, "acl_dump_a", "acl_dump_b")
 	value := aclUnitValue(t, e, "acl_dump_a=r*/acl_dump_b")
-	captured := capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles(), lossless: true}
-	ctx := aclItemOutputContext(context.Background(), captured)
+	captured := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}
+	ctx := ACLItemOutputContext(context.Background(), captured)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
-	if text, err := catalogLiteralSQL(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
+	if text, err := Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
 		t.Fatal(text, err)
 	}
-	if _, err := catalogLiteralSQL(context.Background(), e.CatalogRead(), literal); err == nil {
+	if _, err := Literal(context.Background(), e.CatalogRead(), literal); err == nil {
 		t.Fatal("literal rendered without authority")
 	}
 	a, _ := e.Roles().Lookup("acl_dump_a")
@@ -190,15 +190,15 @@ func TestACLItemStaleDump(t *testing.T) {
 	retireFixtureRole(next, a.Ref)
 	e.roles.published = next
 	e.mu.Unlock()
-	ordinary := capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles()}
+	ordinary := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
 	text, err := value.Type().OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: ordinary})
 	if err != nil || text != "20000=r*/acl_dump_b" {
 		t.Fatal("stale ordinary output", text, err)
 	}
-	if err := preflightACLItemValue(context.Background(), capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles(), lossless: true}, value); err == nil {
+	if err := PreflightACLItemValue(context.Background(), capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}, value); err == nil {
 		t.Fatal("stale dump leaf accepted")
 	}
-	if text, err := catalogLiteralSQL(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
+	if text, err := Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
 		t.Fatal("captured role snapshot consulted live roles", text, err)
 	}
 	if _, err := (pgRenderer{view: e.CatalogRead()}).literal(context.Background(), literal); err == nil {

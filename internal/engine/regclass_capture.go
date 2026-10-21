@@ -12,7 +12,7 @@ import (
 
 func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.ObjectRef, error) {
 	typ, _ := auth.definitionType(sqltype.Oid)
-	if oid, numeric, err := regclassNumeric(text, typ); numeric {
+	if oid, numeric, err := ClassNumeric(text, typ); numeric {
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
@@ -26,7 +26,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 	if auth.session != nil {
 		database = auth.session.DatabaseName
 	}
-	name, err = regclassQualifiedName(name, text, database)
+	name, err = ClassQualifiedName(name, text, database)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
@@ -63,14 +63,14 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 		return 0, err
 	}
 	typ, _ := r.auth.definitionType(sqltype.Oid)
-	if oid, numeric, err := regclassNumeric(text, typ); numeric {
+	if oid, numeric, err := ClassNumeric(text, typ); numeric {
 		return oid, err
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return 0, sqlError("42602", "invalid name syntax")
 	}
-	name, err = regclassQualifiedName(name, text, r.database)
+	name, err = ClassQualifiedName(name, text, r.database)
 	if err != nil {
 		return 0, err
 	}

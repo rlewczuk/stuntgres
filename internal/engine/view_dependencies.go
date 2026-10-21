@@ -144,7 +144,7 @@ func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		return "extension " + catalog.DependencyIdentifier(d.Name())
 	}
 	if _, ok := view.Operator(base); ok {
-		return "operator " + operatorSpelling(view, path, collectOperatorGroups(view), base.ObjectID, sqltype.Regoperator)
+		return "operator " + OperatorSpelling(view, path, CollectOperatorGroups(view), base.ObjectID, sqltype.Regoperator)
 	}
 	if d, ok := view.Procedure(base); ok {
 		name := catalog.DependencyIdentifier(d.Name())
@@ -165,7 +165,7 @@ func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		text.WriteString("function ")
 		text.WriteString(name)
 		text.WriteByte('(')
-		writeRoutineArguments(&text, view, path, d.Signature, true)
+		WriteRoutineArguments(&text, view, path, d.Signature, true)
 		text.WriteByte(')')
 		return text.String()
 	}

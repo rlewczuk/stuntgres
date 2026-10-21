@@ -11,13 +11,13 @@ func (s *StatementScope) FormatRegcollation(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		return exec.DetachedPresentation{}.FormatRegcollation(id)
 	}
-	return regObjectSpelling(s.inquiry.commentCatalog, s.inquiry.collationPath, ids.CollationClassID, ids.OID(id)), nil
+	return ObjectSpelling(s.inquiry.commentCatalog, s.inquiry.collationPath, ids.CollationClassID, ids.OID(id)), nil
 }
 func (s *StatementScope) FormatRegnamespace(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		return exec.DetachedPresentation{}.FormatRegnamespace(id)
 	}
-	return regObjectSpelling(s.inquiry.commentCatalog, nil, ids.NamespaceClassID, ids.OID(id)), nil
+	return ObjectSpelling(s.inquiry.commentCatalog, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }
 
 func (e *Engine) captureRegObjectRowsValueLocked(rows *exec.FinalRows, auth AuthorizationView, path *[]ids.ObjectAddress, value sqltype.Value) error {
@@ -31,5 +31,5 @@ func (e *Engine) captureRegObjectRowsValueLocked(rows *exec.FinalRows, auth Auth
 			return err
 		}
 	}
-	return captureRegObjectOutputValue(rows, auth.Catalog, *path, value)
+	return CaptureObjectOutputValue(rows, auth.Catalog, *path, value)
 }

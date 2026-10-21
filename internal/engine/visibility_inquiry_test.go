@@ -31,7 +31,7 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 		{"wrong-and-fallback", []collationCandidate{{address(3), 8}, {address(2), -1}}, address(2)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := selectCollation(tc.candidates, 6); got != tc.want {
+			if got := SelectCollation(tc.candidates, 6); got != tc.want {
 				t.Fatal(got, tc.want)
 			}
 		})
@@ -47,14 +47,14 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 		{ClassID: ids.CollationClassID, Namespace: b, Name: "same"}: second.Address(),
 	})
 	view := catalog.NewRead(nil, state)
-	if !visibleCollation(view, []ids.ObjectAddress{a, b}, first) || visibleCollation(view, []ids.ObjectAddress{a, b}, second) {
+	if !VisibleCollation(view, []ids.ObjectAddress{a, b}, first) || VisibleCollation(view, []ids.ObjectAddress{a, b}, second) {
 		t.Fatal("later exact beat earlier fallback")
 	}
 	first.Encoding = 8
-	if visibleCollation(view, []ids.ObjectAddress{a, b}, first) || !visibleCollation(view, []ids.ObjectAddress{a, b}, second) {
+	if VisibleCollation(view, []ids.ObjectAddress{a, b}, first) || !VisibleCollation(view, []ids.ObjectAddress{a, b}, second) {
 		t.Fatal("wrong encoding shadowed later usable candidate")
 	}
-	if visibleCollation(view, []ids.ObjectAddress{a}, first) {
+	if VisibleCollation(view, []ids.ObjectAddress{a}, first) {
 		t.Fatal("ineligible subject became visible")
 	}
 }

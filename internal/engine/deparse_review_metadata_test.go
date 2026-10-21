@@ -85,7 +85,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 		if !leaf.UnknownNull || !leaf.Value.IsNull() || leaf.Usage.Type.ID() != sqltype.Text {
 			t.Fatal(leaf)
 		}
-		if text, err := literalSQL(context.Background(), leaf); err != nil || text != "NULL::unknown" {
+		if text, err := ConstantLiteral(context.Background(), leaf); err != nil || text != "NULL::unknown" {
 			t.Fatal(text, err)
 		}
 		typed := leaf
@@ -120,7 +120,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 		}
 		bad := leaf
 		bad.Value = sqltype.String(leaf.Usage.Type, "not null")
-		if _, err := literalSQL(context.Background(), bad); err == nil {
+		if _, err := ConstantLiteral(context.Background(), bad); err == nil {
 			t.Fatal("invalid provenance accepted")
 		}
 	}

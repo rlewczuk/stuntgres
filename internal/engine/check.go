@@ -155,7 +155,7 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 		current[name], used[name] = true, true
 		definition := catalog.CheckConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, Ordinal: ordinal, Expression: node}
 		var dependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{definition: op.Definition, aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
+		if _, err := (scalarRenderer{definition: op.Definition, aclOutput: capturedACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {

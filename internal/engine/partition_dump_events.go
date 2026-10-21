@@ -277,7 +277,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 				continue
 			}
 			add := collect(&sources, &late)
-			if err := regclassReplayReferences(view, check.Expression, add); err != nil {
+			if err := ClassReplayReferences(view, check.Expression, add); err != nil {
 				return err
 			}
 			for _, dependency := range check.Dependencies {
@@ -301,7 +301,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 					continue
 				}
 				add := collect(&sources, &late)
-				if err := regclassReplayReferences(view, definition.Expression, add); err != nil {
+				if err := ClassReplayReferences(view, definition.Expression, add); err != nil {
 					return err
 				}
 				for _, dependency := range definition.Dependencies {

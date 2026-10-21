@@ -14,7 +14,7 @@ import (
 // array/domain datums must be rendered after their live names exist, but must
 // never acquire the DROP dependencies of a scalar regclass input constant.
 // Numeric coercion inputs are integer/OID literals and therefore untouched.
-func regclassReplayReferences(view catalog.Read, node expr.Expr, visit func(ids.ObjectAddress) error) error {
+func ClassReplayReferences(view catalog.Read, node expr.Expr, visit func(ids.ObjectAddress) error) error {
 	var failure error
 	plan.WalkExpression(node, func(child expr.Expr) {
 		if failure != nil {
@@ -24,7 +24,7 @@ func regclassReplayReferences(view catalog.Read, node expr.Expr, visit func(ids.
 		if !ok {
 			return
 		}
-		_, err := remapRegclassDatum(literal.Value, func(oid ids.OID) ids.OID {
+		_, err := RemapClassDatum(literal.Value, func(oid ids.OID) ids.OID {
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 			if _, exists := view.Descriptor(address); exists && failure == nil && oid != 0 {
 				failure = visit(address)
@@ -40,18 +40,18 @@ func regclassReplayReferences(view catalog.Read, node expr.Expr, visit func(ids.
 
 // Remap captured relation identities recursively without rendering or reparsing
 // array text. Payloads are copied only on the first affected element.
-func remapRegclassDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
+func RemapClassDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() {
 		return value, nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		return value.MapComposite(value.Type(), func(member sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
-			return remapRegclassDatum(member, destination)
+			return RemapClassDatum(member, destination)
 		})
 	}
 	if value.Type().BaseType().IsArray() {
 		return value.MapArray(value.Type(), func(element sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
-			return remapRegclassDatum(element, destination)
+			return RemapClassDatum(element, destination)
 		})
 	}
 	if value.Type().BaseType().ID() != sqltype.Regclass {

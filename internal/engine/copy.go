@@ -366,7 +366,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth
 			s.input.Regtype, err = e.captureRegtypeInput(auth, s.op)
 		}
 		if err == nil && usage.Type.ContainsRegrole() && s.input.Regrole == nil {
-			s.input.Regrole = capturedRegroleInput{roles: auth.Roles}
+			s.input.Regrole = capturedRegroleInput{Roles: auth.Roles}
 		}
 		if err == nil && usage.Type.ContainsOperatorAlias() && s.input.Operator == nil {
 			s.input.Operator, err = e.captureOperatorInput(auth, s.op)

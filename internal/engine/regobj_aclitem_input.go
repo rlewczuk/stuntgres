@@ -13,20 +13,20 @@ import (
 )
 
 type capturedACLItemInput struct {
-	roles     authorization.Read
-	authority *sqltype.ACLAuthority
-	op        *session.Operation
+	Roles     authorization.Read
+	Authority *sqltype.ACLAuthority
+	Op        *session.Operation
 	position  int
 	portal    string
 }
 
-func (r capturedACLItemInput) ACLItemAuthority() *sqltype.ACLAuthority { return r.authority }
+func (r capturedACLItemInput) ACLItemAuthority() *sqltype.ACLAuthority { return r.Authority }
 
 func (r capturedACLItemInput) ResolveACLRole(ctx context.Context, name string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	role, ok := r.roles.Lookup(name)
+	role, ok := r.Roles.Lookup(name)
 	if !ok {
 		return 0, sqlError("42704", `role "`+name+`" does not exist`)
 	}
@@ -37,14 +37,14 @@ func (r capturedACLItemInput) ResolveACLRole(ctx context.Context, name string) (
 }
 
 func (r capturedACLItemInput) WarnACLGrantor(ctx context.Context) {
-	if r.op == nil || ctx.Err() != nil {
+	if r.Op == nil || ctx.Err() != nil {
 		return
 	}
 	warning := sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0L000", Message: "defaulting grantor to user ID 10", Context: r.portal}
 	if r.position > 0 {
 		warning.Position = strconv.Itoa(r.position)
 	}
-	r.op.EmitNotice(session.LevelWarning, warning)
+	r.Op.EmitNotice(session.LevelWarning, warning)
 }
 
 func (r capturedACLItemInput) ACLItemParameter(slot int, empty bool) sqltype.ACLItemResolver {

@@ -74,7 +74,7 @@ func (e *Engine) resolveGrantRoutine(op *session.Operation, v AuthorizationView,
 			}
 		}
 	} else {
-		selected, count = selectRoutine(v.Catalog, path, name, exact)
+		selected, count = SelectRoutine(v.Catalog, path, name, exact)
 	}
 	noun := "function"
 	if kind == "procedure" {

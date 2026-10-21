@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups exec.OperatorGroups, id ids.OID, alias sqltype.ID) string {
+func OperatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups exec.OperatorGroups, id ids.OID, alias sqltype.ID) string {
 	descriptor, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
@@ -26,7 +26,7 @@ func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups exec.O
 			break
 		}
 	}
-	candidates := visibleOperators(groups, operatorPath, descriptor.Name())
+	candidates := VisibleOperators(groups, operatorPath, descriptor.Name())
 	visible := len(candidates) == 1 && candidates[0].Address() == descriptor.Address()
 	if alias == sqltype.Regoperator {
 		visible = false
@@ -46,20 +46,20 @@ func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups exec.O
 			if id == 0 {
 				return "NONE"
 			}
-			return regtypeSpelling(view, path, id)
+			return TypeSpelling(view, path, id)
 		}
 		name += "(" + operand(descriptor.Left) + "," + operand(descriptor.Right) + ")"
 	}
 	return name
 }
 
-func captureOperatorOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
+func CaptureOperatorOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := captureOperatorOutputValue(rows, view, path, value.CompositeField(i)); err != nil {
+			if err := CaptureOperatorOutputValue(rows, view, path, value.CompositeField(i)); err != nil {
 				return err
 			}
 		}
@@ -67,7 +67,7 @@ func captureOperatorOutputValue(rows *exec.FinalRows, view catalog.Read, path []
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := captureOperatorOutputValue(rows, view, path, value.ArrayElement(i)); err != nil {
+			if err := CaptureOperatorOutputValue(rows, view, path, value.ArrayElement(i)); err != nil {
 				return err
 			}
 		}
@@ -82,12 +82,12 @@ func captureOperatorOutputValue(rows *exec.FinalRows, view catalog.Read, path []
 		return nil
 	}
 	if rows.OperatorGroups == nil {
-		rows.OperatorGroups = collectOperatorGroups(view)
+		rows.OperatorGroups = CollectOperatorGroups(view)
 	}
 	if rows.OperatorOutput == nil {
 		rows.OperatorOutput = make(map[exec.OperatorOutputKey]string)
 	}
-	rows.OperatorOutput[key] = operatorSpelling(view, path, rows.OperatorGroups, ids.OID(id), key.Alias)
+	rows.OperatorOutput[key] = OperatorSpelling(view, path, rows.OperatorGroups, ids.OID(id), key.Alias)
 	rows.Output.Operator = rows
 	return nil
 }

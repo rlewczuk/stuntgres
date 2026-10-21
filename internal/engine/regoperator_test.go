@@ -98,27 +98,27 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	groups := collectOperatorGroups(view)
+	groups := CollectOperatorGroups(view)
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: 11}}
 	for alias, want := range map[sqltype.ID]string{sqltype.Regoper: `"Reg Op".#=#`, sqltype.Regoperator: `"Reg Op".#=#(integer,integer)`} {
-		if got := operatorSpelling(view, path, groups, 91000, alias); got != want {
+		if got := OperatorSpelling(view, path, groups, 91000, alias); got != want {
 			t.Fatal(got, want)
 		}
 	}
-	if got := operatorSpelling(view, path, groups, 91004, sqltype.Regoperator); got != `"Reg"" Op".#=#(integer,integer)` {
+	if got := OperatorSpelling(view, path, groups, 91004, sqltype.Regoperator); got != `"Reg"" Op".#=#(integer,integer)` {
 		t.Fatal(got)
 	}
-	candidates := visibleOperators(groups, namespaces[1:], "#=#")
+	candidates := VisibleOperators(groups, namespaces[1:], "#=#")
 	if len(candidates) != 2 {
 		t.Fatal("different signatures must remain candidates", len(candidates))
 	}
-	if got := operatorSpelling(view, namespaces[1:], groups, 91002, sqltype.Regoperator); got != "later.#=#(integer,integer)" {
+	if got := OperatorSpelling(view, namespaces[1:], groups, 91002, sqltype.Regoperator); got != "later.#=#(integer,integer)" {
 		t.Fatal(got)
 	}
-	if got := operatorSpelling(view, namespaces[1:], groups, 91001, sqltype.Regoper); got != "earlier.#=#" {
+	if got := OperatorSpelling(view, namespaces[1:], groups, 91001, sqltype.Regoper); got != "earlier.#=#" {
 		t.Fatal(got)
 	}
-	if got := operatorSpelling(view, namespaces[:1], groups, 91000, sqltype.Regoper); got != "#=#" {
+	if got := OperatorSpelling(view, namespaces[:1], groups, 91000, sqltype.Regoper); got != "#=#" {
 		t.Fatal(got)
 	}
 	rows := &exec.FinalRows{}
@@ -128,7 +128,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := captureOperatorOutputValue(rows, view, path, value); err != nil {
+		if err := CaptureOperatorOutputValue(rows, view, path, value); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -155,7 +155,7 @@ func TestRegOperatorPersistenceReferences(t *testing.T) {
 				t.Fatal(err)
 			}
 			var refs []ids.ObjectAddress
-			if err := walkOperatorReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil {
+			if err := WalkOperatorReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if id == 551 {

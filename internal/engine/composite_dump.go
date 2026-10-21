@@ -54,7 +54,7 @@ func compositeDumpStatement(ctx context.Context, view catalog.Read, roles author
 		if i != 0 {
 			sql.WriteString(", ")
 		}
-		declaration, err := catalogColumnDeclaration(view, c)
+		declaration, err := ColumnDeclaration(view, c)
 		if err != nil {
 			return dump.Statement{}, err
 		}

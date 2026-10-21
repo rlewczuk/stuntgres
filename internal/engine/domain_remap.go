@@ -83,7 +83,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 					changed = changed || rebound != value
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegclass() {
-					remapped, er := remapRegclassDatum(rebound, func(id ids.OID) ids.OID {
+					remapped, er := RemapClassDatum(rebound, func(id ids.OID) ids.OID {
 						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}]; ok {
 							return target.ObjectID
 						}
@@ -96,7 +96,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 					rebound = remapped
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && (target.ContainsRegtype() || target.ContainsRegObject()) {
-					remapped, er := remapCatalogAliasDatum(rebound, func(address ids.ObjectAddress) ids.ObjectAddress {
+					remapped, er := RemapAliasDatum(rebound, func(address ids.ObjectAddress) ids.ObjectAddress {
 						if target, ok := mapping[address]; ok {
 							return target
 						}
@@ -109,7 +109,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 					rebound = remapped
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegproc() {
-					remapped, er := remapRoutineDatum(rebound, func(id ids.OID) ids.OID {
+					remapped, er := RemapRoutineDatum(rebound, func(id ids.OID) ids.OID {
 						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}]; ok {
 							return target.ObjectID
 						}
@@ -122,7 +122,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 					rebound = remapped
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsOperatorAlias() {
-					remapped, er := remapOperatorDatum(rebound, func(id ids.OID) ids.OID {
+					remapped, er := RemapOperatorDatum(rebound, func(id ids.OID) ids.OID {
 						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}]; ok {
 							return target.ObjectID
 						}
@@ -135,7 +135,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 					rebound = remapped
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegTS() {
-					remapped, er := remapRegTSDatum(rebound, func(address ids.ObjectAddress) ids.ObjectAddress {
+					remapped, er := RemapTextSearchDatum(rebound, func(address ids.ObjectAddress) ids.ObjectAddress {
 						if target, ok := mapping[address]; ok {
 							return target
 						}

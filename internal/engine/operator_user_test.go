@@ -336,11 +336,11 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unchanged, err := remapOperatorDatum(value, func(id ids.OID) ids.OID { return id })
+	unchanged, err := RemapOperatorDatum(value, func(id ids.OID) ids.OID { return id })
 	if err != nil || unchanged != value {
 		t.Fatal("unchanged datum copied", err)
 	}
-	remapped, err := remapOperatorDatum(value, func(id ids.OID) ids.OID {
+	remapped, err := RemapOperatorDatum(value, func(id ids.OID) ids.OID {
 		if id == 90000 {
 			return 90001
 		}
@@ -451,11 +451,11 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	same, err := remapOperatorDatum(nested, func(id ids.OID) ids.OID { return id })
+	same, err := RemapOperatorDatum(nested, func(id ids.OID) ids.OID { return id })
 	if err != nil || same != nested {
 		t.Fatal("unchanged nested storage copied", err)
 	}
-	moved, err := remapOperatorDatum(nested, func(id ids.OID) ids.OID {
+	moved, err := RemapOperatorDatum(nested, func(id ids.OID) ids.OID {
 		if id == 90000 {
 			return 90001
 		}

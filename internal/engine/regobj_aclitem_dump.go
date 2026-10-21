@@ -9,7 +9,7 @@ import (
 
 // Validate only ACL leaves; the regular serializers retain every other lossless
 // boundary. This runs under the existing capture lock before any writer call.
-func preflightACLItemValue(ctx context.Context, output capturedACLItemOutput, value sqltype.Value) error {
+func PreflightACLItemValue(ctx context.Context, output capturedACLItemOutput, value sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -18,18 +18,18 @@ func preflightACLItemValue(ctx context.Context, output capturedACLItemOutput, va
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := preflightACLItemValue(ctx, output, value.CompositeField(i)); err != nil {
+			if err := PreflightACLItemValue(ctx, output, value.CompositeField(i)); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
 	if value.Type().BaseType().IsArray() {
-		if value.Type().BaseType().ID() != sqltype.ACLItemArray && containsEmptyACL(value) {
+		if value.Type().BaseType().ID() != sqltype.ACLItemArray && ContainsEmptyACL(value) {
 			return fmt.Errorf("stuntgres: dump cannot serialize rank-one empty ACL inside an array of composite carriers")
 		}
 		for i := range value.ArrayLen() {
-			if err := preflightACLItemValue(ctx, output, value.ArrayElement(i)); err != nil {
+			if err := PreflightACLItemValue(ctx, output, value.ArrayElement(i)); err != nil {
 				return err
 			}
 		}

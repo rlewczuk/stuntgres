@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func collectOperatorGroups(view catalog.Read) exec.OperatorGroups {
+func CollectOperatorGroups(view catalog.Read) exec.OperatorGroups {
 	groups := make(exec.OperatorGroups)
 	for key, addresses := range view.State().OperatorNames().Buckets {
 		for _, address := range addresses {
@@ -19,7 +19,7 @@ func collectOperatorGroups(view catalog.Read) exec.OperatorGroups {
 }
 
 // Earlier namespaces mask only the same ordered operand signature.
-func visibleOperators(groups exec.OperatorGroups, path []ids.ObjectAddress, name string) []*catalog.Operator {
+func VisibleOperators(groups exec.OperatorGroups, path []ids.ObjectAddress, name string) []*catalog.Operator {
 	var result []*catalog.Operator
 	seen := make(map[analyze.OperatorSignature]bool)
 	for _, ns := range path {

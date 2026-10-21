@@ -76,7 +76,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 	declaration := ""
 	if returning.Type != nil {
 		var err error
-		declaration, err = catalogTypeDeclarationAt(view, r.definition, returning)
+		declaration, err = TypeDeclarationAt(view, r.definition, returning)
 		if err != nil {
 			return "", err
 		}
@@ -200,7 +200,7 @@ func (r scalarRenderer) replayArgument(ctx context.Context, view catalog.Read, a
 // literals privately.
 func (r scalarRenderer) transportDeclaration(view catalog.Read, arg expr.RenderArg) (string, error) {
 	if arg.Transport == expr.TransportCast {
-		return catalogTypeDeclaration(view, arg.TransportType)
+		return TypeDeclaration(view, arg.TransportType)
 	}
 	literal, ok := arg.Expr.(plan.LiteralExpr)
 	if !ok || r.checkLiterals != nil {
@@ -214,7 +214,7 @@ func (r scalarRenderer) transportDeclaration(view catalog.Read, arg expr.RenderA
 		}
 	case expr.TransportLiteral:
 		if !literal.Usage.Type.IsDomain() {
-			return catalogTypeDeclaration(view, literal.Usage)
+			return TypeDeclaration(view, literal.Usage)
 		}
 	case expr.TransportAmbiguous, expr.TransportAmbiguousText:
 		if literal.UnknownNull || literal.Usage.Type.IsDomain() {
@@ -222,7 +222,7 @@ func (r scalarRenderer) transportDeclaration(view catalog.Read, arg expr.RenderA
 		}
 		spelled := id == sqltype.Text || id == sqltype.Int4 || id == sqltype.Bool || id == sqltype.Regclass || id == sqltype.Regtype || sqltype.IsOperatorAlias(id) || sqltype.IsRegTS(id) || id == sqltype.Bit
 		if !spelled || id == sqltype.Text && arg.Transport == expr.TransportAmbiguousText {
-			return catalogTypeDeclaration(view, literal.Usage)
+			return TypeDeclaration(view, literal.Usage)
 		}
 	}
 	return "", nil

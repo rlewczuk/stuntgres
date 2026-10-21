@@ -20,19 +20,19 @@ func (e *Engine) captureRegclassOutput(op *session.Operation, rows *exec.FinalRo
 		return err
 	}
 	var collationPath []ids.ObjectAddress
-	aclOutput := capturedACLItemOutput{owner: e.catalog.owner(), roles: auth.Roles}
-	roleOutput := capturedRegroleOutput{owner: e.catalog.owner(), roles: auth.Roles, quoteAll: rows.Output.QuoteAllIdentifiers}
+	aclOutput := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}
+	roleOutput := capturedRegroleOutput{Owner: e.catalog.owner(), Roles: auth.Roles, QuoteAll: rows.Output.QuoteAllIdentifiers}
 	for _, value := range rows.Values {
 		if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, value); err != nil {
 			return err
 		}
-		if err := captureRegroleOutputValue(rows, roleOutput, value); err != nil {
+		if err := CaptureRoleOutputValue(rows, roleOutput, value); err != nil {
 			return err
 		}
-		if err := captureACLItemOutputValue(rows, aclOutput, value); err != nil {
+		if err := CaptureACLItemOutputValue(rows, aclOutput, value); err != nil {
 			return err
 		}
-		if err := captureRegclassOutputValue(rows, auth.Catalog, path, value); err != nil {
+		if err := CaptureClassOutputValue(rows, auth.Catalog, path, value); err != nil {
 			return err
 		}
 	}
@@ -41,13 +41,13 @@ func (e *Engine) captureRegclassOutput(op *session.Operation, rows *exec.FinalRo
 			if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, value); err != nil {
 				return err
 			}
-			if err := captureRegroleOutputValue(rows, roleOutput, value); err != nil {
+			if err := CaptureRoleOutputValue(rows, roleOutput, value); err != nil {
 				return err
 			}
-			if err := captureACLItemOutputValue(rows, aclOutput, value); err != nil {
+			if err := CaptureACLItemOutputValue(rows, aclOutput, value); err != nil {
 				return err
 			}
-			if err := captureRegclassOutputValue(rows, auth.Catalog, path, value); err != nil {
+			if err := CaptureClassOutputValue(rows, auth.Catalog, path, value); err != nil {
 				return err
 			}
 		}
@@ -63,13 +63,13 @@ func (e *Engine) captureRegclassOutput(op *session.Operation, rows *exec.FinalRo
 				if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, row[slot]); err != nil {
 					return err
 				}
-				if err := captureRegroleOutputValue(rows, roleOutput, row[slot]); err != nil {
+				if err := CaptureRoleOutputValue(rows, roleOutput, row[slot]); err != nil {
 					return err
 				}
-				if err := captureACLItemOutputValue(rows, aclOutput, row[slot]); err != nil {
+				if err := CaptureACLItemOutputValue(rows, aclOutput, row[slot]); err != nil {
 					return err
 				}
-				if err := captureRegclassOutputValue(rows, auth.Catalog, path, row[slot]); err != nil {
+				if err := CaptureClassOutputValue(rows, auth.Catalog, path, row[slot]); err != nil {
 					return err
 				}
 			}
@@ -84,5 +84,5 @@ func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		return exec.DetachedPresentation{}.FormatRegclass(id)
 	}
-	return regclassSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
+	return ClassSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
 }

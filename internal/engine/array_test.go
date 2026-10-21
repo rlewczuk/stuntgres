@@ -295,7 +295,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	}
 	rows := exec.NewFinalRows(next.MustRelation(table.Address()).Columns, 1)
 	defer rows.Close()
-	if err := captureRegclassOutputValue(rows, view, nil, imported); err != nil {
+	if err := CaptureClassOutputValue(rows, view, nil, imported); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := rows.FormatRegclass(60021); err != nil || got != "public.array_target" {

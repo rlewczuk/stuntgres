@@ -50,7 +50,7 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 		if err := w.emit(declaration.SQL); err != nil {
 			return err
 		}
-		qualified, err := catalogTypeDeclaration(s.catalogView, domain.SQLType.Usage())
+		qualified, err := TypeDeclaration(s.catalogView, domain.SQLType.Usage())
 		if err != nil {
 			return err
 		}
@@ -220,7 +220,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if typed {
 				line.WriteString(" WITH OPTIONS")
 			} else {
-				declaration, err := catalogColumnDeclaration(s.catalogView, c)
+				declaration, err := ColumnDeclaration(s.catalogView, c)
 				if err != nil {
 					return "", err
 				}
