@@ -286,8 +286,8 @@ Decisions:
      unchanged.
    - Relation ownership keeps, in the root and in this order,
      `validateLockedRelation`, resolution with the IF EXISTS notice, the
-     `lockedRef` check and the materialized-view `alterViewAuthority` (step
-     27 owns it). `role` takes the rest unchanged: the view kind check,
+     `lockedRef` check and the materialized-view `view.AlterViewAuthority`
+     (step 27 owns it). `role` takes the rest unchanged: the view kind check,
      `analyze.TableKindError`, the owner check, `access.SchemaOwner`, the
      same-owner no-op, `sequence.LinkedError` and eligibility.
    - The root keeps `ownershipStage`, `StageOwnership`, the lock waits, the

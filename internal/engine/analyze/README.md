@@ -205,16 +205,17 @@ and the captured input constructors (`captured_input.go`; the resolvers and
 their retarget methods are in `regobj`); the host forwarders through which
 the binder reads stored view definitions (`stored`): `StoredViewVolatile`,
 `CaptureRetainedViewInput` and `ValidateViewReadGraph`; query set preflight
-(`preflightQuerySet`, `query_set_preflight.go`); rule rewriting (`rule_*.go`) and its CTE commands;
-view-write lowering (`viewWrite`); the privilege walkers over view
+(`preflightQuerySet`, `query_set_preflight.go`); rule program execution and
+admission (rule rewriting, its CTE commands and view-write lowering are in
+[`view`](../view/README.md)); the privilege walkers over view
 definitions, view writes and rule programs (`AuthorizationView.CheckViewWrite`,
 `checkViewRowMarks*`, the `row_security_setting.go` walkers); the ON CONFLICT execution state
 (`insertConflictState`: selected arbiters, unique-key checkpoints, the
 affected count, the EXCLUDED frame and the write overlay, built per command
 over the binding's clause); and the execution-side helpers over
-the binding types: `physicalBinding`, `bindingDefaultOrigin`,
-`evalBindingDefault`, `applyDefaultOrigin`, `capturedDomainReplayCell`,
-`mergeHasVirtualReads` and `selectMergeArm` (`stored` has
+the binding types: `evalBindingDefault`, `applyDefaultOrigin`, `capturedDomainReplayCell`,
+`mergeHasVirtualReads` and `selectMergeArm` (`view` has `PhysicalBinding`
+and `BindingDefaultOrigin`; `stored` has
 `ValidateCompositeOccurrence` and `RemapLikeExpression`). The executor-side legality walks stay too
 (`validateQueryJoinExecution`, `validateMutationJoinExecution`,
 `validateExpressionJoinExecution`, `validateMarkedQueryJoin`,

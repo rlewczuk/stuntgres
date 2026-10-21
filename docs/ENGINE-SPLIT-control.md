@@ -78,7 +78,7 @@ same kind; it goes with `ReownExpressions` in 22c.
    engine with the source roles, database and foreign definitions.
 2. `io.ReadAll(contextReader{...})`, then `parser.ParseWithOptions` with a
    `LineComment` decoder chain: `typedef.DecodeDomainReplay`,
-   `extension.DecodeOwners`, `decodeMaterializedSnapshot`; then
+   `extension.DecodeOwners`, `view.DecodeMaterializedSnapshot`; then
    `typedef.PairDomainReplay`.
 3. A session on the stage (`stage.StartSession`, `sess.Acquire`) as the
    bootstrap superuser.
@@ -402,7 +402,7 @@ Outstanding aliases: none (30a added none).
   `physicalNotNullConstructor`, `restoredPhysicalForeignKeyProvider`,
   `restoredGenerationRecipe`, `restoredHistoryAuthority`,
   `partitionReplayTeardown`, `restoredInheritedOwner`,
-  `materializedSnapshot`), and every entry calls an `Engine` method on
+  `view.MaterializedSnapshot`), and every entry calls an `Engine` method on
   `r.stage`. 30b question 1 therefore depends on those records reaching
   their packages or becoming opaque to `control`.
 - `after` entries take the root `Result` but read only `created`; the

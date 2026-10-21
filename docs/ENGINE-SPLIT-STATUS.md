@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `5cd2c8df5` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
+Last verified against `master` at `bd79e7663` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 94, 95, 96, 97, 99, 100, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -14,10 +14,11 @@ planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); 100 is the only broad item ready.
+as another broad item (§8); none is ready now.
 
-- **Upper features, packages:** 100 (view 27b, **broad**).
-- **Upper features, refined:** 92 (partition 25c, docs only).
+- **Upper features, refined:** 92 (partition 25c, docs only), 101 (view
+  27c, docs only).
+- **DML and Dump/Restore:** 108 (DML 29b), 112 (control 30b, docs only).
 - **Upper features, decisions:** 85b (index 23d.2), 89a (table 24d.1).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -102,6 +103,8 @@ for 91, and partition 25d (93), fdw 26e (98) and DML 29c (109) now need
 Item 91 (partition 25b) is done, so partition 25c (item 92, docs only) is
 ready; DML 29b (item 108) and control 30b (item 112) still wait for view
 27b (item 100).
+Item 100 (view 27b, broad) is done, so view 27c (item 101, docs only),
+DML 29b (item 108) and control 30b (item 112) are ready.
 
 ## Task tree
 
@@ -556,7 +559,8 @@ ready; DML 29b (item 108) and control 30b (item 112) still wait for view
   - [x] 27a — In place: `access.View` cuts, slots, renames, dead code
     (`87bfbb497`, `16260a489`, `a0254a5c3`, `57c781f25`, `7472271b6`,
     `a5e32e52a`, `512cf3e1c`, `24b0bfde4`, then the docs commit)
-  - [ ] 27b — `view` created and clean set moved *(broad)*
+  - [x] 27b — `view` created and clean set moved *(broad)*
+    (`03468b5b6`, `d7cd77e1a`, `b61bed3bb`, `73c98d60b`, then the docs commit)
   - [ ] 27c — Host refined (docs only)
   - [ ] 27d — Handler decisions moved
 - [x] **Step 28 — `role`** ([prompt](ENGINE-SPLIT-role.md); 28b needs 21b,
@@ -1284,8 +1288,16 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     over `access.View`; `rls` and `ruleAction` value groups; every 27b
     move-set declaration clean · selected unit and dual-mode proof and
     quickcheck passed; racecheck/finalcheck skipped at user request
-100. [ ] View 27b: `view` created, clean set moved —
+100. [x] View 27b: `view` created, clean set moved —
      [view](ENGINE-SPLIT-view.md) 27b · needs 99, 69, 87 · **broad**
+     (`03468b5b6`, `d7cd77e1a`, `b61bed3bb`, `73c98d60b`, then the docs
+     commit) · 35 files (about 4.8k lines) in `view`: rule rewriting and
+     programs, rule CTEs, view-write lowering and its binding slots,
+     stored-projection demand, view options, policy and RLS helpers,
+     concurrent refresh, refresh records and the snapshot codec; no
+     aliases; ran broad (about 125 files) · selected unit and dual-mode
+     proof and quickcheck passed; racecheck/finalcheck skipped at user
+     request
 101. [ ] View 27c: host refined (docs only) — [view](ENGINE-SPLIT-view.md)
      27c · needs 100, 61
 102. [ ] View 27d: handler decisions moved — [view](ENGINE-SPLIT-view.md)
