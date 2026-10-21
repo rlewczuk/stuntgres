@@ -123,6 +123,11 @@ func (r *restoreRun) runFinish(ctx context.Context, hooks []restoreHook, op *ses
 
 // restoreHooks is Restore's hook table. Each phase walks it in order, so an
 // entry's position fixes when it runs relative to the others in its phase.
+// Entries communicate only through restoreRun, so order matters: for
+// example the owner directive snapshot must run before the ALTER OWNER
+// admission reads it, and the inherited foreign key capture reads the
+// physical constructor before the physical self foreign key step may
+// replace it.
 var restoreHooks = []restoreHook{
 	// Line comment decoders.
 	{name: "typedef: domain replay records", decode: decodeRestoreDomainReplay},

@@ -46,8 +46,9 @@ func operationReplayOrZero(op *session.Operation) restoreReplay {
 }
 
 // prepareRestoreReplayFlags sets the operation's replay flags for one
-// admitted Restore statement. Restore.execute clears the per-statement
-// ones after execution.
+// admitted Restore statement. restoreRun.execute clears defaultReplay,
+// partitionAttach and commentAuthority after execution; tableDestination
+// and insertAuthority stay set until the next statement's prepare.
 func prepareRestoreReplayFlags(_ *restoreRun, op *session.Operation, stmt parser.Statement) error {
 	replay := operationReplay(op)
 	replay.tableDestination = restoreTableDestination(stmt)
