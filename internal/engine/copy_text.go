@@ -20,10 +20,19 @@ type copyField struct {
 	start, end                int
 	quoted, isNull, isDefault bool
 }
+
+// copyTarget describes one COPY input field for header checks and DEFAULT
+// markers, so the line codec does not read the statement binding.
+type copyTarget struct {
+	name       string
+	hasDefault bool
+}
+
 type copyCursor struct {
 	scope                        *StatementScope
 	binding                      analyze.Binding
 	options                      copyOptions
+	targets                      []copyTarget
 	reader                       *bufio.Reader
 	line, decoded                []byte
 	fields                       []copyField
@@ -36,7 +45,10 @@ type copyCursor struct {
 }
 
 func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyOptions, r io.Reader) *copyCursor {
-	c := &copyCursor{scope: scope, binding: b, options: o, reader: bufio.NewReader(copyReader{scope, r}), defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
+	// One backing array for both row flags offsets the targets allocation.
+	n := len(b.Relation.Columns)
+	flags := make([]bool, 2*n)
+	c := &copyCursor{scope: scope, binding: b, options: o, targets: copyLineTargets(b), reader: bufio.NewReader(copyReader{scope, r}), defaults: flags[:n:n], omitted: flags[n:]}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
@@ -44,6 +56,15 @@ func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyOptions, r io
 		c.omitted[target] = false
 	}
 	return c
+}
+
+// copyLineTargets is built once per statement from the target columns.
+func copyLineTargets(b analyze.Binding) []copyTarget {
+	targets := make([]copyTarget, len(b.Targets))
+	for i, target := range b.Targets {
+		targets[i] = copyTarget{name: b.Relation.Columns[target].Name, hasDefault: len(b.Insert.Defaults) != 0 && b.Insert.Defaults[target] != nil}
+	}
+	return targets
 }
 func (c *copyCursor) Schema() []catalog.Column { return nil }
 func (c *copyCursor) Close() error             { return nil }
@@ -221,11 +242,10 @@ func (c *copyCursor) split(defaultMarkers bool) error {
 		begin := len(c.decoded)
 		isNull := string(raw) == c.options.null
 		isDefault := defaultMarkers && c.options.hasDefault && string(raw) == c.options.def
-		if isDefault && len(c.fields) < len(c.binding.Targets) {
-			target := c.binding.Targets[len(c.fields)]
-			if len(c.binding.Insert.Defaults) == 0 || c.binding.Insert.Defaults[target] == nil {
+		if isDefault && len(c.fields) < len(c.targets) {
+			if target := c.targets[len(c.fields)]; !target.hasDefault {
 				d := c.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
-				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.Relation.Columns[target].Name)
+				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", target.name)
 				return d
 			}
 		}
@@ -243,7 +263,7 @@ func (c *copyCursor) split(defaultMarkers bool) error {
 			return err
 		}
 	}
-	if len(c.binding.Targets) == 0 && len(c.line) == 0 {
+	if len(c.targets) == 0 && len(c.line) == 0 {
 		c.fields = c.fields[:0]
 	}
 	return nil
@@ -259,11 +279,11 @@ func (c *copyCursor) header() error {
 	if err = c.split(false); err != nil {
 		return err
 	}
-	if len(c.fields) != len(c.binding.Targets) {
-		return c.lineError(fmt.Sprintf("wrong number of fields in header line: got %d, expected %d", len(c.fields), len(c.binding.Targets)), "")
+	if len(c.fields) != len(c.targets) {
+		return c.lineError(fmt.Sprintf("wrong number of fields in header line: got %d, expected %d", len(c.fields), len(c.targets)), "")
 	}
 	for i, field := range c.fields {
-		name := c.binding.Relation.Columns[c.binding.Targets[i]].Name
+		name := c.targets[i].name
 		if field.isNull {
 			return c.lineError(fmt.Sprintf("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"", i+1, c.options.null, name), "")
 		}
