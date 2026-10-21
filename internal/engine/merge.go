@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -107,66 +106,6 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 		}
 	}
 	return nil
-}
-
-func mergeOnTruth(value sqltype.Value) (plan.Truth, error) {
-	if value.Type().IsDomain() {
-		var err error
-		value, err = value.BaseValue()
-		if err != nil {
-			return plan.False, err
-		}
-	}
-	if value.IsNull() {
-		return plan.Unknown, nil
-	}
-	switch value.Type().ID() {
-	case sqltype.Bool:
-		return plan.TruthOf(value)
-	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
-		i, err := value.Integer()
-		if err != nil {
-			return plan.False, err
-		}
-		if i != 0 {
-			return plan.True, nil
-		}
-		return plan.False, nil
-	case sqltype.Text:
-		return plan.True, nil
-	}
-	return plan.False, fmt.Errorf("stuntgres: invalid MERGE ON carrier")
-}
-
-func mergeHasVirtualReads(merge *analyze.MergeBinding) bool {
-	if exec.QueryHasVirtualReads(merge.Source) || exec.BoundHasVirtualReads(merge.On) {
-		return true
-	}
-	for _, arm := range merge.Arms {
-		if exec.BoundHasVirtualReads(arm.Condition) {
-			return true
-		}
-		if arm.Input.Update != nil {
-			for _, expr := range arm.Input.Update.Assignments {
-				if exec.BoundHasVirtualReads(expr) {
-					return true
-				}
-			}
-			for _, target := range arm.Input.Update.ArrayTargets {
-				if exec.AssignmentTargetHasVirtualReads(target) {
-					return true
-				}
-			}
-		}
-		for _, row := range arm.Input.Expressions {
-			for _, expr := range row {
-				if exec.BoundHasVirtualReads(expr) {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding, target, inputs *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {

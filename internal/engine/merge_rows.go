@@ -5,32 +5,14 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-// DELETE carries captured identity only; payload indexes name INSERT/UPDATE
-// rows. All records remain private until the sole statement Finish.
-type mergeActionRow struct {
-	action     parser.MergeAction
-	payload    int
-	deletion   visibility.DeleteCandidate
-	updateMode lock.MultiMode
-}
-type mergeRows struct {
-	index.WriteBatch
-	predecessors []storage.RowVersion
-	actions      []mergeActionRow
-	returning    *exec.FinalRows
-}
 
 func stageMergeRows(rows *mergeRows, w *WriteStage, ref ids.ObjectRef) error {
 	for start := 0; start < len(rows.actions); {
@@ -61,12 +43,6 @@ func stageMergeRows(rows *mergeRows, w *WriteStage, ref ids.ObjectRef) error {
 		start = end
 	}
 	return nil
-}
-
-type mergeCandidate struct {
-	updateCandidate
-	class    parser.MergeMatch
-	deletion visibility.DeleteCandidate
 }
 
 // Source completion and ON membership precede every action wait. Match marks
@@ -360,10 +336,6 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	return result, nil
 }
 
-func mergeCardinalityError() error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: "MERGE command cannot affect row a second time", Hint: "Ensure that not more than one source row matches any one target row."}
-}
-
 func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, result *mergeRows, evaluation *exec.Context, schema string, unique bool, arm *analyze.MergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
 	if arm.Action == parser.MergeDeleteAction {
 		if accepted[old.Row] {
@@ -468,32 +440,6 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 	result.predecessors = append(result.predecessors, predecessor)
 	result.Append(candidate)
 	return nil
-}
-
-func mergeMatches(evaluation *exec.Context, on expr.Expr) (bool, error) {
-	value, err := on.Eval(evaluation)
-	if err != nil {
-		return false, err
-	}
-	truth, err := mergeOnTruth(value)
-	return truth == plan.True, err
-}
-
-func selectMergeArm(merge *analyze.MergeBinding, evaluation *exec.Context, class parser.MergeMatch) (*analyze.MergeArm, error) {
-	for i := range merge.Arms {
-		arm := &merge.Arms[i]
-		if arm.Match != class {
-			continue
-		}
-		selected, err := exec.UpdateMatches(evaluation, arm.Condition)
-		if err != nil {
-			return nil, err
-		}
-		if selected {
-			return arm, nil
-		}
-	}
-	return nil, nil
 }
 
 func (s *StatementScope) mergeFollowChainStrong(b analyze.Binding) (bool, error) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -172,14 +171,6 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		}
 	}
 	return nil
-}
-
-type foreignKeyJob struct {
-	child, parent, index   *catalog.Relation
-	definition             catalog.ForeignKeyConstraint
-	comparisons            []table.ForeignKeyComparison
-	childKey               []sqltype.Value // Reused across final rows and waited probes.
-	deletePlan, updatePlan *foreignActionPlan
 }
 
 func (s *StatementScope) checkForeignKeys() error {

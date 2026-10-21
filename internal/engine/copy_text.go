@@ -40,14 +40,6 @@ func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyfmt.Options, 
 	return c
 }
 
-// copyLineTargets is built once per statement from the target columns.
-func copyLineTargets(b analyze.Binding) []copyfmt.Target {
-	targets := make([]copyfmt.Target, len(b.Targets))
-	for i, target := range b.Targets {
-		targets[i] = copyfmt.Target{Name: b.Relation.Columns[target].Name, HasDefault: len(b.Insert.Defaults) != 0 && b.Insert.Defaults[target] != nil}
-	}
-	return targets
-}
 func (c *copyCursor) Schema() []catalog.Column { return nil }
 func (c *copyCursor) Close() error             { return nil }
 func (c *copyCursor) rowDefaults() []bool      { return c.defaults }

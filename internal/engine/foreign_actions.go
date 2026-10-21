@@ -13,10 +13,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func sameForeignKeyDefinition(a, b catalog.ForeignKeyConstraint) bool {
-	return a.OID == b.OID && a.Target == b.Target && a.Index == b.Index && a.Full == b.Full && a.UpdateAction == b.UpdateAction && a.DeleteAction == b.DeleteAction && slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Referenced, b.Referenced) && slices.Equal(a.DeleteAttributes, b.DeleteAttributes)
-}
-
 func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, AuthorizationView, error) {
 	e := s.engine()
 	e.mu.Lock()
@@ -154,31 +150,6 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		job.childKey = make([]sqltype.Value, len(job.comparisons))
 	}
 	return jobs, auth, nil
-}
-
-func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
-	child, cok := view.Relation(job.child.Address())
-	parent, pok := view.Relation(job.parent.Address())
-	idx, iok := view.Relation(job.index.Address())
-	if !cok || !pok || !iok || idx.SQLIndex == nil || !index.SameRelationRowShape(child, job.child) || !index.SameRelationRowShape(parent, job.parent) || !index.SameIndexKeySemantics(idx, job.index) {
-		return ids.ErrCatalogReplaced
-	}
-	found := false
-	for _, current := range child.Constraints.ForeignKeys {
-		if current.OID == job.definition.OID {
-			if !sameForeignKeyDefinition(current, job.definition) {
-				return ids.ErrCatalogReplaced
-			}
-			job.definition = current
-			found = true
-			break
-		}
-	}
-	if !found {
-		return ids.ErrCatalogReplaced
-	}
-	job.child, job.parent, job.index = child, parent, idx
-	return nil
 }
 
 func (s *StatementScope) settleForeignActions() error {

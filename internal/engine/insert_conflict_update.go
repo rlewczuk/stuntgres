@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -191,19 +190,6 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		c.markAffected(old.Row, len(s.stage.rows[ref.Address])-1)
 		return s.projectInsertReturning(row, old.Values, &evaluation)
 	}
-}
-
-func (c *insertConflictState) markAffected(id ids.RowID, slot int) {
-	if c.affectedRows == nil {
-		c.affectedRows = make(map[ids.RowID]int)
-	}
-	c.affectedRows[id] = slot
-	c.affected++
-}
-func conflictUpdateCardinalityError() error {
-	d := sqlError("21000", "ON CONFLICT DO UPDATE command cannot affect row a second time").(*sqlstate.Error)
-	d.Hint = "Ensure that no rows proposed for insertion within the same command have duplicate constrained values."
-	return d
 }
 
 // Committed hits retain their provider's exact physical hint. Private overlays

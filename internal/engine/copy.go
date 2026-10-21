@@ -2,7 +2,6 @@ package engine
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/fdw"
@@ -17,7 +16,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination io.Writer) (count int64, err error) {
@@ -315,40 +313,6 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 	}
 	err = auth.CheckColumns(b.Ref, b.Relation, privilege, b.Targets)
 	return
-}
-
-func copyRelationKind(relation *catalog.Relation, from bool) error {
-	if !from && relation.RelationKind == catalog.MaterializedViewRelation && !relation.Populated {
-		d := sqlError("0A000", fmt.Sprintf("cannot copy from unpopulated materialized view \"%s\"", relation.Name())).(*sqlstate.Error)
-		d.Hint = "Use the REFRESH MATERIALIZED VIEW command."
-		return d
-	}
-	if relation.RelationKind != catalog.TableRelation && !(from && (relation.RelationKind == catalog.PartitionedRelation || relation.RelationKind == catalog.ForeignRelation)) && !(!from && relation.RelationKind == catalog.MaterializedViewRelation) {
-		kind := "non-table relation"
-		switch relation.RelationKind {
-		case catalog.ViewRelation:
-			kind = "view"
-		case catalog.PartitionedRelation:
-			kind = "partitioned table"
-		case catalog.MaterializedViewRelation:
-			kind = "materialized view"
-		case catalog.SequenceRelation:
-			kind = "sequence"
-		}
-		direction := "from"
-		if from {
-			direction = "to"
-		}
-		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, kind, relation.Name())).(*sqlstate.Error)
-		if !from && (relation.RelationKind == catalog.ViewRelation || relation.RelationKind == catalog.PartitionedRelation) {
-			d.Hint = "Try the COPY (SELECT ...) TO variant."
-		}
-		if from && relation.RelationKind == catalog.ViewRelation {
-			d.Hint = "To enable copying to a view, provide an INSTEAD OF INSERT trigger."
-		}
-		return d
-	}
-	return nil
 }
 
 func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth AuthorizationView) error {

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -12,25 +11,7 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/sqltype"
 )
-
-// This authority is private to one statement and one captured physical child.
-// It never substitutes for the initiating target's admission or candidate view.
-type foreignActionAdmission struct {
-	ref               ids.ObjectRef
-	storage           *storage.Relation
-	relation          *catalog.Relation
-	tx                ids.TxRef
-	jobs              []foreignKeyJob
-	writable, mutated bool
-}
-
-type foreignActionTransition struct {
-	relation  ids.ObjectAddress
-	old, next storage.RowVersion
-	owner     authorization.PrincipalRef // zero means the initiating statement's actor
-}
 
 func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRef) error {
 	if err := s.validateLockedRelation(e); err != nil {
@@ -211,15 +192,6 @@ func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef
 	return auth
 }
 
-func foreignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []sqltype.Value) bool {
-	for _, comparison := range comparisons {
-		if !sqltype.SameDatum(old[comparison.Parent], next[comparison.Parent]) {
-			return false
-		}
-	}
-	return true
-}
-
 // Borrow both current and retained images under stable isolation. Current
 // matches discover new/moved-in children; retained matches preserve moved-away
 // successor conflicts. Neither image creates another snapshot or copies values.
@@ -242,19 +214,6 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (table.Fore
 		}
 	}
 	return rows, retained, nil
-}
-
-// foreignActionScope is the statement's foreign-key action slot: admitted
-// referencing relations, row transitions, settling state, prepared check jobs
-// and the foreign-key targets of CREATE/ALTER TABLE.
-type foreignActionScope struct {
-	admissions     map[ids.ObjectAddress]*foreignActionAdmission
-	transitions    []foreignActionTransition
-	settling       bool
-	exclusionAdded bool // a new event admitted while settling actions
-	jobs           []foreignKeyJob
-	keyTargets     []ids.ObjectRef
-	alterKeys      []table.AlterForeignKeyAdmission
 }
 
 // foreignActions returns the statement's foreignActions slot, allocating it on first use.

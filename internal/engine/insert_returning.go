@@ -14,12 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type insertReturningOutput struct {
-	binding analyze.Binding
-	rows    *exec.FinalRows
-	overlay insertWriteOverlay
-}
-
 func (s *StatementScope) beginInsertReturning(b analyze.Binding) {
 	if b.Returning == nil {
 		return

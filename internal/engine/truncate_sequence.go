@@ -10,24 +10,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Counters remain mutable and nontransactional within one generator binding.
-// These observations fence the binding/descriptor, never a snapshot of counters.
-type truncateSequence struct {
-	ref       ids.ObjectRef
-	relation  *catalog.Relation
-	generator *storage.SequenceGenerator
-	committed *storage.SequenceGenerator
-}
-
-func truncateOwnsSequence(d *catalog.Relation, selected map[ids.ObjectAddress]int) bool {
-	if d.RelationKind != catalog.SequenceRelation || d.Sequence.Owned == (ids.ObjectAddress{}) {
-		return false
-	}
-	a := d.Sequence.Owned
-	a.SubID = 0
-	return selected[a] != 0
-}
-
 // Table closure and its privilege checks finish before any owned-sequence AX.
 // Capture under metadata authority, wait without it, then revalidate exactly.
 func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {

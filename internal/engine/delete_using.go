@@ -6,15 +6,8 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
-
-type deleteUsingCandidate struct {
-	visibility.DeleteCandidate
-	sourceIndex int
-	physical    exec.QueryPhysicalRow
-}
 
 // The source stage owns immutable joined frames. Only qualifying identities and
 // occurrence indexes are retained, before any target row arbitration can wait.

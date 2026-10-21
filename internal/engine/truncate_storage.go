@@ -9,15 +9,9 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-type truncateName struct {
-	name      parser.ObjectName
-	ref       ids.ObjectRef
-	namespace ids.ObjectAddress
-}
 type truncateGraphFence struct {
 	base      *catalog.State
 	targets   map[ids.ObjectAddress]int // Immutable after acquisition; savepoints share it.

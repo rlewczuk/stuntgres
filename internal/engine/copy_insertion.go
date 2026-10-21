@@ -1,47 +1,11 @@
 package engine
 
 import (
-	"errors"
-	"fmt"
-
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
-	"stuntgres/internal/sqlstate"
 )
-
-// Physical input keeps its immediate codec/default/constraint events. Eligible
-// COPY buffers then own a distinct insertion flush, unlike ordinary INSERT.
-type copyInsertionCursor interface {
-	insertionOrigin() (line int64, textBytes int)
-}
-
-type copyInsertionBuffer struct {
-	group     *partition.InsertGroup
-	positions []int
-}
-
-type copyInsertionState struct {
-	cursor       copyInsertionCursor
-	single       bool
-	first, bytes int
-	lines        []int64
-	buffers      []copyInsertionBuffer
-	groups       map[*partition.InsertGroup]int
-}
-
-func newCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyInsertionState {
-	state := &copyInsertionState{cursor: cursor}
-	for _, expression := range b.Insert.Defaults {
-		if exec.PlannedPhysicalVolatility(expression, true) == expr.Volatile {
-			state.single = true
-			break
-		}
-	}
-	return state
-}
 
 func recordCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.Binding, candidate *index.WriteCandidate, position int) {
 	line, size := state.cursor.insertionOrigin()
@@ -64,10 +28,6 @@ func recordCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze
 		state.buffers = append(state.buffers, copyInsertionBuffer{group: group})
 	}
 	state.buffers[at].positions = append(state.buffers[at].positions, position)
-}
-
-func (state *copyInsertionState) full() bool {
-	return state.single || len(state.lines) >= 1000 || state.bytes >= 65535
 }
 
 func flushCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
@@ -112,19 +72,6 @@ func flushCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.
 	state.first, state.bytes = len(rows.Values), 0
 	state.lines = state.lines[:0]
 	return nil
-}
-
-func copyInsertionDiagnostic(err error, relation string, line int64) error {
-	var record *sqlstate.Error
-	if !errors.As(err, &record) {
-		return err
-	}
-	result := *record
-	result.Context = fmt.Sprintf("COPY %s, line %d", relation, line)
-	if record.Context != "" {
-		result.Context = record.Context + "\n" + result.Context
-	}
-	return &result
 }
 
 func (c *copyCursor) insertionOrigin() (int64, int)       { return c.in.Number(), len(c.in.Line()) }

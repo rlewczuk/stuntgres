@@ -74,18 +74,6 @@ func (s *StatementScope) mutationIndex(statement parser.Statement) int {
 	return -1
 }
 
-func statementCTERoot(statement parser.Statement) parser.Statement {
-	switch s := statement.(type) {
-	case *parser.CreateQueryTable:
-		return s.Query
-	case *parser.CreateView:
-		return s.Query
-	case *parser.DeclareCursor:
-		return s.Query
-	}
-	return statement
-}
-
 // Admission is complete before binding/execution. The existing source walker
 // remains lexical authority; target occurrences cannot become virtual scans.
 func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute bool) error {

@@ -129,13 +129,6 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 	return nil
 }
 
-type updateCandidate struct {
-	storage.RowVersion
-	slot        int
-	sourceIndex int
-	physical    exec.QueryPhysicalRow
-}
-
 func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate updateCandidate) (storage.RowVersion, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

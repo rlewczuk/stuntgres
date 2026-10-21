@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"stuntgres/internal/engine/analyze"
@@ -21,16 +20,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-type foreignActionPlan struct {
-	targets, parentSlots []int
-	defaults             []expr.Expr
-	defaultOrigins       []analyze.DefaultOrigin
-	conversions          []sqltype.CoercionPlan
-	convert              []bool
-	input                sqltype.InputEnvironment
-	domainChecks         bool
-}
 
 func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) (*foreignActionPlan, error) {
 	cached := job.deletePlan
@@ -396,75 +385,4 @@ func (s *StatementScope) foreignActionError(err error, job *foreignKeyJob, event
 	}
 	copy.Context += context
 	return &copy
-}
-
-func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view catalog.Read) string {
-	var q strings.Builder
-	deletion := action == parser.ForeignKeyCascade && event.next.Row == 0
-	if deletion {
-		q.WriteString("DELETE FROM ONLY ")
-	} else {
-		q.WriteString("UPDATE ONLY ")
-	}
-	q.WriteString(catalog.QuoteIdentifier(view.Get(job.child.Namespace()).Name()))
-	q.WriteByte('.')
-	q.WriteString(catalog.QuoteIdentifier(job.child.Name()))
-	offset := 0
-	if !deletion {
-		q.WriteString(" SET ")
-		attributes := job.definition.Attributes
-		if event.next.Row == 0 && len(job.definition.DeleteAttributes) != 0 {
-			attributes = job.definition.DeleteAttributes
-		}
-		for i, a := range attributes {
-			if i != 0 {
-				q.WriteString(", ")
-			}
-			q.WriteString(catalog.QuoteIdentifier(job.child.Columns[slices.Index(job.child.Attributes, a)].Name))
-			q.WriteString(" = ")
-			switch action {
-			case parser.ForeignKeyCascade:
-				q.WriteByte('$')
-				q.WriteString(strconv.Itoa(i + 1))
-				offset++
-			case parser.ForeignKeySetNull:
-				q.WriteString("NULL")
-			case parser.ForeignKeySetDefault:
-				q.WriteString("DEFAULT")
-			}
-		}
-	}
-	q.WriteString(" WHERE ")
-	for i, a := range job.definition.Attributes {
-		if i != 0 {
-			q.WriteString(" AND ")
-		}
-		childSlot := slices.Index(job.child.Attributes, a)
-		parentSlot := slices.Index(job.parent.Attributes, job.definition.Referenced[i])
-		var comparison sqltype.IndexForeignKeyComparison
-		for _, c := range job.comparisons {
-			if c.Child == childSlot {
-				comparison = c.Comparison
-				break
-			}
-		}
-		parentInput, childInput := comparison.InputTypes()
-		q.WriteByte('$')
-		q.WriteString(strconv.Itoa(offset + i + 1))
-		if job.parent.Columns[parentSlot].Usage.Type != parentInput {
-			q.WriteString("::")
-			q.WriteString(catalog.Identifier(parentInput.NamespaceName()))
-			q.WriteByte('.')
-			q.WriteString(catalog.Identifier(parentInput.Name()))
-		}
-		q.WriteString(" OPERATOR(pg_catalog.=) ")
-		q.WriteString(catalog.QuoteIdentifier(job.child.Columns[childSlot].Name))
-		if job.child.Columns[childSlot].Usage.Type != childInput {
-			q.WriteString("::")
-			q.WriteString(catalog.Identifier(childInput.NamespaceName()))
-			q.WriteByte('.')
-			q.WriteString(catalog.Identifier(childInput.Name()))
-		}
-	}
-	return q.String()
 }

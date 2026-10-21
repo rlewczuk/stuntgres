@@ -173,32 +173,6 @@ func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Bind
 	}
 	return s.finishForeignResult(b, output, count)
 }
-func projectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
-	if output == nil {
-		return nil
-	}
-	eval := *evaluation
-	eval.Scope, eval.Frame = 1, 1
-	eval.Row, eval.OldRow = row, old
-	if b.Delete.Using != nil || b.Update != nil && b.Update.From != nil {
-		// Keep the matched source suffix and query identity, replacing only
-		// the target prefix with the provider's actual NEW/returned tuple.
-		copy(evaluation.Row, row)
-		eval.Row = evaluation.Row
-	}
-	for i, expression := range b.Returning.Expressions {
-		value, err := expression.Eval(&eval)
-		if err != nil {
-			return err
-		}
-		if value.Type() == nil || value.Type() != output.Columns[i].Usage.Type {
-			return errors.New("stuntgres: invalid foreign RETURNING value")
-		}
-		output.Values = append(output.Values, value)
-	}
-	output.Count++
-	return nil
-}
 func (s *StatementScope) finishForeignResult(b analyze.Binding, output *exec.FinalRows, count int64) (Result, error) {
 	if output != nil && b.Returning.RegclassOutput && count != 0 {
 		if err := s.engine().captureRegclassOutput(s.op, output); err != nil {
@@ -216,11 +190,6 @@ func (s *StatementScope) finishForeignResult(b analyze.Binding, output *exec.Fin
 		return Result{Count: count}, nil
 	}
 	return Result{Count: count, Rows: output}, nil
-}
-
-type foreignMutationRow struct {
-	row      []sqltype.Value
-	identity catalog.ForeignRowIdentity
 }
 
 func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modification) ([]foreignMutationRow, error) {
