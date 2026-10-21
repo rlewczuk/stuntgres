@@ -102,7 +102,7 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, PartitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, PartitionLocal: true}}
 			original := append([]catalog.NotNullConstraint(nil), child.Constraints.NotNull...)
 			view := inheritanceUnitView(e, parent, child)
-			next, err := partitionAttachSchema(&StatementScope{op: op}, view, parent, child)
+			next, err := partitionAttachSchema(op.Context(), view, parent, child)
 			if !c.parentInvalid && c.childInvalid {
 				want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P17", Message: `constraint "` + name + `" conflicts with NOT VALID constraint on child table "child"`}
 				var got *sqlstate.Error

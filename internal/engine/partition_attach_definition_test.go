@@ -74,8 +74,8 @@ func TestPartitionAttachSchema(t *testing.T) {
 	child.Columns[1].Nullable = false
 	child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, PartitionLocal: true}}
 	view := inheritanceUnitView(e, parent, child)
-	scope := &StatementScope{op: op}
-	next, err := partitionAttachSchema(scope, view, parent, child)
+	ctx := op.Context()
+	next, err := partitionAttachSchema(ctx, view, parent, child)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,12 +89,12 @@ func TestPartitionAttachSchema(t *testing.T) {
 		t.Fatal(local, count)
 	}
 	child.Columns[1].Nullable = true
-	if _, err := partitionAttachSchema(scope, view, parent, child); err == nil {
+	if _, err := partitionAttachSchema(ctx, view, parent, child); err == nil {
 		t.Fatal("missing required NN accepted")
 	}
 	child.Columns[1].Nullable = false
 	child.Columns[1].Usage = testUsage(e, sqltype.Int8)
-	if _, err := partitionAttachSchema(scope, view, parent, child); err == nil {
+	if _, err := partitionAttachSchema(ctx, view, parent, child); err == nil {
 		t.Fatal("different storage type accepted")
 	}
 }
@@ -143,10 +143,9 @@ func TestPartitionAttachProof(t *testing.T) {
 	}
 	bounds := and(cmp(">=", 1), cmp("<", 3))
 	bound := &catalog.PartitionMembership{Parent: parent.Address(), Lower: []catalog.PartitionDatum{{Value: value(1)}}, Upper: []catalog.PartitionDatum{{Value: value(3)}}}
-	scope := &StatementScope{op: op}
 	check := func(exclude, want bool) {
 		t.Helper()
-		got, err := partitionConstraintProven(scope, view, parent, child, bound, exclude)
+		got, err := partitionConstraintProven(op.Context(), sqltype.InputEnvironment{}, view, parent, child, bound, exclude)
 		if err != nil || got != want {
 			t.Fatal(got, want, err)
 		}

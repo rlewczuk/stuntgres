@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"context"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -75,11 +77,11 @@ func partitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *
 	return partitionProofOr(&partitionProofGoal{key: at, op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, op: "=", value: datum.Value}, rest))
 }
 
-func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
+func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
 	// Range endpoint implication does not prove seeded hash membership. Private
 	// replay attachment uses the ordinary full-row validation path instead.
 	if bound.Strategy == parser.PartitionHash {
-		return false, scope.op.Context().Err()
+		return false, ctx.Err()
 	}
 	var keys [32]expr.Expr
 	in := analyze.LikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
@@ -109,7 +111,7 @@ func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent,
 		}
 		keys[i] = node
 	}
-	proof := partitionProof{scope: scope, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
+	proof := partitionProof{ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
 	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*partitionProofGoal, bool) {
 		if complement {
 			return partitionProofOr(partitionProofTuple(membership.Lower, 0, false), partitionProofTuple(membership.Upper, 0, true)), true
@@ -144,7 +146,8 @@ func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent,
 }
 
 type partitionProof struct {
-	scope    *StatementScope
+	ctx      context.Context
+	input    sqltype.InputEnvironment
 	relation *catalog.Relation
 	keys     []expr.Expr
 	entries  []catalog.PartitionKeyEntry
@@ -187,7 +190,7 @@ func partitionCheckNonNull(node, key expr.Expr) bool {
 }
 
 func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
-	if err := p.scope.op.Context().Err(); err != nil {
+	if err := p.ctx.Err(); err != nil {
 		return false, err
 	}
 	if goal.op == "true" {
@@ -309,7 +312,7 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 	}
 	order := 0
 	if !sqltype.SameDatum(literal.Value, goal.value) {
-		order, err = entry.Comparison.Compare(p.scope.op.Context(), literal.Value, goal.value, p.scope.input)
+		order, err = entry.Comparison.Compare(p.ctx, literal.Value, goal.value, p.input)
 		if err != nil {
 			return false, err
 		}

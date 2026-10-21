@@ -158,7 +158,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err = partitionAttachEligibility(auth.Catalog, parent, child); err != nil {
 		return Result{}, err
 	}
-	next, err := partitionAttachSchema(scope, auth.Catalog, parent, child)
+	next, err := partitionAttachSchema(scope.op.Context(), auth.Catalog, parent, child)
 	if err != nil {
 		return Result{}, err
 	}
