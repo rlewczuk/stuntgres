@@ -509,8 +509,8 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		}
 	})
 	reserved := make(map[ids.OID]bool)
-	reserveDefinitionOIDs(reserved, src)
-	if !reserved[r.OID] || !definitionOIDUsed(src, r.OID) {
+	catalog.ReserveDefinitionOIDs(reserved, src)
+	if !reserved[r.OID] || !catalog.DefinitionOIDUsed(src, r.OID) {
 		t.Fatal("rule OID omitted from identity space")
 	}
 }

@@ -193,7 +193,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)
 	}
-	if !definitionOIDUsed(d, definition.OID) {
+	if !catalog.DefinitionOIDUsed(d, definition.OID) {
 		t.Fatal("definition identity not reserved")
 	}
 	for _, mutate := range []func(*catalog.ColumnGeneration){

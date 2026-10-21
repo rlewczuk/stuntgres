@@ -140,7 +140,7 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	if next.Get(temp.Address()) != temp || temp.Constraints.NotNull[0].OID != 22000 {
 		t.Fatal("retained definition or descriptor changed")
 	}
-	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal("combined identities remain colliding", err)
 	}
 }
@@ -194,7 +194,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	if imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.Constraints.NotNull[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.Constraints.Check[0].OID {
 		t.Fatal("imported provenance retained old definition IDs")
 	}
-	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*catalog.Relation{tempChild, imported} {
@@ -284,7 +284,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if source.catalog.state.Get(parent.Address()) != parent || source.catalog.state.Get(child.Address()) != child || child.Inheritance.Parents[0] != parent.Address() || child.Inheritance.Columns[1].Origins[0].Parent != parent.Address() || parent.Columns[0].OriginTable != uint32(parent.Address().ObjectID) || child.Inheritance.NotNull[1].Origins[0].Constraint != 23000 {
 		t.Fatal("imported source authority mutated")
 	}
-	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal("combined definition identities invalid", err)
 	}
 	for _, table := range []*catalog.Relation{tempChild, imported} {

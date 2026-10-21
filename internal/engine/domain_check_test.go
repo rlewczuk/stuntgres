@@ -32,7 +32,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if before.State() == view.State() || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.ObjectNamespace, Name: d.Name()})) != 0 {
 		t.Fatal("published into immutable prior root")
 	}
-	if err := validateDefinitionOIDs(view); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateDomainCheckDefinitions(view, d); err != nil {
@@ -230,7 +230,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 			t.Fatal("VALUE retained old base generation")
 		}
 	})
-	if err := validateDefinitionOIDs(view); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
 }

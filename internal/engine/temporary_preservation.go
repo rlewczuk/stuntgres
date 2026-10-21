@@ -258,7 +258,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	retainedIDs := make(map[ids.OID]bool)
 	for address, descriptor := range temporary {
 		retainedIDs[address.ObjectID] = true
-		reserveDefinitionOIDs(retainedIDs, descriptor)
+		catalog.ReserveDefinitionOIDs(retainedIDs, descriptor)
 	}
 	reservedIDs := make(map[ids.OID]bool, next.DescriptorCount()+len(retainedIDs))
 	for id := range retainedIDs {
@@ -266,7 +266,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	}
 	for address, descriptor := range next.Descriptors() {
 		reservedIDs[address.ObjectID] = true
-		reserveDefinitionOIDs(reservedIDs, descriptor)
+		catalog.ReserveDefinitionOIDs(reservedIDs, descriptor)
 	}
 	mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
 	remapCollision := func(address ids.ObjectAddress) error {

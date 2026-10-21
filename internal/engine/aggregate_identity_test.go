@@ -26,7 +26,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	if err := extension.StockIntagg.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateDefinitionOIDs(view); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
 	for i, helper := range proc.Aggregate.Helpers {
@@ -49,8 +49,8 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 			t.Fatal("metadata helper became callable")
 		}
 		reserved := make(map[ids.OID]bool)
-		reserveDefinitionOIDs(reserved, proc)
-		if !reserved[helper.ID] || !definitionOIDUsed(proc, helper.ID) {
+		catalog.ReserveDefinitionOIDs(reserved, proc)
+		if !reserved[helper.ID] || !catalog.DefinitionOIDUsed(proc, helper.ID) {
 			t.Fatal("allocator lost owned helper", helper.ID)
 		}
 		typ, _ := view.LookupType(sqltype.Regprocedure)
@@ -151,7 +151,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	if err := extension.StockIntagg.ValidateExtension(e.catalog.read(collision), ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
 	}
-	if err := validateDefinitionOIDs(e.catalog.read(collision)); err == nil {
+	if err := catalog.ValidateDefinitionOIDs(e.catalog.read(collision)); err == nil {
 		t.Fatal("global definition collision omitted helper")
 	}
 }
@@ -266,7 +266,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 			t.Fatal("mapping-only helper became a descriptor")
 		}
 	}
-	if err := validateDefinitionOIDs(target.catalog.read(next)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(target.catalog.read(next)); err != nil {
 		t.Fatal(err)
 	}
 }

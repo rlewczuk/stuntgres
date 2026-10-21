@@ -694,7 +694,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		view = e.stageRead(s)
 	}
 	if view.State() != nil {
-		if err := validateDefinitionOIDs(view); err != nil {
+		if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 			return nil, err
 		}
 	}
@@ -1329,7 +1329,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		return ChangeSet{}, err
 	}
 	targetRoles := e.Roles()
-	if err := validateDefinitionOIDs(replacement); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(replacement); err != nil {
 		return ChangeSet{}, err
 	}
 	for _, d := range replacement.Descriptors() {

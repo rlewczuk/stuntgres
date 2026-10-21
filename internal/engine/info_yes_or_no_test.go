@@ -63,7 +63,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view catalog.Read) *catalog
 	if err := e.catalog.Providers[ids.TypeClassID].Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateDefinitionOIDs(view); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
 	return d

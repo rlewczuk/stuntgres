@@ -20,7 +20,7 @@ func validateRetiredInheritance(view catalog.Read, table *catalog.Relation, p ca
 		}
 		if !history.Replayed {
 			tombstone, exists := parent.ColumnMeta.Dropped[history.Attribute]
-			if !exists || !tombstone.Dropped || parent.HasAttribute(history.Attribute) || definitionOIDUsed(parent, history.Constraint) {
+			if !exists || !tombstone.Dropped || parent.HasAttribute(history.Attribute) || catalog.DefinitionOIDUsed(parent, history.Constraint) {
 				return fmt.Errorf("stuntgres: retired inheritance source was not removed")
 			}
 		}
