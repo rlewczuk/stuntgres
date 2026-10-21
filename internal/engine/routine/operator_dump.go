@@ -1,4 +1,4 @@
-package engine
+package routine
 
 import (
 	"context"
@@ -10,30 +10,29 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
-// operatorDumped validates a collected operator and reports whether Dump
+// OperatorDumped validates a collected operator and reports whether Dump
 // writes it; seeded operators are part of every destination.
-func operatorDumped(view catalog.Read, d *catalog.Operator) (bool, error) {
-	if err := (routine.OperatorProvider{}).Validate(view, d); err != nil {
+func OperatorDumped(view catalog.Read, d *catalog.Operator) (bool, error) {
+	if err := (OperatorProvider{}).Validate(view, d); err != nil {
 		return false, err
 	}
-	return !routine.OperatorSeeded(d), nil
+	return !OperatorSeeded(d), nil
 }
 
-// operatorDumpDependencies adds each emitted operator's declaration event and
+// OperatorDumpDependencies adds each emitted operator's declaration event and
 // the events of the objects it depends on. A shell some defined operator
 // generates has no declaration of its own.
-func operatorDumpDependencies(r dump.Resolver, view catalog.Read, operators []*catalog.Operator, graph dump.Graph) error {
+func OperatorDumpDependencies(r dump.Resolver, view catalog.Read, operators []*catalog.Operator, graph dump.Graph) error {
 	for _, d := range operators {
-		if d.Function == 0 && operatorShellGenerator(view, d) != nil {
+		if d.Function == 0 && OperatorShellGenerator(view, d) != nil {
 			continue
 		}
 		id := d.Address().ObjectID
 		graph[dump.Event{OID: id}] = nil
-		for _, dependency := range routine.OperatorDependencyAddresses(view, d) {
+		for _, dependency := range OperatorDependencyAddresses(view, d) {
 			if dependency.ClassID == ids.NamespaceClassID {
 				continue
 			}
@@ -49,15 +48,15 @@ func operatorDumpDependencies(r dump.Resolver, view catalog.Read, operators []*c
 	return nil
 }
 
-// operatorDumpStatements renders each emitted operator's declaration into
+// OperatorDumpStatements renders each emitted operator's declaration into
 // declarations and returns the deferred link statements of defined operators.
-func operatorDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, operators []*catalog.Operator, declarations map[ids.OID]dump.Statement) (map[ids.OID]string, error) {
+func OperatorDumpStatements(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, operators []*catalog.Operator, declarations map[ids.OID]dump.Statement) (map[ids.OID]string, error) {
 	links := make(map[ids.OID]string)
 	for _, d := range operators {
-		if d.Function == 0 && operatorShellGenerator(view, d) != nil {
+		if d.Function == 0 && OperatorShellGenerator(view, d) != nil {
 			continue
 		}
-		declaration, err := operatorDumpDeclaration(ctx, p, view, roles, d)
+		declaration, err := OperatorDumpDeclaration(ctx, p, view, roles, d)
 		if err != nil {
 			return nil, err
 		}
@@ -107,11 +106,14 @@ func operatorRoutineSQLName(p dump.Presenter, view catalog.Read, id ids.OID) (st
 	}
 	return catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(identity.Name), nil
 }
-func operatorDumpDeclaration(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Operator) (dump.Statement, error) {
+
+// OperatorDumpDeclaration renders one operator as CREATE OPERATOR with its
+// owner changes; an orphan shell is created through a temporary generator.
+func OperatorDumpDeclaration(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, d *catalog.Operator) (dump.Statement, error) {
 	if err := ctx.Err(); err != nil {
 		return dump.Statement{}, err
 	}
-	if err := (routine.OperatorProvider{}).Validate(view, d); err != nil {
+	if err := (OperatorProvider{}).Validate(view, d); err != nil {
 		return dump.Statement{}, err
 	}
 	if d.Function == 0 {
@@ -124,7 +126,7 @@ func operatorDumpDeclaration(ctx context.Context, p dump.Presenter, view catalog
 // both declarations. Shell targets must instead be created by a forward link.
 func operatorDumpDeferredLink(view catalog.Read, source *catalog.Operator, kind int, id ids.OID) bool {
 	peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-	if peer == nil || peer.Function == 0 || routine.OperatorSeeded(peer) {
+	if peer == nil || peer.Function == 0 || OperatorSeeded(peer) {
 		return false
 	}
 	reciprocal := peer.Commutator
@@ -217,8 +219,9 @@ func operatorDumpDefined(ctx context.Context, p dump.Presenter, view catalog.Rea
 	return dump.Statement{Owner: "postgres", SQL: text}, nil
 }
 
-// Select a deterministic extant forward reference for an unfilled shell.
-func operatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog.Operator {
+// OperatorShellGenerator selects a deterministic extant forward reference for
+// an unfilled shell, or nil when none exists.
+func OperatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog.Operator {
 	var selected *catalog.Operator
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Operator)
@@ -231,7 +234,7 @@ func operatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog
 func orphanOperatorShellDump(ctx context.Context, p dump.Presenter, view catalog.Read, roles authorization.Read, shell *catalog.Operator) (dump.Statement, error) {
 	var implementation *catalog.Procedure
 	negator := false
-	for key, declaration := range routine.OperatorRoutines() {
+	for key, declaration := range OperatorRoutines() {
 		comm := shell.Left != 0 && key.Left == shell.Right && key.Right == shell.Left
 		neg := key.Left == shell.Left && key.Right == shell.Right && declaration.Result == ids.OID(sqltype.Bool)
 		if !comm && !neg {
@@ -298,9 +301,10 @@ func orphanOperatorShellDump(ctx context.Context, p dump.Presenter, view catalog
 	return declaration, nil
 }
 
+// OperatorDumpEvents adds the deferred link events of defined operators.
 // Link events use raw endpoint declarations. Only semantic consumers are
 // redirected to completion; redirecting structural edges would invent cycles.
-func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph dump.Graph) {
+func OperatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph dump.Graph) {
 	for _, source := range operators {
 		if source.Function == 0 {
 			continue
@@ -308,7 +312,7 @@ func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph 
 		declaration := dump.Event{OID: source.Address().ObjectID}
 		for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 			peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-			if peer == nil || peer.Function == 0 || routine.OperatorSeeded(peer) {
+			if peer == nil || peer.Function == 0 || OperatorSeeded(peer) {
 				continue
 			}
 			target := dump.Event{OID: id}
@@ -324,7 +328,9 @@ func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph 
 	}
 }
 
-func normalizeOperatorDumpPredecessors(view catalog.Read, graph dump.Graph) {
+// NormalizeOperatorDumpPredecessors redirects semantic dependencies on an
+// operator declaration to its link completion and drops duplicate edges.
+func NormalizeOperatorDumpPredecessors(view catalog.Read, graph dump.Graph) {
 	for event, predecessors := range graph {
 		_, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.OID})
 		structural := event.Phase == dump.OperatorLinks || operator && event.Phase == dump.Declaration

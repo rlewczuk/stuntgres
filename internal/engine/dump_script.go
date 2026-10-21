@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 )
@@ -106,13 +107,13 @@ func (s *dumpScript) addDeclarationEdges() error {
 			}
 		}
 	}
-	if err := operatorDumpDependencies(dumpResolver{}, s.catalogView, s.operators, s.graph); err != nil {
+	if err := routine.OperatorDumpDependencies(dumpResolver{}, s.catalogView, s.operators, s.graph); err != nil {
 		return err
 	}
 	// Reconstruct final links, not allocation history: asymmetric links remain
 	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
-	operatorDumpEvents(s.catalogView, s.operators, s.graph)
-	if err := sqlRoutineDumpEvents(dumpResolver{}, s.catalogView, s.sqlRoutines, s.graph); err != nil {
+	routine.OperatorDumpEvents(s.catalogView, s.operators, s.graph)
+	if err := routine.SQLRoutineDumpEvents(dumpResolver{}, s.catalogView, s.sqlRoutines, s.graph); err != nil {
 		return err
 	}
 	for event, predecessors := range s.graph {
@@ -176,7 +177,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if err := physicalNotNullDumpDependencies(s.originalCatalog, s.graph); err != nil {
 		return nil, err
 	}
-	normalizeOperatorDumpPredecessors(s.catalogView, s.graph)
+	routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
 	declarationOrder, err := dump.Order(ctx, s.graph, priorities)
 	if err != nil && !s.deferDefaults && ctx.Err() == nil && len(s.inlinePredecessors) != 0 {
 		for oid, predecessors := range s.inlinePredecessors {
@@ -185,7 +186,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		if err := physicalNotNullDumpDependencies(s.originalCatalog, s.graph); err != nil {
 			return nil, err
 		}
-		normalizeOperatorDumpPredecessors(s.catalogView, s.graph)
+		routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
 		declarationOrder, err = dump.Order(ctx, s.graph, priorities)
 		s.deferDefaults = err == nil
 	}
@@ -205,7 +206,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if err := domainInvalidDumpEvents(ctx, s.catalogView, s.graph, s.domainNodes); err != nil {
 		return nil, err
 	}
-	normalizeOperatorDumpPredecessors(s.catalogView, s.graph)
+	routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
 	if s.eventOrder, err = dump.Order(ctx, s.graph, priorities); err != nil {
 		return nil, err
 	}
@@ -220,12 +221,12 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 		return err
 	}
 	for _, d := range s.sqlRoutines {
-		declaration, err := sqlRoutineDumpStatement(dumpPresenter{}, s.catalogView, s.domainRoles, d)
+		declaration, err := routine.SQLRoutineDumpStatement(dumpPresenter{}, s.catalogView, s.domainRoles, d)
 		if err != nil {
 			return err
 		}
 		s.declarations[d.Address().ObjectID] = declaration
 	}
-	s.operatorLinks, err = operatorDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, s.operators, s.declarations)
+	s.operatorLinks, err = routine.OperatorDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, s.operators, s.declarations)
 	return err
 }
