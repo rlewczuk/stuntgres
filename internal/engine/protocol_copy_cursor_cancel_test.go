@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -104,18 +105,24 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 					Relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
 					Targets:  []int{0},
 				},
-				in: copyLineReader{
-					options: copyOptions{delimiter: '\t', null: "\\N"},
-					reader:  bufio.NewReader(strings.NewReader(tc.input)),
-					targets: []copyTarget{{name: "v"}},
-				},
+				in: copyfmt.NewLineReader(
+					copyfmt.Options{Delimiter: '\t', Null: "\\N"},
+					bufio.NewReader(strings.NewReader(tc.input)),
+					[]copyfmt.Target{{Name: "v"}},
+				),
 				defaults: make([]bool, 1), omitted: make([]bool, 1),
 			}
 			cursor = text
 			if binaryInput {
+				// Consume a valid file header (no flags, no extension) before
+				// Next, so the cursor starts at the tuple with its header done.
+				header := copyfmt.BinarySignature + "\x00\x00\x00\x00\x00\x00\x00\x00"
+				in := copyfmt.NewBinaryReader(bufio.NewReader(strings.NewReader(header + tc.input)))
+				if err := in.ReadHeader(); err != nil {
+					t.Fatal("binary header setup", err)
+				}
 				cursor = &copyBinaryCursor{
-					scope: scope, binding: text.binding,
-					in:       copyBinaryReader{header: true, reader: bufio.NewReader(strings.NewReader(tc.input))},
+					scope: scope, binding: text.binding, in: in,
 					defaults: make([]bool, 1), omitted: make([]bool, 1),
 				}
 			}

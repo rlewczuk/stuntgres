@@ -2,6 +2,7 @@ package engine
 
 import (
 	"io"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/parser"
 )
 
@@ -27,12 +28,12 @@ type CopyProtocolHooks struct {
 	FinishInput func() error
 }
 
-func (s *StatementScope) startProtocolCopy(hooks CopyProtocolHooks, from bool, options copyOptions, columns int) error {
+func (s *StatementScope) startProtocolCopy(hooks CopyProtocolHooks, from bool, options copyfmt.Options, columns int) error {
 	if hooks.Start == nil {
 		return nil
 	}
 	var format int16
-	if options.format == copyFormatBinary {
+	if options.Format == copyfmt.Binary {
 		format = 1
 	}
 	formats := make([]int16, columns)

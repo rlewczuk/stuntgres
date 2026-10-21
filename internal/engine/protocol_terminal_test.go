@@ -1,10 +1,13 @@
 package engine
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -118,7 +121,12 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			defer scope.Finish(context.Canceled)
 			cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 			cancel(cause)
-			cursor := &copyCursor{scope: scope, binding: analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in: copyLineReader{number: 1, line: []byte("1"), lineValid: true}}
+			// Line 1 is "1", read whole and valid, as the cursor sees it mid-COPY.
+			in := copyfmt.NewLineReader(copyfmt.Options{}, bufio.NewReader(strings.NewReader("1\n")), nil)
+			if present, err := in.ReadLine(); !present || err != nil {
+				t.Fatal("line reader setup", present, err)
+			}
+			cursor := &copyCursor{scope: scope, binding: analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in: in}
 			got := cursor.diagnostic(context.Canceled)
 			if !wire {
 				if got != context.Canceled {

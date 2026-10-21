@@ -125,5 +125,5 @@ func copyInsertionDiagnostic(err error, relation string, line int64) error {
 	return &result
 }
 
-func (c *copyCursor) insertionOrigin() (int64, int)       { return c.in.number, len(c.in.line) }
-func (c *copyBinaryCursor) insertionOrigin() (int64, int) { return c.in.number, 0 }
+func (c *copyCursor) insertionOrigin() (int64, int)       { return c.in.Number(), len(c.in.Line()) }
+func (c *copyBinaryCursor) insertionOrigin() (int64, int) { return c.in.Number(), 0 }

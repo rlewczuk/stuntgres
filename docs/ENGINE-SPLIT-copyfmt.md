@@ -249,9 +249,45 @@ not grow.
   binary 20,084–20,085 allocs/op on both. Selected unit/`RACE=1` and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request
-- [ ] 19b — `copyfmt` created and the codec moved
+- [x] 19b — `copyfmt` created and the codec moved (`9e19cdd1a`, `644babd76`,
+  `3b0f57c68`, then the docs commit; linear item 59). The five codec files moved
+  whole with `git mv`: `options.go`, `force.go`, `line_reader.go`,
+  `csv.go`, `binary_reader.go`, plus `errors.go` (private `sqlError` and
+  `insertError`). No aliases. Exports follow step 2 but only where the root
+  calls them: `Options` (exported fields), `Format` (`Text`, `CSV`,
+  `Binary`), `Force`, `ParseOptions`, `Options.BindForces`, `Forced`,
+  `Target{Name, HasDefault}`, `Field` (`Decoded`, `Default`; null only
+  through `FieldNull`), `LineReader` (`NewLineReader`, `Header`,
+  `ReadLine`, `Split`, `Fields`, `FieldNull`, `Number`, `Line`,
+  `LineValid`), `LineError`, `AppendText`, `AppendCSV`, `ContextValue`,
+  `BinaryReader` (`NewBinaryReader`, `ReadHeader`, `HeaderDone`, `Row`,
+  `Field`, `Number`) and `BinarySignature`. Deviations: `bindForce`,
+  `decodeField`, `hexDigit` and `binaryEOF` stay unexported (no root
+  caller once the tests moved); `lineError` became the package function
+  `LineError` (it never read its receiver); `ReadHeader` marks the header
+  done, which the binary cursor used to set itself. Root `copyTargets`
+  moved too, as `copyfmt.ResolveColumns`, because FORCE binding resolves
+  relation columns with it; `bindCopyLocked` calls it. `catalog` stays
+  imported: relation FORCE binding needs `ResolveColumns` (its 42703 text
+  names the relation, and it rejects generated columns), and name-only
+  query binding would build a name slice per statement. Imports: `catalog`, `parser`, `sqltype`, `sqlstate` and
+  the standard library. Tests moved to `copyfmt`: `TestCopyCSVOptions`,
+  `TestCopyBinaryOptions` (`options_test.go`), `TestCopyCSVFraming`,
+  `TestCopyCSVFields`, `TestCopyCSVOutput` (`csv_test.go`),
+  `TestCopyTextEscapeUnits` (`line_reader_test.go`), `TestCopyCSVContext`
+  (`copy_csv_context_test.go` → `context_test.go`). Adapted:
+  `protocol_terminal_test.go` reads line 1 through `NewLineReader` and
+  `ReadLine` instead of presetting reader fields;
+  `protocol_copy_cursor_cancel_test.go` builds both readers with the
+  constructors and, for binary, reads a real file header with `ReadHeader`
+  before `Next`; `copy_admission_test.go` and `protocol_mechanism_test.go`
+  use `copyfmt.Format`/`copyfmt.Options`. Allocations for 10,000-row COPY
+  FROM, master and branch alternated: text 30,081–30,082, CSV 30,081,
+  binary 20,085–20,086 allocs/op on both. Selected unit/`RACE=1` and
+  dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+  user request
 
-Outstanding aliases: none yet.
+Outstanding aliases: none.
 
 ### Notes for later steps
 
@@ -265,12 +301,6 @@ Outstanding aliases: none yet.
   in five whole files, because the binary tuple and field framing left
   `Next` too. The insertion batching records (`copyInsertion*`) are
   execution, not codec.
-- 19b: the codec moves as whole files: `copy_options.go`, `copy_force.go`,
-  `copy_csv.go`, `copy_line_reader.go`, `copy_binary_reader.go`.
-  `copyLineTargets` stays in the root (it reads `analyze.Binding`) and
-  builds `[]copyfmt.Target`. The root still reads reader fields: the text
-  cursor reads `fields` (`isDefault`, `decoded`), `number`, `line` and
-  `lineValid`; the binary cursor reads `number` and reads and sets
-  `header`; `copyOutput` reads the options. Export these fields or add
-  accessors. Besides the methods in step 2 above, export `fieldNull`, `row`
-  and `field`.
+- 19b is done; the root cursors and `copyOutput` read the codec only
+  through the exports above. Step 29 moves the cursors with
+  `copyfmt.ResolveColumns` as the column-list resolver.

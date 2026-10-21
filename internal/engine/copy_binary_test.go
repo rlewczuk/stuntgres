@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -25,8 +26,8 @@ func copyBinaryUnitSyntax() *parser.Copy {
 	return s
 }
 func TestCopyBinaryLifecycle(t *testing.T) {
-	t.Run("OwnerReservation", func(t *testing.T) { copyOwnerReservation(t, copyFormatBinary) })
-	t.Run("Replacement", func(t *testing.T) { copyReplacement(t, copyFormatBinary) })
+	t.Run("OwnerReservation", func(t *testing.T) { copyOwnerReservation(t, copyfmt.Binary) })
+	t.Run("Replacement", func(t *testing.T) { copyReplacement(t, copyfmt.Binary) })
 	for _, setting := range []string{"statement_timeout", "transaction_timeout", "caller_cancel"} {
 		for _, phase := range []string{"payload", "trailer"} {
 			t.Run(setting+"/"+phase, func(t *testing.T) {
@@ -153,23 +154,6 @@ func TestCopyBinaryFinalCancellationVeto(t *testing.T) {
 	}
 	if result.Count != 0 || scope.stage.rows != nil || scope.owner.CopyLease != nil {
 		t.Fatal("final binary cancellation published or leaked", result.Count)
-	}
-}
-func TestCopyBinaryOptions(t *testing.T) {
-	for _, q := range []string{"COPY t FROM STDIN WITH(FORMAT binary)", "COPY t TO STDOUT WITH(FORMAT binary,HEADER false)"} {
-		s := statement(t, q).(*parser.Copy)
-		o, err := parseCopyOptions(s)
-		if err != nil || o.format != copyFormatBinary {
-			t.Fatal(o, err)
-		}
-	}
-	for _, tc := range []struct{ q, code, message string }{{"COPY t FROM STDIN WITH(FORMAT binary,HEADER true)", "0A000", "cannot specify HEADER in BINARY mode"}, {"COPY t FROM STDIN WITH(FORMAT binary,NULL '')", "42601", "cannot specify NULL in BINARY mode"}, {"COPY t TO STDOUT WITH(FORMAT binary,QUOTE 'x')", "0A000", "COPY QUOTE requires CSV mode"}} {
-		_, err := parseCopyOptions(statement(t, tc.q).(*parser.Copy))
-		var d *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
-		if !errors.As(err, &d) || *d != want {
-			t.Fatal(tc.q, err)
-		}
 	}
 }
 func TestCopyBinaryFraming(t *testing.T) {

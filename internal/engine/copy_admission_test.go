@@ -5,11 +5,11 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 	"sync"
 	"testing"
 	"time"
@@ -76,21 +76,21 @@ func copyUnitSyntax() *parser.Copy {
 	return &parser.Copy{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}}, Columns: []parser.Identifier{{Text: "v"}}, From: true, Endpoint: parser.CopyStdin}
 }
 func TestCopyTextOwnerReservation(t *testing.T) {
-	copyOwnerReservation(t, copyFormatText)
+	copyOwnerReservation(t, copyfmt.Text)
 }
-func copyOwnerReservation(t *testing.T, format copyFormat) {
+func copyOwnerReservation(t *testing.T, format copyfmt.Format) {
 	for _, entry := range []string{"statement", "begin", "commit", "rollback"} {
 		t.Run(entry, func(t *testing.T) {
 			e, sess, op, scope := copyUnitStart(t, true)
 			reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
 			syntax := copyUnitSyntax()
-			if format == copyFormatCSV {
+			if format == copyfmt.CSV {
 				syntax.Options = []parser.CopyOption{{Name: "format", Value: "csv", HasValue: true, Argument: parser.CopyArgumentScalar}}
 				reader.first = true
 				reader.prefix = strings.NewReader("\"1\n")
 				reader.suffix = strings.NewReader("\"\n")
 			}
-			if format == copyFormatBinary {
+			if format == copyfmt.Binary {
 				syntax = copyBinaryUnitSyntax()
 				stream := copyBinaryUnitStream(t)
 				split := len(stream) - 5
@@ -199,15 +199,15 @@ func copyOwnerReservation(t *testing.T, format copyFormat) {
 	}
 }
 func TestCopyTextReplacement(t *testing.T) {
-	copyReplacement(t, copyFormatText)
+	copyReplacement(t, copyfmt.Text)
 }
-func copyReplacement(t *testing.T, format copyFormat) {
+func copyReplacement(t *testing.T, format copyfmt.Format) {
 	for _, explicit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
 			e, _, op, scope := copyUnitStart(t, explicit)
 			reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
 			syntax := copyUnitSyntax()
-			if format == copyFormatBinary {
+			if format == copyfmt.Binary {
 				syntax = copyBinaryUnitSyntax()
 				stream := copyBinaryUnitStream(t)
 				split := len(stream) - 5
@@ -331,18 +331,6 @@ func TestCopyTextCopiedReservation(t *testing.T) {
 	}
 	if _, err := copied.copyIO(func() (int, error) { t.Fatal("copied scope invoked I/O"); return 0, nil }); err == nil {
 		t.Fatal("copied reservation admitted")
-	}
-}
-func TestCopyTextEscapeUnits(t *testing.T) {
-	raw := []byte(`\141\x62\q\12\x9`)
-	if got := string(decodeCopyField(nil, raw)); got != "abq\n\t" {
-		t.Fatalf("decoded=%q", got)
-	}
-	if got := string(appendCopyText(nil, "x\ty\nz\r\\", '|')); got != `x\ty\nz\r\\` {
-		t.Fatalf("escaped=%q", got)
-	}
-	if err := sqltype.ValidateTextInput("\x00"); err == nil {
-		t.Fatal("NUL accepted")
 	}
 }
 func TestCopyTextFinalCancellationVeto(t *testing.T) {

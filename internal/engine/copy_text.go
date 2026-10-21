@@ -8,6 +8,7 @@ import (
 	"io"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -19,17 +20,17 @@ import (
 type copyCursor struct {
 	scope             *StatementScope
 	binding           analyze.Binding
-	in                copyLineReader
+	in                copyfmt.LineReader
 	defaults, omitted []bool
 	column, value     string
 	nullInput         bool
 }
 
-func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyOptions, r io.Reader) *copyCursor {
+func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyfmt.Options, r io.Reader) *copyCursor {
 	// One backing array for both row flags offsets the targets allocation.
 	n := len(b.Relation.Columns)
 	flags := make([]bool, 2*n)
-	c := &copyCursor{scope: scope, binding: b, in: copyLineReader{options: o, reader: bufio.NewReader(copyReader{scope, r}), targets: copyLineTargets(b)}, defaults: flags[:n:n], omitted: flags[n:]}
+	c := &copyCursor{scope: scope, binding: b, in: copyfmt.NewLineReader(o, bufio.NewReader(copyReader{scope, r}), copyLineTargets(b)), defaults: flags[:n:n], omitted: flags[n:]}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
@@ -40,10 +41,10 @@ func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyOptions, r io
 }
 
 // copyLineTargets is built once per statement from the target columns.
-func copyLineTargets(b analyze.Binding) []copyTarget {
-	targets := make([]copyTarget, len(b.Targets))
+func copyLineTargets(b analyze.Binding) []copyfmt.Target {
+	targets := make([]copyfmt.Target, len(b.Targets))
 	for i, target := range b.Targets {
-		targets[i] = copyTarget{name: b.Relation.Columns[target].Name, hasDefault: len(b.Insert.Defaults) != 0 && b.Insert.Defaults[target] != nil}
+		targets[i] = copyfmt.Target{Name: b.Relation.Columns[target].Name, HasDefault: len(b.Insert.Defaults) != 0 && b.Insert.Defaults[target] != nil}
 	}
 	return targets
 }
@@ -68,31 +69,32 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		}
 	}
 	c.column = ""
-	if err := c.in.header(); err != nil {
+	if err := c.in.Header(); err != nil {
 		return false, c.diagnostic(err)
 	}
-	present, err := c.in.readLine()
+	present, err := c.in.ReadLine()
 	if err != nil || !present {
 		return false, c.diagnostic(err)
 	}
 	if wireInput {
 		ctx = c.scope.op.Context()
 	}
-	if err = c.in.split(true); err != nil {
+	if err = c.in.Split(true); err != nil {
 		return false, c.diagnostic(err)
 	}
-	if len(c.in.fields) > len(dst) {
-		return false, c.diagnostic(c.in.lineError("extra data after last expected column", ""))
+	fields := c.in.Fields()
+	if len(fields) > len(dst) {
+		return false, c.diagnostic(copyfmt.LineError("extra data after last expected column", ""))
 	}
 	copy(c.defaults, c.omitted)
 	for i, target := range c.binding.Targets {
 		column := c.binding.Relation.Columns[target]
-		if i >= len(c.in.fields) {
-			return false, c.diagnostic(c.in.lineError(fmt.Sprintf("missing data for column \"%s\"", column.Name), ""))
+		if i >= len(fields) {
+			return false, c.diagnostic(copyfmt.LineError(fmt.Sprintf("missing data for column \"%s\"", column.Name), ""))
 		}
-		field := c.in.fields[i]
+		field := fields[i]
 		dst[i] = sqltype.Null(column.Usage.Type)
-		if c.in.fieldNull(i) {
+		if c.in.FieldNull(i) {
 			c.column, c.nullInput = column.Name, true
 			if err := column.Usage.Type.CheckDomainInput(ctx, dst[i], c.scope.input); err != nil {
 				return false, c.diagnostic(err)
@@ -100,13 +102,13 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 			c.column, c.nullInput = "", false
 			continue
 		}
-		if field.isDefault {
+		if field.Default {
 			c.defaults[target] = true
 			continue
 		}
 		c.column = column.Name
 		c.nullInput = false
-		c.value = string(field.decoded)
+		c.value = string(field.Decoded)
 		dst[i], err = column.Usage.Type.InputWithEnvironment(ctx, c.value, column.Usage.Typmod, c.scope.input)
 		if err != nil {
 			return false, c.diagnostic(err)
@@ -131,15 +133,15 @@ func (c *copyCursor) diagnostic(err error) error {
 		return err
 	}
 	result := *record
-	result.Context = fmt.Sprintf("COPY %s, line %d", c.binding.Relation.Name(), c.in.number)
+	result.Context = fmt.Sprintf("COPY %s, line %d", c.binding.Relation.Name(), c.in.Number())
 	if c.column != "" {
 		if c.nullInput {
 			result.Context += fmt.Sprintf(", column %s: null input", c.column)
 		} else {
-			result.Context += fmt.Sprintf(", column %s: \"%s\"", c.column, copyContextValue(c.value))
+			result.Context += fmt.Sprintf(", column %s: \"%s\"", c.column, copyfmt.ContextValue(c.value))
 		}
-	} else if c.in.lineValid && record.Code != "23505" {
-		result.Context += fmt.Sprintf(": \"%s\"", copyContextValue(string(c.in.line)))
+	} else if c.in.LineValid() && record.Code != "23505" {
+		result.Context += fmt.Sprintf(": \"%s\"", copyfmt.ContextValue(string(c.in.Line())))
 	}
 	return &result
 }
@@ -167,8 +169,8 @@ func (s *StatementScope) copyCommandError(err error) error {
 	}
 	return err
 }
-func (s *StatementScope) copyOutput(rows exec.RowResult, o copyOptions, w io.Writer) (count int64, err error) {
-	if o.format == copyFormatBinary {
+func (s *StatementScope) copyOutput(rows exec.RowResult, o copyfmt.Options, w io.Writer) (count int64, err error) {
+	if o.Format == copyfmt.Binary {
 		return s.copyBinaryOutput(rows, w)
 	}
 	schema := rows.Schema()
@@ -182,15 +184,15 @@ func (s *StatementScope) copyOutput(rows exec.RowResult, o copyOptions, w io.Wri
 		}
 		return err
 	}
-	if o.header != 0 {
+	if o.Header != 0 {
 		for i, column := range schema {
 			if i != 0 {
-				buffer = append(buffer, o.delimiter)
+				buffer = append(buffer, o.Delimiter)
 			}
-			if o.format == copyFormatCSV {
-				buffer = appendCopyCSV(buffer, column.Name, o, false, len(schema) == 1)
+			if o.Format == copyfmt.CSV {
+				buffer = copyfmt.AppendCSV(buffer, column.Name, o, false, len(schema) == 1)
 			} else {
-				buffer = appendCopyText(buffer, column.Name, o.delimiter)
+				buffer = copyfmt.AppendText(buffer, column.Name, o.Delimiter)
 			}
 		}
 		buffer = append(buffer, '\n')
@@ -210,20 +212,20 @@ func (s *StatementScope) copyOutput(rows exec.RowResult, o copyOptions, w io.Wri
 		output := rows.OutputEnvironment()
 		for i, value := range values {
 			if i != 0 {
-				buffer = append(buffer, o.delimiter)
+				buffer = append(buffer, o.Delimiter)
 			}
 			if value.IsNull() {
-				buffer = append(buffer, o.null...)
+				buffer = append(buffer, o.Null...)
 				continue
 			}
 			text, outputErr := value.Type().OutputWithEnvironment(s.op.Context(), value, output)
 			if outputErr != nil {
 				return 0, outputErr
 			}
-			if o.format == copyFormatCSV {
-				buffer = appendCopyCSV(buffer, text, o, copyForced(o.quoteFields, i), len(schema) == 1)
+			if o.Format == copyfmt.CSV {
+				buffer = copyfmt.AppendCSV(buffer, text, o, copyfmt.Forced(o.QuoteFields, i), len(schema) == 1)
 			} else {
-				buffer = appendCopyText(buffer, text, o.delimiter)
+				buffer = copyfmt.AppendText(buffer, text, o.Delimiter)
 			}
 		}
 		buffer = append(buffer, '\n')

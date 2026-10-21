@@ -1,4 +1,4 @@
-package engine
+package copyfmt
 
 import (
 	"strings"
@@ -16,7 +16,7 @@ func TestCopyCSVContext(t *testing.T) {
 		{"three-byte-boundary", strings.Repeat("x", 99) + "漢", strings.Repeat("x", 99) + "..."},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := copyContextValue(tc.input); got != tc.want {
+			if got := ContextValue(tc.input); got != tc.want {
 				t.Fatalf("Context %q want %q", got, tc.want)
 			}
 		})
