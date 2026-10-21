@@ -71,7 +71,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		initialParameters: s.initialParameters, input: s.input, output: s.output,
 		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
 		protocol: s.protocolSlot,
-		view:     s.view, partitionView: s.partitionsOrZero().validationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
+		view:     s.view, partitionView: s.partitionsOrZero().ValidationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
 		domainEvaluation: s.domains.evaluation, domainInputCatalog: s.domains.inputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
 		presentation: s.presentationSlot, identity: s.identity,
 	}
@@ -118,8 +118,8 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) 
 		if s.view != nil && s.view != saved.view {
 			s.view.Release()
 		}
-		if s.partitionsOrZero().validationView != nil && s.partitionsOrZero().validationView != saved.partitionView {
-			s.partitionsOrZero().validationView.Release()
+		if s.partitionsOrZero().ValidationView != nil && s.partitionsOrZero().ValidationView != saved.partitionView {
+			s.partitionsOrZero().ValidationView.Release()
 		}
 		if s.authority != nil && s.authority != saved.authority {
 			s.authority.Host = nil

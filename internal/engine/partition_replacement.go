@@ -8,40 +8,11 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-func hasHashPartition(snapshot *catalog.State) bool {
-	for _, d := range snapshot.Descriptors() {
-		if relation, ok := d.(*catalog.Relation); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
-			return true
-		}
-	}
-	return false
-}
-
-// Partition rows have equal named columns, but private replay may preserve a
-// different physical order. Borrow values unless a real layout change is needed.
-func partitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []sqltype.Value {
-	same := true
-	for i, c := range to.Columns {
-		if from.Columns[i].Name != c.Name {
-			same = false
-			break
-		}
-	}
-	if same {
-		return row
-	}
-	values := make([]sqltype.Value, len(to.Columns))
-	for i, c := range to.Columns {
-		values[i] = row[from.Index[c.Name]]
-	}
-	return values
-}
 
 // Run only inside the isolated admitted repair statement, after scalar/provider
 // remint and before index transport. Published target/TEMP roots are never touched.
@@ -67,7 +38,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			return nil, ids.ErrCatalogReplaced
 		}
 		historyPosition := 0
-		var retainedChecks partitionRetainedChecks
+		var retainedChecks partition.RetainedChecks
 		for i, version := range store.Versions {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -86,7 +57,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			destination := root
 			for destination.Partition != nil {
 				var buffer [32]catalog.PartitionDatum
-				key, err := partitionRowKey(destination, partitionReplacementRow(source, destination, version.Values), evaluation, buffer[:])
+				key, err := partition.RowKey(destination, partition.ReplacementRow(source, destination, version.Values), evaluation, buffer[:])
 				if err != nil {
 					return nil, err
 				}
@@ -96,7 +67,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 					if child.Membership.DefaultBound {
 						continue
 					}
-					contains, err := partitionContains(ctx, destination.Partition.Keys, child.Membership, key, evaluation.Input)
+					contains, err := partition.Contains(ctx, destination.Partition.Keys, child.Membership, key, evaluation.Input)
 					if err != nil {
 						return nil, err
 					}
@@ -110,15 +81,15 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 				}
 				if selected == nil {
 					state := partitionInsertState{catalog: view, auth: auth, target: root}
-					return nil, state.missingPartition(ctx, destination, key.values, evaluation.Output)
+					return nil, state.missingPartition(ctx, destination, key.Values, evaluation.Output)
 				}
 				destination = selected
 			}
-			values := partitionReplacementRow(source, destination, version.Values)
+			values := partition.ReplacementRow(source, destination, version.Values)
 			validation := destination
 			if destination.Address() == address && history.Relation != nil {
 				var err error
-				validation, err = retainedChecks.forRow(ctx, history, destination, original, values, snapshot, evaluation)
+				validation, err = retainedChecks.ForRow(ctx, history, destination, original, values, snapshot, evaluation)
 				if err != nil {
 					return nil, err
 				}
@@ -133,7 +104,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			child := destination
 			for child.Membership != nil {
 				parent := view.MustRelation(child.Membership.Parent)
-				allowed, err := partitionAccepts(view, parent, child, partitionReplacementRow(source, parent, version.Values), evaluation)
+				allowed, err := partition.Accepts(view, parent, child, partition.ReplacementRow(source, parent, version.Values), evaluation)
 				if err != nil {
 					return nil, err
 				}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -27,18 +28,18 @@ func TestHashPartitionBounds(t *testing.T) {
 					for slot := range b {
 						want = want || slot%a == r && slot%b == s
 					}
-					if got := hashPartitionOverlap(left, right); got != want {
+					if got := partition.HashOverlap(left, right); got != want {
 						t.Fatal(a, b, r, s, got, want)
 					}
 				}
 			}
 		}
 	}
-	if !validHashPartitionBound(&catalog.PartitionMembership{Modulus: 2147483647, Remainder: 2147483646}) {
+	if !partition.ValidHashBound(&catalog.PartitionMembership{Modulus: 2147483647, Remainder: 2147483646}) {
 		t.Fatal("sparse maximum bound rejected")
 	}
 	for _, b := range []catalog.PartitionMembership{{Modulus: 0}, {Modulus: 2, Remainder: 2}, {Modulus: 2, Remainder: -1}, {Modulus: 2, DefaultBound: true}, {Modulus: 2, Lower: []catalog.PartitionDatum{{}}}} {
-		if validHashPartitionBound(&b) {
+		if partition.ValidHashBound(&b) {
 			t.Fatal("invalid hash bound accepted", b)
 		}
 	}
@@ -82,14 +83,14 @@ func hashPartitionUnitEngine(t *testing.T) (*Engine, catalog.Read, *catalog.Rela
 func TestHashPartitionInvariants(t *testing.T) {
 	view, root, leaf := hashPartitionUnitDescriptor(t)
 	for _, d := range []*catalog.Relation{root, leaf} {
-		if err := validatePartitionDescriptor(view, d); err != nil {
+		if err := partition.ValidateDescriptor(view, d); err != nil {
 			t.Fatal(err)
 		}
 	}
 	original := *leaf.Membership
 	for _, bad := range []catalog.PartitionMembership{{Parent: root.Address(), Modulus: 1}, {Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 0}, {Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 1, DefaultBound: true}} {
 		leaf.Membership = &bad
-		if err := validatePartitionDescriptor(view, root); err == nil {
+		if err := partition.ValidateDescriptor(view, root); err == nil {
 			t.Fatal("invalid child accepted", bad)
 		}
 	}
@@ -100,12 +101,12 @@ func TestHashPartitionInvariants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	key, err := partitionRowKey(root, []sqltype.Value{value}, &evaluation, scratch[:])
+	key, err := partition.RowKey(root, []sqltype.Value{value}, &evaluation, scratch[:])
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key.hash != 901916981443598768 {
-		t.Fatal(key.hash)
+	if key.Hash != 901916981443598768 {
+		t.Fatal(key.Hash)
 	}
 }
 

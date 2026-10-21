@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"context"
@@ -11,15 +11,15 @@ import (
 	"stuntgres/internal/engine/index"
 )
 
-const partitionReplayStem = "__stuntgres_partition_replay_"
+const ReplayStem = "__stuntgres_partition_replay_"
 
-type partitionInvalidReplay struct {
+type InvalidReplay struct {
 	table   *catalog.Relation
-	child   *catalog.Relation
-	scratch string
+	Child   *catalog.Relation
+	Scratch string
 }
 
-func partitionPreservedReplayBacking(view catalog.Read, idx *catalog.Relation) bool {
+func preservedReplayBacking(view catalog.Read, idx *catalog.Relation) bool {
 	if idx.SQLIndex.Constraint != nil || idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 		return false
 	}
@@ -34,7 +34,7 @@ func partitionPreservedReplayBacking(view catalog.Read, idx *catalog.Relation) b
 
 // An index subtree, not all table-local providers/rows, is required before the
 // reattachment. Deferred local origins and their data consumers follow it.
-func partitionReplayIndexReady(view catalog.Read, graph dump.Graph, event dump.Event, idx *catalog.Relation) {
+func replayIndexReady(view catalog.Read, graph dump.Graph, event dump.Event, idx *catalog.Relation) {
 	table := view.MustRelation(idx.SQLIndex.Parent)
 	if idx.SQLIndex.Constraint != nil && !index.PartitionReplayUsingIndex(view, idx) {
 		graph.Add(event, dump.Event{OID: table.Address().ObjectID})
@@ -43,7 +43,7 @@ func partitionReplayIndexReady(view catalog.Read, graph dump.Graph, event dump.E
 	}
 	if table.Membership != nil {
 		member := dump.Event{OID: table.Address().ObjectID}
-		if partitionDumpNeedsAttach(view, table) {
+		if DumpNeedsAttach(view, table) {
 			member.Phase = dump.TableAttachment
 		}
 		graph.Add(event, member)
@@ -53,7 +53,7 @@ func partitionReplayIndexReady(view catalog.Read, graph dump.Graph, event dump.E
 	}
 	for _, address := range table.Partition.Children {
 		child := index.PartitionDumpIndexBacking(view, idx.Address(), address)
-		partitionReplayIndexReady(view, graph, event, child)
+		replayIndexReady(view, graph, event, child)
 		if idx.SQLIndex.Constraint == nil {
 			graph.Add(event, dump.Event{OID: child.Address().ObjectID, Phase: dump.IndexAttachment})
 		}
@@ -63,7 +63,7 @@ func partitionReplayIndexReady(view catalog.Read, graph dump.Graph, event dump.E
 // Existing declaration/data/attachment events remain the single replay scheduler.
 // Manual complete-invalid trees use one real valid child. ONLY exclusions use
 // a scratch gap even with saved children, avoiding non-adoptable EXCLUDE clones.
-func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndices map[ids.OID]int) map[ids.OID]partitionInvalidReplay {
+func InvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndices map[ids.OID]int) map[ids.OID]InvalidReplay {
 	groups := make(map[ids.ObjectAddress][]*catalog.Relation)
 	for oid := range indexIndices {
 		idx := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
@@ -83,29 +83,29 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 	for key := range view.Names() {
 		reserved[key] = true
 	}
-	result := make(map[ids.OID]partitionInvalidReplay, len(tables))
+	result := make(map[ids.OID]InvalidReplay, len(tables))
 	ordinal := 0
 	for _, table := range tables {
 		oid := table.Address().ObjectID
 		prepare := dump.Event{OID: oid, Phase: dump.InvalidIndexPreparation}
 		finish := dump.Event{OID: oid, Phase: dump.InvalidIndexCompletion}
-		item := partitionInvalidReplay{table: table, child: index.PartitionPreservedReplayChild(view, table)}
+		item := InvalidReplay{table: table, Child: index.PartitionPreservedReplayChild(view, table)}
 		for _, idx := range groups[table.Address()] {
 			if index.PartitionReplayOnlyExclusion(idx) {
 				// Never detach a captured EXCLUDE child: reattachment clones
 				// fresh providers instead of adopting its independent locals.
-				item.child = nil
+				item.Child = nil
 				break
 			}
 		}
-		if item.child == nil {
+		if item.Child == nil {
 			for {
 				ordinal++
-				name := fmt.Sprintf("%s%d", partitionReplayStem, ordinal)
+				name := fmt.Sprintf("%s%d", ReplayStem, ordinal)
 				key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: name}
 				if !reserved[key] {
 					reserved[key] = true
-					item.scratch = name
+					item.Scratch = name
 					break
 				}
 			}
@@ -119,7 +119,7 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 			for _, address := range table.Partition.Children {
 				child := view.MustRelation(address)
 				member := dump.Event{OID: address.ObjectID}
-				if partitionDumpNeedsAttach(view, child) {
+				if DumpNeedsAttach(view, child) {
 					member.Phase = dump.TableAttachment
 				}
 				graph.Add(member, finish)
@@ -130,8 +130,8 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 				}
 			}
 		} else {
-			membership := dump.Event{OID: item.child.Address().ObjectID}
-			if partitionDumpNeedsAttach(view, item.child) {
+			membership := dump.Event{OID: item.Child.Address().ObjectID}
+			if DumpNeedsAttach(view, item.Child) {
 				membership.Phase = dump.TableAttachment
 			}
 			graph[prepare] = []dump.Event{membership}
@@ -142,16 +142,16 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 					continue
 				}
 				graph.Add(prepare, dump.Event{OID: idx.Address().ObjectID})
-				backing := index.PartitionDumpIndexBacking(view, idx.Address(), item.child.Address())
+				backing := index.PartitionDumpIndexBacking(view, idx.Address(), item.Child.Address())
 				attachment := dump.Event{OID: backing.Address().ObjectID, Phase: dump.IndexAttachment}
-				if partitionPreservedReplayBacking(view, backing) {
+				if preservedReplayBacking(view, backing) {
 					declaration := dump.Event{OID: backing.Address().ObjectID}
 					graph.Add(declaration, prepare)
 					if previousBacking != (dump.Event{}) {
 						graph.Add(declaration, previousBacking)
 					}
 					previousBacking = declaration
-					partitionReplayIndexReady(view, graph, finish, backing)
+					replayIndexReady(view, graph, finish, backing)
 				}
 				// Table reattachment, not explicit index completion, must supply
 				// this one real final edge to retain the parent's invalid flag.
@@ -160,7 +160,7 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 					graph[event] = slices.DeleteFunc(predecessors, func(p dump.Event) bool { return p == attachment })
 				}
 				for _, address := range table.Partition.Children {
-					if address == item.child.Address() {
+					if address == item.Child.Address() {
 						continue
 					}
 					other := index.PartitionDumpIndexBacking(view, idx.Address(), address)
@@ -174,7 +174,7 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 				if idx.SQLIndex.Parent == table.Address() && !idx.SQLIndex.Valid && !index.PartitionIndexPreservedInvalid(view, idx) {
 					graph.Add(dump.Event{OID: indexOID}, finish)
 				}
-				if idx.SQLIndex.Parent == item.child.Address() && index.PartitionPreservedReplayLocal(view, idx) {
+				if idx.SQLIndex.Parent == item.Child.Address() && index.PartitionPreservedReplayLocal(view, idx) {
 					graph.Add(dump.Event{OID: indexOID}, finish)
 				}
 			}
@@ -185,18 +185,18 @@ func partitionInvalidDumpEvents(view catalog.Read, graph dump.Graph, indexIndice
 	return result
 }
 
-func (r partitionInvalidReplay) sql(ctx context.Context, view catalog.Read, phase dump.Phase) (string, error) {
+func (r InvalidReplay) SQL(ctx context.Context, view catalog.Read, phase dump.Phase) (string, error) {
 	qualified := func(d *catalog.Relation) string {
 		return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 	}
 	parent := qualified(r.table)
-	if r.child != nil {
+	if r.Child != nil {
 		if phase == dump.InvalidIndexPreparation {
-			return "ALTER TABLE " + parent + " DETACH PARTITION " + qualified(r.child) + ";\n", nil
+			return "ALTER TABLE " + parent + " DETACH PARTITION " + qualified(r.Child) + ";\n", nil
 		}
-		return partitionAttachDumpSQL(ctx, view, r.child)
+		return AttachDumpSQL(ctx, view, r.Child)
 	}
-	child := catalog.QuoteIdentifier(view.Get(r.table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.scratch)
+	child := catalog.QuoteIdentifier(view.Get(r.table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Scratch)
 	if phase == dump.InvalidIndexPreparation {
 		return "CREATE TABLE " + child + " PARTITION OF " + parent + " DEFAULT;\n", nil
 	}

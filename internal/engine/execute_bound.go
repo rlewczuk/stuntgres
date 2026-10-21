@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -291,7 +292,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	quoteCaptures.Sealed = true
 	scope.quoteCaptures = quoteCaptures
 	b = physicalBinding(b)
-	if err = partitionWriteExtensionBoundary(stmt, b.Relation); err != nil {
+	if err = partition.WriteExtensionBoundary(stmt, b.Relation); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

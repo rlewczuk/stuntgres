@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -17,12 +18,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-func partitionGeneratedError(_ error, pos parser.Position, name string) error {
-	d := expr.ErrorAt("42P17", "cannot use generated column in partition key", pos).(*sqlstate.Error)
-	d.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, name)
-	return d
-}
 
 func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView, d *catalog.Relation, raw *parser.PartitionKey, input sqltype.InputEnvironment) (*catalog.PartitionDefinition, error) {
 	if raw == nil {
@@ -48,7 +43,7 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 			key.Label = r.Column.Text
 			if _, generated := d.ColumnMeta.Generations[key.Attribute]; generated {
 				diagnostic := sqlError("42P17", "cannot use generated column in partition key")
-				return nil, partitionGeneratedError(diagnostic, r.Pos, key.Label)
+				return nil, partition.GeneratedError(diagnostic, r.Pos, key.Label)
 			}
 		} else {
 			ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
@@ -78,7 +73,7 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 			}
 			for _, slot := range binder.Query.Sources[0].Uses {
 				if _, generated := d.ColumnMeta.Generations[d.Attributes[slot]]; generated {
-					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
+					return nil, partition.GeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
 			}
 			key.Derived = &catalog.DerivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}
@@ -115,44 +110,6 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 		definition.Keys[i] = key
 	}
 	return definition, nil
-}
-
-// preparePartitionBounds checks both arities before any expression demand.
-// Transformation remains deferred: a later bind error must not mask an earlier
-// NULL or prevent a required nontransactional sequence draw.
-func preparePartitionBounds(parent *catalog.Relation, raw parser.PartitionBound) (*catalog.PartitionMembership, error) {
-	bound := &catalog.PartitionMembership{Parent: parent.Address(), Strategy: parent.Partition.Strategy, DefaultBound: raw.Default}
-	if parent.Partition.Strategy == parser.PartitionHash {
-		if raw.Default {
-			return nil, sqlError("42P16", "a hash-partitioned table may not have a default partition")
-		}
-		if raw.Strategy != parser.PartitionHash {
-			return nil, expr.ErrorAt("42P16", "invalid bound specification for a hash partition", raw.Pos)
-		}
-		if raw.Modulus <= 0 {
-			return nil, sqlError("42P16", "modulus for hash partition must be an integer value greater than zero")
-		}
-		if raw.Remainder >= raw.Modulus {
-			return nil, sqlError("42P16", "remainder for hash partition must be less than modulus")
-		}
-		bound.Modulus, bound.Remainder = raw.Modulus, raw.Remainder
-		return bound, nil
-	}
-	if raw.Strategy == parser.PartitionHash {
-		return nil, expr.ErrorAt("42P16", "invalid bound specification for a range partition", raw.Pos)
-	}
-	if raw.Default {
-		return bound, nil
-	}
-	keys := parent.Partition.Keys
-	if len(raw.Lower) != len(keys) {
-		return nil, sqlError("42P16", "FROM must specify exactly one value per partitioning column")
-	}
-	if len(raw.Upper) != len(keys) {
-		return nil, sqlError("42P16", "TO must specify exactly one value per partitioning column")
-	}
-	bound.Lower, bound.Upper = make([]catalog.PartitionDatum, len(keys)), make([]catalog.PartitionDatum, len(keys))
-	return bound, nil
 }
 
 // bindPartitionDatum captures one datum's exact provider references under mu.

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
@@ -76,10 +77,10 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("mismatched source identity accepted", err)
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	var policy partitionRetainedChecks
+	var policy partition.RetainedChecks
 	validate := func(values []sqltype.Value, want string) {
 		t.Helper()
-		d, err := policy.forRow(evaluation.Context, history, leaf, before, values, snapshot, &evaluation)
+		d, err := policy.ForRow(evaluation.Context, history, leaf, before, values, snapshot, &evaluation)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -137,8 +138,8 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	virtualHistory.Relation = &virtualLeaf
 	virtualBefore := []sqltype.Value{integer(1), sqltype.Null(typ)}
 	virtualAfter := []sqltype.Value{integer(2), sqltype.Null(typ)}
-	var virtualPolicy partitionRetainedChecks
-	virtualDescriptor, err := virtualPolicy.forRow(evaluation.Context, virtualHistory, &virtualLeaf, virtualBefore, virtualAfter, snapshot, &evaluation)
+	var virtualPolicy partition.RetainedChecks
+	virtualDescriptor, err := virtualPolicy.ForRow(evaluation.Context, virtualHistory, &virtualLeaf, virtualBefore, virtualAfter, snapshot, &evaluation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: integer(0)}
 	oldCast := plan.CoercionExpr{Info: expr.Info{Usage: oldDomain.Usage()}, Child: literal, Plan: oldPlan, Mode: sqltype.Explicit}
 	newCast := plan.CoercionExpr{Info: expr.Info{Usage: newDomain.Usage()}, Child: literal, Plan: newPlan, Mode: sqltype.Explicit}
-	if affected, err := partitionCheckRecipeAffected(evaluation.Context, oldCast, newCast, false); err != nil || affected {
+	if affected, err := partition.CheckRecipeAffected(evaluation.Context, oldCast, newCast, false); err != nil || affected {
 		t.Fatal("domain identity-only remap revalidated an old NOT VALID check", affected, err)
 	}
 	regclass, _ := view.LookupType(sqltype.Regclass)
@@ -180,12 +181,12 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	}
 	beforeLiteral := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage()}, Value: oldReference}
 	afterLiteral := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage()}, Value: newReference}
-	if affected, err := partitionCheckRecipeAffected(evaluation.Context, beforeLiteral, afterLiteral, false); err != nil || !affected {
+	if affected, err := partition.CheckRecipeAffected(evaluation.Context, beforeLiteral, afterLiteral, false); err != nil || !affected {
 		t.Fatal("material reminted literal input was ignored", affected, err)
 	}
 	oidType, _ := view.LookupType(sqltype.Oid)
 	ownerValue := plan.TableOIDExpr{Info: expr.Info{Usage: oidType.Usage()}, Owner: view.Owner().Domain.Ref(view.Epoch(), leaf.Address())}
-	if affected, err := partitionCheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
+	if affected, err := partition.CheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
 		t.Fatal("owner-sensitive recipe input was ignored", affected, err)
 	}
 	// An actual changed stored literal selects and enforces only its CHECK,
@@ -197,8 +198,8 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	changedConstant.Value = integer(2)
 	literalCheck.Right = changedConstant
 	literalLeaf.Constraints.Check[1].Expression = literalCheck
-	var literalPolicy partitionRetainedChecks
-	literalDescriptor, err := literalPolicy.forRow(evaluation.Context, history, &literalLeaf, oldValues, oldValues, snapshot, &evaluation)
+	var literalPolicy partition.RetainedChecks
+	literalDescriptor, err := literalPolicy.ForRow(evaluation.Context, history, &literalLeaf, oldValues, oldValues, snapshot, &evaluation)
 	if err != nil {
 		t.Fatal(err)
 	}

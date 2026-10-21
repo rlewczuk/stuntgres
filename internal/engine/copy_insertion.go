@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -18,7 +19,7 @@ type copyInsertionCursor interface {
 }
 
 type copyInsertionBuffer struct {
-	group     *partitionInsertGroup
+	group     *partition.InsertGroup
 	positions []int
 }
 
@@ -28,7 +29,7 @@ type copyInsertionState struct {
 	first, bytes int
 	lines        []int64
 	buffers      []copyInsertionBuffer
-	groups       map[*partitionInsertGroup]int
+	groups       map[*partition.InsertGroup]int
 }
 
 func newCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyInsertionState {
@@ -54,7 +55,7 @@ func (state *copyInsertionState) record(s *StatementScope, b analyze.Binding, ca
 	// overwrites the current partition projection. No second generation Eval.
 	candidate.Values = s.partitionStoredRow(candidate.Values)
 	if state.groups == nil {
-		state.groups = make(map[*partitionInsertGroup]int)
+		state.groups = make(map[*partition.InsertGroup]int)
 	}
 	at, exists := state.groups[group]
 	if !exists {
@@ -70,17 +71,17 @@ func (state *copyInsertionState) full() bool {
 }
 
 func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
-	insert := func(position int, group *partitionInsertGroup) error {
+	insert := func(position int, group *partition.InsertGroup) error {
 		candidate := rows.Candidate(position)
 		var err error
 		if group == nil {
 			_, err = s.admitInsertProducer(b, &candidate, rows.Prefix(position), evaluation)
 		} else {
-			s.uniqueBinding = group.unique
-			err = s.checkUniqueRow(group.ref, &candidate, nil, group.rows)
-			group.unique = s.uniqueBinding
+			s.uniqueBinding = group.Unique
+			err = s.checkUniqueRow(group.Ref, &candidate, nil, group.Rows)
+			group.Unique = s.uniqueBinding
 			if err == nil {
-				group.rows.Append(candidate)
+				group.Rows.Append(candidate)
 			}
 		}
 		if err != nil {

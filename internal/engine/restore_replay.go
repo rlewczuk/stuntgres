@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -19,10 +20,10 @@ type restoreReplay struct {
 	defaultReplay          bool
 	sqlBodies              bool // Isolated Restore validator deferral, never a session setting.
 	partitionAttach        bool
-	partitionCheck         *catalog.Relation          // Exact leased private-import physical CHECK target.
-	partitionUsingIndex    *partitionUsingIndexReplay // Exact leased private-import physical target/index.
-	partitionUnique        *partitionUniqueReplay     // Exact private virtual definition/subtree lease.
-	domainReplay           *domainReplayCapture       // Exact private native INSERT's immutable captured cells.
+	partitionCheck         *catalog.Relation           // Exact leased private-import physical CHECK target.
+	partitionUsingIndex    *partition.UsingIndexReplay // Exact leased private-import physical target/index.
+	partitionUnique        *partition.UniqueReplay     // Exact private virtual definition/subtree lease.
+	domainReplay           *domainReplayCapture        // Exact private native INSERT's immutable captured cells.
 }
 
 func (*restoreReplay) ReplaySlot() {}

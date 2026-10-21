@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -273,7 +274,7 @@ type StatementScope struct {
 	viewCreationSlot   *viewCreationScope
 	materializedSlot   *materializedRefreshScope
 	indexesSlot        *index.Scope
-	partitionsSlot     *partitionScope
+	partitionsSlot     *partition.Scope
 	foreignTablesSlot  *foreignTableScope
 }
 

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -28,7 +29,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 				f.leaf.Membership = nil
 				f.child.SQLIndex.PartitionParent = ids.ObjectAddress{}
 			}
-			reserved := ids.NameKey{ClassID: ids.RelationClassID, Namespace: f.root.Namespace(), Name: partitionReplayStem + "1"}
+			reserved := ids.NameKey{ClassID: ids.RelationClassID, Namespace: f.root.Namespace(), Name: partition.ReplayStem + "1"}
 			f.view.State().BindName(reserved, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46700})
 			r, c, pi, ci := f.root.Address().ObjectID, f.leaf.Address().ObjectID, f.parent.Address().ObjectID, f.child.Address().ObjectID
 			graph := dump.Graph{{OID: r}: nil, {OID: c}: nil, {OID: pi}: {{OID: r}}, {OID: ci}: {{OID: c}}}
@@ -38,11 +39,11 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 			declarations := []dump.Event{{OID: r}, {OID: c}, {OID: pi}, {OID: ci}}
 			tables := []table.DumpRelation{{Descriptor: f.root}, {Descriptor: f.leaf}}
 			indices := map[ids.OID]int{pi: 0, ci: 1}
-			replay := &partitionConstraintReplay{original: f.view, temporary: map[ids.ObjectAddress]string{}}
-			if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
+			replay := &partition.ConstraintReplay{Original: f.view, Temporary: map[ids.ObjectAddress]string{}}
+			if err := partition.DumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
-			plans := partitionInvalidDumpEvents(f.view, graph, indices)
+			plans := partition.InvalidDumpEvents(f.view, graph, indices)
 			order, err := dump.Order(context.Background(), graph, nil)
 			if err != nil {
 				t.Fatal("replay introduced cycle", err)
@@ -62,21 +63,21 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 				t.Fatal("teardown/reattach not a completion predecessor", order)
 			}
 			if empty {
-				if plans[r].scratch != partitionReplayStem+"2" || position(prepare) >= position(dump.Event{OID: pi}) {
+				if plans[r].Scratch != partition.ReplayStem+"2" || position(prepare) >= position(dump.Event{OID: pi}) {
 					t.Fatal("scratch collision/declaration ordering", plans[r], order)
 				}
-				text, err := plans[r].sql(context.Background(), f.view, dump.InvalidIndexCompletion)
+				text, err := plans[r].SQL(context.Background(), f.view, dump.InvalidIndexCompletion)
 				if err != nil || !strings.Contains(text, "DETACH PARTITION") || !strings.Contains(text, "DROP TABLE") {
 					t.Fatal("missing real teardown", text, err)
 				}
 			} else {
-				if plans[r].child != f.leaf || position(prepare) >= position(dump.Event{OID: ci}) || position(dump.Event{OID: ci}) >= position(finish) {
+				if plans[r].Child != f.leaf || position(prepare) >= position(dump.Event{OID: ci}) || position(dump.Event{OID: ci}) >= position(finish) {
 					t.Fatal("real backing must build standalone between detach and table reattach", order)
 				}
 				if _, exists := graph[dump.Event{OID: ci, Phase: dump.IndexAttachment}]; exists {
 					t.Fatal("explicit completion would promote preserved invalid parent")
 				}
-				text, err := plans[r].sql(context.Background(), f.view, dump.InvalidIndexCompletion)
+				text, err := plans[r].SQL(context.Background(), f.view, dump.InvalidIndexCompletion)
 				if err != nil || !strings.Contains(text, "ATTACH PARTITION") || !strings.Contains(text, "DEFAULT") {
 					t.Fatal("lost captured bound", text, err)
 				}
@@ -134,11 +135,11 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	// rename barrier. Stored REGCLASS data must wait for that original identity.
 	tables := []table.DumpRelation{{Descriptor: f.root}, {Descriptor: f.leaf}, {Descriptor: consumer, Columns: consumer.Columns, Attributes: consumer.Attributes, Defaults: consumer.ColumnMeta.Defaults, Versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value}}}}}
 	indices := map[ids.OID]int{pi: 0, ci: 1, li: 2}
-	_, replay := partitionConstraintDumpCatalog(f.view)
-	if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
+	_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, f.view)
+	if err := partition.DumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 		t.Fatal(err)
 	}
-	partitionInvalidDumpEvents(f.view, graph, indices)
+	partition.InvalidDumpEvents(f.view, graph, indices)
 	order, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal("deferred local origin created cycle", err)

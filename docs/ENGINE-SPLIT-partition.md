@@ -418,11 +418,62 @@ too; the root keeps only the orchestration listed above. The checks in
     `partition_attach_publication_test.go` and
     `driver_batch_catalog_provider_test.go` use the fence's new name. None
     moved or deleted.
-- [ ] 25b — `partition` created and clean set moved (linear item 91)
+- [x] 25b — `partition` created and clean set moved (linear item 91)
+  (`5ed4b040c`, `f3e01d002`, `b7acfe47e`, `917899609`, then the docs commit) ·
+  selected unit and dual-mode proof and quickcheck passed (`REFERENCE=1`
+  `PartitionExclusion*` fails identically on `master`: known oracle drift);
+  racecheck/finalcheck skipped at user request
+  - Re-measured at `bdba4968a` with `reach` over `^partition.*\.go$`: 85 clean
+    declarations in 25 files (10 wholly clean, 15 mixed; `partition_attach.go`
+    and `partition_create_child.go` all dirty). `frontier` OUT over the clean
+    set: `sqlError` and the root `dumpPredecessor` only; no inventory rewrite.
+    Outputs in `.cswd/tmp/PG18-ENGINE-SPLIT-PARTITION-PACKAGE/`.
+  - `5ed4b040c` (seam): `partitionDumpEvents`, `partitionDumpPredecessors` and
+    `partitionConstraintCreator` take a `dump.Resolver` (as
+    `routine.SQLRoutineDumpEvents` does); `partitionConstraintDumpCatalog`
+    stores it in the replay record for `membershipRenames`. Root callers pass
+    `dumpResolver{}`.
+  - `f3e01d002` (movedecl staging, 15 `ptmv_*.go` files), `b7acfe47e` (export
+    in place, 84 expspec/movex rows), `917899609` (move): 22 files, about 3.1k
+    lines, in `partition`, qualified with `movex -qual partition`; two root
+    locals named `partition` became `part`; `partition/errors.go` copies
+    `sqlError`. No aliases. Imports: `analyze`, `authorization`, `catalog`,
+    `dump`, `exec`, `expr`, `ids`, `index`, `plan`, `regobj`, `stored`,
+    `table`, `typedef`, `visibility`, `parser`, `sqlstate`, `sqltype`; only
+    the root imports `partition`.
+  - Final names (the `partition` stutter dropped): `ValidateDescriptor`,
+    `CompareTuple`, `EvaluatedKey`, `RowKey`, `Contains`, `RangeContains`,
+    `Accepts`, `PhysicalDescendants`, `PrepareBounds`, `GeneratedError`,
+    `ValidHashBound`, `HashOverlap`, `CompareHashBound`, `InsertGroup`,
+    `CaptureQueryPrefix`; `RoutineIdentity`, `RecipeHost`, `EvaluateRecipe`,
+    `Scope` (`Programs`, `ValidationView`, `DropPrograms`,
+    `ReleaseValidationView`); `Boundary`, `TupleSQL`, `AttachEligibility`,
+    `AttachKindError`, `AttachSchema`, `AttachScan`, `AttachRowConstraint`,
+    `DetachMembership`, `DetachKindError`, `DependsOn`, `ExclusionAddActions`,
+    `AppendCompatible`, `KeyUsesAttribute`, `WriteExtensionBoundary`;
+    `ConstraintProven`, `ProofGoal`, `ProofTuple` (the proof state is the
+    unexported `prover`); `RetainedChecks` (`ForRow`), `CheckRecipeAffected`;
+    `DumpPredecessors`, `KeySQL`, `DumpNeedsAttach`, `AttachDumpSQL`,
+    `ChildSQL`, `DumpEvents`, `ConstraintReplay`, `ConstraintDumpCatalog`,
+    `IndexDumpAttachmentSQL`, `InvalidReplay`, `InvalidDumpEvents`,
+    `VirtualUniqueDefinitionSQL`, `HasHashPartition`, `ReplacementRow`; the
+    Restore replay records `UniqueReplay`, `UsingIndexReplay`,
+    `ReplayTeardown` and `CheckReplayActions` share `replay.go`.
+  - Deviation: `partitionInsertState` (with `rowFor` and `missingPartition`)
+    stays in the root: it holds an `AuthorizationView` and reads the search
+    path through the engine. Only `InsertGroup` of the routing records moved.
+  - Root after 25b: 17 `partition_*.go` files, 56 dirty declarations, 2,841
+    lines; `reach` finds nothing clean left.
+  - Tests: none moved or deleted. Every partition unit test builds an engine
+    fixture (`partitionConstraintDescriptors`, `hashPartitionUnitEngine`, ...)
+    and stays in the root, naming `partition.X`;
+    `partition_routine_authority_test.go` renamed one local `partition` to
+    `part`. The `TestPartitionRoutineOriginalAuthority` selectors moved from
+    `internal/engine/README.md` to the package README.
 - [ ] 25c — Host refined (docs only; linear item 92)
 - [ ] 25d — Handler decisions moved (linear item 93)
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (25a and 25b added none).
 
 ### Notes for later steps
 
@@ -430,11 +481,13 @@ Outstanding aliases: none yet.
   (`capturePartitionInsertLocked`, `validatePartitionInsert`,
   `partitionInsertionGroup`, `partitionStoredRow`,
   `validateTargetPartitionConstraint`, `checkInsertUniqueRow`,
-  `applyInsertValidated`, `missingPartition`) on top of the routing
-  records moved here. DML 29a renamed the shadowed
-  `WriteStage.applyInsertValidated` to `applyInsertBatch`; the router
-  `StatementScope.applyInsertValidated` (`partition_insert.go`) kept its
-  name.
+  `applyInsertValidated`, `missingPartition`) on top of
+  `partition.InsertGroup`. `partitionInsertState` (with `rowFor` and
+  `missingPartition`) stayed in the root at 25b: it holds an
+  `AuthorizationView` and reads the search path through the engine. DML 29a
+  renamed the shadowed `WriteStage.applyInsertValidated` to
+  `applyInsertBatch`; the router `StatementScope.applyInsertValidated`
+  (`partition_insert.go`) kept its name.
 - Step 30 (`control`) owns the Restore executors left in the root
   (`begin*Replay`, `executePartitionUniqueReplayLocked`,
   `repairRemappedHashPartitions`, the teardown capture and validation).

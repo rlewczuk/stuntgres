@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
@@ -99,7 +100,7 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	var sql string
 	var err error
 	if virtual != nil {
-		sql, err = partitionVirtualUniqueDefinitionSQL(c.catalogView, r)
+		sql, err = partition.VirtualUniqueDefinitionSQL(c.catalogView, r)
 	} else {
 		sql, err = index.DefinitionSQL(ctx, c.catalogView, r, index.Presentation{Dump: true})
 	}
@@ -324,7 +325,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			predecessors = append(predecessors, predecessor)
 		}
 	}
-	predecessors, err := partitionDumpPredecessors(c.catalogView, r, predecessors)
+	predecessors, err := partition.DumpPredecessors(dumpResolver{}, c.catalogView, r, predecessors)
 	if err != nil {
 		return tableDumpEdges{}, err
 	}

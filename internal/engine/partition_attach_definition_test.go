@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -75,7 +76,7 @@ func TestPartitionAttachSchema(t *testing.T) {
 	child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, PartitionLocal: true}}
 	view := inheritanceUnitView(e, parent, child)
 	ctx := op.Context()
-	next, err := partitionAttachSchema(ctx, view, parent, child)
+	next, err := partition.AttachSchema(ctx, view, parent, child)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,12 +90,12 @@ func TestPartitionAttachSchema(t *testing.T) {
 		t.Fatal(local, count)
 	}
 	child.Columns[1].Nullable = true
-	if _, err := partitionAttachSchema(ctx, view, parent, child); err == nil {
+	if _, err := partition.AttachSchema(ctx, view, parent, child); err == nil {
 		t.Fatal("missing required NN accepted")
 	}
 	child.Columns[1].Nullable = false
 	child.Columns[1].Usage = testUsage(e, sqltype.Int8)
-	if _, err := partitionAttachSchema(ctx, view, parent, child); err == nil {
+	if _, err := partition.AttachSchema(ctx, view, parent, child); err == nil {
 		t.Fatal("different storage type accepted")
 	}
 }
@@ -145,7 +146,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	bound := &catalog.PartitionMembership{Parent: parent.Address(), Lower: []catalog.PartitionDatum{{Value: value(1)}}, Upper: []catalog.PartitionDatum{{Value: value(3)}}}
 	check := func(exclude, want bool) {
 		t.Helper()
-		got, err := partitionConstraintProven(op.Context(), sqltype.InputEnvironment{}, view, parent, child, bound, exclude)
+		got, err := partition.ConstraintProven(op.Context(), sqltype.InputEnvironment{}, view, parent, child, bound, exclude)
 		if err != nil || got != want {
 			t.Fatal(got, want, err)
 		}
@@ -168,8 +169,8 @@ func TestPartitionAttachProof(t *testing.T) {
 	check(true, true) // NULL belongs to the range complement
 	child.Constraints.Check[0].NotValid = true
 	check(true, false)
-	goal := partitionProofTuple([]catalog.PartitionDatum{{Value: value(1)}, {Kind: -1}}, 0, true)
-	if goal.op != "or" || goal.right.op != "=" {
+	goal := partition.ProofTuple([]catalog.PartitionDatum{{Value: value(1)}, {Kind: -1}}, 0, true)
+	if goal.Op != "or" || goal.Right.Op != "=" {
 		t.Fatal("MINVALUE suffix did not simplify lexicographic goal", goal)
 	}
 }

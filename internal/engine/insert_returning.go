@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -70,9 +71,9 @@ func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *ind
 	proposal := *candidate
 	if s.partitionInsert != nil {
 		group := s.partitionReturningGroup(ref)
-		ref = group.ref
+		ref = group.Ref
 		proposal.Values = s.partitionStoredRow(row)
-		defer func() { group.unique = s.uniqueBinding }()
+		defer func() { group.Unique = s.uniqueBinding }()
 	}
 	for {
 		admitted := true
@@ -178,19 +179,19 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 	w.rows[ref.Address] = append(w.rows[ref.Address], version)
 	return true, false, nil
 }
-func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionInsertGroup {
+func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partition.InsertGroup {
 	state := s.partitionInsert
 	address := state.destination.Address()
 	group := state.groups[address]
 	if group == nil {
-		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}
+		group = &partition.InsertGroup{Ref: ref.Domain().Ref(ref.Epoch, address)}
 		if state.groups == nil {
-			state.groups = make(map[ids.ObjectAddress]*partitionInsertGroup)
+			state.groups = make(map[ids.ObjectAddress]*partition.InsertGroup)
 		}
 		state.groups[address] = group
 		state.order = append(state.order, group)
 	}
-	s.uniqueBinding = group.unique
+	s.uniqueBinding = group.Unique
 	return group
 }
 

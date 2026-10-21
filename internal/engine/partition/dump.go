@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -18,9 +19,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
+func DumpPredecessors(r dump.Resolver, view catalog.Read, d *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
 	add := func(address ids.ObjectAddress) error {
-		id, err := dumpPredecessor(view, address, d.Address())
+		id, err := r.Predecessor(view, address, d.Address())
 		if err != nil {
 			return err
 		}
@@ -36,7 +37,7 @@ func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecess
 		if d.Membership.DefaultBound {
 			parent := view.MustRelation(d.Membership.Parent)
 			for _, address := range parent.Partition.Children {
-				if address != d.Address() && !partitionExclusionDefaultBefore(view, d, view.MustRelation(address)) {
+				if address != d.Address() && !exclusionDefaultBefore(view, d, view.MustRelation(address)) {
 					if err := add(address); err != nil {
 						return nil, err
 					}
@@ -84,7 +85,7 @@ func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecess
 	return predecessors, nil
 }
 
-func partitionKeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation) (string, error) {
+func KeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation) (string, error) {
 	if d.Partition == nil {
 		return "", nil
 	}
@@ -130,7 +131,7 @@ func partitionKeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.R
 // Existing-table attachment need not have any of those properties. Decide from
 // captured definitions, not a historical CREATE/ATTACH flag, so logical replay
 // remains canonical after stable attribute numbers have been reminted.
-func partitionDumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
+func DumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
 	if d.Membership == nil {
 		return false
 	}
@@ -167,7 +168,7 @@ func partitionDumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
 	return false
 }
 
-func partitionAttachDumpSQL(ctx context.Context, view catalog.Read, d *catalog.Relation) (string, error) {
+func AttachDumpSQL(ctx context.Context, view catalog.Read, d *catalog.Relation) (string, error) {
 	parent := view.MustRelation(d.Membership.Parent)
 	qualified := func(table *catalog.Relation) string {
 		return catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name())
@@ -177,13 +178,13 @@ func partitionAttachDumpSQL(ctx context.Context, view catalog.Read, d *catalog.R
 		return text + " DEFAULT;\n", nil
 	}
 	if d.Membership.Strategy == parser.PartitionHash {
-		return text + hashPartitionBoundSQL(d.Membership) + ";\n", nil
+		return text + hashBoundSQL(d.Membership) + ";\n", nil
 	}
-	lower, err := partitionTupleDumpSQL(ctx, view, parent.Partition.Keys, d.Membership.Lower)
+	lower, err := tupleDumpSQL(ctx, view, parent.Partition.Keys, d.Membership.Lower)
 	if err != nil {
 		return "", err
 	}
-	upper, err := partitionTupleDumpSQL(ctx, view, parent.Partition.Keys, d.Membership.Upper)
+	upper, err := tupleDumpSQL(ctx, view, parent.Partition.Keys, d.Membership.Upper)
 	if err != nil {
 		return "", err
 	}
@@ -192,7 +193,7 @@ func partitionAttachDumpSQL(ctx context.Context, view catalog.Read, d *catalog.R
 
 // PARTITION OF names no new column types. Inherited definitions are supplied
 // by the parent; only local default/nullability/check differences are emitted.
-func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation, qualified string, deferred map[int32]bool) (string, error) {
+func ChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation, qualified string, deferred map[int32]bool) (string, error) {
 	parent, ok := catalogView.Relation(d.Membership.Parent)
 	if !ok || parent.Partition == nil {
 		return "", fmt.Errorf("stuntgres: missing partition dump parent")
@@ -305,13 +306,13 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 	if d.Membership.DefaultBound {
 		text.WriteString(" DEFAULT")
 	} else if d.Membership.Strategy == parser.PartitionHash {
-		text.WriteString(hashPartitionBoundSQL(d.Membership))
+		text.WriteString(hashBoundSQL(d.Membership))
 	} else {
-		lower, err := partitionTupleDumpSQL(ctx, catalogView, parent.Partition.Keys, d.Membership.Lower)
+		lower, err := tupleDumpSQL(ctx, catalogView, parent.Partition.Keys, d.Membership.Lower)
 		if err != nil {
 			return "", err
 		}
-		upper, err := partitionTupleDumpSQL(ctx, catalogView, parent.Partition.Keys, d.Membership.Upper)
+		upper, err := tupleDumpSQL(ctx, catalogView, parent.Partition.Keys, d.Membership.Upper)
 		if err != nil {
 			return "", err
 		}
@@ -322,7 +323,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 
 // Bounds are evaluated datums, not saved SQL expressions. The ordinary Dump
 // literal authority preserves owned type declarations and reference names.
-func partitionTupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []catalog.PartitionKeyEntry, tuple []catalog.PartitionDatum) (string, error) {
+func tupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []catalog.PartitionKeyEntry, tuple []catalog.PartitionDatum) (string, error) {
 	var text strings.Builder
 	for i, datum := range tuple {
 		if i != 0 {
@@ -345,6 +346,6 @@ func partitionTupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []cat
 	return text.String(), nil
 }
 
-func hashPartitionBoundSQL(bound *catalog.PartitionMembership) string {
+func hashBoundSQL(bound *catalog.PartitionMembership) string {
 	return fmt.Sprintf(" FOR VALUES WITH (MODULUS %d, REMAINDER %d)", bound.Modulus, bound.Remainder)
 }

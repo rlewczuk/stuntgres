@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -327,7 +328,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 						source = &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: []exec.InheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.Ref, leaf.Relation)
+					source, err = partition.CaptureQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
 				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.Session.SessionToken)

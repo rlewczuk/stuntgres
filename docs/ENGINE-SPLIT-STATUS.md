@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `0ab96a3a8` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
+Last verified against `master` at `5cd2c8df5` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,8 +16,8 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); 100 is the only broad item ready.
 
-- **Upper features, packages:** 91 (partition 25b), 100 (view 27b,
-  **broad**).
+- **Upper features, packages:** 100 (view 27b, **broad**).
+- **Upper features, refined:** 92 (partition 25c, docs only).
 - **Upper features, decisions:** 85b (index 23d.2), 89a (table 24d.1).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -99,6 +99,9 @@ inheritance) and 24d.3 (89c, Restore and dump cores): 89a is ready
 (85a is done), 89b and 89c need 89a; partition 25c (item 92) still waits
 for 91, and partition 25d (93), fdw 26e (98) and DML 29c (109) now need
 89a and 89b.
+Item 91 (partition 25b) is done, so partition 25c (item 92, docs only) is
+ready; DML 29b (item 108) and control 30b (item 112) still wait for view
+27b (item 100).
 
 ## Task tree
 
@@ -535,7 +538,8 @@ for 91, and partition 25d (93), fdw 26e (98) and DML 29c (109) now need
   needs 24b)
   - [x] 25a — In place: proof inputs, storage-read fences, renames
     (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit)
-  - [ ] 25b — `partition` created and clean set moved
+  - [x] 25b — `partition` created and clean set moved (`5ed4b040c`,
+    `f3e01d002`, `b7acfe47e`, `917899609`, docs)
   - [ ] 25c — Host refined (docs only)
   - [ ] 25d — Handler decisions moved
 - [ ] **Step 26 — `fdw`** ([prompt](ENGINE-SPLIT-fdw.md); 26e needs 24d)
@@ -1228,8 +1232,16 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `partition_locks.go`, `partition_create_child.go` · selected unit and
     dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
     user request
-91. [ ] Partition 25b: `partition` created, clean set moved —
-    [partition](ENGINE-SPLIT-partition.md) 25b · needs 90, 87
+91. [x] Partition 25b: `partition` created, clean set moved —
+    [partition](ENGINE-SPLIT-partition.md) 25b · needs 90, 87 (`5ed4b040c`,
+    `f3e01d002`, `b7acfe47e`, `917899609`, then the docs commit) · 22 files
+    (about 3.1k lines) in `partition`: bounds, hash bounds and routing
+    helpers, `InsertGroup`, key recipes with `RecipeHost` and the `Scope`
+    slot, attach/detach helpers, proofs, retained checks, dump SQL and events,
+    constraint and Restore replay records; dump code takes a `dump.Resolver`;
+    `partitionInsertState` stays (dirty); no aliases · selected unit and
+    dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+    user request
 92. [ ] Partition 25c: host refined (docs only) —
     [partition](ENGINE-SPLIT-partition.md) 25c · needs 91, 88
 93. [ ] Partition 25d: handler decisions moved —

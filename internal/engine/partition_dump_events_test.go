@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -73,8 +74,8 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, replay := partitionConstraintDumpCatalog(f.view)
-			if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
+			_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, f.view)
+			if err := partition.DumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
 			order, err := dump.Order(context.Background(), graph, map[ids.OID]ids.OID{good.Address().ObjectID: 1})

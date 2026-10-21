@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
@@ -94,15 +95,15 @@ func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx dumpView) erro
 		}
 	}
 	if index.PartitionReplayVirtualUniqueRoot(s.originalCatalog, original) != nil {
-		if err := w.emit(s.constraintReplay.virtualUniqueRenames(s.originalCatalog, original)); err != nil {
+		if err := w.emit(s.constraintReplay.VirtualUniqueRenames(s.originalCatalog, original)); err != nil {
 			return err
 		}
 	}
 	descriptor := s.catalogView.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-	if s.constraintReplay.occupied[descriptor.Namespace()] == nil {
-		s.constraintReplay.occupied[descriptor.Namespace()] = make(map[string]bool)
+	if s.constraintReplay.Occupied[descriptor.Namespace()] == nil {
+		s.constraintReplay.Occupied[descriptor.Namespace()] = make(map[string]bool)
 	}
-	s.constraintReplay.occupied[descriptor.Namespace()][descriptor.Name()] = true
+	s.constraintReplay.Occupied[descriptor.Namespace()][descriptor.Name()] = true
 	return nil
 }
 
@@ -165,7 +166,7 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 			return err
 		}
 	}
-	renames, err := s.constraintReplay.tableRenames(s.catalogView, t.Descriptor)
+	renames, err := s.constraintReplay.TableRenames(s.catalogView, t.Descriptor)
 	if err != nil {
 		return err
 	}
@@ -192,7 +193,7 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelation, attachAfterCreate bool) (string, error) {
 	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
 	var line strings.Builder
-	if t.Descriptor.Membership == nil || partitionDumpNeedsAttach(s.catalogView, t.Descriptor) {
+	if t.Descriptor.Membership == nil || partition.DumpNeedsAttach(s.catalogView, t.Descriptor) {
 		typed := t.Descriptor.OfType != (ids.ObjectAddress{}) && !attachAfterCreate
 		hasElements := !typed || len(t.Columns) != 0 || len(t.Descriptor.Constraints.Check) != 0 || len(t.Descriptor.Constraints.Unique) != 0 || len(t.Descriptor.Constraints.Exclusion) != 0 || len(t.Descriptor.Constraints.ForeignKeys) != 0
 		line.WriteString("CREATE TABLE " + qualified)
@@ -402,13 +403,13 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelatio
 		if s.deferDefaults {
 			deferred = t.DeferredDefinitions
 		}
-		definition, err := partitionChildSQL(ctx, s.catalogView, t.Descriptor, qualified, deferred)
+		definition, err := partition.ChildSQL(ctx, s.catalogView, t.Descriptor, qualified, deferred)
 		if err != nil {
 			return "", err
 		}
 		line.WriteString(definition)
 	}
-	key, err := partitionKeySQL(ctx, s.catalogView, t.Descriptor)
+	key, err := partition.KeySQL(ctx, s.catalogView, t.Descriptor)
 	if err != nil {
 		return "", err
 	}

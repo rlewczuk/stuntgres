@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
@@ -748,7 +749,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	}
 	for address, captured := range s.partitionRelations {
 		current, _ := view.Relation(address)
-		if current != captured && !partitionAppendCompatible(captured, current) {
+		if current != captured && !partition.AppendCompatible(captured, current) {
 			return ids.ErrCatalogReplaced
 		}
 	}

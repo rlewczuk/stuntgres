@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -232,11 +233,11 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, replay := partitionConstraintDumpCatalog(view)
-	if err = partitionDumpEvents(context.Background(), view, graph, declarations, tables, indices, replay, false); err != nil {
+	_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, view)
+	if err = partition.DumpEvents(context.Background(), dumpResolver{}, view, graph, declarations, tables, indices, replay, false); err != nil {
 		t.Fatal(err)
 	}
-	partitionInvalidDumpEvents(view, graph, indices)
+	partition.InvalidDumpEvents(view, graph, indices)
 	order, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal("virtual definition closes initial membership cycle", err)

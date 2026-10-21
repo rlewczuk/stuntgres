@@ -772,18 +772,6 @@ make check RUN='^TestACLValueRoutineOriginalAuthority$'
 make check RUN='^TestACLValueRoutineOriginalAuthority$' RACE=1
 ```
 
-`TestPartitionRoutineOriginalAuthority` exercises genuine bound partition-key
-outer/body manifests, missing/empty/foreign/stale/retag rejection and sibling
-isolation. Complete-success statement preparation preserves enclosing row/scope/
-frame, actual actor/command/RI phases and graph-only post-wait readmission.
-The simple-key path initializes no derived program. The retained-check fixture
-uses its actual copied generation owner/attribute; missing-owner rejection stays.
-
-```sh
-make check RUN='^TestPartitionRoutineOriginalAuthority$'
-make check RUN='^TestPartitionRoutineOriginalAuthority$' RACE=1
-```
-
 ### Server protocol ownership
 
 The wire adapter uses the existing session, transaction, prepared-analysis and

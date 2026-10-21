@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -41,7 +42,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 		if access.RowSecurityActions(s.Actions) || tablespaceOnlyActions(s.Actions) {
 			return nil
 		}
-		if partitionExclusionAddActions(s) {
+		if partition.ExclusionAddActions(s) {
 			return nil
 		}
 		if index.PartitionConstraintDropActions(d, s.Actions) {
@@ -59,7 +60,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 				err.Hint = "Do not specify the ONLY keyword."
 				return err
 			}
-			if slot, ok := d.Index[action.Column.Text]; ok && partitionKeyUsesAttribute(d, d.Attributes[slot]) {
+			if slot, ok := d.Index[action.Column.Text]; ok && partition.KeyUsesAttribute(d, d.Attributes[slot]) {
 				return sqlError("42P16", fmt.Sprintf(`cannot drop column "%s" because it is part of the partition key of relation "%s"`, action.Column.Text, d.Name()))
 			}
 		}
@@ -73,23 +74,6 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 	}
 	if message != "" {
 		return sqlError("0A000", message)
-	}
-	return nil
-}
-
-// These newly admitted mutation forms finish ordinary analysis and ACL checks,
-// but must not demand defaults, capture virtual storage or publish routed effects.
-func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) error {
-	if d == nil || !catalog.HierarchyRelation(d) {
-		return nil
-	}
-	switch syntax := statement.(type) {
-	case *parser.Insert:
-		if syntax.Conflict != nil {
-			return sqlError("0A000", "ON CONFLICT on partition hierarchies is unsupported")
-		}
-	case *parser.Merge:
-		return sqlError("0A000", "merging partition hierarchies is unsupported")
 	}
 	return nil
 }
@@ -127,25 +111,6 @@ func (e *Engine) partitionParentAuthorization(op *session.Operation, auth Author
 	return parentAuth, nil
 }
 
-func partitionKeyUsesAttribute(d *catalog.Relation, attribute int32) bool {
-	if d.Partition == nil {
-		return false
-	}
-	for _, key := range d.Partition.Keys {
-		if key.Attribute == attribute {
-			return true
-		}
-		if key.Derived != nil {
-			for _, ref := range key.Derived.Dependencies {
-				if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == d.Address().ObjectID && ref.Address.SubID == attribute {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) error {
 	e := s.engine()
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext})
@@ -173,7 +138,7 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partitionAppendCompatible(old, d) {
+	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partition.AppendCompatible(old, d) {
 		return ids.ErrCatalogReplaced
 	}
 	if catalog.HierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
@@ -278,29 +243,13 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 	return s.acquirePartitionDescendants(child, lock.AccessExclusive)
 }
 
-// The stored defining arrays/key providers remain identical. Only an appended
-// child manifest may cross the read admission fence; no name/shape retargeting.
-func partitionAppendCompatible(old, current *catalog.Relation) bool {
-	if old == nil || current == nil || old.Partition == nil || current.Partition == nil ||
-		!catalog.RelationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
-		old.Membership != current.Membership || old.Inheritance != current.Inheritance ||
-		old.Partition.Strategy != current.Partition.Strategy ||
-		len(old.Partition.Keys) != len(current.Partition.Keys) ||
-		len(current.Partition.Children) <= len(old.Partition.Children) ||
-		&old.Partition.Keys[0] != &current.Partition.Keys[0] ||
-		!slices.Equal(old.Partition.Children, current.Partition.Children[:len(old.Partition.Children)]) {
-		return false
-	}
-	return old.Partition.DefaultChild == (ids.ObjectAddress{}) || old.Partition.DefaultChild == current.Partition.DefaultChild
-}
-
 // One existing visibility capture owns the admitted descriptors. Copy metadata
 // only when actual concurrent append growth occurred, never on the normal path.
 func (s *StatementScope) partitionCaptureCatalog(catalog catalog.Read) catalog.Read {
 	changed := false
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.Relation(address)
-		if current != captured && partitionAppendCompatible(captured, current) {
+		if current != captured && partition.AppendCompatible(captured, current) {
 			changed = true
 			break
 		}
@@ -312,7 +261,7 @@ func (s *StatementScope) partitionCaptureCatalog(catalog catalog.Read) catalog.R
 	state.CloneDescriptors()
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.Relation(address)
-		if current != captured && partitionAppendCompatible(captured, current) {
+		if current != captured && partition.AppendCompatible(captured, current) {
 			state.SetDescriptor(address, captured)
 		}
 	}

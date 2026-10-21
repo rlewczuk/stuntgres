@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -17,7 +18,7 @@ func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.Al
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK operation")
 	}
 	operationReplay(op).partitionCheck = nil
-	if !partitionCheckReplayActions(raw) {
+	if !partition.CheckReplayActions(raw) {
 		return nil
 	}
 	e.mu.Lock()
@@ -46,18 +47,6 @@ func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.Al
 	return nil
 }
 
-func partitionCheckReplayActions(raw *parser.AlterTable) bool {
-	if raw == nil || len(raw.Actions) == 0 {
-		return false
-	}
-	for _, action := range raw.Actions {
-		if action.Action != parser.AddCheck || action.Check == nil || !action.Check.NotValid {
-			return false
-		}
-	}
-	return true
-}
-
 // Callers hold Engine.mu, as do the existing hierarchy admission guards.
 func partitionConstraintReplayImport(e *Engine, op *session.Operation, auth AuthorizationView) bool {
 	if e == nil || op == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
@@ -71,5 +60,5 @@ func partitionConstraintReplayImport(e *Engine, op *session.Operation, auth Auth
 }
 
 func partitionCheckReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
-	return op != nil && operationReplayOrZero(op).partitionCheck == d && d != nil && d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.Catalog.Get(d.Address()) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
+	return op != nil && operationReplayOrZero(op).partitionCheck == d && d != nil && d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.Catalog.Get(d.Address()) == d && partition.CheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

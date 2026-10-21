@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"context"
@@ -17,41 +17,41 @@ import (
 // evaluator or a second binder. CHECK permits UNKNOWN. Endpoint reasoning is
 // therefore performed only in the non-NULL key domain; explicit RANGE must first
 // prove that domain, whereas its complement already accepts every NULL key.
-type partitionProofGoal struct {
-	left, right *partitionProofGoal
+type ProofGoal struct {
+	left, Right *ProofGoal
 	key         int
-	op          string
+	Op          string
 	value       sqltype.Value
 }
 
-func partitionProofAnd(a, b *partitionProofGoal) *partitionProofGoal {
-	if a.op == "false" || b.op == "false" {
-		return &partitionProofGoal{op: "false"}
+func proofAnd(a, b *ProofGoal) *ProofGoal {
+	if a.Op == "false" || b.Op == "false" {
+		return &ProofGoal{Op: "false"}
 	}
-	if a.op == "true" {
+	if a.Op == "true" {
 		return b
 	}
-	if b.op == "true" {
+	if b.Op == "true" {
 		return a
 	}
-	return &partitionProofGoal{op: "and", left: a, right: b}
+	return &ProofGoal{Op: "and", left: a, Right: b}
 }
-func partitionProofOr(a, b *partitionProofGoal) *partitionProofGoal {
-	if a.op == "true" || b.op == "true" {
-		return &partitionProofGoal{op: "true"}
+func proofOr(a, b *ProofGoal) *ProofGoal {
+	if a.Op == "true" || b.Op == "true" {
+		return &ProofGoal{Op: "true"}
 	}
-	if a.op == "false" {
+	if a.Op == "false" {
 		return b
 	}
-	if b.op == "false" {
+	if b.Op == "false" {
 		return a
 	}
-	return &partitionProofGoal{op: "or", left: a, right: b}
+	return &ProofGoal{Op: "or", left: a, Right: b}
 }
 
 // Tuple predicates are lexicographic. Infinite suffixes terminate the finite
 // prefix; they are not ordinary type infinity values.
-func partitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *partitionProofGoal {
+func ProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *ProofGoal {
 	datum := tuple[at]
 	if datum.Kind != 0 {
 		truth := datum.Kind < 0
@@ -59,26 +59,26 @@ func partitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *
 			truth = !truth
 		}
 		if truth {
-			return &partitionProofGoal{op: "true"}
+			return &ProofGoal{Op: "true"}
 		}
-		return &partitionProofGoal{op: "false"}
+		return &ProofGoal{Op: "false"}
 	}
 	op := "<"
 	if greater {
 		op = ">="
 	}
 	if at == len(tuple)-1 {
-		return &partitionProofGoal{key: at, op: op, value: datum.Value}
+		return &ProofGoal{key: at, Op: op, value: datum.Value}
 	}
-	rest := partitionProofTuple(tuple, at+1, greater)
+	rest := ProofTuple(tuple, at+1, greater)
 	strict := "<"
 	if greater {
 		strict = ">"
 	}
-	return partitionProofOr(&partitionProofGoal{key: at, op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, op: "=", value: datum.Value}, rest))
+	return proofOr(&ProofGoal{key: at, Op: strict, value: datum.Value}, proofAnd(&ProofGoal{key: at, Op: "=", value: datum.Value}, rest))
 }
 
-func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
+func ConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
 	// Range endpoint implication does not prove seeded hash membership. Private
 	// replay attachment uses the ordinary full-row validation path instead.
 	if bound.Strategy == parser.PartitionHash {
@@ -112,14 +112,14 @@ func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 		}
 		keys[i] = node
 	}
-	proof := partitionProof{ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
-	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*partitionProofGoal, bool) {
+	proof := prover{ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
+	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*ProofGoal, bool) {
 		if complement {
-			return partitionProofOr(partitionProofTuple(membership.Lower, 0, false), partitionProofTuple(membership.Upper, 0, true)), true
+			return proofOr(ProofTuple(membership.Lower, 0, false), ProofTuple(membership.Upper, 0, true)), true
 		}
-		return partitionProofAnd(partitionProofTuple(membership.Lower, 0, true), partitionProofTuple(membership.Upper, 0, false)), false
+		return proofAnd(ProofTuple(membership.Lower, 0, true), ProofTuple(membership.Upper, 0, false)), false
 	}
-	goal := &partitionProofGoal{op: "true"}
+	goal := &ProofGoal{Op: "true"}
 	nullAllowed := exclude || bound.DefaultBound
 	if bound.DefaultBound {
 		for _, address := range parent.Partition.Children {
@@ -128,12 +128,12 @@ func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 				continue
 			}
 			part, _ := goalFor(child.Membership, true)
-			goal = partitionProofAnd(goal, part)
+			goal = proofAnd(goal, part)
 		}
 	} else {
 		goal, _ = goalFor(bound, exclude)
 	}
-	if goal.op == "true" && nullAllowed {
+	if goal.Op == "true" && nullAllowed {
 		return true, nil
 	}
 	if !nullAllowed {
@@ -146,7 +146,7 @@ func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 	return proof.implies(goal)
 }
 
-type partitionProof struct {
+type prover struct {
 	ctx      context.Context
 	input    sqltype.InputEnvironment
 	relation *catalog.Relation
@@ -154,12 +154,12 @@ type partitionProof struct {
 	entries  []catalog.PartitionKeyEntry
 }
 
-func partitionProofSame(a, b expr.Expr) bool {
+func proofSame(a, b expr.Expr) bool {
 	binder := analyze.Binder{Consumer: analyze.ConsumerContext{CheckDefinitionEquality: true}}
 	return binder.SameGroupExpression(a, b)
 }
 
-func (p *partitionProof) nonNull(key expr.Expr) bool {
+func (p *prover) nonNull(key expr.Expr) bool {
 	if column, ok := key.(plan.ColumnExpr); ok {
 		for _, constraint := range p.relation.Constraints.NotNull {
 			if constraint.Attribute == column.Origin.Address.SubID && !constraint.NotValid {
@@ -168,41 +168,41 @@ func (p *partitionProof) nonNull(key expr.Expr) bool {
 		}
 	}
 	for _, check := range p.relation.Constraints.Check {
-		if !check.NotValid && partitionCheckNonNull(check.Expression, key) {
+		if !check.NotValid && checkNonNull(check.Expression, key) {
 			return true
 		}
 	}
 	return false
 }
 
-func partitionCheckNonNull(node, key expr.Expr) bool {
+func checkNonNull(node, key expr.Expr) bool {
 	switch e := node.(type) {
 	case plan.NullTestExpr:
-		return e.Not && partitionProofSame(e.Child, key)
+		return e.Not && proofSame(e.Child, key)
 	case plan.LogicalExpr:
 		if e.Op == parser.LogicalAnd {
-			return partitionCheckNonNull(e.Left, key) || partitionCheckNonNull(e.Right, key)
+			return checkNonNull(e.Left, key) || checkNonNull(e.Right, key)
 		}
 		if e.Op == parser.LogicalOr {
-			return partitionCheckNonNull(e.Left, key) && partitionCheckNonNull(e.Right, key)
+			return checkNonNull(e.Left, key) && checkNonNull(e.Right, key)
 		}
 	}
 	return false
 }
 
-func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
+func (p *prover) implies(goal *ProofGoal) (bool, error) {
 	if err := p.ctx.Err(); err != nil {
 		return false, err
 	}
-	if goal.op == "true" {
+	if goal.Op == "true" {
 		return true, nil
 	}
-	if goal.op == "and" {
+	if goal.Op == "and" {
 		a, err := p.implies(goal.left)
 		if err != nil || !a {
 			return a, err
 		}
-		return p.implies(goal.right)
+		return p.implies(goal.Right)
 	}
 	for _, check := range p.relation.Constraints.Check {
 		if check.NotValid {
@@ -216,16 +216,16 @@ func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
 	return false, nil
 }
 
-func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, error) {
-	if goal.op == "true" {
+func (p *prover) fact(node expr.Expr, goal *ProofGoal) (bool, error) {
+	if goal.Op == "true" {
 		return true, nil
 	}
-	if goal.op == "and" {
+	if goal.Op == "and" {
 		a, err := p.fact(node, goal.left)
 		if err != nil || !a {
 			return a, err
 		}
-		return p.fact(node, goal.right)
+		return p.fact(node, goal.Right)
 	}
 	// An OR fact needs every possible non-false branch. Different branches may
 	// establish different alternatives of a lexicographic target predicate.
@@ -236,12 +236,12 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		}
 		return p.fact(e.Right, goal)
 	}
-	if goal.op == "or" {
+	if goal.Op == "or" {
 		a, err := p.fact(node, goal.left)
 		if err != nil || a {
 			return a, err
 		}
-		a, err = p.fact(node, goal.right)
+		a, err = p.fact(node, goal.Right)
 		if err != nil || a {
 			return a, err
 		}
@@ -256,7 +256,7 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 		}
 		return p.fact(e.Right, goal)
 	}
-	if goal.op == "or" {
+	if goal.Op == "or" {
 		return false, nil
 	}
 	if e, ok := node.(plan.LiteralExpr); ok && e.Value.Type().ID() == sqltype.Bool {
@@ -265,22 +265,22 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 	}
 	if e, ok := node.(plan.NullTestExpr); ok {
 		for _, key := range p.keys {
-			if partitionProofSame(e.Child, key) {
+			if proofSame(e.Child, key) {
 				return !e.Not, nil
 			}
 		}
 		return false, nil
 	}
 	e, ok := node.(plan.ComparisonExpr)
-	if !ok || goal.op == "false" {
+	if !ok || goal.Op == "false" {
 		return false, nil
 	}
 	key := p.keys[goal.key]
 	operator := e.Operator
 	literal, matched := e.Right.(plan.LiteralExpr)
-	if !partitionProofSame(e.Left, key) || !matched {
+	if !proofSame(e.Left, key) || !matched {
 		literal, matched = e.Left.(plan.LiteralExpr)
-		if !matched || !partitionProofSame(e.Right, key) {
+		if !matched || !proofSame(e.Right, key) {
 			return false, nil
 		}
 		switch operator {
@@ -318,7 +318,7 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 			return false, err
 		}
 	}
-	switch goal.op {
+	switch goal.Op {
 	case ">=":
 		return (operator == ">" || operator == ">=" || operator == "=") && order >= 0, nil
 	case ">":

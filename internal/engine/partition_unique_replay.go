@@ -10,17 +10,10 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
-
-type partitionUniqueReplay struct {
-	target      *catalog.Relation
-	syntax      *parser.AlterTable
-	definition  *parser.UniqueConstraint
-	snapshot    parser.UniqueConstraint
-	descriptors []*catalog.Relation
-}
 
 // This origin belongs to one private-import operation and one captured definition,
 // target and subtree, after its intended plain tree is already attached.
@@ -87,8 +80,8 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 	if selected == nil {
 		return nil
 	}
-	captured := &partitionUniqueReplay{target: table, syntax: raw, definition: definition, snapshot: *definition, descriptors: []*catalog.Relation{parent, selected}}
-	captured.snapshot.Columns = slices.Clone(definition.Columns)
+	captured := &partition.UniqueReplay{Target: table, Syntax: raw, Definition: definition, Snapshot: *definition, Descriptors: []*catalog.Relation{parent, selected}}
+	captured.Snapshot.Columns = slices.Clone(definition.Columns)
 	tables := make(map[ids.ObjectAddress]bool)
 	var capture func(*catalog.Relation) bool
 	capture = func(node *catalog.Relation) bool {
@@ -104,7 +97,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 			}
 		}
 		tables[node.Address()] = true
-		captured.descriptors = append(captured.descriptors, node)
+		captured.Descriptors = append(captured.Descriptors, node)
 		if node.Partition != nil {
 			for _, address := range node.Partition.Children {
 				if !capture(auth.Catalog.MustRelation(address)) {
@@ -120,7 +113,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && tables[index.SQLIndex.Parent] {
-			captured.descriptors = append(captured.descriptors, index)
+			captured.Descriptors = append(captured.Descriptors, index)
 		}
 	}
 	operationReplay(op).partitionUnique = captured
@@ -132,15 +125,15 @@ func partitionUniqueReplayAllowed(op *session.Operation, auth AuthorizationView,
 		return false
 	}
 	origin := operationReplayOrZero(op).partitionUnique
-	if origin.target != table || origin.syntax != raw || raw.Only || raw.IfExists || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique || raw.Actions[0].Unique != origin.definition {
+	if origin.Target != table || origin.Syntax != raw || raw.Only || raw.IfExists || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique || raw.Actions[0].Unique != origin.Definition {
 		return false
 	}
-	current := origin.definition
-	saved := origin.snapshot
+	current := origin.Definition
+	saved := origin.Snapshot
 	if current.Name != saved.Name || current.Primary != saved.Primary || current.NullsNotDistinct != saved.NullsNotDistinct || current.Pos != saved.Pos || !slices.Equal(current.Columns, saved.Columns) {
 		return false
 	}
-	for _, descriptor := range origin.descriptors {
+	for _, descriptor := range origin.Descriptors {
 		if auth.Catalog.Get(descriptor.Address()) != descriptor {
 			return false
 		}
@@ -169,12 +162,12 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	stage.indexes().Output = scope.output
-	for _, descriptor := range origin.descriptors {
+	for _, descriptor := range origin.Descriptors {
 		stage.domainBases = append(stage.domainBases, descriptor)
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	next, err := e.stageAddedUnique(op, auth, stage, table, origin.definition)
+	next, err := e.stageAddedUnique(op, auth, stage, table, origin.Definition)
 	if err != nil {
 		return Result{}, err
 	}

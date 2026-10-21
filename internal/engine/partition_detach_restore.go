@@ -6,48 +6,47 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
-type partitionReplayTeardown struct{ child, parent ids.ObjectRef }
-
 // Only the private importer records exact empty DEFAULT identities before an
 // emitted detach. A name prefix alone cannot grant arbitrary DROP admission.
-func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser.AlterTableDetachPartition) (partitionReplayTeardown, error) {
-	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, partitionReplayStem) {
-		return partitionReplayTeardown{}, nil
+func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser.AlterTableDetachPartition) (partition.ReplayTeardown, error) {
+	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, partition.ReplayStem) {
+		return partition.ReplayTeardown{}, nil
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
-		return partitionReplayTeardown{}, err
+		return partition.ReplayTeardown{}, err
 	}
 	if e.importTargets == nil {
-		return partitionReplayTeardown{}, fmt.Errorf("stuntgres: invalid private partition replay")
+		return partition.ReplayTeardown{}, fmt.Errorf("stuntgres: invalid private partition replay")
 	}
 	parent, err := e.resolveRelationReference(auth, s.Name, true)
 	if err != nil {
-		return partitionReplayTeardown{}, err
+		return partition.ReplayTeardown{}, err
 	}
 	child, err := e.resolveRelationReference(auth, s.Partition, true)
 	if err != nil {
-		return partitionReplayTeardown{}, err
+		return partition.ReplayTeardown{}, err
 	}
 	p := auth.Catalog.MustRelation(parent.Address)
 	c := auth.Catalog.MustRelation(child.Address)
 	if p.Partition == nil || len(p.Partition.Children) != 1 || c.Partition != nil || c.Membership == nil || !c.Membership.DefaultBound || c.Membership.Parent != p.Address() {
-		return partitionReplayTeardown{}, nil
+		return partition.ReplayTeardown{}, nil
 	}
 	store := e.storage.Relations[child.Address]
 	if store == nil || len(store.Versions) != 0 {
-		return partitionReplayTeardown{}, nil
+		return partition.ReplayTeardown{}, nil
 	}
-	return partitionReplayTeardown{child: child, parent: parent}, nil
+	return partition.ReplayTeardown{Child: child, Parent: parent}, nil
 }
 
-func (e *Engine) validatePartitionReplayTeardown(op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partitionReplayTeardown) error {
+func (e *Engine) validatePartitionReplayTeardown(op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(op)
@@ -59,12 +58,12 @@ func (e *Engine) validatePartitionReplayTeardown(op *session.Operation, name par
 		return err
 	}
 	record, ok := records[ref.Address]
-	if !ok || record.child != ref || e.importTargets == nil {
+	if !ok || record.Child != ref || e.importTargets == nil {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	child, ok := auth.Catalog.Relation(ref.Address)
-	parent, live := auth.Catalog.Relation(record.parent.Address)
-	if !ok || !live || record.parent.Epoch != auth.Catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.Children) != 0 {
+	parent, live := auth.Catalog.Relation(record.Parent.Address)
+	if !ok || !live || record.Parent.Epoch != auth.Catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.Children) != 0 {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	store := e.storage.Relations[ref.Address]

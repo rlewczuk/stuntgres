@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 )
 
 // The third pair makes the schema-before-object requirement deterministic even
@@ -35,15 +36,15 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				}
 			}
 			view := e.catalog.read(state)
-			_, replay := partitionConstraintDumpCatalog(view)
+			_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, view)
 			// Exact ordinals, not just uniqueness, define canonical table allocation.
 			for i, index := range indexes {
 				want := fmt.Sprintf("__stuntgres_partition_key_%d", i+1)
-				if got := replay.temporary[index.Address()]; got != want {
+				if got := replay.Temporary[index.Address()]; got != want {
 					t.Errorf("allocation %s/%s = %q, want %q", view.Get(index.Namespace()).Name(), tables[i].Name(), got, want)
 				}
 			}
-			got := replay.finalRenameOrder()
+			got := replay.FinalRenameOrder()
 			want := []*catalog.Relation{indexes[0], indexes[1], indexes[2]}
 			if !slices.Equal(got, want) {
 				var actual []string

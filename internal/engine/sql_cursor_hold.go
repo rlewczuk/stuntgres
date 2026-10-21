@@ -54,7 +54,7 @@ func (e *Engine) holdPrecommit(op *session.Operation, owner *session.Transaction
 		scope.routineDependencies = nil
 		scope.routinePrograms = nil
 		scope.domains.endAdmission()
-		scope.partitionsSlot.dropPrograms()
+		scope.partitionsSlot.DropPrograms()
 		scope.finished = true
 	}()
 	return scope.materializeHeldCursors()

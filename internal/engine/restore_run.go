@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -42,7 +43,7 @@ type restoreRun struct {
 	historicalAuthority *table.RestoredHistoryAuthority
 
 	// Partition captures.
-	partitionTeardowns map[ids.ObjectAddress]partitionReplayTeardown
+	partitionTeardowns map[ids.ObjectAddress]partition.ReplayTeardown
 
 	// Owner directives: the last owner directive's principal, the owner a
 	// following CREATE inherits, and the owner pairs a following ALTER OWNER
@@ -71,7 +72,7 @@ type restoreStatement struct {
 // running. archiveHighWater is the highest retired-history archive number
 // already in the target catalog.
 func (r *restoreRun) startCaptures(archiveHighWater uint64) {
-	r.partitionTeardowns = make(map[ids.ObjectAddress]partitionReplayTeardown)
+	r.partitionTeardowns = make(map[ids.ObjectAddress]partition.ReplayTeardown)
 	r.notNullOrigins = make(map[ids.OID]table.RestoredNotNull)
 	r.physicalIndexes = make(map[ids.ObjectAddress]*catalog.Relation)
 	r.placeholderOrigins = make(map[table.RestoredGenerationKey]table.RestoredGenerationRecipe)

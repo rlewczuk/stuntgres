@@ -4,27 +4,9 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/sqlstate"
 )
-
-func validHashPartitionBound(b *catalog.PartitionMembership) bool {
-	return !b.DefaultBound && b.Modulus > 0 && b.Remainder >= 0 && b.Remainder < b.Modulus && len(b.Lower) == 0 && len(b.Upper) == 0
-}
-func hashPartitionOverlap(a, b *catalog.PartitionMembership) bool {
-	if a.Modulus > b.Modulus {
-		a, b = b, a
-	}
-	return b.Remainder%a.Modulus == a.Remainder
-}
-func compareHashPartitionBound(a, b *catalog.PartitionMembership) int {
-	if a.Modulus < b.Modulus || a.Modulus == b.Modulus && a.Remainder < b.Remainder {
-		return -1
-	}
-	if a.Modulus == b.Modulus && a.Remainder == b.Remainder {
-		return 0
-	}
-	return 1
-}
 
 // Search adjacent sorted bounds without a modulus-sized residue array. Pairwise
 // overlap arithmetic also preserves PostgreSQL's first occupied residue choice.
@@ -40,11 +22,11 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		if b.Modulus > greatest {
 			greatest = b.Modulus
 		}
-		if compareHashPartitionBound(b, p.bound) <= 0 {
-			if preceding == nil || compareHashPartitionBound(preceding.Membership, b) < 0 {
+		if partition.CompareHashBound(b, p.bound) <= 0 {
+			if preceding == nil || partition.CompareHashBound(preceding.Membership, b) < 0 {
 				preceding = child
 			}
-		} else if following == nil || compareHashPartitionBound(b, following.Membership) < 0 {
+		} else if following == nil || partition.CompareHashBound(b, following.Membership) < 0 {
 			following = child
 		}
 	}
@@ -66,7 +48,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 			return err
 		}
 		child := p.stage.Base.MustRelation(address)
-		if !hashPartitionOverlap(p.bound, child.Membership) {
+		if !partition.HashOverlap(p.bound, child.Membership) {
 			continue
 		}
 		slot := p.bound.Remainder
