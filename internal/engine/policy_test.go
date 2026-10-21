@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -11,7 +13,7 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"testing"
+	"stuntgres/internal/sqltype"
 )
 
 // SQL only constructs the ordinary internal catalog fixture. Assertions exercise
@@ -35,7 +37,7 @@ func policyUnitBind(t *testing.T, e *Engine, op *session.Operation, d *catalog.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	return e.bindPolicyExpression(&StatementScope{op: op}, auth, d, raw.Using)
+	return ddlHost{e: e, op: op}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }
 func TestRLSPolicyFrozenExpression(t *testing.T) {
 	for _, condition := range []string{

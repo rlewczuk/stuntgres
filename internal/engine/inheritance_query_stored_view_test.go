@@ -2,6 +2,9 @@ package engine
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -10,11 +13,10 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 // Use the incumbent table publication and frozen-view builders, not a public
@@ -91,7 +93,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				var definition *stored.View
 				if bindErr == nil {
-					definition, bindErr = e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 0, catalog.ViewRelation, false)
+					definition, bindErr = view.FreezeDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, 0, catalog.ViewRelation, false)
 				}
 				var oid ids.OID
 				if bindErr == nil {

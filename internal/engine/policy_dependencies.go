@@ -23,19 +23,7 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 		if !ok || len(d.Security.Policies) == 0 {
 			continue
 		}
-		var kept []catalog.PolicyDefinition
-		for _, p := range d.Security.Policies {
-			drop := false
-			for _, target := range targets {
-				if view.PolicyDepends(p, target) {
-					drop = true
-					break
-				}
-			}
-			if !drop {
-				kept = append(kept, p)
-			}
-		}
+		kept := view.KeepPolicies(d.Security.Policies, targets)
 		if len(kept) == len(d.Security.Policies) {
 			continue
 		}

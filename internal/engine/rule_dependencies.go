@@ -31,19 +31,7 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 		if !ok || len(stored.RulesOf(d)) == 0 {
 			continue
 		}
-		var kept []stored.Rule
-		for _, r := range stored.RulesOf(d) {
-			drop := false
-			for _, target := range targets {
-				if view.RuleDepends(provider.base, r, target) {
-					drop = true
-					break
-				}
-			}
-			if !drop {
-				kept = append(kept, r)
-			}
-		}
+		kept := view.KeepRules(provider.base, stored.RulesOf(d), targets)
 		if len(kept) == len(stored.RulesOf(d)) {
 			continue
 		}

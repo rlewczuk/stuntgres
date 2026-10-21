@@ -1,17 +1,20 @@
-package engine
+package view
 
 import (
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, action parser.Statement, b analyze.Binding) (*stored.View, error) {
+// freezeRuleActionPresentation freezes the presentation of one rule action
+// read through catalogView, with owner's temporary objects.
+func freezeRuleActionPresentation(catalogView catalog.Read, owner ids.SessionToken, action parser.Statement, b analyze.Binding) (*stored.View, error) {
 	if query, ok := action.(*parser.Select); ok {
-		return stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
+		return stored.FreezeQueryPresentation(catalogView, owner, query, b, false, false, 0, "", false)
 	}
 	if insert, ok := action.(*parser.Insert); ok && insert.Source != nil && b.Query != nil {
 		query := insert.Source.Select
@@ -25,7 +28,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 			producer.Root = &project
 			b.Query = &producer
 		}
-		return stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
+		return stored.FreezeQueryPresentation(catalogView, owner, query, b, false, false, 0, "", false)
 	}
 	metadata := b
 	query := &parser.Select{}
@@ -60,15 +63,17 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 		from = &plan.SingletonNode{}
 	}
 	metadata.Query = &plan.Query{Root: &plan.ProjectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
-	metadata = view.RetainRuleCTEPresentation(auth.Catalog, metadata)
-	presentation, err := stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, metadata, false, false, 0, "", false)
+	metadata = RetainRuleCTEPresentation(catalogView, metadata)
+	presentation, err := stored.FreezeQueryPresentation(catalogView, owner, query, metadata, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}
 	return presentation.With(func(p *stored.ViewParts) { p.Frames[1] = metadata.Query.Root.(*plan.ProjectNode) }), nil
 }
 
-func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b analyze.Binding) (map[parser.Statement]*stored.View, error) {
+// freezeRuleModifierPresentations freezes the presentation of every
+// data-modifying CTE of a rule action, keyed by its statement.
+func freezeRuleModifierPresentations(catalogView catalog.Read, owner ids.SessionToken, b analyze.Binding) (map[parser.Statement]*stored.View, error) {
 	var presentations map[parser.Statement]*stored.View
 	var collect func(analyze.Binding) error
 	collect = func(body analyze.Binding) error {
@@ -92,7 +97,7 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 			metadata.Capture.Columns, metadata.Capture.Stars = b.Capture.Columns, b.Capture.Stars
 			metadata.Capture.Namespaces = b.Capture.Namespaces
 			metadata.Prepared.SequenceConstants, metadata.Prepared.RegtypeConstants = b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
-			presentation, err := e.freezeRuleActionPresentationLocked(auth, definition.Statement, metadata)
+			presentation, err := freezeRuleActionPresentation(catalogView, owner, definition.Statement, metadata)
 			if err != nil {
 				return err
 			}

@@ -29,27 +29,7 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []view.De
 		}
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].Address().ObjectID < views[j].Address().ObjectID })
-	seen := make(map[ids.ObjectAddress]bool, len(targets))
-	for _, target := range targets {
-		if target.SubID == 0 {
-			seen[target] = true
-		}
-	}
-	var edges []view.DependencyEdge
-	var visit func(ids.ObjectAddress)
-	visit = func(target ids.ObjectAddress) {
-		for _, viewRelation := range views {
-			if !seen[viewRelation.Address()] && view.ViewDepends(viewRelation, target) {
-				seen[viewRelation.Address()] = true
-				edges = append(edges, view.DependencyEdge{View: viewRelation, Target: target})
-				visit(viewRelation.Address())
-			}
-		}
-	}
-	for _, target := range targets {
-		visit(target)
-	}
-	return edges
+	return view.DependencyClosure(views, targets)
 }
 
 func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {

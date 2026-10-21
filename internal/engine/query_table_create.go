@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -17,6 +18,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -28,7 +30,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "0A000" {
-			err = creationError(err, s.Name)
+			err = ddl.CreationError(err, s.Name)
 		}
 		return nil, nil, false, err
 	}
@@ -82,7 +84,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		return nil, nil, false, err
 	}
 	if s.Form == parser.CreateMaterializedView {
-		definition, err := e.freezeViewDefinitionLocked(auth, s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
+		definition, err := view.FreezeDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
 		if err != nil {
 			return nil, nil, false, err
 		}

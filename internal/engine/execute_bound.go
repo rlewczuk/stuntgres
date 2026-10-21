@@ -459,7 +459,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		var target *exec.Source
-		if scope.rls.targetDenied {
+		if scope.rls.TargetDenied {
 			target, err = view.CaptureDeniedQuerySource(dataView, b.Ref)
 		} else {
 			target, err = exec.CaptureSource(ctx, dataView, b.Ref)

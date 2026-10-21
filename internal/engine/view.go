@@ -3,18 +3,13 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // Analyze once after admitting all body sources, before selecting the CREATE
@@ -114,30 +109,10 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	name := createView.Name.Parts[len(createView.Name.Parts)-1].Text
-	var old *catalog.Relation
-	if address, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}); exists {
-		if !createView.Replace {
-			e.mu.Unlock()
-			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
-		}
-		old = auth.Catalog.MustRelation(address)
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
-		if ref != scope.lockedRef {
-			e.mu.Unlock()
-			return Result{}, ids.ErrCatalogReplaced
-		}
-		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-		if old.RelationKind != catalog.ViewRelation {
-			e.mu.Unlock()
-			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a view`, name))
-		}
-	} else if scope.lockedRef.Domain() != nil {
+	old, err := view.CreateTarget(auth.View, auth, createView, ns, scope.lockedRef)
+	if err != nil {
 		e.mu.Unlock()
-		return Result{}, ids.ErrCatalogReplaced
+		return Result{}, err
 	}
 	b := scope.viewCreationOrZero().Binding
 	if err := scope.validateQuerySources(b.QuerySources); err != nil {
@@ -148,144 +123,16 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	// CREATE checks local declaration shape before options and replacement prefix.
-	for _, option := range createView.Options {
-		if option.Name.Text == "check_option" {
-			if err := stored.ValidateViewCheckDeclaration(stored.NewView(stored.ViewParts{Syntax: createView.Query, Query: b.Query})); err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-			break
-		}
-	}
-	if old != nil {
-		if err := view.CheckViewOutputNames(b.Query.Root.Schema(), old); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-		if err := view.CheckViewPrefix(auth.Catalog, old.Columns, b.Query.Root.Schema()); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-	}
-	for _, column := range b.Query.Root.Schema() {
-		if sqltype.OccurrenceRecordArray(column.Usage.Type) || column.Usage.Type.ID() == 2249 && column.Usage.Type.IsComposite() {
-			e.mu.Unlock()
-			typeName := "record"
-			if sqltype.OccurrenceRecordArray(column.Usage.Type) {
-				typeName = "record[]"
-			}
-			return Result{}, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type %s`, column.Name, typeName))
-		}
-	}
-	// Existing replacement shape errors precede the creation-only VOID
-	// boundary. Appended VOID columns and CREATE OR REPLACE of a missing
-	// destination still fail before a catalog stage can publish anything.
-	if createView.Replace {
-		if err := analyze.CheckViewOutputTypes(b.Query.Root.Schema()); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-	}
-	barrier, invoker, mode, err := stored.ViewOptions(createView.Options)
+	options, err := view.CheckCreate(auth.Catalog, createView, b, old)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
-	}
-	if old == nil {
-		if err := view.CheckViewOutputNames(b.Query.Root.Schema(), nil); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
 	}
 	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
 	stage.authorizeLocked(auth, op.Session)
 	defer e.DiscardCatalogStage(stage)
-	if old == nil {
-		available, displacementErr := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
-		if displacementErr != nil {
-			e.mu.Unlock()
-			return Result{}, displacementErr
-		}
-		if !available {
-			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
-		}
-	}
-	var oid, rule ids.OID
-	if old != nil {
-		oid, rule = old.Address().ObjectID, stored.ViewOf(old).RuleOID()
-	} else {
-		oid, err = e.catalog.allocateOIDLocked()
-		if err == nil {
-			rule, err = e.catalog.allocateOIDLocked()
-		}
-		if err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-	}
-	revision, err := e.catalog.revisionLocked()
-	if err != nil {
-		e.mu.Unlock()
-		return Result{}, err
-	}
-	definition, err := e.freezeViewDefinitionLocked(auth, createView.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewCreationOrZero().Persistence == "temporary")
-	if err != nil {
-		e.mu.Unlock()
-		return Result{}, err
-	}
-	definition = definition.With(func(p *stored.ViewParts) {
-		p.CheckOption = mode
-		p.Options = view.TransformViewOptions(nil, createView.Options, false)
-		p.QuoteRevision = revision
-	})
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: stored.ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.Query.Root.Schema()))}
-	if old != nil {
-		*d = *old
-		d.ObjectRevision, d.View = revision, stored.ViewPayload(definition)
-		d.Columns = append([]catalog.Column(nil), b.Query.Root.Schema()...)
-		d.Attributes = make([]int32, len(d.Columns))
-		copy(d.Attributes, old.Attributes)
-		d.Index = make(map[string]int, len(d.Columns))
-	}
-	if old == nil {
-		d.Security.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
-	}
-	if scope.viewCreationOrZero().Persistence == "temporary" {
-		definition = definition.With(func(p *stored.ViewParts) { p.Consumer = d.Address() })
-		d.View = stored.ViewPayload(definition)
-	}
-	attribute := d.ColumnMeta.HighWater
-	for _, id := range d.Attributes {
-		if id > attribute {
-			attribute = id
-		}
-	}
-	for i := range d.Columns {
-		d.Index[d.Columns[i].Name] = i
-		if old == nil || i >= len(old.Attributes) {
-			attribute++
-			d.Attributes[i] = attribute
-		}
-		d.Columns[i].OriginTable = uint32(oid)
-		d.Columns[i].OriginAttribute = int16(d.Attributes[i])
-		d.Columns[i].DeclaredDimensions = 0
-	}
-	d.ColumnMeta.HighWater = attribute
-	if err = e.stageRowTypeLocked(stage, d); err != nil {
-		e.mu.Unlock()
-		return Result{}, err
-	}
-	if old == nil {
-		err = stage.Create(d)
-	} else {
-		err = stage.Replace(d)
-	}
-	if err == nil && old == nil && stage.OldNameCount() != 0 {
-		err = e.reownStagedTypeGenerationsLocked(stage)
-	}
+	err = view.StageCreate(ddlHost{e: e, op: op, stage: stage}, auth, createView, old, ns, b, options, scope.viewCreationOrZero().Persistence == "temporary")
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err

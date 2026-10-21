@@ -193,9 +193,9 @@ engine or `session`. See
 The binder's construction point `newExpressionBinder`, the host
 implementation (`bindingHost`, `Engine.analysisHost`, `analysis_host.go`) and
 the root wrappers `describe`, `describeWithRule` and `describeScoped`; engine
-DDL that drives a binder it builds (`bindRuleDefinitionLocked`,
-`bindCreateDefaults`, checks, defaults, index, partition and policy
-expressions); the authority adapters (`analysis_authority.go`:
+DDL that drives a binder it builds (the rule condition and policy
+expression binders behind `view.Host`, `bindCreateDefaults`, checks,
+defaults, index and partition expressions); the authority adapters (`analysis_authority.go`:
 `bindingAuthorityView`, `authorityOf`, `authorizationOf`), `expectedOf`
 (`expected_inputs.go`), `signatureOf`/`checkStatementSignature` (the
 `StatementDescription` wrappers of `CheckSignature`), the host forwarders to

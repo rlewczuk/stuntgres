@@ -3,14 +3,16 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Bind a real query against genuine private TEMP descriptors, then exercise the
@@ -33,7 +35,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 20008, catalog.ViewRelation, true)
+	definition, err := view.FreezeDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, 20008, catalog.ViewRelation, true)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

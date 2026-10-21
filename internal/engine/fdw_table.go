@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -47,7 +48,7 @@ func (e *Engine) stageForeignTableLocked(op *session.Operation, input sqltype.In
 		return nil, nil, err
 	}
 	if err = auth.CheckCreate(ns); err != nil {
-		return nil, nil, creationError(err, s.Name)
+		return nil, nil, ddl.CreationError(err, s.Name)
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	if stage.LookupName(key) != (ids.ObjectAddress{}) {

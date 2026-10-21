@@ -3,20 +3,23 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Engine.mu is held. Analysis shares the ordinary Boolean binder and frozen
 // query presentation; no condition is evaluated and no row storage is opened.
-func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, raw parser.Expr) (*stored.Policy, error) {
+func (h ddlHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*stored.Policy, error) {
 	if raw == nil {
 		return nil, nil
 	}
+	e, auth := h.e, ddlAuthorityOf(a)
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	columns := make([]analyze.QueryColumn, len(d.Columns))
 	for i, c := range d.Columns {
@@ -27,7 +30,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		Qualifiers: []analyze.QueryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}},
 		Frame:      d.Columns,
 	}
-	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
+	b := newExpressionBinder(h.op.Context(), e, input, h.op, nil)
 	b.Consumer.PolicyConsumer, b.Params.NoParameters = true, true
 	// Query scopes carry this clause to the aggregate's semantic owner.
 	b.Clause.AggregateClause = "policy expressions"
@@ -58,7 +61,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if err != nil {
 		return nil, err
 	}
-	refs, err := stored.ExpressionDependRefs(scope.op.Context(), auth.Catalog, node)
+	refs, err := stored.ExpressionDependRefs(h.op.Context(), auth.Catalog, node)
 	if err != nil {
 		return nil, err
 	}

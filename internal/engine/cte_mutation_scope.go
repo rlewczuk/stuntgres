@@ -25,7 +25,7 @@ type statementMutation struct {
 	mutationIndexes
 	mutationInsert
 	mutationPartition
-	rls rowSecurityMutation
+	rls view.RowSecurity
 }
 
 // mutationTarget is the admitted, locked command target (dml).

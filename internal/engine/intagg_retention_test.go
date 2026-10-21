@@ -2,11 +2,13 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
-	"testing"
+	"stuntgres/internal/engine/view"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -41,7 +43,7 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, nam
 		if err != nil {
 			return nil, nil, err
 		}
-		definition, err := e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, rule, catalog.ViewRelation, true)
+		definition, err := view.FreezeDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, rule, catalog.ViewRelation, true)
 		if err != nil {
 			return nil, nil, err
 		}

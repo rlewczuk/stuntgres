@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -20,54 +19,17 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	if principal == (authorization.PrincipalRef{}) {
-		principal = auth.State.CurrentUser
-	}
-	if err := access.RowSecuritySettingGuard(scope.rowSecurity, auth.Roles, d, principal); err != nil {
-		return false, err
-	}
-	decision, err := access.RowSecurityGroups(auth.Roles, d, principal, command, false, selectRead)
-	if err != nil {
-		return false, err
-	}
-	if decision == access.RLSNeedsExpressions {
-		return false, access.RowSecurityExpressionError()
-	}
-	return decision == access.RLSDefaultDeny, nil
+	return view.RowSecurityInputDenied(auth.View, scope.rowSecurity, d, principal, command, selectRead)
 }
 
-// rowSecurityMutation is the row-level security state of one command,
-// written by configureRowSecurityLocked. It is part of statementMutation, so
-// command switches save and restore it as one unit.
-type rowSecurityMutation struct {
-	targetDenied  bool
-	proposal      access.RLSDisposition
-	mergeUpdate   access.RLSDisposition
-	mergeInsert   access.RLSDisposition
-	proposalTable string
-}
-
+// configureRowSecurityLocked writes the command's row-level security
+// (scope.rls) under the statement authority, as the rule action's user when
+// a rule action runs, over the statement's private catalog. Like the
+// selection, it keeps the fields written before an error.
 func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Binding, stmt parser.Statement) error {
-	scope.rls.targetDenied = false
-	scope.rls.proposal, scope.rls.mergeInsert, scope.rls.mergeUpdate = access.RLSUnrestricted, access.RLSUnrestricted, access.RLSUnrestricted
-	if b.Relation == nil {
-		return nil
-	}
-	command := catalog.PolicyCommand("")
-	switch stmt.(type) {
-	case *parser.Insert:
-		command = catalog.PolicyInsert
-	case *parser.Update:
-		command = catalog.PolicyUpdate
-	case *parser.Delete:
-		command = catalog.PolicyDelete
-	case *parser.Merge:
-		command = catalog.PolicySelect
-	default:
-		return nil
-	}
-	scope.rls.proposalTable = b.Relation.Name()
-	if !b.Relation.Security.RLSEnabled {
+	rls, command, applies := view.RowSecurityTarget(scope.rls, b, stmt)
+	scope.rls = rls
+	if !applies {
 		return nil
 	}
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
@@ -79,35 +41,6 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	principal := access.RowSecurityPrincipal(auth.State.CurrentUser, view.RowSecurityLayers(auth.Catalog, b))
-	if err := access.RowSecuritySettingGuard(scope.rowSecurity, auth.Roles, b.Relation, principal); err != nil {
-		return err
-	}
-	reads := b.Returning != nil || len(b.UsedColumns) != 0
-	if b.ViewWrite != nil {
-		reads = reads || len(view.ViewWriteOf(b.ViewWrite).Logical.UsedColumns) != 0
-	}
-	if command != catalog.PolicyInsert {
-		decision, err := access.RowSecurityGroups(auth.Roles, b.Relation, principal, command, false, reads)
-		if err != nil {
-			return err
-		}
-		if decision == access.RLSNeedsExpressions {
-			return access.RowSecurityExpressionError()
-		}
-		scope.rls.targetDenied = decision == access.RLSDefaultDeny
-	}
-	proposedRead := b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0
-	switch stmt.(type) {
-	case *parser.Insert:
-		scope.rls.proposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, proposedRead)
-	case *parser.Update:
-		scope.rls.proposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyUpdate, true, reads)
-	case *parser.Merge:
-		scope.rls.mergeInsert, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, false)
-		if err == nil {
-			scope.rls.mergeUpdate, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyUpdate, true, true)
-		}
-	}
+	scope.rls, err = view.SelectRowSecurity(scope.rls, auth.View, scope.rowSecurity, b, stmt, command)
 	return err
 }
