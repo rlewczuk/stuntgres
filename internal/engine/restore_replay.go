@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/largeobject"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -15,6 +16,7 @@ type restoreReplay struct {
 	tableDestination       bool
 	insertAuthority        bool
 	commentAuthority       bool
+	largeObjectAuthority   bool                       // Only exact generated private-stage byte replay.
 	materializedPopulation bool                       // Operation-local execution path, never session settings.
 	materializedOwner      authorization.PrincipalRef // Population-only effective principal; session_user is unchanged.
 	defaultReplay          bool
@@ -57,6 +59,10 @@ func prepareRestoreReplayFlags(_ *restoreRun, op *session.Operation, stmt parser
 	_, replay.commentAuthority = stmt.(*parser.Comment)
 	_, replay.defaultReplay = stmt.(*parser.AlterTableDefault)
 	_, replay.partitionAttach = stmt.(*parser.AlterTableAttachPartition)
+	replay.largeObjectAuthority = false
+	if selected, ok := stmt.(*parser.Select); ok {
+		replay.largeObjectAuthority = largeobject.RestoresBytes(selected)
+	}
 	return nil
 }
 

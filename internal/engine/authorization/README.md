@@ -101,6 +101,7 @@ cover publication, pairing, lifecycle, cancellation and typed projections.
 ```sh
 timeout 900s make check RUN='^(TestObjectGrantMasksAndDefaults|TestObjectGrantSingleSourceAndImmutableOrigins|TestObjectRevokeAlternateSupport|TestObjectRevokeSelectiveBits|TestDefaultPrivilegesMasks|TestDefaultPrivilegesBaselines|TestDefaultPrivilegesMerge|TestACLItemBits|TestRolePrivilegesParse)$'
 timeout 900s make check RUN='^(TestAuthorizationDescriptorCandidateImmutability|TestAuthorizationMalformedEnumeration|TestPGGroupMalformedRoot|TestOwnershipDeletionCandidateValidation|TestMembershipCandidateImmutabilityAndReachedNotices|TestRoleAttributesCyclicAdminTraversal|TestAuthorizationDiagnosticCharacterPosition)$'
+timeout 900s make check RUN='^TestDefault(Schema|LargeObject)CreationACLOrder$'
 ```
 
 Engine consumers:

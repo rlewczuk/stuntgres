@@ -14,7 +14,7 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
 - **Descriptors.** `Descriptor` is the identity contract (`Address`,
   `Revision`, `Namespace`, `Name`, `Kind`). The kinds are `Namespace`,
   `Relation`, `Database`, `Extension`, `Procedure`, `Operator`, `Parameter`,
-  `Tablespace`, `Type`, `Collation`, `Conversion`, `TSTemplate`,
+  `Tablespace`, `LargeObject`, `Type`, `Collation`, `Conversion`, `TSTemplate`,
   `TSDictionary` and `ForeignObject` (wrappers, servers, user mappings). Their
   records (columns, constraints, defaults, generation, identity, indexes,
   partitions, inheritance, policies, sequence options, foreign tables,
@@ -187,6 +187,13 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   saturating; only successful installation commits its speculative scalar under
   `Engine.mu`. Descriptor-local ALTER moves use the same calculation without
   reserving the global allocator.
+- Large objects use class2995-local OIDs: equal relation/type/TEMP numbers are
+  legal. Their namespace is empty and synthetic name is the decimal OID.
+  `LargeObjectProvider` validates installed identity, owner provenance and sparse
+  payload bounds. Owner/raw ACL and immutable content share one descriptor,
+  journal publication and principal remap. Ordinary role dependency collection
+  reuses `access.DescriptorACL`, including every raw grantor/grantee.
+
 
 
 ## What stays in the engine

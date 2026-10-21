@@ -2,6 +2,106 @@
 
 ## Testing
 
+### Transactional large-object byte storage
+
+The shared direct/prepared scenarios cover the seven selected signatures of
+`lo_create`, `lo_creat`, `lo_from_bytea`, both `lo_get` overloads, `lo_put` and
+`lo_unlink`. Independent expectations come from PostgreSQL18 documentation and
+[REL_18_6 be-fsstubs.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/libpq/be-fsstubs.c),
+[inv_api.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/storage/large_object/inv_api.c)
+and [pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat).
+Initial PostgreSQL18.6 oracle runs established default ACL entry order and the
+nested creation/read failure with statement rollback. No discovery filter
+remains: every available backend runs the shared body, including migrated
+NativeBoundaries. All changed definitions require fresh selected proof in both modes.
+
+Run each small selector from the worktree, with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceLargeObjectCreation$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectBytes$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectSparseLimits$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectNullAndDiagnostics$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectPrivileges$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectTransactions$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectPrepared$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectSQLRoutineSnapshots$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectRestore$' REFERENCE=1
+make check RUN='^TestReferenceLargeObjectOIDCollision$' REFERENCE=1
+make check RUN='^TestReferenceObjectGrantNativeBoundaries$' REFERENCE=1
+```
+
+Run every selector both with and without `REFERENCE=1` after implementation or
+affected edits; initial regression evidence does not replace final proof.
+Creation checks fixed/automatic identities, exact duplicate diagnostics and
+owner/default metadata. Bytes checks raw octets, overwrite, gaps, clipped reads,
+page boundaries and caller-buffer ownership. SparseLimits checks bounded reads
+beyond4GiB and the maximum seek/write boundary without materializing huge holes.
+NullAndDiagnostics checks every formal NULL position, validation order and full
+portable diagnostics including exact absent fields. Privileges separates
+SELECT/UPDATE/owner authority, ordinary-table/all-table nonauthority, raw ACL
+ordering/grantors/options and global creation defaults. Transactions uses two physical connections for deterministic
+uncommitted isolation, rollback/savepoint and committed publication. Prepared
+retains actual statements through ACL and object-lifetime changes and checks
+quiet Prepare separately from execution. Restore adds native-only public
+Dump/Reset/Restore phases for NULL/empty/populated raw ACLs, exact owner/fixed OID,
+sparse bytes, private-state exclusion and late-failure atomicity. OIDCollision
+retains numerically colliding table/TEMP and large-object identities.
+
+SQLRoutineSnapshots uses a one-row guard to prevent SQL-function inlining:
+argument creation is readable as00ff in the VOLATILE body. The deterministic
+CASE/put argument updates an existing object; outer/body/outer reads are exactly
+aa00,bbff,aa00, and the next statement seesbbff. A body-created object remains
+invisible to a subsequent outer direct read (42704), with statement rollback.
+These independently observed body-query boundaries do not relax the original
+direct nested get(from_bytea)42704 contract. Internal scratch units additionally
+check nested success/error/cancellation unwinding without discarding effects.
+
+
+The ordinary-table authority fixture explicitly grants public-schema USAGE in
+addition to table SELECT/UPDATE; namespace lookup is not an ownership workaround.
+Absent large-object metadata is a captured zero-row catalog source, including
+peer-private creation checks and post-rollback cleanup, not a missing source.
+
+
+Complete diagnostic fields/stages, NULL plus erroring argument evaluation,
+VOID/OID metadata and raw codecs, default ACL entry order, delegated grantor
+ordering and owner-revocation output have pinned-oracle expectations.
+The shared fixture independently asserts native and pq OID representations;
+there are no native-derived expected values.
+
+Selected proof is not the standalone smoke. The living part plan specifies a
+throwaway public Go program run by root as `timeout 900s go run "$SMOKE_GO"`:
+fixed OID910101, low bytes6100ff64650000007a, substring650000007a, beyond4GiB
+sixteen-zero-plus-foo, and public Dump/Reset/Restore of owner and exact raw ACLs.
+Root records actual stdout and removes the temporary source. After sparse
+extension use bounded low `get(0,9)` and substring `get(4,5)`; `get(4,20)` clips
+to five bytes only before EOF grows. Selected race proof uses
+`make check RUN='^TestReferenceLargeObjectTransactions$' RACE=1` and
+`make check RUN='^TestReferenceLargeObjectOIDCollision$' RACE=1`.
+Use `make check RUN='^TestReferenceLargeObjectSQLRoutineSnapshots$' RACE=1` for
+selected SQL-body query activation/unwind race proof. The standalone public smoke
+also asserts guarded-body00ff, updateaa00,bbff,aa00/nextbbff, and outer42704 rollback.
+
+
+Supplementary package units (external900-second deadline):
+
+```sh
+make check RUN='^TestLargeObject(SparseReadWrite|ImmutablePages|SizeBounds|ReplayShapes)$'
+make check RUN='^TestLargeObject(DescriptorAuthority|PrincipalRemap)$'
+make check RUN='^(TestLargeObjectSQLRoutineScratch|TestSQLRoutineResultScratchUnwind)$'
+```
+
+The affected Restore rejection consumer preserves SQLSTATE0A000 and unchanged
+actual Dump/state, not incidental allow-list wording. Include both modes:
+
+```sh
+make check RUN='^TestReferenceCTEDMLControls$'
+make check RUN='^TestReferenceCTEDMLControls$' REFERENCE=1
+```
+
+
+
 Timestamp `generate_series(timestamp,timestamp,interval)` is a genuine executable
 routine938. RoutineSchemaKinds proves deny→grant→execute→revoke→deny after
 removing PUBLIC execute. Timestamptz overloads939/6274 also execute.
@@ -57,11 +157,11 @@ PostgreSQL and actual still-allowed function use on both backends; native pg_pro
 does not expose proacl. Database CREATE removal denies new schema creation while
 existing data7 remains; sequence revocation leaves outside/later explicitly
 granted sequences usable; FUNCTIONS/PROCEDURES/ROUTINES stay partitioned.
-Real PostgreSQL language declarations, large-object bytes6162→6364 and private
-tablespace data42 exercise post-use revocation. Native legal language/large-object
-revoke retains exact0A000 boundaries, physical placement remains unavailable, and
-ALTER SYSTEM remains syntax-rejected. Existing parameter SET and fresh CONNECT
-proofs are reused, as is
+Real PostgreSQL language declarations and private tablespace data42 exercise
+post-use revocation. Large-object bytes6162→6364 now belong to the shared
+supported contract in NativeBoundaries. Native legal language revoke retains
+exact0A000, physical placement remains unavailable, and ALTER SYSTEM remains
+syntax-rejected. Existing parameter SET and fresh CONNECT proofs are reused, as is
 [`TestReferenceFDWObjectGrants`](../tables/fdw_object_grants_test.go) for actual
 wrapper/server creation consumers, provenance, held access and warnings.
 

@@ -7,7 +7,7 @@ the internals of almost every feature. Now a feature adds a table entry
 instead of editing a central switch.
 
 The package imports `authorization`, `catalog`, `dump`, `expr`, `ids`,
-`index`, `partition`, `regobj`, `routine`, `sequence`, `session`, `stored`,
+`index`, `partition`, `pgcatalog`, `regobj`, `routine`, `sequence`, `session`, `stored`,
 `table`, `typedef`, `view`, `parser`, `sqltype` and `sqlstate`. Only the
 root `engine` package imports it. It holds no mutex, no engine pointer and
 no state between calls. Step 30 of the split created it; see
@@ -43,6 +43,13 @@ no state between calls. Step 30 of the split created it; see
   precede its consumer) and `ColumnPredecessors` adds a relation's row and
   column type predecessors; `Presenter` is the `dump.Presenter`. Both read
   only their arguments.
+- **Large objects** (`largeobject.go`): immutable captured descriptors use a
+  separate fixed-OID-sorted list, outside numeric relation graph keys. Owner and
+  raw ACL formatting is preflighted through existing codecs before writer I/O.
+  Sparse chunks are emitted without copying or materializing holes, under exact
+  owner directives; typed raw ACL repairs follow content. The root admits only
+  these bounded literal replay shapes and installs in the private stage.
+
 
 ### Restore
 

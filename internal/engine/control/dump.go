@@ -53,6 +53,7 @@ type Capture struct {
 	Operators      []*catalog.Operator
 	SQLRoutines    []*catalog.Procedure
 	Tables         []table.DumpRelation
+	LargeObjects   []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.
 	Materialized   []table.DumpRelation
 	Views          []OwnedStatement
 	Indexes        []OwnedStatement

@@ -101,6 +101,8 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 		return d.Owner, d.ACL, nil
 	case *catalog.Tablespace:
 		return d.Owner, d.ACL, nil
+	case *catalog.LargeObject:
+		return d.Owner, d.ACL, nil
 	case *catalog.TSDictionary:
 		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Namespace:
@@ -121,6 +123,9 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 
 // ClassPrivileges returns the privileges that can be granted on d.
 func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
+	if d.Kind() == ids.LargeObjectObject {
+		return authorization.SelectPrivilege | authorization.UpdatePrivilege
+	}
 	if d.Kind() == ids.ForeignWrapperObject || d.Kind() == ids.ForeignServerObject {
 		return authorization.UsagePrivilege
 	}
@@ -314,6 +319,8 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = "foreign-data wrapper"
 		} else if d.Kind() == ids.ForeignServerObject {
 			kind = "foreign server"
+		} else if d.Kind() == ids.LargeObjectObject {
+			kind = "large object"
 		} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.SequenceRelation {
 			kind = "sequence"
 		} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ForeignRelation {
@@ -369,6 +376,8 @@ func (v View) Check(env Environment, req Requirement) error {
 		kind = "function"
 	} else if d.Kind() == ids.ForeignWrapperObject {
 		kind = "foreign-data wrapper"
+	} else if d.Kind() == ids.LargeObjectObject {
+		kind = "large object"
 	} else if d.Kind() == ids.ForeignServerObject {
 		kind = "foreign server"
 	} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.SequenceRelation {

@@ -14,6 +14,23 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Transactional large-object storage — change note
+
+`lo_create`, `lo_creat`, `lo_from_bytea`, both `lo_get` overloads, `lo_put`
+and `lo_unlink` operate on real process-local sparse bytes. Fixed OIDs are
+class-local, gaps read as zero, writes preserve existing suffixes, and object
+metadata/content publish together through transactions and savepoints.
+Reads require object SELECT; writes require SELECT and UPDATE; unlink requires
+ownership. Table grants do not authorize large-object bytes. Native
+Dump/Reset/Restore preserves fixed identity, owner, sparse bytes and exact raw
+ACLs, including NULL versus empty arrays and entry/grantor/option ordering.
+There is no durability, descriptor client API, import/export, truncate or
+standalone ALTER LARGE OBJECT OWNER support.
+See [native limits](docs/DIALECT.md#transactional-large-object-bytes),
+[authorization](docs/AUTHORIZATION.md#large-object-authority),
+[replay](docs/FIXTURES.md#large-object-snapshots), and
+[selected proof/smoke](reference/object_grants/README.md#transactional-large-object-byte-storage).
+
 ## Information-schema user mappings — change note
 
 `information_schema.user_mappings` exposes actual SQL/MED mapping identities
@@ -109,8 +126,8 @@ path: grantor-scoped ordinary versus grant-option removal, RESTRICT atomicity,
 CASCADE, and surviving PUBLIC/inherited/independent grants. Same-held sequence
 and parameterized routine consumers prove effective-access transitions; schema,
 type/domain, database, parameter, SQL/MED and tablespace witnesses exercise real
-uses. No new revoke engine or external provider is introduced. Language execution,
-large-object storage and physical tablespace placement retain their native bounds.
+uses. No new revoke engine or external provider is introduced. Language execution
+and physical tablespace placement retain their native bounds.
 See [native contracts](docs/DIALECT.md#object-privilege-grants) and
 [selected proof and smoke](reference/object_grants/README.md#non-table-object-revocation).
 
@@ -1615,8 +1632,8 @@ does not publish a valid prefix. SQL EXECUTE of a wire-prepared COPY retains the
 same streaming exchange, including extended EXECUTE wrappers. Query output can
 retain a real data prefix before an error, but never reports successful completion
 for failed work. FunctionCall dispatches genuinely executable
-routine OIDs with normal permissions and shared codecs; lookup-only routines,
-including absent large-object storage, do not become callable.
+routine OIDs with normal permissions and shared codecs; lookup-only routines
+do not become callable merely because a catalog identity exists.
 LISTEN/NOTIFY delivers channel, payload and notifier PID while the listener is
 idle, with commit/rollback, ordering and listener-transaction delay preserved.
 Notices, settings, errors, rows and notifications use one serialized writer.
@@ -3936,9 +3953,9 @@ Selected revoke smoke:
 
 Change note: `ALTER DEFAULT PRIVILEGES` stores global and schema-scoped defaults
 for TABLES, SEQUENCES, FUNCTIONS/ROUTINES, TYPES, SCHEMAS and LARGE OBJECTS.
-Only subsequently created supported tables/views/materialized views, sequences,
-standalone types and explicit schemas consume them. No routine or large-object
-creation provider is introduced. Creation uses its actual effective owner, not
+Subsequently created supported tables/views/materialized views, sequences,
+standalone types, explicit schemas and large objects consume their class defaults.
+Creation uses its actual effective owner, not
 inherited roles' defaults; schema grants add to global grants, and schema REVOKE
 cannot subtract global or hardwired rights. Owner grant authority remains
 implicit even when ordinary owner use is revoked. Stored global empty ACLs remain

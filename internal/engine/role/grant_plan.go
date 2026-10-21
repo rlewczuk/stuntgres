@@ -64,9 +64,7 @@ func ObjectGrantRequest(h Host, auth ddl.Authority, s *parser.ObjectGrant) (Gran
 		unavailable = "FOREIGN DATA WRAPPER privileges are unsupported in embedded mode"
 	case "foreign server":
 		unavailable = "FOREIGN SERVER privileges are unsupported in embedded mode"
-	case "large object":
-		unavailable = "LARGE OBJECT privileges are unsupported in embedded mode"
-	case "", "sequence", "schema", "type", "domain", "function", "procedure", "routine", "parameter", "tablespace":
+	case "", "sequence", "schema", "type", "domain", "function", "procedure", "routine", "parameter", "tablespace", "large object":
 	default:
 		return GrantRequest{}, sqlError("0A000", "statement is not supported")
 	}

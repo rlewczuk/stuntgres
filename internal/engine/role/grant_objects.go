@@ -34,6 +34,8 @@ func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Des
 		class, noun = authorization.DefaultParameters, "parameter"
 	case ids.TablespaceObject:
 		class, noun = authorization.DefaultTablespaces, "tablespace"
+	case ids.LargeObjectObject:
+		class, noun = authorization.DefaultLargeObjects, "large object"
 	}
 	baseline := old
 	if !baseline.Explicit {
@@ -81,6 +83,10 @@ func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Des
 		n.ACL = nextACL
 		next = &n
 	case *catalog.Tablespace:
+		n := *d
+		n.ACL = nextACL
+		next = &n
+	case *catalog.LargeObject:
 		n := *d
 		n.ACL = nextACL
 		next = &n

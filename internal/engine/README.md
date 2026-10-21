@@ -63,6 +63,23 @@ producer ownership. Engine code names the moved types directly
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
+### Large-object SQL routine snapshots
+
+VOLATILE SQL body entry captures an immutable command-visible large-object READ
+catalog under the existing engine mutex. It lives in `sqlRoutineScratch`, not
+the root effect journal: nested queries get fresh captures; unwind restores the
+outer query's bytes while retaining root-owned command effects for publication.
+No SQL-wrapper special case or global authorization recapture is introduced.
+
+```sh
+make check RUN='^(TestLargeObjectSQLRoutineScratch|TestSQLRoutineResultScratchUnwind)$'
+make check RUN='^TestReferenceLargeObjectSQLRoutineSnapshots$'
+make check RUN='^TestReferenceLargeObjectSQLRoutineSnapshots$' REFERENCE=1
+```
+
+Use external900-second deadlines. These supplement the
+[public LO proof and standalone smoke](../../reference/object_grants/README.md#transactional-large-object-byte-storage).
+
 ### Transform catalog
 
 `TestPGTransformCapture` checks the real registered producer and capture Ref,

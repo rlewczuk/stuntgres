@@ -86,6 +86,8 @@ type Host interface {
 	TransactionStatus(full uint64) (string, bool, error)
 	// functions.SequenceRuntime
 	Sequence(request functions.SequenceRequest) (int64, error)
+	// functions.LargeObjectRuntime
+	LargeObject(functions.LargeObjectRequest) (functions.LargeObjectResult, error)
 	// expr.Context: session generators, conversion procedure, regex cache
 	FunctionArrayRandomOwner() (expr.RandomOwner, error)
 	FunctionRandomOwner() (expr.RandomOwner, error)

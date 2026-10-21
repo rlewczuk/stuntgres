@@ -229,7 +229,7 @@ func CreationDefaultACL(owner PrincipalRef, class DefaultACLClass, record, scope
 		}
 		return ACLValue{}
 	}
-	if class == DefaultSchemas && len(merged.Entries) > 1 {
+	if (class == DefaultSchemas || class == DefaultLargeObjects) && len(merged.Entries) > 1 {
 		compare := func(a, b ACLEntry) int {
 			grantee := func(entry ACLEntry) uint64 {
 				if entry.Grantee.Public {

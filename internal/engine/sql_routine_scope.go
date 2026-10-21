@@ -40,6 +40,7 @@ type sqlRoutineScratch struct {
 	activeViews          []ids.ObjectAddress
 	inheritanceRelations []exec.Leaf
 	inheritanceCatalog   catalog.Read
+	largeObjectRead      catalog.Read
 	authority            *exec.Authority
 	routineAuth          AuthorizationView
 	expected             *StatementDescription
@@ -74,6 +75,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		view:     s.view, partitionView: s.partitionsOrZero().ValidationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
 		domainEvaluation: s.domains.evaluation, domainInputCatalog: s.domains.inputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
 		presentation: s.presentationSlot, identity: s.identity,
+		largeObjectRead: s.largeObjectRead,
 	}
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
@@ -92,9 +94,10 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.domains.evaluation, s.domains.inputCatalog = c.domainEvaluation, c.domainInputCatalog
 	s.setForeignLexical(c.foreignOwner, c.foreignCursor)
 	s.presentationSlot, s.identity = c.presentation, c.identity
+	s.largeObjectRead = c.largeObjectRead
 }
 
-func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) error {
+func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectRead catalog.Read) func(error) error {
 	saved := s.sqlRoutineScratch()
 	// Preserve the live operation's presentation/time policy, but create fresh
 	// provider/capture/query state. The parameter frame itself is proc-owned.
@@ -109,7 +112,7 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) 
 		}
 	}
 	ownDeletes := mergeDeletions(saved.ownDeletes, s.stage.deletes)
-	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true}, ownWrites: ownWrites, ownDeletes: ownDeletes})
+	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead})
 	s.input.LockedDomainInput, s.input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {

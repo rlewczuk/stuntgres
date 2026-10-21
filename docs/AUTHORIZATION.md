@@ -696,14 +696,31 @@ and [TEMP namespace masks](https://github.com/postgres/postgres/blob/REL_18_0/sr
 Documentation is not verification evidence; selected native and pinned real
 proofs are listed in the owning reference inventory.
 
+## Large-object authority
+
+Large-object descriptors have real owners and raw SELECT/UPDATE ACLs, independent
+of relations and predefined all-table roles. Reads require SELECT. `lo_put`
+requires both SELECT and UPDATE, including empty writes. `lo_unlink` requires
+ownership (including ordinary inherited ownership/superuser authority), not just
+UPDATE. Owners may revoke their own ordinary rights without losing implicit
+grant authority or owner-only unlink authority.
+
+Global LARGE OBJECT defaults are consumed at creation under the effective owner.
+`lo_from_bytea` creates then checks its write-open authority; restrictive owner
+defaults can make that statement fail atomically. Default-created entries retain
+released grantee/grantor ordering, not an owner-first rewrite. Metadata and
+`pg_get_acl` preserve NULL, explicit empty and ordered populated ACLs. Owners and
+all ACL grantors/grantees participate in role dependencies and principal remap.
+Prepared execution checks current descriptors/authority, never cached byte access.
+
 ## Creation-time default policy
 
 Defaults are separate immutable catalog policy, not retroactive object grants.
 Creation providers consume their own class, while generated row types and arrays
 follow canonical parent associations. Ownership transfer rewrites dependent ACL
 origins without consulting successor creation defaults.
-Default-created schema entries are ordered by grantee OID (PUBLIC0 first),
-then grantor OID without changing masks or mutating immutable default records.
+Default-created schema and large-object entries are ordered by grantee OID
+(PUBLIC0 first), then grantor OID without changing masks or immutable default records.
 This creation normalization does not reorder initialized builtin ACLs or
 retroactively change existing objects.
 
@@ -718,7 +735,7 @@ the table/toast namespace metadata; eager catalog/default snapshots stay unchang
 Each operation captures one paired catalog/role authority, mutates one private
 candidate and advances authorization only for a changed publication. Retained
 messages expose earlier private policy to later creation and discard both on
-failure. No routine/large-object creation provider is invented by stored defaults.
+failure. Stored defaults do not create an otherwise absent routine provider.
 
 Default utilities retain native explicit-transaction exclusions. Dump rejects
 nonbaseline stored policy, including stored-empty or missing-provider records,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
@@ -31,6 +32,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"database", isDumpDatabase, collectDatabaseDump},
 	{"parameter", isDumpParameter, collectParameterDump},
 	{"tablespace", isDumpTablespace, collectTablespaceDump},
+	{"large object", isDumpLargeObject, collectLargeObjectDump},
 	{"operator", isDumpOperator, collectOperatorDump},
 	{"procedure", isDumpProcedure, collectProcedureDump},
 	{"text search", isDumpTextSearch, collectTextSearchDump},
@@ -73,6 +75,23 @@ func isDumpParameter(d catalog.Descriptor) bool {
 func isDumpTablespace(d catalog.Descriptor) bool {
 	_, ok := d.(*catalog.Tablespace)
 	return ok
+}
+
+func isDumpLargeObject(d catalog.Descriptor) bool {
+	_, ok := d.(*catalog.LargeObject)
+	return ok
+}
+
+func collectLargeObjectDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
+	object := d.(*catalog.LargeObject)
+	if err := (catalog.LargeObjectProvider{}).Validate(c.CatalogView, object); err != nil {
+		return err
+	}
+	if err := access.ValidateACL(c.OriginalRoles, object); err != nil {
+		return err
+	}
+	c.LargeObjects = append(c.LargeObjects, object)
+	return nil
 }
 
 func isDumpOperator(d catalog.Descriptor) bool {

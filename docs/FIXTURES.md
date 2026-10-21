@@ -2,6 +2,30 @@
 
 [README](../README.md) · [Native compatibility limits](DIALECT.md)
 
+## Large-object snapshots
+
+Native Dump captures only committed immutable large-object descriptors under the
+existing engine mutex, then emits outside locks. It writes fixed-OID creation
+under each real named owner, followed by stored sparse chunks and exact raw ACL
+repair. Objects are OID-sorted in a separate class-local list, never conflated
+with numeric relation keys in the declaration graph. Holes are not materialized;
+stored terminal zero bytes establish exact EOF. Empty objects need only creation.
+
+Restore admits only the generated literal create/put SELECT shapes and the exact
+single-object typed `pg_largeobject_metadata.lomacl` repair. The existing ACL
+codec resolves real destination principals and retains NULL/empty/ordered ACL
+state, including original grantors and grant options. This is not ordinary
+catalog UPDATE, arbitrary function SELECT, or ALTER LARGE OBJECT OWNER support.
+Recognized private-stage byte replay can populate the original owner's object
+despite restrictive creation defaults, without changing that owner or granting
+ordinary SQL privileges.
+
+Reset removes persistent large objects. Restore publishes metadata and bytes
+atomically with the rest of the replacement; late errors preserve destination
+state. Live TEMP relations with equal numeric OIDs retain their identities and
+data while restored large objects retain fixed OIDs and bytes.
+See [selected public control proof](../reference/object_grants/README.md#transactional-large-object-byte-storage).
+
 ## SQL routine declarations and callers
 
 Native Dump emits genuine scalar SQL `CREATE FUNCTION` declarations with current

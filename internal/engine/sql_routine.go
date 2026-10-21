@@ -34,11 +34,19 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	}
 	defer parent.leaveSQLRoutine()
 	e := parent.engine()
-	restore := parent.activateSQLRoutine(d.SQL.Inputs)
+	// VOLATILE body queries start a fresh READ view of the command-visible
+	// catalog. The effect journal stays root-owned; only this immutable query
+	// capture joins lexical scratch and is restored on every unwind.
+	e.mu.Lock()
+	changes := parent.catalog
+	if changes == nil {
+		changes = parent.owner.Catalog
+	}
+	read := e.privateCatalogLocked(changes)
+	restore := parent.activateSQLRoutine(d.SQL.Inputs, read)
 	defer func() { err = restore(err) }()
 	parent.sqlRoutine.result = resultUsage
 	child := parent
-	e.mu.Lock()
 	auth, err := e.authorizationLocked(parent.op)
 	if err == nil {
 		_, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)

@@ -83,8 +83,8 @@ func DefinitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	return false
 }
 
-// Descriptor and owned-definition OIDs share one identity space. Replacement
-// must reserve both before allocating any collision replacement.
+// Allocated descriptors and owned definitions reserve allocator candidates.
+// Fixed large-object identities remain local to their catalog class.
 func ReserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	d, relation := descriptor.(*Relation)
 	if !relation {
@@ -138,7 +138,9 @@ func ReserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 func ValidateDefinitionOIDs(view Read) error {
 	used := make(map[ids.OID]bool)
 	for address := range view.Descriptors() {
-		used[address.ObjectID] = true
+		if address.ClassID != ids.LargeObjectClassID {
+			used[address.ObjectID] = true
+		}
 	}
 	claim := func(id ids.OID) error {
 		if id == 0 || used[id] {

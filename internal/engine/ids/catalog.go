@@ -46,6 +46,7 @@ const (
 	ForeignMappingClassID OID = 1418
 	ForeignTableClassID   OID = 3118
 	OperatorClassID       OID = 2617
+	LargeObjectClassID    OID = 2995
 	PGCatalogNamespaceOID OID = 11
 	PGToastNamespaceOID   OID = 99
 	PublicNamespaceOID    OID = 2200
@@ -70,4 +71,5 @@ const (
 	ForeignMappingObject
 	ParameterObject
 	TablespaceObject
+	LargeObjectObject
 )

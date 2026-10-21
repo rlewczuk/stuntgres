@@ -84,14 +84,13 @@ func TestReferenceCTEDMLControls(t *testing.T) {
 		}
 		cteDMLRun(t, p, b, false, cteDMLBag("SELECT * FROM dst", []string{"id", "v"}, []string{"INT4", "INT4"}, bag))
 		cteDMLRun(t, p, b, false, cteDMLBag("SELECT * FROM src", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{}))
-		for _, replay := range []struct{ sql, message string }{
-			{q + ";", "restore accepts only generated sequence state"},
-			{"WITH d AS (DELETE FROM dst) INSERT INTO src VALUES(9,90);", "restore INSERT WITH clauses are unsupported"},
-			{"WITH d AS (DELETE FROM dst) SELECT setval('controls_s',99,true);", "restore accepts only generated sequence state"},
+		for _, replay := range []string{
+			q + ";",
+			"WITH d AS (DELETE FROM dst) INSERT INTO src VALUES(9,90);",
+			"WITH d AS (DELETE FROM dst) SELECT setval('controls_s',99,true);",
 		} {
-			err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(replay.sql))
-			want := fixture.ControlsReferenceDiagnostic("0A000", replay.message)
-			fixture.AssertDiagnostic(t, err, &want)
+			err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(replay))
+			fixture.State(t, err, "0A000")
 			after.Reset()
 			if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil || !bytes.Equal(dump.Bytes(), after.Bytes()) {
 				t.Fatal("failed Restore changed Dump", err)

@@ -34,6 +34,7 @@ var dumpSections = [...]dumpSection{
 	{"collations and conversions", emitDumpTypeStatements},
 	{"events", emitDumpEvents},
 	{"sequence completion", emitDumpSequenceCompletion},
+	{"large objects", emitDumpLargeObjects},
 	{"materialized snapshots", emitDumpMaterializedSnapshots},
 	{"policies", emitDumpPolicies},
 	{"row security", emitDumpRowSecurity},

@@ -122,7 +122,7 @@ func TestSQLRoutineResultScratchUnwind(t *testing.T) {
 	s := &StatementScope{sqlRoutine: sqlRoutineDemand{result: testUsage(e, sqltype.Int8)}, activeSQLRoutineDepth: 7}
 	outer := s.sqlRoutine.result
 	for _, primary := range []error{nil, errors.New("body failure"), context.Canceled} {
-		restore := s.activateSQLRoutine(nil)
+		restore := s.activateSQLRoutine(nil, catalog.Read{})
 		if s.activeSQLRoutineDepth != 7 || !s.sqlRoutine.scalar || s.sqlRoutine.result.Type != nil {
 			t.Fatal("activation leaked owner or result")
 		}

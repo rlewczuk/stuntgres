@@ -111,9 +111,9 @@ func TestReferenceObjectGrantSyntaxDiagnostics(t *testing.T) {
 }
 
 func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
-	objectGrantScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
-		// Handlerless SQL/MED metadata is real on both backends. Language
-		// execution and large-object storage retain their independent boundaries.
+	largeObjectScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
+		// Handlerless SQL/MED metadata and large-object bytes are real on both
+		// backends. Language execution retains its independent native boundary.
 		defer func() {
 			for _, q := range []string{
 				"RESET SESSION AUTHORIZATION",
@@ -138,26 +138,19 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 					"DROP FUNCTION IF EXISTS public.og_boundary_lang()",
 					"DROP FUNCTION IF EXISTS public.og_boundary_lang_denied()",
 				}
-				if lo != 0 {
-					queries = append(queries, fmt.Sprintf("SELECT lo_unlink(%d)", lo))
-				}
 				for _, q := range queries {
 					if _, err := c.ExecContext(p.Ctx, q); err != nil {
 						t.Error("external facility cleanup", q, err)
 					}
 				}
 			}()
-			if err := c.QueryRowContext(p.Ctx, "SELECT lo_create(0)").Scan(&lo); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := c.ExecContext(p.Ctx, fmt.Sprintf("SELECT lo_put(%d,0,decode('6162','hex'))", lo)); err != nil {
-				t.Fatal(err)
-			}
 		}
+		if err := c.QueryRowContext(p.Ctx, "SELECT lo_create(0)").Scan(&lo); err != nil {
+			t.Fatal(err)
+		}
+		defer largeObjectCleanup(t, p, c, lo)
+		run(fixture.Exec(fmt.Sprintf("SELECT lo_put(%d,0,decode('6162','hex'))", lo), 1))
 		loTarget := fmt.Sprint(lo)
-		if !b.PG {
-			loTarget = "987654321"
-		}
 		for _, tc := range []struct{ target, privilege, noun, unsupported string }{
 			{"LANGUAGE plpgsql", "USAGE", "language", "LANGUAGE"},
 			{"FOREIGN DATA WRAPPER og_boundary_fdw", "USAGE", "foreign-data wrapper", "FOREIGN DATA WRAPPER"},
@@ -175,13 +168,13 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 			fixture.RoleGrantError(run, "GRANT "+tc.privilege+"(x) ON "+tc.target+" TO og_object_reader", "0LP01", "column privileges are only valid for relations")
 			for _, privilege := range []string{tc.privilege, "ALL PRIVILEGES"} {
 				q := "GRANT " + privilege + " ON " + tc.target + " TO og_object_reader"
-				if b.PG || strings.HasPrefix(tc.target, "FOREIGN ") {
+				if b.PG || tc.unsupported != "LANGUAGE" {
 					run(fixture.Exec(q, 0))
 				} else {
 					fixture.RoleGrantError(run, q, "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
 				}
 			}
-			if !b.PG && !strings.HasPrefix(tc.target, "FOREIGN ") {
+			if !b.PG && tc.unsupported == "LANGUAGE" {
 				fixture.RoleGrantError(run, "REVOKE "+tc.privilege+" ON "+tc.target+" FROM og_object_reader", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
 				fixture.RoleGrantError(run, "REVOKE GRANT OPTION FOR "+tc.privilege+" ON "+tc.target+" FROM og_object_reader", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
 				fixture.RoleGrantError(run, "REVOKE "+tc.privilege+" ON "+tc.target+" FROM og_object_reader CASCADE", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
@@ -216,43 +209,43 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 				fixture.RoleGrantPermissionDenied(run, "CREATE FUNCTION public.og_boundary_lang_denied() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN 7; END$$", "language", "plpgsql")
 				run(fixture.Select("SELECT public.og_boundary_lang() AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			})
-
-			run(fixture.Exec("REVOKE ALL ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
-			read := "SELECT encode(lo_get(" + loTarget + "),'hex') AS v"
-			write := "SELECT lo_put(" + loTarget + ",0,decode('6364','hex'))"
-			fixture.RoleGrantActor(run, "og_object_reader", func() {
-				fixture.RoleGrantPermissionDenied(run, read, "large object", loTarget)
-				fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
-			})
-			run(fixture.Exec("GRANT SELECT ON LARGE OBJECT "+loTarget+" TO og_object_reader", 0))
-			fixture.RoleGrantActor(run, "og_object_reader", func() {
-				run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6162"}}))
-				fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
-			})
-			run(fixture.Exec("GRANT UPDATE ON LARGE OBJECT "+loTarget+" TO og_object_reader", 0))
-			fixture.RoleGrantActor(run, "og_object_reader", func() {
-				run(fixture.Exec(write, 1))
-				run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6364"}}))
-			})
-			run(fixture.Exec("REVOKE SELECT ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
-			fixture.RoleGrantActor(run, "og_object_reader", func() {
-				fixture.RoleGrantPermissionDenied(run, read, "large object", loTarget)
-				// INV_WRITE also requests read permission (REL_18_0 inv_open).
-				fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
-			})
-			run(fixture.Exec("GRANT SELECT ON LARGE OBJECT "+loTarget+" TO og_object_reader", 0))
-			run(fixture.Exec("REVOKE UPDATE ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
-			fixture.RoleGrantActor(run, "og_object_reader", func() {
-				run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6364"}}))
-				fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
-			})
-			run(fixture.Exec("REVOKE SELECT,UPDATE ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
-			fixture.RoleGrantActor(run, "og_object_reader", func() {
-				fixture.RoleGrantPermissionDenied(run, read, "large object", loTarget)
-				fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
-			})
-			run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6364"}}))
 		}
+
+		run(fixture.Exec("REVOKE ALL ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
+		read := "SELECT encode(lo_get(" + loTarget + "),'hex') AS v"
+		write := "SELECT lo_put(" + loTarget + ",0,decode('6364','hex'))"
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, read, "large object", loTarget)
+			fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
+		})
+		run(fixture.Exec("GRANT SELECT ON LARGE OBJECT "+loTarget+" TO og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6162"}}))
+			fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
+		})
+		run(fixture.Exec("GRANT UPDATE ON LARGE OBJECT "+loTarget+" TO og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Exec(write, 1))
+			run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6364"}}))
+		})
+		run(fixture.Exec("REVOKE SELECT ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, read, "large object", loTarget)
+			// INV_WRITE also requests read permission (REL_18_6 inv_open).
+			fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
+		})
+		run(fixture.Exec("GRANT SELECT ON LARGE OBJECT "+loTarget+" TO og_object_reader", 0))
+		run(fixture.Exec("REVOKE UPDATE ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6364"}}))
+			fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
+		})
+		run(fixture.Exec("REVOKE SELECT,UPDATE ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, read, "large object", loTarget)
+			fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
+		})
+		run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6364"}}))
 
 		// Numeric series now has a genuine provider; the original route must
 		// grant and execute rather than retain an obsolete unsupported error.

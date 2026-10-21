@@ -32,6 +32,7 @@ type dumpScript struct {
 	eventOrder                                []dump.Event
 	declarations                              map[ids.OID]dump.Statement
 	operatorLinks                             map[ids.OID]string
+	largeObjectRecords                        []largeObjectDump
 }
 
 // buildDumpScript renders the captured groups and statements and orders
@@ -62,6 +63,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	s.sequenceCreation, s.sequenceCompletion = sequence.DumpStatements(s.Sequences)
+	if s.largeObjectRecords, err = prepareLargeObjectDump(ctx, s.Capture); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 

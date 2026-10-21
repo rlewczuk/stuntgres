@@ -33,4 +33,5 @@ const (
 	RangeRoutineProvider
 	EmbeddedRoutineProvider // Existing function-method conversion inside genuine SQL bodies, not standalone dispatch.
 	NetworkRoutineProvider
+	LargeObjectRoutineProvider
 )

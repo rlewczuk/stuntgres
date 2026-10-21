@@ -383,6 +383,15 @@ compile-time assertion, forwarding the body to the engine's statement host. `exp
   checks, exactly as before. The node evaluates every argument once, left to
   right, returns a typed NULL without opening the sequence when any is NULL,
   and narrows identity results to the column type.
+- `LargeObjectRuntime` (`largeobject.go`) receives only evaluated OID/offset/
+  length/octet values. Nodes evaluate arguments left-to-right once, apply strict
+  NULL, and retain no content/session/authority. `exec.Context` forwards to the
+  statement host. The engine owns read-only checks, query READ versus
+  command-visible mutation snapshots, SELECT/UPDATE/owner ACL checks and journal
+  publication. VOLATILE SQL body activation captures prior calling-command effects
+  and restores the outer READ view on unwind. Seven genuine declarations are
+  strict, VOLATILE, parallel unsafe; put returns VOID and unlink returns INT4 one.
+
 
 ## Registry
 

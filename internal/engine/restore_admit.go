@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/largeobject"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -262,8 +263,8 @@ func admitRestoreAlterTableDefault(_ *restoreRun, _ *session.Operation, s *parse
 }
 
 func admitRestoreSelect(_ *restoreRun, _ *session.Operation, s *parser.Select) error {
-	if !sequence.RestoresState(s) {
-		return sqlError("0A000", "restore accepts only generated sequence state")
+	if !sequence.RestoresState(s) && !largeobject.RestoresBytes(s) {
+		return sqlError("0A000", "restore accepts only generated sequence or large object state")
 	}
 	return nil
 }
@@ -292,6 +293,9 @@ func admitRestoreSessionAuthorization(r *restoreRun, _ *session.Operation, s *pa
 // attribute rank.
 func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.Update) error {
 	var err error
+	if _, _, _, ok := largeobject.ACLRepair(s); ok {
+		return r.stage.restoreLargeObjectACL(op, s)
+	}
 	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
 		err = r.stage.restoreRetiredConstraint(op, s, r.historicalAuthority)
 	} else if table.RestoreCatalogName(s.Name, "pg_constraint") {

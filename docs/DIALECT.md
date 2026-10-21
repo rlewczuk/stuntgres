@@ -383,8 +383,8 @@ not a second transport conversion registry. Available codecs do not make
 lookup-only descriptors, unsupported casts/storage, anonymous-record text input or
 missing binary providers available. FunctionCall invokes supported routines by
 OID with normal namespace/routine permissions; catalog lookup alone does not
-make a routine callable or add large-object storage. COPY uses the streaming
-executor described [below](#copy-streams). Committed notifications are delivered
+make a routine callable. The selected large-object SQL wrappers are executable.
+COPY uses the streaming executor described [below](#copy-streams). Committed notifications are delivered
 to idle network listeners without an extra query.
 
 Wire result RowDescription uses the physical domain base type and base typmod;
@@ -514,6 +514,36 @@ recovery, physical backup, replication, subscription execution or physical
 checkpoint service. Native sequence `log_cnt` is always zero; cache state does
 not promise crash durability. Native controls are logical fixture replacement,
 not arbitrary `pg_dump` import or PostgreSQL physical backup.
+
+### Transactional large-object bytes
+
+Seven SQL signatures are supported: `lo_create(oid)`, `lo_creat(int4)`,
+`lo_from_bytea(oid,bytea)`, `lo_get(oid)`, `lo_get(oid,int8,int4)`,
+`lo_put(oid,int8,bytea)` and `lo_unlink(oid)`. They are strict, VOLATILE and
+parallel unsafe. NULL does not create, authorize, mutate or delete an object.
+`lo_creat` ignores its non-NULL mode. Put returns VOID; unlink returns INT4 one.
+
+Bytes are sparse2048-byte pages with signed64-bit offsets. Missing portions
+below EOF read as zero; overwrite preserves suffixes. Empty writes validate
+offset/authority without extending EOF. Maximum seek is4398046509056; writes
+must fit within that bound. Materialized reads over1073741819 bytes fail54000
+without allocating the result. Bounded reads beyond4GiB do not allocate holes.
+
+Content and metadata share class2995 identities and ordinary transaction,
+statement-error and savepoint rollback/publication. Peer sessions cannot read
+private writes. Get uses its active query's READ view: direct nested
+`lo_get(lo_from_bytea(...))` can fail42704 and rolls back the creation; a
+following statement in the creating transaction sees the object. A non-inline
+VOLATILE SQL function introduces a fresh body-query snapshot and can see its
+argument's creation/update. Returning or failing restores the outer query's
+snapshot; body visibility does not leak into subsequent outer direct reads.
+Numeric equality with a relation/TEMP OID is legal and remains so after Restore.
+
+Only object SELECT/UPDATE ACLs authorize byte reads/writes; put needs both.
+`pg_largeobject_metadata` exposes actual oid/lomowner/raw lomacl; `pg_get_acl`
+returns the same raw state. The full page relation, durability, descriptor
+client API, import/export, truncate and standalone ALTER OWNER are not added.
+
 
 Qualified TEMP namespace/REGCLASS lookup follows normal captured role authority;
 it is not permission to read or mutate another physical session's stored TEMP data.
@@ -694,10 +724,10 @@ Their callback tokens do not provide standalone SQL execution. Internal FDW
 dispatch remains independent of ordinary EXECUTE ACLs. Generic
 has_function_privilege SQL execution remains unavailable; raw ACL inquiries and
 the existing authorization hooks expose actual stored authority.
-Valid LANGUAGE and LARGE OBJECT targets retain class-specific unavailable native mechanisms:
-`0A000 LANGUAGE privileges are unsupported in embedded mode`, and the analogous
-upper-case LARGE OBJECT family prefix. Invalid privilege masks, malformed syntax
-and actual role/grantor diagnostics remain separate.
+Valid LANGUAGE targets retain `0A000 LANGUAGE privileges are unsupported in
+embedded mode`. LARGE OBJECT numeric targets support SELECT/UPDATE and ordinary
+grant-option/revoke/cascade rules. Invalid masks, malformed syntax and actual
+role/grantor diagnostics remain separate.
 
 Ordinary REVOKE removes selected privileges and their grant options only from the
 selected grantor's origin; GRANT OPTION FOR preserves ordinary use. Default and
@@ -722,8 +752,8 @@ log_cnt and is_called. ALL suppresses the relation's partial warning but retains
 those nine column warnings. An already-effective owner revoke is not itself a
 reason to emit a warning.
 
-Valid plain, option-only and CASCADE language/large-object revocations retain the
-same native unavailable errors above. ALTER SYSTEM still has no native file-write
+Valid plain, option-only and CASCADE language revocations retain the same native
+unavailable error above. ALTER SYSTEM still has no native file-write
 mechanism. Physical tablespace placement remains unavailable natively; pg_default
 default placement is not a CREATE-privilege denial witness, and pg_global retains
 its separate shared-relations restriction. Supported SQL/MED USAGE revocation
@@ -850,8 +880,8 @@ No SELECT privilege on the queried object is required. Name casts such as
 REGCLASS still use their normal schema/name resolution.
 
 Supported existing descriptors expose relation, namespace, type, procedure,
-database, foreign-wrapper and server ACLs. Recognized classes without native
-instances produce missing-object NULLs; no language/large-object ACL is fabricated.
+database, foreign-wrapper/server and large-object ACLs. Recognized classes without
+native instances produce missing-object NULLs; no language ACL is fabricated.
 Recognized ACL-less classes return NULL before object lookup. Unknown class IDs,
 including pg_attribute1249 and pg_parameter_acl6243, raise XX000 rather than
 being confused with missing objects. `(0,0,subid)` returns NULL.
@@ -2643,9 +2673,10 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `pg_class`, `pg_attribute`, reciprocal row/array types and bounded `pg_tables`
   describe this indexed, database-local table without physical index/TOAST rows.
   Native DML and row locks remain unsupported. Dump rejects stored defaults before
-  output, unsupported Restore is atomic, and Reset clears policies. No routine or
-  large-object storage, catalog GRANT SQL, or new default-effects/serializer
-  capability is implied. See [selected proof](../reference/catalogs/README.md#pg_default_acl-selected-proof).
+  output, unsupported Restore is atomic, and Reset clears policies. This catalog
+  alone adds no routine creation, catalog GRANT SQL or general serializer capability.
+  Large-object creation consumes its global defaults as documented above.
+  See [selected proof](../reference/catalogs/README.md#pg_default_acl-selected-proof).
 
 
 ## Data type privilege descriptors

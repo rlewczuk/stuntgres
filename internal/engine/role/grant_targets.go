@@ -113,6 +113,18 @@ func objectGrantTargets(h Host, auth ddl.Authority, s *parser.ObjectGrant) ([]ca
 // schema, type or domain.
 func grantObject(h Host, auth ddl.Authority, name parser.ObjectName, kind string) (ids.ObjectRef, error) {
 	view := h.AccessView(auth)
+	if kind == "large object" {
+		text := catalog.ObjectNameText(name)
+		n, err := strconv.ParseInt(text, 10, 64)
+		if err != nil || n < -2147483648 || n > 4294967295 {
+			return ids.ObjectRef{}, sqlError("22003", fmt.Sprintf("value %q is out of range for type oid", text))
+		}
+		a := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: ids.OID(uint32(n))}
+		if view.Catalog.Get(a) == nil {
+			return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("large object %d does not exist", a.ObjectID))
+		}
+		return view.Ref(a), nil
+	}
 	if kind == "" || kind == "sequence" {
 		return h.ResolveRelation(auth, name)
 	}

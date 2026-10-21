@@ -119,6 +119,18 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 				return err
 			}
 			state.SetDescriptor(addr, &n)
+		case *LargeObject:
+			n := *d
+			var err error
+			n.Owner, err = remap(d.Owner)
+			if err != nil {
+				return err
+			}
+			n.ACL, err = acl(d.ACL)
+			if err != nil {
+				return err
+			}
+			state.SetDescriptor(addr, &n)
 		case *TSDictionary:
 			n := *d
 			var err error

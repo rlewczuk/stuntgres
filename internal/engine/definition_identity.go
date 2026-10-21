@@ -33,7 +33,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 	sort.Slice(relations, func(i, j int) bool { return relations[i].Address().ObjectID < relations[j].Address().ObjectID })
 	claimed := make(map[ids.OID]bool)
 	for address, descriptor := range next.Descriptors() {
-		claimed[address.ObjectID] = true
+		if address.ClassID != ids.LargeObjectClassID {
+			claimed[address.ObjectID] = true
+		}
 		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				claimed[helper.ID] = true

@@ -121,6 +121,7 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 	end := func() {
 		operationReplay(op).sqlBodies = false
 		operationReplay(op).defaultReplay = false
+		operationReplay(op).largeObjectAuthority = false
 		operationReplay(op).partitionAttach = false
 		operationReplay(op).partitionCheck = nil
 		operationReplay(op).partitionUsingIndex = nil
@@ -163,6 +164,7 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 		result, err = r.stage.Execute(op, stmt, 0, nil)
 	}
 	operationReplay(op).defaultReplay = false
+	operationReplay(op).largeObjectAuthority = false
 	operationReplay(op).partitionAttach = false
 	operationReplay(op).partitionCheck = nil
 	operationReplay(op).partitionUsingIndex = nil

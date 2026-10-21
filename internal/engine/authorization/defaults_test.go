@@ -165,7 +165,7 @@ func TestDefaultSchemaCreationACLOrder(t *testing.T) {
 	if !reflect.DeepEqual(global.Entries, before) {
 		t.Fatal("sorted result aliases immutable input")
 	}
-	for _, class := range []DefaultACLClass{DefaultTables, DefaultSequences, DefaultRoutines, DefaultTypes, DefaultLargeObjects} {
+	for _, class := range []DefaultACLClass{DefaultTables, DefaultSequences, DefaultRoutines, DefaultTypes} {
 		mask := DefaultMask(class)
 		record := ACLValue{Explicit: true, Entries: []ACLEntry{
 			{Grantor: f.owner, Grantee: ACLGrantee{Role: f.reader}, Privileges: mask, GrantOptions: mask},
@@ -181,5 +181,27 @@ func TestDefaultSchemaCreationACLOrder(t *testing.T) {
 		if value := CreationDefaultACL(f.owner, DefaultSchemas, record, nil); value.Explicit || len(value.Entries) != 0 {
 			t.Fatal("schema NULL/baseline normalization", value)
 		}
+	}
+}
+
+func TestDefaultLargeObjectCreationACLOrder(t *testing.T) {
+	// Released LO creation ACLs use numeric grantee/grantor ordering, not an
+	// owner-first rewrite. Keep rights/options and the immutable input exact.
+	domain := &Domain{}
+	owner, reader, grantor := domain.Principal(40), domain.Principal(20), domain.Principal(30)
+	ownerEntry := ACLEntry{Grantor: owner, Grantee: ACLGrantee{Role: owner}, Privileges: SelectPrivilege | UpdatePrivilege}
+	publicEntry := ACLEntry{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}
+	readerOwnerEntry := ACLEntry{Grantor: owner, Grantee: ACLGrantee{Role: reader}, Privileges: SelectPrivilege, GrantOptions: SelectPrivilege}
+	readerGrantorEntry := ACLEntry{Grantor: grantor, Grantee: ACLGrantee{Role: reader}, Privileges: UpdatePrivilege, GrantOptions: UpdatePrivilege}
+	input := ACLValue{Explicit: true, Entries: []ACLEntry{ownerEntry, readerOwnerEntry, publicEntry, readerGrantorEntry}}
+	before := append([]ACLEntry(nil), input.Entries...)
+	want := ACLValue{Explicit: true, Entries: []ACLEntry{publicEntry, readerGrantorEntry, readerOwnerEntry, ownerEntry}}
+	got := CreationDefaultACL(owner, DefaultLargeObjects, &input, nil)
+	if !reflect.DeepEqual(got, want) || !reflect.DeepEqual(input.Entries, before) {
+		t.Fatal("large-object grantee/grantor order/options/refs/input immutability", got, want, input)
+	}
+	got.Entries[0].Privileges = UpdatePrivilege
+	if !reflect.DeepEqual(input.Entries, before) {
+		t.Fatal("large-object creation ACL aliases immutable source")
 	}
 }

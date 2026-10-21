@@ -295,6 +295,13 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		n := *d
 		n.ACL = acl
 		next = &n
+	case *catalog.LargeObject:
+		if ref.Address.SubID != 0 {
+			return fmt.Errorf("stuntgres: large object subobject")
+		}
+		n := *d
+		n.ACL = acl
+		next = &n
 	case *catalog.Relation:
 		if ref.Address.SubID < 0 || ref.Address.SubID > 0 && !d.HasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid ACL column")

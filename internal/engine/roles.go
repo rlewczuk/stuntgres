@@ -152,6 +152,8 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 		name = d.Name()
 	case *catalog.Tablespace:
 		kind = "tablespace "
+	case *catalog.LargeObject:
+		kind, name = "large object ", d.Name()
 	case *catalog.Extension:
 		kind = "extension "
 	case *catalog.Procedure:

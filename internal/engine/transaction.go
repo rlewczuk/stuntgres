@@ -254,6 +254,7 @@ type StatementScope struct {
 	activeSQLRoutineDepth int                         // Root invocation owner; never saved/reset as lexical scratch.
 	quoteCaptures         *exec.QuoteCaptureCandidate // sealed before executor/source publication
 	catalog               *session.Journal
+	largeObjectRead       catalog.Read // Immutable active-query READ view, saved/restored by SQL body activation.
 	catalogAuthority      *catalogAuthority
 	projectedRoots        bool
 	foreignActionAuth     *AuthorizationView

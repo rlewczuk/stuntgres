@@ -42,6 +42,7 @@ var producers = [...]Registration{
 	{2617, capturePGOperator},
 	{2618, capturePGRewrite},
 	{2964, capturePGDBRoleSetting},
+	{2995, capturePGLargeObjectMetadata},
 	{3079, captureExtensionCatalog},
 	{3118, captureForeignCatalog},
 	{3456, capturePGCollation},

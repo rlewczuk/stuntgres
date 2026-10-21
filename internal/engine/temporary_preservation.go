@@ -256,8 +256,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := e.retainTemporaryViewProvidersLocked(next, temporary); err != nil {
 		return err
 	}
-	// OIDs share one identity space even when their catalog classes differ.
 	// Retained TEMP definitions cannot be reminted to make room for imports.
+	// Large-object OIDs are class-local and may equal retained relation OIDs.
 	retainedIDs := make(map[ids.OID]bool)
 	for address, descriptor := range temporary {
 		retainedIDs[address.ObjectID] = true
@@ -273,7 +273,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	}
 	mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
 	remapCollision := func(address ids.ObjectAddress) error {
-		if !retainedIDs[address.ObjectID] {
+		if address.ClassID == ids.LargeObjectClassID || !retainedIDs[address.ObjectID] {
 			return nil
 		}
 		for {

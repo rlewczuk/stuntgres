@@ -14,6 +14,14 @@ import (
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
+	// PostgreSQL REL_18_6 selected SQL large-object wrappers.
+	{catalog.RoutineIdentity{715, ids.PGCatalogNamespaceOID, "lo_create", "26"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
+	{catalog.RoutineIdentity{957, ids.PGCatalogNamespaceOID, "lo_creat", "23"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
+	{catalog.RoutineIdentity{964, ids.PGCatalogNamespaceOID, "lo_unlink", "26"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
+	{catalog.RoutineIdentity{3457, ids.PGCatalogNamespaceOID, "lo_from_bytea", "26,17"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
+	{catalog.RoutineIdentity{3458, ids.PGCatalogNamespaceOID, "lo_get", "26"}, catalog.FunctionRoutine, 17, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
+	{catalog.RoutineIdentity{3459, ids.PGCatalogNamespaceOID, "lo_get", "26,20,23"}, catalog.FunctionRoutine, 17, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
+	{catalog.RoutineIdentity{3460, ids.PGCatalogNamespaceOID, "lo_put", "26,20,17"}, catalog.FunctionRoutine, 2278, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
 	{catalog.RoutineIdentity{56, ids.PGCatalogNamespaceOID, "boollt", "16,16"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{57, ids.PGCatalogNamespaceOID, "boolgt", "16,16"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{60, ids.PGCatalogNamespaceOID, "booleq", "16,16"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

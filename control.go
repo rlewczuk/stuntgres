@@ -87,6 +87,7 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // Same-owner temporary FK action graphs retain exact definition/parent/key/list
 // identities, storage, defaults and prepared provenance.
 // Persistent registered extensions and their member identities are removed together.
+// Persistent large objects and their bytes/owner/raw ACLs are removed together.
 // Live destination TEMP-target installations retain their exact namespace token,
 // extension/member/provider identities, owner authority and owned TEMP consumers.
 // Retained TEMP view manifests keep exact captured procedures; this contextual
@@ -113,6 +114,9 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Session-private temporary objects, advisory ownership/counts and pending session
 // caches are not serialized. Stored CHECK/view definitions remain ordinary SQL.
 // Only committed data is serialized, never prepared private writes or GIDs.
+// Large objects retain fixed class-local OIDs, owners and exact raw ACLs.
+// Sparse stored chunks (including terminal zeros), not holes, are serialized
+// separately from relation declaration graph identities.
 // Commit timestamp history and startup configuration are runtime-only, not dumped;
 // legal inquiry expressions in defaults/views remain symbolic SQL.
 // Inheritance parents precede children; ordered INHERITS and local declaration
@@ -156,8 +160,9 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, registered CREATE EXTENSION providers,
 // parameter-free scalar INSERT (including integer
 // arithmetic), database-local COMMENT, sequence OWNED BY associations, generated
-// SELECT setval(name,value,is_called), and named owner directives succeed.
-// Parameters are recursively rejected; other statements remain excluded.
+// SELECT setval(name,value,is_called), generated literal large-object create/put
+// SELECTs, exact single-object raw large-object ACL repairs, and named owner
+// directives succeed. Parameters and arbitrary function SELECTs remain excluded.
 // ROLE comments are shared authority metadata: Reset and Restore preserve them,
 // and Dump excludes them. Query INSERT sources are deliberately not Restore
 // syntax; Dump emits canonical literal VALUES.
@@ -180,6 +185,8 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // Private stage INSERT and database-local COMMENT use validated captured bootstrap
 // authority without changing named owner directives, session identity or ordinary
 // SQL authorization. Neither command stamps ownership or synthesizes ACL grants.
+// Exact generated large-object byte replay uses private import authority under
+// the original owner, then installs raw ACLs without synthetic owner privileges.
 // Policy TO roles must already exist and retain captured principal provenance.
 // CREATE POLICY uses validated private import authority without granting ordinary
 // SQL privileges. TO CURRENT_USER/CURRENT_ROLE/SESSION_USER resolve against the
