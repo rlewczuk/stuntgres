@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func typedefHostName(parts ...string) parser.ObjectName {
+func ddlHostName(parts ...string) parser.ObjectName {
 	name := parser.ObjectName{}
 	for _, part := range parts {
 		name.Parts = append(name.Parts, parser.Identifier{Text: part})
@@ -19,15 +19,15 @@ func typedefHostName(parts ...string) parser.ObjectName {
 	return name
 }
 
-func TestTypedefHostCreationNamespaceRecapturesCopy(t *testing.T) {
+func TestDDLHostCreationNamespaceRecapturesCopy(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := typedefHost{e: e, op: op, stage: stage}
-	ref, next, err := h.CreationNamespace(auth, typedefHostName("pg_temp", "seam"))
+	h := ddlHost{e: e, op: op, stage: stage}
+	ref, next, err := h.CreationNamespace(auth, ddlHostName("pg_temp", "seam"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,21 +43,21 @@ func TestTypedefHostCreationNamespaceRecapturesCopy(t *testing.T) {
 	}
 }
 
-func TestTypedefHostStageKeepsLifecycle(t *testing.T) {
+func TestDDLHostStageKeepsLifecycle(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.DiscardCatalogStage(stage)
-	h := typedefHost{e: e, op: op, stage: stage}
+	h := ddlHost{e: e, op: op, stage: stage}
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "closed", ObjectRevision: 1, Owner: auth.State.CurrentUser}
 	if err := h.Stage().Create(ns); err == nil {
 		t.Fatal("a discarded stage accepted a descriptor")
 	}
 }
 
-func TestTypedefHostSearchNamespacesMapsClasses(t *testing.T) {
+func TestDDLHostSearchNamespacesMapsClasses(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, `CREATE TEMP TABLE typedef_search_seam(id INT)`)
@@ -74,8 +74,8 @@ func TestTypedefHostSearchNamespacesMapsClasses(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := typedefHost{e: e, op: op, stage: stage}
-	name := typedefHostName("seam")
+	h := ddlHost{e: e, op: op, stage: stage}
+	name := ddlHostName("seam")
 	results := map[ids.OID][]ids.ObjectAddress{}
 	for class, kind := range map[ids.OID]analyze.LookupKind{ids.TypeClassID: analyze.TypeLookup, ids.ConversionClassID: analyze.ConversionLookup, ids.OperatorClassID: analyze.OperatorLookup} {
 		got, err := h.SearchNamespaces(auth, name, class)
@@ -102,5 +102,27 @@ func TestTypedefHostSearchNamespacesMapsClasses(t *testing.T) {
 	}
 	if _, err := h.SearchNamespaces(auth, name, ids.RelationClassID); err == nil {
 		t.Fatal("an unsupported class was searched")
+	}
+}
+
+func TestDDLHostRecaptureLeavesArgument(t *testing.T) {
+	e := New()
+	op, auth := conversionUnitAuth(t, e)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	stage := e.BeginCatalogStage(auth.Catalog)
+	defer e.DiscardCatalogStage(stage)
+	h := ddlHost{e: e, op: op, stage: stage}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "recaptured", ObjectRevision: 1, Owner: auth.State.CurrentUser}
+	if err := h.Stage().Create(ns); err != nil {
+		t.Fatal(err)
+	}
+	base := auth.Catalog
+	next := ddlAuthorityOf(h.Recapture(auth, h.StageRead()))
+	if _, ok := next.Catalog.Namespace(ns.Address()); !ok || next.PairedCatalog != next.Catalog {
+		t.Fatal("the returned authority does not read the stage")
+	}
+	if _, ok := auth.Catalog.Namespace(ns.Address()); ok || auth.Catalog != base || auth.PairedCatalog != base {
+		t.Fatal("the argument authority was recaptured")
 	}
 }

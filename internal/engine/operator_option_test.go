@@ -63,7 +63,7 @@ func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 			before := e.CatalogRead().State()
 			stage := e.BeginCatalogStage(auth.Catalog)
 			e.mu.Lock()
-			err = routine.StageCreateOperator(schemaHost{e: e, op: op, stage: stage}, auth, s)
+			err = routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, s)
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, tc.detail)
 			if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
@@ -92,7 +92,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	// must accumulate on the same actual private peer rather than stale copies.
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
-	err := routine.StageAlterOperator(schemaHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#@#),hashes,merges")})
+	err := routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#@#),hashes,merges")})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 			before := e.CatalogRead().State()
 			stage := e.BeginCatalogStage(auth.Catalog)
 			e.mu.Lock()
-			err := routine.StageAlterOperator(schemaHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+			err := routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
 			if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
@@ -155,7 +155,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		t.Run(tc.options, func(t *testing.T) {
 			stage := e.BeginCatalogStage(auth.Catalog)
 			e.mu.Lock()
-			err := routine.StageAlterOperator(schemaHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+			err := routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
 			if e.CatalogRead().State() != auth.Catalog.State() || stage.DescriptorCount() != 0 {
@@ -190,7 +190,7 @@ func TestUserOperatorCreationCheckpoints(t *testing.T) {
 				definition.Options = append(definition.Options, operatorParsedOptions(t, tc.options)...)
 				stage := e.BeginCatalogStage(auth.Catalog)
 				e.mu.Lock()
-				err := routine.StageCreateOperator(schemaHost{e: e, op: op, stage: stage}, auth, definition)
+				err := routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, definition)
 				e.mu.Unlock()
 				code, message := tc.code, tc.message
 				if symbol == "invalid" && code == "42P13" {
@@ -236,10 +236,10 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 				e.mu.Lock()
 				var err error
 				if alter {
-					err = routine.StageAlterOperator(schemaHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+					err = routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 				} else {
 					definition := &parser.CreateOperator{Name: operatorUnitName("public", "##?"), Options: operatorParsedOptions(t, "rightarg=int4,function=int4um,"+tc.options)}
-					err = routine.StageCreateOperator(schemaHost{e: e, op: op, stage: stage}, auth, definition)
+					err = routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, definition)
 				}
 				e.mu.Unlock()
 				operatorOptionDiagnostic(t, err, "42P13", tc.message, "")
@@ -302,7 +302,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	failed.Options = append(failed.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#=#)")...)
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
-	err := routine.StageCreateOperator(schemaHost{e: e, op: op, stage: stage}, auth, failed)
+	err := routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, failed)
 	e.mu.Unlock()
 	operatorOptionDiagnostic(t, err, "42P13", "negator operator #=# is already the negator of operator #!#", "")
 	staged = e.stageRead(stage)

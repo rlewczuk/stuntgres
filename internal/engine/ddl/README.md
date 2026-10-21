@@ -46,11 +46,18 @@ and none waits on the lock manager. The package adds no mutex.
   embeds `Allocator` and `TypeStaging`. The extension handlers take an
   `Authority` and check it through the `access.View` passed beside it.
 - In the engine, `AuthorizationView` is the only `Authority`
-  (`ddlAuthorityOf` recovers it and panics on another kind). The adapters
-  are `schemaHost` (`schema_host.go`), `typedefHost` (`typedef_host.go`, a
-  defined type over `schemaHost` whose shared methods delegate to it) and
-  `extensionHost` (`extension_host.go`), which wraps the stage and is never a
-  defined type over `CatalogStage`.
+  (`ddlAuthorityOf` recovers it and panics on another kind). There is one
+  staging adapter, `ddlHost` (engine, operation, catalog stage): its
+  `Host` methods are in `ddl_host.go`, the `routine.DDLHost` methods in
+  `routine_host.go`, and the `typedef.StageHost` and `TypeStaging` methods in
+  `typedef_host.go`. `extensionHost` (`extension_host.go`) stays separate: it
+  captures one view and implements `extension.Host` and `extension.Stage`.
+  Neither adapter is a defined type over `CatalogStage`, so its unchecked
+  `Create`/`Replace` are never promoted.
+- A later feature host embeds `Host` and declares no `Authority` or `Stage`
+  of its own. Its root adapter either embeds `ddlHost` (Go promotes the
+  shared methods) or is `ddlHost` itself; the feature's refine step
+  chooses. A shared method body is never copied.
 
 ## What stays in the engine
 
@@ -70,5 +77,9 @@ the catalog epoch and that `Notice` emits NOTICE level:
 timeout 900s make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel)$'
 ```
 
-The engine adapters are pinned by `TestSchemaHostRecaptureLeavesArgument`
-and the `TestTypedefHost` tests in the engine package.
+The engine adapter is pinned by the `TestDDLHost` tests in the engine
+package (`ddl_host_test.go`):
+
+```sh
+timeout 900s make check RUN='^TestDDLHost'
+```

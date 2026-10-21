@@ -409,7 +409,32 @@ in §8.3 pass.
   `CompositeExpr(Correlated)Returning` failed, in their `/postgres`
   subtests, identically on master (oracle drift); no bench (startup
   untouched); racecheck/finalcheck skipped at user request
-- [ ] 20b — One root staging adapter (`ddlHost`)
+- [x] 20b — One root staging adapter (`ddlHost`) (`b0d3e53b7`,
+  `d25058ea5`, then the docs commit; linear item 61). Re-measured at
+  `205d59485`: the shared methods already had one body (`typedefHost`'s 15
+  `ddl.Host` methods were delegates, `DependencyObject` already returned
+  `(string, error)`), and no routine-only method name clashes with a
+  typedef-only one, so one type serves both. `schemaHost` was renamed
+  `ddlHost` (`schema_host.go` → `ddl_host.go`); the delegates and
+  `type typedefHost` were deleted, and the typedef methods (with
+  `ddl.TypeStaging`) became `ddlHost` methods in `typedef_host.go`. The
+  routine-only methods moved from `ddl_host.go` to a new `routine_host.go`,
+  so each consumer's methods and its one compile-time assertion
+  (`ddl.Host`, `routine.DDLHost`, `typedef.StageHost`) sit in one file.
+  `stageSchemaLocked` passes `host` to the typedef handlers (no
+  `types := typedefHost(host)`); `domain_alter.go` and `enum_ddl.go` build a
+  `ddlHost`. `extensionHost` is unchanged: it already calls the shared root
+  functions (`allocateOIDLocked`, `revisionLocked`,
+  `displaceAssociatedArrayLocked`, `associatedArrayName`,
+  `creationTypeACL`) and does not embed `ddlHost`. Tests: the three
+  `TestTypedefHost*` tests and `TestSchemaHostRecaptureLeavesArgument` are
+  `TestDDLHost*` in `ddl_host_test.go` (`typedef_host_test.go` and
+  `schema_host_test.go` are gone; bodies unchanged); ten engine test files
+  build `ddlHost{...}` instead of `schemaHost{...}`/`typedefHost{...}`. No
+  test deleted. No new seam test: the change adds no semantics, and the
+  compile-time assertions pin the three consumers. Selected unit and
+  dual-mode proof and quickcheck passed; no bench (startup untouched);
+  racecheck/finalcheck skipped at user request
 - [ ] 20c — Schema-level DDL refined (docs only)
 - [ ] 20d — Schema and tablespace decisions moved
 
@@ -417,12 +442,14 @@ Outstanding aliases: none yet.
 
 ### Notes for later steps
 
-- 20b: `typedefHost`'s shared methods are one-line delegates to
-  `schemaHost`, so merging is deleting them and moving the type methods
-  plus `TypeStaging` onto `ddlHost`.
-
+- 20c/20d: `ddl.SchemaHost` goes on `ddlHost`; put its schema-only
+  methods in their own root file (as `routine_host.go` and
+  `typedef_host.go` do) with one assertion.
 - 23c–28c (Part B of the upper features): a feature host embeds `ddl.Host`;
-  do not declare another `Authority` or `Stage`.
+  do not declare another `Authority` or `Stage`. Its root adapter embeds
+  `ddlHost` (Go promotes the shared methods) or `ddlHost` implements the new
+  interface directly, in a `<feature>_host.go` file with its assertion; the
+  refine of each step chooses. Never copy a shared method body.
 - 24c designs the general removal interface (dependents, cascade notices,
   prepared drops over `dropProvider`); 20d adds only `RemoveObject`.
 - 5i moved `tablespaceLocation`, `tablespaceName` and `namespaceChildren`

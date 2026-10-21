@@ -23,7 +23,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		f.e.mu.Lock()
 		auth, err := f.e.authorizationLocked(f.op)
 		if err == nil {
-			err = typedef.StageCreateEnumLocked(typedefHost{e: f.e, op: f.op, stage: stage}, auth, &parser.CreateEnum{
+			err = typedef.StageCreateEnumLocked(ddlHost{e: f.e, op: f.op, stage: stage}, auth, &parser.CreateEnum{
 				Name:   parser.ObjectName{Parts: []parser.Identifier{{Text: "default_schema"}, {Text: name}}},
 				Labels: []parser.EnumLabel{{Text: "a"}},
 			})

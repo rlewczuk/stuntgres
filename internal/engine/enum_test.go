@@ -36,7 +36,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
 		if err == nil {
-			err = typedef.StageCreateEnumLocked(typedefHost{e: e, op: op, stage: e.BeginCatalogStage(auth.Catalog)}, auth, raw.(*parser.CreateEnum))
+			err = typedef.StageCreateEnumLocked(ddlHost{e: e, op: op, stage: e.BeginCatalogStage(auth.Catalog)}, auth, raw.(*parser.CreateEnum))
 		}
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error
@@ -83,7 +83,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	dependent := statement(t, "CREATE DOMAIN public.consumer AS public.mood").(*parser.CreateDomain)
 	e.mu.Lock()
 	consumer := e.BeginCatalogStage(auth.Catalog)
-	err = typedef.StageCreateDomainLocked(typedefHost{e: e, op: op, stage: consumer}, auth, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	err = typedef.StageCreateDomainLocked(ddlHost{e: e, op: op, stage: consumer}, auth, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal("PUBLIC USAGE did not admit distinct consumer", err)
@@ -104,7 +104,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	auth.State.CurrentUser = reader
 	e.mu.Lock()
 	denied := e.BeginCatalogStage(auth.Catalog)
-	err = typedef.StageCreateDomainLocked(typedefHost{e: e, op: op, stage: denied}, auth, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	err = typedef.StageCreateDomainLocked(ddlHost{e: e, op: op, stage: denied}, auth, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.mu.Unlock()
 	domainUnitDiagnostic(t, err, "42501", "permission denied for type mood")
 	if denied.DescriptorCount() != 0 {
