@@ -48,7 +48,7 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 // Prepare the complete auxiliary/primary tree without executing any command.
 // Enter held; all outcomes release Engine.mu.
 func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCTEProgram) (Result, error) {
-	if scope.ruleActionAuth == nil {
+	if scope.ruleAction.auth == nil {
 		scope.routineAuth = auth
 	}
 	if len(b.CTEs) == 0 {
@@ -77,8 +77,8 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	if err != nil {
 		return Result{}, err
 	}
-	originalRuleAuth := scope.ruleActionAuth
-	defer func() { scope.ruleActionAuth = originalRuleAuth }()
+	originalRuleAction := scope.ruleAction
+	defer func() { scope.ruleAction = originalRuleAction }()
 	main := scope.activeMutation
 	defer scope.activateMutation(main)
 	count, primaryTag := 0, ""
@@ -111,9 +111,9 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			}
 			ruleAuth := ruleAuthorizationOf(rewrite.command.auth)
 			syntax, commandBinding, commandAuth = rewrite.command.syntax, rewrite.command.binding, ruleAuth
-			scope.ruleActionAuth = &ruleAuth
+			scope.ruleAction = ruleActionScope{auth: &ruleAuth}
 		} else {
-			scope.ruleActionAuth = originalRuleAuth
+			scope.ruleAction = originalRuleAction
 		}
 		index := scope.mutationIndex(definition.Statement)
 		if rewrite != nil {
@@ -134,7 +134,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		e.mu.Lock()
 	}
 	scope.activateMutation(main)
-	scope.ruleActionAuth = originalRuleAuth
+	scope.ruleAction = originalRuleAction
 	preparedMain := preparedCommandExecution{primaryTag: primaryTag}
 	evaluation.QuoteCaptures.Sealed = false
 	if _, err := e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &preparedMain); err != nil {
@@ -154,12 +154,12 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	if len(b.CTEs) == 0 {
 		return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 	}
-	originalRuleAuth := scope.ruleActionAuth
+	originalRuleAction := scope.ruleAction
 	main := prepared.mainMutation
 	normalizedRefs := prepared.normalizedRefs
 	defer func() {
 		scope.activateMutation(main)
-		scope.ruleActionAuth = originalRuleAuth
+		scope.ruleAction = originalRuleAction
 	}()
 	if err := scope.refreshRelationGrantsLocked(e); err != nil {
 		e.mu.Unlock()
@@ -259,9 +259,9 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		command := &commands[i]
 		scope.activeMutation = command.mutation
 		scope.installRuleScratch(command.scratch)
-		scope.ruleActionAuth = originalRuleAuth
+		scope.ruleAction = originalRuleAction
 		if command.ruleOwner {
-			scope.ruleActionAuth = &command.execution.auth
+			scope.ruleAction = ruleActionScope{auth: &command.execution.auth}
 		}
 		output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil)
 		if err != nil {
@@ -286,7 +286,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	}
 	scope.activateMutation(main)
 	scope.installRuleScratch(prepared.mainScratch)
-	scope.ruleActionAuth = originalRuleAuth
+	scope.ruleAction = originalRuleAction
 	return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 }
 

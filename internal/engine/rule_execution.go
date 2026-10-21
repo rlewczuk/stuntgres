@@ -12,6 +12,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// ruleActionScope is the rule-owner authority of the rule action command now
+// executing; nil auth means no rule action is active. Command switches save
+// and restore it as one unit.
+type ruleActionScope struct {
+	auth *AuthorizationView
+}
+
 // Only command-local target/source scratch changes. Publication, the operation,
 // parameter frame, original signature, snapshot frontier and budget remain owned
 // by the original StatementScope and its one WriteStage/Finish.
@@ -28,12 +35,12 @@ type ruleCommandScratch struct {
 	partition  *partitionInsertState
 	locks      *exec.LockContext
 	admission  analyze.LockAdmission
-	auth       *AuthorizationView
+	ruleAction ruleActionScope
 	quotes     *exec.QuoteCaptureCandidate
 }
 
 func (s *StatementScope) ruleScratch() ruleCommandScratch {
-	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.viewWrite, sources: s.querySources, unique: s.uniqueBinding, conflict: s.insertConflict, returning: s.insertReturning, partition: s.partitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, auth: s.ruleActionAuth, quotes: s.quoteCaptures}
+	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.viewWrite, sources: s.querySources, unique: s.uniqueBinding, conflict: s.insertConflict, returning: s.insertReturning, partition: s.partitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, ruleAction: s.ruleAction, quotes: s.quoteCaptures}
 }
 func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.statementMutation = c.mutation
@@ -41,7 +48,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.viewWrite, s.querySources = c.viewWrite, c.sources
 	s.uniqueBinding, s.insertConflict, s.insertReturning, s.partitionInsert = c.unique, c.conflict, c.returning, c.partition
 	s.queryLocks, s.queryLockAdmission = c.locks, c.admission
-	s.ruleActionAuth = c.auth
+	s.ruleAction = c.ruleAction
 	s.quoteCaptures = c.quotes
 }
 
@@ -130,7 +137,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		}
 		physical := physicalBinding(command.binding)
 		commandAuth := ruleAuthorizationOf(command.auth)
-		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: viewWriteOf(command.binding.ViewWrite), sources: command.binding.QuerySources, auth: &commandAuth})
+		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: viewWriteOf(command.binding.ViewWrite), sources: command.binding.QuerySources, ruleAction: ruleActionScope{auth: &commandAuth}})
 		captures := &exec.QuoteCaptureCandidate{}
 		if command.binding.Parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}

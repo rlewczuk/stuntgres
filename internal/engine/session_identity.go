@@ -39,7 +39,7 @@ func (h *statementHost) IdentityValue(c *exec.Context, kind functions.IdentityKi
 	case functions.IdentitySystemUser:
 		return identity.System, nil
 	case functions.IdentityCurrentSchema:
-		if s.foreignActionAuth == nil && s.ruleActionAuth == nil && s.inquiry.currentSchemaResult.Type() != nil {
+		if s.foreignActionAuth == nil && s.ruleAction.auth == nil && s.inquiry.currentSchemaResult.Type() != nil {
 			return s.inquiry.currentSchemaResult, nil
 		}
 		engine := s.engine()
@@ -53,7 +53,7 @@ func (h *statementHost) IdentityValue(c *exec.Context, kind functions.IdentityKi
 		if len(path) > 0 {
 			resultValue = sqltype.String(result, auth.Catalog.Get(path[0]).Name())
 		}
-		if s.foreignActionAuth == nil && s.ruleActionAuth == nil {
+		if s.foreignActionAuth == nil && s.ruleAction.auth == nil {
 			s.inquiry.currentSchemaResult = resultValue
 		}
 		return resultValue, nil

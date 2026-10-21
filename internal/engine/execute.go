@@ -600,7 +600,7 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b analyze.Bind
 	if err := evaluateGenerations(evaluation.Context, b.Relation, row, evaluation); err != nil {
 		return err
 	}
-	if err := access.RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
+	if err := access.RowSecurityProposal(scope.rls.proposal, scope.rls.proposalTable); err != nil {
 		return err
 	}
 	return validatePhysicalRowConstraints(b.Relation, schema, row, evaluation, func() (string, error) { return e.rowConstraintDetail(scope, named, row) })

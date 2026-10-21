@@ -206,7 +206,7 @@ type StatementScope struct {
 	self           *StatementScope
 	owner          *session.TransactionOwner
 	op             *session.Operation
-	ruleActionAuth *AuthorizationView
+	ruleAction     ruleActionScope
 	rowSecurity    bool // Immutable effective setting for this admitted statement.
 	authority      *exec.Authority
 	// Borrowed only during this statement's admission/execution. Admission

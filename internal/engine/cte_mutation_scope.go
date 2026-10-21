@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -27,11 +26,7 @@ type statementMutation struct {
 	insertConflict        *insertConflictState
 	insertReturning       *insertReturningOutput
 	partitionInsert       *partitionInsertState
-	rlsTargetDenied       bool
-	rlsProposal           access.RLSDisposition
-	rlsMergeUpdate        access.RLSDisposition
-	rlsMergeInsert        access.RLSDisposition
-	rlsProposalTable      string
+	rls                   rowSecurityMutation
 	partitionRelations    map[ids.ObjectAddress]*catalog.Relation
 	admittedTargetName    parser.ObjectName
 	admittedTargetLexical ids.ObjectRef

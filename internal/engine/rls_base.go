@@ -68,9 +68,20 @@ func rowSecurityLayers(view catalog.Read, b analyze.Binding) []access.RowSecurit
 	return layers
 }
 
+// rowSecurityMutation is the row-level security state of one command,
+// written by configureRowSecurityLocked. It is part of statementMutation, so
+// command switches save and restore it as one unit.
+type rowSecurityMutation struct {
+	targetDenied  bool
+	proposal      access.RLSDisposition
+	mergeUpdate   access.RLSDisposition
+	mergeInsert   access.RLSDisposition
+	proposalTable string
+}
+
 func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Binding, stmt parser.Statement) error {
-	scope.rlsTargetDenied = false
-	scope.rlsProposal, scope.rlsMergeInsert, scope.rlsMergeUpdate = access.RLSUnrestricted, access.RLSUnrestricted, access.RLSUnrestricted
+	scope.rls.targetDenied = false
+	scope.rls.proposal, scope.rls.mergeInsert, scope.rls.mergeUpdate = access.RLSUnrestricted, access.RLSUnrestricted, access.RLSUnrestricted
 	if b.Relation == nil {
 		return nil
 	}
@@ -87,7 +98,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 	default:
 		return nil
 	}
-	scope.rlsProposalTable = b.Relation.Name()
+	scope.rls.proposalTable = b.Relation.Name()
 	if !b.Relation.Security.RLSEnabled {
 		return nil
 	}
@@ -95,8 +106,8 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 	if err != nil {
 		return err
 	}
-	if scope.ruleActionAuth != nil {
-		auth.State.CurrentUser = scope.ruleActionAuth.State.CurrentUser
+	if scope.ruleAction.auth != nil {
+		auth.State.CurrentUser = scope.ruleAction.auth.State.CurrentUser
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
@@ -116,18 +127,18 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 		if decision == access.RLSNeedsExpressions {
 			return access.RowSecurityExpressionError()
 		}
-		scope.rlsTargetDenied = decision == access.RLSDefaultDeny
+		scope.rls.targetDenied = decision == access.RLSDefaultDeny
 	}
 	proposedRead := b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0
 	switch stmt.(type) {
 	case *parser.Insert:
-		scope.rlsProposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, proposedRead)
+		scope.rls.proposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, proposedRead)
 	case *parser.Update:
-		scope.rlsProposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyUpdate, true, reads)
+		scope.rls.proposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyUpdate, true, reads)
 	case *parser.Merge:
-		scope.rlsMergeInsert, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, false)
+		scope.rls.mergeInsert, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, false)
 		if err == nil {
-			scope.rlsMergeUpdate, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyUpdate, true, true)
+			scope.rls.mergeUpdate, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyUpdate, true, true)
 		}
 	}
 	return err

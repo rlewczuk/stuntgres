@@ -62,8 +62,8 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 	// Keep the actual invoker capture in the statement slot. Rule relation
 	// authority and RI owner substitution remain local to the returned view.
 	s.routineAuth = auth
-	if s.ruleActionAuth != nil {
-		auth.State.CurrentUser = s.ruleActionAuth.State.CurrentUser
+	if s.ruleAction.auth != nil {
+		auth.State.CurrentUser = s.ruleAction.auth.State.CurrentUser
 		if err = auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 			return AuthorizationView{}, err
 		}

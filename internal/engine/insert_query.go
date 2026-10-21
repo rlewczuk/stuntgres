@@ -149,7 +149,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			continue
 		}
 		if scope != nil {
-			if err := access.RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
+			if err := access.RowSecurityProposal(scope.rls.proposal, scope.rls.proposalTable); err != nil {
 				return indexWriteBatch{}, err
 			}
 		}
