@@ -60,7 +60,7 @@ Engine declarations the clean set still uses (14b exports or moves them):
 `sqlError` and `objectNameText` (`operator_options.go`); the dump records
 `dumpDomain`, `dumpDeclaration`, `dumpEventKey`, `dumpOperatorLinks` and
 `catalogTypeDeclaration` (`operator_dump.go`, from `domain_dump.go` and
-`view_dump.go`); `builtinOperatorRoutineByDeclaration`
+`view_dump.go`, now `dump_graph.go`); `builtinOperatorRoutineByDeclaration`
 (`operator_routine_binding.go`) and `routineIdentityByOID`
 (`regproc_lookup.go`), both used by `operator_dump.go`; `stockIntagg` and
 `intaggProviderOf` (`routine_declaration.go`). Census output:

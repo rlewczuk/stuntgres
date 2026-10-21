@@ -75,7 +75,7 @@ top-level declarations with their methods: about 10.2k lines in 67 files,
 | Edge | Owner after the prerequisite |
 |---|---|
 | reg* spellings, dump outputs, remap and walker helpers, `catalogTypeDeclaration*`, `catalogLiteral*`, `catalogRegclassOutput`, `catalogRoutineOutput`, `catalogRegtypeOutput`, `aclItemContextFormatter`, `aclItemValidationOutput` (its `owner` field), `containsEmptyACL`, `regroleContextFormatter` | `regobj` (21b) |
-| `commentLiteral` (`control.go`, used by `cycleConstantSQL`) | `dump.CommentLiteral` (18b) |
+| `commentLiteral` (`dump_restore_scalar.go`, used by `cycleConstantSQL`) | `dump.CommentLiteral` (18b) |
 | `pgIdentifier` (`deparse_renderer.go`) | `catalog.Identifier` (5i, or 21a if 5i has not run) |
 | `sqlError` | the package's own `errors.go` |
 

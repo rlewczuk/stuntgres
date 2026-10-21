@@ -117,7 +117,7 @@ Step 9b moved `conversion_descriptions.go`, `builtinCollationVersion` and
   and `catalog.DefinitionArrayAt`) and the reg*/aclitem/regrole
   output and persistence formatters (`catalogLiteralWithACLAt`,
   `catalogTypeDeclarationAt`); `chooseAssociatedArrayName`,
-  `compositeMembers` (`row_type.go`); `restoreScalar` (`control.go`);
+  `compositeMembers` (`row_type.go`); `restoreScalar` (`dump_restore_scalar.go`);
   `routineAdmissionProgram` (`domainCheckPhase`); `pgIdentifier`
   (`collationDisplayName`); `quoteOrigin`, `structuralNull` (the column
   default records). 15b moves only what clears this frontier.
