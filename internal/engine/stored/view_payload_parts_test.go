@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"reflect"
@@ -6,35 +6,34 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
-// ViewParts must mirror every viewDefinition field, and NewView and Parts
+// ViewParts must mirror every View field, and NewView and Parts
 // must copy each one into its own twin: a field set alone round-trips alone.
 func TestViewPartsRoundTrip(t *testing.T) {
-	definition := reflect.TypeFor[viewDefinition]()
-	parts := reflect.TypeFor[stored.ViewParts]()
+	definition := reflect.TypeFor[View]()
+	parts := reflect.TypeFor[ViewParts]()
 	if definition.NumField() != parts.NumField() {
-		t.Fatalf("ViewParts has %d fields, viewDefinition %d", parts.NumField(), definition.NumField())
+		t.Fatalf("ViewParts has %d fields, View %d", parts.NumField(), definition.NumField())
 	}
 	for i := range definition.NumField() {
 		field := definition.Field(i)
 		twin, ok := parts.FieldByName(strings.ToUpper(field.Name[:1]) + field.Name[1:])
 		if !ok || twin.Type != field.Type {
-			t.Fatalf("viewDefinition.%s has no ViewParts twin of type %s", field.Name, field.Type)
+			t.Fatalf("View.%s has no ViewParts twin of type %s", field.Name, field.Type)
 		}
 	}
 	for i := range parts.NumField() {
-		var p stored.ViewParts
+		var p ViewParts
 		value := reflect.ValueOf(&p).Elem().Field(i)
 		value.Set(nonZero(t, value.Type()))
-		if got := stored.NewView(p).Parts(); !reflect.DeepEqual(got, p) {
+		if got := NewView(p).Parts(); !reflect.DeepEqual(got, p) {
 			t.Fatalf("ViewParts.%s did not round-trip: %+v", parts.Field(i).Name, got)
 		}
-		original := stored.NewView(p)
-		edited := original.With(func(q *stored.ViewParts) { *q = stored.ViewParts{} })
-		if edited == original || !reflect.DeepEqual(original.Parts(), p) || !reflect.DeepEqual(edited.Parts(), stored.ViewParts{}) {
+		original := NewView(p)
+		edited := original.With(func(q *ViewParts) { *q = ViewParts{} })
+		if edited == original || !reflect.DeepEqual(original.Parts(), p) || !reflect.DeepEqual(edited.Parts(), ViewParts{}) {
 			t.Fatalf("With changed its receiver for ViewParts.%s", parts.Field(i).Name)
 		}
 	}
