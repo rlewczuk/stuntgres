@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -74,4 +76,15 @@ func prepareRestorePartitionUnique(r *restoreRun, op *session.Operation, stmt pa
 		return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
 	}
 	return nil
+}
+
+// afterRestoreDomainOwner pairs a domain created under an owner directive
+// with the ALTER DOMAIN OWNER that follows it.
+func afterRestoreDomainOwner(r *restoreRun, op *session.Operation, stmt parser.Statement, result Result) error {
+	if _, domain := stmt.(*parser.CreateDomain); !domain || r.cur.ownerForCreate == (authorization.PrincipalRef{}) || result.created == (ids.ObjectRef{}) {
+		return nil
+	}
+	var err error
+	r.pairedDomainOwner, err = r.stage.captureRestoredDomainOwner(op, result.created, r.cur.ownerForCreate)
+	return err
 }

@@ -157,6 +157,7 @@ var restoreHooks = []restoreHook{
 	{name: "table: physical foreign key provider", after: afterRestorePhysicalForeignKeyProvider},
 	{name: "table: physical import index", after: afterRestorePhysicalImportIndex},
 	{name: "inline after", after: (*restoreRun).inlineAfter},
+	{name: "typedef: domain owner", after: afterRestoreDomainOwner},
 	{name: "inheritance: historical relation", after: afterRestoreHistoricalRelation},
 	{name: "table: NOT NULL origins", after: afterRestoreNotNullOrigins},
 	{name: "inheritance: generation placeholders", after: afterRestoreGenerationPlaceholders},

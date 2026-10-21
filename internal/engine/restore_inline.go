@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/dump"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -343,7 +342,6 @@ func (r *restoreRun) inlinePrepare2(op *session.Operation, stmt parser.Statement
 }
 
 func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, result Result) error {
-	var err error
 	if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default {
 		auth, authErr := operationAuthorization(op)
 		if authErr != nil {
@@ -357,12 +355,6 @@ func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, r
 			r.createOwner = r.cur.priorAuthorization
 		}
 		r.lastAuthorization = actor.Ref
-	}
-	if _, domain := stmt.(*parser.CreateDomain); domain && r.cur.ownerForCreate != (authorization.PrincipalRef{}) && result.created != (ids.ObjectRef{}) {
-		r.pairedDomainOwner, err = r.stage.captureRestoredDomainOwner(op, result.created, r.cur.ownerForCreate)
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
