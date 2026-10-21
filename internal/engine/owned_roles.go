@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -10,6 +9,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -47,60 +47,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 	}
 	return refs, protected, nil
 }
-func ownedRoots(catalog catalog.Read, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
-	var roots []ids.ObjectAddress
-	for a, d := range catalog.Descriptors() {
-		owner, _, _ := access.DescriptorACL(d)
-		if sources[owner] && ownershipRoot(catalog, d) {
-			roots = append(roots, a)
-		}
-	}
-	sort.Slice(roots, func(i, j int) bool {
-		if roots[i].ObjectID != roots[j].ObjectID {
-			return roots[i].ObjectID < roots[j].ObjectID
-		}
-		return roots[i].ClassID < roots[j].ClassID
-	})
-	return roots
-}
 
-// Ownership locks follow canonical associations, not generated names. Include
-// independent roots and their backing relations, indexes and owned sequences.
-func ownershipRelationLocks(view catalog.Read, roots []ids.ObjectAddress) []ids.ObjectAddress {
-	group := make(map[ids.ObjectAddress]bool, len(roots))
-	for _, a := range roots {
-		switch d := view.Get(a).(type) {
-		case *catalog.Relation:
-			group[a] = true
-		case *catalog.Type:
-			if d.OwningRelation != (ids.ObjectAddress{}) {
-				group[d.OwningRelation] = true
-			}
-		}
-	}
-	for a, d := range view.Descriptors() {
-		r, ok := d.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		if r.SQLIndex != nil && group[r.SQLIndex.Parent] {
-			group[a] = true
-		}
-		if r.Sequence != nil {
-			parent := r.Sequence.Owned
-			parent.SubID = 0
-			if group[parent] {
-				group[a] = true
-			}
-		}
-	}
-	locks := make([]ids.ObjectAddress, 0, len(group))
-	for a := range group {
-		locks = append(locks, a)
-	}
-	sort.Slice(locks, func(i, j int) bool { return locks[i].ObjectID < locks[j].ObjectID })
-	return locks
-}
 func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -155,7 +102,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	roots := ownedRoots(auth.Catalog, sources)
+	roots := access.OwnedRoots(auth.Catalog, sources, routine.OperatorSeeded)
 	if reassign {
 		local := roots[:0]
 		for _, address := range roots {
@@ -202,7 +149,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	// Pin roots and automatic associations before producing private candidates.
-	for _, a := range ownershipRelationLocks(stage.Base, roots) {
+	for _, a := range access.OwnershipRelationLocks(stage.Base, roots) {
 		if err = scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}

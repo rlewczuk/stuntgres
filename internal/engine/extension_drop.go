@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -30,7 +31,7 @@ func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExten
 	stage.dependencyPath, _ = e.referencePath(auth)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	for _, address := range ownershipRelationLocks(stage.Base, roots) {
+	for _, address := range access.OwnershipRelationLocks(stage.Base, roots) {
 		if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}

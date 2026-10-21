@@ -9,57 +9,8 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, revision uint64, sources map[authorization.PrincipalRef]bool) (*access.RoleRecord, error) {
-	if !authorization.OwnedMembershipNeeded(roles, sources) {
-		return nil, ctx.Err()
-	}
-	if revision == ^uint64(0) {
-		return nil, fmt.Errorf("stuntgres: authorization revision exhausted")
-	}
-	root, err := authorization.OwnedMembershipCandidate(ctx, roles, sources)
-	if err != nil {
-		return nil, err
-	}
-	return &access.RoleRecord{Root: root, Revision: revision + 1}, nil
-}
-func ownedPolicies(policies []catalog.PolicyDefinition, sources map[authorization.PrincipalRef]bool) ([]catalog.PolicyDefinition, bool) {
-	needed := false
-	for _, policy := range policies {
-		for _, role := range policy.Roles {
-			needed = needed || !role.Public && sources[role.Ref]
-		}
-	}
-	if !needed {
-		return policies, false
-	}
-	out := make([]catalog.PolicyDefinition, 0, len(policies))
-	for _, policy := range policies {
-		removed := 0
-		for _, role := range policy.Roles {
-			if !role.Public && sources[role.Ref] {
-				removed++
-			}
-		}
-		if removed == 0 {
-			out = append(out, policy)
-			continue
-		}
-		if removed == len(policy.Roles) {
-			continue
-		}
-		copy := policy
-		copy.Roles = make([]catalog.PolicyRole, 0, len(policy.Roles)-removed)
-		for _, role := range policy.Roles {
-			if role.Public || !sources[role.Ref] {
-				copy.Roles = append(copy.Roles, role)
-			}
-		}
-		out = append(out, copy)
-	}
-	return out, true
-}
 func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authorization.Read, publication *access.RoleRecord, sources map[authorization.PrincipalRef]bool) error {
-	candidate, err := ownedMembershipCandidate(ctx, roles, publication.Revision, sources)
+	candidate, err := access.OwnedMembershipCandidate(ctx, roles, publication.Revision, sources)
 	if err != nil {
 		return err
 	}
@@ -100,7 +51,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		var policies []catalog.PolicyDefinition
 		if relation, ok := descriptor.(*catalog.Relation); ok {
 			var different bool
-			policies, different = ownedPolicies(relation.Security.Policies, sources)
+			policies, different = access.OwnedPolicies(relation.Security.Policies, sources)
 			changed = changed || different
 		}
 		if !changed {

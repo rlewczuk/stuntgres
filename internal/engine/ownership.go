@@ -9,45 +9,11 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-// Root classification follows canonical reciprocal identities, never object
-// names. Protected catalog namespaces and immutable providers are not bulk roots.
-func ownershipRoot(view catalog.Read, d catalog.Descriptor) bool {
-	switch t := d.(type) {
-	case *catalog.ForeignObject:
-		return t.Address().ClassID != ids.ForeignMappingClassID || t.MappedRole != (authorization.PrincipalRef{})
-	case *catalog.Namespace:
-		return t.Temporary == (ids.SessionToken{}) && t.Address().ObjectID != ids.PGCatalogNamespaceOID && t.Address().ObjectID != ids.PGToastNamespaceOID && t.Address().ObjectID != 13229
-	case *catalog.Relation:
-		return t.RelationKind != catalog.CatalogRelation && t.RelationKind != catalog.IndexRelation && t.RelationKind != catalog.CompositeRelation && (t.Sequence == nil || t.Sequence.Owned == (ids.ObjectAddress{}))
-	case *catalog.Type:
-		if !t.SQLType.IsUserDefined() || t.SQLType.IsArray() {
-			return false
-		}
-		if t.OwningRelation == (ids.ObjectAddress{}) {
-			return true
-		}
-		r, ok := view.Relation(t.OwningRelation)
-		return ok && r.RelationKind == catalog.CompositeRelation
-	case *catalog.Collation:
-		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
-	case *catalog.Conversion:
-		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
-	case *catalog.Operator:
-		return !routine.OperatorSeeded(t)
-	case *catalog.Procedure:
-		return !t.Seeded() && t.Foreign == nil
-	case *catalog.Database, *catalog.Extension, *catalog.TSDictionary:
-		return true
-	}
-	return false
-}
 
 // Ownership changes retain immutable type, row, index and sequence generator
 // roots. Only descriptor/ACL payloads change. All reciprocal members are staged
@@ -259,7 +225,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	err = stageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range ownershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
+		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
 			if a == old.Address() {
 				continue
 			}
@@ -349,7 +315,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	err = stageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range ownershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
+		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
 			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
