@@ -8,14 +8,14 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (r pgRenderer) foreignKeyConstraintSQL(child *catalog.Relation, f catalog.ForeignKeyConstraint) (string, error) {
-	return r.foreignKeyConstraintSQLWithPrimary(child, f, false)
+func (r pgRenderer) ForeignKeyConstraintSQL(child *catalog.Relation, f catalog.ForeignKeyConstraint) (string, error) {
+	return r.ForeignKeyConstraintSQLWithPrimary(child, f, false)
 }
 
 // Implicit primary references preserve the captured provider when its deferred
 // construction follows another UNIQUE over the same attributes.
-func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *catalog.Relation, f catalog.ForeignKeyConstraint, primary bool) (string, error) {
-	view, path := r.view, r.path
+func (r pgRenderer) ForeignKeyConstraintSQLWithPrimary(child *catalog.Relation, f catalog.ForeignKeyConstraint, primary bool) (string, error) {
+	view, path := r.View, r.Path
 	parent, ok := view.Relation(f.Target)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing foreign-key deparse target")
@@ -27,18 +27,18 @@ func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *catalog.Relation, 
 	}
 	for i, a := range f.Attributes {
 		var err error
-		local[i], err = r.attribute(child, a)
+		local[i], err = r.Attribute(child, a)
 		if err != nil {
 			return "", err
 		}
 		if !primary {
-			referenced[i], err = r.attribute(parent, f.Referenced[i])
+			referenced[i], err = r.Attribute(parent, f.Referenced[i])
 			if err != nil {
 				return "", err
 			}
 		}
 	}
-	name := r.identifier(parent.Name())
+	name := r.Identifier(parent.Name())
 	visible := false
 	for _, namespace := range path {
 		if a, ok := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: parent.Name()}); ok {
@@ -47,7 +47,7 @@ func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *catalog.Relation, 
 		}
 	}
 	if !visible {
-		name = r.identifier(view.Get(parent.Namespace()).Name()) + "." + name
+		name = r.Identifier(view.Get(parent.Namespace()).Name()) + "." + name
 	}
 	text := "FOREIGN KEY (" + strings.Join(local, ", ") + ") REFERENCES " + name
 	if !primary {
@@ -71,7 +71,7 @@ func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *catalog.Relation, 
 		if direction.name == "DELETE" && len(f.DeleteAttributes) != 0 {
 			labels := make([]string, len(f.DeleteAttributes))
 			for i, a := range f.DeleteAttributes {
-				labels[i], err = deparseAttribute(child, a)
+				labels[i], err = DeparseAttribute(child, a)
 				if err != nil {
 					return "", err
 				}
@@ -102,14 +102,14 @@ func foreignKeyActionSQL(action parser.ForeignKeyAction) (string, error) {
 	}
 }
 
-func (r pgRenderer) uniqueConstraintSQL(parent *catalog.Relation, c *catalog.UniqueConstraint) (string, error) {
-	index, ok := r.view.Relation(c.Index)
+func (r pgRenderer) UniqueConstraintSQL(parent *catalog.Relation, c *catalog.UniqueConstraint) (string, error) {
+	index, ok := r.View.Relation(c.Index)
 	if !ok || index.SQLIndex == nil {
 		return "", fmt.Errorf("stuntgres: missing unique deparse index")
 	}
 	labels := make([]string, len(c.Attributes)+len(index.SQLIndex.Include))
 	for i, attribute := range c.Attributes {
-		label, err := r.attribute(parent, attribute)
+		label, err := r.Attribute(parent, attribute)
 		if err != nil {
 			return "", err
 		}
@@ -124,7 +124,7 @@ func (r pgRenderer) uniqueConstraintSQL(parent *catalog.Relation, c *catalog.Uni
 	text := prefix + " (" + strings.Join(labels[:len(c.Attributes)], ", ") + ")"
 	if len(index.SQLIndex.Include) != 0 {
 		for i, attribute := range index.SQLIndex.Include {
-			label, err := r.attribute(parent, attribute)
+			label, err := r.Attribute(parent, attribute)
 			if err != nil {
 				return "", err
 			}

@@ -86,7 +86,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	node := jsonbSetUnitBind(t, b, `SELECT pg_catalog.jsonb_set_lax(replacement => NULL,jsonb_in => '{"a":1}',path => '{a}',null_value_treatment => 'delete_key')`)
 	e := node.(functions.JSONBSet)
 	fresh := jsonObjectUnitTypes()
-	next, changed, err := retagBoundTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	next, changed, err := RetagTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(next, changed, err)
 	}
@@ -107,16 +107,16 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	if err != nil || out != "{}" {
 		t.Fatal(out, err)
 	}
-	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err := RemapExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || !analyze.SameGroupExpression(e, mapped) {
 		t.Fatal(mapped, err)
 	}
 	variadic := jsonbSetUnitBind(t, b, `SELECT pg_catalog.jsonb_set('{"a":1}','{a}',VARIADIC '2'::jsonb)`)
-	mapped, err = remapBoundExpression(variadic, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err = RemapExpression(variadic, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reminted, _, err := retagBoundTypes(view, mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	reminted, _, err := RetagTypes(view, mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,8 +134,8 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, e, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal("written/formal literal association", err)
 	}
-	renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), frame: b.FrameID()}
-	replaySQL, err := renderer.expressionSQL(ctx, view, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+	replaySQL, err := renderer.ExpressionSQL(ctx, view, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,8 +179,8 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 				if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
-				renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), frame: b.FrameID()}
-				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+				emitted, err := renderer.ExpressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
 				}

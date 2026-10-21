@@ -87,7 +87,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 					t.Fatal("invalid selected authority", mode)
 				}
 			}
-			remapped, _, err := retagBoundTypes(foreign.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, _, err := RetagTypes(foreign.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				current, _ := foreign.CatalogRead().LookupType(old.ID())
 				return current
 			})

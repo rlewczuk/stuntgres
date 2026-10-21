@@ -36,7 +36,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 			return "", nil
 		}
 		if presentation.column > int64(len(index.SQLIndex.Keys)) {
-			return (pgRenderer{output: presentation.output}).attribute(parent, index.SQLIndex.Include[presentation.column-int64(len(index.SQLIndex.Keys))-1])
+			return (pgRenderer{Output: presentation.output}).Attribute(parent, index.SQLIndex.Include[presentation.column-int64(len(index.SQLIndex.Keys))-1])
 		}
 		key := index.SQLIndex.Keys[presentation.column-1]
 		if !presentation.dump {
@@ -50,11 +50,11 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 			return text, nil
 		}
 		if key.Derived != nil {
-			return (scalarRenderer{owner: parent}).sql(ctx, view, key.Derived.Definition)
+			return (scalarRenderer{Owner: parent}).SQL(ctx, view, key.Derived.Definition)
 		}
-		return deparseAttribute(parent, key.Attribute)
+		return DeparseAttribute(parent, key.Attribute)
 	}
-	identifier := (pgRenderer{output: presentation.output}).identifier
+	identifier := (pgRenderer{Output: presentation.output}).Identifier
 	if presentation.dump {
 		identifier = catalog.QuoteIdentifier
 	}
@@ -64,7 +64,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 	}
 	parentName := identifier(schema) + "." + identifier(parent.Name())
 	if presentation.pretty && !presentation.output.QuoteAllIdentifiers {
-		parentName = relationDiagnosticNameAt(view, parent, presentation.path)
+		parentName = RelationDiagnosticNameAt(view, parent, presentation.path)
 	}
 	// Canonical replay spells the supported access methods as SQL tokens.
 	// Session inquiry alone follows quote_all_identifiers.
@@ -115,7 +115,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 				}
 			}
 		} else if key.Derived != nil {
-			text, err := (scalarRenderer{owner: parent}).sql(ctx, view, key.Derived.Definition)
+			text, err := (scalarRenderer{Owner: parent}).SQL(ctx, view, key.Derived.Definition)
 			if err != nil {
 				return "", err
 			}
@@ -138,7 +138,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 			if presentation.dump {
 				sql.WriteString(typedef.CollationSQLName(view, presented.Collation))
 			} else {
-				sql.WriteString(collationDisplayName(view, presented.Collation, presentation.path))
+				sql.WriteString(CollationDisplayName(view, presented.Collation, presentation.path))
 			}
 		}
 		if presented.ExplicitClass {
@@ -188,9 +188,9 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		var text string
 		var err error
 		if presentation.dump {
-			text, err = (scalarRenderer{owner: parent}).sql(ctx, view, predicate.Definition)
+			text, err = (scalarRenderer{Owner: parent}).SQL(ctx, view, predicate.Definition)
 		} else {
-			text, err = (pgRenderer{view: view, relation: parent, pretty: presentation.pretty, path: presentation.path, output: presentation.output}).sql(ctx, predicate.Definition, pgRenderParent{})
+			text, err = (pgRenderer{View: view, Relation: parent, Pretty: presentation.pretty, Path: presentation.path, Output: presentation.output}).SQL(ctx, predicate.Definition, pgRenderParent{})
 		}
 		if err != nil {
 			return "", err
@@ -247,7 +247,7 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 func compactIndexKeySQL(ctx context.Context, view catalog.Read, parent *catalog.Relation, key catalog.IndexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
 	if presentation.reconstruct && key.Derived != nil {
 		node := key.Derived.Definition
-		text, err := (pgRenderer{view: view, relation: parent, path: presentation.path, output: presentation.output}).sql(ctx, node, pgRenderParent{})
+		text, err := (pgRenderer{View: view, Relation: parent, Path: presentation.path, Output: presentation.output}).SQL(ctx, node, pgRenderParent{})
 		return text, !pgIndexFunctionExpression(node), node.ResultUsage(), err
 	}
 	attribute, node, err := indexCatalogKey(parent, key)
@@ -259,10 +259,10 @@ func compactIndexKeySQL(ctx context.Context, view catalog.Read, parent *catalog.
 		if err != nil {
 			return "", false, sqltype.Usage{}, err
 		}
-		text, err := (pgRenderer{output: presentation.output}).attribute(parent, attribute)
+		text, err := (pgRenderer{Output: presentation.output}).Attribute(parent, attribute)
 		return text, false, usage, err
 	}
-	text, err := (pgRenderer{view: view, relation: parent, pretty: presentation.pretty, path: presentation.path, output: presentation.output}).sql(ctx, node, pgRenderParent{})
+	text, err := (pgRenderer{View: view, Relation: parent, Pretty: presentation.pretty, Path: presentation.path, Output: presentation.output}).SQL(ctx, node, pgRenderParent{})
 	if err != nil {
 		return "", false, sqltype.Usage{}, err
 	}

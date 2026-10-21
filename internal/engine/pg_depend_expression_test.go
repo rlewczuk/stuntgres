@@ -71,33 +71,33 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := pgDependExpressionRefs(context.Background(), view, tc.expr)
+			got, err := ExpressionDependRefs(context.Background(), view, tc.expr)
 			if err != nil {
 				t.Fatal(err)
 			}
 			pgDependUnitRefs(t, got, tc.want)
 		})
 	}
-	collection := pgDependRefs{ctx: context.Background(), catalog: view}
-	collection.add(parent)
-	collection.add(column)
-	collection.add(column)
-	collection.add(provider)
-	got, err := collection.finish()
+	collection := pgDependRefs{Context: context.Background(), Catalog: view}
+	collection.Add(parent)
+	collection.Add(column)
+	collection.Add(column)
+	collection.Add(provider)
+	got, err := collection.Finish()
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column, provider})
 	for _, bad := range []ids.ObjectAddress{pgDependUnitAddress(1259, 49999, 0), pgDependUnitAddress(1259, 48001, 2)} {
-		r := pgDependRefs{ctx: context.Background(), catalog: view}
-		r.add(bad)
-		if _, err := r.finish(); err == nil {
+		r := pgDependRefs{Context: context.Background(), Catalog: view}
+		r.Add(bad)
+		if _, err := r.Finish(); err == nil {
 			t.Fatal("missing authority accepted", bad)
 		}
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := pgDependExpressionRefs(canceled, view, scalar); !errors.Is(err, context.Canceled) || got != nil {
+	if got, err := ExpressionDependRefs(canceled, view, scalar); !errors.Is(err, context.Canceled) || got != nil {
 		t.Fatal(got, err)
 	}
 }
@@ -110,7 +110,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.State().Epoch(), table)
 	source := &plan.SourceNode{Ref: ref}
 	relationOnly := &plan.Query{Root: source}
-	got, err := pgDependQueryRefs(context.Background(), view, nil, relationOnly)
+	got, err := QueryDependRefs(context.Background(), view, nil, relationOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,19 +118,19 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	ref.Address = column
 	variable := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Origin: ref}
 	query := &plan.Query{Root: &plan.ProjectNode{Child: source, Expressions: []expr.Expr{variable, variable}}}
-	got, err = pgDependQueryRefs(context.Background(), view, nil, query)
+	got, err = QueryDependRefs(context.Background(), view, nil, query)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column})
 	nested := plan.SubqueryExpr{QueryPlan: query}
-	got, err = pgDependExpressionRefs(context.Background(), view, nested)
+	got, err = ExpressionDependRefs(context.Background(), view, nested)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column})
 	aggregate := &plan.Query{Root: &plan.ProjectNode{Child: &plan.AggregateNode{Child: source, Keys: []expr.Expr{variable}, Calls: []plan.AggregateCall{{Argument: variable, Order: []plan.SortKey{{Expression: variable}}}}}, Expressions: []expr.Expr{plan.GroupExpr{}, plan.AggregateExpr{}}}}
-	got, err = pgDependQueryRefs(context.Background(), view, nil, aggregate)
+	got, err = QueryDependRefs(context.Background(), view, nil, aggregate)
 	if err != nil {
 		t.Fatal(err)
 	}

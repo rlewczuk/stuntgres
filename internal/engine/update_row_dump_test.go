@@ -92,7 +92,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					mapped.presentation, err = remapFrozenPresentation(current, mapped.presentation, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+					mapped.presentation, err = RemapView(current, mapped.presentation, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 					if err != nil {
 						t.Fatal(err)
 					}

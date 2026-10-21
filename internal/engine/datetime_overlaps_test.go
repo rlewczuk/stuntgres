@@ -66,7 +66,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 			for _, d := range sqltype.Builtins() {
 				replacements[d.ID()] = d
 			}
-			rebound, changed, err := retagBoundTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+			rebound, changed, err := RetagTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(rebound, changed, err)
 			}
@@ -248,7 +248,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		replacements[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(New().CatalogRead(), folded, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+	rebound, changed, err := RetagTypes(New().CatalogRead(), folded, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
@@ -256,7 +256,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	if retained.Folded[0].Type() != replacements[sqltype.Timestamp] || folded.Folded[0].Type() != b.Type(sqltype.Timestamp) {
 		t.Fatal("cached endpoint authority was not independently retagged")
 	}
-	mapped, err := remapBoundExpression(retained, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, map[int32]int{1: 1, 2: 0})
+	mapped, err := RemapExpression(retained, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, map[int32]int{1: 1, 2: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +335,7 @@ func TestDatetimeOverlapsStoredRenderProvenance(t *testing.T) {
 		{parser.FunctionSyntax(0), `"overlaps"`, `"overlaps"(a, b, c, d)`},
 	} {
 		order := []int{}
-		got, err := renderOverlapsCall(tc.syntax, args[:], tc.name, func(i int, arg string) (string, error) {
+		got, err := RenderOverlapsCall(tc.syntax, args[:], tc.name, func(i int, arg string) (string, error) {
 			order = append(order, i)
 			return arg, nil
 		})
@@ -344,7 +344,7 @@ func TestDatetimeOverlapsStoredRenderProvenance(t *testing.T) {
 		}
 	}
 	calls := 0
-	if _, err := renderOverlapsCall(parser.SQLFunctionSyntax, args[:3], "", func(_ int, arg string) (string, error) {
+	if _, err := RenderOverlapsCall(parser.SQLFunctionSyntax, args[:3], "", func(_ int, arg string) (string, error) {
 		calls++
 		return arg, nil
 	}); err == nil || calls != 0 {

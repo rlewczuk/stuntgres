@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func validateInstalledUUIDOssp(n plan.InstalledUUIDOsspExpr, v catalog.Read) error {
+func ValidateInstalledUUIDOssp(n plan.InstalledUUIDOsspExpr, v catalog.Read) error {
 	if !analyze.ValidInstalledUUIDOsspShape(n) || v.Get(n.Ref.Address) != n.Procedure {
 		return fmt.Errorf("stuntgres: invalid stored uuid-ossp identity")
 	}

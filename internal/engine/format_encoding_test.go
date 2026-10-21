@@ -147,8 +147,8 @@ func TestFormatEncodingCanonicalDeparse(t *testing.T) {
 		}
 		node := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		for _, precision := range []int32{0, -1, -15} {
-			renderer := pgRenderer{view: view, output: sqltype.OutputEnvironment{FloatPrecisionSet: true, ExtraFloatDigits: precision}}
-			got, err := renderer.literal(ctx, node)
+			renderer := pgRenderer{View: view, Output: sqltype.OutputEnvironment{FloatPrecisionSet: true, ExtraFloatDigits: precision}}
+			got, err := renderer.Literal(ctx, node)
 			if err != nil || got != tc.want {
 				t.Fatal("rounded precision leaked into persistent scalar source", precision, got, err)
 			}
@@ -165,7 +165,7 @@ func TestFormatEncodingCanonicalDeparse(t *testing.T) {
 			if tc.id == sqltype.Float8 {
 				want = "'{1.2345678901234567}'::double precision[]"
 			}
-			got, err = renderer.literal(ctx, node)
+			got, err = renderer.Literal(ctx, node)
 			if err != nil || got != want {
 				t.Fatal("rounded precision leaked into persistent array source", precision, got, err)
 			}

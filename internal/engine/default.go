@@ -41,11 +41,11 @@ func bindCreateDefaults(b *analyze.Binder, columns []catalog.Column, declaration
 		if err != nil {
 			return nil, err
 		}
-		if omitColumnDefault(view, node, columns[slot].Usage) {
+		if OmitColumnDefault(view, node, columns[slot].Usage) {
 			continue
 		}
 		definition := catalog.ColumnDefault{Expression: node}
-		_, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: regobj.ACLItemOutput{Owner: b.Host.CatalogOwner(), Roles: b.Host.Roles(auth)}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.Ctx, view, node)
+		_, err = (scalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: b.Host.CatalogOwner(), Roles: b.Host.Roles(auth)}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(b.Ctx, view, node)
 		if err != nil {
 			return nil, err
 		}

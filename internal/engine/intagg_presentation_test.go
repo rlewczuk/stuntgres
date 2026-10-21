@@ -44,29 +44,29 @@ func intaggUnitRecipes(t *testing.T) {
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: syntax}
 			definition := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages})
 			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
-			if err := definition.validateLiterals(e.CatalogRead()); err != nil {
+			if err := definition.ValidateLiterals(e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			renderer := newViewRenderer(definition)
-			renderer.frame = b.FrameID()
-			text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+			renderer := NewQueryRenderer(definition)
+			renderer.Frame = b.FrameID()
+			text, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}
 			for _, badRef := range []ids.ObjectRef{{}, New().catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.Address())} {
 				bad := definition.With(func(p *ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: badRef} })
-				if err := bad.validateLiterals(e.CatalogRead()); err == nil {
+				if err := bad.ValidateLiterals(e.CatalogRead()); err == nil {
 					t.Fatal("forged frozen reference accepted", badRef)
 				}
 			}
 			missing := definition.With(func(p *ViewParts) { p.RoutineRefs = nil })
-			if err := missing.validateLiterals(e.CatalogRead()); err == nil {
+			if err := missing.ValidateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("raw-name fallback accepted")
 			}
 			extra := definition.With(func(p *ViewParts) {
 				p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref, {Query: b.FrameID(), Target: 99}: ref}
 			})
-			if err := extra.validateLiterals(e.CatalogRead()); err == nil {
+			if err := extra.ValidateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("unused frozen capture accepted")
 			}
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 910000}}
@@ -92,17 +92,17 @@ func intaggUnitRecipes(t *testing.T) {
 				}
 				return old
 			}
-			mapped, err := remapFrozenPresentation(view, definition, mapping, mapRef, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil)
+			mapped, err := RemapView(view, definition, mapping, mapRef, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if mapped.RoutineRefs()[path] != mapRef(ref) || definition.RoutineRefs()[path] != ref {
 				t.Fatal("capture remap mutated/lost authority")
 			}
-			if err := mapped.validateLiterals(view); err != nil {
+			if err := mapped.ValidateLiterals(view); err != nil {
 				t.Fatal(err)
 			}
-			proc, err := mapped.intaggRecipeProcedure(view, path, name)
+			proc, err := mapped.IntaggRecipeProcedure(view, path, name)
 			if err != nil || proc != state.Get(mapRef(ref).Address) {
 				t.Fatal("capture retargeted by name", proc, err)
 			}

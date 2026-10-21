@@ -83,8 +83,8 @@ func TestStringIdentReconstruction(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, deparse := range []bool{false, true} {
-		renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), frame: b.FrameID(), presentation: viewPresentation{deparse: deparse, pretty: true}}
-		sql, err := renderer.expressionSQL(context.Background(), b.BindingCatalog(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+		renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID(), Presentation: viewPresentation{Deparse: deparse, Pretty: true}}
+		sql, err := renderer.ExpressionSQL(context.Background(), b.BindingCatalog(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,7 +99,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 	}
 	target := New()
 	targetBinder := newTestExpressionBinder(t, context.Background(), target, sqltype.InputEnvironment{}, nil)
-	rebound, changed, err := retagBoundTypes(target.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := RetagTypes(target.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		next, _ := target.CatalogRead().LookupType(d.ID())
 		return next
 	})
@@ -122,8 +122,8 @@ func TestStringIdentReconstruction(t *testing.T) {
 		// scalar SQL and the frozen view AST. Execute both pretty modes with
 		// each node's actual catalog owner to protect reversed-role labels.
 		for _, pretty := range []bool{false, true} {
-			renderer := pgRenderer{view: owner.BindingCatalog(), pretty: pretty}
-			rendered, err := renderer.sql(context.Background(), node, pgRenderParent{})
+			renderer := pgRenderer{View: owner.BindingCatalog(), Pretty: pretty}
+			rendered, err := renderer.SQL(context.Background(), node, pgRenderParent{})
 			if err != nil {
 				t.Fatal("bound presentation", i, pretty, err)
 			}
@@ -142,7 +142,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 		}
 		// Canonical stored SQL has a separate renderer from pg_get_viewdef's
 		// presentation route. Replay must preserve the reversed formal roles.
-		sql, err := defaultSQL(context.Background(), owner.BindingCatalog(), node)
+		sql, err := DefaultSQL(context.Background(), owner.BindingCatalog(), node)
 		if err != nil {
 			t.Fatal(err)
 		}

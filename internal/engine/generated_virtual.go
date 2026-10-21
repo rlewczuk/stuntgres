@@ -78,7 +78,7 @@ func admitColumnVirtualGeneration(c *exec.Context, e plan.ColumnExpr, view catal
 // CHECK recipes belong to the completed destination, not a copied source.
 func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 	for i := range d.Constraints.Check {
-		next, changed, err := mapBoundExpression(catalog, d.Constraints.Check[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
+		next, changed, err := MapExpression(catalog, d.Constraints.Check[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(plan.ColumnExpr)
 			if !ok || column.Origin.Address.ClassID != d.Address().ClassID || column.Origin.Address.ObjectID != d.Address().ObjectID {
 				return node, false, nil

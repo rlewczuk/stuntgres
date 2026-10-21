@@ -47,7 +47,7 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalogView cat
 		if !exists || !t.deferredDefinitions[t.attributes[i]] {
 			continue
 		}
-		text, err := defaultSQL(ctx, catalogView, definition.Expression)
+		text, err := DefaultSQL(ctx, catalogView, definition.Expression)
 		if err != nil {
 			return err
 		}

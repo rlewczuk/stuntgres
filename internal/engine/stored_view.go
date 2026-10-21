@@ -48,33 +48,33 @@ type viewDefinition struct {
 // Stored leaves contain identities and frozen layout, never live storage or
 // descriptors. Ordinals are SQL occurrences, including repeated self-joins.
 type viewLeaf struct {
-	ref          ids.ObjectRef
-	only         bool
-	attributes   []int32
-	reads        []int32
-	analysisOnly bool
-	mark         plan.RowMark
+	Ref          ids.ObjectRef
+	Only         bool
+	Attributes   []int32
+	Reads        []int32
+	AnalysisOnly bool
+	Mark         plan.RowMark
 }
 
-func viewOptions(options []parser.ViewOption) (barrier, invoker bool, mode viewCheckMode, err error) {
+func ViewOptions(options []parser.ViewOption) (barrier, invoker bool, mode viewCheckMode, err error) {
 	seen := make(map[string]bool, len(options))
 	for _, option := range options {
 		name := option.Name.Text
 		if name != "check_option" && name != "security_barrier" && name != "security_invoker" {
-			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
+			return false, false, CheckNone, sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
 		}
 		if seen[name] {
-			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`parameter "%s" specified more than once`, name))
+			return false, false, CheckNone, sqlError("22023", fmt.Sprintf(`parameter "%s" specified more than once`, name))
 		}
 		seen[name] = true
 		if name == "check_option" {
 			switch {
 			case strings.EqualFold(option.Value, "local"):
-				mode = viewCheckLocal
+				mode = CheckLocal
 			case strings.EqualFold(option.Value, "cascaded"):
-				mode = viewCheckCascaded
+				mode = CheckCascaded
 			default:
-				return false, false, viewCheckNone, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for enum option "check_option": %s`, option.Value), Detail: `Valid values are "local" and "cascaded".`}
+				return false, false, CheckNone, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for enum option "check_option": %s`, option.Value), Detail: `Valid values are "local" and "cascaded".`}
 			}
 			continue
 		}
@@ -101,7 +101,7 @@ func viewOptions(options []parser.ViewOption) (barrier, invoker bool, mode viewC
 			}
 		}
 		if !valid {
-			return false, false, viewCheckNone, sqlError("22023", fmt.Sprintf(`invalid value for boolean option "%s": %s`, name, option.Value))
+			return false, false, CheckNone, sqlError("22023", fmt.Sprintf(`invalid value for boolean option "%s": %s`, name, option.Value))
 		}
 		if name == "security_barrier" {
 			barrier = value
@@ -158,7 +158,7 @@ func (v *viewDefinition) validateNamespaces() error {
 						return fmt.Errorf("stuntgres: invalid view namespace occurrence")
 					}
 					found := false
-					for _, attribute := range v.sources[column.Leaf].attributes {
+					for _, attribute := range v.sources[column.Leaf].Attributes {
 						found = found || attribute == column.Attribute
 					}
 					if !found {
@@ -209,7 +209,7 @@ func (v *viewDefinition) namespaceRoot(ns analyze.ViewNamespace) plan.Node {
 		return viewFunctionFromAt(from, ns.Ordinal, true)
 	case analyze.ViewDerivedNamespace:
 		if ns.Ordinal < 0 {
-			return viewCTEOrdinal(from, ns.Ordinal)
+			return ViewCTEOrdinal(from, ns.Ordinal)
 		}
 		if child := v.frames[uint32(ns.Ordinal)]; child != nil {
 			return viewDerivedAt(from, child.Syntax)

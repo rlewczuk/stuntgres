@@ -13,7 +13,7 @@ import (
 
 func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) (lock.Mode, error) {
 	view := e.privateCatalogLocked(scope.owner.Catalog)
-	if _, err := validateViewReadGraph(view, leaves); err != nil {
+	if _, err := ValidateViewReadGraph(view, leaves); err != nil {
 		return 0, err
 	}
 	if mode := analyze.QueryRootRowMode(root); mode != 0 {
@@ -34,14 +34,14 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, 
 			return analyze.RowLockDiagnostic(inherited), nil
 		}
 		if diagnostic == 0 {
-			diagnostic = analyze.QueryRootRowMode(viewOf(d).Query().Root)
+			diagnostic = analyze.QueryRootRowMode(ViewOf(d).Query().Root)
 		}
-		for i, leaf := range viewOf(d).Sources() {
-			child, ok := view.Relation(leaf.ref.Address)
-			if !ok || !storedViewReferenceValid(view, d, leaf.ref) {
+		for i, leaf := range ViewOf(d).Sources() {
+			child, ok := view.Relation(leaf.Ref.Address)
+			if !ok || !ViewReferenceValid(view, d, leaf.Ref) {
 				return 0, ids.ErrCatalogReplaced
 			}
-			first, err := visit(child, viewLeafRowMark(viewOf(d), i, inherited), diagnostic)
+			first, err := visit(child, viewLeafRowMark(ViewOf(d), i, inherited), diagnostic)
 			if err != nil || first != 0 {
 				return first, err
 			}
@@ -64,14 +64,14 @@ func viewHasStoredRowMarks(d *catalog.Relation, view catalog.Read) bool {
 			return false
 		}
 		seen[d.Address()] = true
-		if analyze.QueryRootRowMode(viewOf(d).Query().Root) != 0 {
+		if analyze.QueryRootRowMode(ViewOf(d).Query().Root) != 0 {
 			return true
 		}
-		for _, leaf := range viewOf(d).Sources() {
-			if leaf.mark.Mode != 0 {
+		for _, leaf := range ViewOf(d).Sources() {
+			if leaf.Mark.Mode != 0 {
 				return true
 			}
-			if child, ok := view.Relation(leaf.ref.Address); ok && visit(child) {
+			if child, ok := view.Relation(leaf.Ref.Address); ok && visit(child) {
 				return true
 			}
 		}
@@ -91,7 +91,7 @@ func viewRowLockLegality(d *viewDefinition, mode lock.Mode) error {
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) error {
 	marked := analyze.QueryRootRowMode(root) != 0
 	view := e.privateCatalogLocked(scope.owner.Catalog)
-	visibilityDemand, err := validateViewReadGraph(view, leaves)
+	visibilityDemand, err := ValidateViewReadGraph(view, leaves)
 	if err != nil {
 		return err
 	}
@@ -99,20 +99,20 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 	var visit func(*catalog.Relation, plan.RowMark, bool) error
 	visit = func(d *catalog.Relation, inherited plan.RowMark, referenceMarked bool) error {
 		if d.RelationKind == catalog.ViewRelation {
-			if analyze.QueryHasSetOutput(viewOf(d).Query().Root) {
+			if analyze.QueryHasSetOutput(ViewOf(d).Query().Root) {
 				referenceMarked = false
 			}
-			referenceMarked = referenceMarked || analyze.QueryRootRowMode(viewOf(d).Query().Root) != 0
-			marked = marked || analyze.QueryRootRowMode(viewOf(d).Query().Root) != 0
-			if err := viewRowLockLegality(viewOf(d), analyze.RowLockDiagnostic(inherited)); err != nil {
+			referenceMarked = referenceMarked || analyze.QueryRootRowMode(ViewOf(d).Query().Root) != 0
+			marked = marked || analyze.QueryRootRowMode(ViewOf(d).Query().Root) != 0
+			if err := viewRowLockLegality(ViewOf(d), analyze.RowLockDiagnostic(inherited)); err != nil {
 				return err
 			}
-			for i, leaf := range viewOf(d).Sources() {
-				child, ok := view.Relation(leaf.ref.Address)
-				if !ok || !storedViewReferenceValid(view, d, leaf.ref) {
+			for i, leaf := range ViewOf(d).Sources() {
+				child, ok := view.Relation(leaf.Ref.Address)
+				if !ok || !ViewReferenceValid(view, d, leaf.Ref) {
 					return ids.ErrCatalogReplaced
 				}
-				if err := visit(child, viewLeafRowMark(viewOf(d), i, inherited), referenceMarked); err != nil {
+				if err := visit(child, viewLeafRowMark(ViewOf(d), i, inherited), referenceMarked); err != nil {
 					return err
 				}
 			}
@@ -150,7 +150,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 }
 
 func (v AuthorizationView) checkViewRowMarks(d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
-	if _, err := validateViewReadGraph(v.Catalog, []exec.Leaf{{Relation: d}}); err != nil {
+	if _, err := ValidateViewReadGraph(v.Catalog, []exec.Leaf{{Relation: d}}); err != nil {
 		return err
 	}
 	return v.checkViewRowMarksExpanded(d, inherited, invoker)
@@ -160,22 +160,22 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 	if d.RelationKind != catalog.ViewRelation {
 		return nil
 	}
-	if err := viewRowLockLegality(viewOf(d), analyze.RowLockDiagnostic(inherited)); err != nil {
+	if err := viewRowLockLegality(ViewOf(d), analyze.RowLockDiagnostic(inherited)); err != nil {
 		return err
 	}
 	principal := d.Owner
-	if viewOf(d).Invoker() {
+	if ViewOf(d).Invoker() {
 		principal = invoker
 	}
 	v.State.CurrentUser = principal
-	for i, leaf := range viewOf(d).Sources() {
-		mark := viewLeafRowMark(viewOf(d), i, inherited)
-		child, ok := v.Catalog.Relation(leaf.ref.Address)
-		if !ok || !storedViewReferenceValid(v.Catalog, d, leaf.ref) {
+	for i, leaf := range ViewOf(d).Sources() {
+		mark := viewLeafRowMark(ViewOf(d), i, inherited)
+		child, ok := v.Catalog.Relation(leaf.Ref.Address)
+		if !ok || !ViewReferenceValid(v.Catalog, d, leaf.Ref) {
 			return ids.ErrCatalogReplaced
 		}
-		indices := make([]int, 0, len(leaf.reads))
-		for _, attribute := range leaf.reads {
+		indices := make([]int, 0, len(leaf.Reads))
+		for _, attribute := range leaf.Reads {
 			found := false
 			for slot, live := range child.Attributes {
 				if attribute == live {
@@ -188,7 +188,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 				return fmt.Errorf("stuntgres: missing view source attribute")
 			}
 		}
-		use, err := storedViewUseReference(v.Catalog, d, leaf.ref)
+		use, err := ViewUseReference(v.Catalog, d, leaf.Ref)
 		if err != nil {
 			return err
 		}
@@ -208,7 +208,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 }
 
 func viewLeafRowMark(view *viewDefinition, occurrence int, inherited plan.RowMark) plan.RowMark {
-	mark := view.Sources()[occurrence].mark
+	mark := view.Sources()[occurrence].Mark
 	if inherited.Mode != 0 && analyze.QueryRowMarkReachesSource(view.Query().Root, occurrence) {
 		mark = exec.MergeQueryRowMark(inherited, mark)
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 // Pinning follows represented bootstrap authorities, never an OID cutoff.
-func pgDependPinned(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) bool {
+func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) bool {
 	if address.ClassID == ids.NamespaceClassID {
 		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
 	}

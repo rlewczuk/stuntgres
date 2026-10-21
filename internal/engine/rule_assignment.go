@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func mapRuleAssignmentTargets(targets []*plan.ArrayAssignmentTarget, expression func(expr.Expr) (expr.Expr, bool, error), usage func(sqltype.Usage) (sqltype.Usage, error)) ([]*plan.ArrayAssignmentTarget, error) {
+func MapRuleAssignmentTargets(targets []*plan.ArrayAssignmentTarget, expression func(expr.Expr) (expr.Expr, bool, error), usage func(sqltype.Usage) (sqltype.Usage, error)) ([]*plan.ArrayAssignmentTarget, error) {
 	var target func(*plan.ArrayAssignmentTarget) (*plan.ArrayAssignmentTarget, error)
 	target = func(old *plan.ArrayAssignmentTarget) (*plan.ArrayAssignmentTarget, error) {
 		if old == nil {

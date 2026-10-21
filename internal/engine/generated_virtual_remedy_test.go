@@ -93,7 +93,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	wide.Attributes = []int32{3, 4, 1, 2}
 	base := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 2}
 	wide.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
-	copied, err := remapScalarExpression(old, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
+	copied, err := RemapScalar(old, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,9 +146,9 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	syntax := &parser.Select{}
 	join := &plan.JoinNode{Left: &plan.SourceNode{Ref: ref, Occurrence: 0}, Right: &plan.SourceNode{Ref: ref, Occurrence: 1}}
 	project := &plan.ProjectNode{Frame: 4, Syntax: syntax, Child: join, Expressions: []expr.Expr{left, right, add, test, choice, outside}}
-	definition := NewView(ViewParts{Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []viewLeaf{{ref: ref}, {ref: ref}}})
+	definition := NewView(ViewParts{Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []viewLeaf{{Ref: ref}, {Ref: ref}}})
 	consumer := *d
-	consumer.View = viewPayloadOf(definition)
+	consumer.View = ViewPayload(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
 	b := analyze.Binding{QuerySources: []exec.Leaf{{Ref: ref, Relation: d}}}
 	mapped, err := w.graftQuery(&b, view, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })

@@ -45,13 +45,13 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 			return n
 		},
 	} {
-		if _, err := defaultSQL(context.Background(), view, mutate(root)); err == nil {
+		if _, err := DefaultSQL(context.Background(), view, mutate(root)); err == nil {
 			t.Fatal("invalid bitwise default accepted")
 		}
 	}
 	shift := old.ColumnMeta.Defaults[2].Expression.(plan.BitwiseExpr)
 	shift.Right = old.ColumnMeta.Defaults[3].Expression
-	if _, err := defaultSQL(context.Background(), view, shift); err == nil {
+	if _, err := DefaultSQL(context.Background(), view, shift); err == nil {
 		t.Fatal("SMALLINT bound shift count accepted")
 	}
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
@@ -81,7 +81,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 	}
 	for _, attribute := range []int32{1, 2, 3} {
 		original := old.ColumnMeta.Defaults[attribute].Expression
-		rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), original, retag)
+		rebound, changed, err := RetagTypes(replacement.CatalogRead(), original, retag)
 		if err != nil || !changed || rebound.ResultUsage().Type == original.ResultUsage().Type {
 			t.Fatal(rebound, changed, err)
 		}
@@ -98,7 +98,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 		if av != bv {
 			t.Fatal(av, bv)
 		}
-		if _, err := defaultSQL(context.Background(), replacement.CatalogRead(), rebound); err != nil {
+		if _, err := DefaultSQL(context.Background(), replacement.CatalogRead(), rebound); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -118,7 +118,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	for _, attribute := range []int32{1, 2} {
 		original := table.ColumnMeta.Defaults[attribute].Expression
-		rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), original, retag)
+		rebound, changed, err := RetagTypes(replacement.CatalogRead(), original, retag)
 		if err != nil || !changed {
 			t.Fatal(rebound, changed, err)
 		}
@@ -135,7 +135,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 				t.Fatal("lost narrow truncation before widening", value)
 			}
 		}
-		sql, err := defaultSQL(context.Background(), replacement.CatalogRead(), rebound)
+		sql, err := DefaultSQL(context.Background(), replacement.CatalogRead(), rebound)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -274,7 +274,7 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 	ref := roleTableRef(t, e, "null_default")
 	table := view.MustRelation(ref.Address)
 	original := table.ColumnMeta.Defaults[1].Expression
-	before, err := defaultSQL(context.Background(), view, original)
+	before, err := DefaultSQL(context.Background(), view, original)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 	if _, ok := table.ColumnMeta.Defaults[1].Expression.(plan.BitwiseExpr); !ok {
 		t.Fatal("stored default replaced")
 	}
-	after, err := defaultSQL(context.Background(), view, table.ColumnMeta.Defaults[1].Expression)
+	after, err := DefaultSQL(context.Background(), view, table.ColumnMeta.Defaults[1].Expression)
 	if err != nil || before != after {
 		t.Fatal(before, after, err)
 	}

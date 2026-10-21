@@ -234,14 +234,14 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 				Collations: b.Capture.Collations,
 			})
 			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(query.Root) })
-			text, err := definition.selectSQL(context.Background(), auth.Catalog, viewPresentation{})
+			text, err := definition.SelectSQL(context.Background(), auth.Catalog, viewPresentation{})
 			if err != nil || !strings.Contains(text, `"a"."s"`) {
 				t.Fatal("lost dependent function argument prefix", text, err)
 			}
 			if strings.Contains(sql, "b.t") && !strings.Contains(text, `"b"."t"`) {
 				t.Fatal("lost nested RHS local prefix", text)
 			}
-			public, err := definition.selectSQL(context.Background(), auth.Catalog, viewPresentation{deparse: true, pretty: true})
+			public, err := definition.SelectSQL(context.Background(), auth.Catalog, viewPresentation{Deparse: true, Pretty: true})
 			if err != nil || !strings.Contains(public, "a.s") || strings.Contains(public, `"a"`) || strings.Contains(public, " AS ") {
 				t.Fatal("public inquiry fell back to Dump bridge aliases", public, err)
 			}

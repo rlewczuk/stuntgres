@@ -31,15 +31,15 @@ func viewCTEScan(root plan.Node, match func(*plan.DerivedNode) bool) plan.Node {
 	}
 	return nil
 }
-func viewCTETable(root plan.Node, table *parser.TableReference) plan.Node {
+func ViewCTETable(root plan.Node, table *parser.TableReference) plan.Node {
 	return viewCTEScan(root, func(n *plan.DerivedNode) bool { return n.Table == table })
 }
-func viewCTEOrdinal(root plan.Node, ordinal int) plan.Node {
+func ViewCTEOrdinal(root plan.Node, ordinal int) plan.Node {
 	return viewCTEScan(root, func(n *plan.DerivedNode) bool { return n.Ordinal == ordinal })
 }
 
 func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *plan.ProjectNode, columns []catalog.Column, setOperand bool) (string, error) {
-	prefix, err := r.withClauseSQL(ctx, catalog, s.With, s.WithRecursive)
+	prefix, err := r.WithClauseSQL(ctx, catalog, s.With, s.WithRecursive)
 	if err != nil {
 		return "", err
 	}
@@ -50,7 +50,7 @@ func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalo
 	return prefix + text, nil
 }
 
-func (r *viewRenderer) withClauseSQL(ctx context.Context, catalogView catalog.Read, raw []parser.CommonTableExpression, recursive bool, bodyRenderer ...func(parser.Statement) (string, error)) (string, error) {
+func (r *viewRenderer) WithClauseSQL(ctx context.Context, catalogView catalog.Read, raw []parser.CommonTableExpression, recursive bool, bodyRenderer ...func(parser.Statement) (string, error)) (string, error) {
 	var definitions []string
 	for _, definition := range raw {
 		var body string
@@ -139,7 +139,7 @@ func cycleConstantSQL(catalog catalog.Read, raw parser.Expr, source sqltype.Usag
 	case parser.TypedLiteralExpr:
 		// The introducer must use the typed-literal binder's source modifier,
 		// never the common output Usage applied after that input conversion.
-		typ, err := (pgRenderer{view: catalog}).typeSQL(source)
+		typ, err := (pgRenderer{View: catalog}).typeSQL(source)
 		if err != nil {
 			return "", err
 		}

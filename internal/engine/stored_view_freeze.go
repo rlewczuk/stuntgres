@@ -16,7 +16,7 @@ import (
 // view's temporary-source restriction. An empty message permits those sources.
 // The session token is the consumer's TEMP owner, or zero without a session;
 // rule is passed as is, never allocated.
-func freezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax *parser.Select, b analyze.Binding, barrier, invoker bool, rule ids.OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
+func FreezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax *parser.Select, b analyze.Binding, barrier, invoker bool, rule ids.OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
 	dependencies, err := frozenQueryDependencies(view, b)
 	if err != nil {
 		return nil, err
@@ -45,10 +45,10 @@ func freezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 	for _, constant := range b.Prepared.RegtypeConstants {
 		if constant.Value.Type() != nil {
 			var references []ids.ObjectRef
-			if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasDependencies(view, constant.Value); err != nil {
+			if err := (scalarRenderer{Dependencies: &references}).RecordCatalogAliasDependencies(view, constant.Value); err != nil {
 				return nil, err
 			}
-			if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(view, constant.Value); err != nil {
+			if err := (scalarRenderer{Dependencies: &references}).RecordRoutineReferences(view, constant.Value); err != nil {
 				return nil, err
 			}
 			for _, ref := range references {
@@ -66,11 +66,11 @@ func freezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 	definition.sources = make([]viewLeaf, len(b.QuerySources))
 	for occurrence, source := range b.QuerySources {
 		leaf := &definition.sources[occurrence]
-		leaf.ref, leaf.mark, leaf.only = source.Ref, source.Mark, source.Only
-		leaf.analysisOnly = source.AnalysisOnly
-		leaf.attributes = append([]int32(nil), source.Relation.Attributes...)
+		leaf.Ref, leaf.Mark, leaf.Only = source.Ref, source.Mark, source.Only
+		leaf.AnalysisOnly = source.AnalysisOnly
+		leaf.Attributes = append([]int32(nil), source.Relation.Attributes...)
 		for _, slot := range source.Uses {
-			leaf.reads = append(leaf.reads, source.Relation.Attributes[slot])
+			leaf.Reads = append(leaf.Reads, source.Relation.Attributes[slot])
 		}
 		if ns := view.MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || ns.Temporary != session) {
 			return nil, sqlError("0A000", temporaryMessage)
@@ -85,7 +85,7 @@ func freezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 			definition.references[ref] = view.Get(address)
 		}
 		for _, leaf := range definition.sources {
-			capture(leaf.ref)
+			capture(leaf.Ref)
 		}
 		for _, dependency := range definition.dependencies {
 			capture(dependency.Ref)
@@ -112,16 +112,16 @@ func frozenQueryDependencies(view catalog.Read, b analyze.Binding) ([]catalog.Ex
 	if len(erased) == 0 {
 		return b.Dependencies, nil
 	}
-	refs := pgDependRefs{ctx: context.Background(), catalog: view}
-	refs.query(b.Query.Root)
-	if refs.err != nil {
-		return nil, refs.err
+	refs := pgDependRefs{Context: context.Background(), Catalog: view}
+	refs.Query(b.Query.Root)
+	if refs.Err != nil {
+		return nil, refs.Err
 	}
 	dependencies := make([]catalog.ExpressionDependency, 0, len(b.Dependencies))
 	for _, dependency := range b.Dependencies {
 		address := dependency.Ref.Address
 		if address.ClassID == ids.TypeClassID && erased[sqltype.ID(address.ObjectID)] {
-			if _, retained := refs.addresses[address]; !retained {
+			if _, retained := refs.Addresses[address]; !retained {
 				continue
 			}
 		}

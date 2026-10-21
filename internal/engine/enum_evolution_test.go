@@ -151,7 +151,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	importing.SetScalarImports(imports)
 	view := New().catalog.read(importing)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: source.Usage()}, Value: v}
-	rebound, changed, err := retagBoundTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := RetagTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == source {
 			return target
 		}

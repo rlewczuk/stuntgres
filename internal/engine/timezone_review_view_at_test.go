@@ -19,7 +19,7 @@ func TestTimezoneReviewViewAtCaptured(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	ref := roleTableRef(t, e, "tz_at")
-	definition := viewOf(e.catalog.state.MustRelation(ref.Address))
+	definition := ViewOf(e.catalog.state.MustRelation(ref.Address))
 	for _, name := range []string{"tz_at", "tz_at_nested"} {
 		ast := statement(t, "SELECT explicit,local_value FROM "+name)
 		description, err := e.Describe(op, ast)
@@ -48,7 +48,7 @@ func TestTimezoneReviewViewAtCaptured(t *testing.T) {
 			}
 		}
 	}
-	if viewOf(e.catalog.state.MustRelation(ref.Address)) != definition {
+	if ViewOf(e.catalog.state.MustRelation(ref.Address)) != definition {
 		t.Fatal("execution mutated stored definition")
 	}
 }
@@ -59,12 +59,12 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 		run(t, source, q)
 	}
 	ref := roleTableRef(t, source, "tz_at")
-	definition := viewOf(source.catalog.state.MustRelation(ref.Address))
+	definition := ViewOf(source.catalog.state.MustRelation(ref.Address))
 	project := definition.Query().Root.(*plan.ProjectNode)
 	for _, expression := range project.Expressions {
 		original := expression.(functions.Timezone)
 		before := original
-		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef {
+		mapped, err := RemapExpression(original, func(ref ids.ObjectRef) ids.ObjectRef {
 			if ref != (ids.ObjectRef{}) {
 				ref.Address.ObjectID += 1000
 			}
@@ -97,7 +97,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{"2004-07-01 12:00:00", "2004-07-01 12:00:00"}}) {
 		t.Fatal(got)
 	}
-	if viewOf(source.catalog.state.MustRelation(ref.Address)) != definition {
+	if ViewOf(source.catalog.state.MustRelation(ref.Address)) != definition {
 		t.Fatal("catalog import mutated source definition")
 	}
 }
@@ -108,8 +108,8 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 		run(t, e, q)
 	}
 	ref := roleTableRef(t, e, "tz_at")
-	definition := viewOf(e.catalog.state.MustRelation(ref.Address))
-	if err := definition.validateLiterals(e.CatalogRead()); err != nil {
+	definition := ViewOf(e.catalog.state.MustRelation(ref.Address))
+	if err := definition.ValidateLiterals(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	for _, column := range []bool{false, true} {
@@ -133,11 +133,11 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 				break
 			}
 		}
-		if err := NewView(bad).validateLiterals(e.CatalogRead()); err == nil {
+		if err := NewView(bad).ValidateLiterals(e.CatalogRead()); err == nil {
 			t.Fatalf("missing timezone child occurrence accepted: column=%t", column)
 		}
 	}
-	if err := definition.validateLiterals(e.CatalogRead()); err != nil {
+	if err := definition.ValidateLiterals(e.CatalogRead()); err != nil {
 		t.Fatal("validation mutated stored definition", err)
 	}
 }

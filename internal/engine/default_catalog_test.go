@@ -38,7 +38,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 			bad := old.ColumnMeta.Defaults[1]
 			bad.Expression = node
 			d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad}
-			if _, err := (scalarRenderer{}).sql(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored default properties" {
+			if _, err := (scalarRenderer{}).SQL(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored default properties" {
 				t.Fatal("parameter invariant not reached", err)
 			}
 		},
@@ -48,7 +48,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 			bad := old.ColumnMeta.Defaults[1]
 			bad.Expression = node
 			d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad}
-			if _, err := (scalarRenderer{}).sql(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored literal" {
+			if _, err := (scalarRenderer{}).SQL(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored literal" {
 				t.Fatal("literal type invariant not reached", err)
 			}
 		},
@@ -154,7 +154,7 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal("definition validation evaluated an explicit cast", err)
 	}
-	text, err := defaultSQL(context.Background(), view, old.ColumnMeta.Defaults[2].Expression)
+	text, err := DefaultSQL(context.Background(), view, old.ColumnMeta.Defaults[2].Expression)
 	if err != nil || !strings.Contains(text, "CAST(CAST('oops' AS TEXT) AS ") {
 		t.Fatal("lost known TEXT input type", text, err)
 	}
@@ -185,7 +185,7 @@ func TestDefaultDescriptorProviderUnfoldedDecisiveBranches(t *testing.T) {
 		t.Fatal("provider evaluated a discarded conversion", err)
 	}
 	for _, definition := range d.ColumnMeta.Defaults {
-		text, err := defaultSQL(context.Background(), view, definition.Expression)
+		text, err := DefaultSQL(context.Background(), view, definition.Expression)
 		if err != nil {
 			t.Fatal(err)
 		}

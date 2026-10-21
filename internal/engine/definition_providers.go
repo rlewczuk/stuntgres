@@ -31,14 +31,14 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			}
 			return nil
 		}
-		valid := storedReferenceEpochValid(stage.Base, d, ref)
+		valid := ReferenceEpochValid(stage.Base, d, ref)
 		if d != nil && d.View != nil {
 			// The stage's evolved consumer retains the incumbent definition's
 			// immutable provenance; old epochs never become generic stage refs.
 			incumbent, _ := stage.Base.Relation(d.Address())
-			valid = incumbent != nil && incumbent.View == d.View && storedViewReferenceValid(stage.Base, incumbent, ref)
+			valid = incumbent != nil && incumbent.View == d.View && ViewReferenceValid(stage.Base, incumbent, ref)
 			if ref.Epoch == stage.Base.Epoch() {
-				valid = storedViewReferenceValid(stage.Base, d, ref)
+				valid = ViewReferenceValid(stage.Base, d, ref)
 			}
 		}
 		if !valid {
@@ -70,12 +70,12 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			continue
 		}
 		if d.View != nil {
-			for _, leaf := range viewOf(d).Sources() {
-				if err := add(leaf.ref, d); err != nil {
+			for _, leaf := range ViewOf(d).Sources() {
+				if err := add(leaf.Ref, d); err != nil {
 					return err
 				}
 			}
-			for _, dependency := range viewOf(d).Dependencies() {
+			for _, dependency := range ViewOf(d).Dependencies() {
 				if err := add(dependency.Ref, d); err != nil {
 					return err
 				}

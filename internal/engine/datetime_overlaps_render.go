@@ -7,7 +7,7 @@ import (
 
 // Both retained bound definitions and raw view trees keep the original four
 // arguments; presentation chooses the ordinary name, not the SQL provenance.
-func renderOverlapsCall[T any](syntax parser.FunctionSyntax, args []T, ordinary string, child func(int, T) (string, error)) (string, error) {
+func RenderOverlapsCall[T any](syntax parser.FunctionSyntax, args []T, ordinary string, child func(int, T) (string, error)) (string, error) {
 	if len(args) != 4 {
 		return "", fmt.Errorf("stuntgres: invalid stored OVERLAPS arity")
 	}

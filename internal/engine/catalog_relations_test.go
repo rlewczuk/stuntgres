@@ -78,12 +78,12 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 		if count != sample.children {
 			t.Fatal("typed child traversal", sample.name, count)
 		}
-		mapped, err := remapBoundExpression(sample.node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		mapped, err := RemapExpression(sample.node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !analyze.SameGroupExpression(sample.node, mapped) {
 			t.Fatal("stored remap", sample.name, err)
 		}
 		demand := false
-		text, err := (scalarRenderer{commentSnapshot: &demand}).scalarFunctionSQL(context.Background(), e.CatalogRead(), mapped)
+		text, err := (scalarRenderer{CommentSnapshot: &demand}).ScalarFunctionSQL(context.Background(), e.CatalogRead(), mapped)
 		if err != nil || !strings.Contains(text, "pg_catalog."+sample.name+"(") || !demand {
 			t.Fatal("symbolic serialization and catalog demand", text, demand, err)
 		}
@@ -116,7 +116,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	}
 	fresh := New()
 	destination := catalogRelationsUnitBind(t, fresh, "pg_get_catalog_foreign_keys").(functions.CatalogForeignKeys)
-	mapped, _, err := retagBoundTypes(fresh.CatalogRead(), set, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, _, err := RetagTypes(fresh.CatalogRead(), set, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == 2249 {
 			return destination.ResultUsage().Type
 		}

@@ -7,7 +7,7 @@ import (
 )
 
 // Presentation uses the same namespace-first identity lookup as binding.
-func collationDisplayName(view catalog.Read, id uint32, path []ids.ObjectAddress) string {
+func CollationDisplayName(view catalog.Read, id uint32, path []ids.ObjectAddress) string {
 	if view.State() == nil {
 		return catalog.Identifier(typedef.CollationName(view, id))
 	}

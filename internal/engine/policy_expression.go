@@ -52,11 +52,11 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 			RegtypeConstants:  b.Prepared.RegtypeConstants,
 		},
 	}
-	frozen, err := freezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
+	frozen, err := FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}
-	refs, err := pgDependExpressionRefs(scope.op.Context(), auth.Catalog, node)
+	refs, err := ExpressionDependRefs(scope.op.Context(), auth.Catalog, node)
 	if err != nil {
 		return nil, err
 	}

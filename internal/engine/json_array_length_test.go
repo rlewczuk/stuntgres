@@ -42,7 +42,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rebound, changed, err := retagBoundTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
+			rebound, changed, err := RetagTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
@@ -108,8 +108,8 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 				t.Fatal(err)
 			}
 			arg := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
-			renderer := pgRenderer{view: view}
-			got, err := renderer.literal(context.Background(), arg)
+			renderer := pgRenderer{View: view}
+			got, err := renderer.Literal(context.Background(), arg)
 			if err != nil || got != tc.literal {
 				t.Fatalf("literal=%q err=%v want=%q", got, err, tc.literal)
 			}
@@ -119,7 +119,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 				t.Fatal(err)
 			}
 			expr := functions.Binary{Info: expr.Info{Usage: usage}, Plan: plan, Args: []expr.Expr{arg}}
-			got, err = renderer.sql(context.Background(), expr, pgRenderParent{})
+			got, err = renderer.SQL(context.Background(), expr, pgRenderParent{})
 			want := tc.name + "(" + tc.literal + ")"
 			if err != nil || got != want {
 				t.Fatalf("call=%q err=%v want=%q", got, err, want)

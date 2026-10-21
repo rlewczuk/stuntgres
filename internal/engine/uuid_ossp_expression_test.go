@@ -59,22 +59,22 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if visits != 0 || !analyze.SameGroupExpression(n, n) {
 		t.Fatal("not a zero-child identity leaf")
 	}
-	refs, err := pgDependExpressionRefs(context.Background(), view, n)
+	refs, err := ExpressionDependRefs(context.Background(), view, n)
 	if err != nil || !slices.Contains(refs, n.Ref.Address) {
 		t.Fatal(refs, err)
 	}
-	retagged, _, err := retagBoundTypes(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	retagged, _, err := RetagTypes(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateInstalledUUIDOssp(retagged.(plan.InstalledUUIDOsspExpr), view); err != nil {
+	if err := ValidateInstalledUUIDOssp(retagged.(plan.InstalledUUIDOsspExpr), view); err != nil {
 		t.Fatal(err)
 	}
-	rendered, err := (scalarRenderer{}).sql(context.Background(), view, retagged)
+	rendered, err := (scalarRenderer{}).SQL(context.Background(), view, retagged)
 	if err != nil || !strings.Contains(rendered, "uuid_generate_v4") || !strings.Contains(rendered, "public") || strings.Contains(rendered, "pg_catalog") {
 		t.Fatal("installed renderer", rendered, err)
 	}
-	mapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, nil)
+	mapped, err := RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	} {
 		bad := n
 		mutate(&bad)
-		if err := validateInstalledUUIDOssp(bad, view); err == nil {
+		if err := ValidateInstalledUUIDOssp(bad, view); err == nil {
 			t.Fatal("invalid stored identity accepted", bad)
 		}
 	}
@@ -168,7 +168,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	if analyze.ClosedUUIDDefault(grouped) {
 		t.Fatal("grouped execution leaf admitted as a closed DEFAULT")
 	}
-	if err := validateInstalledUUIDOssp(n, view); err != nil {
+	if err := ValidateInstalledUUIDOssp(n, view); err != nil {
 		t.Fatal("legitimate grouped installed identity rejected", err)
 	}
 	for _, mutate := range []func(*plan.InstalledUUIDOsspExpr){
@@ -180,19 +180,19 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	} {
 		bad := n
 		mutate(&bad)
-		if err := validateInstalledUUIDOssp(bad, view); err == nil || analyze.ClosedUUIDDefault(bad) {
+		if err := ValidateInstalledUUIDOssp(bad, view); err == nil || analyze.ClosedUUIDDefault(bad) {
 			t.Fatal("group stage masked invalid leaf properties or relaxed DEFAULT", bad)
 		}
 	}
-	retagged, _, err := retagBoundTypes(view, grouped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	retagged, _, err := RetagTypes(view, grouped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal("retagging legitimate grouped leaf", err)
 	}
-	mapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal("remapping legitimate grouped leaf", err)
 	}
-	rebound, _, err := retagBoundTypes(view, mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	rebound, _, err := RetagTypes(view, mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal("retagging remapped grouped leaf", err)
 	}
@@ -294,7 +294,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 			t.Fatal("incompatible current provider/kind admitted")
 		}
 	}
-	grafted, _, err := mapBoundExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
+	grafted, _, err := MapExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
 	if err != nil {
 		t.Fatal("graft genuine recipe", err)
 	}
@@ -336,11 +336,11 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		}
 		return ref
 	}
-	relocated, err := remapBoundExpression(node, remap, nil)
+	relocated, err := RemapExpression(node, remap, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	relocated, _, err = retagBoundTypes(view, relocated, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	relocated, _, err = RetagTypes(view, relocated, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal("retag must resolve selected remapped address", err)
 	}
@@ -362,14 +362,14 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("transferred original authority rejected", err)
 	}
 	foreignView := other.CatalogRead()
-	foreignNode, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef {
+	foreignNode, err := RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef {
 		ref = other.catalog.Domain.Ref(foreignView.Epoch(), ref.Address)
 		return ref
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignNode, _, err = retagBoundTypes(foreignView, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	foreignNode, _, err = RetagTypes(foreignView, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil
 		}

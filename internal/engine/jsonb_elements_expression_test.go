@@ -40,7 +40,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			t.Fatal("unlifted evaluation accepted")
 		}
 		fresh := jsonObjectUnitTypes()
-		mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+		mapped, changed, err := RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}

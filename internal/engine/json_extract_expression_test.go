@@ -49,7 +49,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh := jsonObjectUnitTypes()
-	next, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	next, changed, err := RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(next, changed, err)
 	}
@@ -67,7 +67,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 	if err != nil || text != "x" {
 		t.Fatal(text, err)
 	}
-	mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err := RemapExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || !analyze.SameGroupExpression(original, mapped) {
 		t.Fatal(mapped, err)
 	}
@@ -114,8 +114,8 @@ func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
 				if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(err)
 				}
-				renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), frame: b.FrameID()}
-				replaySQL, err := renderer.expressionSQL(ctx, view, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+				replaySQL, err := renderer.ExpressionSQL(ctx, view, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

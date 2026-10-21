@@ -134,7 +134,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		}
 		other := New()
 		read := other.CatalogRead()
-		mapped, changed, err := retagBoundTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, changed, err := RetagTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == nil {
 				return nil
 			}

@@ -31,7 +31,7 @@ func (e *policyExpression) Expression() expr.Expr { return e.expression }
 func (e *policyExpression) Presentation() *viewDefinition { return e.presentation }
 
 // policyExpressionOf returns p's concrete condition, or nil when p is absent.
-func policyExpressionOf(p catalog.PolicyPayload) *policyExpression {
+func PolicyOf(p catalog.PolicyPayload) *policyExpression {
 	e, _ := p.(*policyExpression)
 	return e
 }
@@ -41,25 +41,25 @@ func (e *policyExpression) DependsOn(target ids.ObjectAddress) bool {
 }
 
 func (e *policyExpression) Validate(v catalog.Read, owner *catalog.Relation) error {
-	return validatePolicyExpression(v, owner, e)
+	return ValidatePolicy(v, owner, e)
 }
 
 func (e *policyExpression) VisitExpression(visit func(expr.Expr) error) error {
 	return visit(e.expression)
 }
 
-func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *policyExpression) (string, error) {
-	r := newViewRenderer(expression.presentation)
-	r.frame = 1
+func PolicySQL(ctx context.Context, view catalog.Read, expression *policyExpression) (string, error) {
+	r := NewQueryRenderer(expression.presentation)
+	r.Frame = 1
 	source := analyze.ViewFromRoot(r.frames[1])
 	leaf := r.sources[0]
-	d, ok := view.Relation(leaf.ref.Address)
+	d, ok := view.Relation(leaf.Ref.Address)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: policy owner is missing")
 	}
 	r.reserved[d.Name()] = true
-	slots := make(map[int]string, len(leaf.attributes))
-	for i, attribute := range leaf.attributes {
+	slots := make(map[int]string, len(leaf.Attributes))
+	for i, attribute := range leaf.Attributes {
 		for j, current := range d.Attributes {
 			if current == attribute {
 				slots[i] = catalog.QuoteIdentifier(d.Name()) + "." + catalog.QuoteIdentifier(d.Columns[j].Name)
@@ -67,6 +67,6 @@ func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *pol
 			}
 		}
 	}
-	r.slots[source] = slots
-	return r.expressionSQL(ctx, view, expression.syntax, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	r.Slots[source] = slots
+	return r.ExpressionSQL(ctx, view, expression.syntax, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 }

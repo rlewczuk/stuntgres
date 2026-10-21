@@ -39,11 +39,11 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			t.Fatal(err)
 		}
 		sql := spec.Replay.Text
-		rendered, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})
+		rendered, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, node, pgRenderParent{})
 		if err != nil || rendered != strings.ToUpper(sql) {
 			t.Fatal(rendered, sql, err)
 		}
-		replay, err := (scalarRenderer{}).sql(ctx, e.CatalogRead(), node)
+		replay, err := (scalarRenderer{}).SQL(ctx, e.CatalogRead(), node)
 		if err != nil || replay != sql {
 			t.Fatal(replay, sql, err)
 		}
@@ -52,14 +52,14 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			t.Fatal(tree, err)
 		}
 		target := New()
-		retagged, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := target.CatalogRead().LookupType(d.ID())
 			return next
 		})
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
+		remapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
 			t.Fatal("current leaf invented relation reference", ref)
 			return ref
 		}, nil)

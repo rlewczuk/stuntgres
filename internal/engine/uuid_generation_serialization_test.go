@@ -30,7 +30,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 			// Repeated serialization exercises re-inference without relying on
 			// incidental printer wording or requiring a provider session.
 			for round := range 3 {
-				emitted, err := defaultSQL(ctx, e.CatalogRead(), node)
+				emitted, err := DefaultSQL(ctx, e.CatalogRead(), node)
 				if err != nil {
 					t.Fatal(err)
 				}

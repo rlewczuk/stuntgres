@@ -10,10 +10,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path analyze.ViewLiteralPath, raw parser.FunctionExpr) (*catalog.Procedure, error) {
+func (v *viewDefinition) SQLRoutineRecipeProcedure(read catalog.Read, path analyze.ViewLiteralPath, raw parser.FunctionExpr) (*catalog.Procedure, error) {
 	ref, exists := v.routineRefs[path]
 	consumer, _ := read.Relation(v.consumer)
-	if !raw.StoredSQLRoutine || !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !storedViewReferenceValid(read, consumer, ref) || ref.Epoch != read.Epoch() && (consumer == nil || viewOf(consumer) != v) {
+	if !raw.StoredSQLRoutine || !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !ViewReferenceValid(read, consumer, ref) || ref.Epoch != read.Epoch() && (consumer == nil || ViewOf(consumer) != v) {
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen SQL routine reference")
 	}
 	d, ok := read.Procedure(ref.Address)
@@ -32,7 +32,7 @@ func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path analy
 }
 
 func (v *viewRenderer) sqlRoutineRecipeName(read catalog.Read, path analyze.ViewLiteralPath, raw parser.FunctionExpr) (string, error) {
-	d, err := v.sqlRoutineRecipeProcedure(read, path, raw)
+	d, err := v.SQLRoutineRecipeProcedure(read, path, raw)
 	if err != nil {
 		return "", err
 	}
@@ -40,7 +40,7 @@ func (v *viewRenderer) sqlRoutineRecipeName(read catalog.Read, path analyze.View
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing frozen SQL routine namespace")
 	}
-	return v.presentation.identifier(namespace.Name()) + "." + v.presentation.identifier(d.Name()), nil
+	return v.Presentation.identifier(namespace.Name()) + "." + v.Presentation.identifier(d.Name()), nil
 }
 
 func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {

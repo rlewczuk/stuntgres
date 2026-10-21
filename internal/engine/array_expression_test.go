@@ -116,7 +116,7 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	}
 	other := New()
 	read := other.CatalogRead()
-	retagged, changed, err := retagBoundTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	retagged, changed, err := RetagTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil
 		}

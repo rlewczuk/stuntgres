@@ -32,8 +32,8 @@ func inheritanceViewTargetGuard(catalog catalog.Read, relation *catalog.Relation
 		return nil
 	}
 	visited[relation.Address()] = true
-	for _, source := range viewOf(relation).Sources() {
-		live, ok := catalog.Relation(source.ref.Address)
+	for _, source := range ViewOf(relation).Sources() {
+		live, ok := catalog.Relation(source.Ref.Address)
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}

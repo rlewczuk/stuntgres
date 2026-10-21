@@ -23,5 +23,5 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 			return nil, err
 		}
 	}
-	return freezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), syntax, b, barrier, invoker, rule, temporaryMessage, temporaryConsumer)
+	return FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), syntax, b, barrier, invoker, rule, temporaryMessage, temporaryConsumer)
 }

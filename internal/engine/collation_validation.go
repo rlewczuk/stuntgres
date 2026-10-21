@@ -13,7 +13,7 @@ import (
 
 // An immutable execution capability is not proof that its catalog identity is
 // still live. Stored plans must retain both authorities through publication.
-func validateUsageCollation(view catalog.Read, u sqltype.Usage) error {
+func ValidateUsageCollation(view catalog.Read, u sqltype.Usage) error {
 	return validateUsageCollationAt(view, nil, u)
 }
 
@@ -36,7 +36,7 @@ func validateUsageCollationAt(view catalog.Read, reader catalog.DefinitionReader
 // Catalog-valued REGCOLLATION constants retain identity, not a comparison
 // capability. Other expressions and any actual use of this collation keep the
 // existing provider validation, even if the same OID also appears as an alias.
-func validateStoredCollationDependency(view catalog.Read, ref ids.ObjectRef, node expr.Expr) error {
+func ValidateCollationDependency(view catalog.Read, ref ids.ObjectRef, node expr.Expr) error {
 	err := typedef.ValidateCollationProvider(view, ref)
 	if err == nil {
 		return nil

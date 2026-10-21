@@ -96,7 +96,7 @@ func TestJSONArrayAggregateProviderRemap(t *testing.T) {
 		result, _ := source.CatalogRead().LookupType(id)
 		p := jsonArrayProviderUnit(t, input.Usage(), result.Usage(), true)
 		root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: p, Operation: functions.AggregateJSONStrict, IncludeNulls: true}}}
-		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := RemapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
 		})
@@ -272,9 +272,9 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 	if err = b.CaptureViewLiterals(raw, bound, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := newViewRenderer(NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
-	renderer.frame = b.FrameID()
-	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	renderer := NewQueryRenderer(NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
+	renderer.Frame = b.FrameID()
+	text, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -95,7 +95,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	plain := domainUnitType(t, view, "no_default")
 	integer, _ := view.LookupType(sqltype.Int4)
 	null := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
-	if !omitColumnDefault(view, null, integer.Usage()) || omitColumnDefault(view, null, parent.SQLType.Usage()) || !omitColumnDefault(view, null, plain.SQLType.Usage()) {
+	if !OmitColumnDefault(view, null, integer.Usage()) || OmitColumnDefault(view, null, parent.SQLType.Usage()) || !OmitColumnDefault(view, null, plain.SQLType.Usage()) {
 		t.Fatal("plain NULL omission/domain mask distinction")
 	}
 	badPresentation := *parent

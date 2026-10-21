@@ -62,11 +62,11 @@ func TestDomainDefaultDependencyPreparedProjectionInternal(t *testing.T) {
 	sourceRef := roleTableRef(t, e, "dd_projection_source")
 	source := before.MustRelation(sourceRef.Address)
 	retired := before.MustRelation(roleTableRef(t, e, "dd_projection_retired").Address)
-	retiredQuery := viewOf(retired).Query()
-	query := viewOf(before.MustRelation(roleTableRef(t, e, "dd_projection_alias").Address)).Query()
-	liveQuery := viewOf(before.MustRelation(roleTableRef(t, e, "dd_projection_live_alias").Address)).Query()
+	retiredQuery := ViewOf(retired).Query()
+	query := ViewOf(before.MustRelation(roleTableRef(t, e, "dd_projection_alias").Address)).Query()
+	liveQuery := ViewOf(before.MustRelation(roleTableRef(t, e, "dd_projection_live_alias").Address)).Query()
 	target := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(retired.RowType)}
-	refs, err := pgDependQueryRefs(op.Context(), before, nil, query)
+	refs, err := QueryDependRefs(op.Context(), before, nil, query)
 	if err != nil || !slices.Contains(refs, target) {
 		t.Fatal("genuine alias did not retain its actual rowtype", refs, err)
 	}
@@ -93,21 +93,21 @@ func TestDomainDefaultDependencyPreparedProjectionInternal(t *testing.T) {
 	if _, present := prepared.Descriptor(target); present {
 		t.Fatal("real prepared CASCADE retained retired view rowtype")
 	}
-	liveRefs, err := pgDependQueryRefs(op.Context(), before, prepared, liveQuery)
+	liveRefs, err := QueryDependRefs(op.Context(), before, prepared, liveQuery)
 	if err != nil || !slices.Contains(liveRefs, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}) {
 		t.Fatal("prepared projection lost genuine surviving alias", liveRefs, err)
 	}
-	baseRefs, err := pgDependQueryRefs(op.Context(), before, nil, query)
+	baseRefs, err := QueryDependRefs(op.Context(), before, nil, query)
 	if err != nil || !slices.Contains(baseRefs, target) {
 		t.Fatal("prepared discovery lost the genuine predecessor alias", baseRefs, err)
 	}
-	retiredRefs, err := pgDependQueryRefs(op.Context(), before, prepared, query)
+	retiredRefs, err := QueryDependRefs(op.Context(), before, prepared, query)
 	if err != nil || slices.Contains(retiredRefs, target) {
 		t.Fatal("opaque retired alias revived a stale base dependency", retiredRefs, err)
 	}
 	// Opaque numeric aliases may outlive their targets, but a real bound
 	// column cannot survive the same ordered prepared DROP projection.
-	if _, err := pgDependQueryRefs(op.Context(), before, prepared, retiredQuery); err == nil {
+	if _, err := QueryDependRefs(op.Context(), before, prepared, retiredQuery); err == nil {
 		t.Fatal("query collector accepted the genuinely retired source column")
 	}
 	if e.CatalogRead().State() != before.State() || before.Get(source.Address()) != source || before.Get(target) == nil {

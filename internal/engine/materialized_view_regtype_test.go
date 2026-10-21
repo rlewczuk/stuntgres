@@ -23,8 +23,8 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	renderer := pgRenderer{view: source.stageRead(sourceStage), path: []ids.ObjectAddress{original.Namespace()}}
-	text, err := renderer.literal(context.Background(), plan.LiteralExpr{Info: expr.Info{Usage: regtype.Usage()}, Value: builtin})
+	renderer := pgRenderer{View: source.stageRead(sourceStage), Path: []ids.ObjectAddress{original.Namespace()}}
+	text, err := renderer.Literal(context.Background(), plan.LiteralExpr{Info: expr.Info{Usage: regtype.Usage()}, Value: builtin})
 	if err != nil || text != "'integer'::regtype" {
 		t.Fatalf("builtin symbolic deparse: %q %v", text, err)
 	}
@@ -61,8 +61,8 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	renderer = pgRenderer{view: destination.stageRead(destinationStage), path: []ids.ObjectAddress{reminted.Namespace()}}
-	text, err = renderer.literal(context.Background(), plan.LiteralExpr{Info: expr.Info{Usage: destinationRegtype.Usage()}, Value: value})
+	renderer = pgRenderer{View: destination.stageRead(destinationStage), Path: []ids.ObjectAddress{reminted.Namespace()}}
+	text, err = renderer.Literal(context.Background(), plan.LiteralExpr{Info: expr.Info{Usage: destinationRegtype.Usage()}, Value: value})
 	if err != nil || text != "'unit_mv'::regtype" {
 		t.Fatalf("reminted symbolic deparse: %q %v", text, err)
 	}

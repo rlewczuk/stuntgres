@@ -56,7 +56,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 		}
 	}
 	assert(node, original.Usage.Type)
-	next, changed, err := retagBoundTypes(target.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	next, changed, err := RetagTypes(target.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
 		}
@@ -72,18 +72,18 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	assert(next, reminted.Usage.Type)
 	assert(node, original.Usage.Type)
-	rendered, err := defaultSQL(ctx, target.CatalogRead(), next)
+	rendered, err := DefaultSQL(ctx, target.CatalogRead(), next)
 	if err != nil || rendered != "pg_catalog.pi()" {
 		t.Fatal("stored zero-child rendering", rendered, err)
 	}
 	foreign := reminted
 	foreign.Plan = original.Plan
-	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
+	if _, err := DefaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored foreign provider accepted")
 	}
 	foreign = reminted
 	foreign.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: reminted.Usage}, Value: sqltype.Null(reminted.Usage.Type)}}
-	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
+	if _, err := DefaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored pi argument accepted")
 	}
 	invalidPlan, err := sqltype.BindMath("cbrt", reminted.Usage, reminted.Usage)
@@ -92,7 +92,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	foreign = reminted
 	foreign.Plan = invalidPlan
-	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
+	if _, err := DefaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored unary with no child accepted")
 	}
 	canceled, cancel := context.WithCancel(ctx)

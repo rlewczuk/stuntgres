@@ -87,7 +87,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	types := formatUnitTypes()
-	retagged, changed, err := retagBoundTypes(binder.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retagged, changed, err := RetagTypes(binder.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -113,13 +113,13 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	origins := []exec.QuoteOrigin{
 		{Owner: tableRef, Attribute: table.Attributes[0], Definition: table.ColumnMeta.Defaults[table.Attributes[0]].OID},
 		{Owner: tableRef, Attribute: table.Attributes[1], Definition: table.ColumnMeta.Defaults[table.Attributes[1]].OID},
-		{Owner: viewRef, Definition: viewOf(view).RuleOID(), Revision: viewOf(view).QuoteRevision()},
+		{Owner: viewRef, Definition: ViewOf(view).RuleOID(), Revision: ViewOf(view).QuoteRevision()},
 		{},
 	}
 	stamped := node.WithOrigin(origins[2])
 	targetRef := viewRef
 	targetRef.Epoch++
-	remapped, err := remapBoundExpression(stamped, func(ref ids.ObjectRef) ids.ObjectRef {
+	remapped, err := RemapExpression(stamped, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref == viewRef {
 			return targetRef
 		}
@@ -128,7 +128,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if err != nil || exec.QuoteOriginOf(remapped.(functions.StringVariadic)).Owner != targetRef || exec.QuoteOriginOf(stamped) != origins[2] {
 		t.Fatal("view quote origin remap lost target ownership or mutated source", err)
 	}
-	stampedRetagged, _, err := retagBoundTypes(binder.BindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	stampedRetagged, _, err := RetagTypes(binder.BindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || stampedRetagged.(functions.StringVariadic).Origin != stamped.Origin {
 		t.Fatal("view quote origin lost during typed retag", err)
 	}
@@ -236,7 +236,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		for _, name := range []string{"iv", "ov", "nv"} {
 			view := primaryKeyUnitRelation(t, engine, name)
-			_, _, predicates, reason := viewWriteShape(view)
+			_, _, predicates, reason := ViewWriteShape(view)
 			if reason != "" {
 				t.Fatal(reason)
 			}
@@ -550,7 +550,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		stamp := description.quoteGeneration
 		view := primaryKeyUnitRelation(t, engine, "sv_local_view")
 		catalog := engine.CatalogRead()
-		origin := exec.QuoteOrigin{Owner: engine.catalog.Domain.Ref(catalog.Epoch(), view.Address()), Definition: viewOf(view).RuleOID(), Revision: viewOf(view).QuoteRevision()}
+		origin := exec.QuoteOrigin{Owner: engine.catalog.Domain.Ref(catalog.Epoch(), view.Address()), Definition: ViewOf(view).RuleOID(), Revision: ViewOf(view).QuoteRevision()}
 		var previous []exec.QuoteConstant
 		for id := int64(1); id <= 2; id++ {
 			setting, root, blocked := "off", "root", "blocked"

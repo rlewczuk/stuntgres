@@ -93,7 +93,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 	queryMaps := 0
 	mapQuery := func(root plan.Node) (plan.Node, error) { queryMaps++; return root, nil }
 	for _, recipe := range u.Assignments {
-		_, _, err := retagBoundTypesWithQuery(e.CatalogRead(), recipe, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, mapQuery)
+		_, _, err := RetagTypesWithQuery(e.CatalogRead(), recipe, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, mapQuery)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +102,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 		t.Fatal("query graph mapping count", queryMaps)
 	}
 	original := u.Assignments[0].(plan.SubqueryExpr)
-	mapped, _, err := mapBoundExpression(e.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) { return node, false, nil })
+	mapped, _, err := MapExpression(e.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) { return node, false, nil })
 	if err != nil || mapped.(plan.SubqueryExpr).UpdateWidth != 2 || original.QueryPlan != u.Assignments[0].(plan.SubqueryExpr).QueryPlan {
 		t.Fatal("lost marker or mutated template", err)
 	}

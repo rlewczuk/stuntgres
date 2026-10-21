@@ -37,7 +37,7 @@ func (enginePreparation) DomainCatalog(c *exec.Context) catalog.Read {
 func (enginePreparation) ReturnsSet(d *catalog.Procedure) bool { return procedureReturnsSet(d) }
 
 func (enginePreparation) StoredReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
-	return storedReferenceEpochValid(view, consumer, ref)
+	return ReferenceEpochValid(view, consumer, ref)
 }
 
 func (enginePreparation) ValidInstalledText(n plan.InstalledTextExpr) bool {

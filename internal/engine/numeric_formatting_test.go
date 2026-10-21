@@ -84,7 +84,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		replacements[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(New().CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+	rebound, changed, err := RetagTypes(New().CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}

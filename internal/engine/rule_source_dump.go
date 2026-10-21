@@ -40,7 +40,7 @@ func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action rul
 		if slot >= len(attributes) {
 			return "", ids.ErrCatalogReplaced
 		}
-		column, err := deparseAttribute(d, attributes[slot])
+		column, err := DeparseAttribute(d, attributes[slot])
 		if err != nil {
 			return "", err
 		}

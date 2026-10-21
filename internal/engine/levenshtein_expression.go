@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func validateInstalledLevenshtein(n plan.InstalledLevenshteinExpr, v catalog.Read) error {
+func ValidateInstalledLevenshtein(n plan.InstalledLevenshteinExpr, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Levenshtein argument")

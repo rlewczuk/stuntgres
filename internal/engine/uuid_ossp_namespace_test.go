@@ -35,17 +35,17 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if carrier, err := exec.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 				t.Fatal("lost routine authority", carrier, err)
 			}
-			if err := validateInstalledUUIDOssp(n, view); err != nil {
+			if err := ValidateInstalledUUIDOssp(n, view); err != nil {
 				t.Fatal(err)
 			}
 			if err := validateGenerationPlan(view, nil, n); err != nil {
 				t.Fatal(err)
 			}
-			refs, err := pgDependExpressionRefs(context.Background(), view, n)
+			refs, err := ExpressionDependRefs(context.Background(), view, n)
 			if err != nil || !slices.Contains(refs, n.Ref.Address) {
 				t.Fatal("missing installed dependency", refs, err)
 			}
-			retagged, _, err := retagBoundTypes(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+			retagged, _, err := RetagTypes(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -57,20 +57,20 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if got.Name != name || got.Procedure != n.Procedure || got.Ref != n.Ref || exec.PlannedVolatility(got) != expr.Immutable {
 				t.Fatal("rebuild/retag erased identity", got)
 			}
-			rendered, err := (scalarRenderer{}).sql(context.Background(), view, got)
+			rendered, err := (scalarRenderer{}).SQL(context.Background(), view, got)
 			if err != nil || !strings.Contains(rendered, name) || !strings.Contains(rendered, "public") {
 				t.Fatal("symbolic constant", rendered, err)
 			}
 			foreign := n
 			foreign.Ref.Epoch++
-			if _, err := (scalarRenderer{}).sql(context.Background(), view, foreign); err == nil {
+			if _, err := (scalarRenderer{}).SQL(context.Background(), view, foreign); err == nil {
 				t.Fatal("renderer accepted foreign-epoch constant")
 			}
 			grouped, err := binder.RewriteGroup(n, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := validateInstalledUUIDOssp(grouped.(plan.InstalledUUIDOsspExpr), view); err != nil {
+			if err := ValidateInstalledUUIDOssp(grouped.(plan.InstalledUUIDOsspExpr), view); err != nil {
 				t.Fatal("grouped constant", err)
 			}
 			for _, mutate := range []func(*plan.InstalledUUIDOsspExpr){
@@ -83,7 +83,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			} {
 				bad := n
 				mutate(&bad)
-				if err := validateInstalledUUIDOssp(bad, view); err == nil {
+				if err := ValidateInstalledUUIDOssp(bad, view); err == nil {
 					t.Fatal("forged constant accepted", bad)
 				}
 			}

@@ -59,7 +59,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		if err != nil || textErr != nil || text != tc.want {
 			t.Fatal(tc.name, text, err, textErr)
 		}
-		serialized, err := defaultSQL(ctx, e.CatalogRead(), node)
+		serialized, err := DefaultSQL(ctx, e.CatalogRead(), node)
 		if err != nil || !strings.Contains(serialized, tc.name) || strings.Contains(serialized, "CAST(") {
 			t.Fatal(tc.name, serialized, err)
 		}
@@ -67,7 +67,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 			t.Fatal("structural equality rejected self")
 		}
 		replacement := New()
-		rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		rebound, changed, err := RetagTypes(replacement.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			mapped, _ := replacement.CatalogRead().LookupType(d.ID())
 			return mapped
 		})
@@ -79,7 +79,7 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 		if err != nil || retagErr != nil || after != want {
 			t.Fatal(tc.name, after, want, err, retagErr)
 		}
-		if _, err := defaultSQL(ctx, replacement.CatalogRead(), rebound); err != nil {
+		if _, err := DefaultSQL(ctx, replacement.CatalogRead(), rebound); err != nil {
 			t.Fatal(tc.name, err)
 		}
 		if tc.name != "||" {
@@ -130,7 +130,7 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 			return n
 		},
 	} {
-		if _, err := defaultSQL(ctx, e.CatalogRead(), mutate(root)); err == nil {
+		if _, err := DefaultSQL(ctx, e.CatalogRead(), mutate(root)); err == nil {
 			t.Fatal("invalid bit stored provider admitted")
 		}
 	}

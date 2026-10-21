@@ -142,7 +142,7 @@ func (e *Engine) bindIndexPredicate(op *session.Operation, input sqltype.InputEn
 		return nil, sqlError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
 	var dependencies []ids.ObjectRef
-	if _, err = (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: parent, dependencies: &dependencies}).sql(op.Context(), auth.Catalog, definition); err != nil {
+	if _, err = (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: parent, Dependencies: &dependencies}).SQL(op.Context(), auth.Catalog, definition); err != nil {
 		return nil, err
 	}
 	// Match the analyzed catalog shape, not the execution tree after folding.

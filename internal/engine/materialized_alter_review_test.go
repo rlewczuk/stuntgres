@@ -304,9 +304,9 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	// establishes this defining predecessor while the real ALTER is pending.
 	next := *d
 	next.ObjectRevision++
-	definition := viewOf(producer).With(func(p *ViewParts) {
-		p.Rule = viewOf(d).RuleOID()
-		p.Consumer = viewOf(d).Consumer()
+	definition := ViewOf(producer).With(func(p *ViewParts) {
+		p.Rule = ViewOf(d).RuleOID()
+		p.Consumer = ViewOf(d).Consumer()
 		p.QuoteRevision = next.Revision()
 	})
 	next.View = definition
@@ -328,7 +328,7 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	current := e.catalog.state.MustRelation(d.Address())
-	if viewOf(current) != definition || current.Columns[0].Name != "i" || current.RowType != d.RowType || !reflect.DeepEqual(current.Attributes, d.Attributes) || e.storage.Relations[d.Address()] != store || e.storage.IndexRoots[index.Address()] != root || viewOf(current).Query() != viewOf(producer).Query() || viewOf(current).RuleOID() != viewOf(d).RuleOID() {
+	if ViewOf(current) != definition || current.Columns[0].Name != "i" || current.RowType != d.RowType || !reflect.DeepEqual(current.Attributes, d.Attributes) || e.storage.Relations[d.Address()] != store || e.storage.IndexRoots[index.Address()] != root || ViewOf(current).Query() != ViewOf(producer).Query() || ViewOf(current).RuleOID() != ViewOf(d).RuleOID() {
 		t.Fatal("rejected queued ALTER changed validated producer predecessor")
 	}
 	result = sessionSQL(t, holder, "SELECT i FROM unit_mv ORDER BY i")

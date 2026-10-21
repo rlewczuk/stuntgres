@@ -8,7 +8,7 @@ import (
 // The canonical mapper adds every mapped child's properties to this base before
 // constructing its existing node. Preserve analyzed dependence from eliminated
 // branches and runtime domain barriers, but do not retain replaced child demand.
-func rewrittenIntrinsicProperties(node expr.Expr) expr.Properties {
+func RewrittenIntrinsicProperties(node expr.Expr) expr.Properties {
 	var children expr.Properties
 	plan.ExpressionChildren(node, func(child expr.Expr) {
 		if child != nil {
@@ -16,7 +16,7 @@ func rewrittenIntrinsicProperties(node expr.Expr) expr.Properties {
 		}
 	})
 	original := node.Properties()
-	properties := expr.Properties{Volatility: plannedIntrinsicVolatility(node)}
+	properties := expr.Properties{Volatility: PlannedIntrinsicVolatility(node)}
 	if original.Volatility > children.Volatility {
 		properties.Volatility = max(properties.Volatility, original.Volatility)
 	}

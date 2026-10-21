@@ -75,7 +75,7 @@ func TestUUIDExtractRemap(t *testing.T) {
 	fresh := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.UUIDExtractKind{functions.UUIDExtractTimestamp, functions.UUIDExtractVersion} {
 		node := uuidExtractEngineUnit(t, b, kind)
-		mapped, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
+		mapped, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
 		if err != nil || !changed {
 			t.Fatal(mapped, changed, err)
 		}
@@ -110,13 +110,13 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 		if err != nil || v.Type() != b.Type(kind.Result()) {
 			t.Fatal("folded authority", v, err)
 		}
-		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, engine.CatalogRead(), node)
+		recipe, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, engine.CatalogRead(), node)
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+kind.Name()+"(") {
 			t.Fatal(recipe, err)
 		}
 		bad := node
 		bad.Kind = 0
-		if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, engine.CatalogRead(), bad); err == nil {
+		if _, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, engine.CatalogRead(), bad); err == nil {
 			t.Fatal("invalid stored provider")
 		}
 	}

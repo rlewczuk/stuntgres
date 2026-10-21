@@ -228,7 +228,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 	if di != 92000 || ci != 91000 || got.CompositeField(0).Type() != domain {
 		t.Fatal("class/domain/composite remap", di, ci)
 	}
-	remapped, err := remapBoundExpression(literal, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address = mapped(ref.Address); return ref }, nil)
+	remapped, err := RemapExpression(literal, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address = mapped(ref.Address); return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -62,7 +62,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	mapped, changed, err := retagBoundTypes(auth.Catalog, call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := RetagTypes(auth.Catalog, call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if next := fresh[d.ID()]; next != nil {
 			return next
 		}
@@ -272,7 +272,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	}
 	key := analyze.PreparedCompositeKey{Offset: 40, Kind: analyze.CompositeSourceExpansion, Projection: 7}
 	captured := b.Prepared.Composites[key]
-	if err := validateCompositeOccurrence(captured, view); err != nil {
+	if err := ValidateCompositeOccurrence(captured, view); err != nil {
 		t.Fatal(err)
 	}
 	oldSource[0].Descriptor.Name = "changed after capture"
@@ -368,8 +368,8 @@ func TestJSONBRecordReplay(t *testing.T) {
 				if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
-				renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), frame: b.FrameID()}
-				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				renderer := viewRenderer{viewDefinition: NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+				emitted, err := renderer.ExpressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -409,7 +409,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				if captured.Kind != analyze.CompositeRecordArgument || captured.Base.Type != original {
 					t.Fatal("wrong provider capture", captured)
 				}
-				if err := validateCompositeOccurrence(captured, view); err != nil {
+				if err := ValidateCompositeOccurrence(captured, view); err != nil {
 					t.Fatal(err)
 				}
 			}

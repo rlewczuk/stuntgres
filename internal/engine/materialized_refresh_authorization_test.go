@@ -149,7 +149,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			t.Fatal(err)
 		}
 		converted := plan.CoercionExpr{Info: expr.Info{Usage: routine.Usage()}, Child: probe, Plan: coercionPlan, Mode: sqltype.Explicit}
-		d.View = viewOf(d).With(func(p *ViewParts) {
+		d.View = ViewOf(d).With(func(p *ViewParts) {
 			p.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: d.Columns, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{converted}}}
 		})
 		e.mu.Lock()

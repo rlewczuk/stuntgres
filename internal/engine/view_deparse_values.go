@@ -63,12 +63,12 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	for i, column := range root.Schema() {
 		slots[i] = catalog.QuoteIdentifier(column.Name)
 	}
-	v.slots[root] = slots
+	v.Slots[root] = slots
 	rows := make([]string, len(source.Rows))
 	for i, row := range source.Rows {
 		cells := make([]string, 0, len(row))
 		for j, raw := range row {
-			text, err := v.expressionSQL(ctx, catalogView, raw, analyze.ViewLiteralPath{Clause: analyze.ViewValuesCellLiteral, Source: occurrence, Row: i, Target: j})
+			text, err := v.ExpressionSQL(ctx, catalogView, raw, analyze.ViewLiteralPath{Clause: analyze.ViewValuesCellLiteral, Source: occurrence, Row: i, Target: j})
 			if err != nil {
 				return "", err
 			}
@@ -85,7 +85,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	if source.Order != nil {
 		keys := make([]string, len(source.Order.Keys))
 		for i, key := range source.Order.Keys {
-			part, err := v.expressionSQL(ctx, catalogView, key.Expr, analyze.ViewLiteralPath{Clause: analyze.ViewValuesOrderLiteral, Source: occurrence, Target: i})
+			part, err := v.ExpressionSQL(ctx, catalogView, key.Expr, analyze.ViewLiteralPath{Clause: analyze.ViewValuesOrderLiteral, Source: occurrence, Target: i})
 			if err != nil {
 				return "", err
 			}
@@ -114,7 +114,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 			if bound.raw == nil {
 				continue
 			}
-			part, err := v.expressionSQL(ctx, catalogView, bound.raw, analyze.ViewLiteralPath{Clause: bound.clause, Source: occurrence})
+			part, err := v.ExpressionSQL(ctx, catalogView, bound.raw, analyze.ViewLiteralPath{Clause: bound.clause, Source: occurrence})
 			if err != nil {
 				return "", err
 			}

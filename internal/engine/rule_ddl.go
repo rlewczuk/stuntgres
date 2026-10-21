@@ -104,16 +104,16 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if err := ruleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
-			temporary := viewOf(old).Temporary() != (ids.SessionToken{})
-			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).Barrier(), viewOf(old).Invoker(), viewOf(old).RuleOID(), catalog.ViewRelation, temporary)
+			temporary := ViewOf(old).Temporary() != (ids.SessionToken{})
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, ViewOf(old).Barrier(), ViewOf(old).Invoker(), ViewOf(old).RuleOID(), catalog.ViewRelation, temporary)
 			if err != nil {
 				return fail(err)
 			}
 			definition = definition.With(func(p *ViewParts) {
-				p.Options = viewOf(old).Options()
-				p.CheckOption = viewOf(old).CheckOption()
+				p.Options = ViewOf(old).Options()
+				p.CheckOption = ViewOf(old).CheckOption()
 			})
-			next.View = viewPayloadOf(definition)
+			next.View = ViewPayload(definition)
 			sources = b.QuerySources
 		} else {
 			if name == "_RETURN" {
@@ -141,8 +141,8 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			}
 			if definition.conditionPresentation != nil {
 				for _, source := range definition.conditionPresentation.Sources() {
-					d := auth.Catalog.MustRelation(source.ref.Address)
-					sources = append(sources, exec.Leaf{Ref: source.ref, Relation: d})
+					d := auth.Catalog.MustRelation(source.Ref.Address)
+					sources = append(sources, exec.Leaf{Ref: source.Ref, Relation: d})
 				}
 			}
 		}
@@ -169,7 +169,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(err)
 	}
 	if next.View != old.View {
-		next.View = viewOf(&next).With(func(p *ViewParts) { p.QuoteRevision = next.Revision() })
+		next.View = ViewOf(&next).With(func(p *ViewParts) { p.QuoteRevision = next.Revision() })
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)

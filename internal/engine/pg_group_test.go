@@ -244,7 +244,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName, view.RelationKind, view.VirtualView = name, catalog.ViewRelation, false
 		attrs := slices.Clone(d.Attributes)
-		view.View = NewView(ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}})
+		view.View = NewView(ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []viewLeaf{{Ref: leaf, Attributes: attrs, Reads: attrs}}})
 		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	}

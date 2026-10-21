@@ -469,7 +469,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	local := e.catalog.state.MustRelation(localAddress)
 	retainedView := e.catalog.state.MustRelation(viewAddress)
 	var procedureRef ids.ObjectRef
-	for ref := range viewOf(retainedView).References() {
+	for ref := range ViewOf(retainedView).References() {
 		if ref.Address == ext.Members[1] {
 			procedureRef = ref
 		}
@@ -526,7 +526,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if e.catalog.state.Get(localAddress) != local || e.catalog.state.Get(viewAddress) != retainedView {
 		t.Fatal("replacement changed retained TEMP consumers")
 	}
-	if !storedViewReferenceValid(e.CatalogRead(), retainedView, procedureRef) {
+	if !ViewReferenceValid(e.CatalogRead(), retainedView, procedureRef) {
 		t.Fatal("exact retained procedure manifest lost contextual epoch authority")
 	}
 	if err := validateDefaultProviders(e.CatalogRead(), local); err != nil {
@@ -535,20 +535,20 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	procedureCopy := *e.catalog.state.MustProcedure(procedureRef.Address)
 	substituted := catalog.CloneState(e.catalog.state)
 	substituted.SetDescriptor(procedureRef.Address, &procedureCopy)
-	if !storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
+	if !ViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("compatible COW procedure metadata lost captured view lifetime")
 	}
 	invalidProcedure := procedureCopy
 	invalidProcedure.Strict = !invalidProcedure.Strict
 	substituted.SetDescriptor(procedureRef.Address, &invalidProcedure)
-	if storedViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
+	if ViewReferenceValid(e.catalog.read(substituted), retainedView, procedureRef) {
 		t.Fatal("changed procedure semantics substituted captured view lifetime")
 	}
 	foreignNamespace := *e.catalog.state.MustNamespace(ext.TargetNamespace)
 	foreignNamespace.Temporary = installer.Session.SessionToken
 	foreign := catalog.CloneState(e.catalog.state)
 	foreign.SetDescriptor(ext.TargetNamespace, &foreignNamespace)
-	if storedViewReferenceValid(e.catalog.read(foreign), retainedView, procedureRef) {
+	if ViewReferenceValid(e.catalog.read(foreign), retainedView, procedureRef) {
 		t.Fatal("foreign physical namespace token substituted retained procedure authority")
 	}
 	if err := e.catalog.validateObjectRefLocked(e.CatalogRead(), procedureRef); err == nil {

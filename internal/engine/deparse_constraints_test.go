@@ -110,7 +110,7 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: scope.inquiry.deparsePath, output: scope.output, nonstandardStrings: op.NonstandardStrings}).sql(context.Background(), node, pgRenderParent{})
+				got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: op.NonstandardStrings}).SQL(context.Background(), node, pgRenderParent{})
 				if err != nil || got != want {
 					t.Fatalf("pretty=%t got %q, %v; want %q", pretty, got, err, want)
 				}
@@ -167,7 +167,7 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 			}
 			node := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 			for _, pretty := range []bool{false, true} {
-				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
+				got, err := (pgRenderer{View: view, Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
 				want := tc.compact
 				if pretty {
 					want = tc.pretty
@@ -176,7 +176,7 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}
 				node.Value = sqltype.Null(typ)
-				got, err = (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
+				got, err = (pgRenderer{View: view, Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
 				declaration, err2 := analyze.PGType(typ.Usage())
 				if err != nil || err2 != nil || got != "NULL::"+declaration {
 					t.Fatal(got, err, err2)
@@ -212,7 +212,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), payload.(plan.BoundTree).Expression, pgRenderParent{})
+	got, err := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), payload.(plan.BoundTree).Expression, pgRenderParent{})
 	if err != nil || got != "(1 / 0)" {
 		t.Fatal(got, err)
 	}
@@ -222,7 +222,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	}
 	calls := 0
 	trap := deparseTrap{Info: expr.Info{Usage: d.Columns[0].Usage}, calls: &calls}
-	if _, err := (pgRenderer{view: view}).sql(context.Background(), trap, pgRenderParent{}); err == nil || calls != 0 {
+	if _, err := (pgRenderer{View: view}).SQL(context.Background(), trap, pgRenderParent{}); err == nil || calls != 0 {
 		t.Fatal(err, calls)
 	}
 	if plan.StructuralNull(trap) || calls != 0 {
@@ -301,11 +301,11 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	run(t, e, `CREATE TABLE supplied(x TEXT,y TEXT,"Renamed value" TEXT)`)
 	current := e.CatalogRead()
 	supplied := current.MustRelation(roleTableRef(t, e, "supplied").Address)
-	got, err := (pgRenderer{view: current, relation: supplied, pretty: true}).sql(context.Background(), node, pgRenderParent{})
+	got, err := (pgRenderer{View: current, Relation: supplied, Pretty: true}).SQL(context.Background(), node, pgRenderParent{})
 	if err != nil || got != `"Renamed value" > 0` {
 		t.Fatal(got, err)
 	}
-	if _, err := (pgRenderer{view: current}).sql(context.Background(), node, pgRenderParent{}); err == nil {
+	if _, err := (pgRenderer{View: current}).SQL(context.Background(), node, pgRenderParent{}); err == nil {
 		t.Fatal("Var accepted with zero relation")
 	}
 	before := e.catalog.nextOID
@@ -362,7 +362,7 @@ func TestDeparseConstraintsTypmodsAndLiteralVariants(t *testing.T) {
 			}
 			node := plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: value}
 			for _, pretty := range []bool{false, true} {
-				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
+				got, err := (pgRenderer{View: view, Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
 				if err != nil || got != tc.expected {
 					t.Fatal(got, err, tc.expected)
 				}
@@ -419,7 +419,7 @@ func TestDeparseConstraintsVolatileTreesDoNotExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pretty := range []bool{false, true} {
-		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}}).sql(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
+		got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty, Path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}}).SQL(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
 		want := "((nextval('s'::regclass) > 0) AND (random() > (0)::double precision))"
 		if pretty {
 			want = "nextval('s'::regclass) > 0 AND random() > 0::double precision"

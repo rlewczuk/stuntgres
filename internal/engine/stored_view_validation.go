@@ -22,25 +22,25 @@ func (definition *viewDefinition) Validate(v catalog.Read, d *catalog.Relation) 
 		if usage.Type == nil {
 			return fmt.Errorf("stuntgres: missing view cast type")
 		}
-		if !validExpressionUsage(v, usage) {
+		if !ValidExpressionUsage(v, usage) {
 			return fmt.Errorf("stuntgres: invalid view cast authority")
 		}
-		if err := validateUsageCollation(v, usage); err != nil {
+		if err := ValidateUsageCollation(v, usage); err != nil {
 			return err
 		}
 	}
-	if err := definition.validateLiterals(v); err != nil {
+	if err := definition.ValidateLiterals(v); err != nil {
 		return err
 	}
-	if err := validateViewLeaves(v, definition); err != nil {
+	if err := ValidateViewLeaves(v, definition); err != nil {
 		return err
 	}
 	if err := definition.validateNamespaces(); err != nil {
 		return err
 	}
 	for _, leaf := range definition.sources {
-		source, ok := v.Relation(leaf.ref.Address)
-		if !ok || !storedViewReferenceValid(v, d, leaf.ref) || leaf.ref.Address.SubID != 0 {
+		source, ok := v.Relation(leaf.Ref.Address)
+		if !ok || !ViewReferenceValid(v, d, leaf.Ref) || leaf.Ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: invalid view source identity")
 		}
 		namespace, ok := v.Namespace(source.Namespace())
@@ -48,9 +48,9 @@ func (definition *viewDefinition) Validate(v catalog.Read, d *catalog.Relation) 
 		if !ok || namespace.Temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.Temporary != namespace.Temporary) {
 			return fmt.Errorf("stuntgres: invalid view source lifetime")
 		}
-		for _, attribute := range leaf.reads {
+		for _, attribute := range leaf.Reads {
 			frozen := false
-			for _, id := range leaf.attributes {
+			for _, id := range leaf.Attributes {
 				frozen = frozen || id == attribute
 			}
 			if !frozen {
@@ -65,7 +65,7 @@ func (definition *viewDefinition) Validate(v catalog.Read, d *catalog.Relation) 
 		ref := dependency.Ref
 		address := ref.Address
 		address.SubID = 0
-		if !storedViewReferenceValid(v, d, ref) {
+		if !ViewReferenceValid(v, d, ref) {
 			return fmt.Errorf("stuntgres: invalid view dependency identity")
 		}
 		object, ok := v.Find(address)
@@ -82,7 +82,7 @@ func (definition *viewDefinition) Validate(v catalog.Read, d *catalog.Relation) 
 	return nil
 }
 
-func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error {
+func ValidateViewLeaves(catalog catalog.Read, definition *viewDefinition) error {
 	seen := make([]*plan.SourceNode, len(definition.sources))
 	projects := make(map[uint32]*plan.ProjectNode, len(definition.frames))
 	marked := make(map[uint32]bool)
@@ -90,10 +90,10 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 		if !usage.Valid() {
 			return fmt.Errorf("stuntgres: invalid view query usage")
 		}
-		if err := validateUsageCollation(catalog, usage); err != nil {
+		if err := ValidateUsageCollation(catalog, usage); err != nil {
 			return err
 		}
-		if !validExpressionUsage(catalog, usage) {
+		if !ValidExpressionUsage(catalog, usage) {
 			return fmt.Errorf("stuntgres: foreign view query type")
 		}
 		return nil
@@ -140,14 +140,14 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				}
 			}
 		case *plan.SetNode:
-			if err := validateStoredSetNode(n, nil, nil); err != nil {
+			if err := ValidateSetNode(n, nil, nil); err != nil {
 				return err
 			}
 		case *plan.RecursiveUnionNode:
 			if n.Definition == nil || !n.Definition.Recursive {
 				return fmt.Errorf("stuntgres: invalid stored recursive definition")
 			}
-			if err := validateStoredSetNode(&n.SetNode, n.Cycle, n.Search); err != nil {
+			if err := ValidateSetNode(&n.SetNode, n.Cycle, n.Search); err != nil {
 				return err
 			}
 			if n.Search != nil || n.Cycle != nil {
@@ -257,12 +257,12 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 			}
 			seen[n.Occurrence] = n
 			leaf := definition.sources[n.Occurrence]
-			source, ok := catalog.Relation(leaf.ref.Address)
-			if !ok || n.Ref != leaf.ref || len(n.Schema()) != len(leaf.attributes) {
+			source, ok := catalog.Relation(leaf.Ref.Address)
+			if !ok || n.Ref != leaf.Ref || len(n.Schema()) != len(leaf.Attributes) {
 				return fmt.Errorf("stuntgres: invalid view source layout")
 			}
-			for _, attribute := range leaf.reads {
-				for slot, frozen := range leaf.attributes {
+			for _, attribute := range leaf.Reads {
+				for slot, frozen := range leaf.Attributes {
 					if frozen != attribute {
 						continue
 					}
@@ -408,7 +408,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 	return nil
 }
 
-func validateStoredSetNode(n *plan.SetNode, cycle *plan.CycleRecipe, search *plan.SearchRecipe) error {
+func ValidateSetNode(n *plan.SetNode, cycle *plan.CycleRecipe, search *plan.SearchRecipe) error {
 	width := len(n.Schema())
 	leftWidth, groupingWidth := width, width
 	if cycle != nil {

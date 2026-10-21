@@ -13,13 +13,13 @@ import (
 )
 
 // The common sql entry validates provenance and records dependencies once.
-func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
+func (r scalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	switch n := node.(type) {
 	case plan.SQLRoutineExpr:
 		if err := n.ValidateStoredProvider(); err != nil {
 			return "", err
 		}
-		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) {
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine reference")
 		}
 		procedure, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
@@ -33,10 +33,10 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
 	case plan.InstalledSoundexExpr:
-		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Soundex reference")
 		}
-		if err := validateInstalledSoundex(n, view); err != nil {
+		if err := ValidateInstalledSoundex(n, view); err != nil {
 			return "", err
 		}
 		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
@@ -46,10 +46,10 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
 	case plan.InstalledMetaphoneExpr:
-		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Metaphone reference")
 		}
-		if err := validateInstalledMetaphone(n, view); err != nil {
+		if err := ValidateInstalledMetaphone(n, view); err != nil {
 			return "", err
 		}
 		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
@@ -59,10 +59,10 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
 	case plan.InstalledLevenshteinExpr:
-		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Levenshtein reference")
 		}
-		if err := validateInstalledLevenshtein(n, view); err != nil {
+		if err := ValidateInstalledLevenshtein(n, view); err != nil {
 			return "", err
 		}
 		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
@@ -72,10 +72,10 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
 	case plan.InstalledUUIDOsspExpr:
-		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored uuid-ossp reference")
 		}
-		if err := validateInstalledUUIDOssp(n, view); err != nil {
+		if err := ValidateInstalledUUIDOssp(n, view); err != nil {
 			return "", err
 		}
 		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
@@ -85,10 +85,10 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), nil)
 	case plan.InstalledCryptoExpr:
-		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored crypto reference")
 		}
-		if err := validateInstalledCrypto(n, view); err != nil {
+		if err := ValidateInstalledCrypto(n, view); err != nil {
 			return "", err
 		}
 		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
@@ -99,7 +99,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
 	case plan.InstalledTextExpr:
 		proc, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
-		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !analyze.ValidInstalledText(n) || proc.Name() != n.Procedure.Name() || proc.Signature != n.Procedure.Signature || proc.RoutineKind != n.Procedure.RoutineKind || proc.Result != n.Procedure.Result || proc.Strict != n.Procedure.Strict || proc.Volatility != n.Procedure.Volatility || extension.UnaccentProviderOf(proc) != extension.UnaccentProviderOf(n.Procedure) || extension.IntarrayProviderOf(proc) != extension.IntarrayProviderOf(n.Procedure) || extension.PgcryptoProviderOf(proc) != extension.PgcryptoProviderOf(n.Procedure) || extension.FuzzystrmatchProviderOf(proc) != extension.FuzzystrmatchProviderOf(n.Procedure) || proc.Dictionary != n.Procedure.Dictionary || proc.Extension != n.Procedure.Extension || proc.Namespace() != n.Procedure.Namespace() {
+		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !analyze.ValidInstalledText(n) || proc.Name() != n.Procedure.Name() || proc.Signature != n.Procedure.Signature || proc.RoutineKind != n.Procedure.RoutineKind || proc.Result != n.Procedure.Result || proc.Strict != n.Procedure.Strict || proc.Volatility != n.Procedure.Volatility || extension.UnaccentProviderOf(proc) != extension.UnaccentProviderOf(n.Procedure) || extension.IntarrayProviderOf(proc) != extension.IntarrayProviderOf(n.Procedure) || extension.PgcryptoProviderOf(proc) != extension.PgcryptoProviderOf(n.Procedure) || extension.FuzzystrmatchProviderOf(proc) != extension.FuzzystrmatchProviderOf(n.Procedure) || proc.Dictionary != n.Procedure.Dictionary || proc.Extension != n.Procedure.Extension || proc.Namespace() != n.Procedure.Namespace() {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
 		if n.Dictionary != nil {
@@ -122,8 +122,8 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(proc.Name()), []expr.Expr{n.Arg})
 	case plan.ExtensionPathsExpr:
-		if r.commentSnapshot != nil {
-			*r.commentSnapshot = true
+		if r.CommentSnapshot != nil {
+			*r.CommentSnapshot = true
 		}
 		if err := n.Validate(); err != nil {
 			return "", err

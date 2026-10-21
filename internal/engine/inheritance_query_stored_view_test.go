@@ -99,7 +99,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(bindErr)
 				}
-				d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: 1, Owner: parent.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: map[string]int{"i": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+				d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: 1, Owner: parent.Owner, RelationKind: catalog.ViewRelation, View: ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: map[string]int{"i": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 				d.Columns[0].OriginTable, d.Columns[0].OriginAttribute = uint32(oid), 1
 				viewStage := e.BeginCatalogStage(auth.Catalog)
 				bindErr = e.stageRowTypeLocked(viewStage, d)
@@ -263,7 +263,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			}
 			var source *exec.Source
 			if captureErr == nil {
-				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).Sources()[0].only}, op.Session.SessionToken)
+				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: ViewOf(view).Sources()[0].Only}, op.Session.SessionToken)
 			}
 			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.Catalog, parent.Address()) == parentStorage
 			e.mu.Unlock()

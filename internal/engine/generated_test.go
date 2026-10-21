@@ -114,7 +114,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	if !plan.GenerationImmutable(pruned) || !plan.GenerationHasTableOID(pruned) {
 		t.Fatal("surviving provider walk uses inherited volatility")
 	}
-	remapped, err := remapBoundExpression(pruned, func(old ids.ObjectRef) ids.ObjectRef { old.Address.ObjectID = 26000; return old }, nil)
+	remapped, err := RemapExpression(pruned, func(old ids.ObjectRef) ids.ObjectRef { old.Address.ObjectID = 26000; return old }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,11 +138,11 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	child := *parent
 	child.ObjectAddress.ObjectID++
 	mapper := analyze.LikeInput{Source: parent}
-	left, err := remapLikeExpression(&mapper, original, &child, view)
+	left, err := RemapLikeExpression(&mapper, original, &child, view)
 	if err != nil {
 		t.Fatal(err)
 	}
-	right, err := remapLikeExpression(&mapper, original, &child, view)
+	right, err := RemapLikeExpression(&mapper, original, &child, view)
 	if err != nil {
 		t.Fatal(err)
 	}

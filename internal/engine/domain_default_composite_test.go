@@ -60,7 +60,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	references(before, survivor, source.Attributes[1])
 	original := survivor.DomainDefault.Expression
 	originalRefs := slices.Clone(survivor.DomainDefault.Dependencies)
-	originalText, err := (pgRenderer{view: before}).sql(op.Context(), original, pgRenderParent{})
+	originalText, err := (pgRenderer{View: before}).SQL(op.Context(), original, pgRenderParent{})
 	if err != nil || !strings.Contains(originalText, "ROW(17, 18, 19)") {
 		t.Fatal(originalText, err)
 	}
@@ -150,15 +150,15 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if numberErr != nil || number != 18 {
 		t.Fatal("selected field demanded retired siblings", value, numberErr)
 	}
-	text, err := (pgRenderer{view: after}).sql(op.Context(), mapped.DomainDefault.Expression, pgRenderParent{})
+	text, err := (pgRenderer{View: after}).SQL(op.Context(), mapped.DomainDefault.Expression, pgRenderParent{})
 	if err != nil || text != originalText {
 		t.Fatal("source metadata rewrote written constructor", text, originalText, err)
 	}
-	nativeText, err := (scalarRenderer{currentRowShape: true}).sql(op.Context(), after, mapped.DomainDefault.Expression)
+	nativeText, err := (scalarRenderer{CurrentRowShape: true}).SQL(op.Context(), after, mapped.DomainDefault.Expression)
 	if err != nil || !strings.Contains(nativeText, "ROW(18)") || strings.Contains(nativeText, "17") || strings.Contains(nativeText, "19") {
 		t.Fatal("native replay retained retired constructor arity", nativeText, err)
 	}
-	again, _, err := retagBoundTypes(after, mapped.DomainDefault.Expression, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+	again, _, err := RetagTypes(after, mapped.DomainDefault.Expression, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
 		current, ok := after.LookupType(typ.ID())
 		if ok {
 			return current
@@ -171,7 +171,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if pair.SQLType.CompositeLen() != 3 || before.Get(survivor.Address()) != survivor || !slices.Equal(originalRefs, survivor.DomainDefault.Dependencies) || !analyze.SameGroupExpression(survivor.DomainDefault.Expression, original) {
 		t.Fatal("retag mutated immutable predecessor")
 	}
-	oldText, err := (pgRenderer{view: before}).sql(op.Context(), original, pgRenderParent{})
+	oldText, err := (pgRenderer{View: before}).SQL(op.Context(), original, pgRenderParent{})
 	if err != nil || oldText != originalText {
 		t.Fatal("predecessor metadata changed", oldText, err)
 	}

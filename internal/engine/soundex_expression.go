@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func validateInstalledSoundex(n plan.InstalledSoundexExpr, v catalog.Read) error {
+func ValidateInstalledSoundex(n plan.InstalledSoundexExpr, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Soundex argument")

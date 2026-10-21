@@ -32,7 +32,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			if !node.MissingOrdering || node.Comparison != (sqltype.Comparison{}) {
 				t.Fatal("missing ordering acquired executable comparator", node)
 			}
-			if _, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), node); err != nil {
+			if _, err := (scalarRenderer{}).SQL(ctx, engine.CatalogRead(), node); err != nil {
 				t.Fatal("unavailable capability lost stored identity", err)
 			}
 			calls := 0
@@ -74,14 +74,14 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 		}
 		node := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		for _, pretty := range []bool{false, true} {
-			renderer := pgRenderer{view: view, pretty: pretty}
-			got, err := renderer.literal(ctx, node)
+			renderer := pgRenderer{View: view, Pretty: pretty}
+			got, err := renderer.Literal(ctx, node)
 			if err != nil || got != "'"+tc.max+"'::"+tc.name {
 				t.Fatal(got, err)
 			}
 			null := node
 			null.Value = sqltype.Null(typ)
-			got, err = renderer.literal(ctx, null)
+			got, err = renderer.Literal(ctx, null)
 			if err != nil || got != "NULL::"+tc.name {
 				t.Fatal(got, err)
 			}
@@ -96,7 +96,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := (pgRenderer{view: view}).sql(ctx, node, pgRenderParent{})
+	got, err := (pgRenderer{View: view}).SQL(ctx, node, pgRenderParent{})
 	if err != nil || got != "('4294967297'::xid8)::xid" {
 		t.Fatal("actual conversion tree lost", got, err)
 	}

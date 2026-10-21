@@ -155,7 +155,7 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 		current[name], used[name] = true, true
 		definition := catalog.CheckConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, Ordinal: ordinal, Expression: node}
 		var dependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{definition: op.Definition, aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
+		if _, err := (scalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {
@@ -206,11 +206,11 @@ func validateCheckProviders(view catalog.Read, d *catalog.Relation) error {
 				continue
 			}
 			provider, ok := view.Descriptor(address)
-			if !ok || !storedReferenceEpochValid(view, d, dep.Ref) || (provider.Kind() != ids.RelationObject && provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject) || provider.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
+			if !ok || !ReferenceEpochValid(view, d, dep.Ref) || (provider.Kind() != ids.RelationObject && provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject) || provider.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid check provider dependency")
 			}
 			if provider.Kind() == ids.CollationObject {
-				if err := validateStoredCollationDependency(view, dep.Ref, c.Expression); err != nil {
+				if err := ValidateCollationDependency(view, dep.Ref, c.Expression); err != nil {
 					return err
 				}
 			}
@@ -239,7 +239,7 @@ func validateChecks(view catalog.Read, d *catalog.Relation, names map[string]boo
 		names[c.Name], previous = true, c.Name
 		var actual []ids.ObjectRef
 		var commentSnapshot, visibilitySnapshot bool
-		if _, err := (scalarRenderer{validation: true, owner: d, capturedChecks: c.Dependencies, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.Expression); err != nil {
+		if _, err := (scalarRenderer{Validation: true, Owner: d, CapturedChecks: c.Dependencies, Dependencies: &actual, CommentSnapshot: &commentSnapshot, VisibilitySnapshot: &visibilitySnapshot}).SQL(context.Background(), view, c.Expression); err != nil {
 			return err
 		}
 		if commentSnapshot != c.CommentSnapshot {
@@ -267,16 +267,16 @@ func validateChecks(view catalog.Read, d *catalog.Relation, names map[string]boo
 			address := dep.Ref.Address
 			address.SubID = 0
 			if address == d.Address() {
-				if !storedReferenceEpochValid(view, d, dep.Ref) || !d.HasAttribute(dep.Ref.Address.SubID) {
+				if !ReferenceEpochValid(view, d, dep.Ref) || !d.HasAttribute(dep.Ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: invalid check column dependency")
 				}
 			} else {
 				target, ok := view.Descriptor(address)
-				if !ok || !storedReferenceEpochValid(view, d, dep.Ref) || (target.Kind() != ids.RelationObject && target.Kind() != ids.TypeObject && target.Kind() != ids.CollationObject && target.Kind() != ids.ProcedureObject && target.Kind() != ids.OperatorObject && target.Kind() != ids.NamespaceObject && target.Kind() != ids.TSDictionaryObject) || target.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
+				if !ok || !ReferenceEpochValid(view, d, dep.Ref) || (target.Kind() != ids.RelationObject && target.Kind() != ids.TypeObject && target.Kind() != ids.CollationObject && target.Kind() != ids.ProcedureObject && target.Kind() != ids.OperatorObject && target.Kind() != ids.NamespaceObject && target.Kind() != ids.TSDictionaryObject) || target.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid check provider dependency")
 				}
 				if target.Kind() == ids.CollationObject {
-					if err := validateStoredCollationDependency(view, dep.Ref, c.Expression); err != nil {
+					if err := ValidateCollationDependency(view, dep.Ref, c.Expression); err != nil {
 						return err
 					}
 				}

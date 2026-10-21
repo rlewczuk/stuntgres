@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
+func (v *viewDefinition) ValidateLiterals(catalog catalog.Read) error {
 	count, columnCount, starCount, compositeCount, routineCount := 0, 0, 0, 0, 0
 	for frame, project := range v.frames {
 		s := project.Syntax
@@ -28,7 +28,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 			continue
 		}
 		if s.Set != nil {
-			set := querySetNode(analyze.ViewFromRoot(project))
+			set := QuerySetNode(analyze.ViewFromRoot(project))
 			if set == nil || set.Left == nil || set.Right == nil || set.Left.Syntax != s.Set.Left || set.Right.Syntax != s.Set.Right || set.Operation != s.Set.Operator || set.All != s.Set.All {
 				return fmt.Errorf("stuntgres: invalid frozen set syntax frames")
 			}
@@ -218,12 +218,12 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 	path.Node = *ordinal
 	(*ordinal)++
 	if call, ok := raw.(parser.FunctionExpr); ok && call.StoredSQLRoutine {
-		if _, err := v.sqlRoutineRecipeProcedure(catalog, path, call); err != nil {
+		if _, err := v.SQLRoutineRecipeProcedure(catalog, path, call); err != nil {
 			return err
 		}
 		(*routineCount)++
 	} else if name := extension.IntaggRecipeFunction(raw); name != "" {
-		if _, err := v.intaggRecipeProcedure(catalog, path, name); err != nil {
+		if _, err := v.IntaggRecipeProcedure(catalog, path, name); err != nil {
 			return err
 		}
 		(*routineCount)++
@@ -277,10 +277,10 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 		if captured.Kind == analyze.CompositeDotBuiltin && captured.Function != functions.NullCountFunctionKind(r.Field.Text) {
 			return fmt.Errorf("stuntgres: invalid frozen dot provider")
 		}
-		if err := validateCompositeOccurrence(captured, catalog); err != nil {
+		if err := ValidateCompositeOccurrence(captured, catalog); err != nil {
 			return err
 		}
-		if err := v.validateCompositeSource(captured); err != nil {
+		if err := v.ValidateCompositeSource(captured); err != nil {
 			return err
 		}
 		(*compositeCount)++
@@ -300,17 +300,17 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if !usage.Valid() || literal.Value.Type() != usage.Type {
 				return fmt.Errorf("stuntgres: invalid view literal usage")
 			}
-			if err := validateUsageCollation(catalog, usage); err != nil {
+			if err := ValidateUsageCollation(catalog, usage); err != nil {
 				return err
 			}
 			// Contextual RECORD literals own occurrence layouts, not the
 			// catalog's lookup-only RECORD. Concrete leaves still must match.
-			if !validExpressionUsage(catalog, usage) {
+			if !ValidExpressionUsage(catalog, usage) {
 				return fmt.Errorf("stuntgres: foreign view literal type")
 			}
 			if ref := literal.RegclassRef; ref != (ids.ObjectRef{}) {
 				consumer, _ := catalog.Relation(v.consumer)
-				if !storedViewReferenceValid(catalog, consumer, ref) || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || usage.Type.ID() != sqltype.Regclass || literal.Value.IsNull() {
+				if !ViewReferenceValid(catalog, consumer, ref) || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || usage.Type.ID() != sqltype.Regclass || literal.Value.IsNull() {
 					return fmt.Errorf("stuntgres: invalid view regclass literal authority")
 				}
 			}
@@ -343,10 +343,10 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if captured.Kind != analyze.CompositeWholeRow {
 				return fmt.Errorf("stuntgres: invalid frozen scalar whole row")
 			}
-			if err := validateCompositeOccurrence(captured, catalog); err != nil {
+			if err := ValidateCompositeOccurrence(captured, catalog); err != nil {
 				return err
 			}
-			if err := v.validateCompositeSource(captured); err != nil {
+			if err := v.ValidateCompositeSource(captured); err != nil {
 				return err
 			}
 			if v.namespaces[captured.Source.Namespace-1].Qualifiers[captured.Source.Qualifier].Name != r.Name.Parts[len(r.Name.Parts)-1].Text {
@@ -373,10 +373,10 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if !ok || captured.Kind != analyze.CompositeExpansion && captured.Kind != analyze.CompositeWholeRow {
 				return fmt.Errorf("stuntgres: missing frozen whole row interpretation")
 			}
-			if err := validateCompositeOccurrence(captured, catalog); err != nil {
+			if err := ValidateCompositeOccurrence(captured, catalog); err != nil {
 				return err
 			}
-			if err := v.validateCompositeSource(captured); err != nil {
+			if err := v.ValidateCompositeSource(captured); err != nil {
 				return err
 			}
 			if captured.Source.Namespace == 0 || v.namespaces[captured.Source.Namespace-1].Qualifiers[captured.Source.Qualifier].Name != r.Qualifier.Parts[len(r.Qualifier.Parts)-1].Text {
@@ -479,10 +479,10 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if captured.Kind != analyze.CompositeSelection || len(r.Args) != 1 {
 				return fmt.Errorf("stuntgres: invalid frozen functional projection")
 			}
-			if err := validateCompositeOccurrence(captured, catalog); err != nil {
+			if err := ValidateCompositeOccurrence(captured, catalog); err != nil {
 				return err
 			}
-			if err := v.validateCompositeSource(captured); err != nil {
+			if err := v.ValidateCompositeSource(captured); err != nil {
 				return err
 			}
 			(*compositeCount)++

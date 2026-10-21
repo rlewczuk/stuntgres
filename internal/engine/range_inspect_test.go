@@ -32,7 +32,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
+	mapped, changed, err := RetagTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
@@ -67,13 +67,13 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil || value.Type() != fresh.Type(sqltype.Numeric) {
 		t.Fatal("folded authority", value, err)
 	}
-	recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, target.CatalogRead(), next)
+	recipe, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), next)
 	if err != nil || !strings.Contains(recipe, "pg_catalog.lower(") {
 		t.Fatal(recipe, err)
 	}
 	forged := next
 	forged.Plan = original.Plan
-	if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, target.CatalogRead(), forged); err == nil {
+	if _, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), forged); err == nil {
 		t.Fatal("stale stored plan")
 	}
 }

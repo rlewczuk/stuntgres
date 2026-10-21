@@ -237,7 +237,7 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 		candidate.FTS = nil
 		candidate.TypeDiagnosticName = nil
 		captureEnumOperationSafety(op, &candidate)
-		err = captureRetainedDefinitionInput(auth.Catalog, viewOf(d),
+		err = CaptureRetainedInput(auth.Catalog, ViewOf(d),
 			func() error { return e.captureElementInput(auth, op, &candidate) },
 			func(typ *sqltype.Descriptor) error { return e.captureTypeDiagnosticInput(auth, op, &candidate, typ) })
 		if err == nil {
@@ -248,7 +248,7 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 		e.mu.Unlock()
 		return nil, err
 	}
-	root, source, err := e.prepareStoredQueryLocked(scope, ref, viewOf(d), d.Owner, plan.RowMark{}, nil, nil)
+	root, source, err := e.prepareStoredQueryLocked(scope, ref, ViewOf(d), d.Owner, plan.RowMark{}, nil, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -86,7 +86,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
+	mapped, changed, err := RetagTypes(target.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh.Type(d.ID()) })
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
@@ -117,7 +117,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if err := forged.Validate(); err == nil {
 		t.Fatal("stale provider survived validation")
 	}
-	text, err := (scalarRenderer{}).scalarFunctionSQL(ctx, target.CatalogRead(), next)
+	text, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, target.CatalogRead(), next)
 	if err != nil || !strings.Contains(text, `OPERATOR("pg_catalog".+)`) {
 		t.Fatal("namespace spelling", text, err)
 	}

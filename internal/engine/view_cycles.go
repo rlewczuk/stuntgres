@@ -12,7 +12,7 @@ import (
 // active-path recurrence, not repeated occurrences of a shared acyclic source.
 // The same current identity-bound graph supplies inherited visibility demand;
 // stored query markers describe only expressions local to that definition.
-func validateViewReadGraph(view catalog.Read, leaves []exec.Leaf) (bool, error) {
+func ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) (bool, error) {
 	hasView := false
 	for _, leaf := range leaves {
 		if leaf.Relation.RelationKind == catalog.ViewRelation {
@@ -34,10 +34,10 @@ func validateViewReadGraph(view catalog.Read, leaves []exec.Leaf) (bool, error) 
 			return sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.Name()))
 		}
 		active[d.Address()] = true
-		visibilityDemand = visibilityDemand || viewOf(d).query.VisibilitySnapshot
-		for _, leaf := range viewOf(d).sources {
-			child, ok := view.Relation(leaf.ref.Address)
-			if !ok || !storedViewReferenceValid(view, d, leaf.ref) {
+		visibilityDemand = visibilityDemand || ViewOf(d).query.VisibilitySnapshot
+		for _, leaf := range ViewOf(d).sources {
+			child, ok := view.Relation(leaf.Ref.Address)
+			if !ok || !ViewReferenceValid(view, d, leaf.Ref) {
 				return ids.ErrCatalogReplaced
 			}
 			if err := visit(child); err != nil {

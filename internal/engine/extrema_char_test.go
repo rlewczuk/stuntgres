@@ -52,7 +52,7 @@ func TestExtremaCharConversionAndRemap(t *testing.T) {
 				}
 			}
 			check(node, text)
-			remapped, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return next[d.ID()] })
+			remapped, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return next[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}

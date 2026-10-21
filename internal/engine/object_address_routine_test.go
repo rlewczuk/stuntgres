@@ -107,7 +107,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("foreign original descriptor admitted")
 			}
-			remapped, _, err := retagBoundTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, _, err := RetagTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == nil {
 					return nil
 				}

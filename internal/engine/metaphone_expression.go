@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func validateInstalledMetaphone(n plan.InstalledMetaphoneExpr, v catalog.Read) error {
+func ValidateInstalledMetaphone(n plan.InstalledMetaphoneExpr, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Metaphone argument")

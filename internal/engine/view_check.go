@@ -8,17 +8,17 @@ import (
 type viewCheckMode uint8
 
 const (
-	viewCheckNone viewCheckMode = iota
-	viewCheckLocal
-	viewCheckCascaded
+	CheckNone viewCheckMode = iota
+	CheckLocal
+	CheckCascaded
 )
 
-func validateViewCheckDeclaration(definition *viewDefinition) error {
-	project, source, _, reason := viewWriteShape(&catalog.Relation{View: viewPayloadOf(definition)})
+func ValidateViewCheckDeclaration(definition *viewDefinition) error {
+	project, source, _, reason := ViewWriteShape(&catalog.Relation{View: ViewPayload(definition)})
 	if reason == "" {
 		reason = "Views that have no updatable columns are not automatically updatable."
 		for _, expr := range project.Expressions {
-			if column, ok := viewDirectColumn(expr); ok && sameViewRelation(column.Origin, source.Ref) {
+			if column, ok := ViewDirectColumn(expr); ok && SameViewRelation(column.Origin, source.Ref) {
 				return nil
 			}
 		}

@@ -56,7 +56,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "expr_preflight_v")
-	definition := viewOf(view.MustRelation(ref.Address))
+	definition := ViewOf(view.MustRelation(ref.Address))
 	frozen := definition.Query().Root
 	for _, tc := range []struct {
 		name, q string
@@ -105,7 +105,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 	view := e.CatalogRead()
 	innerRef := catalogRef(t, e, view, "expr_nested_inner")
 	inner := view.MustRelation(innerRef.Address)
-	innerRoot := viewOf(inner).Query().Root
+	innerRoot := ViewOf(inner).Query().Root
 	for _, tc := range []struct {
 		name, q string
 		outer   string
@@ -119,10 +119,10 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			outerRef := catalogRef(t, e, view, tc.outer)
 			outer := view.MustRelation(outerRef.Address)
-			frozenRoot := viewOf(outer).Query().Root
-			reads := make([][]int32, len(viewOf(outer).Sources()))
-			for i, leaf := range viewOf(outer).Sources() {
-				reads[i] = append([]int32(nil), leaf.reads...)
+			frozenRoot := ViewOf(outer).Query().Root
+			reads := make([][]int32, len(ViewOf(outer).Sources()))
+			for i, leaf := range ViewOf(outer).Sources() {
+				reads[i] = append([]int32(nil), leaf.Reads...)
 			}
 			if (tc.name == "selected" || tc.name == "full") && !reflect.DeepEqual(reads[0], inner.Attributes) {
 				t.Fatal("fixture lacks full frozen nested-read manifest", reads, inner.Attributes)
@@ -164,12 +164,12 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 					t.Fatal("nested authorization capture changed")
 				}
 			}
-			if viewOf(outer).Query().Root != frozenRoot || viewOf(inner).Query().Root != innerRoot {
+			if ViewOf(outer).Query().Root != frozenRoot || ViewOf(inner).Query().Root != innerRoot {
 				t.Fatal("nested demand mutated frozen source roots")
 			}
-			for i, leaf := range viewOf(outer).Sources() {
-				if !reflect.DeepEqual(leaf.reads, reads[i]) {
-					t.Fatal("executable pruning weakened frozen ACL/dependency reads", i, leaf.reads, reads[i])
+			for i, leaf := range ViewOf(outer).Sources() {
+				if !reflect.DeepEqual(leaf.Reads, reads[i]) {
+					t.Fatal("executable pruning weakened frozen ACL/dependency reads", i, leaf.Reads, reads[i])
 				}
 			}
 		})
@@ -249,7 +249,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 		if !generation.Expression.Properties().RowDependent || !generation.Planned.Properties().RowDependent {
 			t.Fatal("storage erased domain child row demand")
 		}
-		rendered, err := defaultSQL(context.Background(), view, definition)
+		rendered, err := DefaultSQL(context.Background(), view, definition)
 		if err != nil || !strings.Contains(rendered, "expr_domain_c") || !strings.Contains(rendered, "POSIX") {
 			t.Fatal("storage erased semantic domain/annotation definition", rendered, err)
 		}

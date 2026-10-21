@@ -68,7 +68,7 @@ func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[
 			expression(constraint.Expression)
 		}
 		if relation.View != nil {
-			for _, literal := range viewOf(relation).Literals() {
+			for _, literal := range ViewOf(relation).Literals() {
 				check(literal.Value)
 			}
 		}
@@ -99,10 +99,10 @@ func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[
 		}
 		for _, policy := range relation.Security.Policies {
 			if policy.Using != nil {
-				expression(policyExpressionOf(policy.Using).Expression())
+				expression(PolicyOf(policy.Using).Expression())
 			}
 			if policy.Check != nil {
-				expression(policyExpressionOf(policy.Check).Expression())
+				expression(PolicyOf(policy.Check).Expression())
 			}
 		}
 		if failure != nil {

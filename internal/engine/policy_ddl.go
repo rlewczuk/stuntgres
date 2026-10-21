@@ -137,12 +137,12 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	for _, p := range next.Security.Policies {
-		for _, expression := range []*policyExpression{policyExpressionOf(p.Using), policyExpressionOf(p.Check)} {
+		for _, expression := range []*policyExpression{PolicyOf(p.Using), PolicyOf(p.Check)} {
 			if expression == nil {
 				continue
 			}
 			for _, leaf := range expression.Presentation().Sources() {
-				if descriptor, ok := auth.Catalog.Descriptor(leaf.ref.Address); ok {
+				if descriptor, ok := auth.Catalog.Descriptor(leaf.Ref.Address); ok {
 					stage.querySources = append(stage.querySources, descriptor)
 				}
 			}

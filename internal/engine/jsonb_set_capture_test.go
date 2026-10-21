@@ -77,12 +77,12 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	}
 	// A row-dependent projection is never a stored default. Independently bind
 	// a closed witness with the same written and contextual conversion boundary.
-	if _, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), node); err == nil {
+	if _, err := (scalarRenderer{}).SQL(ctx, engine.CatalogRead(), node); err == nil {
 		t.Fatal("row-dependent projection admitted as a stored default")
 	}
 	closed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), `SELECT jsonb_set('{}',ARRAY[('ab'::text)::varchar(1)]::text[],'9')`)
 	conversion := pathConversion(closed)
-	persisted, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), conversion)
+	persisted, err := (scalarRenderer{}).SQL(ctx, engine.CatalogRead(), conversion)
 	if err != nil {
 		t.Fatal("explicit plan/default validation changed", err)
 	}
@@ -110,14 +110,14 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 		}
 	}
 	assertRows(node, b.Type(sqltype.Text))
-	mapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err := RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pathConversion(mapped)
 	assertRows(mapped, b.Type(sqltype.Text))
 	fresh := jsonObjectUnitTypes()
-	reminted, changed, err := retagBoundTypes(engine.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	reminted, changed, err := RetagTypes(engine.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

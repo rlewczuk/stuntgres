@@ -93,7 +93,7 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 		t.Fatal("original empty recipe", err)
 	}
 	target := New().CatalogRead()
-	mapped, _, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, _, err := MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		fresh, ok := target.LookupType(d.ID())
 		if !ok {
 			return d

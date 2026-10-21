@@ -217,7 +217,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 		}
 	}
 	var names, values strings.Builder
-	renderer := pgRenderer{view: state.catalog, relation: parent, output: output}
+	renderer := pgRenderer{View: state.catalog, Relation: parent, Output: output}
 	for i, entry := range parent.Partition.Keys {
 		if i != 0 {
 			names.WriteString(", ")
@@ -225,12 +225,12 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 		}
 		label := entry.Label
 		if entry.Derived != nil {
-			if renderer.path == nil {
+			if renderer.Path == nil {
 				path, pathErr := state.auth.engine.referencePath(state.auth)
 				if pathErr != nil {
 					return pathErr
 				}
-				renderer.path = path
+				renderer.Path = path
 			}
 			cast, coercion := entry.Derived.Definition.(plan.CoercionExpr)
 			regTSCast := coercion && cast.Mode == sqltype.Explicit && sqltype.IsRegTS(entry.Usage.Type.BaseType().ID())
@@ -238,9 +238,9 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 			if regTSCast {
 				// Partition diagnostics group the whole pretty cast expression,
 				// not its simple operand, as in PostgreSQL's partition key label.
-				keyRenderer.pretty = true
+				keyRenderer.Pretty = true
 			}
-			text, renderErr := keyRenderer.sql(ctx, entry.Derived.Definition, pgRenderParent{})
+			text, renderErr := keyRenderer.SQL(ctx, entry.Derived.Definition, pgRenderParent{})
 			if renderErr != nil {
 				return renderErr
 			}

@@ -182,7 +182,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 		if err != nil || !value.IsNull() || value.Type() != n.ResultUsage().Type {
 			t.Fatal("strict typed NULL", value, err)
 		}
-		mapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		mapped, err := RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || mapped.(functions.ObjectAddress).Validate() != nil {
 			t.Fatal("stored remap", mapped, err)
 		}

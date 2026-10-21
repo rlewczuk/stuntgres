@@ -54,12 +54,12 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 			for _, clause := range []struct {
 				name string
 				expr *policyExpression
-			}{{"USING", policyExpressionOf(policy.Using)}, {"WITH CHECK", policyExpressionOf(policy.Check)}} {
+			}{{"USING", PolicyOf(policy.Using)}, {"WITH CHECK", PolicyOf(policy.Check)}} {
 				if clause.expr == nil {
 					continue
 				}
 				for _, leaf := range clause.expr.Presentation().Sources() {
-					relation, ok := view.Relation(leaf.ref.Address)
+					relation, ok := view.Relation(leaf.Ref.Address)
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
@@ -78,7 +78,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
-				text, err := policyExpressionSQL(ctx, view, clause.expr)
+				text, err := PolicySQL(ctx, view, clause.expr)
 				if err != nil {
 					return nil, err
 				}

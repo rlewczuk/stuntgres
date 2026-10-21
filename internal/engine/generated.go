@@ -126,7 +126,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 		return catalog.ColumnGeneration{}, err
 	}
 	definition := catalog.ColumnGeneration{Kind: kind, Expression: analyzed, Planned: node}
-	_, err = (scalarRenderer{definition: op.Definition, aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: d, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, analyzed)
+	_, err = (scalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, analyzed)
 	return definition, err
 }
 
@@ -233,7 +233,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 		for _, ref := range definition.Dependencies {
 			address := ref.Address
 			address.SubID = 0
-			if !storedReferenceEpochValid(view, d, ref) {
+			if !ReferenceEpochValid(view, d, ref) {
 				return fmt.Errorf("stuntgres: missing generation provider")
 			}
 			if address == d.Address() && ref.Address.SubID != 0 {
@@ -252,7 +252,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 			validRelation := relationProvider && relation.Address().ClassID == ids.RelationClassID
 			if validRelation && ref.Address.SubID != 0 {
 				rowType, exists := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-				validRelation = exists && compositeAttributeProvider(rowType, relation, ref.Address.SubID)
+				validRelation = exists && CompositeAttributeProvider(rowType, relation, ref.Address.SubID)
 			}
 			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && !validRelation || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
@@ -270,7 +270,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 				}
 			}
 			if provider.Kind() == ids.CollationObject {
-				if err := validateStoredCollationDependency(view, ref, definition.Expression); err != nil {
+				if err := ValidateCollationDependency(view, ref, definition.Expression); err != nil {
 					return err
 				}
 			}
@@ -289,10 +289,10 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	if usage.Type == nil {
 		return fmt.Errorf("stuntgres: missing generation plan type")
 	}
-	if !validExpressionUsage(view, usage) {
+	if !ValidExpressionUsage(view, usage) {
 		return fmt.Errorf("stuntgres: invalid generation plan type")
 	}
-	if err := validateUsageCollation(view, usage); err != nil {
+	if err := ValidateUsageCollation(view, usage); err != nil {
 		return err
 	}
 	child := func(n expr.Expr) error { return validateGenerationPlan(view, d, n) }
@@ -373,12 +373,12 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		if _, generated := d.ColumnMeta.Generations[n.Origin.Address.SubID]; generated || n.Virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")
 		}
-		if !storedReferenceEpochValid(view, d, n.Origin) || n.Origin.Address.ClassID != d.Address().ClassID || n.Origin.Address.ObjectID != d.Address().ObjectID || n.Scope != 1 || n.Frame != 1 || n.Slot < 0 || n.Slot >= len(d.Columns) || d.Attributes[n.Slot] != n.Origin.Address.SubID || usage != d.Columns[n.Slot].Usage {
+		if !ReferenceEpochValid(view, d, n.Origin) || n.Origin.Address.ClassID != d.Address().ClassID || n.Origin.Address.ObjectID != d.Address().ObjectID || n.Scope != 1 || n.Frame != 1 || n.Slot < 0 || n.Slot >= len(d.Columns) || d.Attributes[n.Slot] != n.Origin.Address.SubID || usage != d.Columns[n.Slot].Usage {
 			return fmt.Errorf("stuntgres: invalid generation plan row")
 		}
 		return nil
 	case plan.TableOIDExpr:
-		if !storedReferenceEpochValid(view, d, n.Owner) || n.Owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
+		if !ReferenceEpochValid(view, d, n.Owner) || n.Owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
 			return fmt.Errorf("stuntgres: invalid generation plan owner")
 		}
 		return nil
@@ -450,7 +450,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	case plan.InstalledLevenshteinExpr:
 		return args(n.Args)
 	case plan.InstalledUUIDOsspExpr:
-		return validateInstalledUUIDOssp(n, view)
+		return ValidateInstalledUUIDOssp(n, view)
 	case plan.InstalledCryptoExpr:
 		return args(n.Args)
 	case plan.InstalledTextExpr:

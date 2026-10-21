@@ -51,7 +51,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert("group", grouped)
-	retagged, _, err := retagBoundTypes(b.BindingCatalog(), base, func(old *sqltype.Descriptor) *sqltype.Descriptor { next := *old; return &next })
+	retagged, _, err := RetagTypes(b.BindingCatalog(), base, func(old *sqltype.Descriptor) *sqltype.Descriptor { next := *old; return &next })
 	if err != nil {
 		t.Fatal(err)
 	}

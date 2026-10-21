@@ -48,7 +48,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 				if strings.Contains(arguments, "$") {
 					// Prepared parameters are runtime inputs, not persistable view
 					// children. Lifetime support must not admit them to storage.
-					if _, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil); err == nil {
+					if _, err := RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil); err == nil {
 						t.Fatal("persisted a runtime parameter")
 					}
 				} else {
@@ -57,7 +57,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					persisted := node
 					persisted.Args = append([]expr.Expr(nil), node.Args...)
 					persisted.Args[last] = column
-					remapped, err := remapBoundExpression(persisted, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
+					remapped, err := RemapExpression(persisted, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 					if err != nil {
 						t.Fatal("remapping stored column", err)
 					}
@@ -68,7 +68,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					}
 					// Only stored literal consumers have a catalog deparse
 					// contract; runtime parameters are not stored recipes.
-					text, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})
+					text, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, node, pgRenderParent{})
 					if err != nil {
 						t.Fatal(err)
 					}

@@ -196,7 +196,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
 			}
-			remapped, _, err := retagBoundTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, _, err := RetagTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == nil || old.IsDeferredRecord() {
 					return old
 				}
@@ -247,7 +247,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 		call := node.(functions.JSONRecord)
 		identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
-		grafted, _, err := mapBoundExpression(view, call, identity, nil, recipe, nil)
+		grafted, _, err := MapExpression(view, call, identity, nil, recipe, nil)
 		if err != nil {
 			t.Fatal("graft actual stored recipe", err)
 		}
@@ -284,7 +284,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal("reconstruct grafted shape", err)
 		}
-		retagged, _, err := retagBoundTypes(view, rebuilt, identity)
+		retagged, _, err := RetagTypes(view, rebuilt, identity)
 		if err != nil {
 			t.Fatal("retag grafted shape", err)
 		}

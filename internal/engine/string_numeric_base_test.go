@@ -52,7 +52,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
 		}
-		rebound, changed, err := retagBoundTypes(New().CatalogRead(), selected, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+		rebound, changed, err := RetagTypes(New().CatalogRead(), selected, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
@@ -95,7 +95,7 @@ func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		replacements[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+	rebound, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -139,7 +139,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					canonical, err := defaultSQL(ctx, e.CatalogRead(), original)
+					canonical, err := DefaultSQL(ctx, e.CatalogRead(), original)
 					if err != nil {
 						t.Fatal(err)
 					}

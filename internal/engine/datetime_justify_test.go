@@ -38,7 +38,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
 		}
-		next, changed, err := retagBoundTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+		next, changed, err := RetagTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}

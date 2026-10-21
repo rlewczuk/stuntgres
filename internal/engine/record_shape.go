@@ -7,7 +7,7 @@ import (
 
 // Anonymous record shapes are occurrence authorities, not catalog providers.
 // Every concrete leaf still belongs to the current catalog generation.
-func validExpressionUsage(view catalog.Read, usage sqltype.Usage) bool {
+func ValidExpressionUsage(view catalog.Read, usage sqltype.Usage) bool {
 	return validExpressionUsageAt(view, nil, usage)
 }
 

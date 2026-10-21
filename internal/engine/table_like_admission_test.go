@@ -97,7 +97,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 						retained = retained || dependency == ref
 					}
 					var executionDependencies []ids.ObjectRef
-					if _, err := (scalarRenderer{owner: destination, dependencies: &executionDependencies}).sql(context.Background(), e.stageRead(stage), index.SQLIndex.Predicate.Execution); err != nil {
+					if _, err := (scalarRenderer{Owner: destination, Dependencies: &executionDependencies}).SQL(context.Background(), e.stageRead(stage), index.SQLIndex.Predicate.Execution); err != nil {
 						t.Fatal(err)
 					}
 					for _, dependency := range executionDependencies {

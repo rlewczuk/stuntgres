@@ -29,12 +29,12 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if count != 1 {
 		t.Fatal("path argument traversal", count)
 	}
-	mapped, err := remapBoundExpression(call, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	mapped, err := RemapExpression(call, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || !analyze.SameGroupExpression(call, mapped) {
 		t.Fatal("path reference remap", err)
 	}
 	demand := false
-	text, err := (scalarRenderer{commentSnapshot: &demand}).scalarFunctionSQL(context.Background(), e.CatalogRead(), mapped)
+	text, err := (scalarRenderer{CommentSnapshot: &demand}).ScalarFunctionSQL(context.Background(), e.CatalogRead(), mapped)
 	if err != nil || !strings.Contains(text, "pg_catalog.pg_extension_update_paths(") || !demand {
 		t.Fatal("path symbolic render and demand", text, err)
 	}
@@ -64,7 +64,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	}
 	fresh := New()
 	destination := catalogRelationsUnitBind(t, fresh, "pg_extension_update_paths", raw).(plan.ExtensionPathsExpr)
-	retagged, _, err := retagBoundTypes(fresh.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	retagged, _, err := RetagTypes(fresh.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == 2249 {
 			return destination.ResultUsage().Type
 		}

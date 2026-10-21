@@ -10,10 +10,10 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path analyze.ViewLiteralPath, name string) (*catalog.Procedure, error) {
+func (v *viewDefinition) IntaggRecipeProcedure(catalog catalog.Read, path analyze.ViewLiteralPath, name string) (*catalog.Procedure, error) {
 	ref, exists := v.routineRefs[path]
 	consumer, _ := catalog.Relation(v.consumer)
-	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !storedViewReferenceValid(catalog, consumer, ref) || ref.Epoch != catalog.Epoch() && (consumer == nil || viewOf(consumer) != v) {
+	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !ViewReferenceValid(catalog, consumer, ref) || ref.Epoch != catalog.Epoch() && (consumer == nil || ViewOf(consumer) != v) {
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen intagg reference")
 	}
 	proc, ok := catalog.Procedure(ref.Address)
@@ -27,7 +27,7 @@ func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path analyz
 }
 
 func (v *viewRenderer) intaggRecipeName(catalog catalog.Read, path analyze.ViewLiteralPath, name string) (string, error) {
-	proc, err := v.intaggRecipeProcedure(catalog, path, name)
+	proc, err := v.IntaggRecipeProcedure(catalog, path, name)
 	if err != nil {
 		return "", err
 	}
@@ -35,5 +35,5 @@ func (v *viewRenderer) intaggRecipeName(catalog catalog.Read, path analyze.ViewL
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing frozen intagg namespace")
 	}
-	return v.presentation.identifier(namespace.Name()) + "." + v.presentation.identifier(proc.Name()), nil
+	return v.Presentation.identifier(namespace.Name()) + "." + v.Presentation.identifier(proc.Name()), nil
 }

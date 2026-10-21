@@ -46,10 +46,10 @@ func TestCollationCatalogAuthority(t *testing.T) {
 	text, _ := view.LookupType(sqltype.Text)
 	usage := text.Usage()
 	usage.Collation = ref
-	if err != nil || !usage.Valid() || validateUsageCollation(view, usage) != nil {
+	if err != nil || !usage.Valid() || ValidateUsageCollation(view, usage) != nil {
 		t.Fatal(ref, usage, err)
 	}
-	if validateUsageCollation(base, usage) == nil {
+	if ValidateUsageCollation(base, usage) == nil {
 		t.Fatal("capability admitted without live identity")
 	}
 	for _, corrupt := range []func(*catalog.Collation){

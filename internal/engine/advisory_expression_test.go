@@ -56,7 +56,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if err = b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil || len(b.Capture.Literals) != len(node.Args) {
 					t.Fatal("view literal children", len(b.Capture.Literals), err)
 				}
-				text, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})
+				text, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, node, pgRenderParent{})
 				if err != nil || !strings.Contains(text, name+"(") {
 					t.Fatal("symbolic SQL", text, err)
 				}
@@ -200,7 +200,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if b.SameGroupExpression(node, other) {
 			t.Fatal("group identity ignored argument order")
 		}
-		remapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
+		remapped, err := RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,7 +209,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal("view child identity/slot remap", mappedColumn)
 		}
 		types := formatUnitTypes()
-		retained, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+		retained, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(retained, changed, err)
 		}
@@ -236,11 +236,11 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(functions.Advisory)
-		text, err := (scalarRenderer{owner: owner}).sql(ctx, view, node)
+		text, err := (scalarRenderer{Owner: owner}).SQL(ctx, view, node)
 		if err != nil || !strings.Contains(text, "pg_catalog.pg_try_advisory_lock(") {
 			t.Fatal("stored CHECK/view symbolic rendering", text, err)
 		}
-		if _, err = defaultSQL(ctx, view, node); err == nil {
+		if _, err = DefaultSQL(ctx, view, node); err == nil {
 			t.Fatal("volatile default rendering widened")
 		}
 		if _, err = b.BindDefault(raw, catalog.Column{Name: "v", Usage: node.ResultUsage()}); err == nil {
@@ -251,7 +251,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if damaged.ValidStored() {
 			t.Fatal("inconsistent compiled action admitted")
 		}
-		if _, err = (scalarRenderer{owner: owner}).sql(ctx, view, damaged); err == nil {
+		if _, err = (scalarRenderer{Owner: owner}).SQL(ctx, view, damaged); err == nil {
 			t.Fatal("malformed stored producer rendered")
 		}
 	})

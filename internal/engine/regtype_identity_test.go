@@ -92,7 +92,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 		}
 		return ref
 	}
-	untouched, err := remapBoundExpression(literal, transform, nil)
+	untouched, err := RemapExpression(literal, transform, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 		t.Fatal("relation ID used as type identity", id, err)
 	}
 	mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 42}
-	changed, err := remapBoundExpression(literal, transform, nil)
+	changed, err := RemapExpression(literal, transform, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

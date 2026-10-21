@@ -151,7 +151,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 		t.Fatal("closed sleep default rejected")
 	}
 	target := New()
-	rebound, _, err := retagBoundTypes(target.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, _, err := RetagTypes(target.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		next, _ := target.CatalogRead().LookupType(d.ID())
 		return next
 	})
@@ -163,7 +163,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil || value.IsNull() || value.Type().ID() != sqltype.Void {
 		t.Fatal("reminted zero delay", value, err)
 	}
-	if _, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), copy); err == nil {
+	if _, err := (scalarRenderer{}).SQL(context.Background(), e.CatalogRead(), copy); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
 	bad := n
@@ -175,7 +175,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound, _, err = retagBoundTypes(target.CatalogRead(), interval, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, _, err = RetagTypes(target.CatalogRead(), interval, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		next, _ := target.CatalogRead().LookupType(d.ID())
 		return next
 	})

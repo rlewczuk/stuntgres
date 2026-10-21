@@ -48,7 +48,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 			if index >= len(scalarColumns) {
 				return nil, fmt.Errorf("stuntgres: missing rendered scalar namespace member")
 			}
-			text, err := v.slotSQL(ctx, catalogView, scalarRoot, scalarColumns[index].Slot)
+			text, err := v.SlotSQL(ctx, catalogView, scalarRoot, scalarColumns[index].Slot)
 			if err != nil {
 				return nil, err
 			}
@@ -68,14 +68,14 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 }
 
 func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog catalog.Read, raw parser.FieldExpr, path analyze.ViewLiteralPath) ([]string, error) {
-	path.Query = v.frame
+	path.Query = v.Frame
 	path.Node = 0
 	captured, ok := v.composites[path]
 	if !ok || captured.Kind != analyze.CompositeExpansion {
 		return nil, fmt.Errorf("stuntgres: missing frozen composite expansion")
 	}
 	ordinal := 1
-	base, err := v.expressionSQLAt(ctx, catalog, raw.Base, path, &ordinal, pgRenderParent{})
+	base, err := v.ExpressionSQLAt(ctx, catalog, raw.Base, path, &ordinal, pgRenderParent{})
 	if err != nil {
 		return nil, err
 	}

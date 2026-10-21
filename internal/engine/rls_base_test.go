@@ -175,7 +175,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	if next == &old || next.Security.RLSEnabled || !next.Security.RLSForced || old.Security.RLSEnabled || old.Security.RLSForced {
 		t.Fatal("independent flags/old snapshot")
 	}
-	if &next.Security.Policies[0] != &old.Security.Policies[0] || policyExpressionOf(next.Security.Policies[0].Using) != expression || policyExpressionOf(next.Security.Policies[0].Check) != expression || next.Security.Policies[0].OID != oid {
+	if &next.Security.Policies[0] != &old.Security.Policies[0] || PolicyOf(next.Security.Policies[0].Using) != expression || PolicyOf(next.Security.Policies[0].Check) != expression || next.Security.Policies[0].OID != oid {
 		t.Fatal("flag action copied or changed immutable policy payload")
 	}
 	if access.RowSecurityFlags(next, []parser.AlterTableAction{{Action: parser.DisableRowSecurity}, {Action: parser.ForceRowSecurity}}) != next {
@@ -202,7 +202,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	for _, descriptor := range imported.CatalogRead().Descriptors() {
 		copy, ok := descriptor.(*catalog.Relation)
 		if ok && copy.Name() == "t" {
-			if copy.Security.RLSEnabled || !copy.Security.RLSForced || len(copy.Security.Policies) != 1 || policyExpressionOf(copy.Security.Policies[0].Using) == expression {
+			if copy.Security.RLSEnabled || !copy.Security.RLSForced || len(copy.Security.Policies) != 1 || PolicyOf(copy.Security.Policies[0].Using) == expression {
 				t.Fatal("remap lost flags/policy or shared original expression")
 			}
 			return

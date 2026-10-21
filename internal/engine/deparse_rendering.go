@@ -55,7 +55,7 @@ func (r pgRenderer) renderingWithReturning(ctx context.Context, node expr.Expr, 
 				continue
 			}
 			if piece.Identifier {
-				text.WriteString(r.identifier(piece.Text))
+				text.WriteString(r.Identifier(piece.Text))
 				continue
 			}
 			if piece.Text != "" {
@@ -99,7 +99,7 @@ func (r pgRenderer) renderingInfix(ctx context.Context, spec expr.Rendering, par
 	for i, arg := range spec.Args {
 		operandParent := pgRenderParent{functionArgument: arg.Listed}
 		if spec.Grouping == expr.GroupPrecedence {
-			operandParent = pgRenderParent{precedence: 5, operator: op, right: i == 1}
+			operandParent = pgRenderParent{Precedence: 5, Operator: op, Right: i == 1}
 		}
 		text, err := r.renderingArg(ctx, spec, arg, operandParent)
 		if err != nil {
@@ -111,9 +111,9 @@ func (r pgRenderer) renderingInfix(ctx context.Context, spec expr.Rendering, par
 	grouped := true
 	switch spec.Grouping {
 	case expr.GroupPrecedence:
-		grouped = !r.pretty || pgOperatorGrouped(op, true, parent)
+		grouped = !r.Pretty || OperatorGrouped(op, true, parent)
 	case expr.GroupNested:
-		grouped = pgOperatorGrouped(spec.Name, true, parent)
+		grouped = OperatorGrouped(spec.Name, true, parent)
 	}
 	if grouped {
 		text = "(" + text + ")"
@@ -126,11 +126,11 @@ func (r pgRenderer) renderingArg(ctx context.Context, spec expr.Rendering, arg e
 		arg.Expr = plan.SQLJSONSource(arg.Expr)
 	}
 	argRenderer := r
-	argRenderer.showImplicit = !arg.HideImplicit
+	argRenderer.ShowImplicit = !arg.HideImplicit
 	if spec.UnknownTexts {
 		argRenderer.unknownTextLiteral = arg.UnknownText
 	}
-	text, err := argRenderer.sql(ctx, arg.Expr, parent)
+	text, err := argRenderer.SQL(ctx, arg.Expr, parent)
 	if err != nil || arg.Cast.Type == nil {
 		return text, err
 	}
@@ -149,12 +149,12 @@ func (r pgRenderer) renderingName(name string, quote expr.Quote) string {
 	case expr.QuoteVerbatim:
 		return name
 	case expr.QuoteIdentifier:
-		return r.identifier(name)
+		return r.Identifier(name)
 	case expr.QuoteWhenNeeded:
 		return catalog.Identifier(name)
 	default:
-		if r.output.QuoteAllIdentifiers && !strings.HasPrefix(name, "\"") {
-			return r.identifier(name)
+		if r.Output.QuoteAllIdentifiers && !strings.HasPrefix(name, "\"") {
+			return r.Identifier(name)
 		}
 		return name
 	}
@@ -165,10 +165,10 @@ func (r pgRenderer) operatorSpelling(namespace, spelling string) string {
 	if namespace == "" || namespace == "pg_catalog" {
 		return spelling
 	}
-	return "OPERATOR(" + r.identifier(namespace) + "." + spelling + ")"
+	return "OPERATOR(" + r.Identifier(namespace) + "." + spelling + ")"
 }
 
-func deparseAttribute(relation *catalog.Relation, attr int32) (string, error) {
+func DeparseAttribute(relation *catalog.Relation, attr int32) (string, error) {
 	if relation == nil {
 		return "", sqlError("22023", "expression contains variables")
 	}

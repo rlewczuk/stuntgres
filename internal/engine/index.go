@@ -134,7 +134,7 @@ func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 		if p.Definition == nil || p.Execution == nil || p.Definition.ResultUsage() != p.Execution.ResultUsage() || p.Execution.ResultUsage().Type == nil || p.Execution.ResultUsage().Type.ID() != sqltype.Bool || exec.PlannedVolatility(p.Execution) != expr.Immutable || !slices.Equal(p.Attributes, parent.Attributes) {
 			return fmt.Errorf("stuntgres: invalid index predicate")
 		}
-		if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, p.Definition); err != nil {
+		if _, err := (scalarRenderer{Validation: true, Owner: parent}).SQL(context.Background(), view, p.Definition); err != nil {
 			return err
 		}
 	}
@@ -144,7 +144,7 @@ func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 			if key.Attribute != 0 || derived.Definition == nil || derived.Execution == nil || derived.Definition.ResultUsage() != derived.Execution.ResultUsage() || exec.PlannedVolatility(derived.Execution) != expr.Immutable {
 				return fmt.Errorf("stuntgres: invalid derived index key")
 			}
-			if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, derived.Definition); err != nil {
+			if _, err := (scalarRenderer{Validation: true, Owner: parent}).SQL(context.Background(), view, derived.Definition); err != nil {
 				return err
 			}
 		}

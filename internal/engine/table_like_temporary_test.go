@@ -63,7 +63,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			if !reflect.DeepEqual(copied.Expression, old.Expression) || copied.OID == 0 || copied.OID == old.OID || !slices.Equal(copied.Dependencies, manifest) || len(destination.ColumnMeta.Identities) != 0 {
 				t.Fatal("cooked default identity/provider drift", copied)
 			}
-			if _, err := (scalarRenderer{provenance: destination, capturedManifest: copied.Dependencies}).sql(context.Background(), e.stageRead(stage), copied.Expression); err != nil {
+			if _, err := (scalarRenderer{Provenance: destination, CapturedManifest: copied.Dependencies}).SQL(context.Background(), e.stageRead(stage), copied.Expression); err != nil {
 				t.Fatal(err)
 			}
 			foreign := *destination
@@ -207,28 +207,28 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		t.Fatal("retained cooked default lost original manifest/identity or advanced provider", copied)
 	}
 	view := e.stageRead(stage)
-	if call.Ref.Epoch == view.Epoch() || !storedSequenceEpochValid(view, destination, call.Ref, call.Temporary) {
+	if call.Ref.Epoch == view.Epoch() || !SequenceEpochValid(view, destination, call.Ref, call.Temporary) {
 		t.Fatal("retained manifest lacks bounded old-epoch authority", call.Ref)
 	}
 	if err := e.ValidateObjectRef(view, call.Ref); err == nil {
 		t.Fatal("generic stale ObjectRef admitted")
 	}
 	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(call.Ref.Epoch, call.Ref.Address), e.catalog.Domain.Ref(view.Epoch()+1, call.Ref.Address)} {
-		if storedSequenceEpochValid(view, destination, bad, call.Temporary) {
+		if SequenceEpochValid(view, destination, bad, call.Temporary) {
 			t.Fatal("foreign/future reference admitted", bad)
 		}
 	}
-	if storedSequenceEpochValid(view, destination, call.Ref, ids.SessionToken{}) {
+	if SequenceEpochValid(view, destination, call.Ref, ids.SessionToken{}) {
 		t.Fatal("zero token admitted stale temporary sequence")
 	}
 	var rendered []ids.ObjectRef
-	if _, err := (scalarRenderer{provenance: destination, capturedManifest: copied.Dependencies, dependencies: &rendered}).sql(context.Background(), view, copied.Expression); err != nil || !slices.Equal(rendered, manifest) {
+	if _, err := (scalarRenderer{Provenance: destination, CapturedManifest: copied.Dependencies, Dependencies: &rendered}).SQL(context.Background(), view, copied.Expression); err != nil || !slices.Equal(rendered, manifest) {
 		t.Fatal("DEFAULT renderer reminted retained refs", rendered, err)
 	}
 	// The copied DEFAULT owner must retain its closed-row policy, not borrow a row owner.
 	integer, _ := view.LookupType(sqltype.Int8)
 	row := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 1}), Scope: 1, Frame: 1, Slot: 0}
-	if _, err := (scalarRenderer{provenance: destination}).sql(context.Background(), view, row); err == nil {
+	if _, err := (scalarRenderer{Provenance: destination}).SQL(context.Background(), view, row); err == nil {
 		t.Fatal("DEFAULT provenance widened row policy")
 	}
 	// Admission must prove the original SubID before whole-object lock dedup.
@@ -281,7 +281,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	e.DiscardCatalogStage(stage)
 	sessionSQL(t, owner, "DROP SEQUENCE pg_temp.seed CASCADE")
 	sessionSQL(t, owner, "CREATE TEMP SEQUENCE seed START 901")
-	if storedSequenceEpochValid(e.CatalogRead(), destination, call.Ref, call.Temporary) {
+	if SequenceEpochValid(e.CatalogRead(), destination, call.Ref, call.Temporary) {
 		t.Fatal("retired reference adopted recreated provider name")
 	}
 	if !reflect.DeepEqual(source.ColumnMeta.Defaults[1].Expression, old.Expression) || !slices.Equal(old.Dependencies, manifest) {

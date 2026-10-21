@@ -19,23 +19,23 @@ import (
 
 // Replacement copies the closed bound tree; source and expression identities
 // are reminted together. Syntax and frozen layouts are immutable and shared.
-func remapBoundExpression(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int) (expr.Expr, error) {
-	return remapBoundExpressionWithQuery(node, ref, slots, func(root plan.Node) (plan.Node, error) {
-		return (&viewQueryRemapper{ref: ref, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, referencesOnly: true}).query(root)
+func RemapExpression(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int) (expr.Expr, error) {
+	return RemapExpressionWithQuery(node, ref, slots, func(root plan.Node) (plan.Node, error) {
+		return (&viewQueryRemapper{Ref: ref, Type: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, referencesOnly: true}).Query(root)
 	}, nil)
 }
 
-func remapBoundExpressionWithQuery(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(plan.Node) (plan.Node, error), rowRef func(ids.ObjectRef) ids.ObjectRef) (expr.Expr, error) {
+func RemapExpressionWithQuery(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(plan.Node) (plan.Node, error), rowRef func(ids.ObjectRef) ids.ObjectRef) (expr.Expr, error) {
 	if rowRef == nil {
 		rowRef = ref
 	}
-	return remapScalarExpression(node, ref, rowRef, slots, queryMapper)
+	return RemapScalar(node, ref, rowRef, slots, queryMapper)
 }
 
 // Row copies retain explicit object constants and external calls. Replacement
 // callers map both roles, whereas LIKE and partition inheritance supply a
 // distinct owner-row mapper.
-func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(plan.Node) (plan.Node, error)) (expr.Expr, error) {
+func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(plan.Node) (plan.Node, error)) (expr.Expr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -45,7 +45,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			return old
 		}
 		var next expr.Expr
-		next, err = remapScalarExpression(old, ref, rowRef, slots, queryMapper)
+		next, err = RemapScalar(old, ref, rowRef, slots, queryMapper)
 		return next
 	}
 	args := func(old []expr.Expr) []expr.Expr {
@@ -65,7 +65,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		next = n
 	case plan.AssignmentValueExpr:
 		n.Base, n.Value = child(n.Base), child(n.Value)
-		targets, failure := mapRuleAssignmentTargets([]*plan.ArrayAssignmentTarget{n.Target}, func(expr expr.Expr) (expr.Expr, bool, error) {
+		targets, failure := MapRuleAssignmentTargets([]*plan.ArrayAssignmentTarget{n.Target}, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if expr == nil {
 				return nil, false, nil
 			}
@@ -380,7 +380,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		// Last, so the explicit engine wrappers above keep precedence. Remap
 		// copies the whole tree, so every child counts as replaced.
 		next, _, err = expr.Map(n, func(old expr.Expr) (expr.Expr, bool, error) {
-			next, failure := remapScalarExpression(old, ref, rowRef, slots, queryMapper)
+			next, failure := RemapScalar(old, ref, rowRef, slots, queryMapper)
 			return next, true, failure
 		})
 		if err == nil && ref != nil {
@@ -392,7 +392,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	return next, err
 }
 
-func remapViewQuery(view catalog.Read, node plan.Node, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (plan.Node, error) {
+func RemapViewQuery(view catalog.Read, node plan.Node, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (plan.Node, error) {
 	typ = analyze.RecordTypeMapper(typ, collations...)
 	return remapViewQueryMapped(view, node, ref, typ, collations...)
 }
@@ -402,25 +402,25 @@ func remapViewQueryMapped(view catalog.Read, node plan.Node, ref func(ids.Object
 	if len(collations) != 0 {
 		collation = collations[0]
 	}
-	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
+	mapper := &viewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation}
 	if _, ok := node.(*plan.ProjectNode); ok {
-		return mapper.nested(node)
+		return mapper.Nested(node)
 	}
-	return mapper.query(node)
+	return mapper.Query(node)
 }
 
 type viewQueryRemapper struct {
-	ref            func(ids.ObjectRef) ids.ObjectRef
-	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
+	Ref            func(ids.ObjectRef) ids.ObjectRef
+	Type           func(*sqltype.Descriptor) *sqltype.Descriptor
 	queries        map[*plan.ProjectNode]plan.Node
-	collation      typedef.CollationRemapper
-	catalog        catalog.Read
+	Collation      typedef.CollationRemapper
+	Catalog        catalog.Read
 	referencesOnly bool
 	ctes           map[*plan.CTEDefinition]*plan.CTEDefinition
-	mutation       func(*plan.CTEDefinition) (analyze.Binding, error)
+	Mutation       func(*plan.CTEDefinition) (analyze.Binding, error)
 }
 
-func (m *viewQueryRemapper) nested(node plan.Node) (plan.Node, error) {
+func (m *viewQueryRemapper) Nested(node plan.Node) (plan.Node, error) {
 	project, ok := node.(*plan.ProjectNode)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing remapped query frame")
@@ -435,7 +435,7 @@ func (m *viewQueryRemapper) nested(node plan.Node) (plan.Node, error) {
 	// encounter its canonical project again. Self scans remain opaque leaves.
 	copy := *project
 	m.queries[project] = &copy
-	root, err := m.query(node)
+	root, err := m.Query(node)
 	if err != nil {
 		delete(m.queries, project)
 		return nil, err
@@ -444,13 +444,13 @@ func (m *viewQueryRemapper) nested(node plan.Node) (plan.Node, error) {
 	return &copy, nil
 }
 
-func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
-	ref, typ := m.ref, m.typ
+func (m *viewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
+	ref, typ := m.Ref, m.Type
 	schema := append(plan.QuerySchema(nil), node.Schema()...)
 	for i := range schema {
 		schema[i].Usage.Type = typ(schema[i].Usage.Type)
-		if m.collation != nil {
-			capability, err := m.collation(schema[i].Usage.Collation)
+		if m.Collation != nil {
+			capability, err := m.Collation(schema[i].Usage.Collation)
 			if err != nil {
 				return nil, err
 			}
@@ -467,20 +467,20 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 			return old
 		}
 		var next plan.Node
-		next, err = m.query(old)
+		next, err = m.Query(old)
 		return next
 	}
 	expression := func(old expr.Expr) expr.Expr {
 		if err != nil {
 			return old
 		}
-		next, failure := remapBoundExpressionWithQuery(old, ref, nil, m.nested, nil)
+		next, failure := RemapExpressionWithQuery(old, ref, nil, m.Nested, nil)
 		if failure != nil {
 			err = failure
 			return old
 		}
 		if !m.referencesOnly {
-			next, _, failure = retagBoundTypesWithQuery(m.catalog, next, typ, nil, m.collation)
+			next, _, failure = RetagTypesWithQuery(m.Catalog, next, typ, nil, m.Collation)
 			if failure != nil {
 				err = failure
 				return old
@@ -551,40 +551,40 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 	case *plan.WorktableScanNode:
 		copy := *n
 		copy.QuerySchema = schema
-		copy.CTE, err = m.cte(n.CTE)
+		copy.CTE, err = m.CTE(n.CTE)
 		next = &copy
 	case *plan.DerivedNode:
 		copy := *n
 		copy.QuerySchema = schema
 		if n.CTE != nil {
-			copy.CTE, err = m.cte(n.CTE)
+			copy.CTE, err = m.CTE(n.CTE)
 		}
 		if err == nil && n.Query != nil {
 			query := *n.Query
-			query.Root, err = m.nested(query.Root)
+			query.Root, err = m.Nested(query.Root)
 			copy.Query = &query
 		}
 		next = &copy
 	case *plan.ProjectNode:
 		next = &plan.ProjectNode{QuerySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), AnalysisExpressions: expressions(n.AnalysisExpressions), FrozenValues: n.FrozenValues, Frame: n.Frame, Syntax: n.Syntax, CTEOwner: n.CTEOwner, HasTargetSet: n.HasTargetSet}
 	case *plan.SetNode, *plan.RecursiveUnionNode:
-		set := querySetNode(node)
+		set := QuerySetNode(node)
 		copy := *set
 		copy.QuerySchema = schema
 		var definition *plan.CTEDefinition
 		if recursive, ok := node.(*plan.RecursiveUnionNode); ok {
-			definition, err = m.cte(recursive.Definition)
+			definition, err = m.CTE(recursive.Definition)
 		}
 		if err == nil {
 			var left plan.Node
-			left, err = m.nested(set.Left)
+			left, err = m.Nested(set.Left)
 			if err == nil {
 				copy.Left = left.(*plan.ProjectNode)
 			}
 		}
 		if err == nil {
 			var right plan.Node
-			right, err = m.nested(set.Right)
+			right, err = m.Nested(set.Right)
 			if err == nil {
 				copy.Right = right.(*plan.ProjectNode)
 			}
@@ -685,7 +685,7 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 			for _, bound := range []*plan.WindowBound{&spec.Frame.Start, &spec.Frame.End} {
 				bound.Offset = expression(bound.Offset)
 				if err == nil && spec.Frame.Unit == parser.FrameRange {
-					bound.Support, err = bound.Support.Remap(m.typ)
+					bound.Support, err = bound.Support.Remap(m.Type)
 				}
 			}
 			copy.Specs[i] = spec
@@ -721,12 +721,12 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 			if call.Procedure != nil && ref != nil {
 				copy.Calls[i].Ref = ref(call.Ref)
 				if !m.referencesOnly {
-					proc, ok := m.catalog.Procedure(copy.Calls[i].Ref.Address)
+					proc, ok := m.Catalog.Procedure(copy.Calls[i].Ref.Address)
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: missing remapped intagg aggregate")
 					}
 					copy.Calls[i].Procedure = proc
-					if failure := extension.ValidateIntaggIdentity(m.catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
+					if failure := extension.ValidateIntaggIdentity(m.Catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
 						return nil, failure
 					}
 				}
@@ -789,19 +789,19 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 
 // usage maps a usage's type and collation to their remapped generations.
 func (m *viewQueryRemapper) usage(old sqltype.Usage) (sqltype.Usage, error) {
-	old.Type = m.typ(old.Type)
-	if m.collation == nil {
+	old.Type = m.Type(old.Type)
+	if m.Collation == nil {
 		return old, nil
 	}
 	var err error
-	old.Collation, err = m.collation(old.Collation)
+	old.Collation, err = m.Collation(old.Collation)
 	return old, err
 }
 
 // provider replaces *slot with the remapped provider. On failure it keeps the
 // slot unchanged and returns the error.
 func (m *viewQueryRemapper) provider(slot *functions.AggregateProvider, provider functions.RemappableProvider, argument expr.Expr) error {
-	remap := functions.ProviderRemap{Type: m.typ, Usage: m.usage}
+	remap := functions.ProviderRemap{Type: m.Type, Usage: m.usage}
 	if argument != nil {
 		remap.Argument = argument.ResultUsage()
 	}
@@ -814,7 +814,7 @@ func (m *viewQueryRemapper) provider(slot *functions.AggregateProvider, provider
 
 // Ordinary descriptor renaming reowns only consumers of changed type
 // generations; replacement additionally remaps every imported object reference.
-func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
+func ExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
 	typ = analyze.RecordTypeMapper(typ)
 	changed := false
 	expression := func(node expr.Expr) {
@@ -834,7 +834,7 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 		expression(constraint.Expression)
 	}
 	for _, policy := range d.Security.Policies {
-		for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
+		for _, condition := range []*policyExpression{PolicyOf(policy.Using), PolicyOf(policy.Check)} {
 			if condition != nil {
 				expression(condition.expression)
 				changed = changed || analyze.QueryDescriptorsChanged(condition.presentation.query.Root, typ)
@@ -878,20 +878,20 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 		}
 	}
 	if d.View != nil {
-		for _, usage := range viewOf(d).castUsages {
+		for _, usage := range ViewOf(d).castUsages {
 			changed = changed || usage.Type != typ(usage.Type)
 		}
-		for _, captured := range viewOf(d).composites {
+		for _, captured := range ViewOf(d).composites {
 			changed = changed || captured.Base.Type != typ(captured.Base.Type)
 		}
-		for _, literal := range viewOf(d).literals {
+		for _, literal := range ViewOf(d).literals {
 			expression(literal)
 		}
-		changed = changed || analyze.QueryDescriptorsChanged(viewOf(d).query.Root, typ)
+		changed = changed || analyze.QueryDescriptorsChanged(ViewOf(d).query.Root, typ)
 	}
 	return changed
 }
-func (m *viewQueryRemapper) cte(old *plan.CTEDefinition) (*plan.CTEDefinition, error) {
+func (m *viewQueryRemapper) CTE(old *plan.CTEDefinition) (*plan.CTEDefinition, error) {
 	if mapped := m.ctes[old]; mapped != nil {
 		return mapped, nil
 	}
@@ -902,9 +902,9 @@ func (m *viewQueryRemapper) cte(old *plan.CTEDefinition) (*plan.CTEDefinition, e
 	m.ctes[old] = &copy
 	copy.Schema = append(plan.QuerySchema(nil), old.Schema...)
 	for i := range copy.Schema {
-		copy.Schema[i].Usage.Type = m.typ(copy.Schema[i].Usage.Type)
-		if m.collation != nil {
-			collation, err := m.collation(copy.Schema[i].Usage.Collation)
+		copy.Schema[i].Usage.Type = m.Type(copy.Schema[i].Usage.Type)
+		if m.Collation != nil {
+			collation, err := m.Collation(copy.Schema[i].Usage.Collation)
 			if err != nil {
 				return nil, err
 			}
@@ -927,15 +927,15 @@ func (m *viewQueryRemapper) cte(old *plan.CTEDefinition) (*plan.CTEDefinition, e
 	}
 	if old.Query != nil {
 		query := *old.Query
-		root, err := m.nested(query.Root)
+		root, err := m.Nested(query.Root)
 		if err != nil {
 			return nil, err
 		}
 		query.Root = root
 		copy.Query = &query
 	}
-	if old.Mutation != nil && m.mutation != nil {
-		body, err := m.mutation(old)
+	if old.Mutation != nil && m.Mutation != nil {
+		body, err := m.Mutation(old)
 		if err != nil {
 			return nil, err
 		}
@@ -946,17 +946,17 @@ func (m *viewQueryRemapper) cte(old *plan.CTEDefinition) (*plan.CTEDefinition, e
 
 func (m *viewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, error) {
 	copy := *old
-	copy.Record, copy.Path = m.typ(old.Record), m.typ(old.Path)
+	copy.Record, copy.Path = m.Type(old.Record), m.Type(old.Path)
 	if !sqltype.OccurrenceRecordArray(copy.Path) || copy.Path.Element() != copy.Record {
 		return nil, ids.ErrCatalogReplaced
 	}
 	expression := func(old expr.Expr) (expr.Expr, error) {
-		next, err := remapBoundExpressionWithQuery(old, m.ref, nil, m.nested, nil)
+		next, err := RemapExpressionWithQuery(old, m.Ref, nil, m.Nested, nil)
 		if err != nil {
 			return nil, err
 		}
 		if !m.referencesOnly {
-			next, _, err = retagBoundTypesWithQuery(m.catalog, next, m.typ, nil, m.collation)
+			next, _, err = RetagTypesWithQuery(m.Catalog, next, m.Type, nil, m.Collation)
 		}
 		return next, err
 	}
@@ -976,9 +976,9 @@ func (m *viewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, err
 		if usage.Type == nil {
 			continue
 		}
-		usage.Type = m.typ(usage.Type)
-		if m.collation != nil {
-			usage.Collation, err = m.collation(usage.Collation)
+		usage.Type = m.Type(usage.Type)
+		if m.Collation != nil {
+			usage.Collation, err = m.Collation(usage.Collation)
 			if err != nil {
 				return nil, err
 			}
@@ -992,7 +992,7 @@ func (m *viewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, err
 			return nil, err
 		}
 	}
-	boolean, ok := m.catalog.LookupType(sqltype.Bool)
+	boolean, ok := m.Catalog.LookupType(sqltype.Bool)
 	if !ok {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -1006,7 +1006,7 @@ func (m *viewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, err
 
 func (m *viewQueryRemapper) search(old *plan.SearchRecipe) (*plan.SearchRecipe, error) {
 	copy := *old
-	copy.Record, copy.Result, copy.Depth = m.typ(old.Record), m.typ(old.Result), m.typ(old.Depth)
+	copy.Record, copy.Result, copy.Depth = m.Type(old.Record), m.Type(old.Result), m.Type(old.Depth)
 	if copy.Record == nil || copy.Record.ID() != 2249 || !copy.Record.IsComposite() ||
 		old.Syntax.Breadth && copy.Result != copy.Record ||
 		!old.Syntax.Breadth && (!sqltype.OccurrenceRecordArray(copy.Result) || copy.Result.Element() != copy.Record) {
@@ -1038,9 +1038,9 @@ func remapQuoteOwner(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef) expr
 	return annotated.WithAnnotation(origin)
 }
 
-func remapLikeExpression(in *analyze.LikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
+func RemapLikeExpression(in *analyze.LikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
 	if in.RowRef == nil {
 		in.RowRef, in.Slots = in.RowMapper(destination, authority)
 	}
-	return remapScalarExpression(node, nil, in.RowRef, in.Slots, nil)
+	return RemapScalar(node, nil, in.RowRef, in.Slots, nil)
 }

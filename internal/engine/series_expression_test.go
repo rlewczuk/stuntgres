@@ -196,7 +196,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		}
 	})
 	fresh := seriesUnitType(t, sqltype.Int4)
-	mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == sqltype.Int4 {
 			return fresh
 		}
@@ -237,11 +237,11 @@ func TestSeriesExpressionHooks(t *testing.T) {
 			t.Fatal(n, err)
 		}
 	}
-	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+	clone, err := RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil || !analyze.SameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}
-	text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
+	text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
 	if err != nil || !strings.Contains(text, "generate_series(") || strings.Count(text, ",") != 2 {
 		t.Fatal(text, err)
 	}
@@ -259,7 +259,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	}
 	root := &plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: d.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{original}}
 	rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
-		return mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
+		return MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return seriesUnit(t, d, 2, 3).Args[0], true, nil
 			}

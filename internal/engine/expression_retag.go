@@ -19,9 +19,9 @@ import (
 // Replacement can retain TEMP sequence builtin generations. Rebind persisted
 // scalar trees to those types without evaluating them or changing captured
 // values, positions or expression properties.
-func retagBoundTypes(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
+func RetagTypes(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
 	retainedType = analyze.RecordTypeMapper(retainedType, collations...)
-	return retagBoundTypesWithQuery(view, node, retainedType, func(root plan.Node) (plan.Node, error) {
+	return RetagTypesWithQuery(view, node, retainedType, func(root plan.Node) (plan.Node, error) {
 		if (view.State() == nil || view.State().ACLItemImport() == nil) && (len(collations) == 0 || collations[0] == nil) && !analyze.QueryDescriptorsChanged(root, retainedType) && !analyze.QueryRoutineCarriersChanged(view, root) {
 			return root, nil
 		}
@@ -29,19 +29,19 @@ func retagBoundTypes(view catalog.Read, node expr.Expr, retainedType func(*sqlty
 	}, collations...)
 }
 
-func retagBoundTypesWithQuery(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
-	return mapBoundExpression(view, node, retainedType, queryMapper, nil, nil, collations...)
+func RetagTypesWithQuery(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
+	return MapExpression(view, node, retainedType, queryMapper, nil, nil, collations...)
 }
 
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
-func mapBoundExpression(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
-	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, false, leaf, collations...)
+func MapExpression(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
+	return MapExpressionReader(view, nil, node, retainedType, queryMapper, recipe, false, leaf, collations...)
 }
 
 // substituteSources is only for equivalent-child query-stage rewrites. Catalog
 // generation remapping keeps Rebuild/Retag and their provider validation.
-func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe *catalog.Relation, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
+func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe *catalog.Relation, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -62,7 +62,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 	}
 	info := expr.InfoOf(node)
 	if leaf != nil {
-		info.Property = rewrittenIntrinsicProperties(node)
+		info.Property = RewrittenIntrinsicProperties(node)
 	}
 	typ := retainedType(info.Usage.Type)
 	if typ == nil && info.Usage.Type != nil {
@@ -147,7 +147,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		return next
 	}
 	mapChild := func(old expr.Expr) (expr.Expr, bool, error) {
-		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, recipe, substituteSources, leaf, collations...)
+		next, replaced, failure := MapExpressionReader(view, reader, old, retainedType, queryMapper, recipe, substituteSources, leaf, collations...)
 		changed = changed || replaced
 		if next != nil && (leaf != nil || replaced) {
 			info.Property = expr.MergeProperties(info.Property, next.Properties())
@@ -186,7 +186,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 	switch n := node.(type) {
 	case plan.AssignmentValueExpr:
 		n.Base, n.Value = child(n.Base), child(n.Value)
-		targets, failure := mapRuleAssignmentTargets([]*plan.ArrayAssignmentTarget{n.Target}, mapChild, func(usage sqltype.Usage) (sqltype.Usage, error) {
+		targets, failure := MapRuleAssignmentTargets([]*plan.ArrayAssignmentTarget{n.Target}, mapChild, func(usage sqltype.Usage) (sqltype.Usage, error) {
 			usage.Type = retainedType(usage.Type)
 			usage.Collation = comparisonCollation(usage.Collation)
 			return usage, err
@@ -228,7 +228,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		n.Procedure = proc
 		n.Soundex, err = n.Reconstruct(info, n.Args)
 		if err == nil {
-			err = validateInstalledSoundex(n, view)
+			err = ValidateInstalledSoundex(n, view)
 		}
 		rebound = n
 	case plan.InstalledMetaphoneExpr:
@@ -245,7 +245,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		n.Procedure = proc
 		n.Metaphone, err = n.Reconstruct(info, n.Args)
 		if err == nil {
-			err = validateInstalledMetaphone(n, view)
+			err = ValidateInstalledMetaphone(n, view)
 		}
 		rebound = n
 	case plan.InstalledLevenshteinExpr:
@@ -262,7 +262,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		n.Procedure = proc
 		n.Levenshtein, err = n.Reconstruct(info, n.Args)
 		if err == nil {
-			err = validateInstalledLevenshtein(n, view)
+			err = ValidateInstalledLevenshtein(n, view)
 		}
 		rebound = n
 	case plan.InstalledUUIDOsspExpr:
@@ -274,7 +274,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		changed = changed || n.Procedure != proc
 		n.Procedure = proc
 		n.Info = info
-		err = validateInstalledUUIDOssp(n, view)
+		err = ValidateInstalledUUIDOssp(n, view)
 		rebound = n
 	case plan.InstalledCryptoExpr:
 		n.Args = children(n.Args)
@@ -290,7 +290,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		n.Procedure = proc
 		n.Pgcrypto, err = n.Reconstruct(info, n.Args)
 		if err == nil {
-			err = validateInstalledCrypto(n, view)
+			err = ValidateInstalledCrypto(n, view)
 		}
 		rebound = n
 	case plan.InstalledTextExpr:

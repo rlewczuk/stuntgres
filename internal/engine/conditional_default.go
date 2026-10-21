@@ -15,7 +15,7 @@ import (
 
 func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	operand := func(child expr.Expr) (string, error) {
-		text, err := r.sql(ctx, view, child)
+		text, err := r.SQL(ctx, view, child)
 		if err != nil {
 			return "", err
 		}

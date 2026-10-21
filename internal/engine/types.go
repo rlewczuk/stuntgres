@@ -81,7 +81,7 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 	}
 	if t.SQLType.IsDomain() {
 		base := t.SQLType.DomainBase()
-		if err := validateUsageCollation(view, base); err != nil {
+		if err := ValidateUsageCollation(view, base); err != nil {
 			return err
 		}
 		actual, exists := view.LookupType(base.Type.ID())

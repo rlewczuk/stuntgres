@@ -60,7 +60,7 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 				return n
 			},
 		} {
-			if _, err := defaultSQL(context.Background(), view, mutate(leaf)); err == nil {
+			if _, err := DefaultSQL(context.Background(), view, mutate(leaf)); err == nil {
 				t.Fatal("malformed serial default admitted")
 			}
 		}
@@ -81,7 +81,7 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	text, err := defaultSQL(context.Background(), e.CatalogRead(), d.ColumnMeta.Defaults[2].Expression)
+	text, err := DefaultSQL(context.Background(), e.CatalogRead(), d.ColumnMeta.Defaults[2].Expression)
 	if err != nil || !strings.Contains(text, "renamed") {
 		t.Fatal(text, err)
 	}

@@ -176,7 +176,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	if eval.DomainValue != sentinel || eval.DomainValueActive {
 		t.Fatal("canceled conversion changed frame")
 	}
-	if _, err := (scalarRenderer{}).sql(context.Background(), view, leaf); err == nil {
+	if _, err := (scalarRenderer{}).SQL(context.Background(), view, leaf); err == nil {
 		t.Fatal("VALUE rendered without domain authority")
 	}
 }

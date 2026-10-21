@@ -83,7 +83,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	// The runtime folding barrier is legal in stored expressions. It does not
 	// grant the distinct authority required to render/evaluate free VALUE.
 	node, evaluation := bind("SELECT 1::public.preflight_positive")
-	if _, err := (scalarRenderer{}).sql(op.Context(), evaluation.Catalog, node); err != nil {
+	if _, err := (scalarRenderer{}).SQL(op.Context(), evaluation.Catalog, node); err != nil {
 		t.Fatal("stored checked conversion rejected as free VALUE", err)
 	}
 	required := domainUnitType(t, e.CatalogRead(), "preflight_required").SQLType

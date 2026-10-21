@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func validateInstalledCrypto(n plan.InstalledCryptoExpr, v catalog.Read) error {
+func ValidateInstalledCrypto(n plan.InstalledCryptoExpr, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored crypto argument")

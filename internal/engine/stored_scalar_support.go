@@ -10,14 +10,14 @@ import (
 )
 
 func (r scalarRenderer) descriptor(view catalog.Read, address ids.ObjectAddress) catalog.Descriptor {
-	descriptor, _ := catalog.DescriptorAt(view, r.definition, address)
+	descriptor, _ := catalog.DescriptorAt(view, r.Definition, address)
 	return descriptor
 }
 
 // Both stored-expression capture and provider validation require the same live
 // stable member of the actual named rowtype/backing-relation pair. This is
 // metadata authority only; it does not authorize reading another table's rows.
-func compositeAttributeProvider(typ *catalog.Type, relation *catalog.Relation, attribute int32) bool {
+func CompositeAttributeProvider(typ *catalog.Type, relation *catalog.Relation, attribute int32) bool {
 	if typ == nil || typ.SQLType == nil || relation == nil || attribute <= 0 || relation.Address().ClassID != ids.RelationClassID || typ.OwningRelation != relation.Address() || relation.RowType != typ.SQLType.ID() || !typ.SQLType.IsComposite() {
 		return false
 	}
@@ -32,6 +32,6 @@ func compositeAttributeProvider(typ *catalog.Type, relation *catalog.Relation, a
 
 // Only meaningful NULL masks or deferred domain conversions survive ordinary
 // column-default elision. Plain builtin DEFAULT NULL retains its old absence.
-func omitColumnDefault(view catalog.Read, node expr.Expr, usage sqltype.Usage) bool {
+func OmitColumnDefault(view catalog.Read, node expr.Expr, usage sqltype.Usage) bool {
 	return plan.StructuralNull(node) && typedef.TypeDefault(view, usage.Type) == nil && !node.Properties().RuntimeDomainConversion
 }

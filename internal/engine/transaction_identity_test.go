@@ -267,11 +267,11 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if count != len(raw.Args) {
 			t.Fatal("closed traversal", tc.name, count)
 		}
-		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, e.CatalogRead(), n)
+		recipe, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, e.CatalogRead(), n)
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+tc.name+"(") {
 			t.Fatal("symbolic recipe", recipe, err)
 		}
-		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		persisted, err := RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !analyze.SameGroupExpression(n, persisted) {
 			t.Fatal("symbolic remapping", err)
 		}
@@ -302,7 +302,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		}
 		fresh := New()
 		fb := newTestExpressionBinder(t, ctx, fresh, sqltype.InputEnvironment{}, nil)
-		mapped, _, err := retagBoundTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, _, err := RetagTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d.IsComposite() {
 				return d
 			}

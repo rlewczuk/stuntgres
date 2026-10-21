@@ -216,7 +216,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	}
 	other := New()
 	view := other.CatalogRead()
-	remapped, changed, err := retagBoundTypes(view, selected, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	remapped, changed, err := RetagTypes(view, selected, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
 		}
@@ -262,15 +262,15 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 		t.Fatal("zero-width source occurrences conflated")
 	}
 	zero := analyze.CompositeOccurrence{Kind: analyze.CompositeExpansion, Base: empty.Usage()}
-	if err := validateCompositeOccurrence(zero, view); err != nil {
+	if err := ValidateCompositeOccurrence(zero, view); err != nil {
 		t.Fatal("zero-width expansion lost authority", err)
 	}
 	zero.Kind = 0
-	if err := validateCompositeOccurrence(zero, view); err == nil {
+	if err := ValidateCompositeOccurrence(zero, view); err == nil {
 		t.Fatal("missing capture kind admitted")
 	}
 	whole := analyze.CompositeOccurrence{Kind: analyze.CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
-	if err := (NewView(ViewParts{})).validateCompositeSource(whole); err == nil {
+	if err := (NewView(ViewParts{})).ValidateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}
 	if err := validateGenerationPlan(view, nil, selected); err == nil {

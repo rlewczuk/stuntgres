@@ -41,7 +41,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	other := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	rebound, changed, err := retagBoundTypes(other.BindingCatalog(), persisted, func(d *sqltype.Descriptor) *sqltype.Descriptor { return other.Type(d.ID()) })
+	rebound, changed, err := RetagTypes(other.BindingCatalog(), persisted, func(d *sqltype.Descriptor) *sqltype.Descriptor { return other.Type(d.ID()) })
 	if err != nil || !changed {
 		t.Fatal("UUID retag", changed, err)
 	}

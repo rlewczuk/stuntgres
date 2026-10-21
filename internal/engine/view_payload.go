@@ -10,14 +10,14 @@ import (
 )
 
 // viewOf returns d's concrete view definition, or nil when d stores none.
-func viewOf(d *catalog.Relation) *viewDefinition {
+func ViewOf(d *catalog.Relation) *viewDefinition {
 	v, _ := d.View.(*viewDefinition)
 	return v
 }
 
 // viewPayloadOf stores v as a payload; a nil definition stays a nil payload,
 // so d.view == nil keeps meaning "no stored definition".
-func viewPayloadOf(v *viewDefinition) catalog.ViewPayload {
+func ViewPayload(v *viewDefinition) catalog.ViewPayload {
 	if v == nil {
 		return nil
 	}
@@ -200,7 +200,7 @@ func (v *viewDefinition) QuoteRevision() ids.DefinitionRevision { return v.quote
 
 func (v *viewDefinition) DependsOn(target ids.ObjectAddress) bool {
 	for _, leaf := range v.sources {
-		if target.SubID == 0 && leaf.ref.Address == target {
+		if target.SubID == 0 && leaf.Ref.Address == target {
 			return true
 		}
 	}

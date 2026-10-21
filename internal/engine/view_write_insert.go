@@ -21,7 +21,7 @@ func lowerViewInsert(owner *catalog.Owner, view catalog.Read, b *analyze.Binding
 	b.Insert.IdentityDiscard = nil
 	b.Insert.Projection = nil
 	for i, output := range viewWriteOf(b.ViewWrite).outputs {
-		direct, ok := viewDirectColumn(output)
+		direct, ok := ViewDirectColumn(output)
 		if !ok {
 			continue
 		}

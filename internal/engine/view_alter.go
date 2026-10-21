@@ -119,9 +119,9 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 			}
 		}
 	case "set", "reset":
-		definition := viewOf(old).Parts()
+		definition := ViewOf(old).Parts()
 		if s.Action == "set" {
-			barrier, invoker, mode, err := viewOptions(s.Options)
+			barrier, invoker, mode, err := ViewOptions(s.Options)
 			if err != nil {
 				return fail(err)
 			}
@@ -146,14 +146,14 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				case "security_invoker":
 					definition.Invoker = false
 				case "check_option":
-					definition.CheckOption = viewCheckNone
+					definition.CheckOption = CheckNone
 				}
 			}
 		}
-		definition.Options = transformViewOptions(viewOf(old).Options(), s.Options, s.Action == "reset")
+		definition.Options = transformViewOptions(ViewOf(old).Options(), s.Options, s.Action == "reset")
 		altered := NewView(definition)
-		if altered.CheckOption() != viewCheckNone {
-			if err := validateViewCheckDeclaration(altered); err != nil {
+		if altered.CheckOption() != CheckNone {
+			if err := ValidateViewCheckDeclaration(altered); err != nil {
 				return fail(err)
 			}
 		}

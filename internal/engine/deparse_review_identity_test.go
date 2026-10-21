@@ -61,7 +61,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			original := node
 			t.Run("SQL printer", func(t *testing.T) {
 				for _, pretty := range []bool{false, true} {
-					got, err := (pgRenderer{view: e.CatalogRead(), pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
+					got, err := (pgRenderer{View: e.CatalogRead(), Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
 					if err != nil || got != tc.golden {
 						t.Fatalf("pretty=%t got %q, %v; want %q", pretty, got, err, tc.golden)
 					}
@@ -79,14 +79,14 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 				t.Fatal(serialized, wantTree, err)
 			}
 			target := New()
-			retagged, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+			retagged, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 				typ, _ := target.CatalogRead().LookupType(d.ID())
 				return typ
 			})
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
+			remapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
 				t.Fatal("identity leaf invented a catalog reference", ref)
 				return ref
 			}, nil)
@@ -97,7 +97,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			if copy.Kind != node.Kind || copy.OrdinaryCall != node.OrdinaryCall || copy.Pos != node.Pos || copy.Properties() != node.Properties() || copy.ResultUsage().Type == node.ResultUsage().Type {
 				t.Fatal(copy, node)
 			}
-			got, err := (pgRenderer{view: target.CatalogRead()}).sql(context.Background(), copy, pgRenderParent{})
+			got, err := (pgRenderer{View: target.CatalogRead()}).SQL(context.Background(), copy, pgRenderParent{})
 			if err != nil || got != tc.golden {
 				t.Fatal(got, err)
 			}

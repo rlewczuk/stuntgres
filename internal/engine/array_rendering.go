@@ -12,7 +12,7 @@ import (
 func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n plan.ArrayExpr) (string, error) {
 	parts := make([]string, len(n.Elements))
 	for i, child := range n.Elements {
-		text, err := r.sql(ctx, view, child)
+		text, err := r.SQL(ctx, view, child)
 		if err != nil {
 			return "", err
 		}
@@ -20,7 +20,7 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n plan.
 	}
 	text := "ARRAY[" + strings.Join(parts, ", ") + "]"
 	if len(parts) == 0 {
-		declaration, err := regobj.TypeDeclarationAt(view, r.definition, n.Usage)
+		declaration, err := regobj.TypeDeclarationAt(view, r.Definition, n.Usage)
 		if err != nil {
 			return "", err
 		}
@@ -30,7 +30,7 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n plan.
 }
 
 func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n plan.SubscriptExpr) (string, error) {
-	text, err := r.sql(ctx, view, n.Base)
+	text, err := r.SQL(ctx, view, n.Base)
 	if err != nil {
 		return "", err
 	}
@@ -38,7 +38,7 @@ func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n p
 	for _, s := range n.Subscripts {
 		text += "["
 		if s.Lower != nil {
-			part, err := r.sql(ctx, view, s.Lower)
+			part, err := r.SQL(ctx, view, s.Lower)
 			if err != nil {
 				return "", err
 			}
@@ -48,7 +48,7 @@ func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n p
 			text += ":"
 		}
 		if s.Upper != nil {
-			part, err := r.sql(ctx, view, s.Upper)
+			part, err := r.SQL(ctx, view, s.Upper)
 			if err != nil {
 				return "", err
 			}

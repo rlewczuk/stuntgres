@@ -18,28 +18,28 @@ import (
 )
 
 type pgRenderer struct {
-	view               catalog.Read
-	relation           *catalog.Relation
-	pretty             bool
-	path               []ids.ObjectAddress
-	output             sqltype.OutputEnvironment
-	nonstandardStrings bool
-	showImplicit       bool
+	View               catalog.Read
+	Relation           *catalog.Relation
+	Pretty             bool
+	Path               []ids.ObjectAddress
+	Output             sqltype.OutputEnvironment
+	NonstandardStrings bool
+	ShowImplicit       bool
 	unknownTextLiteral bool
-	columnSQL          func(plan.ColumnExpr) (string, error)
-	nodeSQL            func(expr.Expr) (string, bool, error)
+	ColumnSQL          func(plan.ColumnExpr) (string, error)
+	NodeSQL            func(expr.Expr) (string, bool, error)
 }
 
-func (r pgRenderer) identifier(name string) string {
-	if r.output.QuoteAllIdentifiers {
+func (r pgRenderer) Identifier(name string) string {
+	if r.Output.QuoteAllIdentifiers {
 		return catalog.QuoteIdentifier(name)
 	}
 	return catalog.Identifier(name)
 }
 
-func (r pgRenderer) attribute(relation *catalog.Relation, attr int32) (string, error) {
-	text, err := deparseAttribute(relation, attr)
-	if err == nil && r.output.QuoteAllIdentifiers && !strings.HasPrefix(text, "\"") {
+func (r pgRenderer) Attribute(relation *catalog.Relation, attr int32) (string, error) {
+	text, err := DeparseAttribute(relation, attr)
+	if err == nil && r.Output.QuoteAllIdentifiers && !strings.HasPrefix(text, "\"") {
 		text = catalog.QuoteIdentifier(text)
 	}
 	return text, err
@@ -57,31 +57,31 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 	}
 	if !u.Type.IsUserDefined() && !u.Type.IsDomain() {
 		text, err := analyze.PGType(u)
-		if err == nil && r.output.QuoteAllIdentifiers {
+		if err == nil && r.Output.QuoteAllIdentifiers {
 			switch u.Type.ID() {
 			case sqltype.Text, sqltype.Name, sqltype.Bytea, sqltype.Oid, sqltype.Regclass, sqltype.Regtype, sqltype.UUID, sqltype.JSON, sqltype.JSONB:
-				text = r.identifier(text)
+				text = r.Identifier(text)
 			}
 		}
 		return text, err
 	}
-	d, ok := r.view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
+	d, ok := r.View.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
 	if !ok || d.SQLType != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid deparse domain authority")
 	}
-	if r.output.QuoteAllIdentifiers {
-		name := r.identifier(d.Name())
-		for _, ns := range r.path {
-			if a, ok := r.view.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
+	if r.Output.QuoteAllIdentifiers {
+		name := r.Identifier(d.Name())
+		for _, ns := range r.Path {
+			if a, ok := r.View.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
 				if a == d.Address() {
 					return name, nil
 				}
 				break
 			}
 		}
-		return r.identifier(r.view.Get(d.Namespace()).Name()) + "." + name, nil
+		return r.Identifier(r.View.Get(d.Namespace()).Name()) + "." + name, nil
 	}
-	return catalog.TypeDiagnosticNameAt(r.view, d, r.path), nil
+	return catalog.TypeDiagnosticNameAt(r.View, d, r.Path), nil
 }
 
 func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string, error) {
@@ -89,7 +89,7 @@ func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string
 	if err != nil {
 		return "", err
 	}
-	if !r.pretty || !simple {
+	if !r.Pretty || !simple {
 		child = "(" + child + ")"
 	}
 	return child + "::" + typ, nil
@@ -115,7 +115,7 @@ func pgLiteralSimple(n plan.LiteralExpr, rendered string) bool {
 	}
 }
 
-func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, error) {
+func (r pgRenderer) Literal(ctx context.Context, n plan.LiteralExpr) (string, error) {
 	u := n.ResultUsage()
 	v := n.Value
 	if n.UnknownNull && (!v.IsNull() || u.Type == nil || u.Type.ID() != sqltype.Text) {
@@ -131,22 +131,22 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 		}
 		return "NULL::" + typ, nil
 	}
-	output := r.output
+	output := r.Output
 	// Persisted literal text must remain lossless even when SQL presentation
 	// requests rounded floats, including nested array and domain leaves.
 	output.FloatPrecisionSet = false
 	if v.Type().BaseType().IsArray() && v.Type().ContainsRegclass() {
-		output.Regclass = regobj.ClassOutput{View: r.view, Path: r.path}
+		output.Regclass = regobj.ClassOutput{View: r.View, Path: r.Path}
 	}
 	if v.Type().ContainsRegtype() {
-		output.Regtype = regobj.TypeOutput{View: r.view, Path: r.path}
+		output.Regtype = regobj.TypeOutput{View: r.View, Path: r.Path}
 	}
 	if v.Type().ContainsRegObject() {
 		if output.Regcollation == nil {
-			output.Regcollation = regobj.DumpAliasOutput{View: r.view}
+			output.Regcollation = regobj.DumpAliasOutput{View: r.View}
 		}
 		if output.Regnamespace == nil {
-			output.Regnamespace = regobj.DumpAliasOutput{View: r.view}
+			output.Regnamespace = regobj.DumpAliasOutput{View: r.View}
 		}
 	}
 	if v.Type().ContainsRegrole() && output.Regrole == nil {
@@ -156,19 +156,19 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 		output.Operator = regobj.DumpOperatorOutput{}
 	}
 	if v.Type().ContainsRegproc() {
-		output.Regproc = regobj.RoutineOutput{View: r.view, Path: r.path}
+		output.Regproc = regobj.RoutineOutput{View: r.View, Path: r.Path}
 	}
 	if v.Type().ContainsRegTS() {
-		output.RegTS = regobj.DumpTextSearchOutput{View: r.view}
+		output.RegTS = regobj.DumpTextSearchOutput{View: r.View}
 	}
 	if v.Type().ContainsACLItem() && output.ACLItem == nil {
 		output.ACLItem = regobj.ACLItemContextFormatter(ctx)
 	}
 	if regobj.ContainsEmptyACL(v) {
-		return regobj.LiteralWithACL(ctx, r.view, n, output.ACLItem)
+		return regobj.LiteralWithACL(ctx, r.View, n, output.ACLItem)
 	}
 	if sqltype.IsRoutineAlias(v.Type().BaseType().ID()) {
-		text, err := regobj.RoutineLiteral(r.view, v)
+		text, err := regobj.RoutineLiteral(r.View, v)
 		if err != nil {
 			return "", err
 		}
@@ -177,18 +177,18 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 		}
 		return text, nil
 	}
-	if sqltype.IsOperatorAlias(v.Type().BaseType().ID()) && !r.pretty {
-		return regobj.OperatorLiteral(r.view, v)
+	if sqltype.IsOperatorAlias(v.Type().BaseType().ID()) && !r.Pretty {
+		return regobj.OperatorLiteral(r.View, v)
 	}
 	if v.Type().ContainsRegproc() || v.Type().ContainsOperatorAlias() {
-		return regobj.Literal(ctx, r.view, n)
+		return regobj.Literal(ctx, r.View, n)
 	}
 	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
 	if err != nil {
 		return "", err
 	}
 	quote := func(s string) string {
-		if r.nonstandardStrings {
+		if r.NonstandardStrings {
 			s = strings.ReplaceAll(s, "\\", "\\\\")
 		}
 		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
@@ -202,7 +202,7 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 			if err != nil {
 				return "", err
 			}
-			text = regobj.ClassSpelling(r.view, r.path, ids.OID(id))
+			text = regobj.ClassSpelling(r.View, r.Path, ids.OID(id))
 		}
 		return quote(text) + "::" + typ, nil
 	}
@@ -234,7 +234,7 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 		return quote(text) + "::" + typ, nil
 	case sqltype.Regclass:
 		if id, err := strconv.ParseUint(text, 10, 32); err == nil {
-			text = regobj.ClassSpelling(r.view, r.path, ids.OID(id))
+			text = regobj.ClassSpelling(r.View, r.Path, ids.OID(id))
 		}
 		return quote(text) + "::regclass", nil
 	case sqltype.Regtype:
@@ -264,9 +264,9 @@ func (r pgRenderer) literal(ctx context.Context, n plan.LiteralExpr) (string, er
 // A zero parent is a top-level or syntax-separated expression. Operator parents
 // additionally distinguish operand side and unary parents to preserve the tree.
 type pgRenderParent struct {
-	precedence int
-	operator   string
-	right      bool
+	Precedence int
+	Operator   string
+	Right      bool
 	unary      bool
 	// Function arguments need no grouping around COLLATE or a cast chain.
 	functionArgument bool
@@ -287,46 +287,46 @@ func pgOperatorPriority(op string) int {
 	return 0
 }
 
-func pgOperatorGrouped(op string, binary bool, parent pgRenderParent) bool {
+func OperatorGrouped(op string, binary bool, parent pgRenderParent) bool {
 	// Every binary scalar operator binds more tightly than AND/OR/NOT.
-	if parent.precedence == 0 || binary && parent.precedence < 4 {
+	if parent.Precedence == 0 || binary && parent.Precedence < 4 {
 		return false
 	}
 	if !binary || parent.unary {
 		return true
 	}
-	parentPriority := pgOperatorPriority(parent.operator)
+	parentPriority := pgOperatorPriority(parent.Operator)
 	if parentPriority == 0 {
 		return true
 	}
 	childPriority := pgOperatorPriority(op)
-	return childPriority == 0 || childPriority < parentPriority || childPriority == parentPriority && parent.right
+	return childPriority == 0 || childPriority < parentPriority || childPriority == parentPriority && parent.Right
 }
 
-func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderParent) (string, error) {
+func (r pgRenderer) SQL(ctx context.Context, node expr.Expr, parent pgRenderParent) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 	if node == nil || node.ResultUsage().Type == nil {
 		return "", fmt.Errorf("stuntgres: missing deparse node")
 	}
-	if r.nodeSQL != nil {
-		if text, handled, err := r.nodeSQL(node); handled || err != nil {
+	if r.NodeSQL != nil {
+		if text, handled, err := r.NodeSQL(node); handled || err != nil {
 			return text, err
 		}
 	}
-	showImplicit := r.showImplicit
-	r.showImplicit = false
-	child := func(n expr.Expr) (string, error) { return r.sql(ctx, n, pgRenderParent{}) }
+	showImplicit := r.ShowImplicit
+	r.ShowImplicit = false
+	child := func(n expr.Expr) (string, error) { return r.SQL(ctx, n, pgRenderParent{}) }
 	function := func(name string, args []expr.Expr, implicit bool) (string, error) {
-		if r.output.QuoteAllIdentifiers && !strings.HasPrefix(name, "\"") {
-			name = r.identifier(name)
+		if r.Output.QuoteAllIdentifiers && !strings.HasPrefix(name, "\"") {
+			name = r.Identifier(name)
 		}
 		parts := make([]string, len(args))
 		for i, arg := range args {
 			argRenderer := r
-			argRenderer.showImplicit = implicit
-			text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
+			argRenderer.ShowImplicit = implicit
+			text, err := argRenderer.SQL(ctx, arg, pgRenderParent{})
 			if err != nil {
 				return "", err
 			}
@@ -335,12 +335,12 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		return name + "(" + strings.Join(parts, ", ") + ")", nil
 	}
 	unary := func(n expr.Expr, suffix string) (string, error) {
-		text, err := r.sql(ctx, n, pgRenderParent{precedence: 5})
+		text, err := r.SQL(ctx, n, pgRenderParent{Precedence: 5})
 		if err != nil {
 			return "", err
 		}
 		text += suffix
-		if !r.pretty || parent.precedence > 4 {
+		if !r.Pretty || parent.Precedence > 4 {
 			text = "(" + text + ")"
 		}
 		return text, nil
@@ -349,7 +349,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 	// coercion nodes. Reconstruct the contextual Const cast that PostgreSQL
 	// records for integer operands of numeric/floating comparisons.
 	comparisonChild := func(node, other expr.Expr) (string, error) {
-		text, err := r.sql(ctx, node, pgRenderParent{precedence: 5})
+		text, err := r.SQL(ctx, node, pgRenderParent{Precedence: 5})
 		if err != nil {
 			return "", err
 		}
@@ -368,7 +368,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		if precedence == 4 {
 			a, err = comparisonChild(left, right)
 		} else {
-			a, err = r.sql(ctx, left, pgRenderParent{precedence: precedence, operator: op})
+			a, err = r.SQL(ctx, left, pgRenderParent{Precedence: precedence, Operator: op})
 		}
 		if err != nil {
 			return "", err
@@ -376,17 +376,17 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		if precedence == 4 {
 			b, err = comparisonChild(right, left)
 		} else {
-			b, err = r.sql(ctx, right, pgRenderParent{precedence: precedence, operator: op, right: true})
+			b, err = r.SQL(ctx, right, pgRenderParent{Precedence: precedence, Operator: op, Right: true})
 		}
 		if err != nil {
 			return "", err
 		}
 		text := a + " " + op + " " + b
-		grouped := !r.pretty
-		if r.pretty {
-			grouped = enclosing.precedence > precedence
+		grouped := !r.Pretty
+		if r.Pretty {
+			grouped = enclosing.Precedence > precedence
 			if precedence == 5 {
-				grouped = pgOperatorGrouped(op, true, enclosing)
+				grouped = OperatorGrouped(op, true, enclosing)
 			}
 		}
 		if grouped {
@@ -396,7 +396,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 	}
 	logicalNot := func(text string) string {
 		text = "NOT " + text
-		if !r.pretty || parent.precedence > 3 || parent.operator == "NOT" {
+		if !r.Pretty || parent.Precedence > 3 || parent.Operator == "NOT" {
 			text = "(" + text + ")"
 		}
 		return text
@@ -404,14 +404,14 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 	operator := r.operatorSpelling
 	switch n := node.(type) {
 	case plan.LiteralExpr:
-		return r.literal(ctx, n)
+		return r.Literal(ctx, n)
 	case plan.DomainValueExpr:
 		return "VALUE", nil
 	case plan.ColumnExpr:
-		if r.columnSQL != nil {
-			return r.columnSQL(n)
+		if r.ColumnSQL != nil {
+			return r.ColumnSQL(n)
 		}
-		return r.attribute(r.relation, n.Origin.Address.SubID)
+		return r.Attribute(r.Relation, n.Origin.Address.SubID)
 	case plan.TableOIDExpr:
 		return "tableoid", nil
 	case plan.RowExpr:
@@ -491,8 +491,8 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		if err != nil {
 			return "", err
 		}
-		text += " COLLATE " + collationDisplayName(r.view, n.Usage.Collation.ID, r.path)
-		if r.pretty && parent.functionArgument {
+		text += " COLLATE " + CollationDisplayName(r.View, n.Usage.Collation.ID, r.Path)
+		if r.Pretty && parent.functionArgument {
 			return text, nil
 		}
 		return "(" + text + ")", nil
@@ -509,25 +509,25 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		// Identifier leaves already retain their scalar annotation. A transparent
 		// relabel must not duplicate it around a genuine enclosing conversion.
 		if n.Child != nil && sqltype.IsTransactionIdentifier(n.Usage.Type.ID()) && n.Child.ResultUsage() == n.Usage {
-			return r.sql(ctx, n.Child, parent)
+			return r.SQL(ctx, n.Child, parent)
 		}
 		if literal, ok := n.Child.(plan.LiteralExpr); ok && n.Mode == sqltype.Explicit &&
 			literal.Usage.Type == n.Usage.Type && n.Usage.Typmod >= 0 {
 			literal.Usage = n.Usage
-			return r.literal(ctx, literal)
+			return r.Literal(ctx, literal)
 		}
 		if n.Mode == sqltype.Implicit && !showImplicit {
 			// Const coercions have type-owned annotations; casts of Vars for operator
 			// resolution are invisible in PostgreSQL presentation.
 			if _, ok := n.Child.(plan.LiteralExpr); !ok {
-				return r.sql(ctx, n.Child, parent)
+				return r.SQL(ctx, n.Child, parent)
 			}
 			if n.Child.ResultUsage().Type.ID() == n.ResultUsage().Type.ID() {
-				return r.sql(ctx, n.Child, parent)
+				return r.SQL(ctx, n.Child, parent)
 			}
 		}
 		if n.Mode == sqltype.Assignment && !sqlJSONResult(n.Child) {
-			return r.sql(ctx, n.Child, parent)
+			return r.SQL(ctx, n.Child, parent)
 		}
 		text, err := child(n.Child)
 		if err != nil {
@@ -541,13 +541,13 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			spec, err := call.Render()
 			simpleFunctionCall = err == nil && spec.SimpleCast
 		}
-		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.pretty && parent.functionArgument && castChild)
+		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.Pretty && parent.functionArgument && castChild)
 	case plan.SelectedOperatorExpr:
-		d, ok := r.view.Operator(n.Ref.Address)
+		d, ok := r.View.Operator(n.Ref.Address)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing selected operator during deparse")
 		}
-		namespace, ok := r.view.Namespace(d.Namespace())
+		namespace, ok := r.View.Namespace(d.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing selected operator namespace")
 		}
@@ -578,9 +578,9 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		op := operator(n.Namespace, ops[n.Operator])
 		if n.Right == nil {
-			text, err := r.sql(ctx, n.Left, pgRenderParent{precedence: 5, operator: op, unary: true})
+			text, err := r.SQL(ctx, n.Left, pgRenderParent{Precedence: 5, Operator: op, unary: true})
 			text = op + " " + text
-			if !r.pretty || pgOperatorGrouped(op, false, parent) {
+			if !r.Pretty || OperatorGrouped(op, false, parent) {
 				text = "(" + text + ")"
 			}
 			return text, err
@@ -593,9 +593,9 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		op := operator(n.Namespace, ops[n.Operator])
 		if n.Right == nil {
-			text, err := r.sql(ctx, n.Left, pgRenderParent{precedence: 5, operator: op, unary: true})
+			text, err := r.SQL(ctx, n.Left, pgRenderParent{Precedence: 5, Operator: op, unary: true})
 			text = op + " " + text
-			if !r.pretty || pgOperatorGrouped(op, false, parent) {
+			if !r.Pretty || OperatorGrouped(op, false, parent) {
 				text = "(" + text + ")"
 			}
 			return text, err
@@ -613,7 +613,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		return renderRowComparison(n, child, spelling)
 	case plan.ScalarArrayComparisonExpr:
-		return renderScalarArrayComparison(n, child, r.identifier)
+		return renderScalarArrayComparison(n, child, r.Identifier)
 	case plan.UnnestExpr:
 		if n.Procedure == nil {
 			spec, err := n.Render()
@@ -623,17 +623,17 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return r.rendering(ctx, node, spec, parent)
 		}
 		argRenderer := r
-		argRenderer.showImplicit = true
-		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
+		argRenderer.ShowImplicit = true
+		arg, err := argRenderer.SQL(ctx, n.Args[0], pgRenderParent{})
 		if err != nil {
 			return "", err
 		}
 		name := catalog.Identifier("unnest")
 		if n.Procedure != nil {
-			if err := extension.ValidateIntaggIdentity(r.view, n.Procedure, n.Ref, "int_array_enum"); err != nil {
+			if err := extension.ValidateIntaggIdentity(r.View, n.Procedure, n.Ref, "int_array_enum"); err != nil {
 				return "", err
 			}
-			namespace, ok := r.view.Namespace(n.Procedure.Namespace())
+			namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing intagg namespace")
 			}
@@ -667,7 +667,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 	case plan.DistinctExpr:
 		enclosing := parent
 		if n.Not {
-			enclosing = pgRenderParent{precedence: 3, operator: "NOT"}
+			enclosing = pgRenderParent{Precedence: 3, Operator: "NOT"}
 		}
 		text, err := binary(n.Left, n.Right, "IS DISTINCT FROM", 4, enclosing)
 		if n.Not && err == nil {
@@ -676,7 +676,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		return text, err
 	case plan.LogicalExpr:
 		if n.Op == parser.LogicalNot {
-			text, err := r.sql(ctx, n.Left, pgRenderParent{precedence: 3, operator: "NOT"})
+			text, err := r.SQL(ctx, n.Left, pgRenderParent{Precedence: 3, Operator: "NOT"})
 			if err != nil {
 				return "", err
 			}
@@ -723,53 +723,53 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		text.WriteString("\nEND")
 		return text.String(), nil
 	case plan.SQLRoutineExpr:
-		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
 	case plan.ExtensionPathsExpr:
 		args := [1]expr.Expr{n.Arg}
 		return function("pg_extension_update_paths", args[:], true)
 	case plan.InstalledSoundexExpr:
-		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Soundex function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
 	case plan.InstalledMetaphoneExpr:
-		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Metaphone function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
 	case plan.InstalledLevenshteinExpr:
-		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Levenshtein function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
 	case plan.InstalledUUIDOsspExpr:
-		if err := validateInstalledUUIDOssp(n, r.view); err != nil {
+		if err := ValidateInstalledUUIDOssp(n, r.View); err != nil {
 			return "", err
 		}
-		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing uuid-ossp function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), nil, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), nil, true)
 	case plan.InstalledCryptoExpr:
-		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
 	case plan.InstalledTextExpr:
-		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), []expr.Expr{n.Arg}, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), []expr.Expr{n.Arg}, true)
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

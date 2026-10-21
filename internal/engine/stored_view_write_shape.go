@@ -10,8 +10,8 @@ import (
 
 // Only admitted, analyzed nodes participate. A scalar subquery is a separate
 // query boundary and must not be mistaken for a top-level aggregate/window.
-func viewWriteShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, []expr.Expr, string) {
-	q := viewOf(d).syntax
+func ViewWriteShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, []expr.Expr, string) {
+	q := ViewOf(d).syntax
 	if q.Distinct != nil {
 		return nil, nil, nil, "Views containing DISTINCT are not automatically updatable."
 	}
@@ -27,7 +27,7 @@ func viewWriteShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, [
 	if q.Bounds != nil {
 		return nil, nil, nil, "Views containing LIMIT or OFFSET are not automatically updatable."
 	}
-	p, ok := viewOf(d).query.Root.(*plan.ProjectNode)
+	p, ok := ViewOf(d).query.Root.(*plan.ProjectNode)
 	if !ok {
 		return nil, nil, nil, "Views that do not select from a single table or view are not automatically updatable."
 	}
@@ -76,17 +76,17 @@ func viewWriteShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, [
 	}
 }
 
-func viewDirectColumn(expr expr.Expr) (plan.ColumnExpr, bool) {
+func ViewDirectColumn(expr expr.Expr) (plan.ColumnExpr, bool) {
 	if c, ok := expr.(plan.ColumnExpr); ok {
 		return c, true
 	}
 	if c, ok := expr.(plan.CoercionExpr); ok && c.ResultUsage() == c.Child.ResultUsage() {
-		return viewDirectColumn(c.Child)
+		return ViewDirectColumn(c.Child)
 	}
 	return plan.ColumnExpr{}, false
 }
 
-func sameViewRelation(a, b ids.ObjectRef) bool {
+func SameViewRelation(a, b ids.ObjectRef) bool {
 	a.Address.SubID = 0
 	b.Address.SubID = 0
 	return a == b

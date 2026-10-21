@@ -327,11 +327,11 @@ func TestCommitTimeExpression(t *testing.T) {
 				t.Fatal("strict whole NULL", err)
 			}
 		}
-		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, e.CatalogRead(), n)
+		recipe, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, e.CatalogRead(), n)
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+name+"(") {
 			t.Fatal(recipe, err)
 		}
-		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		persisted, err := RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !analyze.SameGroupExpression(n, persisted) || persisted.(expr.StoredProvider).ValidateStoredProvider() != nil {
 			t.Fatal("symbolic persistence lost the inquiry signature or argument", err)
 		}
@@ -346,7 +346,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			persisted, err := remapBoundExpression(withColumn, func(ref ids.ObjectRef) ids.ObjectRef {
+			persisted, err := RemapExpression(withColumn, func(ref ids.ObjectRef) ids.ObjectRef {
 				ref.Address.SubID++
 				return ref
 			}, map[int32]int{2: 3})
@@ -365,7 +365,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		}
 		fresh := New()
 		fb := newTestExpressionBinder(t, ctx, fresh, sqltype.InputEnvironment{}, nil)
-		mapped, _, err := retagBoundTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, _, err := RetagTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d.IsComposite() {
 				return d
 			}

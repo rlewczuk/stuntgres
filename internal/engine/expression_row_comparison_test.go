@@ -147,7 +147,7 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 			original.Expansions[0] = map[int]plan.CompositeExpansionBinding{0: {Base: original.Comparisons[0].Left, Fields: []expr.Expr{original.Comparisons[0].Left}}}
 		}
 		retained := func(old *sqltype.Descriptor) *sqltype.Descriptor { return eType(t, target, old.ID()) }
-		mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, retained)
+		mapped, changed, err := RetagTypes(target.CatalogRead(), original, retained)
 		if err != nil || !changed {
 			t.Fatal(width, changed, err)
 		}
@@ -170,11 +170,11 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 		if err != nil || boolErr != nil || !truth || value.Type() != eType(t, target, sqltype.Bool) {
 			t.Fatal(value, err, boolErr)
 		}
-		text, err := defaultSQL(context.Background(), target.CatalogRead(), mapped)
+		text, err := DefaultSQL(context.Background(), target.CatalogRead(), mapped)
 		if err != nil || !strings.Contains(text, " IS NOT DISTINCT FROM ") || width < 2 && !strings.Contains(text, "ROW(") {
 			t.Fatal(text, err)
 		}
-		_, changed, err = retagBoundTypes(target.CatalogRead(), mapped, retained)
+		_, changed, err = RetagTypes(target.CatalogRead(), mapped, retained)
 		if err != nil || changed {
 			t.Fatal("unchanged mapping copied", width, changed, err)
 		}

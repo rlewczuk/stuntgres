@@ -23,7 +23,7 @@ func (r scalarRenderer) rendering(ctx context.Context, view catalog.Read, spec e
 
 func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog.Read, spec expr.Rendering, returning sqltype.Usage) (string, error) {
 	replay := spec.Replay
-	if replay.RelationOnly && r.owner == nil {
+	if replay.RelationOnly && r.Owner == nil {
 		return "", fmt.Errorf("stuntgres: volatile stored default")
 	}
 	if replay.Validate != nil {
@@ -35,7 +35,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 		if t == nil {
 			return "", fmt.Errorf("stuntgres: foreign stored function type")
 		}
-		if found, ok := catalog.DefinitionTypeAt(view, r.definition, t.ID()); !ok || found != t {
+		if found, ok := catalog.DefinitionTypeAt(view, r.Definition, t.ID()); !ok || found != t {
 			return "", fmt.Errorf("stuntgres: foreign stored function type")
 		}
 	}
@@ -43,13 +43,13 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 	if replay.Args != nil {
 		args = replay.Args
 	}
-	if replay.CatalogSnapshot && r.commentSnapshot != nil {
-		*r.commentSnapshot = true
+	if replay.CatalogSnapshot && r.CommentSnapshot != nil {
+		*r.CommentSnapshot = true
 	}
-	if replay.AlwaysVisibilitySnapshot && r.visibilitySnapshot != nil {
-		*r.visibilitySnapshot = true
+	if replay.AlwaysVisibilitySnapshot && r.VisibilitySnapshot != nil {
+		*r.VisibilitySnapshot = true
 	}
-	if replay.VisibilitySnapshot && r.visibilitySnapshot != nil {
+	if replay.VisibilitySnapshot && r.VisibilitySnapshot != nil {
 		// A literal NULL argument decides the call without reading.
 		demand := true
 		for _, arg := range args {
@@ -58,7 +58,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 				break
 			}
 		}
-		*r.visibilitySnapshot = *r.visibilitySnapshot || demand
+		*r.VisibilitySnapshot = *r.VisibilitySnapshot || demand
 	}
 	parts := make([]string, len(args))
 	for i, arg := range args {
@@ -77,7 +77,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 	declaration := ""
 	if returning.Type != nil {
 		var err error
-		declaration, err = regobj.TypeDeclarationAt(view, r.definition, returning)
+		declaration, err = regobj.TypeDeclarationAt(view, r.Definition, returning)
 		if err != nil {
 			return "", err
 		}
@@ -185,7 +185,7 @@ func (r scalarRenderer) replayArgument(ctx context.Context, view catalog.Read, a
 	if arg.Transport == expr.TransportIntervalNulls {
 		argRenderer.uuidShiftIntervalNulls = true
 	}
-	text, err := argRenderer.sql(ctx, view, arg.Expr)
+	text, err := argRenderer.SQL(ctx, view, arg.Expr)
 	if err != nil {
 		return "", err
 	}
@@ -204,7 +204,7 @@ func (r scalarRenderer) transportDeclaration(view catalog.Read, arg expr.RenderA
 		return regobj.TypeDeclaration(view, arg.TransportType)
 	}
 	literal, ok := arg.Expr.(plan.LiteralExpr)
-	if !ok || r.checkLiterals != nil {
+	if !ok || r.CheckLiterals != nil {
 		return "", nil
 	}
 	id := literal.Usage.Type.ID()

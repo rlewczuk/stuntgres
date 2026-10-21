@@ -28,12 +28,12 @@ func TestRuleAssignmentMapping(t *testing.T) {
 	targets := []*plan.ArrayAssignmentTarget{head, nil}
 	identity := func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil }
 	usage := func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil }
-	mapped, err := mapRuleAssignmentTargets(targets, identity, usage)
+	mapped, err := MapRuleAssignmentTargets(targets, identity, usage)
 	if err != nil || &mapped[0] != &targets[0] || mapped[0] != head || mapped[0].Next != tail {
 		t.Fatalf("identity mapping copied immutable target paths: %v", err)
 	}
 	if allocations := testing.AllocsPerRun(100, func() {
-		result, failure := mapRuleAssignmentTargets(targets, identity, usage)
+		result, failure := MapRuleAssignmentTargets(targets, identity, usage)
 		if failure != nil || &result[0] != &targets[0] {
 			panic("identity mapping changed target")
 		}
@@ -41,7 +41,7 @@ func TestRuleAssignmentMapping(t *testing.T) {
 		t.Fatalf("identity mapping allocated %g times", allocations)
 	}
 	replacement := plan.ParameterExpr{Info: binder.Info(integer.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), Number: 1}
-	changed, err := mapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) {
+	changed, err := MapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == nil {
 			return nil, false, nil
 		}

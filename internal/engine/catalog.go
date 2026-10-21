@@ -122,7 +122,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if !exists || typ != c.Usage.Type || !catalogNull && (!typ.Concrete() || !c.Usage.Valid()) {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
-		if err := validateUsageCollation(v, c.Usage); err != nil {
+		if err := ValidateUsageCollation(v, c.Usage); err != nil {
 			return err
 		}
 	}
@@ -263,8 +263,8 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{validation: true, provenance: r, capturedManifest: definition.Dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.Expression)
-		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot || omitColumnDefault(v, definition.Expression, r.Columns[slot].Usage) {
+		_, err := (scalarRenderer{Validation: true, Provenance: r, CapturedManifest: definition.Dependencies, Dependencies: &dependencies, CommentSnapshot: &catalogSnapshot}).SQL(context.Background(), v, definition.Expression)
+		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot || OmitColumnDefault(v, definition.Expression, r.Columns[slot].Usage) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
 	}
@@ -300,7 +300,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{validation: true, owner: r, capturedManifest: definition.Dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.Expression)
+		_, err := (scalarRenderer{Validation: true, Owner: r, CapturedManifest: definition.Dependencies, Dependencies: &dependencies, CommentSnapshot: &catalogSnapshot}).SQL(context.Background(), v, definition.Expression)
 		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot {
 			return fmt.Errorf("stuntgres: invalid column generation expression")
 		}

@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func validatePolicyExpression(view catalog.Read, owner *catalog.Relation, expression *policyExpression) error {
+func ValidatePolicy(view catalog.Read, owner *catalog.Relation, expression *policyExpression) error {
 	if expression.syntax == nil || expression.expression == nil || expression.expression.ResultUsage().Type == nil || expression.expression.ResultUsage().Type.ID() != sqltype.Bool || expression.presentation == nil {
 		return fmt.Errorf("stuntgres: invalid policy condition")
 	}
@@ -33,32 +33,32 @@ func validatePolicyExpression(view catalog.Read, owner *catalog.Relation, expres
 		return fmt.Errorf("stuntgres: parameter in policy definition")
 	}
 	frozen := expression.presentation
-	if frozen.query == nil || frozen.query.Root == nil || len(frozen.sources) == 0 || frozen.sources[0].ref.Address != owner.Address() {
+	if frozen.query == nil || frozen.query.Root == nil || len(frozen.sources) == 0 || frozen.sources[0].Ref.Address != owner.Address() {
 		return fmt.Errorf("stuntgres: invalid policy owner frame")
 	}
-	if err := validateViewLeaves(view, frozen); err != nil {
+	if err := ValidateViewLeaves(view, frozen); err != nil {
 		return err
 	}
-	if err := frozen.validateLiterals(view); err != nil {
+	if err := frozen.ValidateLiterals(view); err != nil {
 		return err
 	}
 	if err := frozen.validateNamespaces(); err != nil {
 		return err
 	}
 	for _, usage := range frozen.castUsages {
-		if !validExpressionUsage(view, usage) {
+		if !ValidExpressionUsage(view, usage) {
 			return fmt.Errorf("stuntgres: invalid policy cast authority")
 		}
-		if err := validateUsageCollation(view, usage); err != nil {
+		if err := ValidateUsageCollation(view, usage); err != nil {
 			return err
 		}
 	}
 	for _, leaf := range frozen.sources {
-		source, ok := view.Relation(leaf.ref.Address)
-		if !ok || leaf.ref.Domain() != view.Owner().Domain || leaf.ref.Address.SubID != 0 {
+		source, ok := view.Relation(leaf.Ref.Address)
+		if !ok || leaf.Ref.Domain() != view.Owner().Domain || leaf.Ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: invalid policy source identity")
 		}
-		for _, attribute := range leaf.reads {
+		for _, attribute := range leaf.Reads {
 			if !source.HasAttribute(attribute) {
 				return fmt.Errorf("stuntgres: missing policy dependency attribute")
 			}
@@ -79,7 +79,7 @@ func validatePolicyExpression(view catalog.Read, owner *catalog.Relation, expres
 			}
 		}
 	}
-	references, err := pgDependExpressionRefs(context.Background(), view, expression.expression)
+	references, err := ExpressionDependRefs(context.Background(), view, expression.expression)
 	if err != nil {
 		return err
 	}
@@ -98,6 +98,6 @@ func validatePolicyExpression(view catalog.Read, owner *catalog.Relation, expres
 			return fmt.Errorf("stuntgres: missing policy expression dependency")
 		}
 	}
-	_, err = policyExpressionSQL(context.Background(), view, expression)
+	_, err = PolicySQL(context.Background(), view, expression)
 	return err
 }

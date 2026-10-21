@@ -77,7 +77,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("foreign original body accepted")
 	}
-	remapped, _, err := retagBoundTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	remapped, _, err := RetagTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
 		}
@@ -116,7 +116,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		def := table.ColumnMeta.Defaults[table.Attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.Expression, refs: def.Dependencies},
-			{consumer: persisted, node: viewOf(persisted).Query().Root.(*plan.ProjectNode).Expressions[0], checks: viewOf(persisted).Dependencies()},
+			{consumer: persisted, node: ViewOf(persisted).Query().Root.(*plan.ProjectNode).Expressions[0], checks: ViewOf(persisted).Dependencies()},
 		}
 	}
 	authority := func(e *Engine) AuthorizationView {

@@ -40,7 +40,7 @@ func TestRLSPolicyAggregateSemanticOwner(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := validatePolicyExpression(e.CatalogRead(), d, expression); err != nil {
+				if err := ValidatePolicy(e.CatalogRead(), d, expression); err != nil {
 					t.Fatal(err)
 				}
 				return

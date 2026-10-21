@@ -60,10 +60,10 @@ func TestCubeProviderIdentity(t *testing.T) {
 		t.Fatal("lookup-only reciprocal array")
 	}
 	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}
-	if pgDependPinned(view, nil, base.Address()) || pgDependPinned(view, nil, arrayAddress) {
+	if DependPinned(view, nil, base.Address()) || DependPinned(view, nil, arrayAddress) {
 		t.Fatal("installed base or automatic array classified as bootstrap-pinned")
 	}
-	if !pgDependPinned(view, nil, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
+	if !DependPinned(view, nil, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
 		t.Fatal("builtin int4 array lost bootstrap pinning")
 	}
 	for i, address := range ext.Members {

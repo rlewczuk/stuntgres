@@ -434,11 +434,11 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 	protocolLiterals(t, b, want)
 	frames, queries := analyze.CollectQueryFrames(query.Root)
 	definition := NewView(ViewParts{Syntax: raw, Query: query, Frames: frames, Queries: queries, Namespaces: b.Capture.Namespaces, Literals: b.Capture.Literals, Columns: b.Capture.Columns, CastUsages: b.Capture.CastUsages})
-	if err := definition.validateLiterals(b.BindingCatalog()); err != nil {
+	if err := definition.ValidateLiterals(b.BindingCatalog()); err != nil {
 		t.Fatal(err)
 	}
 	fresh := jsonObjectUnitTypes()
-	remapped, err := remapFrozenPresentation(b.BindingCatalog(), definition, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] }, nil)
+	remapped, err := RemapView(b.BindingCatalog(), definition, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +470,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, wrapper, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	mapped, err := remapBoundExpression(wrapper, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+	mapped, err := RemapExpression(wrapper, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +480,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	}
 	// This deliberately non-installed identity must still fail validation.
 	// A cutover to the promoted bare UUID node would wrongly lose this guard.
-	if err := validateInstalledUUIDOssp(got, b.BindingCatalog()); err == nil {
+	if err := ValidateInstalledUUIDOssp(got, b.BindingCatalog()); err == nil {
 		t.Fatal("lost installed identity validation")
 	}
 	if len(b.Capture.Literals) != 0 || len(b.Capture.CastUsages) != 0 {

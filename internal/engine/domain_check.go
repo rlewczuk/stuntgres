@@ -59,7 +59,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *session.Operati
 			return alterCookingError(err)
 		}
 		var refs []ids.ObjectRef
-		if _, err := (scalarRenderer{domainValue: &base, dependencies: &refs}).sql(ctx, auth.Catalog, node); err != nil {
+		if _, err := (scalarRenderer{DomainValue: &base, Dependencies: &refs}).SQL(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
 		oid, err := e.catalog.allocateOIDLocked()
@@ -274,7 +274,7 @@ func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) err
 			return fmt.Errorf("stuntgres: invalid domain CHECK definition")
 		}
 		previous = check.Name
-		if _, err := (scalarRenderer{domainValue: &base}).sql(context.Background(), view, check.Expression); err != nil {
+		if _, err := (scalarRenderer{DomainValue: &base}).SQL(context.Background(), view, check.Expression); err != nil {
 			return err
 		}
 		for _, dependency := range check.Dependencies {

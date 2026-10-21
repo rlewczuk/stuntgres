@@ -67,11 +67,11 @@ func viewComputedWriteError(d *catalog.Relation, operation string, slot int) err
 }
 
 func stableViewSlot(source *catalog.Relation, leaf viewLeaf, frozen int) (int, error) {
-	if frozen < 0 || frozen >= len(leaf.attributes) {
+	if frozen < 0 || frozen >= len(leaf.Attributes) {
 		return 0, fmt.Errorf("stuntgres: invalid view write source slot")
 	}
 	for i, attr := range source.Attributes {
-		if attr == leaf.attributes[frozen] {
+		if attr == leaf.Attributes[frozen] {
 			return i, nil
 		}
 	}
@@ -124,19 +124,19 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 			return sqlError("42P17", fmt.Sprintf("infinite recursion detected in rules for relation %q", d.Name()))
 		}
 		seen[ref] = true
-		project, sourceNode, predicates, reason := viewWriteShape(d)
+		project, sourceNode, predicates, reason := ViewWriteShape(d)
 		if reason != "" {
 			return viewWriteError(d, operation, reason)
 		}
-		if sourceNode.Occurrence < 0 || sourceNode.Occurrence >= len(viewOf(d).Sources()) {
+		if sourceNode.Occurrence < 0 || sourceNode.Occurrence >= len(ViewOf(d).Sources()) {
 			return ids.ErrCatalogReplaced
 		}
-		leaf := viewOf(d).Sources()[sourceNode.Occurrence]
-		source, ok := view.Relation(leaf.ref.Address)
+		leaf := ViewOf(d).Sources()[sourceNode.Occurrence]
+		source, ok := view.Relation(leaf.Ref.Address)
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
-		use, err := storedViewUseReference(view, d, leaf.ref)
+		use, err := ViewUseReference(view, d, leaf.Ref)
 		if err != nil {
 			return err
 		}
@@ -147,7 +147,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		writable := false
 		for i, expr := range project.Expressions {
 			direct[i] = -1
-			if c, ok := viewDirectColumn(expr); ok && sameViewRelation(c.Origin, leaf.ref) {
+			if c, ok := ViewDirectColumn(expr); ok && SameViewRelation(c.Origin, leaf.Ref) {
 				slot, err := stableViewSlot(source, leaf, c.Slot)
 				if err != nil {
 					return err
@@ -190,7 +190,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
 			return rewriteViewExpression(view, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
 				if q, ok := n.(functions.StringVariadic); ok && exec.QuoteOriginOf(q).Owner == (ids.ObjectRef{}) {
-					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: viewOf(d).RuleOID(), Revision: viewOf(d).QuoteRevision()})
+					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: ViewOf(d).RuleOID(), Revision: ViewOf(d).QuoteRevision()})
 					q.RoutineRecipeReference = d
 					var args []expr.Expr
 					// A changed leaf exits the shared mapper before its children.
@@ -219,7 +219,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 					return n, false, nil
 				}
 				c, ok := n.(plan.ColumnExpr)
-				if !ok || !sameViewRelation(c.Origin, leaf.ref) || c.Frame != project.Frame {
+				if !ok || !SameViewRelation(c.Origin, leaf.Ref) || c.Frame != project.Frame {
 					return n, false, nil
 				}
 				slot, err := stableViewSlot(source, leaf, c.Slot)
@@ -258,7 +258,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		}
 		replace := func(n expr.Expr) (expr.Expr, bool, error) {
 			c, ok := n.(plan.ColumnExpr)
-			if !ok || !sameViewRelation(c.Origin, ref) || c.Frame > 1 {
+			if !ok || !SameViewRelation(c.Origin, ref) || c.Frame > 1 {
 				return n, false, nil
 			}
 			if c.Slot < 0 || c.Slot >= len(expanded) {
@@ -289,7 +289,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 				w.checks[i].predicates[j] = next
 			}
 		}
-		cascaded = cascaded || viewOf(d).CheckOption() == viewCheckCascaded
+		cascaded = cascaded || ViewOf(d).CheckOption() == CheckCascaded
 		var checked []expr.Expr
 		for _, expr := range predicates {
 			next, _, err := lowerStored(expr, true)
@@ -297,7 +297,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 				return err
 			}
 			w.predicates = append(w.predicates, next)
-			if operation != "delete" && (cascaded || viewOf(d).CheckOption() != viewCheckNone) {
+			if operation != "delete" && (cascaded || ViewOf(d).CheckOption() != CheckNone) {
 				checked = append(checked, next)
 			}
 		}
@@ -323,7 +323,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(plan.Node, func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error)) (expr.Expr, bool, error) {
 	var mapper func(expr.Expr) (expr.Expr, bool, error)
 	mapper = func(n expr.Expr) (expr.Expr, bool, error) {
-		return mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) {
+		return MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) {
 			if len(queries) != 0 {
 				return queries[0](root, mapper)
 			}
@@ -377,14 +377,14 @@ func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding,
 			default:
 				return n, false, nil
 			}
-			if sameViewRelation(c.Origin, w.logical.Ref) && c.Frame == 1 {
+			if SameViewRelation(c.Origin, w.logical.Ref) && c.Frame == 1 {
 				if c.Slot < 0 || c.Slot >= len(w.outputs) {
 					return nil, false, ids.ErrCatalogReplaced
 				}
 				output := w.outputs[c.Slot]
 				output, _, err := rewriteViewExpression(view, output, nil, func(child expr.Expr) (expr.Expr, bool, error) {
 					column, ok := child.(plan.ColumnExpr)
-					if !ok || !sameViewRelation(column.Origin, w.ref) || column.Frame != 1 {
+					if !ok || !SameViewRelation(column.Origin, w.ref) || column.Frame != 1 {
 						return child, false, nil
 					}
 					column.Scope = c.Scope
@@ -515,7 +515,7 @@ func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding,
 				if slot < 0 {
 					return ids.ErrCatalogReplaced
 				}
-				output, ok := viewDirectColumn(w.outputs[slot])
+				output, ok := ViewDirectColumn(w.outputs[slot])
 				if !ok {
 					return sqlError("42P10", "there is no unique or exclusion constraint matching the ON CONFLICT specification")
 				}

@@ -49,7 +49,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			definition := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: &ownedSyntax, Dependencies: b.Dependencies, RoutineRefs: b.Capture.RoutineRefs, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages})
 			definition = definition.With(func(p *ViewParts) { p.Frames, p.Queries = analyze.CollectQueryFrames(project) })
 			read := e.CatalogRead()
-			if err := definition.validateLiterals(read); err != nil {
+			if err := definition.ValidateLiterals(read); err != nil {
 				t.Fatal(err)
 			}
 			path := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
@@ -67,30 +67,30 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			badReferences = append(badReferences, e.catalog.Domain.Ref(read.Epoch(), builtins[0]))
 			for _, ref := range badReferences {
 				bad := definition.With(func(p *ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref} })
-				if err := bad.validateLiterals(read); err == nil {
+				if err := bad.ValidateLiterals(read); err == nil {
 					t.Fatal("forged frozen SQL reference accepted", ref)
 				}
 			}
 			missing := definition.With(func(p *ViewParts) { p.RoutineRefs = nil })
-			if err := missing.validateLiterals(read); err == nil {
+			if err := missing.ValidateLiterals(read); err == nil {
 				t.Fatal("missing SQL capture accepted")
 			}
 			extra := definition.With(func(p *ViewParts) {
 				p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.FrameID(), Target: 99}: n.Ref}
 			})
-			if err := extra.validateLiterals(read); err == nil {
+			if err := extra.ValidateLiterals(read); err == nil {
 				t.Fatal("extra SQL capture accepted")
 			}
 			unmarked := frozen
 			unmarked.StoredSQLRoutine = false
-			if _, err := definition.sqlRoutineRecipeProcedure(read, path, unmarked); err == nil {
+			if _, err := definition.SQLRoutineRecipeProcedure(read, path, unmarked); err == nil {
 				t.Fatal("unmarked SQL capture accepted")
 			}
 			render := func() string {
 				t.Helper()
-				renderer := newViewRenderer(definition)
-				renderer.frame = b.FrameID()
-				text, err := renderer.expressionSQL(ctx, e.CatalogRead(), frozen, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				renderer := NewQueryRenderer(definition)
+				renderer.Frame = b.FrameID()
+				text, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), frozen, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

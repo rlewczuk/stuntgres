@@ -12,7 +12,7 @@ import (
 // Stored definitions retain their immutable reference manifests across native
 // replacement. This is contextual authority, never general ObjectRef validity.
 // Object addresses are nonreused; physical namespace tokens cannot be revived.
-func storedReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
+func ReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
 	if view.Owner() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
 		return false
 	}
@@ -52,7 +52,7 @@ func storedReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, re
 			return false
 		}
 		if target.Seeded() {
-			return pgDependPinned(view, nil, ref.Address) && (catalog.CollationProvider{}).Validate(view, target) == nil
+			return DependPinned(view, nil, ref.Address) && (catalog.CollationProvider{}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.Namespace())
 		return ok && ns.Temporary == namespace.Temporary && (catalog.CollationProvider{}).Validate(view, target) == nil
@@ -63,7 +63,7 @@ func storedReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, re
 		if target.Builtin != nil {
 			// Only the genuine immutable release declaration can bridge a
 			// retained TEMP recipe; ACL authority is recaptured separately.
-			return pgDependPinned(view, nil, ref.Address) && (procedureProvider{}).Validate(view, target) == nil
+			return DependPinned(view, nil, ref.Address) && (procedureProvider{}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.Namespace())
 		return ok && ns.Temporary == namespace.Temporary && (procedureProvider{}).Validate(view, target) == nil
@@ -73,7 +73,7 @@ func storedReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, re
 
 // Old epochs belong only to the immutable manifest of this exact retained view.
 // The ordinary ObjectRef validator and every unrelated statement stay strict.
-func storedViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
+func ViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
 	if view.Owner() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
 		return false
 	}
@@ -102,9 +102,9 @@ func storedViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref
 		return false
 	}
 	if relation, ok := target.(*catalog.Relation); ok && relation.RelationKind == catalog.CatalogRelation {
-		return target == captured && pgDependPinned(view, nil, address) && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
+		return target == captured && DependPinned(view, nil, address) && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
 	}
-	if !storedReferenceEpochValid(view, consumer, ref) {
+	if !ReferenceEpochValid(view, consumer, ref) {
 		return false
 	}
 	switch actual := target.(type) {
@@ -137,43 +137,43 @@ func storedViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref
 	return false
 }
 
-func storedViewUseReference(catalog catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) (ids.ObjectRef, error) {
-	if !storedViewReferenceValid(catalog, consumer, ref) {
+func ViewUseReference(catalog catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) (ids.ObjectRef, error) {
+	if !ViewReferenceValid(catalog, consumer, ref) {
 		return ids.ObjectRef{}, ids.ErrCatalogReplaced
 	}
 	ref.Epoch = catalog.Epoch()
 	return ref, nil
 }
 
-func storedSequenceEpochValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef, token ids.SessionToken) bool {
+func SequenceEpochValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef, token ids.SessionToken) bool {
 	if ref.Epoch == view.Epoch() {
 		return ref.Domain() == view.Owner().Domain
 	}
-	if !storedReferenceEpochValid(view, consumer, ref) {
+	if !ReferenceEpochValid(view, consumer, ref) {
 		return false
 	}
 	return sequence.TemporaryEpochValid(view, ref, token)
 }
 
 func (r scalarRenderer) retainedConsumer() *catalog.Relation {
-	if r.owner != nil {
-		return r.owner
+	if r.Owner != nil {
+		return r.Owner
 	}
-	return r.provenance
+	return r.Provenance
 }
 
 // Type and composite-attribute refs have no node-local captured ObjectRef. Choose
 // the retained manifest ref only after sql validates the genuine current codec
 // and, for a field, its backing relation and stable attribute identity.
 func (r scalarRenderer) recordStoredReference(view catalog.Read, ref ids.ObjectRef) {
-	for _, old := range r.capturedManifest {
-		if old.Address == ref.Address && storedReferenceEpochValid(view, r.retainedConsumer(), old) {
+	for _, old := range r.CapturedManifest {
+		if old.Address == ref.Address && ReferenceEpochValid(view, r.retainedConsumer(), old) {
 			r.record(old)
 			return
 		}
 	}
-	for _, old := range r.capturedChecks {
-		if old.Ref.Address == ref.Address && storedReferenceEpochValid(view, r.retainedConsumer(), old.Ref) {
+	for _, old := range r.CapturedChecks {
+		if old.Ref.Address == ref.Address && ReferenceEpochValid(view, r.retainedConsumer(), old.Ref) {
 			r.record(old.Ref)
 			return
 		}
@@ -181,8 +181,8 @@ func (r scalarRenderer) recordStoredReference(view catalog.Read, ref ids.ObjectR
 	r.record(ref)
 }
 
-func storedCollationReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef, capability sqltype.CollationRef) bool {
-	if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || !capability.Valid() || ids.OID(capability.ID) != ref.Address.ObjectID || !storedReferenceEpochValid(view, consumer, ref) {
+func CollationReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef, capability sqltype.CollationRef) bool {
+	if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || !capability.Valid() || ids.OID(capability.ID) != ref.Address.ObjectID || !ReferenceEpochValid(view, consumer, ref) {
 		return false
 	}
 	target, ok := view.Descriptor(ref.Address)
@@ -201,14 +201,14 @@ func storedCollationReferenceValid(view catalog.Read, consumer *catalog.Relation
 // Retained definitions must serialize the same lawful captured manifest epoch,
 // rather than manufacture a fresh reference that disagrees with that manifest.
 func (r scalarRenderer) recordStoredCollation(view catalog.Read, ref ids.ObjectRef, capability sqltype.CollationRef) {
-	for _, old := range r.capturedManifest {
-		if old.Address == ref.Address && storedCollationReferenceValid(view, r.retainedConsumer(), old, capability) {
+	for _, old := range r.CapturedManifest {
+		if old.Address == ref.Address && CollationReferenceValid(view, r.retainedConsumer(), old, capability) {
 			r.record(old)
 			return
 		}
 	}
-	for _, old := range r.capturedChecks {
-		if old.Ref.Address == ref.Address && storedCollationReferenceValid(view, r.retainedConsumer(), old.Ref, capability) {
+	for _, old := range r.CapturedChecks {
+		if old.Ref.Address == ref.Address && CollationReferenceValid(view, r.retainedConsumer(), old.Ref, capability) {
 			r.record(old.Ref)
 			return
 		}

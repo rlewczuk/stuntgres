@@ -55,7 +55,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if err != nil || text != tc.want {
 				t.Fatal(text, err)
 			}
-			serialized, err := defaultSQL(ctx, e.CatalogRead(), node)
+			serialized, err := DefaultSQL(ctx, e.CatalogRead(), node)
 			if err != nil || !strings.Contains(serialized, tc.name) {
 				t.Fatal(serialized, err)
 			}
@@ -63,7 +63,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 				t.Fatal("self structural equality")
 			}
 			replacement := New()
-			rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+			rebound, changed, err := RetagTypes(replacement.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := replacement.CatalogRead().LookupType(d.ID())
 				return next
 			})
@@ -78,7 +78,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if err != nil || after != want {
 				t.Fatal(after, want, err)
 			}
-			if _, err := defaultSQL(ctx, replacement.CatalogRead(), rebound); err != nil {
+			if _, err := DefaultSQL(ctx, replacement.CatalogRead(), rebound); err != nil {
 				t.Fatal(err)
 			}
 			if original, ok := node.(plan.BitwiseExpr); ok {
@@ -163,7 +163,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 			return n
 		},
 	} {
-		if _, err := defaultSQL(ctx, e.CatalogRead(), mutate(root)); err == nil {
+		if _, err := DefaultSQL(ctx, e.CatalogRead(), mutate(root)); err == nil {
 			t.Fatal("invalid network recipe accepted")
 		}
 	}
@@ -178,7 +178,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 		}
 		corrupt := other.(plan.BitwiseExpr)
 		corrupt.Network = root.Network
-		if _, err := defaultSQL(ctx, e.CatalogRead(), corrupt); err == nil {
+		if _, err := DefaultSQL(ctx, e.CatalogRead(), corrupt); err == nil {
 			t.Fatal("inactive network provider accepted")
 		}
 	}
@@ -292,7 +292,7 @@ func networkOperatorArithmeticStoredValidation(t *testing.T) {
 				return n
 			},
 		} {
-			if _, err := defaultSQL(ctx, e.CatalogRead(), mutate(root)); err == nil {
+			if _, err := DefaultSQL(ctx, e.CatalogRead(), mutate(root)); err == nil {
 				t.Fatal("invalid network arithmetic recipe accepted")
 			}
 		}

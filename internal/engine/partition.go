@@ -32,7 +32,7 @@ func validatePartitionDescriptor(view catalog.Read, d *catalog.Relation) error {
 			if !key.Usage.Valid() || !key.Usage.Type.Concrete() {
 				return invalid()
 			}
-			if err := validateUsageCollation(view, key.Usage); err != nil {
+			if err := ValidateUsageCollation(view, key.Usage); err != nil {
 				return err
 			}
 			if key.Collation != 0 && key.Collation != key.Usage.Collation.ID {

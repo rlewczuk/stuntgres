@@ -45,7 +45,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 		t.Fatal("creation children hidden", visited)
 	}
 	types := formatUnitTypes()
-	fresh, changed, err := retagBoundTypes(binder.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	fresh, changed, err := RetagTypes(binder.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

@@ -170,7 +170,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if n.Procedure.Address() != ext.Members[1] || n.Dictionary.Address() != ext.Members[5] || n.Template.Address() != ext.Members[4] {
 		t.Fatal("captured provider identity")
 	}
-	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), node)
+	refs, err := ExpressionDependRefs(context.Background(), e.CatalogRead(), node)
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("procedure dependency", refs, err)
 	}
@@ -179,7 +179,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type {
 		t.Fatal("strict typed NULL", value, err)
 	}
-	retagged, _, err := retagBoundTypes(e.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	retagged, _, err := RetagTypes(e.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || exec.PlannedVolatility(retagged) != expr.Stable {
 		t.Fatal("retagged provider consumer", text, err)
 	}
-	rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), node)
+	rendered, err := (scalarRenderer{}).SQL(context.Background(), e.CatalogRead(), node)
 	if err != nil || !strings.Contains(rendered, "unaccent") {
 		t.Fatal("stored renderer", rendered, err)
 	}

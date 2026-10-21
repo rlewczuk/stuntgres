@@ -187,7 +187,7 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 		d := &catalog.Type{SQLType: typ, ObjectNamespace: ns, ObjectRevision: 1}
 		view.State().SetDescriptor(d.Address(), d)
 	}
-	if !pgDependPinned(view, nil, pgDependUnitAddress(1247, 23, 0)) || !pgDependPinned(view, nil, pgDependUnitAddress(2615, 11, 0)) || pgDependPinned(view, nil, pgDependUnitAddress(2615, 2200, 0)) || pgDependPinned(view, nil, pgDependUnitAddress(1247, 47003, 0)) {
+	if !DependPinned(view, nil, pgDependUnitAddress(1247, 23, 0)) || !DependPinned(view, nil, pgDependUnitAddress(2615, 11, 0)) || DependPinned(view, nil, pgDependUnitAddress(2615, 2200, 0)) || DependPinned(view, nil, pgDependUnitAddress(1247, 47003, 0)) {
 		t.Fatal("pin authorities")
 	}
 	got, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
@@ -230,7 +230,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 		}
 		var got []pgcatalog.DependEdge
 		for _, edge := range edges {
-			if pgDependPinned(view, nil, edge.Referenced) {
+			if DependPinned(view, nil, edge.Referenced) {
 				t.Fatal("pinned reference escaped collector policy", edge)
 			}
 			if edge.Dependent == owner {

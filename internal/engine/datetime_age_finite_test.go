@@ -51,7 +51,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
 		}
-		next, changed, err := retagBoundTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+		next, changed, err := RetagTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
@@ -129,7 +129,7 @@ func TestDatetimeAgeUnaryRetagsHiddenDateAuthority(t *testing.T) {
 			date = d
 		}
 	}
-	next, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	next, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == sqltype.Date {
 			return date
 		}

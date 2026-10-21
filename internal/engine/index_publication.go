@@ -71,11 +71,11 @@ func evolveIndexRevision(index, oldParent, parent *catalog.Relation, transformat
 			continue
 		}
 		remap := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
-		node, err := remapBoundExpression(key.Derived.Definition, remap, slots)
+		node, err := RemapExpression(key.Derived.Definition, remap, slots)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := remapBoundExpression(key.Derived.Execution, remap, slots)
+		execution, err := RemapExpression(key.Derived.Execution, remap, slots)
 		if err != nil {
 			return nil, err
 		}
@@ -102,11 +102,11 @@ func evolveIndexRevision(index, oldParent, parent *catalog.Relation, transformat
 				slots[id] = slot
 			}
 			remap := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
-			node, err := remapBoundExpression(predicate.Definition, remap, slots)
+			node, err := RemapExpression(predicate.Definition, remap, slots)
 			if err != nil {
 				return nil, err
 			}
-			execution, err := remapBoundExpression(predicate.Execution, remap, slots)
+			execution, err := RemapExpression(predicate.Execution, remap, slots)
 			if err != nil {
 				return nil, err
 			}

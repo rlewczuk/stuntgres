@@ -58,7 +58,7 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 			provider = functions.NewRegressionCountAggregate(input, result.Usage())
 		}
 		node := &plan.AggregateNode{Child: &plan.SingletonNode{}, Calls: []plan.AggregateCall{{Provider: provider}}}
-		mapped, err := remapViewQuery(destination.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := RemapViewQuery(destination.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			d, _ := destination.CatalogRead().LookupType(old.ID())
 			return d
 		})

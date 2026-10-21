@@ -185,12 +185,12 @@ func TestQuerySearchRemap(t *testing.T) {
 			}
 			return typ
 		})
-		m := viewQueryRemapper{catalog: destination.CatalogRead(), typ: mapper}
-		copy, err := m.cte(d)
+		m := viewQueryRemapper{Catalog: destination.CatalogRead(), Type: mapper}
+		copy, err := m.CTE(d)
 		if err != nil {
 			t.Fatal(err)
 		}
-		again, err := m.cte(d)
+		again, err := m.CTE(d)
 		if err != nil || again != copy {
 			t.Fatal("CTE memo", err)
 		}
@@ -208,17 +208,17 @@ func TestQuerySearchRemap(t *testing.T) {
 		right := &plan.ProjectNode{QuerySchema: d.Schema}
 		seq := plan.ColumnExpr{Info: expr.Info{Usage: d.Search.Result.Usage()}}
 		n := plan.SetNode{QuerySchema: d.Schema, Left: left, Right: right, Operation: "union", LeftExpressions: []expr.Expr{bound}, RightExpressions: []expr.Expr{bound, seq}, Grouping: make([]plan.Grouping, 1)}
-		if err := validateStoredSetNode(&n, nil, d.Search); err != nil {
+		if err := ValidateSetNode(&n, nil, d.Search); err != nil {
 			t.Fatal(err)
 		}
 		bad := n
 		bad.LeftExpressions = []expr.Expr{bound, seq}
-		if err := validateStoredSetNode(&bad, nil, d.Search); err == nil {
+		if err := ValidateSetNode(&bad, nil, d.Search); err == nil {
 			t.Fatal("accepted generated anchor target")
 		}
 		bad = n
 		bad.RightExpressions = []expr.Expr{bound, bound}
-		if err := validateStoredSetNode(&bad, nil, d.Search); err == nil {
+		if err := ValidateSetNode(&bad, nil, d.Search); err == nil {
 			t.Fatal("accepted malformed parent")
 		}
 	}

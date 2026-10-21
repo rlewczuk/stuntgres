@@ -87,7 +87,7 @@ func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, ow
 		if !deferred {
 			continue
 		}
-		text, err := (pgRenderer{view: view}).uniqueConstraintSQL(table, constraint)
+		text, err := (pgRenderer{View: view}).UniqueConstraintSQL(table, constraint)
 		if err != nil {
 			return err
 		}

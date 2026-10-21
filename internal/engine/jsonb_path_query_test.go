@@ -196,7 +196,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 		t.Fatal("source replaced typed provider", rebuilt)
 	}
 	fresh := jsonObjectUnitTypes()
-	mapped, changed, err := retagBoundTypes(e.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	mapped, changed, err := RetagTypes(e.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal("remint", changed, err)
 	}

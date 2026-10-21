@@ -12,7 +12,7 @@ import (
 // Stored views are source leaves, not logical inputs. Inspect their immutable
 // definitions using the same identity-bound graph authority as view expansion;
 // no source is opened and no expression is evaluated during this analysis.
-func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
+func ViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 	var leaves []exec.Leaf
 	var sourceErr error
 	plan.VisitCTEQuery(root, func(node plan.Node) {
@@ -31,7 +31,7 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 	if len(leaves) == 0 {
 		return false, nil
 	}
-	if _, err := validateViewReadGraph(view, leaves); err != nil {
+	if _, err := ValidateViewReadGraph(view, leaves); err != nil {
 		return false, err
 	}
 	// Validation above owns cycle and stored-reference errors. Memoization here
@@ -45,12 +45,12 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 		if volatile, ok := memo[relation.Address()]; ok {
 			return volatile
 		}
-		volatile := analyze.CTEVolatile(viewOf(relation).query.Root)
-		for _, source := range viewOf(relation).sources {
+		volatile := analyze.CTEVolatile(ViewOf(relation).query.Root)
+		for _, source := range ViewOf(relation).sources {
 			if volatile {
 				break
 			}
-			child := view.MustRelation(source.ref.Address)
+			child := view.MustRelation(source.Ref.Address)
 			volatile = visit(child) || volatile
 		}
 		memo[relation.Address()] = volatile

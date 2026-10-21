@@ -45,7 +45,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	auth.Recapture(auth.Catalog)
 	baseRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address())
 	mvRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	d.View = viewOf(d).With(func(p *ViewParts) { p.Sources = []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1}}} })
+	d.View = ViewOf(d).With(func(p *ViewParts) { p.Sources = []viewLeaf{{Ref: baseRef, Reads: []int32{1}, Attributes: []int32{1}}} })
 	mvSources := []exec.Leaf{{Ref: mvRef, Relation: d, Uses: []int{0}}}
 	if err := analyze.CheckQuerySources(auth, mvSources); err != nil {
 		t.Fatal("MV SELECT demanded base ACL:", err)

@@ -142,7 +142,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retagged, _, err := retagBoundTypes(otherAuth.Catalog, original.Definition, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	retagged, _, err := RetagTypes(otherAuth.Catalog, original.Definition, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
 		}

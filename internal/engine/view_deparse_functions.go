@@ -41,7 +41,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 		if root.RegexpNamespace {
 			path.Source, path.Target = root.ViewOrdinal, i
 		}
-		text, err := v.expressionSQL(ctx, catalog, call, path)
+		text, err := v.ExpressionSQL(ctx, catalog, call, path)
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
@@ -64,7 +64,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 				if err != nil {
 					return viewRenderFrom{}, err
 				}
-				members[j] = v.presentation.identifier(member.Name) + " " + declaration
+				members[j] = v.Presentation.identifier(member.Name) + " " + declaration
 				if member.Usage.Collation.ID != 0 {
 					name := typedef.CollationSQLName(catalog, member.Usage.Collation.ID)
 					if name == "" {
@@ -85,7 +85,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 	if raw.Ordinality {
 		text += " WITH ORDINALITY"
 	}
-	if raw.Lateral || root.RegexpNamespace && v.presentation.deparse && root.Correlated {
+	if raw.Lateral || root.RegexpNamespace && v.Presentation.Deparse && root.Correlated {
 		text = "LATERAL " + text
 	}
 	from := viewRenderFrom{text: text, relation: text, root: root}
@@ -94,11 +94,11 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 	}
 	if root.RegexpNamespace && v.functionSources {
 		from.slots = make(map[int]string, len(from.columns))
-		qualifier := v.presentation.identifier(v.namespaceAlias(ns))
+		qualifier := v.Presentation.identifier(v.namespaceAlias(ns))
 		for _, column := range from.columns {
-			from.slots[column.slot] = qualifier + "." + v.presentation.identifier(column.name)
+			from.slots[column.slot] = qualifier + "." + v.Presentation.identifier(column.name)
 		}
-		v.slots[root] = from.slots
+		v.Slots[root] = from.slots
 		return from, nil
 	}
 	aliased := v.aliasFrom(from, ns, v.namespaceAlias(ns))

@@ -83,8 +83,8 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		renderer := pgRenderer{view: engine.CatalogRead()}
-		text, err := renderer.sql(context.Background(), expr, pgRenderParent{})
+		renderer := pgRenderer{View: engine.CatalogRead()}
+		text, err := renderer.SQL(context.Background(), expr, pgRenderParent{})
 		if err != nil || text == "" {
 			t.Fatal(text, err)
 		}
@@ -96,7 +96,7 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 		for _, d := range sqltype.Builtins() {
 			replacement[d.ID()] = d
 		}
-		rebound, changed, err := retagBoundTypes(engine.CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
+		rebound, changed, err := RetagTypes(engine.CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}

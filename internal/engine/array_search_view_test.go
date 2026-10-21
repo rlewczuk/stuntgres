@@ -113,8 +113,8 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	original := NewView(ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages, Collations: b.Capture.Collations})
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
-		r := viewRenderer{viewDefinition: definition, frame: b.FrameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}
-		got, err := r.expressionSQL(ctx, view, expression, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: target})
+		r := viewRenderer{viewDefinition: definition, Frame: b.FrameID(), Presentation: viewPresentation{Deparse: true, Pretty: true, Path: path}}
+		got, err := r.ExpressionSQL(ctx, view, expression, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: target})
 		if err != nil || got != want {
 			t.Fatalf("rendered %q want %q: %v", got, want, err)
 		}
@@ -152,7 +152,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		return targetBinder.Type(d.ID())
 	}
 	identity := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
-	mapped, err := remapFrozenPresentation(targetView, original, mapping, identity, types, collation)
+	mapped, err := RemapView(targetView, original, mapping, identity, types, collation)
 	if err != nil {
 		t.Fatal(err)
 	}

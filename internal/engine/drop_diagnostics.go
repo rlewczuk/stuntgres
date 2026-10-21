@@ -152,7 +152,7 @@ func dependencyRelationName(catalogView catalog.Read, d *catalog.Relation, path 
 	if path == nil {
 		return catalog.DependencyIdentifier(d.Name())
 	}
-	return relationDiagnosticNameAt(catalogView, d, path)
+	return RelationDiagnosticNameAt(catalogView, d, path)
 }
 
 type supportedDependent struct {

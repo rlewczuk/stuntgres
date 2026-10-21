@@ -14,7 +14,7 @@ import (
 // The payload seams keep "absent" a nil interface and hand the concrete
 // engine definition back only through their checked accessor.
 func TestCatalogPayloadAccessors(t *testing.T) {
-	if viewOf(&catalog.Relation{}) != nil || viewPayloadOf(nil) != nil {
+	if ViewOf(&catalog.Relation{}) != nil || ViewPayload(nil) != nil {
 		t.Fatal("absent view payload")
 	}
 	domain := &ids.Domain{}
@@ -24,9 +24,9 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	captured := &catalog.Relation{ObjectAddress: source}
 	ref := domain.Ref(7, source)
 	token := domain.Session(5)
-	definition := NewView(ViewParts{Rule: 30001, Consumer: consumer, Temporary: token, Sources: []viewLeaf{{ref: ref}}, Dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, References: map[ids.ObjectRef]catalog.Descriptor{ref: captured}})
-	d := &catalog.Relation{ObjectAddress: consumer, View: viewPayloadOf(definition)}
-	if viewOf(d) != definition || d.View.RuleOID() != 30001 {
+	definition := NewView(ViewParts{Rule: 30001, Consumer: consumer, Temporary: token, Sources: []viewLeaf{{Ref: ref}}, Dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, References: map[ids.ObjectRef]catalog.Descriptor{ref: captured}})
+	d := &catalog.Relation{ObjectAddress: consumer, View: ViewPayload(definition)}
+	if ViewOf(d) != definition || d.View.RuleOID() != 30001 {
 		t.Fatal("view payload identity")
 	}
 	if owner, session := d.View.TemporaryConsumer(); owner != consumer || session != token {
@@ -51,12 +51,12 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 		t.Fatal("absent view has dependencies")
 	}
 
-	if policyExpressionOf(nil) != nil || policyPayloadOf(nil) != nil {
+	if PolicyOf(nil) != nil || policyPayloadOf(nil) != nil {
 		t.Fatal("absent policy payload")
 	}
 	condition := NewPolicy(nil, nil, definition)
 	policy := catalog.PolicyDefinition{Using: policyPayloadOf(condition)}
-	if policyExpressionOf(policy.Using) != condition || policy.Check != nil {
+	if PolicyOf(policy.Using) != condition || policy.Check != nil {
 		t.Fatal("policy payload identity")
 	}
 	for target, want := range map[ids.ObjectAddress]bool{source: true, column: true, other: false} {
@@ -111,7 +111,7 @@ func TestCatalogPayloadReaders(t *testing.T) {
 
 	options := []string{"security_barrier=on"}
 	view := NewView(ViewParts{Options: options})
-	if got := viewPayloadOf(view).Options(); len(got) != 1 || &got[0] != &options[0] {
+	if got := ViewPayload(view).Options(); len(got) != 1 || &got[0] != &options[0] {
 		t.Fatal("view options", got)
 	}
 	if (NewView(ViewParts{})).Options() != nil {

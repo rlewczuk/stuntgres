@@ -82,7 +82,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := node.(functions.ArrayInspect)
-	mapped, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil
 		}

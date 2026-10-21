@@ -84,14 +84,14 @@ func TestVersionInformationRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.VersionInformationKind{functions.VersionInformationServer, functions.VersionInformationUnicode, functions.VersionInformationICU} {
 		leaf := versionInformationUnitLeaf(t, b, kind)
-		retagged, changed, err := retagBoundTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := RetagTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := target.CatalogRead().LookupType(d.ID())
 			return next
 		})
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented row dependency", ref); return ref }, nil)
+		remapped, err := RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented row dependency", ref); return ref }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -104,11 +104,11 @@ func TestVersionInformationRemap(t *testing.T) {
 			t.Fatal("lost result ownership", value, err)
 		}
 		want := kind.Name() + "()"
-		text, err := (scalarRenderer{}).sql(ctx, target.CatalogRead(), copy)
+		text, err := (scalarRenderer{}).SQL(ctx, target.CatalogRead(), copy)
 		if err != nil || text != want {
 			t.Fatal(text, err)
 		}
-		text, err = (pgRenderer{view: target.CatalogRead()}).sql(ctx, copy, pgRenderParent{})
+		text, err = (pgRenderer{View: target.CatalogRead()}).SQL(ctx, copy, pgRenderParent{})
 		if err != nil || text != want {
 			t.Fatal(text, err)
 		}

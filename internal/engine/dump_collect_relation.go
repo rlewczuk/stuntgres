@@ -139,13 +139,13 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 	// Materialized definitions preserve their analyzed presentation
 	// without synthetic source aliases. Their explicit empty visibility
 	// path below qualifies user types for portable, executable dump SQL.
-	presentation := viewPresentation{columns: r.Columns, deparse: r.RelationKind == catalog.MaterializedViewRelation}
-	if presentation.deparse {
+	presentation := viewPresentation{Columns: r.Columns, Deparse: r.RelationKind == catalog.MaterializedViewRelation}
+	if presentation.Deparse {
 		// A nil path is diagnostic naming's unqualified mode. Dump's
 		// canonical materialized renderer must qualify user types too.
-		presentation.path = []ids.ObjectAddress{}
+		presentation.Path = []ids.ObjectAddress{}
 	}
-	body, err := viewOf(r).selectSQL(ctx, c.catalogView, presentation)
+	body, err := ViewOf(r).SelectSQL(ctx, c.catalogView, presentation)
 	if err != nil {
 		return err
 	}
@@ -158,9 +158,9 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		columns = " (" + strings.Join(labels, ", ") + ")"
 	}
 	options := ""
-	if len(viewOf(r).Options()) != 0 {
-		installed := make([]string, len(viewOf(r).Options()))
-		for i, option := range viewOf(r).Options() {
+	if len(ViewOf(r).Options()) != 0 {
+		installed := make([]string, len(ViewOf(r).Options()))
+		for i, option := range ViewOf(r).Options() {
 			name, value, _ := strings.Cut(option, "=")
 			installed[i] = catalog.QuoteIdentifier(name) + "=" + dump.CommentLiteral(value)
 		}
@@ -200,17 +200,17 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		}
 		sql += "ALTER MATERIALIZED VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + " DEPENDS ON EXTENSION " + catalog.QuoteIdentifier(extension.Name()) + ";\n"
 	}
-	for _, leaf := range viewOf(r).Sources() {
-		if err := addPredecessor(leaf.ref.Address); err != nil {
+	for _, leaf := range ViewOf(r).Sources() {
+		if err := addPredecessor(leaf.Ref.Address); err != nil {
 			return err
 		}
 	}
-	for _, dependency := range viewOf(r).Dependencies() {
+	for _, dependency := range ViewOf(r).Dependencies() {
 		if err := addPredecessor(dependency.Ref.Address); err != nil {
 			return err
 		}
 	}
-	for _, literal := range viewOf(r).Literals() {
+	for _, literal := range ViewOf(r).Literals() {
 		if err := regobj.ClassReplayReferences(c.originalCatalog, literal, addPredecessor); err != nil {
 			return err
 		}

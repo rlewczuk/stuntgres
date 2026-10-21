@@ -19,7 +19,7 @@ func TestTimezoneReviewViewAdmittedEnvironment(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	ref := roleTableRef(t, e, "tz_view")
-	definition := viewOf(e.catalog.state.MustRelation(ref.Address))
+	definition := ViewOf(e.catalog.state.MustRelation(ref.Address))
 	for _, name := range []string{"tz_view", "tz_nested"} {
 		ast := statement(t, "SELECT same,rendered FROM "+name)
 		description, err := e.Describe(op, ast)
@@ -61,7 +61,7 @@ func TestTimezoneReviewViewAdmittedEnvironment(t *testing.T) {
 			}
 		}
 	}
-	if viewOf(e.catalog.state.MustRelation(ref.Address)) != definition {
+	if ViewOf(e.catalog.state.MustRelation(ref.Address)) != definition {
 		t.Fatal("execution replaced the immutable view definition")
 	}
 }

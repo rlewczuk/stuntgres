@@ -73,12 +73,12 @@ func checkRowSecuritySource(auth AuthorizationView, relation *catalog.Relation, 
 		return access.RowSecuritySettingGuard(false, auth.Roles, relation, principal)
 	}
 	principal = relation.Owner
-	if viewOf(relation).Invoker() {
+	if ViewOf(relation).Invoker() {
 		principal = invoker
 	}
-	for _, source := range viewOf(relation).Sources() {
-		child, ok := auth.Catalog.Relation(source.ref.Address)
-		if !ok || !storedViewReferenceValid(auth.Catalog, relation, source.ref) {
+	for _, source := range ViewOf(relation).Sources() {
+		child, ok := auth.Catalog.Relation(source.Ref.Address)
+		if !ok || !ViewReferenceValid(auth.Catalog, relation, source.Ref) {
 			return ids.ErrCatalogReplaced
 		}
 		if err := checkRowSecuritySource(auth, child, principal, invoker); err != nil {

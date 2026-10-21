@@ -15,135 +15,135 @@ import (
 // A collection is one PostgreSQL dependency-recording pass. Whole-relation
 // references are redundant with attributes only within that pass.
 type pgDependRefs struct {
-	ctx        context.Context
-	catalog    catalog.Read
+	Context    context.Context
+	Catalog    catalog.Read
 	definition catalog.DefinitionReader
-	addresses  map[ids.ObjectAddress]struct{}
-	err        error
+	Addresses  map[ids.ObjectAddress]struct{}
+	Err        error
 }
 
-func (r *pgDependRefs) add(address ids.ObjectAddress) {
-	if r.err != nil {
+func (r *pgDependRefs) Add(address ids.ObjectAddress) {
+	if r.Err != nil {
 		return
 	}
-	if r.err = r.ctx.Err(); r.err != nil {
+	if r.Err = r.Context.Err(); r.Err != nil {
 		return
 	}
-	if address.ObjectID == 0 || pgDependPinned(r.catalog, r.definition, address) {
+	if address.ObjectID == 0 || DependPinned(r.Catalog, r.definition, address) {
 		return
 	}
 	whole := address
 	whole.SubID = 0
-	d, ok := catalog.DescriptorAt(r.catalog, r.definition, whole)
+	d, ok := catalog.DescriptorAt(r.Catalog, r.definition, whole)
 	if !ok {
-		r.err = fmt.Errorf("stuntgres: missing dependency provider")
+		r.Err = fmt.Errorf("stuntgres: missing dependency provider")
 		return
 	}
 	if address.SubID != 0 {
 		relation, ok := d.(*catalog.Relation)
 		if !ok || address.SubID != -6 && !relation.HasAttribute(address.SubID) {
-			r.err = fmt.Errorf("stuntgres: missing dependency attribute")
+			r.Err = fmt.Errorf("stuntgres: missing dependency attribute")
 			return
 		}
 	}
-	if r.addresses == nil {
-		r.addresses = make(map[ids.ObjectAddress]struct{})
+	if r.Addresses == nil {
+		r.Addresses = make(map[ids.ObjectAddress]struct{})
 	}
-	r.addresses[address] = struct{}{}
+	r.Addresses[address] = struct{}{}
 }
 
-func (r *pgDependRefs) expression(expr expr.Expr) {
-	if expr == nil || r.err != nil {
+func (r *pgDependRefs) Expression(expr expr.Expr) {
+	if expr == nil || r.Err != nil {
 		return
 	}
-	if r.err = r.ctx.Err(); r.err != nil {
+	if r.Err = r.Context.Err(); r.Err != nil {
 		return
 	}
 	switch n := expr.(type) {
 	case plan.SQLRoutineExpr:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.SelectedOperatorExpr:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.UnnestExpr:
 		if n.Procedure != nil {
-			r.add(n.Ref.Address)
+			r.Add(n.Ref.Address)
 		}
 	case plan.InstalledSoundexExpr:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.InstalledMetaphoneExpr:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.InstalledLevenshteinExpr:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.InstalledUUIDOsspExpr:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.InstalledCryptoExpr:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.InstalledTextExpr:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.LiteralExpr:
 		if typ := n.ResultUsage().Type; typ != nil {
-			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
-		r.add(n.RegclassRef.Address)
-		if r.err == nil {
-			r.err = catalog.WalkAliasDependenciesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
-				r.add(address)
-				return r.err
+		r.Add(n.RegclassRef.Address)
+		if r.Err == nil {
+			r.Err = catalog.WalkAliasDependenciesAt(r.Catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+				r.Add(address)
+				return r.Err
 			})
 		}
-		if r.err == nil {
-			r.err = regobj.WalkOperatorReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
-				r.add(address)
-				return r.err
+		if r.Err == nil {
+			r.Err = regobj.WalkOperatorReferencesAt(r.Catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+				r.Add(address)
+				return r.Err
 			})
 		}
-		if r.err == nil {
-			r.err = regobj.WalkTextSearchReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
-				r.add(address)
-				return r.err
+		if r.Err == nil {
+			r.Err = regobj.WalkTextSearchReferencesAt(r.Catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+				r.Add(address)
+				return r.Err
 			})
 		}
 	case plan.RowExpr:
 		if typ := n.ResultUsage().Type; typ != nil && typ.ID() != 0 {
-			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 	case plan.CoercionExpr:
 		if typ := n.ResultUsage().Type; typ != nil {
-			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 	case plan.CollationExpr:
-		r.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(n.ResultUsage().Collation.ID)})
+		r.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(n.ResultUsage().Collation.ID)})
 	case plan.ColumnExpr:
-		r.add(n.Origin.Address)
+		r.Add(n.Origin.Address)
 	case plan.TableOIDExpr:
 		address := n.Owner.Address
 		address.SubID = -6
-		r.add(address)
+		r.Add(address)
 	case functions.SequenceCall:
-		r.add(n.Ref.Address)
+		r.Add(n.Ref.Address)
 	case plan.SubqueryExpr:
-		r.query(n.QueryPlan.Root)
+		r.Query(n.QueryPlan.Root)
 	}
 	// Fixed builtin providers are pinned; installed providers above record their
 	// genuine procedure identity. Arguments include every analyzed CASE arm,
 	// independently of execution demand.
-	plan.ExpressionChildren(expr, r.expression)
+	plan.ExpressionChildren(expr, r.Expression)
 }
 
-func (r *pgDependRefs) query(node plan.Node) {
-	if node == nil || r.err != nil {
+func (r *pgDependRefs) Query(node plan.Node) {
+	if node == nil || r.Err != nil {
 		return
 	}
-	if r.err = r.ctx.Err(); r.err != nil {
+	if r.Err = r.Context.Err(); r.Err != nil {
 		return
 	}
 	if source, ok := node.(*plan.SourceNode); ok {
-		r.add(source.Ref.Address)
+		r.Add(source.Ref.Address)
 	}
 	if aggregate, ok := node.(*plan.AggregateNode); ok {
 		for _, call := range aggregate.Calls {
 			if call.Procedure != nil {
-				r.add(call.Ref.Address)
+				r.Add(call.Ref.Address)
 			}
 		}
 	}
@@ -153,39 +153,39 @@ func (r *pgDependRefs) query(node plan.Node) {
 			// An unchanged usage is not an analyzed cast dependency; genuine
 			// casts remain in its child and still take the ordinary path.
 			if wrapper, ok := expr.(plan.CoercionExpr); ok && wrapper.Child.ResultUsage() == wrapper.ResultUsage() {
-				r.expression(wrapper.Child)
+				r.Expression(wrapper.Child)
 			} else {
-				r.expression(expr)
+				r.Expression(expr)
 			}
 		})
 	} else {
-		plan.QueryExpressions(node, r.expression)
+		plan.QueryExpressions(node, r.Expression)
 	}
 	left, right := plan.QueryInputs(node)
-	r.query(left)
-	r.query(right)
+	r.Query(left)
+	r.Query(right)
 }
 
-func (r *pgDependRefs) finish() ([]ids.ObjectAddress, error) {
-	if r.err != nil {
-		return nil, r.err
+func (r *pgDependRefs) Finish() ([]ids.ObjectAddress, error) {
+	if r.Err != nil {
+		return nil, r.Err
 	}
-	if err := r.ctx.Err(); err != nil {
+	if err := r.Context.Err(); err != nil {
 		return nil, err
 	}
 	// Remove whole-object references in linear time, not a pairwise scan.
-	for address := range r.addresses {
-		if err := r.ctx.Err(); err != nil {
+	for address := range r.Addresses {
+		if err := r.Context.Err(); err != nil {
 			return nil, err
 		}
 		if address.SubID != 0 {
 			address.SubID = 0
-			delete(r.addresses, address)
+			delete(r.Addresses, address)
 		}
 	}
-	out := make([]ids.ObjectAddress, 0, len(r.addresses))
-	for address := range r.addresses {
-		if err := r.ctx.Err(); err != nil {
+	out := make([]ids.ObjectAddress, 0, len(r.Addresses))
+	for address := range r.Addresses {
+		if err := r.Context.Err(); err != nil {
 			return nil, err
 		}
 		out = append(out, address)
@@ -193,16 +193,16 @@ func (r *pgDependRefs) finish() ([]ids.ObjectAddress, error) {
 	return out, nil
 }
 
-func pgDependExpressionRefs(ctx context.Context, catalog catalog.Read, expression expr.Expr) ([]ids.ObjectAddress, error) {
-	r := pgDependRefs{ctx: ctx, catalog: catalog}
-	r.expression(expression)
-	return r.finish()
+func ExpressionDependRefs(ctx context.Context, catalog catalog.Read, expression expr.Expr) ([]ids.ObjectAddress, error) {
+	r := pgDependRefs{Context: ctx, Catalog: catalog}
+	r.Expression(expression)
+	return r.Finish()
 }
 
-func pgDependQueryRefs(ctx context.Context, catalog catalog.Read, reader catalog.DefinitionReader, query *plan.Query) ([]ids.ObjectAddress, error) {
-	r := pgDependRefs{ctx: ctx, catalog: catalog, definition: reader}
+func QueryDependRefs(ctx context.Context, catalog catalog.Read, reader catalog.DefinitionReader, query *plan.Query) ([]ids.ObjectAddress, error) {
+	r := pgDependRefs{Context: ctx, Catalog: catalog, definition: reader}
 	if query != nil {
-		r.query(query.Root)
+		r.Query(query.Root)
 	}
-	return r.finish()
+	return r.Finish()
 }

@@ -43,7 +43,7 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefini
 			if action.binding.Ref != (ids.ObjectRef{}) {
 				address := action.binding.Ref.Address
 				provider, ok := view.Relation(address)
-				if !ok || !storedReferenceEpochValid(view, d, action.binding.Ref) || provider == nil {
+				if !ok || !ReferenceEpochValid(view, d, action.binding.Ref) || provider == nil {
 					return fmt.Errorf("stuntgres: invalid rule action target")
 				}
 			}

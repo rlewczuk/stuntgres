@@ -44,9 +44,9 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, nam
 		if err != nil {
 			return nil, nil, err
 		}
-		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace.Address(), ObjectName: name, ObjectRevision: revision, Owner: namespace.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace.Address(), ObjectName: name, ObjectRevision: revision, Owner: namespace.Owner, RelationKind: catalog.ViewRelation, View: ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 		definition = definition.With(func(p *ViewParts) { p.Consumer = d.Address() })
-		d.View = viewPayloadOf(definition)
+		d.View = ViewPayload(definition)
 		stage := e.BeginCatalogStage(auth.Catalog)
 		if err := e.stageRowTypeLocked(stage, d); err != nil {
 			e.DiscardCatalogStage(stage)
@@ -88,26 +88,26 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 		if view.Get(consumer.Address()) != consumer {
 			t.Fatal("TEMP consumer not retained exactly")
 		}
-		refs := pgDependRefs{ctx: context.Background(), catalog: view}
-		refs.query(viewOf(consumer).Query().Root)
-		if refs.err != nil {
-			t.Fatal("retained query dependency collection", refs.err)
+		refs := pgDependRefs{Context: context.Background(), Catalog: view}
+		refs.Query(ViewOf(consumer).Query().Root)
+		if refs.Err != nil {
+			t.Fatal("retained query dependency collection", refs.Err)
 		}
-		if len(viewOf(consumer).RoutineRefs()) != 1 {
+		if len(ViewOf(consumer).RoutineRefs()) != 1 {
 			t.Fatal("missing real captured procedure")
 		}
-		for path, ref := range viewOf(consumer).RoutineRefs() {
+		for path, ref := range ViewOf(consumer).RoutineRefs() {
 			proc := before.MustProcedure(ref.Address)
 			if view.Get(ref.Address) != proc {
 				t.Fatal("TEMP procedure descriptor changed")
 			}
-			if _, exists := refs.addresses[ref.Address]; !exists {
+			if _, exists := refs.Addresses[ref.Address]; !exists {
 				t.Fatal("missing genuine retained procedure dependency")
 			}
-			if !storedViewReferenceValid(view, consumer, ref) {
+			if !ViewReferenceValid(view, consumer, ref) {
 				t.Fatal("exact contextual TEMP authority rejected")
 			}
-			if _, err := viewOf(consumer).intaggRecipeProcedure(view, path, proc.Name()); err != nil {
+			if _, err := ViewOf(consumer).IntaggRecipeProcedure(view, path, proc.Name()); err != nil {
 				t.Fatal(err)
 			}
 			if err := e.ValidateObjectRef(view, ref); err == nil {
@@ -116,29 +116,29 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			if err := extension.ValidateIntaggIdentity(view, proc, ref, proc.Name()); err == nil {
 				t.Fatal("fresh intagg identity validator was relaxed")
 			}
-			if storedViewReferenceValid(New().CatalogRead(), consumer, ref) {
+			if ViewReferenceValid(New().CatalogRead(), consumer, ref) {
 				t.Fatal("foreign engine gained retained authority")
 			}
 			future := ref
 			future.Epoch = view.Epoch() + 1
-			if storedViewReferenceValid(view, consumer, future) {
+			if ViewReferenceValid(view, consumer, future) {
 				t.Fatal("future epoch gained retained authority")
 			}
 			impostor := *proc
 			state := catalog.CloneState(view.State())
 			state.SetDescriptor(ref.Address, &impostor)
-			if storedViewReferenceValid(e.catalog.read(state), consumer, ref) {
+			if ViewReferenceValid(e.catalog.read(state), consumer, ref) {
 				t.Fatal("same-address procedure clone gained captured authority")
 			}
-			if _, err := viewOf(consumer).intaggRecipeProcedure(e.catalog.read(state), path, proc.Name()); err == nil {
+			if _, err := ViewOf(consumer).IntaggRecipeProcedure(e.catalog.read(state), path, proc.Name()); err == nil {
 				t.Fatal("recipe accepted substituted procedure descriptor")
 			}
 			unretained := *consumer
-			if storedViewReferenceValid(view, &unretained, ref) {
+			if ViewReferenceValid(view, &unretained, ref) {
 				t.Fatal("uncaptured consumer clone gained contextual authority")
 			}
-			unretainedDefinition := *viewOf(consumer)
-			if _, err := unretainedDefinition.intaggRecipeProcedure(view, path, proc.Name()); err == nil {
+			unretainedDefinition := *ViewOf(consumer)
+			if _, err := unretainedDefinition.IntaggRecipeProcedure(view, path, proc.Name()); err == nil {
 				t.Fatal("recipe borrowed another retained view's authority")
 			}
 		}

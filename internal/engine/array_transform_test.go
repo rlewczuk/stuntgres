@@ -56,14 +56,14 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		}
 		old := node.(functions.ArrayTransform)
 		render := func(call functions.ArrayTransform, view catalog.Read) string {
-			s, err := defaultSQL(ctx, view, call)
+			s, err := DefaultSQL(ctx, view, call)
 			if err != nil {
 				t.Fatal(err)
 			}
 			return s
 		}
 		originalSQL := render(old, source.CatalogRead())
-		mapped, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, changed, err := RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == nil {
 				return nil
 			}
@@ -137,7 +137,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	if call.Slots != ([3]uint8{1, 0, 2}) || !analyze.SameGroupExpression(call.Formal(0), call.Args[1]) {
 		t.Fatal(call.Slots)
 	}
-	sql, err := defaultSQL(ctx, e.CatalogRead(), call)
+	sql, err := DefaultSQL(ctx, e.CatalogRead(), call)
 	if err != nil || !strings.Contains(sql, "\"descending\" =>") || !strings.Contains(sql, "\"array\" =>") {
 		t.Fatal(sql, err)
 	}
@@ -174,7 +174,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	if err != nil || s != "{1,2}" {
 		t.Fatal(s, err)
 	}
-	if _, err := defaultSQL(ctx, e.CatalogRead(), cat); err != nil {
+	if _, err := DefaultSQL(ctx, e.CatalogRead(), cat); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -208,11 +208,11 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: arraySortPlan,
 		Args: []expr.Expr{plan.LiteralExpr{Info: b.Info(usage, parser.Position{}, expr.Properties{}), Value: value}},
 	}
-	originalSQL, err := defaultSQL(ctx, source.CatalogRead(), old)
+	originalSQL, err := DefaultSQL(ctx, source.CatalogRead(), old)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, changed, err := retagBoundTypes(target.CatalogRead(), old,
+	mapped, changed, err := RetagTypes(target.CatalogRead(), old,
 		func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == nil {
 				return nil
@@ -245,10 +245,10 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 			t.Fatal(text, err)
 		}
 	}
-	if text, err := defaultSQL(ctx, target.CatalogRead(), next); err != nil || text == "" {
+	if text, err := DefaultSQL(ctx, target.CatalogRead(), next); err != nil || text == "" {
 		t.Fatal(text, err)
 	}
-	if text, err := defaultSQL(ctx, source.CatalogRead(), old); err != nil || text != originalSQL {
+	if text, err := DefaultSQL(ctx, source.CatalogRead(), old); err != nil || text != originalSQL {
 		t.Fatal("original renderer changed", text, err)
 	}
 	ref, conflict = old.Sort.InputCollation()

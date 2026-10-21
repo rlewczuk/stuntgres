@@ -45,9 +45,9 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 		if descriptor.Owner != owner.Ref {
 			t.Fatal("view owner remap", name, descriptor.Owner)
 		}
-		for _, leaf := range viewOf(descriptor).Sources() {
-			if leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.Epoch() {
-				t.Fatal("view identity remap", name, leaf.ref)
+		for _, leaf := range ViewOf(descriptor).Sources() {
+			if leaf.Ref.Domain() != e.catalog.Domain || leaf.Ref.Epoch != e.catalog.state.Epoch() {
+				t.Fatal("view identity remap", name, leaf.Ref)
 			}
 		}
 	}
@@ -80,7 +80,7 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 		t.Fatal(got)
 	}
 	ref := roleTableRef(t, e, "v")
-	definition := viewOf(e.catalog.state.MustRelation(ref.Address))
+	definition := ViewOf(e.catalog.state.MustRelation(ref.Address))
 	if definition.Query().Root.Schema()[0].Usage.Type != oldInt8 || definition.Query().Root.Schema()[1].Usage.Type != oldBool {
 		t.Fatal("view retained type generation")
 	}
@@ -102,11 +102,11 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	old := base.MustRelation(vref.Address)
 	replacement := *old
 	replacement.ObjectRevision++
-	definition := viewOf(old).Parts()
+	definition := ViewOf(old).Parts()
 	definition.Sources = append([]viewLeaf(nil), definition.Sources...)
-	previous := definition.Sources[0].ref
-	definition.Sources[0].ref = wref
-	root, err := remapViewQuery(New().CatalogRead(), definition.Query.Root, func(ref ids.ObjectRef) ids.ObjectRef {
+	previous := definition.Sources[0].Ref
+	definition.Sources[0].Ref = wref
+	root, err := RemapViewQuery(New().CatalogRead(), definition.Query.Root, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == previous.Address.ObjectID {
 			ref.Address.ObjectID = wref.Address.ObjectID
 		}

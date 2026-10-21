@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*viewDefinition, error) {
+func RemapView(view catalog.Read, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*viewDefinition, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
 	definition := *original
 	if len(original.columns) != 0 {
@@ -44,16 +44,16 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 	}
 	definition.sources = append([]viewLeaf(nil), original.sources...)
 	for i := range definition.sources {
-		definition.sources[i].ref = ref(definition.sources[i].ref)
+		definition.sources[i].Ref = ref(definition.sources[i].Ref)
 	}
 	if len(original.literals) != 0 {
 		definition.literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(original.literals))
 		for path, literal := range original.literals {
-			node, _, err := retagBoundTypes(view, literal, typ, collation)
+			node, _, err := RetagTypes(view, literal, typ, collation)
 			if err != nil {
 				return nil, err
 			}
-			node, err = remapBoundExpression(node, ref, nil)
+			node, err = RemapExpression(node, ref, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +103,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 			definition.dependencies[i].Revision = procedure.Revision()
 		}
 	}
-	root, err := remapViewQuery(view, original.query.Root, ref, typ, collation)
+	root, err := RemapViewQuery(view, original.query.Root, ref, typ, collation)
 	if err != nil {
 		return nil, err
 	}

@@ -52,19 +52,19 @@ func (e *Engine) analysisHost(op *session.Operation) *bindingHost {
 // MapBoundExpression rewrites node with leaf through the retag walker,
 // keeping every type and query node; it reads only its arguments.
 func (h *bindingHost) MapBoundExpression(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
-	next, _, err := mapBoundExpressionReader(view, reader, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) { return root, nil }, nil, substituteSources, leaf)
+	next, _, err := MapExpressionReader(view, reader, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) { return root, nil }, nil, substituteSources, leaf)
 	return next, err
 }
 
 // MapBoundQueryExpression rewrites node through the retag walker with
 // identity types, mapping subquery roots with queryMapper.
 func (h *bindingHost) MapBoundQueryExpression(view catalog.Read, node expr.Expr, queryMapper func(plan.Node) (plan.Node, error), leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
-	return mapBoundExpression(view, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, queryMapper, nil, leaf)
+	return MapExpression(view, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, queryMapper, nil, leaf)
 }
 
 // ValidateViewReadGraph checks the stored views leaves read against view.
 func (h *bindingHost) ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) error {
-	_, err := validateViewReadGraph(view, leaves)
+	_, err := ValidateViewReadGraph(view, leaves)
 	return err
 }
 
@@ -229,11 +229,11 @@ func (h *bindingHost) CaptureEnumOperationSafety(input *sqltype.InputEnvironment
 func (h *bindingHost) FTSInput() sqltype.FTSInputNotices { return capturedFTSInput{op: h.op} }
 
 func (h *bindingHost) StoredViewVolatile(auth analyze.Authority, root plan.Node) (bool, error) {
-	return cteStoredViewVolatile(auth.ReadCatalog(), root)
+	return ViewVolatile(auth.ReadCatalog(), root)
 }
 
 func (h *bindingHost) CaptureRetainedViewInput(auth analyze.Authority, relation *catalog.Relation, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
-	return captureRetainedDefinitionInput(auth.ReadCatalog(), viewOf(relation), element, diagnostic)
+	return CaptureRetainedInput(auth.ReadCatalog(), ViewOf(relation), element, diagnostic)
 }
 
 func (h *bindingHost) PlanOwner() (ids.SessionToken, uint64, bool) {

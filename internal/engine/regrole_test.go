@@ -118,7 +118,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	}
 	runtime := plan.CoercionExpr{Info: expr.Info{Usage: d.Usage()}, Child: text, Plan: coercionPlan, Mode: sqltype.Explicit}
 	snapshot := false
-	if _, err := (scalarRenderer{commentSnapshot: &snapshot}).sql(context.Background(), e.CatalogRead(), runtime); err != nil || !snapshot {
+	if _, err := (scalarRenderer{CommentSnapshot: &snapshot}).SQL(context.Background(), e.CatalogRead(), runtime); err != nil || !snapshot {
 		t.Fatal("stored runtime input omitted statement snapshot demand", snapshot, err)
 	}
 	scope := &StatementScope{input: sqltype.InputEnvironment{Regrole: fresh}}
@@ -143,7 +143,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 			t.Fatal("complete stored diagnostic", got)
 		}
 		literal := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
-		if _, err := (scalarRenderer{}).sql(context.Background(), view, literal); !reflect.DeepEqual(err, want) {
+		if _, err := (scalarRenderer{}).SQL(context.Background(), view, literal); !reflect.DeepEqual(err, want) {
 			t.Fatal("renderer boundary", err)
 		}
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
@@ -185,7 +185,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		t.Fatal(err)
 	}
 	outer := plan.CoercionExpr{Info: expr.Info{Usage: textType.Usage()}, Child: literal, Plan: coercionPlan, Mode: sqltype.Explicit}
-	if _, err := (scalarRenderer{}).sql(context.Background(), view, outer); !reflect.DeepEqual(err, want) {
+	if _, err := (scalarRenderer{}).SQL(context.Background(), view, outer); !reflect.DeepEqual(err, want) {
 		t.Fatal("outer cast hid prohibited child", err)
 	}
 	arrayLiteral := plan.LiteralExpr{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
@@ -195,7 +195,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 	})}
 	raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue}}}
 	ordinal := 0
-	text, err := renderer.expressionSQLAt(context.Background(), view, raw, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
+	text, err := renderer.ExpressionSQLAt(context.Background(), view, raw, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
 	if err != nil || text != "CAST('{10}' AS REGROLE[])" {
 		t.Fatal("opaque role array acquired redundant replay cast", text, err)
 	}

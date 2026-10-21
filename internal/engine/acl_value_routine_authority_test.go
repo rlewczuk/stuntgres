@@ -146,7 +146,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("equal-OID foreign authority admitted")
 			}
-			remapped, _, err := retagBoundTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, _, err := RetagTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == nil || old.ID() == 2249 {
 					return old
 				}

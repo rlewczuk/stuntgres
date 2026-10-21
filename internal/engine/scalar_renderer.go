@@ -26,45 +26,45 @@ import (
 type scalarRenderer struct {
 	// A cooking-only reader preserves authentic catalog identity while resolving
 	// exact preceding metadata effects; ordinary serialization leaves it nil.
-	definition catalog.DefinitionReader
-	aclOutput  sqltype.ACLItemFormatter
+	Definition catalog.DefinitionReader
+	ACLOutput  sqltype.ACLItemFormatter
 	// Only provider validation may discard identity-only text. Real SQL output
 	// and construction labels require explicit captured role presentation.
-	validation bool
+	Validation bool
 	// Native domain-default logical replay emits the executable live row
 	// shape; source catalog metadata retains every original written child.
-	currentRowShape        bool
-	owner                  *catalog.Relation
-	domainValue            *sqltype.Usage
-	dependencies           *[]ids.ObjectRef
-	commentSnapshot        *bool
-	visibilitySnapshot     *bool
-	catalogAliasReferences *bool
-	provenance             *catalog.Relation
-	capturedManifest       []ids.ObjectRef
-	capturedChecks         []catalog.ExpressionDependency
+	CurrentRowShape        bool
+	Owner                  *catalog.Relation
+	DomainValue            *sqltype.Usage
+	Dependencies           *[]ids.ObjectRef
+	CommentSnapshot        *bool
+	VisibilitySnapshot     *bool
+	CatalogAliasReferences *bool
+	Provenance             *catalog.Relation
+	CapturedManifest       []ids.ObjectRef
+	CapturedChecks         []catalog.ExpressionDependency
 	// TYPE reparsing transports concrete literals privately, without reinferring
 	// unknown input or changing ordinary DEFAULT/CHECK serialization.
-	checkLiterals *[]plan.LiteralExpr
+	CheckLiterals *[]plan.LiteralExpr
 	// Final CHECK replay may compare a retained REAL literal with a widened
 	// column. Preserve its exact promoted value, not shortest float32 input.
-	checkReplayPrecision bool
+	CheckReplayPrecision bool
 	// The selected UUID shift's formal interval type must survive all-NULL
 	// compositions. This context belongs only to its rendered child subtree.
 	uuidShiftIntervalNulls bool
 }
 
-func defaultSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
-	return (scalarRenderer{}).sql(ctx, view, node)
+func DefaultSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
+	return (scalarRenderer{}).SQL(ctx, view, node)
 }
 
-func renderColumnDefault(ctx context.Context, view catalog.Read, node expr.Expr) (string, []ids.ObjectRef, error) {
+func RenderColumnDefault(ctx context.Context, view catalog.Read, node expr.Expr) (string, []ids.ObjectRef, error) {
 	var dependencies []ids.ObjectRef
-	text, err := (scalarRenderer{dependencies: &dependencies}).sql(ctx, view, node)
+	text, err := (scalarRenderer{Dependencies: &dependencies}).SQL(ctx, view, node)
 	return text, dependencies, err
 }
 
-func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
+func (r scalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -72,16 +72,16 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.Owner == nil && (r.DomainValue == nil && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.DomainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
-	if err := validateUsageCollationAt(view, r.definition, u); err != nil {
+	if err := validateUsageCollationAt(view, r.Definition, u); err != nil {
 		return "", err
 	}
 	if u.Collation.ID != 0 {
 		r.recordStoredCollation(view, view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
 	}
-	if !validExpressionUsageAt(view, r.definition, u) {
+	if !validExpressionUsageAt(view, r.Definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
 	}
 	if err := r.recordStoredRoutine(view, node); err != nil {
@@ -90,25 +90,25 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 	r.recordStoredReference(view, view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
 	case plan.DomainValueExpr:
-		if r.domainValue == nil || *r.domainValue != n.Usage {
+		if r.DomainValue == nil || *r.DomainValue != n.Usage {
 			return "", fmt.Errorf("stuntgres: foreign stored domain VALUE")
 		}
 		return "VALUE", nil
 	case plan.RowExpr:
 		count := len(n.Fields)
-		if r.currentRowShape && n.FieldProjection != nil {
+		if r.CurrentRowShape && n.FieldProjection != nil {
 			count = u.Type.BaseType().CompositeLen()
 		}
 		parts := make([]string, count)
 		for i, field := range n.Fields {
 			slot := i
-			if r.currentRowShape && n.FieldProjection != nil {
+			if r.CurrentRowShape && n.FieldProjection != nil {
 				slot = n.FieldProjection[i].Slot
 				if slot < 0 {
 					continue
 				}
 			}
-			text, err := r.sql(ctx, view, field)
+			text, err := r.SQL(ctx, view, field)
 			if err != nil {
 				return "", err
 			}
@@ -116,7 +116,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		text := "ROW(" + strings.Join(parts, ", ") + ")"
 		if u.Type.ID() != 2249 {
-			declaration, err := regobj.TypeDeclarationAt(view, r.definition, u)
+			declaration, err := regobj.TypeDeclarationAt(view, r.Definition, u)
 			if err != nil {
 				return "", err
 			}
@@ -124,7 +124,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		return text, nil
 	case plan.FieldExpr:
-		text, err := r.sql(ctx, view, n.Base)
+		text, err := r.SQL(ctx, view, n.Base)
 		if err != nil {
 			return "", err
 		}
@@ -134,14 +134,14 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: retired field in stored expression")
 		}
 		if composite.ID() != 2249 {
-			descriptor, _ := catalog.DescriptorAt(view, r.definition, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.ID())})
+			descriptor, _ := catalog.DescriptorAt(view, r.Definition, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.ID())})
 			typ, valid := descriptor.(*catalog.Type)
 			if !valid || typ.SQLType != composite || typ.OwningRelation == (ids.ObjectAddress{}) {
 				return "", fmt.Errorf("stuntgres: invalid stored composite field type")
 			}
-			descriptor, _ = catalog.DescriptorAt(view, r.definition, typ.OwningRelation)
+			descriptor, _ = catalog.DescriptorAt(view, r.Definition, typ.OwningRelation)
 			relation, valid := descriptor.(*catalog.Relation)
-			if !valid || !compositeAttributeProvider(typ, relation, n.Attribute) {
+			if !valid || !CompositeAttributeProvider(typ, relation, n.Attribute) {
 				return "", fmt.Errorf("stuntgres: invalid stored composite attribute")
 			}
 			address := relation.Address()
@@ -154,31 +154,31 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 	case plan.SubscriptExpr:
 		return r.subscriptSQL(ctx, view, n)
 	case plan.TableOIDExpr:
-		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.Owner) || n.Owner.Address != r.owner.Address() || u.Type.ID() != sqltype.Oid {
+		if r.Owner == nil || !ReferenceEpochValid(view, r.Owner, n.Owner) || n.Owner.Address != r.Owner.Address() || u.Type.ID() != sqltype.Oid {
 			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")
 		}
 		r.record(n.Owner)
 		return "tableoid", nil
 	case plan.ColumnExpr:
-		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.Origin) || n.Origin.Address.ClassID != r.owner.Address().ClassID || n.Origin.Address.ObjectID != r.owner.Address().ObjectID || n.Scope != 1 || n.Frame != 1 || n.Slot < 0 || n.Slot >= len(r.owner.Columns) || r.owner.Attributes[n.Slot] != n.Origin.Address.SubID || u != r.owner.Columns[n.Slot].Usage {
+		if r.Owner == nil || !ReferenceEpochValid(view, r.Owner, n.Origin) || n.Origin.Address.ClassID != r.Owner.Address().ClassID || n.Origin.Address.ObjectID != r.Owner.Address().ObjectID || n.Scope != 1 || n.Frame != 1 || n.Slot < 0 || n.Slot >= len(r.Owner.Columns) || r.Owner.Attributes[n.Slot] != n.Origin.Address.SubID || u != r.Owner.Columns[n.Slot].Usage {
 			return "", fmt.Errorf("stuntgres: invalid stored row origin")
 		}
 		r.record(n.Origin)
-		return catalog.QuoteIdentifier(r.owner.Columns[n.Slot].Name), nil
+		return catalog.QuoteIdentifier(r.Owner.Columns[n.Slot].Name), nil
 	case plan.SQLRoutineExpr, plan.ExtensionPathsExpr, plan.InstalledTextExpr, plan.InstalledUUIDOsspExpr, plan.InstalledCryptoExpr, plan.InstalledSoundexExpr, plan.InstalledMetaphoneExpr, plan.InstalledLevenshteinExpr:
-		return r.scalarFunctionSQL(ctx, view, node)
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case functions.ObjectACL:
-		if r.owner == nil {
+		if r.Owner == nil {
 			return "", fmt.Errorf("stuntgres: object ACL inquiries are unsupported in stored defaults")
 		}
-		return r.scalarFunctionSQL(ctx, view, n)
+		return r.ScalarFunctionSQL(ctx, view, n)
 	case functions.AccessInquiry:
-		if r.owner == nil {
+		if r.Owner == nil {
 			return "", fmt.Errorf("stuntgres: access inquiries are unsupported in stored defaults")
 		}
-		return r.scalarFunctionSQL(ctx, view, n)
+		return r.ScalarFunctionSQL(ctx, view, n)
 	case functions.SequenceCall:
-		if r.owner == nil && !analyze.ClosedSequenceDefault(n) {
+		if r.Owner == nil && !analyze.ClosedSequenceDefault(n) {
 			return "", fmt.Errorf("stuntgres: invalid stored sequence default")
 		}
 		args := n.Args
@@ -211,11 +211,11 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			if len(args) == 0 {
 				return "", fmt.Errorf("stuntgres: stored sequence identity lacks argument")
 			}
-			if _, err := r.sql(ctx, view, args[0]); err != nil {
+			if _, err := r.SQL(ctx, view, args[0]); err != nil {
 				return "", err
 			}
 			target, ok := view.Descriptor(n.Ref.Address)
-			if !ok || !storedSequenceEpochValid(view, r.retainedConsumer(), n.Ref, n.Temporary) {
+			if !ok || !SequenceEpochValid(view, r.retainedConsumer(), n.Ref, n.Temporary) {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence reference")
 			}
 			sequence, ok := target.(*catalog.Relation)
@@ -230,7 +230,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			name := catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(sequence.Name())
 			parts := []string{"CAST('" + strings.ReplaceAll(name, "'", "''") + "' AS regclass)"}
 			for _, arg := range args[1:] {
-				text, err := r.sql(ctx, view, arg)
+				text, err := r.SQL(ctx, view, arg)
 				if err != nil {
 					return "", err
 				}
@@ -247,9 +247,9 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		if n.RegclassRef != (ids.ObjectRef{}) {
 			ref := n.RegclassRef
-			target, ok := catalog.DescriptorAt(view, r.definition, ref.Address)
+			target, ok := catalog.DescriptorAt(view, r.Definition, ref.Address)
 			_, relationOK := target.(*catalog.Relation)
-			if !ok || !relationOK || !storedReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.Value.IsNull() {
+			if !ok || !relationOK || !ReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.Value.IsNull() {
 				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
 			}
 			r.record(ref)
@@ -265,24 +265,24 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 				return "", err
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
-			if _, exists := catalog.DescriptorAt(view, r.definition, address); exists {
+			if _, exists := catalog.DescriptorAt(view, r.Definition, address); exists {
 				r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 			}
 		}
-		if err := r.recordCatalogAliasDependencies(view, n.Value); err != nil {
+		if err := r.RecordCatalogAliasDependencies(view, n.Value); err != nil {
 			return "", err
 		}
-		if err := r.recordRoutineReferences(view, n.Value); err != nil {
+		if err := r.RecordRoutineReferences(view, n.Value); err != nil {
 			return "", err
 		}
-		if r.catalogAliasReferences != nil && (n.Value.Type().ContainsRegtype() || n.Value.Type().ContainsRegObject() || n.Value.Type().ContainsRegTS()) && !n.Value.IsNull() {
-			*r.catalogAliasReferences = true
+		if r.CatalogAliasReferences != nil && (n.Value.Type().ContainsRegtype() || n.Value.Type().ContainsRegObject() || n.Value.Type().ContainsRegTS()) && !n.Value.IsNull() {
+			*r.CatalogAliasReferences = true
 		}
-		if r.checkLiterals != nil {
-			*r.checkLiterals = append(*r.checkLiterals, n)
-			return fmt.Sprintf("$%d", len(*r.checkLiterals)), nil
+		if r.CheckLiterals != nil {
+			*r.CheckLiterals = append(*r.CheckLiterals, n)
+			return fmt.Sprintf("$%d", len(*r.CheckLiterals)), nil
 		}
-		if r.checkReplayPrecision && u.Type.ID() == sqltype.Float4 && !n.Value.IsNull() {
+		if r.CheckReplayPrecision && u.Type.ID() == sqltype.Float4 && !n.Value.IsNull() {
 			value, err := n.Value.Float()
 			if err != nil {
 				return "", err
@@ -298,15 +298,15 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			}
 			return "CAST(NULL AS " + declaration + ")", nil
 		}
-		aclOutput := r.aclOutput
-		if r.validation {
+		aclOutput := r.ACLOutput
+		if r.Validation {
 			aclOutput = regobj.ACLItemValidationOutput{Owner: view.Owner()}
 		} else if aclOutput == nil {
 			aclOutput = regobj.ACLItemContextFormatter(ctx)
 		}
-		return regobj.LiteralWithACLAt(ctx, view, r.definition, n, aclOutput)
+		return regobj.LiteralWithACLAt(ctx, view, r.Definition, n, aclOutput)
 	case plan.CollationExpr:
-		text, err := r.sql(ctx, view, n.Child)
+		text, err := r.SQL(ctx, view, n.Child)
 		if err != nil {
 			return "", err
 		}
@@ -327,8 +327,8 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if err != nil || !coercionPlan.Equal(n.Plan) {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
-		if r.commentSnapshot != nil && (coercionPlan.RequiresCatalogOutput() || (u.Type.ContainsRegrole() || u.Type.ContainsRegObject()) && coercionPlan.SessionDependent()) {
-			*r.commentSnapshot = true
+		if r.CommentSnapshot != nil && (coercionPlan.RequiresCatalogOutput() || (u.Type.ContainsRegrole() || u.Type.ContainsRegObject()) && coercionPlan.SessionDependent()) {
+			*r.CommentSnapshot = true
 		}
 		if n.Plan.IsJSONReturning() {
 			spec, supported, err := jsonReturningRendering(n.Child)
@@ -339,13 +339,13 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 				return r.renderingWithReturning(ctx, view, spec, u)
 			}
 		}
-		child, err := r.sql(ctx, view, n.Child)
+		child, err := r.SQL(ctx, view, n.Child)
 		if err != nil || n.Mode != sqltype.Explicit && !sqlJSONResult(n.Child) {
 			return child, err
 		}
 		// Identifier literals already render with their scalar authority. A
 		// transparent relabel must not grow another CAST on each Restore.
-		if r.checkLiterals == nil && sqltype.IsTransactionIdentifier(u.Type.ID()) && n.Child.ResultUsage() == u {
+		if r.CheckLiterals == nil && sqltype.IsTransactionIdentifier(u.Type.ID()) && n.Child.ResultUsage() == u {
 			return child, nil
 		}
 		// Bare quoted TEXT becomes unknown on replay and can move a deferred
@@ -353,14 +353,14 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if n.Child.ResultUsage().Type.ID() == sqltype.Text {
 			inner, explicit := n.Child.(plan.CoercionExpr)
 			if !explicit || inner.Mode != sqltype.Explicit {
-				declaration, err := regobj.TypeDeclarationAt(view, r.definition, n.Child.ResultUsage())
+				declaration, err := regobj.TypeDeclarationAt(view, r.Definition, n.Child.ResultUsage())
 				if err != nil {
 					return "", err
 				}
 				child = "CAST(" + child + " AS " + declaration + ")"
 			}
 		}
-		declaration, err := regobj.TypeDeclarationAt(view, r.definition, u)
+		declaration, err := regobj.TypeDeclarationAt(view, r.Definition, u)
 		if err != nil {
 			return "", err
 		}
@@ -397,7 +397,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			operator = "OPERATOR(" + catalog.QuoteIdentifier(n.Namespace) + "." + operator + ")"
 		}
 		operandSQL := func(child expr.Expr) (string, error) {
-			text, err := r.sql(ctx, view, child)
+			text, err := r.SQL(ctx, view, child)
 			if err != nil {
 				return "", err
 			}
@@ -440,7 +440,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		text := make([]string, len(operands))
 		for i, arg := range operands {
 			var err error
-			text[i], err = r.sql(ctx, view, arg)
+			text[i], err = r.SQL(ctx, view, arg)
 			if err != nil {
 				return "", err
 			}
@@ -485,7 +485,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			operator = "OPERATOR(" + catalog.QuoteIdentifier(n.Namespace) + "." + operator + ")"
 		}
 		operandSQL := func(child expr.Expr) (string, error) {
-			text, err := r.sql(ctx, view, child)
+			text, err := r.SQL(ctx, view, child)
 			if err != nil {
 				return "", err
 			}
@@ -513,11 +513,11 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
 	case plan.LikeExpr:
-		left, err := r.sql(ctx, view, n.Left)
+		left, err := r.SQL(ctx, view, n.Left)
 		if err != nil {
 			return "", err
 		}
-		right, err := r.sql(ctx, view, n.Right)
+		right, err := r.SQL(ctx, view, n.Right)
 		if err != nil {
 			return "", err
 		}
@@ -528,11 +528,11 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		return "(" + left + " " + operator + " " + right + ")", nil
 	case plan.RowComparisonExpr:
 		for _, pair := range n.Comparisons {
-			if _, err := r.sql(ctx, view, pair); err != nil {
+			if _, err := r.SQL(ctx, view, pair); err != nil {
 				return "", err
 			}
 		}
-		return renderRowComparison(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, n.Operator)
+		return renderRowComparison(n, func(child expr.Expr) (string, error) { return r.SQL(ctx, view, child) }, n.Operator)
 	case plan.ScalarArrayComparisonExpr:
 		if u.Type.ID() != sqltype.Bool || n.Left == nil || (n.Array == nil) == (len(n.Items) == 0) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate")
@@ -546,7 +546,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if err != nil || !predicate.Equal(n.Predicate) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate binding")
 		}
-		return renderScalarArrayComparison(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, catalog.QuoteIdentifier)
+		return renderScalarArrayComparison(n, func(child expr.Expr) (string, error) { return r.SQL(ctx, view, child) }, catalog.QuoteIdentifier)
 	case plan.ComparisonExpr:
 		if u.Type.ID() != sqltype.Bool || n.Left == nil || n.Right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")
@@ -573,11 +573,11 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if err != nil || !predicate.Equal(n.Predicate) {
 			return "", fmt.Errorf("stuntgres: invalid default predicate binding")
 		}
-		left, err := r.sql(ctx, view, n.Left)
+		left, err := r.SQL(ctx, view, n.Left)
 		if err != nil {
 			return "", err
 		}
-		right, err := r.sql(ctx, view, n.Right)
+		right, err := r.SQL(ctx, view, n.Right)
 		if err != nil {
 			return "", err
 		}
@@ -590,7 +590,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if u.Type.ID() != sqltype.Bool || n.Child == nil {
 			return "", fmt.Errorf("stuntgres: invalid default null test")
 		}
-		child, err := r.sql(ctx, view, n.Child)
+		child, err := r.SQL(ctx, view, n.Child)
 		if err != nil {
 			return "", err
 		}
@@ -620,7 +620,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default truth value")
 		}
-		child, err := r.sql(ctx, view, n.Child)
+		child, err := r.SQL(ctx, view, n.Child)
 		if err != nil {
 			return "", err
 		}
@@ -638,11 +638,11 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if err != nil || !predicate.Equal(n.Equality) {
 			return "", fmt.Errorf("stuntgres: invalid default distinct binding")
 		}
-		left, err := r.sql(ctx, view, n.Left)
+		left, err := r.SQL(ctx, view, n.Left)
 		if err != nil {
 			return "", err
 		}
-		right, err := r.sql(ctx, view, n.Right)
+		right, err := r.SQL(ctx, view, n.Right)
 		if err != nil {
 			return "", err
 		}
@@ -655,14 +655,14 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if u.Type.ID() != sqltype.Bool || n.Left == nil || n.Left.ResultUsage().Type.ID() != sqltype.Bool || n.Op == parser.LogicalNot && n.Right != nil || n.Op != parser.LogicalNot && (n.Right == nil || n.Right.ResultUsage().Type.ID() != sqltype.Bool) {
 			return "", fmt.Errorf("stuntgres: invalid default logical binding")
 		}
-		left, err := r.sql(ctx, view, n.Left)
+		left, err := r.SQL(ctx, view, n.Left)
 		if err != nil {
 			return "", err
 		}
 		if n.Op == parser.LogicalNot {
 			return "(NOT " + left + ")", nil
 		}
-		right, err := r.sql(ctx, view, n.Right)
+		right, err := r.SQL(ctx, view, n.Right)
 		if err != nil {
 			return "", err
 		}
@@ -676,7 +676,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 	case expr.Renderable:
 		// Function nodes describe their stored form; engine wrappers that embed
 		// one keep their explicit cases above.
-		return r.scalarFunctionSQL(ctx, view, node)
+		return r.ScalarFunctionSQL(ctx, view, node)
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported stored default node")
 	}
@@ -685,7 +685,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 func (r scalarRenderer) functionSQL(ctx context.Context, view catalog.Read, name string, args []expr.Expr) (string, error) {
 	parts := make([]string, len(args))
 	for i, arg := range args {
-		text, err := r.sql(ctx, view, arg)
+		text, err := r.SQL(ctx, view, arg)
 		if err != nil {
 			return "", err
 		}
@@ -695,48 +695,48 @@ func (r scalarRenderer) functionSQL(ctx context.Context, view catalog.Read, name
 }
 
 func (r scalarRenderer) record(ref ids.ObjectRef) {
-	if r.dependencies == nil {
+	if r.Dependencies == nil {
 		return
 	}
-	for _, old := range *r.dependencies {
+	for _, old := range *r.Dependencies {
 		if old == ref {
 			return
 		}
 	}
-	*r.dependencies = append(*r.dependencies, ref)
+	*r.Dependencies = append(*r.Dependencies, ref)
 }
 
-func (r scalarRenderer) recordRoutineReferences(view catalog.Read, value sqltype.Value) error {
-	return regobj.WalkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
+func (r scalarRenderer) RecordRoutineReferences(view catalog.Read, value sqltype.Value) error {
+	return regobj.WalkRoutineReferencesAt(view, r.Definition, value, func(address ids.ObjectAddress) error {
 		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 		return nil
 	})
 }
 
-func (r scalarRenderer) recordCatalogAliasDependencies(view catalog.Read, value sqltype.Value) error {
+func (r scalarRenderer) RecordCatalogAliasDependencies(view catalog.Read, value sqltype.Value) error {
 	record := func(address ids.ObjectAddress) error {
 		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 		return nil
 	}
-	if err := catalog.WalkAliasDependenciesAt(view, r.definition, value, record); err != nil {
+	if err := catalog.WalkAliasDependenciesAt(view, r.Definition, value, record); err != nil {
 		return err
 	}
-	if err := regobj.WalkOperatorReferencesAt(view, r.definition, value, record); err != nil {
+	if err := regobj.WalkOperatorReferencesAt(view, r.Definition, value, record); err != nil {
 		return err
 	}
-	return regobj.WalkTextSearchReferencesAt(view, r.definition, value, record)
+	return regobj.WalkTextSearchReferencesAt(view, r.Definition, value, record)
 }
 
-func (r scalarRenderer) recordCatalogAliasReferences(view catalog.Read, value sqltype.Value) error {
+func (r scalarRenderer) RecordCatalogAliasReferences(view catalog.Read, value sqltype.Value) error {
 	record := func(address ids.ObjectAddress) error {
 		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 		return nil
 	}
-	if err := catalog.WalkAliasReferencesAt(view, r.definition, value, record); err != nil {
+	if err := catalog.WalkAliasReferencesAt(view, r.Definition, value, record); err != nil {
 		return err
 	}
-	if err := regobj.WalkOperatorReferencesAt(view, r.definition, value, record); err != nil {
+	if err := regobj.WalkOperatorReferencesAt(view, r.Definition, value, record); err != nil {
 		return err
 	}
-	return regobj.WalkTextSearchReferencesAt(view, r.definition, value, record)
+	return regobj.WalkTextSearchReferencesAt(view, r.Definition, value, record)
 }

@@ -33,7 +33,7 @@ func TestPGSequencesCTEStoredGraph(t *testing.T) {
 			if analyze.CTEVolatile(root) {
 				t.Fatal("stored source identity alone was classified as volatile")
 			}
-			volatile, err := cteStoredViewVolatile(catalog, root)
+			volatile, err := ViewVolatile(catalog, root)
 			if err != nil || volatile != (name != "plain") {
 				t.Fatalf("stored graph volatility=%v err=%v", volatile, err)
 			}
@@ -46,7 +46,7 @@ func TestPGSequencesCTEStoredGraph(t *testing.T) {
 	root := &plan.ProjectNode{Child: &plan.SingletonNode{}, AnalysisExpressions: []expr.Expr{
 		plan.SubqueryExpr{QueryPlan: &plan.Query{Root: &plan.SourceNode{Ref: catalogRef(t, e, catalog, "nested")}}, CTEEdge: true},
 	}}
-	if volatile, err := cteStoredViewVolatile(catalog, root); err != nil || !volatile {
+	if volatile, err := ViewVolatile(catalog, root); err != nil || !volatile {
 		t.Fatalf("nested static definition volatility=%v err=%v", volatile, err)
 	}
 	pgSequencesCTEHolder(t, e, s, false)
@@ -55,7 +55,7 @@ func TestPGSequencesCTEStoredGraph(t *testing.T) {
 	// A fresh coherent catalog changes the answer without a mutable cache.
 	sessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT sequencename FROM names")
 	catalog = e.CatalogRead()
-	if volatile, err := cteStoredViewVolatile(catalog, &plan.SourceNode{Ref: catalogRef(t, e, catalog, "nested")}); err != nil || volatile {
+	if volatile, err := ViewVolatile(catalog, &plan.SourceNode{Ref: catalogRef(t, e, catalog, "nested")}); err != nil || volatile {
 		t.Fatalf("replaced graph volatility=%v err=%v", volatile, err)
 	}
 }
@@ -74,7 +74,7 @@ func TestPGSequencesCTEStoredGraphAuthority(t *testing.T) {
 	v := catalogRef(t, e, view, "v")
 	broken := catalog.CloneState(view.State())
 	broken.RemoveDescriptor(v.Address)
-	if _, err := cteStoredViewVolatile(e.catalog.read(broken), root); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := ViewVolatile(e.catalog.read(broken), root); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("invalid stored identity err=%v want ErrCatalogReplaced", err)
 	}
 
@@ -83,7 +83,7 @@ func TestPGSequencesCTEStoredGraphAuthority(t *testing.T) {
 	sessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT sequencename FROM nested")
 	view = e.CatalogRead()
 	root = &plan.SourceNode{Ref: catalogRef(t, e, view, "nested")}
-	_, err := cteStoredViewVolatile(view, root)
+	_, err := ViewVolatile(view, root)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != `infinite recursion detected in rules for relation "nested"` {
 		t.Fatalf("cyclic stored graph err=%v want existing nested 42P17", err)

@@ -160,7 +160,7 @@ func TestQueryWindowOffsetOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	lookup := func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] }
-	mapped, err := remapViewQuery(New().CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, lookup)
+	mapped, err := RemapViewQuery(New().CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, lookup)
 	if err != nil {
 		t.Fatal(err)
 	}

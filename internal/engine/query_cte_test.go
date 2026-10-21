@@ -333,12 +333,12 @@ func TestQueryCTEStoredIndependentGraphMemo(t *testing.T) {
 	definition := &plan.CTEDefinition{Query: &plan.Query{Root: canonical}, Owner: 1, References: 2, Hint: parser.CTENotMaterialized}
 	leftScan := &plan.DerivedNode{QuerySchema: canonical.Schema(), Query: &plan.Query{Root: &left}, CTE: definition}
 	rightScan := &plan.DerivedNode{QuerySchema: canonical.Schema(), Query: &plan.Query{Root: &right}, CTE: definition}
-	remapper := &viewQueryRemapper{catalog: e.CatalogRead(), ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }}
-	mappedLeft, err := remapper.query(leftScan)
+	remapper := &viewQueryRemapper{Catalog: e.CatalogRead(), Ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, Type: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }}
+	mappedLeft, err := remapper.Query(leftScan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mappedRight, err := remapper.query(rightScan)
+	mappedRight, err := remapper.Query(rightScan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,11 +346,11 @@ func TestQueryCTEStoredIndependentGraphMemo(t *testing.T) {
 	if l.Query.Root == r.Query.Root || l.CTE != r.CTE || l.CTE.Query.Root == l.Query.Root || l.CTE.Query.Root == r.Query.Root {
 		t.Fatal("occurrence predicates collapsed into canonical body")
 	}
-	first, err := remapper.nested(canonical)
+	first, err := remapper.Nested(canonical)
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := remapper.nested(canonical)
+	again, err := remapper.Nested(canonical)
 	if err != nil || first != again || first != l.CTE.Query.Root {
 		t.Fatal("canonical root sharing lost", err)
 	}

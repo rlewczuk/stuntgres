@@ -47,19 +47,19 @@ func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 			}
 			if key.Derived != nil {
 				derived := *key.Derived
-				derived.Definition, _, err = retagBoundTypes(view, derived.Definition, typ, collation)
+				derived.Definition, _, err = RetagTypes(view, derived.Definition, typ, collation)
 				if err != nil {
 					return nil, err
 				}
-				derived.Definition, err = remapBoundExpression(derived.Definition, ref, nil)
+				derived.Definition, err = RemapExpression(derived.Definition, ref, nil)
 				if err != nil {
 					return nil, err
 				}
-				derived.Execution, _, err = retagBoundTypes(view, derived.Execution, typ, collation)
+				derived.Execution, _, err = RetagTypes(view, derived.Execution, typ, collation)
 				if err != nil {
 					return nil, err
 				}
-				derived.Execution, err = remapBoundExpression(derived.Execution, ref, nil)
+				derived.Execution, err = RemapExpression(derived.Execution, ref, nil)
 				if err != nil {
 					return nil, err
 				}

@@ -211,7 +211,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			if !aggregate {
-				grafted, _, err := mapBoundExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
+				grafted, _, err := MapExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
 				if err != nil {
 					t.Fatal("graft real selected enum", err)
 				}
@@ -224,10 +224,10 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("graft ancestry lost or mutated source")
 				}
 				if tc.name == "enum_parameter" {
-					if _, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil); err == nil || !strings.Contains(err.Error(), "unpersistable scalar expression plan.ParameterExpr") {
+					if _, err := RemapExpression(node, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil); err == nil || !strings.Contains(err.Error(), "unpersistable scalar expression plan.ParameterExpr") {
 						t.Fatal("parameter persistence boundary changed", err)
 					}
-					rewritten, _, err := mapBoundExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, nil)
+					rewritten, _, err := MapExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, nil)
 					if err != nil || !reflect.DeepEqual(rewritten, node) {
 						t.Fatal("structural parameter rewrite lost original carrier", err)
 					}
@@ -237,7 +237,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					foreignEnum := node.(plan.UnnestExpr)
 					foreignEnum.Ref = other.catalog.Domain.Ref(foreignEnum.Ref.Epoch, foreignEnum.Ref.Address)
 					foreignEnum.Ref.Epoch = foreign.Catalog.Epoch()
-					foreignNode, _, err := retagBoundTypes(foreign.Catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+					foreignNode, _, err := RetagTypes(foreign.Catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
 							return nil
 						}
@@ -253,7 +253,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("foreign parameter retag acquired original authority")
 					}
 				} else {
-					text, err := (pgRenderer{view: evaluation.Catalog}).sql(context.Background(), node, pgRenderParent{})
+					text, err := (pgRenderer{View: evaluation.Catalog}).SQL(context.Background(), node, pgRenderParent{})
 					if err != nil {
 						t.Fatal("literal enum rendering", err)
 					}
@@ -290,11 +290,11 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						}
 						return r
 					}
-					relocated, err := remapBoundExpression(node, remap, nil)
+					relocated, err := RemapExpression(node, remap, nil)
 					if err != nil {
 						t.Fatal(err)
 					}
-					relocated, _, err = retagBoundTypes(view, relocated, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+					relocated, _, err = RetagTypes(view, relocated, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 					if err != nil {
 						t.Fatal("remapped selected-ref retag", err)
 					}
@@ -319,7 +319,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err := exec.AdmitRoutineCall(&probe, relocated, false, false); err != nil {
 						t.Fatal("transferred original authority", err)
 					}
-					foreignNode, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef {
+					foreignNode, err := RemapExpression(node, func(r ids.ObjectRef) ids.ObjectRef {
 						r = other.catalog.Domain.Ref(r.Epoch, r.Address)
 						r.Epoch = foreign.Catalog.Epoch()
 						return r
@@ -327,7 +327,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					foreignNode, _, err = retagBoundTypes(foreign.Catalog, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+					foreignNode, _, err = RetagTypes(foreign.Catalog, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
 							return nil
 						}

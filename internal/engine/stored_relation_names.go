@@ -14,7 +14,7 @@ func relationVisibleAt(catalog catalog.Read, relation *catalog.Relation, path []
 	return false
 }
 
-func relationDiagnosticNameAt(catalogView catalog.Read, relation *catalog.Relation, path []ids.ObjectAddress) string {
+func RelationDiagnosticNameAt(catalogView catalog.Read, relation *catalog.Relation, path []ids.ObjectAddress) string {
 	name := catalog.DependencyIdentifier(relation.Name())
 	if relationVisibleAt(catalogView, relation, path) {
 		return name

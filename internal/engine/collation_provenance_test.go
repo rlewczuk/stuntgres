@@ -39,7 +39,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if view.Epoch() == before.Epoch() || view.Get(consumer.Address()) != consumer {
 		t.Fatal("fixture did not retain exact TEMP descriptor across replacement")
 	}
-	if !storedCollationReferenceValid(view, consumer, ref, capability) {
+	if !CollationReferenceValid(view, consumer, ref, capability) {
 		t.Fatal("lawful physical-owner retained provider rejected")
 	}
 	seedAddress := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 100}
@@ -48,7 +48,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	seedRef := e.catalog.Domain.Ref(before.Epoch(), seedAddress)
-	if !storedCollationReferenceValid(view, consumer, seedRef, seedCapability) {
+	if !CollationReferenceValid(view, consumer, seedRef, seedCapability) {
 		t.Fatal("lawful retained actual pinned seed rejected")
 	}
 	foreignAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: peer.TemporaryNamespace, Name: "foreign_provider"})
@@ -89,16 +89,16 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if storedCollationReferenceValid(view, c.consumer, c.ref, c.capability) {
+			if CollationReferenceValid(view, c.consumer, c.ref, c.capability) {
 				t.Fatal("accepted invalid retained collation authority")
 			}
 		})
 	}
-	if storedCollationReferenceValid(view, consumer, expiredRef, expiredCapability) {
+	if CollationReferenceValid(view, consumer, expiredRef, expiredCapability) {
 		t.Fatal("accepted genuinely dropped retained provider")
 	}
 	detached := *consumer
-	if storedCollationReferenceValid(view, &detached, ref, capability) {
+	if CollationReferenceValid(view, &detached, ref, capability) {
 		t.Fatal("accepted detached consumer instead of actual live descriptor")
 	}
 	stage := e.BeginCatalogStage(view)
@@ -108,7 +108,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if err := stage.Replace(&invalidSeed); err != nil {
 		t.Fatal(err)
 	}
-	if storedCollationReferenceValid(e.stageRead(stage), consumer, seedRef, seedCapability) {
+	if CollationReferenceValid(e.stageRead(stage), consumer, seedRef, seedCapability) {
 		t.Fatal("accepted candidate with incompatible actual seed provider invariant")
 	}
 	// Render genuine retained trees through the complete serializer. Compare
@@ -116,8 +116,8 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	assertManifest := func(name string, renderer scalarRenderer, expression expr.Expr, want []ids.ObjectRef) {
 		t.Helper()
 		var got []ids.ObjectRef
-		renderer.dependencies = &got
-		if _, err := renderer.sql(context.Background(), view, expression); err != nil {
+		renderer.Dependencies = &got
+		if _, err := renderer.SQL(context.Background(), view, expression); err != nil {
 			t.Fatal(name, "full retained expression rendering", err)
 		}
 		if len(got) != len(want) {
@@ -135,17 +135,17 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		}
 	}
 	for _, definition := range consumer.ColumnMeta.Defaults {
-		assertManifest("DEFAULT", scalarRenderer{provenance: consumer, capturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
+		assertManifest("DEFAULT", scalarRenderer{Provenance: consumer, CapturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
 	}
 	for _, definition := range consumer.ColumnMeta.Generations {
-		assertManifest("generated", scalarRenderer{owner: consumer, capturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
+		assertManifest("generated", scalarRenderer{Owner: consumer, CapturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
 	}
 	for _, definition := range consumer.Constraints.Check {
 		want := make([]ids.ObjectRef, len(definition.Dependencies))
 		for i, dependency := range definition.Dependencies {
 			want[i] = dependency.Ref
 		}
-		assertManifest("CHECK", scalarRenderer{owner: consumer, capturedChecks: definition.Dependencies}, definition.Expression, want)
+		assertManifest("CHECK", scalarRenderer{Owner: consumer, CapturedChecks: definition.Dependencies}, definition.Expression, want)
 	}
 	// All ordinary validators must accept the retained closed expression trees.
 	sessionSQL(t, owner, `INSERT INTO retained_provider_local DEFAULT VALUES`)

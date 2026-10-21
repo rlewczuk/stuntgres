@@ -200,16 +200,16 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 				if key.Derived == nil {
 					key.Attribute = c.Attributes[j]
 				} else {
-					node, err := remapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, stage.Base)
+					node, err := RemapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, stage.Base)
 					if err != nil {
 						return err
 					}
-					execution, err := remapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, stage.Base)
+					execution, err := RemapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, stage.Base)
 					if err != nil {
 						return err
 					}
 					derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: d.Attributes}
-					if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), stage.Base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.Dependencies}).sql(op.Context(), stage.Base, node); err != nil {
+					if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), stage.Base, e.operationRolesLocked(op))}, Owner: d, Dependencies: &derived.Dependencies}).SQL(op.Context(), stage.Base, node); err != nil {
 						return err
 					}
 					key.Derived = derived
@@ -357,9 +357,9 @@ func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 				return err
 			}
 			if node != nil {
-				labels[i], err = (pgRenderer{view: catalog, relation: parent, output: output}).sql(ctx, node, pgRenderParent{})
+				labels[i], err = (pgRenderer{View: catalog, Relation: parent, Output: output}).SQL(ctx, node, pgRenderParent{})
 			} else {
-				labels[i], err = deparseAttribute(parent, attribute)
+				labels[i], err = DeparseAttribute(parent, attribute)
 			}
 			if err != nil {
 				return err

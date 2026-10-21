@@ -79,7 +79,7 @@ func TestBitstringFormatLiteralReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		text, err := defaultSQL(ctx, e.CatalogRead(), node)
+		text, err := DefaultSQL(ctx, e.CatalogRead(), node)
 		want := "pg_catalog.format('%s', B'" + tc.canonical + "')"
 		if err != nil || text != want {
 			t.Fatal(text, want, err)

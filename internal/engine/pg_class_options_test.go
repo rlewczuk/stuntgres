@@ -14,8 +14,8 @@ func TestPgClassOptionHistory(t *testing.T) {
 		return parser.ViewOption{Name: parser.Identifier{Text: name}, Value: value, HasValue: true}
 	}
 	created := []parser.ViewOption{option("security_invoker", "false"), option("security_barrier", "true")}
-	barrier, invoker, mode, err := viewOptions(created)
-	if err != nil || !barrier || invoker || mode != viewCheckNone {
+	barrier, invoker, mode, err := ViewOptions(created)
+	if err != nil || !barrier || invoker || mode != CheckNone {
 		t.Fatal("execution flags", barrier, invoker, mode, err)
 	}
 	old := transformViewOptions(nil, created, false)
@@ -41,8 +41,8 @@ func TestPgClassOptionHistory(t *testing.T) {
 		t.Fatal("lexical facts", got)
 	}
 	e := New()
-	original := NewView(ViewParts{Query: &plan.Query{Root: &plan.SingletonNode{}}, Options: old, Barrier: true, Invoker: false, CheckOption: viewCheckNone, Rule: 200001})
-	mapped, err := remapFrozenPresentation(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+	original := NewView(ViewParts{Query: &plan.Query{Root: &plan.SingletonNode{}}, Options: old, Barrier: true, Invoker: false, CheckOption: CheckNone, Rule: 200001})
+	mapped, err := RemapView(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 	if err != nil || mapped == original || mapped.RuleOID() != original.RuleOID() || mapped.Barrier() != original.Barrier() || mapped.Invoker() != original.Invoker() || !reflect.DeepEqual(mapped.Options(), old) {
 		t.Fatal("remap lost installed options", mapped, err)
 	}

@@ -37,7 +37,7 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 		Child:       &plan.ValuesNode{},
 		Calls:       []plan.AggregateCall{{Provider: p, Operation: operation}},
 	}
-	mapped, err := remapViewQuery(destination.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := RemapViewQuery(destination.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == old {
 			return owned
 		}

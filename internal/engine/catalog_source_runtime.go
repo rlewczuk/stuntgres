@@ -141,10 +141,10 @@ func (r engineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *c
 	return failure
 }
 func (r engineCatalogRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
-	return pgDependExpressionRefs(ctx, view, value)
+	return ExpressionDependRefs(ctx, view, value)
 }
 func (r engineCatalogRuntime) ViewReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
-	return pgDependQueryRefs(ctx, view, nil, viewOf(relation).Query())
+	return QueryDependRefs(ctx, view, nil, ViewOf(relation).Query())
 }
 func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
 	if key.Derived == nil {
@@ -156,42 +156,42 @@ func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key
 	return 0, false
 }
 func (r engineCatalogRuntime) IndexReferences(ctx context.Context, view catalog.Read, definition *catalog.IndexDefinition) ([]ids.ObjectAddress, error) {
-	refs := pgDependRefs{ctx: ctx, catalog: view}
+	refs := pgDependRefs{Context: ctx, Catalog: view}
 	for _, key := range definition.Keys {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if key.Derived != nil {
-			refs.expression(key.Derived.Definition)
+			refs.Expression(key.Derived.Definition)
 		}
-		refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
+		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
 	}
-	return refs.finish()
+	return refs.Finish()
 }
 func (r engineCatalogRuntime) PartitionReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
-	refs := pgDependRefs{ctx: ctx, catalog: view}
+	refs := pgDependRefs{Context: ctx, Catalog: view}
 	for _, key := range relation.Partition.Keys {
 		if key.Attribute != 0 {
 			address := relation.Address()
 			address.SubID = key.Attribute
-			refs.add(address)
+			refs.Add(address)
 		}
 		if key.Derived != nil {
-			refs.expression(key.Derived.Definition)
+			refs.Expression(key.Derived.Definition)
 		}
-		refs.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(key.Usage.Type.ID())})
-		refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
-		refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)})
+		refs.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(key.Usage.Type.ID())})
+		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
+		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)})
 	}
-	return refs.finish()
+	return refs.Finish()
 }
 func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	presentation := r.presentation
-	presentation.columns = relation.Columns
-	renderer := newViewRenderer(viewOf(relation))
-	renderer.presentation = presentation
-	renderer.currentNames = true
-	definition, err := renderer.selectQuerySQL(ctx, view, viewOf(relation).Syntax(), viewOf(relation).Queries()[viewOf(relation).Syntax()])
+	presentation.Columns = relation.Columns
+	renderer := NewQueryRenderer(ViewOf(relation))
+	renderer.Presentation = presentation
+	renderer.CurrentNames = true
+	definition, err := renderer.SelectQuerySQL(ctx, view, ViewOf(relation).Syntax(), ViewOf(relation).Queries()[ViewOf(relation).Syntax()])
 	return definition, err
 }
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
@@ -254,7 +254,7 @@ func (r engineCatalogRuntime) ValidateACL(roles authorization.Read, d catalog.De
 	return access.ValidateACL(roles, d)
 }
 func (r engineCatalogRuntime) Pinned(view catalog.Read, address ids.ObjectAddress) bool {
-	return pgDependPinned(view, nil, address)
+	return DependPinned(view, nil, address)
 }
 func (r engineCatalogRuntime) OperatorSeeded(d *catalog.Operator) bool {
 	return routine.OperatorSeeded(d)

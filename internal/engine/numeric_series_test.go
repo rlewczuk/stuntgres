@@ -97,7 +97,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	d, _ := view.LookupType(sqltype.Numeric)
 	original := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	want := numericSeriesUnitRead(t, original)
-	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+	clone, err := RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 		t.Fatal("remap", got)
 	}
 	fresh := seriesUnitType(t, sqltype.Numeric)
-	mapped, changed, err := retagBoundTypes(view, original, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := RetagTypes(view, original, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
 		if typ == d {
 			return fresh
 		}
@@ -121,7 +121,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 			t.Fatal("retag", err)
 		}
 	}
-	text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
+	text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 			t.Fatal("rendered expression", err)
 		}
 	}
-	rewritten, changed, err := mapBoundExpression(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
+	rewritten, changed, err := MapExpression(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 		if n == original.Args[0] {
 			return numericSeriesUnit(t, d, "0.20", "0.3", "0.10").Args[0], true, nil
 		}

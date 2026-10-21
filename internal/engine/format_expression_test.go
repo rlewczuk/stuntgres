@@ -98,9 +98,9 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, original, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := newViewRenderer(NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
-	renderer.frame = b.FrameID()
-	persisted, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	renderer := NewQueryRenderer(NewView(ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
+	renderer.Frame = b.FrameID()
+	persisted, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			persisted, err := (scalarRenderer{}).sql(ctx, e.CatalogRead(), node)
+			persisted, err := (scalarRenderer{}).SQL(ctx, e.CatalogRead(), node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -151,7 +151,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 				t.Fatal(persisted, err)
 			}
 			for _, current := range []expr.Expr{node, rebound} {
-				rendered, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, current, pgRenderParent{})
+				rendered, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, current, pgRenderParent{})
 				if err != nil || rendered != tc.want {
 					t.Fatal("ANY provenance/replay deparse", rendered, tc.want, err)
 				}
@@ -200,7 +200,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 		t.Fatal("ordered argument identity")
 	}
 	types := formatUnitTypes()
-	retained, changed, err := retagBoundTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := RetagTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -229,7 +229,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	}
 	node := bound.(functions.Format)
 	types := formatUnitTypes()
-	retained, changed, err := retagBoundTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := RetagTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

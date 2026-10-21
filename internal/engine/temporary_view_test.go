@@ -37,9 +37,9 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, ObjectNamespace: table.Namespace(), ObjectName: "candidate_view", ObjectRevision: 1, Owner: table.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, ObjectNamespace: table.Namespace(), ObjectName: "candidate_view", ObjectRevision: 1, Owner: table.Owner, RelationKind: catalog.ViewRelation, View: ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	definition = definition.With(func(p *ViewParts) { p.Consumer = d.Address() })
-	d.View = viewPayloadOf(definition)
+	d.View = ViewPayload(definition)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	err = e.stageRowTypeLocked(stage, d)
 	e.mu.Unlock()
@@ -176,8 +176,8 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	next := catalog.CloneState(before.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
-	ref := viewOf(view).Sources()[0].ref
-	if !storedViewReferenceValid(retained, view, ref) {
+	ref := ViewOf(view).Sources()[0].Ref
+	if !ViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact retained source rejected")
 	}
 	if err := e.ValidateObjectRef(retained, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -185,23 +185,23 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	}
 	fake := *view
 	fake.ObjectAddress.ObjectID++
-	if storedViewReferenceValid(retained, &fake, ref) || storedViewReferenceValid(New().CatalogRead(), view, ref) {
+	if ViewReferenceValid(retained, &fake, ref) || ViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("unretained/foreign consumer accepted")
 	}
 	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(ref.Epoch, ref.Address), e.catalog.Domain.Ref(next.Epoch()+1, ref.Address), e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address().ObjectID, SubID: 99})} {
-		if storedViewReferenceValid(retained, view, bad) {
+		if ViewReferenceValid(retained, view, bad) {
 			t.Fatal("unrecorded/foreign/future ref accepted", bad)
 		}
 	}
 	peerNamespace := *next.MustNamespace(table.Namespace())
 	peerNamespace.Temporary = withSessionID(peerNamespace.Temporary, peerNamespace.Temporary.ID()+1)
 	next.SetDescriptor(table.Namespace(), &peerNamespace)
-	if storedViewReferenceValid(retained, view, ref) {
+	if ViewReferenceValid(retained, view, ref) {
 		t.Fatal("peer namespace accepted")
 	}
 	next.SetDescriptor(table.Namespace(), before.Get(table.Namespace()))
 	next.RemoveDescriptor(table.Address())
-	if storedViewReferenceValid(retained, view, ref) {
+	if ViewReferenceValid(retained, view, ref) {
 		t.Fatal("retired source resurrected")
 	}
 }
@@ -221,25 +221,25 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	next := catalog.CloneState(before.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
-	ref := viewOf(view).Sources()[0].ref
-	if !storedViewReferenceValid(retained, view, ref) {
+	ref := ViewOf(view).Sources()[0].Ref
+	if !ViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact captured catalog provider rejected")
 	}
 	old := next.MustRelation(ref.Address)
 	impostor := *old
 	next.SetDescriptor(ref.Address, &impostor)
-	if storedViewReferenceValid(retained, view, ref) {
+	if ViewReferenceValid(retained, view, ref) {
 		t.Fatal("same-address/kind/layout catalog copy accepted")
 	}
 	next.SetDescriptor(ref.Address, old)
 	fake := *view
-	fake.View = NewView(ViewParts{Consumer: view.Address(), Temporary: viewOf(view).Temporary()})
+	fake.View = NewView(ViewParts{Consumer: view.Address(), Temporary: ViewOf(view).Temporary()})
 	next.SetDescriptor(view.Address(), &fake)
-	if storedViewReferenceValid(retained, &fake, ref) {
+	if ViewReferenceValid(retained, &fake, ref) {
 		t.Fatal("missing captured manifest accepted")
 	}
 	next.SetDescriptor(view.Address(), view)
-	if storedViewReferenceValid(New().CatalogRead(), view, ref) {
+	if ViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("foreign provider authority accepted")
 	}
 }
@@ -251,7 +251,7 @@ func TestTemporaryViewDescribeNoEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.catalog.state
-	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: viewOf(view).Syntax()}
+	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: ViewOf(view).Syntax()}
 	description, err := e.describeOperation(scope, raw)
 	scope.Finish(err)
 	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.Base.Get(view.Address()) != nil {

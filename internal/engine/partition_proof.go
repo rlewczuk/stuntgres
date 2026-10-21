@@ -96,7 +96,7 @@ func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 		var node expr.Expr
 		if key.Derived != nil {
 			var err error
-			node, err = remapLikeExpression(&in, key.Derived.Definition, relation, view)
+			node, err = RemapLikeExpression(&in, key.Derived.Definition, relation, view)
 			if err != nil {
 				return false, err
 			}

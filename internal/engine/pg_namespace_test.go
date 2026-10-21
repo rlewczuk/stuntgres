@@ -87,7 +87,7 @@ func TestPGNamespaceShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	toast := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
-	if toast.Comment != "reserved schema for TOAST tables" || !pgDependPinned(c, nil, toast.Address()) || access.OwnershipRoot(c, toast, routine.OperatorSeeded) || !bootstrapNamespaceDumpable(toast) {
+	if toast.Comment != "reserved schema for TOAST tables" || !DependPinned(c, nil, toast.Address()) || access.OwnershipRoot(c, toast, routine.OperatorSeeded) || !bootstrapNamespaceDumpable(toast) {
 		t.Fatal("actual toast seed/protected root/control baseline", toast)
 	}
 }

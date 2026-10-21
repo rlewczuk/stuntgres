@@ -86,7 +86,7 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 func TestRangeMoreExpressionHooks(t *testing.T) {
 	view, fresh := New().CatalogRead(), New().CatalogRead()
 	e := moreUnitExpression(t, view)
-	next, changed, err := retagBoundTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	next, changed, err := RetagTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		n, ok := fresh.LookupType(d.ID())
 		if ok {
 			return n

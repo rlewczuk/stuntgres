@@ -46,7 +46,7 @@ func validateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, defi
 		address := ref.Address
 		address.SubID = 0
 		provider, ok := view.Descriptor(address)
-		if !ok || !storedReferenceEpochValid(view, d, ref) {
+		if !ok || !ReferenceEpochValid(view, d, ref) {
 			return fmt.Errorf("stuntgres: missing default provider dependency")
 		}
 		if relation, ok := provider.(*catalog.Relation); ok {
@@ -61,7 +61,7 @@ func validateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, defi
 				}
 			}
 		} else if provider.Kind() == ids.CollationObject {
-			if err := validateStoredCollationDependency(view, ref, definition.Expression); err != nil {
+			if err := ValidateCollationDependency(view, ref, definition.Expression); err != nil {
 				return err
 			}
 		} else if provider.Kind() == ids.NamespaceObject {

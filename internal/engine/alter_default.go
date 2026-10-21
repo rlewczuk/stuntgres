@@ -156,7 +156,7 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *session.Opera
 	var err error
 	definition.Expression, err = binder.BindDefault(expression, old.Columns[slot])
 	if err == nil {
-		_, err = (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, definition.Expression)
+		_, err = (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, definition.Expression)
 	}
 	if err != nil {
 		var diagnostic *sqlstate.Error
@@ -167,7 +167,7 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *session.Opera
 		}
 		return catalog.ColumnDefault{}, err
 	}
-	if omitColumnDefault(auth.Catalog, definition.Expression, old.Columns[slot].Usage) {
+	if OmitColumnDefault(auth.Catalog, definition.Expression, old.Columns[slot].Usage) {
 		return catalog.ColumnDefault{}, nil
 	}
 	definition.OID, err = e.catalog.allocateOIDLocked()

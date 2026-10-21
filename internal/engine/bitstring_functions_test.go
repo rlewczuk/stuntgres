@@ -73,7 +73,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			for _, d := range sqltype.Builtins() {
 				replacements[d.ID()] = d
 			}
-			rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+			rebound, changed, err := RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(tc.name, changed, err)
 			}
@@ -93,9 +93,9 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if tc.name == "position" {
 				view := binderEngine(b).CatalogRead()
 				binary.Syntax = parser.OrdinaryFunctionSyntax
-				ordinary, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, binary)
+				ordinary, err := (scalarRenderer{}).ScalarFunctionSQL(context.Background(), view, binary)
 				binary.Syntax = parser.SQLFunctionSyntax
-				special, specialErr := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, binary)
+				special, specialErr := (scalarRenderer{}).ScalarFunctionSQL(context.Background(), view, binary)
 				if err != nil || specialErr != nil || ordinary != "pg_catalog.position(B'10110', B'11')" || special != "POSITION((B'11') IN (B'10110'))" {
 					t.Fatal(ordinary, special, err, specialErr)
 				}

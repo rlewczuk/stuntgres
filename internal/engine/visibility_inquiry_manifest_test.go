@@ -74,7 +74,7 @@ func TestVisibilityInquiryStoredNullManifest(t *testing.T) {
 				t.Errorf("stored visibility manifest = %t, want %t", check.VisibilitySnapshot, tc.visibility)
 			}
 			var visibility bool
-			if _, err := (scalarRenderer{owner: relation, visibilitySnapshot: &visibility}).sql(context.Background(), view, check.Expression); err != nil {
+			if _, err := (scalarRenderer{Owner: relation, VisibilitySnapshot: &visibility}).SQL(context.Background(), view, check.Expression); err != nil {
 				t.Fatal("render stored CHECK", err)
 			}
 			if visibility != tc.visibility {

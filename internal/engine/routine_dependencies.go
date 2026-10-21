@@ -51,18 +51,18 @@ func (r scalarRenderer) recordStoredRoutineDescriptor(view catalog.Read, capture
 		return err
 	}
 	ref := view.Owner().Domain.Ref(view.Epoch(), current.Address())
-	for _, old := range r.capturedManifest {
+	for _, old := range r.CapturedManifest {
 		if old.Address == ref.Address {
-			if !storedReferenceEpochValid(view, r.retainedConsumer(), old) {
+			if !ReferenceEpochValid(view, r.retainedConsumer(), old) {
 				return fmt.Errorf("stuntgres: stale stored routine reference")
 			}
 			r.record(old)
 			return nil
 		}
 	}
-	for _, old := range r.capturedChecks {
+	for _, old := range r.CapturedChecks {
 		if old.Ref.Address == ref.Address {
-			if !storedReferenceEpochValid(view, r.retainedConsumer(), old.Ref) || current.Revision() != old.Revision {
+			if !ReferenceEpochValid(view, r.retainedConsumer(), old.Ref) || current.Revision() != old.Revision {
 				return fmt.Errorf("stuntgres: stale stored routine dependency")
 			}
 			r.record(old.Ref)

@@ -22,7 +22,7 @@ func (v *viewRenderer) subscriptsArraySQLAt(ctx context.Context, catalog catalog
 	cast, isCast := raw.(parser.CastExpr)
 	usage, captured := v.castUsages[path]
 	if !isCast || !captured || !usage.Type.BaseType().IsArray() {
-		return v.expressionSQLAt(ctx, catalog, raw, path, ordinal, pgRenderParent{functionArgument: true})
+		return v.ExpressionSQLAt(ctx, catalog, raw, path, ordinal, pgRenderParent{functionArgument: true})
 	}
 	(*ordinal)++
 	literalPath := path

@@ -76,11 +76,11 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 				d.ColumnMeta.Defaults[target] = copied
 			}
 			if old, ok := in.Source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.Generation == nil {
-				node, err := remapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
+				node, err := RemapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				planned, err := remapLikeExpression(&mapper, old.Planned, d, auth.Catalog)
+				planned, err := RemapLikeExpression(&mapper, old.Planned, d, auth.Catalog)
 				if err != nil {
 					return err
 				}
@@ -91,7 +91,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 					generationConflicts[target] = true
 				}
 				copied := catalog.ColumnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
-				if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: d, dependencies: &copied.Dependencies, commentSnapshot: &copied.CatalogSnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
+				if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &copied.Dependencies, CommentSnapshot: &copied.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
 					return err
 				}
 				if d.ColumnMeta.Generations == nil {
@@ -104,7 +104,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 			if old.NoInherit {
 				continue
 			}
-			node, err := remapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
+			node, err := RemapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
 			if err != nil {
 				return err
 			}
@@ -120,7 +120,7 @@ func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView,
 			}
 			copied := catalog.CheckConstraint{Name: old.Name, Ordinal: len(d.Constraints.Check), Expression: node}
 			var dependencies []ids.ObjectRef
-			if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: d, dependencies: &dependencies, commentSnapshot: &copied.CommentSnapshot, visibilitySnapshot: &copied.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
+			if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &dependencies, CommentSnapshot: &copied.CommentSnapshot, VisibilitySnapshot: &copied.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {

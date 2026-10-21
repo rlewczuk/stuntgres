@@ -44,7 +44,7 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rebound, changed, err := retagBoundTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
+			rebound, changed, err := RetagTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}

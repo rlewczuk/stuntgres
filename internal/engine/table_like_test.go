@@ -70,7 +70,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	columnRef := ref
 	columnRef.Address.SubID = 3
 	column := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 1}
-	mapped, err := remapLikeExpression(&in, column, destination, e.CatalogRead())
+	mapped, err := RemapLikeExpression(&in, column, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 		t.Fatal(got, column)
 	}
 	owner := plan.TableOIDExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, Owner: ref}
-	mapped, err = remapLikeExpression(&in, owner, destination, e.CatalogRead())
+	mapped, err = RemapLikeExpression(&in, owner, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	}
 	usage := testUsage(e, sqltype.Regclass)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: usage, RegclassRef: ref}, Value: sqltype.Null(usage.Type)}
-	mapped, err = remapLikeExpression(&in, literal, destination, e.CatalogRead())
+	mapped, err = RemapLikeExpression(&in, literal, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 		t.Fatal("explicit source literal retargeted", mapped)
 	}
 	call := functions.SequenceCall{Ref: ref}
-	mapped, err = remapLikeExpression(&in, call, destination, e.CatalogRead())
+	mapped, err = RemapLikeExpression(&in, call, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}

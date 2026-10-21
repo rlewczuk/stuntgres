@@ -147,7 +147,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		if err != nil {
 			return nil, nil, false, err
 		}
-		d.RelationKind, d.View, d.Populated = catalog.MaterializedViewRelation, viewPayloadOf(definition), !s.NoData
+		d.RelationKind, d.View, d.Populated = catalog.MaterializedViewRelation, ViewPayload(definition), !s.NoData
 	}
 	d.Security.ACL = stage.creationACL(owner, ns.Address, authorization.DefaultTables)
 	if err = e.stageRowTypeLocked(stage, d); err != nil {

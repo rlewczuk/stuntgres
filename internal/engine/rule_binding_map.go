@@ -31,7 +31,7 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 		return copied, true, nil
 	}
 	targets := func(values []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
-		return mapRuleAssignmentTargets(values, mapper.expression, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return MapRuleAssignmentTargets(values, mapper.expression, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	var err error
 	b.ArrayTargets, err = targets(b.ArrayTargets)

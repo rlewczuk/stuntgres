@@ -222,7 +222,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		view.VirtualView = false
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		attrs := append([]int32(nil), d.Attributes...)
-		view.View = NewView(ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}})
+		view.View = NewView(ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []viewLeaf{{Ref: leaf, Attributes: attrs, Reads: attrs}}})
 		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}

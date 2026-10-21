@@ -15,7 +15,7 @@ import (
 func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *analyze.Binding, action ruleAction) (string, error) {
 	var sql strings.Builder
 	targetSQL := func(i int) (string, error) {
-		column, err := deparseAttribute(b.Relation, b.Relation.Attributes[b.Targets[i]])
+		column, err := DeparseAttribute(b.Relation, b.Relation.Attributes[b.Targets[i]])
 		if err != nil {
 			return "", err
 		}

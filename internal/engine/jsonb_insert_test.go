@@ -71,7 +71,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		t.Run(query, func(t *testing.T) {
 			n := jsonbSetUnitBind(t, b, query).(functions.JSONBSet)
 			fresh := jsonObjectUnitTypes()
-			next, changed, err := retagBoundTypes(engine.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+			next, changed, err := RetagTypes(engine.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(next, changed, err)
 			}
@@ -84,7 +84,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 					t.Fatal("descriptor remapping", i)
 				}
 			}
-			mapped, err := remapBoundExpression(r, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+			mapped, err := RemapExpression(r, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 			if err != nil || !analyze.SameGroupExpression(r, mapped) {
 				t.Fatal(mapped, err)
 			}

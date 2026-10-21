@@ -34,7 +34,7 @@ func TestTimezoneReviewStoredStableDefaultValidation(t *testing.T) {
 			if got := node.Properties(); got != (expr.Properties{Volatility: expr.Stable}) {
 				t.Fatalf("properties = %+v", got)
 			}
-			if text, err := defaultSQL(ctx, e.CatalogRead(), node); err != nil || text == "" {
+			if text, err := DefaultSQL(ctx, e.CatalogRead(), node); err != nil || text == "" {
 				t.Fatalf("serialize closed Stable definition without Eval: %q %v", text, err)
 			}
 		})
@@ -57,7 +57,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 		}
 		literal := node.(plan.LiteralExpr)
 		literal.Info.Property = properties
-		if _, err := defaultSQL(ctx, e.CatalogRead(), literal); err == nil {
+		if _, err := DefaultSQL(ctx, e.CatalogRead(), literal); err == nil {
 			t.Fatalf("accepted forbidden properties %+v", properties)
 		}
 	}

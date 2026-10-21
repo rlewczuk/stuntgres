@@ -6,5 +6,5 @@ import (
 
 func relationDiagnosticName(auth AuthorizationView, relation *catalog.Relation) string {
 	path, _ := auth.engine.referencePath(auth)
-	return relationDiagnosticNameAt(auth.Catalog, relation, path)
+	return RelationDiagnosticNameAt(auth.Catalog, relation, path)
 }
