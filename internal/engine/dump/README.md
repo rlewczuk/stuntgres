@@ -63,7 +63,9 @@ functions that `routine` (14e), `typedef` (15e), `partition` (25b),
 (`dump_capture.go`) and unlocks once. The capture checks portability,
 builds the builtin-schema preamble and passes every descriptor to the
 Collect tables. It returns a `control.Capture` and hands it to
-`control.Dump`; nothing after the unlock reads engine state.
+`control.Dump`; nothing after the unlock reads engine state. The Collect
+tables below are clean and move to `control` in 30d (item 120); only the
+`Engine.mu` window of `captureDumpLocked` stays.
 
 **Collect tables** (`dump_collect.go`, `dump_collect_relation.go`).
 `dumpCollectors` is an ordered list of

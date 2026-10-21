@@ -159,12 +159,13 @@ with `InstallPreparation`; until then every method panics with
 Statement dispatch (`executeStatement`, `executeBoundLocked`, ...); query
 admission and capture (`query_admission.go`, `query_lock_admission.go`,
 `captureQuerySources*`, the view row-lock legality checks); query preflight
-(`query_preflight.go`, `query_set_preflight.go`: they reach the retag
-walker, rule producer demand and window pruning), rule parameter
-specialization (`rule_parameter_preflight.go`, through the view rewriter),
-the domain CHECK programme preparation (`prepareDomainConversion`, which
+(`query_preflight.go`, `query_set_preflight.go`, `query_join_legality.go`:
+they import `stored`, `table` and `view`, which sit above `exec` and
+`analyze`; view 27e moves them to `view`), rule parameter
+specialization (`view.SpecializeRuleParameterExpression` behind the
+`SpecializeRuleParameters` forwarder), the domain CHECK programme preparation (`prepareDomainConversion`, which
 keeps its phases in the statement scope) and `pruneQuoteCaptures` (stored
-view definitions); the binder
+view definitions; stored 22e moves it); the binder
 methods in the `query_*_bind.go` files; the join legality checks; the DML
 executors, which open their inputs with `exec.OpenNode` (their records are
 in [`dml`](../dml/README.md)); data-modifying CTE
@@ -174,7 +175,7 @@ portals; rule execution; `statementHost` with the capability bodies,
 needs `analyze`), and the engine-side helpers that take a `*Context` (the
 domain-check preparation, `deparseRelation`, `identifyObjectValues`,
 `expressionPrincipal`, `evalSerialSequence`, `validateSelectedDomainRows`,
-`analyze.ValidInstalledText`, ...).
+...). `ValidInstalledText` is `analyze.ValidInstalledText`.
 
 The engine, the root driver and `cmd/stuntgres` name these types directly
 (`exec.Context`, `exec.Source`, `exec.RowResult`, ...); no aliases remain.

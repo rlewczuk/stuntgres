@@ -14,7 +14,7 @@ signature check), and since 12d.4 the statement's row-lock admission, the
 query namespace types and the query helpers the binder shares with the
 engine, and since 12d.3b the DEFAULT closure predicates, the retained-input
 walk and the rule namespace. The binder names no engine type; it reaches engine state only
-through `Host`. The package sits at layer L8 of
+through `Host`. The package sits at layer L10 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports `plan`, `exec`, `catalog`, `storage`, `expr`, `functions`, `ids`,
 `lock`, `access`, `authorization`, `pgcatalog`, the Part A content of

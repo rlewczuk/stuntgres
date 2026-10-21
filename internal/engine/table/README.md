@@ -208,7 +208,9 @@ lock admission (`acquireDefinitionProviders`, `admitInheritanceAlter`,
 `table` call and build the host; nothing inside waits.
 Also in the root: the binder bodies behind the host (`bindCreateDefaults`,
 `bindCreateGenerations`, `bindColumnChecks`),
-`projectColumnShapeRoots`, `inheritanceQueryLeaves` and the inheritance query
+`projectColumnShapeRoots` (catalog 5k moves it to `session` with the storage
+projections), `inheritanceQueryLeaves` (clean; table 24g moves it here once
+`viewLeafRowMark` is in `stored`) and the inheritance query
 scope methods (query admission). Restore keeps its hook bodies in the
 root (control reaches them): the context check, authorization, the
 superuser 42501, the `Engine.mu` window, the trust checks

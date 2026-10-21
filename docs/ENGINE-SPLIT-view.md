@@ -693,6 +693,108 @@ Tests: `policy_test.go` calls the host's `BindPolicyExpression`;
 `view.FreezeDefinition`. Verify with the targeted tests and reference
 selections below (quick and `REFERENCE=1`), and quickcheck.
 
+### 27e — Query preflight moves to `view` (linear item 115)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+`query_preflight.go` (574 lines), `query_set_preflight.go` (135),
+`query_join_legality.go` (406) and `prepareStoredExecutionRoot`
+(`view_query.go:146`) are reach-clean. They import `stored`
+(`MapExpressionReader`, `ViewOf`, `QuerySetNode`), `table`
+(`AdmitColumnVirtualGeneration`) and `view` (`RuleQueryProducerDemand`), so
+they cannot go to `analyze`; `view` imports all of them. Frontier: the root
+uses only `prepareStoredExecutionRoot`, `viewRowLockLegality` and
+`sqlError` (`view` has its own).
+
+- The row-mark readers `viewHasStoredRowMarks`, `viewRowLockLegality` and
+  `viewLeafRowMark` (`query_lock_admission.go`) read only `stored.View`,
+  `analyze`, `exec` and `plan`: they go to `stored` (analyze 12f planned
+  that), so `table` (24g) can call `viewLeafRowMark` too.
+- `enginePreparation.PreflightQuery` and `AdmitExpression`
+  (`exec_preparation.go`) become forwarders. The DML preflights
+  (`preflightUpdate*`, `preflightMerge`, `preflightConflictUpdate`) call the
+  moved functions and move later (dml 29e, item 132).
+- Before renaming, grep `reference/` and the engine tests for frame names of
+  the moved functions (the cancellation fixtures match frames).
+- Docs: correct the `exec` README "What stays" (query preflight blockers).
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
+### 27f — Privilege walkers and query table refs (linear item 116)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs 27e (item 115).
+
+- `CheckViewWrite` (`view_write_authority.go:20`), `checkViewRowMarks`
+  and `checkViewRowMarksExpanded` (`query_lock_admission.go:153-209`),
+  `authorizeViewSourceSnapshot` (`view_source.go`) and `checkTruncate`
+  (`truncate.go:21`) take an `access.View` and its `access.Environment`
+  instead of `*AuthorizationView` (cut tested with `reach -cut`). The root
+  keeps the one-line `AuthorizationView.CheckViewWrite`, which implements
+  `analyze.Privileges`.
+- `Engine.queryTableRefsLocked` (`query_table_refs.go`, 134 lines) becomes
+  `view.QueryTableRefs` over a `catalog.Read`, the catalog domain and owner
+  and an authorize callback; the replaced-catalog check stays in a root
+  wrapper. It needs `viewLeafRowMark` in `stored` (27e).
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
+### 27g — The DROP read side moves to `view` (pattern 6) (linear item 117)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+`dropProvider` is the largest remaining root hub (1.4k dirty lines reach
+the god structs through it, mostly its own methods). Its read side is
+decisions over the drop stage:
+
+- `dropProvider.DependencyClosure` (`domain_dependencies.go:34`, 392
+  lines), `restrictError` (65), `policyDependents`, `ruleDependents`,
+  `viewClosure`, the diagnostic half of `alterHost.TypeChangeDependents`
+  (`alter_host.go:106-147`) and all of `drop_diagnostics.go` (334, clean:
+  `dependencyObject`, the dependent labels, `emitViewCascade`).
+- They read the stage through a view-local reader (`Base`, `Path`,
+  `Removed`, `Replacement`, `Revision`, `Descriptor`, `Descriptors`,
+  `DescriptorCount`, `InputDescriptors`, `Replace`, ...) that `dropProvider`
+  implements, as it implements `table.DropDependencyReader` (whose
+  `DependencyClosure` then forwards). Reach with those edges cut: both
+  methods and the diagnostics are clean.
+- First commit: `fdw.Label` (`fdw/ddl.go:35`) and `partition.DependsOn`
+  (`partition/drop.go:8`) go down to `catalog`, because `view` imports
+  neither package.
+- Last commit: `dependencyDescription` (`roles.go:130`, 84 lines) goes to
+  `role`, with the reference path passed in instead of
+  `auth.engine.referencePath`.
+- Stays root: the staging, removal and lock-wait core of `dropProvider`,
+  `ExpressionDependencies` (lock waits) and `drop_table.go`.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
+### 27h — Lock walks and materialized checks (linear item 118)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+- The closure walk of `acquireViewSources` (`view_locks.go:40-111`) and
+  the collection of `acquireViewDefinitionReferences` (`:224-249`) become
+  `view` functions that return what to acquire; the acquire loops stay.
+- `normalizeRuleCTEsLocked` (`rule_cte.go`) reads only the catalog owner:
+  pass it in.
+- The parse and shape checks of `importMaterializedSnapshots`
+  (`materialized_snapshot.go:64-98`) and the row-width, type and index-count
+  checks of `stageMaterializedRows` (`materialized_refresh.go`).
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - **Rule rewrite order.** INSTEAD, ALSO and conditional INSTEAD rules
@@ -789,6 +891,10 @@ in the root. The checks in §8.3 pass.
   `c0c3de8f8`, `d74446d38`, `41d0df237`, `bc76cde87`, then the docs commit)
   · selected unit, `RACE=1` concurrent refresh and dual-mode proof and
   quickcheck passed; racecheck/finalcheck skipped at user request; see the 27d record below
+- [ ] 27e — Query preflight moved (linear item 115)
+- [ ] 27f — Privilege walkers and query table refs moved (linear item 116)
+- [ ] 27g — DROP read side moved (linear item 117)
+- [ ] 27h — Lock walks and materialized checks moved (linear item 118)
 
 Outstanding aliases: none (27b added none).
 

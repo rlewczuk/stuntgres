@@ -89,7 +89,9 @@ never the engine, `analyze`'s binder or another upper feature. See
 capture, `roleStore` publication and `installOperationRolesLocked`,
 `SetObjectACL`/`SetRoleReferences`, the host adapter (`role_host.go`) and
 the `*CatalogStage` adapters (`owned_stage.go`), the parameter targets
-(`parameter_catalog.go`), `dependencyDescription` and `dependencyObject`,
+(`parameter_catalog.go`), `dependencyDescription` and `dependencyObject`
+(both are clean but for `referencePath`; view 27g, item 117, moves
+`dependencyObject` to `view` and `dependencyDescription` here),
 and the orchestration: `initialRole`, `executeRole` (dispatch, the SET LOCAL
 warning, session mutation, `publishDroppedRolesLocked`),
 `executeRoleAttributes`, `membershipLocked`, `objectGrantLocked`,

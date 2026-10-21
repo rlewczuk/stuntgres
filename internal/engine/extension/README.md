@@ -7,7 +7,7 @@ validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner
 import. Part A of step 16 moved the records here, 16d.1 the staging and
-16d.2 the handler decisions. The package sits at layer L10 of
+16d.2 the handler decisions. The package sits at layer L9 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access` (privilege requirements and the captured view),
 `authorization`, `catalog`, `ddl` (the shared authority and allocator),

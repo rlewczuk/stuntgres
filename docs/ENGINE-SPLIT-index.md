@@ -826,6 +826,36 @@ mode, and quickcheck. For 23d.2 also compare `go build -gcflags=-m
 `probeExclusion` before and after: no new escape on the per-row path;
 report any new direct call that replaced inline code there.
 
+### 23e — Pure index algorithms (linear item 126)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+Functions over value inputs the root captures under `Engine.mu`:
+
+- `captureIndexSnapshotParents` (`index_snapshot.go:18-121`), with the
+  root keeping the check at its start and building the lookups.
+- `prepareRemintedStorage` (`index_replacement.go:26-115`).
+- The loop of `validatePrivateIndexExpressions`
+  (`index_publication.go:112-203`); the locked authority prelude stays.
+- The decision of `captureIndexLayouts` (`index_layout_transport.go:37-89`).
+- SET CONSTRAINTS name selection (`set_constraints.go`); the unique loops
+  it calls belong to dml 29d.2, so rebase on 110b if it lands first.
+- The grant plan of `acquireIndexMaintenance`
+  (`index_maintenance_locks.go`: targets, missing-name notice, parent and
+  index collection, option checks, lock modes); the acquire loop stays.
+- `index.EffectiveRoot(committed, journal, addr)` replaces the copies in
+  `statement_host_index.go` (four), `index_snapshot.go`,
+  `materialized_refresh.go` and `index_layout_transport.go`.
+- Delete the dead `bindIndexKey` and the test-only `bindIndexAttributes`,
+  `stagePartitionIndexAttach` and `stagePartitionIndexDrop` wrappers
+  (point the tests at the package functions), and correct the README
+  sentence about wrappers that wait for 24d and 25d.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - **Lock order.** The lock manager stays innermost. Writer waits, snapshot
@@ -933,6 +963,7 @@ listed above. The checks in §8.3 pass.
   bound, existing output, exclusion visit, projection edits and ALTER shape
   entries are `index` functions; the probe loops stay root until `dml`; no
   aliases. See the 23d.2 record.
+- [ ] 23e — Pure index algorithms moved (linear item 126)
 
 Outstanding aliases: none (23b added none).
 

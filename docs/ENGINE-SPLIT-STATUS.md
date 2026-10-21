@@ -6,17 +6,27 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `db8252574` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 111, 112 and 113). Steps 8–17 were
+Last verified against `master` at `17e01ca8b` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 111, 112, 113 and 114). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
-55–114) at `c154e14fb`.
+55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
 ## Next ready sub-steps
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); none is ready now.
+as another broad item (§8); none is ready now, and the third round has no
+broad item.
 
 - **DML, executors:** 110b (dml 29d.2); 110c–110f follow in order.
+- **Third round, view:** 115 (27e, query preflight; first, it unblocks 116,
+  125 and 132), 117 (27g, DROP read side), 118 (27h, lock walks).
+- **Third round, stored and control:** 119 (22e, type provider
+  validation; then 120), 121 (30e, definition OID remap; then 122).
+- **Third round, table and index:** 123 (24e; then 124 and 125), 126 (23e;
+  touches `set_constraints.go`, which 110b also edits), 127 (25e).
+- **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
+  (catalog 5k), 131 (access B7, in place; it changes `AuthorizationView`,
+  so rebase other open branches after it lands).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -140,6 +150,11 @@ Item 110a (DML 29d.1) is done: `dml.Host` on `statementHost`, `dml.Command`,
 `lock.UniqueJournal`, probe authority as `access.View` and the lower moves,
 so 110b (29d.2) is ready. The host's FK pieces (`ForeignKeys`,
 `FinishHost`, `dml.Authority`) moved to 110f, next to their callers.
+Item 114 (end-state review, docs only) is done, measured at `17e01ca8b`
+after 110a and before 110b–110f: the root is 405 files and 58.5k lines,
+25% of the engine. It planned a third round in existing packages, items
+115–132 (about 8.7k lines), and a closing review, item 133, which needs
+110f and the whole third round.
 
 ## Task tree
 
@@ -669,6 +684,40 @@ so 110b (29d.2) is ready. The host's FK pieces (`ForeignKeys`,
     *(racecheck/finalcheck skipped at user request)*
   - [x] 15e — Type dump statements moved ([typedef](ENGINE-SPLIT-typedef.md);
     `daaaf0da3`, `f1b6a78c7`, `27fe76274`, docs) *(racecheck/finalcheck skipped at user request)*
+
+- [x] **End-state review** (item 114; [ENGINE-SPLIT.md](ENGINE-SPLIT.md)
+  §2.8; the docs commit) — measured before 110b–110f
+- [ ] **Third round** — decisions still mixed into root orchestration,
+  planned by item 114 ([ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 "Third
+  round"); each is a sub-step of an existing prompt file
+  - [ ] 27e — Query preflight moved ([view](ENGINE-SPLIT-view.md))
+  - [ ] 27f — Privilege walkers and query table refs moved
+    ([view](ENGINE-SPLIT-view.md))
+  - [ ] 27g — DROP read side moved ([view](ENGINE-SPLIT-view.md))
+  - [ ] 27h — Lock walks and materialized checks moved
+    ([view](ENGINE-SPLIT-view.md))
+  - [ ] 22e — Type provider validation moved ([stored](ENGINE-SPLIT-stored.md))
+  - [ ] 30d — Dump Collect tables moved ([control](ENGINE-SPLIT-control.md))
+  - [ ] 30e — Definition OID remap moved ([control](ENGINE-SPLIT-control.md))
+  - [ ] 30f — TEMP preservation phases moved
+    ([control](ENGINE-SPLIT-control.md))
+  - [ ] 24e — Relation validation and generation remap moved
+    ([table](ENGINE-SPLIT-table.md))
+  - [ ] 24f — Remaining CREATE and ALTER decisions moved
+    ([table](ENGINE-SPLIT-table.md))
+  - [ ] 24g — Inheritance prepare side moved ([table](ENGINE-SPLIT-table.md))
+  - [ ] 23e — Pure index algorithms moved ([index](ENGINE-SPLIT-index.md))
+  - [ ] 25e — Consumer boundary and hash repair moved
+    ([partition](ENGINE-SPLIT-partition.md))
+  - [ ] 21d — Object address inquiries moved ([regobj](ENGINE-SPLIT-regobj.md))
+  - [ ] 13g — Settings and statement classification moved
+    ([session](ENGINE-SPLIT-session.md))
+  - [ ] 5k — Journal and projection leftovers moved
+    ([catalog](ENGINE-SPLIT-catalog.md))
+  - [ ] B7 — `AuthorizationView` without `*Engine`
+    ([authorization](ENGINE-SPLIT-authorization.md))
+  - [ ] 29e — DML preflights moved ([dml](ENGINE-SPLIT-dml.md))
+  - [ ] Closing review (docs only; [ENGINE-SPLIT.md](ENGINE-SPLIT.md))
 
 `access` is tracked under Part B above, not under the later waves.
 
@@ -1564,11 +1613,107 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 
 ### Group L — closing
 
-114. [ ] End-state review (docs only): re-measure the root, update
+114. [x] End-state review (docs only): re-measure the root, update
      ENGINE-SPLIT.md §2 and §3, record what stays in the root and why, and
      decide whether a third round is needed —
      [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 63, 66, 73, 76, 77, 78,
-     80, 81, 89c, 98, 106, 110f, 113
+     80, 81, 89c, 98, 106, 110f, 113 · run at the user's request before
+     110b–110f (the docs commit; measured at `17e01ca8b`) · §2.8: 405 files,
+     58.5k lines, 25% of the engine, 6.2k clean; §3 layer table re-measured
+     (`view` → `table`/`index`, `extension` → `typedef`); what stays and why
+     recorded; a third round of 18 items in existing packages (about 8.7k
+     lines, §7 decision 18) and a closing review planned as Group M; stale
+     README statements corrected · docs only, no checks needed
+
+### Group M — third round (no new packages)
+
+Planned by item 114 at `17e01ca8b`. Each item is one session and a lettered
+sub-step of an existing prompt file; none is broad. Items with "needs —"
+may run in parallel with each other and with 110b–110f, on separate
+branches.
+
+115. [ ] View 27e: query preflight to `view` — [view](ENGINE-SPLIT-view.md)
+     27e · needs — · `query_preflight.go`, `query_set_preflight.go`,
+     `query_join_legality.go`, `prepareStoredExecutionRoot`; the row-mark
+     readers to `stored` (about 1.2k lines, clean)
+116. [ ] View 27f: privilege walkers and query table refs —
+     [view](ENGINE-SPLIT-view.md) 27f · needs 115 · `CheckViewWrite`,
+     `checkViewRowMarks*`, `authorizeViewSourceSnapshot`, `checkTruncate`
+     over `access.View`; `view.QueryTableRefs` (about 0.4k lines)
+117. [ ] View 27g: DROP read side (pattern 6) —
+     [view](ENGINE-SPLIT-view.md) 27g · needs — · `DependencyClosure`,
+     `restrictError`, the view, rule and policy dependents and
+     `drop_diagnostics.go` over a view-local reader; `fdw.Label` and
+     `partition.DependsOn` to `catalog`; `dependencyDescription` to `role`
+     (about 1.3k lines)
+118. [ ] View 27h: lock walks and materialized checks —
+     [view](ENGINE-SPLIT-view.md) 27h · needs — · the closure walks of
+     `view_locks.go`, `normalizeRuleCTEsLocked`, the materialized snapshot
+     and refresh checks (about 0.25k lines)
+119. [ ] Stored 22e: type provider validation —
+     [stored](ENGINE-SPLIT-stored.md) 22e · needs — · `typeProvider`, the
+     domain default and check validators, `reownCatalogScalarTypes`,
+     `pruneQuoteCaptures` (about 0.4k lines, clean)
+120. [ ] Control 30d: Dump Collect tables —
+     [control](ENGINE-SPLIT-control.md) 30d · needs 119 · `dump_collect*.go`,
+     the clean part of `dump_capture.go`, `preflightACLItemDump`;
+     `captureDumpLocked` fills a `control.Source` (about 0.9k lines, clean)
+121. [ ] Control 30e: definition OID remap —
+     [control](ENGINE-SPLIT-control.md) 30e · needs — ·
+     `remapDefinitionOIDsLocked`, `remapViewRuleOIDs` over an allocator
+     and a `catalog.Read` (about 0.4k lines)
+122. [ ] Control 30f: TEMP preservation phases —
+     [control](ENGINE-SPLIT-control.md) 30f · needs 121 · the decision
+     phases of `preserveTemporaryLocked` (about 0.4k lines)
+123. [ ] Table 24e: relation validation and generation remap —
+     [table](ENGINE-SPLIT-table.md) 24e · needs — ·
+     `relationProvider.Validate` with an injected validator table,
+     `recomputeRemappedGenerations`, the tablespace-only helpers (about
+     0.4k lines)
+124. [ ] Table 24f: remaining CREATE and ALTER decisions —
+     [table](ENGINE-SPLIT-table.md) 24f · needs 123 · `bindColumnChecks`
+     core, the target-admission table, ALTER TABLE OF, CREATE TABLE shape
+     errors, the scan plan, `analyze.RelationNamespace` (about 0.4k lines)
+125. [ ] Table 24g: inheritance prepare side —
+     [table](ENGINE-SPLIT-table.md) 24g · needs 124, 115 ·
+     `prepareInheritanceNode` behind a prepare host,
+     `inheritanceQueryLeaves`, the pending-grant decision (about 0.3k
+     lines)
+126. [ ] Index 23e: pure index algorithms — [index](ENGINE-SPLIT-index.md)
+     23e · needs — · snapshot parents, reminted storage, expression
+     validation, layout capture, SET CONSTRAINTS names, the maintenance
+     grant plan, `index.EffectiveRoot`; dead wrappers deleted (about 0.5k
+     lines)
+127. [ ] Partition 25e: consumer boundary and hash repair —
+     [partition](ENGINE-SPLIT-partition.md) 25e · needs — ·
+     `partitionConsumerBoundary`, `partitionCaptureCatalog`, the
+     `repairRemappedHashPartitions` core (about 0.2k lines)
+128. [ ] Regobj 21d: object address inquiries —
+     [regobj](ENGINE-SPLIT-regobj.md) 21d · needs — ·
+     `object_address_lookup.go`, `identifyObjectValues`,
+     `comment_inquiry.go`, `VisibilityInquiry` (about 0.5k lines)
+129. [ ] Session 13g: settings and statement classification —
+     [session](ENGINE-SPLIT-session.md) 13g · needs — · settings cores,
+     `classifyCommandTag` and the tag predicates (with `fdw.CommandTag`
+     and `GrantKind` moved down), the write-set merges to `visibility`
+     (about 0.7k lines)
+130. [ ] Catalog 5k: journal and projection leftovers —
+     [catalog](ENGINE-SPLIT-catalog.md) 5k · needs — · relation-history
+     helpers, the type journal, the storage projections (about 0.3k
+     lines, clean)
+131. [ ] Access B7: `AuthorizationView` without `*Engine` —
+     [authorization](ENGINE-SPLIT-authorization.md) B7 · needs — · in
+     place (about 0.95k lines become clean), then the small `access.View`
+     moves (about 0.2k lines)
+132. [ ] DML 29e: DML preflights — [dml](ENGINE-SPLIT-dml.md) 29e · needs
+     115, 110f · `preflightUpdate*`, `preflightMerge`,
+     `preflightConflictUpdate`; the `KeyTargets`/`AlterKeys` flag (about
+     0.2k lines)
+133. [ ] Closing review (docs only): re-measure after 110f and the third
+     round, write ENGINE-SPLIT.md §2.9, close the split —
+     [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 110f, 115, 116, 117,
+     118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131,
+     132
 
 ## Updating this file
 

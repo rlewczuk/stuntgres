@@ -3,7 +3,7 @@
 Sequence objects: option validation and limits, a physical session's sequence
 memory, prepared sequence literals, the decisions of sequence, identity and
 serial DDL and of the sequence functions, sequence dump formatting and the
-sequence and identity diagnostics. The package sits at layer L10 of
+sequence and identity diagnostics. The package sits at layer L9 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
 imports only `authorization`, `catalog`, `expr`, `functions`, `ids`,
 `session`, `storage`, `parser`, `sqltype`, `sqlstate` and the standard

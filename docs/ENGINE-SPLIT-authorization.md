@@ -230,6 +230,31 @@ statements stay in the root as the README says; their decisions move to
 `role` (step 28, which needs this item). The aclitem I/O moves to `regobj`
 (step 21).
 
+### B7 — `AuthorizationView` without `*Engine` (in place) (linear item 131)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+`AuthorizationView` holds `*Engine` and reaches it through three calls:
+`referencePath`, `authorizationStorageLocked` and
+`captureTypeDiagnosticName`. Cutting `AuthorizationView>Engine` plus those
+three makes about 0.95k root lines clean (measured with `reach -cut`).
+
+- In place: capture the three as values or narrow functions when the view
+  is built (one constructor, so the view and its recaptures cannot drift),
+  then drop the `engine` field. Keep every lock contract.
+- Then the small `access.View` moves: `checkExplicitLock` and
+  `explicitLockMode` (`lock_table.go`) to `table` with the rights passed
+  in, `accessRoleArgument` (`acl_runtime.go`), `checkRowSecuritySource`
+  (`row_security_setting.go`), `ownTemporaryNamespace` and
+  `adjustRelationCreationPersistence` (`temporary_session.go`) with the
+  TEMP namespace address passed in.
+- `RACE=1` for the session and TEMP tests.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - Privilege decisions, SQLSTATEs, messages, notice order and grantor
@@ -855,3 +880,4 @@ B6 results:
   `racecheck` and `finalcheck` were skipped at the user's request; no locks
   or goroutines changed. `make deps` lists only module paths. `AGENTS.md`
   stays at 99 lines.
+- [ ] B7 — `AuthorizationView` without `*Engine` (linear item 131)

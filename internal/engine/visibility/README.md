@@ -93,7 +93,8 @@ The transaction owner's orchestration (the per-session state machine's
 transitions and its CHAIN and characteristic rules; the owner state itself
 is `session.TransactionOwner`), savepoints, publication of the catalog journal (the
 journal itself is `session.Journal`), prepared transactions (2PC),
-`StatementScope`, write staging and `mergeDeletions`.
+`StatementScope` and write staging. The write-set merges (`mergeDeletions`,
+`mergePrivateRows`) are clean and move here in session 13g (item 129).
 Also every entry point that combines visibility with the catalog, storage,
 locks or sessions:
 
@@ -113,7 +114,8 @@ The SQL functions (`age`, `pg_current_xact_id*`, `pg_xact_status`, the
 commit-timestamp functions) stay in the engine. The publication sites
 interleave `commitSeq` advances with catalog and storage installation and
 stay inline (`catalog.go`, `transaction_publication.go`). Isolation levels
-(`Isolation`, `stableIsolation`) are engine types.
+are `session.Isolation`; the root's `stableIsolation` becomes its method in
+13g.
 
 ## Testing
 

@@ -5,7 +5,7 @@ composites and typed tables, collations and conversions. Part A of step 15
 moved the records, validation, Dump/Restore and remap helpers here; Part B
 (15d) moved the DDL stage handlers, which reach the engine through
 `StageHost`; 15e moved the type dump statements, which render through
-`dump.Presenter`. The package sits at layer L10 of
+`dump.Presenter`. The package sits at layer L9 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access`, `authorization`, `catalog`, `ddl` (the shared
 host contract), `dump` (dump records and the `Presenter`), `expr`, `ids`,
@@ -141,8 +141,9 @@ graph edges of type declarations are `control.ColumnPredecessors` and
 and `regobj` imports `typedef`), and the domain owner transfer in
 `emitDumpStatement` and the `dump.Presenter` adapter are `control`'s;
 `typeProvider`
-(its `Validate` reaches the expression binder); domain check programs and
-evaluation; `reownCatalogScalarTypes`; the typed
+(clean since the binder moved; stored 22e, item 119, moves it with
+`reownCatalogScalarTypes` to `stored`); domain check programs and
+evaluation; the typed
 inheritance and mutation steps that use ALTER TABLE records; the column
 default records (`domain_default.go`); `conversionDefault`
 (`domainDependency` is `table.DomainDependency` since table 24b).

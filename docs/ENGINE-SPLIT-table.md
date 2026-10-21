@@ -808,6 +808,74 @@ reference cases. 24d.1 and 24d.3 also run the Dump→Restore→Dump smoke of
 24b (`.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-PACKAGE/dumpsmoke`): output
 byte-identical.
 
+### 24e — Relation validation and generation remap (linear item 123)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+- `relationProvider.Validate` (`catalog.go:45`, 280 lines, clean) moves
+  to `table`. Its three calls above `table`
+  (`view.ValidatePolicies`, `partition.ValidateDescriptor`,
+  `view.ValidateViewDefinition`) are passed in as an ordered validator
+  table that the root builds once (pattern 5), in today's order.
+- `recomputeRemappedGenerations` (`generated_remap.go`) takes the
+  check-snapshot capture (`:49-60`) as a callback.
+- `tablespaceOnlyActions` and `validateAlterTablespaceMove`
+  (`alter_tablespace.go`, clean).
+- Correct the `catalog` README sentence on "validators that need engine
+  services".
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
+### 24f — The remaining CREATE and ALTER decisions (linear item 124)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs 24e (item 123).
+
+- The non-binding core of `bindColumnChecks` (`check.go:25-155`: naming,
+  inherited merge, duplicate diagnostics, ordinals, the dependency
+  renderer) behind one `BindCheckExpression` host method; delete the
+  test-only `bindCreateChecks`.
+- The target-admission table of `acquireRelationTarget`
+  (`relation_scope.go:161-324`, pure over `parser.Statement`) as a
+  registration table (§3 rule 8); the acquire loop stays.
+- The ALTER TABLE OF checks (`typed_table.go:41-79`) and source collection
+  (`:115-148`), the CREATE TABLE shape errors (`create_table.go:54-90`) and
+  the `alterTableLocked` scan plan (`alter_table.go:701-736`); the
+  skeleton stays (24d).
+- One `analyze.RelationNamespace` helper replaces the copies in
+  `alter_host.go`, `alter_type.go`, `check.go`, `generated.go` and
+  `partition_host.go`.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
+### 24g — The inheritance prepare side (linear item 125)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs 24f (item 124), view 27e
+(item 115).
+
+- `prepareInheritanceNode` (`inheritance_alter_prepare.go:41-215`)
+  behind a six-method prepare host (`prepareUsingIndexMetadata`,
+  `addColumnCandidate`, `prepareColumnDropAfter`,
+  `prepareIdentityDropDefinition`, `prepareConstraintIndexDrop`,
+  `prepareAddedChecks`), the prepared drops crossing as
+  `table.DefinitionDelta` values that also expose their next relation.
+- `inheritanceQueryLeaves` (clean; it calls `viewLeafRowMark`, in `stored`
+  after 27e) and the pending-grant decision of `acquireInheritanceSources`
+  (`inheritance_query_scope.go:104-141`).
+- Delete the test-only `lockInheritanceDropClosure` and
+  `inheritanceStageAlterGuard` wrappers. Correct the `table` README and
+  `ENGINE-SPLIT-dml.md` notes that keep `inheritanceQueryLeaves` in the root.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - ALTER TABLE keeps its nine-pass order (`alterActionPhase`), the
@@ -952,6 +1020,9 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   `44f1ae9bf`, then the docs commit) · selected unit (also `RACE=1`) and
   dual-mode proof, Dump→Restore→Dump smoke and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 24d.3 record below
+- [ ] 24e — Relation validation and generation remap moved (linear item 123)
+- [ ] 24f — Remaining CREATE and ALTER decisions moved (linear item 124)
+- [ ] 24g — Inheritance prepare side moved (linear item 125)
 
 Outstanding aliases: none (24a and 24b added none).
 

@@ -1,6 +1,6 @@
 # internal/engine/session
 
-Session-layer state of the engine, at layer L9 of
+Session-layer state of the engine, at layer L7 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture),
 moved here in step 13d
 ([ENGINE-SPLIT-session.md](../../../docs/ENGINE-SPLIT-session.md)): sessions
@@ -73,7 +73,7 @@ so either import would form a cycle.
   checks them.
 - **Journal slots** (`journal_slots.go`): `EnumSlot` and `DomainSlot`
   (implemented by `typedef.EnumJournal` and `typedef.DomainJournal`) and
-  `IndexSlot` (the root's index journal). Each has an exported marker method
+  `IndexSlot` (implemented by `index.Journal`). Each has an exported marker method
   and `Clone`.
 - **Root slots** (`root_slots.go`): `PayloadSlot` (a session's SQL cursors,
   prepared SQL registry, retained SQL routine analyses, sequence session
@@ -143,7 +143,7 @@ session start (`session_start.go`), settings application (`setting_apply.go`,
 `discard.go`), notification publication and polling, the owner functions
 that reach the engine (`transactionSessionEnd`, a defined type over the
 owner), the private catalog read and descriptor recording, the fence types
-and their `currentLocked` checks, the index journal type, the root slot
+and their `currentLocked` checks, the root slot
 types (SQL cursors, protocol portals, the prepared SQL registry, the
 notification listener, FDW participants, exclusion state, Restore replay,
 the binding host).

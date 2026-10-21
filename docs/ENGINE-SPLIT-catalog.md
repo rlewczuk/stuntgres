@@ -193,6 +193,27 @@ the five interface methods and their root bodies (`analysis_host.go`,
 Steps 21b (`regobj`, rule identity) and 22c (the payloads move to
 `stored`) need this item.
 
+### 5k — Journal and projection leftovers (linear item 130)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+Clean, mechanical moves:
+
+- The normalize and visit helpers of `catalog_relation_history.go` to
+  `catalog`.
+- `catalog_type_journal.go` and `enumReownVersions` to `typedef`.
+- The storage projections of `catalog_transaction_storage.go` and
+  `projectColumnShapeRoots` to `session` (they import only `catalog`,
+  `session`, `storage` and `visibility`); correct the `table` README note
+  that keeps `projectColumnShapeRoots` in the root.
+- Not moved: `catalogStore` and `roleStore` stay root state (about 3k
+  field sites for 0.2k lines; ENGINE-SPLIT.md §7 decision 18).
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - Published `State` values stay immutable. Publication stays atomic across
@@ -280,6 +301,7 @@ startup regression. 5f completes the step; optional 5g is done too.
 - [x] 5j — Payload accessors replace five host and runtime methods
   (linear item 74) (`946137fa2`, `f4e53eef6`, then the commit that records
   this status) *(racecheck/finalcheck skipped at user request)*
+- [ ] 5k — Journal and projection leftovers moved (linear item 130)
 
 Exported names chosen (5d; applied by 5e's move, with engine aliases):
 
