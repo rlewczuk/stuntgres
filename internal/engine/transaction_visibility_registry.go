@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 // Admission serializes this incarnation. Register with the manager first, then
@@ -12,7 +13,7 @@ import (
 // This function holds neither manager.mu nor TX synchronization while taking
 // Engine.mu; the general order is documented on lock.Manager.
 func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*lock.Ticket, error) {
-	if !txOwnerAttached(ref) {
+	if !session.TxOwnerAttached(ref) {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
 	ticket, err := e.locks.Register(ref)

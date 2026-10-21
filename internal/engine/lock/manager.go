@@ -185,7 +185,7 @@ func New(domain *ids.Domain) *Manager {
 }
 
 // Register admits a transaction ticket. The engine has already checked that
-// ref is attached to its transaction owner and session (txOwnerAttached).
+// ref is attached to its transaction owner and session (session.TxOwnerAttached).
 func (m *Manager) Register(ref ids.TxRef) (*Ticket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

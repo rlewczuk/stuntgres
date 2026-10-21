@@ -25,7 +25,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.Ref {
+	if s.txRef.Domain() != e.catalog.Domain || session.TxOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.Ref {
 		return errors.New("stuntgres: invalid SSI read authority")
 	}
 	// Relevance is the cheap test; most readers are not serializable.
@@ -37,7 +37,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 }
 
 func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []visibility.SerializableWrite) error {
-	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.Ref {
+	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.Domain || session.TxOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.Ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}
 	if ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {

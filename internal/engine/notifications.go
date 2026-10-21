@@ -11,50 +11,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Each immutable link belongs to one recipient; event storage is shared by all
-// recipients of a publication. Back lists are newest-first, front lists FIFO.
-type notificationLink struct {
-	batch []session.Notification
-	next  *notificationLink
-}
-type notificationFIFO struct {
-	front, back *notificationLink
-	offset      int
-}
-
-func (q notificationFIFO) append(batch []session.Notification) notificationFIFO {
-	if len(batch) != 0 {
-		q.back = &notificationLink{batch: batch, next: q.back}
-	}
-	return q
-}
-func reverseNotificationLinks(p *notificationLink) *notificationLink {
-	var result *notificationLink
-	for ; p != nil; p = p.next {
-		result = &notificationLink{batch: p.batch, next: result}
-	}
-	return result
-}
-func (q notificationFIFO) normalize() notificationFIFO {
-	if q.front == nil && q.back != nil {
-		if q.back.next == nil {
-			q.front = q.back
-		} else {
-			q.front = reverseNotificationLinks(q.back)
-		}
-		q.back = nil
-		q.offset = 0
-	}
-	return q
-}
-
-type notificationState struct {
-	channels map[string]struct{}
-	history  bool
-	pending  *notificationLink
-	ready    notificationFIFO
-}
-
 // Held in the session payload: unused sessions have no queue, map, channel or registry
 // allocation. Except for the monotonic used hint, all mutable fields below,
 // including busy, belong exclusively to Engine.mu. Busy is relevant only to
@@ -66,7 +22,7 @@ type sessionNotifications struct {
 	used        atomic.Bool
 	engine      *Engine // Owns the registry; set with token before attachment.
 	token       ids.SessionToken
-	state       *notificationState
+	state       *session.NotificationState
 	busy, ended bool
 	wake        chan struct{}
 }
@@ -143,21 +99,21 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 			return session.Notification{}, false, nil, errors.New("stuntgres: notification session ended")
 		}
 		original := n.state
-		var queue notificationFIFO
+		var queue session.NotificationFIFO
 		if original != nil {
-			queue = original.ready
+			queue = original.Ready
 		}
-		if queue.front != nil || queue.back != nil {
+		if queue.Front != nil || queue.Back != nil {
 			e.mu.Unlock()
-			queue = queue.normalize()
-			event := queue.front.batch[queue.offset]
-			queue.offset++
-			if queue.offset == len(queue.front.batch) {
-				queue.front = queue.front.next
-				queue.offset = 0
+			queue = queue.Normalize()
+			event := queue.Front.Batch[queue.Offset]
+			queue.Offset++
+			if queue.Offset == len(queue.Front.Batch) {
+				queue.Front = queue.Front.Next
+				queue.Offset = 0
 			}
 			next := *original
-			next.ready = queue
+			next.Ready = queue
 			e.mu.Lock()
 			if n.state != original || n.ended {
 				e.mu.Unlock()
@@ -192,24 +148,6 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 	}
 }
 
-func appendNotificationEvents(base, added []session.Notification) []session.Notification {
-	if len(base) == 0 && len(added) <= 1 {
-		return added
-	}
-	for _, event := range added {
-		duplicate := false
-		for _, old := range base {
-			if old.Channel == event.Channel && old.Payload == event.Payload {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate {
-			base = append(base, event)
-		}
-	}
-	return base
-}
 func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -226,7 +164,7 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 		e := s.engine()
 		e.mu.Lock()
 		state := payloadOf(s.op.Session).notifications.state
-		history := state != nil && state.history
+		history := state != nil && state.History
 		e.mu.Unlock()
 		if history || len(s.owner.NotificationActions) != 0 || len(s.notificationActions) != 0 {
 			s.notificationActions = append(s.notificationActions, session.NotificationAction{Channel: raw.Channel.Text, All: raw.All})
@@ -249,15 +187,15 @@ func finishNotificationBoundary(t *session.TransactionOwner) {
 	for {
 		e.mu.Lock()
 		original := n.state
-		if n.ended || original == nil || original.pending == nil {
+		if n.ended || original == nil || original.Pending == nil {
 			n.busy = false
 			e.mu.Unlock()
 			return
 		}
 		e.mu.Unlock()
 		next := *original
-		next.ready = scanNotificationPending(next.ready, next.pending, next.channels)
-		next.pending = nil
+		next.Ready = session.ScanNotificationPending(next.Ready, next.Pending, next.Channels)
+		next.Pending = nil
 		e.mu.Lock()
 		if n.state != original || n.ended {
 			e.mu.Unlock()
@@ -269,46 +207,4 @@ func finishNotificationBoundary(t *session.TransactionOwner) {
 		e.mu.Unlock()
 		return
 	}
-}
-func filterNotificationBatch(batch []session.Notification, channels map[string]struct{}) []session.Notification {
-	count := 0
-	for _, event := range batch {
-		if _, ok := channels[event.Channel]; ok {
-			count++
-		}
-	}
-	if count == len(batch) {
-		return batch
-	}
-	if count == 0 {
-		return nil
-	}
-	filtered := make([]session.Notification, 0, count)
-	for _, event := range batch {
-		if _, ok := channels[event.Channel]; ok {
-			filtered = append(filtered, event)
-		}
-	}
-	return filtered
-}
-
-func scanNotificationPending(ready notificationFIFO, pending *notificationLink, channels map[string]struct{}) notificationFIFO {
-	if pending == nil {
-		return ready
-	}
-	if pending.next == nil {
-		return ready.append(filterNotificationBatch(pending.batch, channels))
-	}
-	count := 0
-	for p := pending; p != nil; p = p.next {
-		count++
-	}
-	order := make([]*notificationLink, 0, count)
-	for p := pending; p != nil; p = p.next {
-		order = append(order, p)
-	}
-	for i := len(order) - 1; i >= 0; i-- {
-		ready = ready.append(filterNotificationBatch(order[i].batch, channels))
-	}
-	return ready
 }

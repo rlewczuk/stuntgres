@@ -54,7 +54,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		e := engineOf(sess)
 		e.mu.Lock()
 		state := payloadOf(sess).notifications.state
-		history := state != nil && state.history
+		history := state != nil && state.History
 		e.mu.Unlock()
 		if history {
 			s.notificationActions = append(s.notificationActions, session.NotificationAction{All: true})

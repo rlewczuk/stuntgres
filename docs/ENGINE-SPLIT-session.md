@@ -913,8 +913,10 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
   `99a56020a`, then the docs commit; see the 13e result) *(selected
   unit/`RACE=1` and dual-mode proof and quickcheck passed; bench unchanged;
   racecheck/finalcheck skipped at user request)*
-- [ ] 13f — Notification records, isolation text and owner handles moved
-  (linear item 78)
+- [x] 13f — Notification records, isolation text and owner handles moved
+  (linear item 78) (`c639cc64d`, `8473b1789`, `4a6bea8d3`, then the docs commit) *(selected
+  unit/`RACE=1` and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request)*
 
 Outstanding aliases: none. 13e removed the 46 aliases of
 `session_aliases.go` (24 type, 22 constant); the driver and `cmd/stuntgres`
@@ -984,6 +986,23 @@ Notes for later steps:
   keys them if wanted. Historical text in the ENGINE-SPLIT prompt files
   still uses the old alias spellings (`transactionOwner`, `catalogChanges`)
   and was left as written.
+
+- 13f (done, measured at `205d59485`, rebased onto `92d17ca19`): `session/isolation_text.go`
+  (`IsolationFromText`, `IsolationText`), `session/owner_handles.go`
+  (`TxOwnerOf`, `PrivateSessionOf`, `TxOwnerAttached`, `TokenAttached`; the
+  root `owner_handles.go` is gone) and `session/notification_queue.go`
+  (`NotificationLink`, `NotificationFIFO` with `Append`/`Normalize`,
+  `ReverseNotificationLinks`, `NotificationState`,
+  `AppendNotificationEvents`, `FilterNotificationBatch`). Deviation:
+  `scanNotificationPending` also moved (`ScanNotificationPending`); it uses
+  only the FIFO and the filter. No aliases; callers name `session.X`. One
+  root local named `session` (`publishRowsPrepared`) became `sess`. New
+  unit tests `TestNotificationQueue*` (`session/notification_queue_test.go`)
+  pin queue order, filter sharing, scan order and duplicate suppression; no
+  test moved or was deleted. The polling (`pollNotification`,
+  `WaitForNotification`, `PollProtocolNotification`), the idle-boundary scan
+  (`finishNotificationBoundary`), publication fanout and
+  `sessionNotifications` stay in the root: they take `Engine.mu`.
 
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it

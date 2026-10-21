@@ -40,7 +40,12 @@ so either import would form a cycle.
   `protocol_cycle.go`): `TransactionOwner` with its state, characteristics,
   admission and the journal it holds; `TxState`, `Isolation`, `TxOptions`;
   `Validate`, `AcquireAdmission`, `InBlock`, `RetainsTransaction`,
-  `TruncateSavepoints`; `SavepointMark`; `ProtocolCycle`.
+  `TruncateSavepoints`; `SavepointMark`; `ProtocolCycle`. Setting text of
+  an isolation level (`isolation_text.go`: `IsolationFromText`,
+  `IsolationText`). The checked owner handles (`owner_handles.go`):
+  `TxOwnerOf` and `PrivateSessionOf` recover the owner and the private
+  session from the `ids` owner interfaces, and `TxOwnerAttached` and
+  `TokenAttached` check them before lock registration.
 - **Settings store** (`settings_store.go`, `savepoint_marks.go`):
   `SettingsStore` (values, typed values, defaults, SET LOCAL actions, role
   setting actions and the owner's characteristic projections) and
@@ -48,7 +53,12 @@ so either import would form a cycle.
 - **Timeouts** (`timeout.go`): transaction, idle-in-transaction and idle
   session budgets and their timers; `TimeoutFatal`.
 - **Records and delegates**: `Notification` and `NotificationAction`
-  (`notification_records.go`), the advisory delegate (`advisory.go`),
+  (`notification_records.go`); the listener queue records
+  (`notification_queue.go`, 13f): `NotificationState`, the persistent
+  `NotificationFIFO` of `NotificationLink` batches, and the pure helpers
+  `AppendNotificationEvents`, `FilterNotificationBatch` and
+  `ScanNotificationPending` (the root listener, `sessionNotifications`, holds
+  the state under `Engine.mu` and does the polling and fanout); the advisory delegate (`advisory.go`),
   `AuthorizationState` (`authorization.go`), `RandomState` (`random.go`),
   the UUID clock (`uuid_clock.go`) and `StatementLease`
   (`statement_lease.go`).
@@ -143,6 +153,7 @@ the binding host).
 ```sh
 make check RUN='^TestJournal'
 make check RUN='^(TestNoticesFilter|TestSettingsLocal(Actions|EndedCleanup))$'
+make check RUN='^TestNotificationQueue'
 make check RACE=1 RUN='^TestSessionHost'
 make check RACE=1 RUN='^(TestSessionPayload|TestOwnerExtension|TestExclusionMark|TestOperation(AnalysisSlot|ReplaySlot))'
 make check RUN='^(TestCatalogFences|TestCatalogTypeJournalSlotsCopyOnWrite|TestEnumProvenanceSavepoints)'

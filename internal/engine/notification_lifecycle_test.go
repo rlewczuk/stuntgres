@@ -191,9 +191,9 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 		t.Fatal("lost queue batch", seen)
 	}
 	e.mu.Lock()
-	queue := payloadOf(receiver).notifications.state.ready
+	queue := payloadOf(receiver).notifications.state.Ready
 	e.mu.Unlock()
-	if queue.front != nil || queue.back != nil || queue.offset != 0 {
+	if queue.Front != nil || queue.Back != nil || queue.Offset != 0 {
 		t.Fatal("consumed links retained a batch")
 	}
 }
@@ -210,8 +210,8 @@ func TestNotificationBatchOwnership(t *testing.T) {
 	}
 	transactionEnd(t, sender, ref, true)
 	e.mu.Lock()
-	left, right := payloadOf(a).notifications.state.ready.back, payloadOf(b).notifications.state.ready.back
-	shared := left != nil && right != nil && left != right && &left.batch[0] == &right.batch[0]
+	left, right := payloadOf(a).notifications.state.Ready.Back, payloadOf(b).notifications.state.Ready.Back
+	shared := left != nil && right != nil && left != right && &left.Batch[0] == &right.Batch[0]
 	e.mu.Unlock()
 	if !shared {
 		t.Fatal("publication failed shared-payload/private-link ownership")

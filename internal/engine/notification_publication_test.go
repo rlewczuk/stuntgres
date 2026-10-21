@@ -125,7 +125,7 @@ type notificationRootContext struct {
 	context.Context
 	engine      *Engine
 	resource    *sessionNotifications
-	replacement *notificationState
+	replacement *session.NotificationState
 	changed     bool
 }
 
@@ -149,7 +149,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			ref := transactionBegin(t, s)
 			s.Transactions.NotificationEvents = []session.Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
 			replacement := *payloadOf(r).notifications.state
-			replacement.ready = replacement.ready.append([]session.Notification{{PID: 999, Channel: "unit", Payload: "before"}})
+			replacement.Ready = replacement.Ready.Append([]session.Notification{{PID: 999, Channel: "unit", Payload: "before"}})
 			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: &payloadOf(r).notifications, replacement: &replacement}
 			op := transactionOperation(t, s)
 			op.Ctx = ctx
@@ -169,9 +169,9 @@ func TestNotificationPublicationRoots(t *testing.T) {
 				}
 			}
 			e.mu.Lock()
-			queue := payloadOf(r).notifications.state.ready
+			queue := payloadOf(r).notifications.state.Ready
 			e.mu.Unlock()
-			if queue.front != nil || queue.back != nil {
+			if queue.Front != nil || queue.Back != nil {
 				t.Fatal("retry duplicated delivery")
 			}
 		})
@@ -227,10 +227,10 @@ func TestNotificationSavepointRoots(t *testing.T) {
 		t.Fatal("savepoint retained mutable append capacity")
 	}
 	child := session.Notification{PID: parent.PID, Channel: "unit", Payload: "child"}
-	owner.NotificationEvents = appendNotificationEvents(owner.NotificationEvents, []session.Notification{parent, child})
+	owner.NotificationEvents = session.AppendNotificationEvents(owner.NotificationEvents, []session.Notification{parent, child})
 	owner.NotificationActions = append(owner.NotificationActions, session.NotificationAction{All: true})
 	restoreSavepoint(owner, mark, mark.Settings.Clone())
-	owner.NotificationEvents = appendNotificationEvents(owner.NotificationEvents, []session.Notification{parent, child})
+	owner.NotificationEvents = session.AppendNotificationEvents(owner.NotificationEvents, []session.Notification{parent, child})
 	if !reflect.DeepEqual(owner.NotificationEvents, []session.Notification{parent, child}) || len(owner.NotificationActions) != 1 {
 		t.Fatal("rollback roots/dedup ancestry corrupted")
 	}
@@ -349,8 +349,8 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 				}
 			}
 			e.mu.Lock()
-			_, kept := payloadOf(finisher).notifications.state.channels["unit"]
-			_, stolen := payloadOf(finisher).notifications.state.channels["origin-only"]
+			_, kept := payloadOf(finisher).notifications.state.Channels["unit"]
+			_, stolen := payloadOf(finisher).notifications.state.Channels["origin-only"]
 			e.mu.Unlock()
 			if !kept || stolen {
 				t.Fatal("detached completion changed finisher subscriptions")

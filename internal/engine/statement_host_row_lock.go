@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ func (h *statementHost) AcquireQueryRow(leaf exec.Leaf, row ids.RowID, mark plan
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.Session.SessionToken || row == 0 || leaf.Storage == nil {
+	if s.ticket == nil || s.ticket.Ref() != s.txRef || session.TxOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.Session.SessionToken || row == 0 || leaf.Storage == nil {
 		return false, fmt.Errorf("stuntgres: invalid query row acquisition authority")
 	}
 	e := s.engine()

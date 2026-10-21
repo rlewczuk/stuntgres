@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `92d17ca19` (items 55, 56, 57, 58, 59, 60, 61, 64, 67, 71, 72, 73, 74, 75, 76 and 77). Steps 8–17 were
+Last verified against `master` at `643601c6e` (items 55, 56, 57, 58, 59, 60, 61, 64, 67, 71, 72, 73, 74, 75, 76, 77 and 78). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,7 +20,7 @@ after each lands.
 
 - **Seams:** 62 (ddl 20c, docs only), 65 (regobj 21b), 111 (control 30a).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
-- **Follow-ups in existing packages:** 78 (session 13f), 79 (access B6).
+- **Follow-ups in existing packages:** 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
@@ -43,7 +43,8 @@ done and closes step 19; DML 29b (item 108) still waits for 107, 83, 87,
 30a (item 111) is ready; control 30b (item 112) still waits for 111 and the
 Part A moves. Item 76 (exec 11f) is done; only the end-state review
 (item 114) needs it, and that still waits for its other items. Item 77
-(analyze 12f) is done, so stored 22b (item 68) now waits only for 65.
+(analyze 12f) is done, so stored 22b (item 68) now waits only for 65. Item 78
+(session 13f) is done; only item 114 needs it.
 
 ## Task tree
 
@@ -512,8 +513,9 @@ Part A moves. Item 76 (exec 11f) is done; only the end-state review
   - [x] 12f — Query legality helpers moved ([analyze](ENGINE-SPLIT-analyze.md);
     `d65defe64`, `d77505532`, docs) *(racecheck/finalcheck skipped at user
     request)*
-  - [ ] 13f — Notification records, isolation text and owner handles moved
-    ([session](ENGINE-SPLIT-session.md))
+  - [x] 13f — Notification records, isolation text and owner handles moved
+    ([session](ENGINE-SPLIT-session.md); `c639cc64d`, `8473b1789`, `4a6bea8d3`, docs)
+    *(racecheck/finalcheck skipped at user request)*
   - [ ] B6 — Ownership helpers and RLS action rules moved into `access`
     ([authorization](ENGINE-SPLIT-authorization.md))
   - [ ] 14e — Operator and SQL routine dumps moved
@@ -977,8 +979,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     root calls them; executor walks and stored-view row-mark readers stay;
     no aliases · selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-78. [ ] Session 13f: notification records, isolation text, owner handles —
-    [session](ENGINE-SPLIT-session.md) 13f · needs —
+78. [x] Session 13f: notification records, isolation text, owner handles —
+    [session](ENGINE-SPLIT-session.md) 13f · needs — (`c639cc64d`, `8473b1789`, `4a6bea8d3`, then the docs
+    commit) · `session.IsolationFromText`/`IsolationText`, the owner handles
+    (`TxOwnerOf`, `PrivateSessionOf`, `TxOwnerAttached`, `TokenAttached`) and
+    the notification queue records and helpers (with
+    `ScanNotificationPending`) in `session`; no aliases · selected unit and
+    dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+    user request
 79. [ ] Access B6: ownership helpers and RLS action rules —
     [authorization](ENGINE-SPLIT-authorization.md) B6 · needs —
 80. [ ] Routine 14e: operator and SQL routine dumps —

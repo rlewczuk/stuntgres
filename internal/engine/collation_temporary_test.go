@@ -32,7 +32,7 @@ func collationPrivateSession(t *testing.T, e *Engine) *session.Session {
 func TestCollationPrivateSessionIdentity(t *testing.T) {
 	e := New()
 	a, b := collationPrivateSession(t, e), collationPrivateSession(t, e)
-	if a.SessionToken.ID() != 0 || b.SessionToken.ID() != 0 || privateSessionOf(a.SessionToken) != a || privateSessionOf(b.SessionToken) != b || a.SessionToken == b.SessionToken {
+	if a.SessionToken.ID() != 0 || b.SessionToken.ID() != 0 || session.PrivateSessionOf(a.SessionToken) != a || session.PrivateSessionOf(b.SessionToken) != b || a.SessionToken == b.SessionToken {
 		t.Fatal("private sessions alias numeric identity", a.SessionToken, b.SessionToken)
 	}
 	op, err := a.Acquire(context.Background())
@@ -69,7 +69,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-	valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive && privateSessionOf(entry.Pending[0].Ticket.Ref().Session()) != nil
+	valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive && session.PrivateSessionOf(entry.Pending[0].Ticket.Ref().Session()) != nil
 	if !valid || e.CatalogRead().State() != before.State() {
 		t.Fatal("cleanup bypassed genuine AX or published before lock admission")
 	}

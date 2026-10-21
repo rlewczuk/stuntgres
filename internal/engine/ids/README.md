@@ -39,9 +39,10 @@ any engine subpackage may import it.
   owner, and a private maintenance `SessionToken` names its session, as
   `TxOwner` and `SessionOwner` interface values. Only types that embed
   `TxOwnerMarker` or `SessionOwnerMarker` implement them. The engine recovers
-  the concrete owner with one checked helper per type (`txOwnerOf`,
-  `privateSessionOf`), and compares and dereferences owners only through
-  them. Never pass a typed nil pointer as an owner.
+  the concrete owner with one checked helper per type
+  (`session.TxOwnerOf`, `session.PrivateSessionOf`), and compares and
+  dereferences owners only through them. Never pass a typed nil pointer as an
+  owner.
 
 ## What stays in the engine
 

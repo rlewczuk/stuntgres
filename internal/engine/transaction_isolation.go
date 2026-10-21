@@ -13,34 +13,10 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func isolationFromText(text string) session.Isolation {
-	switch text {
-	case "read uncommitted":
-		return session.ReadUncommitted
-	case "repeatable read":
-		return session.RepeatableRead
-	case "serializable":
-		return session.Serializable
-	default:
-		return session.ReadCommitted
-	}
-}
-func isolationText(level session.Isolation) string {
-	switch level {
-	case session.ReadUncommitted:
-		return "read uncommitted"
-	case session.RepeatableRead:
-		return "repeatable read"
-	case session.Serializable:
-		return "serializable"
-	default:
-		return "read committed"
-	}
-}
 func syncCharacteristics(t *session.TransactionOwner) {
 	settings := t.Session.Settings
 	settings.Mu.Lock()
-	settings.CurrentIsolation = isolationText(t.Isolation)
+	settings.CurrentIsolation = session.IsolationText(t.Isolation)
 	settings.CurrentReadOnly = t.ReadOnly
 	settings.CurrentDeferrable = t.Deferrable
 	settings.Mu.Unlock()
@@ -104,7 +80,7 @@ func (e *Engine) applyCurrentCharacteristic(op *session.Operation, d settings.De
 	}
 	mode := parser.TransactionMode{}
 	if d.Name == "transaction_isolation" {
-		mode.Isolation = parser.TransactionIsolation(isolationFromText(d.Format(value)))
+		mode.Isolation = parser.TransactionIsolation(session.IsolationFromText(d.Format(value)))
 	} else if d.Name == "transaction_deferrable" {
 		mode.DeferrableSet, mode.Deferrable = true, d.Format(value) == "on"
 	} else {
@@ -115,7 +91,7 @@ func (e *Engine) applyCurrentCharacteristic(op *session.Operation, d settings.De
 		return "", err
 	}
 	if d.Name == "transaction_isolation" {
-		return isolationText(t.Isolation), nil
+		return session.IsolationText(t.Isolation), nil
 	}
 	if d.Name == "transaction_deferrable" {
 		if t.Deferrable {
@@ -140,7 +116,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 		for _, mode := range stmt.Modes {
 			name, value := "", ""
 			if mode.Isolation != parser.IsolationDefault {
-				name, value = "default_transaction_isolation", isolationText(session.Isolation(mode.Isolation))
+				name, value = "default_transaction_isolation", session.IsolationText(session.Isolation(mode.Isolation))
 			}
 			if mode.AccessSet {
 				name, value = "default_transaction_read_only", "off"

@@ -250,7 +250,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 }
 func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 	for _, isolation := range []session.Isolation{session.ReadCommitted, session.RepeatableRead, session.Serializable} {
-		t.Run(isolationText(isolation), func(t *testing.T) {
+		t.Run(session.IsolationText(isolation), func(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()

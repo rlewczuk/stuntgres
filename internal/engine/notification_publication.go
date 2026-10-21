@@ -10,9 +10,9 @@ import (
 
 type notificationCapture struct {
 	resource    *sessionNotifications
-	original    *notificationState
+	original    *session.NotificationState
 	busy, ended bool
-	next        *notificationState
+	next        *session.NotificationState
 }
 type notificationPublication struct {
 	captured []notificationCapture
@@ -27,7 +27,7 @@ func notificationEffects(op *session.Operation, ref ids.TxRef, phase *preparedPu
 		return nil, nil, nil
 	}
 	if op == nil || op.Self != op || op.Session == nil || op.Session.Transactions == nil ||
-		txOwnerOf(ref) != op.Session.Transactions {
+		session.TxOwnerOf(ref) != op.Session.Transactions {
 		return nil, nil, errors.New("stuntgres: foreign notification transaction")
 	}
 	// The caller holds this session's transaction admission. Validate against
@@ -46,7 +46,7 @@ func notificationEffects(op *session.Operation, ref ids.TxRef, phase *preparedPu
 		} else {
 			actions = append(actions, scope.notificationActions...)
 		}
-		events = appendNotificationEvents(events, scope.notificationEvents)
+		events = session.AppendNotificationEvents(events, scope.notificationEvents)
 	}
 	return actions, events, nil
 }
@@ -78,54 +78,54 @@ func (e *Engine) prepareNotificationPublication(sender *session.Session, actions
 		if c.ended {
 			continue
 		}
-		var next notificationState
+		var next session.NotificationState
 		if c.original != nil {
 			next = *c.original
 		}
-		wasRegistered := len(next.channels) != 0
+		wasRegistered := len(next.Channels) != 0
 		changed := c.resource == own && len(actions) != 0
 		if c.resource == own && len(actions) != 0 {
-			next.channels = maps.Clone(next.channels)
+			next.Channels = maps.Clone(next.Channels)
 			for _, action := range actions {
 				if action.Listen {
-					if next.channels == nil {
-						next.channels = make(map[string]struct{})
+					if next.Channels == nil {
+						next.Channels = make(map[string]struct{})
 					}
-					next.channels[action.Channel] = struct{}{}
-					next.history = true
+					next.Channels[action.Channel] = struct{}{}
+					next.History = true
 				} else if action.All {
-					clear(next.channels)
+					clear(next.Channels)
 				} else {
-					delete(next.channels, action.Channel)
+					delete(next.Channels, action.Channel)
 				}
 			}
-			if len(next.channels) == 0 {
-				next.pending = nil
+			if len(next.Channels) == 0 {
+				next.Pending = nil
 			}
-			if wasRegistered != (len(next.channels) != 0) {
+			if wasRegistered != (len(next.Channels) != 0) {
 				p.registry = make(map[ids.SessionToken]*sessionNotifications, p.count+1)
 				for _, entry := range p.captured {
-					if entry.resource != own && !entry.ended && entry.original != nil && len(entry.original.channels) != 0 {
+					if entry.resource != own && !entry.ended && entry.original != nil && len(entry.original.Channels) != 0 {
 						p.registry[entry.resource.token] = entry.resource
 					}
 				}
-				if len(next.channels) != 0 {
+				if len(next.Channels) != 0 {
 					p.registry[own.token] = own
 				}
 			}
 		}
-		if len(batch) != 0 && len(next.channels) != 0 {
+		if len(batch) != 0 && len(next.Channels) != 0 {
 			if c.busy {
-				next.pending = &notificationLink{batch: batch, next: next.pending}
+				next.Pending = &session.NotificationLink{Batch: batch, Next: next.Pending}
 				changed = true
 			} else {
-				ready := next.ready.append(filterNotificationBatch(batch, next.channels))
-				changed = changed || ready != next.ready
-				next.ready = ready
+				ready := next.Ready.Append(session.FilterNotificationBatch(batch, next.Channels))
+				changed = changed || ready != next.Ready
+				next.Ready = ready
 			}
 		}
 		if changed {
-			c.next = &notificationState{channels: next.channels, history: next.history, pending: next.pending, ready: next.ready}
+			c.next = &session.NotificationState{Channels: next.Channels, History: next.History, Pending: next.Pending, Ready: next.Ready}
 		}
 	}
 	return p
@@ -142,7 +142,7 @@ func (e *Engine) notificationPublicationUnchangedLocked(p *notificationPublicati
 		if n.state != c.original || n.busy != c.busy || n.ended != c.ended {
 			return false
 		}
-		registered := c.original != nil && len(c.original.channels) != 0 && !c.ended
+		registered := c.original != nil && len(c.original.Channels) != 0 && !c.ended
 		if (e.notifications[n.token] == n) != registered {
 			return false
 		}
