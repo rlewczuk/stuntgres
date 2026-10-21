@@ -11,41 +11,6 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-// A replacement merge never changes a prefix retained by an earlier view.
-// Insert-only commands retain the existing amortized append path.
-func mergePrivateRows(old, stage []storage.RowVersion, replacing bool) []storage.RowVersion {
-	if len(old) == 0 {
-		return stage
-	}
-	if !replacing {
-		return append(old, stage...)
-	}
-	next := make([]storage.RowVersion, len(old), len(old)+len(stage))
-	copy(next, old)
-	if len(stage) == 1 {
-		for i, row := range old {
-			if row.Row == stage[0].Row {
-				next[i] = stage[0]
-				return next
-			}
-		}
-		return append(next, stage[0])
-	}
-	slots := make(map[ids.RowID]int, len(old))
-	for i, row := range old {
-		slots[row.Row] = i
-	}
-	for _, row := range stage {
-		if i, ok := slots[row.Row]; ok {
-			next[i] = row
-		} else {
-			slots[row.Row] = len(next)
-			next = append(next, row)
-		}
-	}
-	return next
-}
-
 // Conflict UPDATE separately proves cardinality through its affected-row set.
 func (w *WriteStage) replaceDistinct(ref ids.ObjectRef, old []storage.RowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, true, true)
