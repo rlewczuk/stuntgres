@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -97,7 +98,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		return fail(err)
 	}
 	stage := e.ownershipStage(auth, scope.op)
-	err = stageOwnership(stage, old, target)
+	err = role.StageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
 		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
@@ -187,7 +188,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		return fail(err)
 	}
 	stage := e.ownershipStage(auth, scope.op)
-	err = stageOwnership(stage, old, target)
+	err = role.StageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
 		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}) {
@@ -243,7 +244,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 		return fail(sqlError("42501", "permission denied to change owner of database"))
 	}
 	stage := e.ownershipStage(auth, scope.op)
-	err = stageOwnership(stage, database, target)
+	err = role.StageOwnership(stage, database, target)
 	e.mu.Unlock()
 	if err != nil {
 		e.DiscardCatalogStage(stage)

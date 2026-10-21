@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"context"
@@ -10,7 +10,10 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func stageOwnedCleanup(ctx context.Context, stage ownedCleanupStage, roles authorization.Read, publication *access.RoleRecord, sources map[authorization.PrincipalRef]bool) error {
+// StageOwnedCleanup stages DROP OWNED's cleanup for sources in stage: their
+// memberships (joined to the stage's publication), ACL entries, policy roles
+// and default privileges. roles and publication are the captured role state.
+func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles authorization.Read, publication *access.RoleRecord, sources map[authorization.PrincipalRef]bool) error {
 	candidate, err := access.OwnedMembershipCandidate(ctx, roles, publication.Revision, sources)
 	if err != nil {
 		return err
@@ -150,7 +153,7 @@ func stageOwnedCleanup(ctx context.Context, stage ownedCleanupStage, roles autho
 // collected object, even when its enclosing relation is already an owner root.
 // ACL row edits are not deletion roots and automatic parent associations do not
 // contribute an invented object count.
-func ownedCleanupAddsDeletionRoot(stage ownedCleanupStage, sources map[authorization.PrincipalRef]bool) bool {
+func OwnedCleanupAddsDeletionRoot(stage OwnedCleanupStage, sources map[authorization.PrincipalRef]bool) bool {
 	if stage.RoleCandidate() != nil {
 		return true
 	}

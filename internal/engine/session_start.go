@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 )
 
@@ -39,13 +40,13 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	if authenticated == (authorization.PrincipalRef{}) {
 		authenticated = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
-	role, authErr := (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).Descriptor(authenticated)
+	roleDescriptor, authErr := (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).Descriptor(authenticated)
 	e.mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
 	}
-	if !role.Login {
-		return nil, roleLoginError(role.Name)
+	if !roleDescriptor.Login {
+		return nil, role.LoginError(roleDescriptor.Name)
 	}
 	// One allocation holds the session, its root payload and the owner extension.
 	allocation := &sessionAllocation{session: session.Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}}
@@ -125,9 +126,9 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	}
 	e.mu.Lock()
 	if err == nil {
-		role, err = (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).Descriptor(authenticated)
-		if err == nil && !role.Login {
-			err = roleLoginError(role.Name)
+		roleDescriptor, err = (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).Descriptor(authenticated)
+		if err == nil && !roleDescriptor.Login {
+			err = role.LoginError(roleDescriptor.Name)
 		}
 		if err == nil && resetRole != (authorization.PrincipalRef{}) {
 			err = authorization.ValidateInitialRole(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), authenticated, resetRole)
@@ -150,8 +151,8 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		}
 		if e.sessions[s.SessionToken] != nil {
 			err = errors.New("stuntgres: duplicate session identity")
-		} else if !role.Superuser && role.ConnectionLimit >= 0 && e.roleSessionCountLocked(authenticated) >= int(role.ConnectionLimit) {
-			err = roleConnectionLimitError(role.Name)
+		} else if !roleDescriptor.Superuser && roleDescriptor.ConnectionLimit >= 0 && e.roleSessionCountLocked(authenticated) >= int(roleDescriptor.ConnectionLimit) {
+			err = role.ConnectionLimitError(roleDescriptor.Name)
 		} else if err = ctx.Err(); err == nil {
 			if resetRole != (authorization.PrincipalRef{}) {
 				auth.State.CurrentUser, auth.State.ResetRole = resetRole, resetRole

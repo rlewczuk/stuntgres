@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/stored"
 
 	"stuntgres/internal/engine/authorization"
@@ -366,7 +367,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	sibling := original.Get(ext.Members[1])
 	stage := e.BeginCatalogStage(original)
 	defer e.DiscardCatalogStage(stage)
-	if err := stageOwnership(stage, member, source.Ref); err != nil {
+	if err := role.StageOwnership(stage, member, source.Ref); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)

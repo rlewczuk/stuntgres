@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -104,18 +105,18 @@ func (e *Engine) objectGrantTargets(op *session.Operation, v AuthorizationView, 
 // request, plans the ACL changes, emits their warnings and installs the
 // candidate catalog with an advanced role record.
 func (e *Engine) objectGrantLocked(op *session.Operation, v AuthorizationView, s *parser.ObjectGrant) (Result, error) {
-	req, err := objectGrantRequest(op.Context(), v.View, s, func() ([]catalog.Descriptor, error) { return e.objectGrantTargets(op, v, s) })
+	req, err := role.ObjectGrantRequest(op.Context(), v.View, s, func() ([]catalog.Descriptor, error) { return e.objectGrantTargets(op, v, s) })
 	if err != nil {
 		return Result{}, err
 	}
-	plan, warnings, err := objectGrantPlan(op.Context(), v.View, s, req, e.catalog.revisionLocked)
+	plan, warnings, err := role.ObjectGrantPlan(op.Context(), v.View, s, req, e.catalog.revisionLocked)
 	for _, warning := range warnings {
 		op.EmitNotice(session.LevelWarning, warning)
 	}
 	if err != nil {
 		return Result{}, err
 	}
-	candidate, changed := plan.candidate, plan.changed
+	candidate, changed := plan.Candidate, plan.Changed
 	if candidate == nil {
 		return Result{}, op.Context().Err()
 	}
@@ -141,7 +142,7 @@ func (e *Engine) objectGrantLocked(op *session.Operation, v AuthorizationView, s
 			return Result{}, err
 		}
 		for address, change := range changed {
-			e.catalogChangeLocked(changes, address, change.descriptor)
+			e.catalogChangeLocked(changes, address, change.Descriptor)
 		}
 		op.Session.Transactions.Catalog = changes
 	} else {

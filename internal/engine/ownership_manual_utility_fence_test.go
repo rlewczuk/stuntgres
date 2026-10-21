@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -37,7 +38,7 @@ func ownershipManualCreationFixture(t *testing.T, e *Engine, actor authorization
 	if err := stage.Replace(&namespace); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnership(stage, stage.Base.Get(table.Address), actor); err != nil {
+	if err := role.StageOwnership(stage, stage.Base.Get(table.Address), actor); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)

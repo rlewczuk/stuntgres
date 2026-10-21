@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 // Ownership changes retain immutable type, row, index and sequence generator
 // roots. Only descriptor/ACL payloads change. All reciprocal members are staged
 // before the ordinary publication validator sees any of them.
-func stageOwnership(stage ownerStage, d catalog.Descriptor, target authorization.PrincipalRef) error {
+func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization.PrincipalRef) error {
 	if next := stage.Get(d.Address()); next != nil {
 		d = next
 	}
@@ -80,7 +80,7 @@ func stageOwnership(stage ownerStage, d catalog.Descriptor, target authorization
 			if !ok || !array.SQLType.IsArray() || array.SQLType.Element().ID() != old.SQLType.ID() {
 				return catalog.Conflict{}
 			}
-			if err = stageOwnership(stage, array, target); err != nil {
+			if err = StageOwnership(stage, array, target); err != nil {
 				return err
 			}
 		}
@@ -89,7 +89,7 @@ func stageOwnership(stage ownerStage, d catalog.Descriptor, target authorization
 			if !ok || r.RowType != old.SQLType.ID() {
 				return catalog.Conflict{}
 			}
-			return stageOwnership(stage, r, target)
+			return StageOwnership(stage, r, target)
 		}
 	case *catalog.Relation:
 		next := *old
@@ -122,7 +122,7 @@ func stageOwnership(stage ownerStage, d catalog.Descriptor, target authorization
 					linked = linked || parent == old.Address()
 				}
 				if linked {
-					if err = stageOwnership(stage, r, target); err != nil {
+					if err = StageOwnership(stage, r, target); err != nil {
 						return err
 					}
 				}

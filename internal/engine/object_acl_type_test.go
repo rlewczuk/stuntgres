@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -103,7 +104,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	d := domainUnitType(t, view, "acl_provenance_domain")
 	ownerStage := e.BeginCatalogStage(view)
 	target := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	if err := stageOwnership(ownerStage, d, target); err != nil {
+	if err := role.StageOwnership(ownerStage, d, target); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, ownerStage)

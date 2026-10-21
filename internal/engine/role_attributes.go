@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -100,6 +101,6 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		e.roles.nextPrincipal = d.Ref.ID() + 1
 	}
 	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
-	emitPasswordNotice(op, notice)
+	role.EmitPasswordNotice(op, notice)
 	return Result{}, nil
 }

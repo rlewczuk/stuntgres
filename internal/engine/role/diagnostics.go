@@ -1,4 +1,7 @@
-package engine
+// Package role decides role and ACL DDL: GRANT/REVOKE, ALTER DEFAULT
+// PRIVILEGES, ALTER ... OWNER and REASSIGN/DROP OWNED plans and staging, and
+// the role diagnostics. The engine captures authority and publishes.
+package role
 
 import (
 	"stuntgres/internal/engine/authorization"
@@ -6,7 +9,8 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func emitPasswordNotice(op *session.Operation, n authorization.PasswordNotice) {
+// EmitPasswordNotice emits the NOTICE or WARNING a password option raises.
+func EmitPasswordNotice(op *session.Operation, n authorization.PasswordNotice) {
 	switch n {
 	case authorization.PasswordEmptyNotice:
 		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "empty string is not a valid password, clearing password"})
@@ -15,14 +19,18 @@ func emitPasswordNotice(op *session.Operation, n authorization.PasswordNotice) {
 	}
 }
 
-func roleDiagnostic(code, message, detail string) error {
+// Diagnostic is a role DDL ERROR with a DETAIL line (none when detail is
+// empty).
+func Diagnostic(code, message, detail string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
 }
 
-func roleConnectionLimitError(name string) error {
+// ConnectionLimitError is the FATAL error of a role at its connection limit.
+func ConnectionLimitError(name string) error {
 	return &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "53300", Message: "too many connections for role \"" + name + "\""}
 }
 
-func roleLoginError(name string) error {
+// LoginError is the FATAL error of a role without LOGIN.
+func LoginError(name string) error {
 	return &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "28000", Message: "role \"" + name + "\" is not permitted to log in"}
 }

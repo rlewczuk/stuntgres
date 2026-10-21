@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -173,7 +174,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	stage.roleRevision = roles.Revision
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := stageOwnedCleanup(ctx, stage, e.roles.read(e.catalog.owner(), base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
+	if err := role.StageOwnedCleanup(ctx, stage, e.roles.read(e.catalog.owner(), base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if stage.DescriptorCount() != 0 || e.catalog.state != base.State() || e.roles.published != roles {
@@ -181,7 +182,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	}
 	stage = e.BeginCatalogStage(base)
 	stage.roleRevision = roles.Revision
-	if err := stageOwnedCleanup(context.Background(), stage, e.roles.read(e.catalog.owner(), base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
+	if err := role.StageOwnedCleanup(context.Background(), stage, e.roles.read(e.catalog.owner(), base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)

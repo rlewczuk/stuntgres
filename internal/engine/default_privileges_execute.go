@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 func (e *Engine) alterDefaultPrivilegesLocked(op *session.Operation, v AuthorizationView, s *parser.AlterDefaultPrivileges) (Result, error) {
-	updates, err := defaultPrivilegesPlan(op.Context(), v.View, s)
+	updates, err := role.DefaultPrivilegesPlan(op.Context(), v.View, s)
 	if err != nil {
 		return Result{}, err
 	}

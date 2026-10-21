@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -83,7 +84,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if available == 0 && authorization.ACLRights(baseline, db.Owner, principals, authorization.DatabasePrivileges, false) == 0 {
 		return Result{}, sqlError("42501", "permission denied for database "+catalog.DependencyIdentifier(db.Name()))
 	}
-	if warning, ok := grantWarning(db.Name(), "", requested, available, all, s.Revoke); ok {
+	if warning, ok := role.GrantWarning(db.Name(), "", requested, available, all, s.Revoke); ok {
 		op.EmitNotice(session.LevelWarning, warning)
 	}
 	if available == 0 {

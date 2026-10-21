@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"context"
@@ -49,7 +49,7 @@ func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Des
 		return nil, nil, sqlError("42501", "permission denied for "+noun+" "+d.Name())
 	}
 	var warning *sqlstate.Error
-	if notice, ok := grantWarning(d.Name(), "", requested, available, all, s.Revoke); ok {
+	if notice, ok := GrantWarning(d.Name(), "", requested, available, all, s.Revoke); ok {
 		warning = &notice
 	}
 	if available == 0 {
@@ -92,9 +92,9 @@ func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Des
 	return next, warning, nil
 }
 
-// grantRoutineArgumentDisplay renders the argument types of a missing or
+// GrantRoutineArgumentDisplay renders the argument types of a missing or
 // mismatched GRANT routine target, qualifying user types the path hides.
-func grantRoutineArgumentDisplay(view access.View, env access.Environment, inputs []ids.OID) string {
+func GrantRoutineArgumentDisplay(view access.View, env access.Environment, inputs []ids.OID) string {
 	path, _ := env.ReferencePath()
 	var display strings.Builder
 	for i, id := range inputs {

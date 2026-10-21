@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -31,12 +32,12 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	dbOwner := roles.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	for _, ref := range []ids.ObjectRef{root, leaf} {
-		if err := stageOwnership(setup, setup.Base.Get(ref.Address), dbOwner); err != nil {
+		if err := role.StageOwnership(setup, setup.Base.Get(ref.Address), dbOwner); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if !private {
-		if err := stageOwnership(setup, setup.Base.Get(catalog.CurrentDatabaseAddress), actor); err != nil {
+		if err := role.StageOwnership(setup, setup.Base.Get(catalog.CurrentDatabaseAddress), actor); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -5,9 +5,10 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 )
 
-var _ ownedCleanupStage = (*CatalogStage)(nil)
+var _ role.OwnedCleanupStage = (*CatalogStage)(nil)
 
 func (s *CatalogStage) BaseCatalog() catalog.Read { return s.Base }
 

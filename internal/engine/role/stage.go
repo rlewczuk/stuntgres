@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"iter"
@@ -10,9 +10,9 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// ownerStage is the catalog stage that ALTER ... OWNER and REASSIGN OWNED
-// stage new owners into. *CatalogStage implements it.
-type ownerStage interface {
+// OwnerStage is the catalog stage that ALTER ... OWNER and REASSIGN OWNED
+// stage new owners into. The engine's *CatalogStage implements it.
+type OwnerStage interface {
 	ddl.Stage
 	// BaseCatalog is the catalog the stage was begun from.
 	BaseCatalog() catalog.Read
@@ -21,10 +21,11 @@ type ownerStage interface {
 	CascadeRevision(ids.DefinitionRevision) (ids.DefinitionRevision, error)
 }
 
-// ownedCleanupStage is the catalog stage DROP OWNED cleans ACLs, policies,
-// default privileges and memberships in. *CatalogStage implements it.
-type ownedCleanupStage interface {
-	ownerStage
+// OwnedCleanupStage is the catalog stage DROP OWNED cleans ACLs, policies,
+// default privileges and memberships in. The engine's *CatalogStage
+// implements it.
+type OwnedCleanupStage interface {
+	OwnerStage
 	// BaseRef names address in the catalog domain at the base epoch.
 	BaseRef(ids.ObjectAddress) ids.ObjectRef
 	Remove(ids.ObjectRef) error
