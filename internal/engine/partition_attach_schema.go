@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"slices"
 
@@ -77,7 +78,7 @@ func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relati
 	return nil
 }
 
-func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, child *catalog.Relation) (*catalog.Relation, error) {
+func partitionAttachSchema(ctx context.Context, view catalog.Read, parent, child *catalog.Relation) (*catalog.Relation, error) {
 	for _, column := range child.Columns {
 		if _, ok := parent.Index[column.Name]; !ok {
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`table "%s" contains column "%s" not found in parent "%s"`, child.Name(), column.Name, parent.Name()), Detail: "The new partition may contain only the columns present in parent."}
@@ -143,7 +144,7 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, required.Name, child.Name()))
 		}
 	}
-	if err := ctxScope.op.Context().Err(); err != nil {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	next := *child

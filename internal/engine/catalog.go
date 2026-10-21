@@ -349,7 +349,7 @@ type CatalogStage struct {
 	owner *Engine
 	catalog.Candidate
 	rowShapes           map[ids.ObjectAddress]catalogRowShape
-	partitionReads      []partitionReadFence
+	storageReads        []storageReadFence
 	sequence            *sequence.Stage
 	typed               *typedef.TypedStage
 	lifecycle           catalogLifecycle
@@ -656,7 +656,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 			break
 		}
 	}
-	if !e.partitionReadsValidLocked(s) {
+	if !e.storageReadsValidLocked(s) {
 		e.mu.Unlock()
 		return nil, catalog.Conflict{}
 	}
@@ -870,7 +870,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				return ChangeSet{}, catalog.Conflict{}
 			}
 		}
-		if !e.partitionReadsValidLocked(s) {
+		if !e.storageReadsValidLocked(s) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -1118,7 +1118,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.mu.Unlock()
 			continue
 		}
-		if !e.partitionReadsValidLocked(s) {
+		if !e.storageReadsValidLocked(s) {
 			if op != nil {
 				op.Session.Mu.Unlock()
 			}

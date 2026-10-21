@@ -246,7 +246,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	}
 	captureStorage := func(a ids.ObjectAddress) {
 		store := e.storage.Relations[a]
-		f := partitionReadFence{address: a, storage: store}
+		f := storageReadFence{address: a, storage: store}
 		if store != nil {
 			f.length = len(store.Versions)
 			f.ends = store.Ends
@@ -254,7 +254,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		}
 		c.AddFence(f)
 	}
-	for _, f := range s.partitionReads {
+	for _, f := range s.storageReads {
 		captureStorage(f.address)
 	}
 	for _, d := range stageIndexes.parents {

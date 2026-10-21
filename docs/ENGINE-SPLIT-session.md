@@ -232,7 +232,7 @@ feature fields left the four structs. New pointer slots follow the 13a rules
 | `transactionOwner` | `foreign` | value | `foreignTransaction`, `fdw_transaction.go` | participants, cleanup, markNext |
 
 Fence list: each fence type declares `fenceKind()` and its own
-`currentLocked(e, c)` next to its feature code (`partitionReadFence`,
+`currentLocked(e, c)` next to its feature code (`storageReadFence`,
 `catalogIndexFence`, `catalogNamespaceFence`,
 `extensionAuthorityFence`, `truncateGraphFence`,
 `materializedSourceFence`). `catalogPreflightLocked` checks the kinds at
@@ -250,7 +250,7 @@ publication XID test.
 Stays, measured: `discardRoleReset` (the only DISCARD field); journal
 `domainChanged` (shared, see the typedef Status), `dependencies` and the
 core maps; stage `querySources` (written by policy, rule, view ALTER,
-TRUNCATE, CREATE TABLE AS and REFRESH stages), `partitionReads` (generic
+TRUNCATE, CREATE TABLE AS and REFRESH stages), `storageReads` (generic
 storage read fences, also fed by index parents and candidates),
 `likeSources` (CREATE TABLE LIKE only, one field; postponed `table`),
 cascade names (about 11 features), `initialTables` and `initialTx` (CTAS,

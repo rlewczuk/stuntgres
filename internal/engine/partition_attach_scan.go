@@ -22,14 +22,14 @@ func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, paren
 	var scans []partitionAttachScan
 	var walk func(catalog.Read, *catalog.Relation) error
 	walk = func(view catalog.Read, d *catalog.Relation) error {
-		proven, err := partitionConstraintProven(s, view, parent, d, bound, exclude)
+		proven, err := partitionConstraintProven(s.op.Context(), s.input, view, parent, d, bound, exclude)
 		if err != nil {
 			return err
 		}
 		if proven && !exclude {
 			for child := parent; child.Membership != nil; {
 				ancestor := view.MustRelation(child.Membership.Parent)
-				proven, err = partitionConstraintProven(s, view, ancestor, d, child.Membership, false)
+				proven, err = partitionConstraintProven(s.op.Context(), s.input, view, ancestor, d, child.Membership, false)
 				if err != nil || !proven {
 					break
 				}
@@ -91,7 +91,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 		if storage == nil {
 			return ids.ErrCatalogReplaced
 		}
-		stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: d.Address(), storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
+		stage.storageReads = append(stage.storageReads, storageReadFence{address: d.Address(), storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
 		return nil
 	}
 	if err := partitionPhysicalDescendants(view, candidate, capture); err != nil {

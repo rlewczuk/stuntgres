@@ -245,7 +245,7 @@ All production users are root files (`execute*.go`, `relation_scope.go`,
 `analysis_host.go`, `control.go`, `alter_type.go`, ...), which can import
 `view`. No lower package uses it. Two checks for 27b:
 `relationDefiningAuthorityCompatible` is also used by
-`partition_scope.go`, and `physicalBinding` by `domain_default.go`; both
+`partition_locks.go`, and `physicalBinding` by `domain_default.go`; both
 are root files today. If `partition` or `typedef` code that moves earlier
 needs them, move them down instead (`catalog`, `analyze`).
 
@@ -518,6 +518,6 @@ Outstanding aliases: none yet.
   ALTER TYPE; they stay in the root, so table's Part B reaches them
   through its host.
 - The RLS action rules go to `access` in B6; only ALTER TABLE code
-  (`alter_table_prepare.go`, `alter_table.go`, `partition_scope.go`,
+  (`alter_table_prepare.go`, `alter_table.go`, `partition_locks.go`,
   `table_inheritance_guards.go`, `control.go`) uses them, so B6 must land
   before `table` moves that code.

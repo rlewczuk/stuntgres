@@ -100,7 +100,7 @@ uses `columnTransformation`, so `typedef` cannot own it).
 
 - *CREATE TABLE:* `createTableLocked` (`create_table.go:13`) →
   `schemaTableLocked` (`create_table_stage.go:14`), or the partition variants in
-  `partition_create.go`/`partition_inherit.go` → `newTableDescriptorLocked`,
+  `partition_create.go`/`partition_create_child.go` → `newTableDescriptorLocked`,
   row type, `stageInheritance`, `nameCreateNotNull`,
   `stageCreateIdentities`/`stageCreateSerials`, `stageLikeColumns`,
   `bindCreateDefaults`/generations/checks, `stageLikeChecks`, definition
@@ -170,7 +170,7 @@ are functions that reach a god struct:
   `initialTables`/`initialTx`, `querySources`, `dependencyPath`,
   `schemaCascadeNames` are shared root fields. `sequence *sequence.Stage`
   carries identity staging.
-- Journal and fences: `fenceStorageRead` (`partitionReadFence`) and
+- Journal and fences: `fenceStorageRead` (`storageReadFence`) and
   `fenceIndexSet` are declared in `catalog_fence.go`; publication owns
   their order.
 - `Operation` replay slot (`restore_replay.go`, `restoreReplay`):

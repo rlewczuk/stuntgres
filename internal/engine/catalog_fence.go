@@ -21,7 +21,7 @@ type catalogFence interface {
 // run at the positions and in the order listed there, so the first error a
 // commit reports does not depend on how fences are stored.
 const (
-	fenceStorageRead        session.FenceKind = iota // partitionReadFence
+	fenceStorageRead        session.FenceKind = iota // storageReadFence
 	fenceIndexSet                                    // catalogIndexFence
 	fenceNamespace                                   // catalogNamespaceFence
 	fenceExtensionAuthority                          // extensionAuthorityFence
