@@ -42,9 +42,9 @@ func ruleProducerOutputUses(original analyze.Binding, rule ruleDefinition, actio
 			}
 		}
 	}
-	expression(rule.condition)
-	if rule.conditionBinding != nil && rule.conditionBinding.Query != nil {
-		query(rule.conditionBinding.Query.Root)
+	expression(rule.Condition())
+	if rule.ConditionBinding() != nil && rule.ConditionBinding().Query != nil {
+		query(rule.ConditionBinding().Query.Root)
 	}
 	if action.Query != nil {
 		query(action.Query.Root)

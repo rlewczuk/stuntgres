@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -49,10 +50,10 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					if intended.OID == 0 || other.OID == 0 || intended.OID == other.OID || intended.Index == other.Index {
 						t.Fatal("fixture lacks two distinct real named constraint providers")
 					}
-					stored := rulesOf(before.MustRelation(srcRef.Address))[0]
+					persisted := stored.RulesOf(before.MustRelation(srcRef.Address))[0]
 					conflict := func(r ruleDefinition) *analyze.InsertConflict {
 						t.Helper()
-						b := r.actions[0].binding
+						b := r.Actions()[0].Binding()
 						if cte {
 							if len(b.CTEs) != 1 || b.CTEs[0].Mutation == nil {
 								t.Fatal("analyzed action lost its modifying CTE")
@@ -64,7 +65,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						}
 						return b.Insert.Conflict
 					}
-					original := conflict(stored)
+					original := conflict(persisted)
 					frozen := *original
 					intendedAddress := ids.ObjectAddress{ClassID: 2606, ObjectID: intended.OID}
 					if original.Constraint != intendedAddress || original.NamedIndex != intended.Index {
@@ -75,11 +76,11 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						if !cte {
 							return
 						}
-						action := r.actions[0]
-						body := action.binding.CTEs[0]
-						presentation := action.modifierPresentations[body.Statement]
+						action := r.Actions()[0]
+						body := action.Binding().CTEs[0]
+						presentation := action.ModifierPresentations()[body.Statement]
 						project := cteMutationOf(body).Query.Root.(*plan.ProjectNode)
-						outer := action.binding.Query.Root.(*plan.ProjectNode)
+						outer := action.Binding().Query.Root.(*plan.ProjectNode)
 						if project.Frame == outer.Frame {
 							t.Fatal("modifier and consumer share a capture frame")
 						}
@@ -97,11 +98,11 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 							}
 						}
 						path := analyze.ViewLiteralPath{Query: outer.Frame, Clause: analyze.ViewTargetLiteral}
-						if action.presentation.Columns()[path].RuleSide != 2 {
+						if action.Presentation().Columns()[path].RuleSide != 2 {
 							t.Fatal("consumer lost its separate NEW recipe")
 						}
 					}
-					assertSources(stored)
+					assertSources(persisted)
 					sessionSQL(t, s, "ALTER TABLE sink RENAME CONSTRAINT sink_key TO renamed_key")
 					if reuse {
 						sessionSQL(t, s, "ALTER TABLE sink RENAME CONSTRAINT other_key TO sink_key")
@@ -117,7 +118,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					e.mu.Lock()
 					roles := e.roles.read(e.catalog.owner(), current, e.roles.published)
 					e.mu.Unlock()
-					groups, err := ruleDumpGroups(context.Background(), current, roles)
+					groups, err := stored.RuleDumpGroups(context.Background(), current, roles)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -142,7 +143,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						t.Fatalf("exported rule reanalysis: %v\n%s", err, groups[0].SQL)
 					}
 					reboundView := e.CatalogRead()
-					rebound := rulesOf(reboundView.MustRelation(srcRef.Address))[0]
+					rebound := stored.RulesOf(reboundView.MustRelation(srcRef.Address))[0]
 					assertSources(rebound)
 					if conflict(rebound).Constraint != intendedAddress {
 						t.Fatal("reanalysis did not capture the actual class2606 renamed constraint identity")
@@ -178,7 +179,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					importedSrc := catalogRef(t, e, imported, "src")
 					importedSink := catalogRef(t, e, imported, "sink")
 					importedParent := imported.MustRelation(importedSink.Address)
-					importedRule := rulesOf(imported.MustRelation(importedSrc.Address))[0]
+					importedRule := stored.RulesOf(imported.MustRelation(importedSrc.Address))[0]
 					importedConflict := conflict(importedRule)
 					var importedProvider catalog.UniqueConstraint
 					for _, definition := range importedParent.Constraints.Unique {

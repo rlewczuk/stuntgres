@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -120,7 +121,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 		}
 		replacement.Constraints.Check[pending.index] = definition
 	}
-	if err := refreshGenerationChecks(&replacement, auth.Catalog); err != nil {
+	if err := stored.RefreshGenerationChecks(&replacement, auth.Catalog); err != nil {
 		return nil, nil, err
 	}
 	for _, pending := range queue {

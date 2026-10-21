@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 )
 
 // Apply only to Restore's isolated catalog. Named target identities were
@@ -31,7 +32,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 	// Ownership changes replace provider generations even when all SQL types are
 	// unchanged. Refresh stored CHECK/view/policy/default captures through the
 	// ordinary catalog expression remapper, not its type-only rename fast path.
-	if err := e.reownCatalogExpressions(candidate, nil, false); err != nil {
+	if err := stored.ReownExpressions(e.catalog.read(candidate), candidate, nil, false); err != nil {
 		return err
 	}
 	e.catalog.state = candidate

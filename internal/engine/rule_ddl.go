@@ -63,7 +63,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(analyze.TableKindError(old, "change"))
 	}
 	next := *old
-	next.Rules = rulesPayloadOf(slices.Clone(rulesOf(old)))
+	next.Rules = stored.RulesPayload(slices.Clone(stored.RulesOf(old)))
 	var sources []exec.Leaf
 	switch s := stmt.(type) {
 	case *parser.CreateRule:
@@ -128,20 +128,20 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				return fail(err)
 			}
 			if index >= 0 {
-				definition.OID = rulesOf(old)[index].OID
-				rulesOf(&next)[index] = definition
+				definition.OID = stored.RulesOf(old)[index].OID
+				stored.RulesOf(&next)[index] = definition
 			} else {
 				definition.OID, err = e.catalog.allocateOIDLocked()
 				if err != nil {
 					return fail(err)
 				}
-				next.Rules = rulesPayloadOf(append(rulesOf(&next), definition))
+				next.Rules = stored.RulesPayload(append(stored.RulesOf(&next), definition))
 			}
-			for _, action := range definition.actions {
-				sources = append(sources, action.binding.QuerySources...)
+			for _, action := range definition.Actions() {
+				sources = append(sources, action.Binding().QuerySources...)
 			}
-			if definition.conditionPresentation != nil {
-				for _, source := range definition.conditionPresentation.Sources() {
+			if definition.ConditionPresentation() != nil {
+				for _, source := range definition.ConditionPresentation().Sources() {
 					d := auth.Catalog.MustRelation(source.Ref.Address)
 					sources = append(sources, exec.Leaf{Ref: source.Ref, Relation: d})
 				}
@@ -157,14 +157,14 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		if ruleIndex(old, s.Rename.Text) >= 0 || old.View != nil && s.Rename.Text == "_RETURN" {
 			return fail(ruleDuplicate(s.Rename.Text, old))
 		}
-		rulesOf(&next)[index].Name = s.Rename.Text
+		stored.RulesOf(&next)[index].Name = s.Rename.Text
 	case *parser.DropRule:
 		if old.View != nil && name == "_RETURN" {
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop rule _RETURN on view %s because view %s requires it", old.Name(), old.Name()), Hint: fmt.Sprintf("You can drop view %s instead.", old.Name())})
 		}
-		next.Rules = rulesPayloadOf(append(rulesOf(&next)[:index], rulesOf(&next)[index+1:]...))
+		next.Rules = stored.RulesPayload(append(stored.RulesOf(&next)[:index], stored.RulesOf(&next)[index+1:]...))
 	}
-	slices.SortFunc(rulesOf(&next), func(a, b ruleDefinition) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(stored.RulesOf(&next), func(a, b ruleDefinition) int { return strings.Compare(a.Name, b.Name) })
 	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)

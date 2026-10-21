@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -41,7 +42,7 @@ func ruleCTEProgramError(program ruleProgram) error {
 // inference. Rewrite modifiers before parent rules, without altering providers.
 func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth ruleAuthority, statement parser.Statement, b *analyze.Binding) error {
 	matched := func(relation *catalog.Relation, statement parser.Statement) bool {
-		return relation != nil && slices.ContainsFunc(rulesOf(relation), func(rule ruleDefinition) bool { return rule.event == ruleEvent(statement) })
+		return relation != nil && slices.ContainsFunc(stored.RulesOf(relation), func(rule ruleDefinition) bool { return rule.Event() == stored.RuleEvent(statement) })
 	}
 	needed := b.Rule.Template || matched(bindingRuleRelation(*b), statement)
 	for _, definition := range b.CTEs {

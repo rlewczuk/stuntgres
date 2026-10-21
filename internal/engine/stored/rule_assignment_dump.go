@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, target *plan.ArrayAssignmentTarget, action ruleAction) (string, error) {
+func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, target *plan.ArrayAssignmentTarget, action RuleAction) (string, error) {
 	var sql strings.Builder
 	sql.WriteString(column)
 	for ; target != nil; target = target.Next {

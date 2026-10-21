@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -74,41 +73,6 @@ func admitColumnVirtualGeneration(c *exec.Context, e plan.ColumnExpr, view catal
 		return err
 	}
 	return exec.AdmitExpression(&recipe, node, view)
-}
-
-// CHECK recipes belong to the completed destination, not a copied source.
-func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
-	for i := range d.Constraints.Check {
-		next, changed, err := stored.MapExpression(catalog, d.Constraints.Check[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
-			column, ok := node.(plan.ColumnExpr)
-			if !ok || column.Origin.Address.ClassID != d.Address().ClassID || column.Origin.Address.ObjectID != d.Address().ObjectID {
-				return node, false, nil
-			}
-			slot := -1
-			for i, attribute := range d.Attributes {
-				if attribute == column.Origin.Address.SubID {
-					slot = i
-					break
-				}
-			}
-			if slot < 0 {
-				return nil, false, fmt.Errorf("stuntgres: missing destination CHECK attribute")
-			}
-			column.Slot = slot
-			column.Virtual = nil
-			column.VirtualOwner, column.VirtualAttribute = nil, 0
-			column.RowStart, column.RowWidth, column.QueryOccurrence = 0, 0, 0
-			column = column.WithGeneration(d, slot, 0)
-			return column, true, nil
-		})
-		if err != nil {
-			return err
-		}
-		if changed {
-			d.Constraints.Check[i].Expression = next
-		}
-	}
-	return nil
 }
 
 func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *exec.Context) (sqltype.Value, error) {

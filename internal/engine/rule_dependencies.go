@@ -44,7 +44,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 		}
 		return nil
 	}
-	if err := expr(r.condition); err != nil {
+	if err := expr(r.Condition()); err != nil {
 		return nil, err
 	}
 	var seen map[*plan.CTEDefinition]bool
@@ -164,8 +164,8 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 		}
 		return nil
 	}
-	for _, action := range r.actions {
-		if err := bindingRefs(action.binding); err != nil {
+	for _, action := range r.Actions() {
+		if err := bindingRefs(action.Binding()); err != nil {
 			return nil, err
 		}
 	}
@@ -173,7 +173,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 }
 
 func ruleDepends(catalog catalog.Read, r ruleDefinition, target ids.ObjectAddress) bool {
-	for _, a := range r.references {
+	for _, a := range r.References() {
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true
 		}
@@ -200,11 +200,11 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 			descriptor = replacement
 		}
 		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(rulesOf(d)) == 0 {
+		if !ok || len(stored.RulesOf(d)) == 0 {
 			continue
 		}
 		var kept []ruleDefinition
-		for _, r := range rulesOf(d) {
+		for _, r := range stored.RulesOf(d) {
 			drop := false
 			for _, target := range targets {
 				if ruleDepends(provider.base, r, target) {
@@ -216,11 +216,11 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 				kept = append(kept, r)
 			}
 		}
-		if len(kept) == len(rulesOf(d)) {
+		if len(kept) == len(stored.RulesOf(d)) {
 			continue
 		}
 		copy := *d
-		copy.Rules = rulesPayloadOf(kept)
+		copy.Rules = stored.RulesPayload(kept)
 		revision, err := provider.revision(copy.Revision())
 		if err != nil {
 			return err

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -45,17 +46,17 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 				inputRef := catalogRef(t, e, view, "input")
 				matchingRef := catalogRef(t, e, view, "matching")
 				ordinaryRef := catalogRef(t, e, view, "ordinary")
-				stored := rulesOf(view.MustRelation(srcRef.Address))[0]
+				persisted := stored.RulesOf(view.MustRelation(srcRef.Address))[0]
 				assertSourceOwnership := func(r ruleDefinition) {
 					t.Helper()
 					if !cte {
 						return
 					}
-					action := r.actions[0]
-					body := action.binding.CTEs[0]
-					presentation := action.modifierPresentations[body.Statement]
+					action := r.Actions()[0]
+					body := action.Binding().CTEs[0]
+					presentation := action.ModifierPresentations()[body.Statement]
 					project := cteMutationOf(body).Query.Root.(*plan.ProjectNode)
-					outer := action.binding.Query.Root.(*plan.ProjectNode)
+					outer := action.Binding().Query.Root.(*plan.ProjectNode)
 					if project.Frame == outer.Frame {
 						t.Fatal("modifier and consumer share a SELECT capture frame")
 					}
@@ -71,14 +72,14 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						t.Fatal("modifier input column was replaced by the consumer's NEW recipe")
 					}
 					path.Query = outer.Frame
-					if action.presentation.Columns()[path].RuleSide != 2 {
+					if action.Presentation().Columns()[path].RuleSide != 2 {
 						t.Fatal("consumer lost its independent NEW recipe")
 					}
 				}
-				assertSourceOwnership(stored)
+				assertSourceOwnership(persisted)
 				conflict := func(r ruleDefinition) *analyze.InsertConflict {
 					t.Helper()
-					b := r.actions[0].binding
+					b := r.Actions()[0].Binding()
 					if cte {
 						if len(b.CTEs) != 1 || b.CTEs[0].Mutation == nil {
 							t.Fatal("analyzed action lost its modifying CTE")
@@ -90,7 +91,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					}
 					return b.Insert.Conflict
 				}
-				original := conflict(stored)
+				original := conflict(persisted)
 				assertKey := func(c *analyze.InsertConflict, catalog catalog.Read) {
 					t.Helper()
 					k := c.Keys[0]
@@ -120,7 +121,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 				e.mu.Lock()
 				roles := e.roles.read(e.catalog.owner(), view, e.roles.published)
 				e.mu.Unlock()
-				groups, err := ruleDumpGroups(context.Background(), view, roles)
+				groups, err := stored.RuleDumpGroups(context.Background(), view, roles)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -146,7 +147,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					t.Fatalf("exported rule reanalysis: %v\n%s", err, groups[0].SQL)
 				}
 				reboundView := e.CatalogRead()
-				rebound := rulesOf(reboundView.MustRelation(srcRef.Address))[0]
+				rebound := stored.RulesOf(reboundView.MustRelation(srcRef.Address))[0]
 				assertSourceOwnership(rebound)
 				assertKey(conflict(rebound), reboundView)
 				assertKey(original, view)

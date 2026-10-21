@@ -1,7 +1,6 @@
-package engine
+package stored
 
 import (
-	"fmt"
 	"maps"
 	"slices"
 
@@ -11,14 +10,13 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
-func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (analyze.Binding, error) {
+func RemapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (analyze.Binding, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
-	mapper := &viewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation}
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation}
 	mapper.Mutation = func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		return remapRuleBindingMapped(view, *mutation, ref, typ, collation, mapper)
@@ -26,17 +24,17 @@ func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectR
 	return remapRuleBindingMapped(view, b, ref, typ, collation, mapper)
 }
 
-func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, mapper *viewQueryRemapper) (analyze.Binding, error) {
+func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, mapper *ViewQueryRemapper) (analyze.Binding, error) {
 	originalRef := b.Ref
 	mapExpr := func(expr expr.Expr) (expr.Expr, error) {
 		if expr == nil {
 			return nil, nil
 		}
-		node, _, err := stored.RetagTypesWithQuery(view, expr, typ, nil, collation)
+		node, _, err := RetagTypesWithQuery(view, expr, typ, nil, collation)
 		if err != nil {
 			return nil, err
 		}
-		return stored.RemapExpressionWithQuery(node, ref, nil, mapper.Nested, nil)
+		return RemapExpressionWithQuery(node, ref, nil, mapper.Nested, nil)
 	}
 	mapTargetExpr := func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == nil {
@@ -109,7 +107,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 		if err != nil {
 			return nil, err
 		}
-		next.ArrayTargets, err = stored.MapRuleAssignmentTargets(update.ArrayTargets, mapTargetExpr, mapUsage)
+		next.ArrayTargets, err = MapRuleAssignmentTargets(update.ArrayTargets, mapTargetExpr, mapUsage)
 		if err != nil {
 			return nil, err
 		}
@@ -159,7 +157,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	if err != nil {
 		return b, err
 	}
-	b.ArrayTargets, err = stored.MapRuleAssignmentTargets(b.ArrayTargets, mapTargetExpr, mapUsage)
+	b.ArrayTargets, err = MapRuleAssignmentTargets(b.ArrayTargets, mapTargetExpr, mapUsage)
 	if err != nil {
 		return b, err
 	}
@@ -260,7 +258,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	}
 	b.Rule.CTEs = nil
 	if current != nil {
-		b, err = refreshRuleBinding(view, b, current)
+		b, err = RefreshRuleBinding(view, b, current)
 		if err != nil {
 			return b, err
 		}
@@ -268,7 +266,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	return b, nil
 }
 
-func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*catalog.Relation, error) {
+func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*catalog.Relation, error) {
 	if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
@@ -290,28 +288,28 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 		}
 	}
 	copy := *d
-	copy.Rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
-	for i := range rulesOf(&copy) {
-		r := &rulesOf(&copy)[i]
+	copy.Rules = RulesPayload(slices.Clone(RulesOf(d)))
+	for i := range RulesOf(&copy) {
+		r := &RulesOf(&copy)[i]
 		var err error
 		if r.condition != nil {
-			r.condition, _, err = stored.RetagTypes(view, r.condition, typ, collation)
+			r.condition, _, err = RetagTypes(view, r.condition, typ, collation)
 			if err != nil {
 				return nil, err
 			}
-			r.condition, err = stored.RemapExpression(r.condition, ref, nil)
+			r.condition, err = RemapExpression(r.condition, ref, nil)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if r.conditionPresentation != nil {
-			r.conditionPresentation, err = stored.RemapView(view, r.conditionPresentation, mapping, ref, typ, collation)
+			r.conditionPresentation, err = RemapView(view, r.conditionPresentation, mapping, ref, typ, collation)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if r.conditionBinding != nil {
-			next, err := remapRuleBinding(view, *r.conditionBinding, ref, typ, collation)
+			next, err := RemapRuleBinding(view, *r.conditionBinding, ref, typ, collation)
 			if err != nil {
 				return nil, err
 			}
@@ -320,19 +318,19 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 		r.actions = slices.Clone(r.actions)
 		for j := range r.actions {
 			action := &r.actions[j]
-			action.binding, err = remapRuleBinding(view, action.binding, ref, typ, collation)
+			action.binding, err = RemapRuleBinding(view, action.binding, ref, typ, collation)
 			if err != nil {
 				return nil, err
 			}
 			if action.presentation != nil {
-				action.presentation, err = stored.RemapView(view, action.presentation, mapping, ref, typ, collation)
+				action.presentation, err = RemapView(view, action.presentation, mapping, ref, typ, collation)
 				if err != nil {
 					return nil, err
 				}
 			}
 			action.modifierPresentations = maps.Clone(action.modifierPresentations)
 			for statement, presentation := range action.modifierPresentations {
-				mapped, err := stored.RemapView(view, presentation, mapping, ref, typ, collation)
+				mapped, err := RemapView(view, presentation, mapping, ref, typ, collation)
 				if err != nil {
 					return nil, err
 				}
@@ -350,9 +348,9 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 // Definition OID reminting follows descriptor/expression import. Only named
 // constraint identities change here; canonical recipe mapping keeps modifying
 // WITH definitions and their scans coherent without remapping scalar types again.
-func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) (*catalog.Relation, error) {
+func RemapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) (*catalog.Relation, error) {
 	var replacement *catalog.Relation
-	for i, r := range rulesOf(d) {
+	for i, r := range RulesOf(d) {
 		var references []ids.ObjectAddress
 		for j, address := range r.references {
 			if next, ok := mapping[address]; ok && next != address {
@@ -367,7 +365,7 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 		}
 		if replacement == nil {
 			copy := *d
-			copy.Rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
+			copy.Rules = RulesPayload(slices.Clone(RulesOf(d)))
 			replacement = &copy
 		}
 		r.references = references
@@ -387,60 +385,22 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 				r.actions[j].binding = conflict(r.actions[j].binding)
 				continue
 			}
-			mapper := newRuleTreeMapper(view, nil, 0, nil, ruleTreeMapping{
-				mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
+			mapper := NewRuleTreeMapper(view, nil, 0, nil, RuleTreeMapping{
+				Mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 					mutation, _ := analyze.MutationBinding(definition)
 					return conflict(*mutation), nil
 				},
 			})
-			next, err := mapRuleBindingRecipes(conflict(r.actions[j].binding), mapper)
+			next, err := MapRuleBindingRecipes(conflict(r.actions[j].binding), mapper)
 			if err != nil {
 				return nil, err
 			}
 			r.actions[j].binding = next
 		}
-		rulesOf(replacement)[i] = r
+		RulesOf(replacement)[i] = r
 	}
 	if replacement == nil {
 		return d, nil
 	}
 	return replacement, nil
-}
-
-func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
-	view := e.catalog.read(e.catalog.state)
-	for _, descriptor := range e.catalog.state.Descriptors() {
-		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(rulesOf(d)) == 0 {
-			continue
-		}
-		ns, ok := e.catalog.state.Namespace(d.Namespace())
-		if !ok || ns.Temporary == (ids.SessionToken{}) {
-			continue
-		}
-		for _, rule := range rulesOf(d) {
-			for _, address := range rule.references {
-				address.SubID = 0
-				if stored.DependPinned(view, nil, address) {
-					continue
-				}
-				provider := e.catalog.state.Get(address)
-				if address.ClassID == 2606 {
-					parent := constraintParent(view, address)
-					if parent == nil {
-						return ids.ErrCatalogReplaced
-					}
-					provider = parent
-				}
-				if provider == nil {
-					return ids.ErrCatalogReplaced
-				}
-				providerNS, ok := e.catalog.state.Namespace(provider.Namespace())
-				if !ok || providerNS.Temporary != ns.Temporary {
-					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
-				}
-			}
-		}
-	}
-	return nil
 }

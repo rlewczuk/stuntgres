@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -36,11 +37,11 @@ func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine,
 
 func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier bool) (ruleDefinition, *analyze.InsertConflict) {
 	t.Helper()
-	for _, r := range rulesOf(event) {
+	for _, r := range stored.RulesOf(event) {
 		if r.Name != "r" {
 			continue
 		}
-		b := r.actions[0].binding
+		b := r.Actions()[0].Binding()
 		if modifier {
 			for _, definition := range b.CTEs {
 				if definition.Mutation != nil && cteMutationOf(definition).Insert.Conflict != nil {
@@ -145,20 +146,20 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 							t.Fatal(err)
 						}
 						current := e.stageRead(stage).MustRelation(event.Address())
-						rules := len(rulesOf(current))
+						rules := len(stored.RulesOf(current))
 						want := 1
 						if inferred {
 							want = 2
 						}
-						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.Get(parent.Address()).(*catalog.Relation).Constraints.Unique) != 0 {
-							t.Fatal("retirement changed unrelated rule or missed provider", rulesOf(current))
+						if rules != want || stored.RulesOf(current)[0].Name != "keep_r" || len(stage.Get(parent.Address()).(*catalog.Relation).Constraints.Unique) != 0 {
+							t.Fatal("retirement changed unrelated rule or missed provider", stored.RulesOf(current))
 						}
 						removal, removed := stage.Removal(parent.Constraints.Unique[0].Index)
 						if !removed || removal.Ref.Address != parent.Constraints.Unique[0].Index {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}
-					if e.catalog.state != before || len(rulesOf(event)) != 2 || len(parent.Constraints.Unique) != 1 {
+					if e.catalog.state != before || len(stored.RulesOf(event)) != 2 || len(parent.Constraints.Unique) != 1 {
 						t.Fatal("private retirement mutated published catalog")
 					}
 				})
@@ -196,8 +197,8 @@ func TestRuleNamedConstraintKinds(t *testing.T) {
 				id = parent.Constraints.NotNull[0].OID
 			}
 			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: id}
-			if conflict.Constraint != provider || !slices.Contains(r.references, provider) {
-				t.Fatal("recognized named kind lost actual captured constraint", conflict.Constraint, r.references)
+			if conflict.Constraint != provider || !slices.Contains(r.References(), provider) {
+				t.Fatal("recognized named kind lost actual captured constraint", conflict.Constraint, r.References())
 			}
 			view := e.CatalogRead()
 			if got := dependencyObject(view, provider, nil); got != "constraint provider on table sink" {
@@ -240,7 +241,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 				t.Fatal("no-collision import copied unchanged rule/provider owners", err)
 			}
 			if allocations := testing.AllocsPerRun(10, func() {
-				result, err := remapRuleConstraintIdentities(e.CatalogRead(), event, nil)
+				result, err := stored.RemapRuleConstraintIdentities(e.CatalogRead(), event, nil)
 				if err != nil || result != event {
 					t.Fatal("no-change constraint visitor lost descriptor identity", err)
 				}
@@ -269,11 +270,11 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}
 			mappedEvent := next.MustRelation(event.Address())
 			mappedRule, mappedConflict := ruleNamedDependencyAction(t, mappedEvent, modifier)
-			if mappedConflict.Constraint != provider || mappedConflict.NamedIndex != mappedParent.Constraints.Unique[0].Index || !slices.Contains(mappedRule.references, provider) || slices.Contains(mappedRule.references, oldConstraint) {
-				t.Fatal("canonical import failed constraint/binding/normal-edge cutover", mappedConflict.Constraint, mappedRule.references)
+			if mappedConflict.Constraint != provider || mappedConflict.NamedIndex != mappedParent.Constraints.Unique[0].Index || !slices.Contains(mappedRule.References(), provider) || slices.Contains(mappedRule.References(), oldConstraint) {
+				t.Fatal("canonical import failed constraint/binding/normal-edge cutover", mappedConflict.Constraint, mappedRule.References())
 			}
 			if modifier {
-				body := mappedRule.actions[0].binding
+				body := mappedRule.Actions()[0].Binding()
 				var definition *plan.CTEDefinition
 				for _, candidate := range body.CTEs {
 					if candidate.Mutation != nil && cteMutationOf(candidate).Insert.Conflict == mappedConflict {
@@ -304,7 +305,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 					t.Fatal("analyzed modifier consumer scan missing")
 				}
 			}
-			if err := validateRules(view, mappedEvent); err != nil {
+			if err := stored.ValidateRules(view, mappedEvent); err != nil {
 				t.Fatal(err)
 			}
 			refs, err := ruleReferences(context.Background(), view, mappedRule)
@@ -326,7 +327,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			if !found {
 				t.Fatal("remapped provider lost canonical retirement edge", edges)
 			}
-			if oldConflict.Constraint != oldConstraint || !slices.Contains(oldRule.references, oldConstraint) || parent.Constraints.Unique[0].OID != oldConstraint.ObjectID {
+			if oldConflict.Constraint != oldConstraint || !slices.Contains(oldRule.References(), oldConstraint) || parent.Constraints.Unique[0].OID != oldConstraint.ObjectID {
 				t.Fatal("import remint mutated analyzed predecessor")
 			}
 		})

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 // Frozen action-owned modifiers are definitions to refresh, not protected
@@ -12,7 +13,7 @@ func refreshRuleActionCTEs(auth ruleAuthority, b analyze.Binding) (analyze.Bindi
 	if len(b.CTEs) == 0 {
 		return b, nil
 	}
-	mapper := newRuleTreeMapper(auth.Access().Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
+	mapper := stored.NewRuleTreeMapper(auth.Access().Catalog, nil, 0, nil, ruleTreeMapping{Mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		body := *mutation
 		// Stored modifier recipes need a private execution workspace even when
@@ -28,14 +29,14 @@ func refreshRuleActionCTEs(auth ruleAuthority, b analyze.Binding) (analyze.Bindi
 			return body, ids.ErrCatalogReplaced
 		}
 		var err error
-		body, err = refreshRuleBinding(auth.Access().Catalog, body, current)
+		body, err = stored.RefreshRuleBinding(auth.Access().Catalog, body, current)
 		if err != nil {
 			return body, err
 		}
 		body.Storage = auth.StorageLocked(body.Ref.Address)
 		return refreshRuleSources(auth, body)
 	}})
-	mapped, err := mapRuleBindingRecipes(b, mapper)
+	mapped, err := stored.MapRuleBindingRecipes(b, mapper)
 	mapped.Rule.CTEs = nil
 	return mapped, err
 }

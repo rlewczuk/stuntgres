@@ -558,7 +558,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	next.SetProcedureNames(procedures.Index)
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || len(relation.Security.Policies) == 0 && len(rulesOf(relation)) == 0 {
+		if !ok || len(relation.Security.Policies) == 0 && len(stored.RulesOf(relation)) == 0 {
 			continue
 		}
 		view := e.catalog.read(next)
@@ -568,14 +568,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		// enter the candidate after imported expressions have been remapped,
 		// so advance their frozen definition refs without applying import IDs.
 		if len(relation.Security.Policies) != 0 {
-			replacement, err := remapPolicies(view, relation, nil, remap, typ, nil)
+			replacement, err := stored.RemapPolicies(view, relation, nil, remap, typ, nil)
 			if err != nil {
 				return err
 			}
 			relation = replacement
 		}
-		if len(rulesOf(relation)) != 0 {
-			replacement, err := remapRules(view, relation, nil, remap, typ, nil)
+		if len(stored.RulesOf(relation)) != 0 {
+			replacement, err := stored.RemapRules(view, relation, nil, remap, typ, nil)
 			if err != nil {
 				return err
 			}
@@ -731,4 +731,42 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 		}
 	}
 	return e.checkTemporaryTypedReplacementLocked()
+}
+
+func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
+	view := e.catalog.read(e.catalog.state)
+	for _, descriptor := range e.catalog.state.Descriptors() {
+		d, ok := descriptor.(*catalog.Relation)
+		if !ok || len(stored.RulesOf(d)) == 0 {
+			continue
+		}
+		ns, ok := e.catalog.state.Namespace(d.Namespace())
+		if !ok || ns.Temporary == (ids.SessionToken{}) {
+			continue
+		}
+		for _, rule := range stored.RulesOf(d) {
+			for _, address := range rule.References() {
+				address.SubID = 0
+				if stored.DependPinned(view, nil, address) {
+					continue
+				}
+				provider := e.catalog.state.Get(address)
+				if address.ClassID == 2606 {
+					parent := stored.ConstraintParent(view, address)
+					if parent == nil {
+						return ids.ErrCatalogReplaced
+					}
+					provider = parent
+				}
+				if provider == nil {
+					return ids.ErrCatalogReplaced
+				}
+				providerNS, ok := e.catalog.state.Namespace(provider.Namespace())
+				if !ok || providerNS.Temporary != ns.Temporary {
+					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
+				}
+			}
+		}
+	}
+	return nil
 }

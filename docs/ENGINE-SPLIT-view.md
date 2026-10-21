@@ -86,9 +86,10 @@ They are not part of this step. What is left for `view`:
   `materialized_stage.go`, `materialized_alter.go`.
 - `rule_cte.go`: `ruleCTECommand`, `ruleCTEProgramError` (after 27a).
   `rule_cte_refresh.go`: `refreshRuleActionCTEs` (after 27a).
-- `rule_definition.go`: `ruleDuplicate`, `ruleEventCode`, `ruleIndex`,
-  `ruleMissing`, `ruleResultCheck`, `ruleReturning`. (`ruleDefinition`,
-  `ruleAction` and `ruleEvent` go to `stored` in 22c.)
+- `rule_definition.go`: `ruleDuplicate`, `ruleIndex`, `ruleMissing`,
+  `ruleResultCheck`, `ruleReturning`. (Stored 22c moved `ruleDefinition`,
+  `ruleAction`, `ruleEvent` and `ruleEventCode` to `stored` as `Rule`,
+  `RuleAction`, `RuleEvent` and the unexported `ruleEventCode`.)
 - `rule_dependencies.go`: `ruleDepends`, `ruleReferences`.
   `rule_execution.go`: `bindingRuleRelation`.
 - `view.go`: `checkViewOutputNames`, `checkViewPrefix`,

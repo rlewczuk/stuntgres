@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"fmt"
@@ -8,10 +8,9 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 )
 
-func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action ruleAction, expression func(plan.Node, expr.Expr) (string, error)) (string, error) {
+func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action RuleAction, expression func(plan.Node, expr.Expr) (string, error)) (string, error) {
 	if root == nil || slot < 0 || slot >= len(root.Schema()) {
 		return "", fmt.Errorf("stuntgres: invalid rule source slot")
 	}
@@ -41,7 +40,7 @@ func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action rul
 		if slot >= len(attributes) {
 			return "", ids.ErrCatalogReplaced
 		}
-		column, err := stored.DeparseAttribute(d, attributes[slot])
+		column, err := DeparseAttribute(d, attributes[slot])
 		if err != nil {
 			return "", err
 		}

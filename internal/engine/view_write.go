@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // The requested relation remains the SQL/ACL namespace. This execution-owned
@@ -107,10 +106,10 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 	cascaded := false
 	for d.RelationKind == catalog.ViewRelation {
 		match := false
-		for _, rule := range rulesOf(d) {
-			if rule.event == ruleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
+		for _, rule := range stored.RulesOf(d) {
+			if rule.Event() == stored.RuleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
 				match = true
-				if rule.instead && rule.condition == nil {
+				if rule.Instead() && rule.Condition() == nil {
 					w.checks = nil
 				}
 			}
@@ -189,7 +188,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		w.layers = append(w.layers, viewWriteLayer{relation: d, ref: ref, targets: mapped, source: source, sourceRef: use, mainOccurrence: sourceNode.Occurrence})
 		var lowerStored func(expr.Expr, bool) (expr.Expr, bool, error)
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
-			return rewriteViewExpression(view, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
+			return stored.RewriteViewExpression(view, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
 				if q, ok := n.(functions.StringVariadic); ok && exec.QuoteOriginOf(q).Owner == (ids.ObjectRef{}) {
 					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: stored.ViewOf(d).RuleOID(), Revision: stored.ViewOf(d).QuoteRevision()})
 					q.RoutineRecipeReference = d
@@ -268,14 +267,14 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 			return expanded[c.Slot], true, nil
 		}
 		for i, expr := range outputs {
-			next, _, err := rewriteViewExpression(view, expr, nil, replace)
+			next, _, err := stored.RewriteViewExpression(view, expr, nil, replace)
 			if err != nil {
 				return err
 			}
 			outputs[i] = next
 		}
 		for i, expr := range w.predicates {
-			next, _, err := rewriteViewExpression(view, expr, nil, replace)
+			next, _, err := stored.RewriteViewExpression(view, expr, nil, replace)
 			if err != nil {
 				return err
 			}
@@ -283,7 +282,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		}
 		for i := range w.checks {
 			for j, expr := range w.checks[i].predicates {
-				next, _, err := rewriteViewExpression(view, expr, nil, replace)
+				next, _, err := stored.RewriteViewExpression(view, expr, nil, replace)
 				if err != nil {
 					return err
 				}
@@ -309,8 +308,8 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		d = source
 		ref = use
 	}
-	for _, rule := range rulesOf(d) {
-		if rule.event == ruleEvent(stmt) && rule.instead && rule.condition == nil && (len(consumed) == 0 || consumed[0] != ref) {
+	for _, rule := range stored.RulesOf(d) {
+		if rule.Event() == stored.RuleEvent(stmt) && rule.Instead() && rule.Condition() == nil && (len(consumed) == 0 || consumed[0] != ref) {
 			w.checks = nil
 			break
 		}
@@ -321,19 +320,6 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 	return lowerViewWrite(owner, view, b, stmt)
 }
 
-func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(plan.Node, func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error)) (expr.Expr, bool, error) {
-	var mapper func(expr.Expr) (expr.Expr, bool, error)
-	mapper = func(n expr.Expr) (expr.Expr, bool, error) {
-		return stored.MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) {
-			if len(queries) != 0 {
-				return queries[0](root, mapper)
-			}
-			return plan.RewriteQueryExpressions(root, mapper)
-		}, recipe, leaf)
-	}
-	return mapper(bound)
-}
-
 func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, stmt parser.Statement) error {
 	w := viewWriteOf(b.ViewWrite)
 	logicalWidth, physicalWidth := len(w.logical.Relation.Columns), len(w.base.Columns)
@@ -341,7 +327,7 @@ func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding,
 		return w.graftQuery(b, view, root, mapper)
 	}
 	lowerMapped := func(bound expr.Expr) (expr.Expr, bool, error) {
-		return rewriteViewExpression(view, bound, nil, func(n expr.Expr) (expr.Expr, bool, error) {
+		return stored.RewriteViewExpression(view, bound, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			switch n.(type) {
 			case plan.SubqueryExpr:
 				b.SubqueryDemand = true
@@ -383,7 +369,7 @@ func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding,
 					return nil, false, ids.ErrCatalogReplaced
 				}
 				output := w.outputs[c.Slot]
-				output, _, err := rewriteViewExpression(view, output, nil, func(child expr.Expr) (expr.Expr, bool, error) {
+				output, _, err := stored.RewriteViewExpression(view, output, nil, func(child expr.Expr) (expr.Expr, bool, error) {
 					column, ok := child.(plan.ColumnExpr)
 					if !ok || !stored.SameViewRelation(column.Origin, w.ref) || column.Frame != 1 {
 						return child, false, nil
@@ -434,7 +420,7 @@ func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding,
 	if _, inserting := stmt.(*parser.Insert); !inserting {
 		predicates := make([]expr.Expr, len(w.predicates))
 		for i, x := range w.predicates {
-			predicates[i], _, err = rewriteViewExpression(view, x, nil, func(n expr.Expr) (expr.Expr, bool, error) { return n, false, nil }, graft)
+			predicates[i], _, err = stored.RewriteViewExpression(view, x, nil, func(n expr.Expr) (expr.Expr, bool, error) { return n, false, nil }, graft)
 			if err != nil {
 				return err
 			}
@@ -443,7 +429,7 @@ func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding,
 	}
 	for i := range w.checks {
 		for j, x := range w.checks[i].predicates {
-			w.checks[i].predicates[j], _, err = rewriteViewExpression(view, x, nil, func(n expr.Expr) (expr.Expr, bool, error) { return n, false, nil }, graft)
+			w.checks[i].predicates[j], _, err = stored.RewriteViewExpression(view, x, nil, func(n expr.Expr) (expr.Expr, bool, error) { return n, false, nil }, graft)
 			if err != nil {
 				return err
 			}

@@ -83,7 +83,7 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 | `captureQuerySource`, `captureQueryPrefix` (`delete.go`), `cursorSimpleScan`, `cursorOccurrenceVersion`, `cursorOccurrencePhysicalRow` (`current_of.go`) | `exec` | done in 11e |
 | `mergeDeletions`, `mergePrivateRows`: write-set helpers, also used by `transaction_finish.go` | root, beside `WriteStage` (`write_set.go`) | done (29a) |
 | `rowByID` (`update_versions.go`) | `storage` (`storage.RowByID`) | index 23a |
-| `ruleUpdateAssignmentsSQL` (`update_row_dump.go`) | `stored` (rule rendering) | 22c |
+| `ruleUpdateAssignmentsSQL` (`update_row_dump.go`) | `stored` (rule rendering) | done (22c; unexported, export it in 29b if `dml` calls it) |
 | `validateRuleNewUpdateOutput` (`rule_update_output.go`) | `view` (rules) | 29a renamed the file; 27b moves |
 | `checkTemporaryStorageAccess` | root (`temporary_access.go`) | done (29a) |
 | `Engine.queryTableRefsLocked` | root query admission (`query_table_refs.go`) | done (29a) |
@@ -373,7 +373,7 @@ Outstanding aliases: none yet.
     Moving a group to `dml` or `index` needs either named fields or an
     exported group type.
   - `update_row_dump.go` (`ruleUpdateAssignmentsSQL`) stayed: stored 22c
-    lists it.
+    lists it (moved there in 22c).
 
 - `insert_write_overlay.go` stays with `dml` (the INSERT write overlay that
   unique probing consults); its key overlay uses `index`'s `uniqueBoundKey`.

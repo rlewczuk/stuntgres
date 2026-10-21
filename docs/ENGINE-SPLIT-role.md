@@ -171,7 +171,7 @@ authority views, OIDs, revisions and notices, plus:
   the search path and routine lookup, which stay in the root).
 - **Dependents:** the DROP OWNED and REASSIGN OWNED stage helpers
   (`stageOwnedSequences`, `stageExpressionDependents`,
-  `reownCatalogExpressions`, `removeObjectLocked`): through the `ddl`
+  `stored.ReownExpressions`, `removeObjectLocked`): through the `ddl`
   removal interface of 24c if it exists, otherwise as host methods.
 
 **Decisions that move (28d):** role attribute validation, DROP ROLE

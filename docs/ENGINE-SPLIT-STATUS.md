@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `26f7aea0c` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 99, 97, 103, 104, 107 and 111). Steps 8–17 were
+Last verified against `master` at `84420901a` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 97, 99, 103, 104, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -14,11 +14,11 @@ planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); none of them is broad. They touch different
+as another broad item (§8); only 70 is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Stored-SQL package:** 69 (stored 22c).
+- **Stored-SQL package:** 70 (stored 22d, **broad**).
 - **Upper features, packages:** 83 (index 23b).
 - **Upper features, refined:** 105 (role 28c, docs only).
 
@@ -73,6 +73,8 @@ Item 96 (fdw 26c, docs only) is done, so fdw 26d (item 97) is ready; fdw
 26e (item 98) then needs 97 and table 24d (item 89).
 Item 68 (stored 22b) is done, so stored 22c (item 69) and index 23b
 (item 83) are ready; stored 22d (item 70) waits for 69.
+Item 69 (stored 22c) is done, so stored 22d (item 70, broad) is ready;
+view 27b (item 100) still waits for table 24b (item 87).
 Item 97 (fdw 26d) is done; fdw 26e (item 98) still waits for table 24d
 (item 89), and DML 29c (item 109) for 108, 85, 89, 93 and 102.
 
@@ -993,8 +995,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `NewPolicy`); runtime bodies forward; 12 type aliases in
     `stored_aliases.go` · selected unit and dual-mode proof and quickcheck
     passed; racecheck/finalcheck skipped at user request
-69. [ ] stored 22c: rule and policy payloads, remap protocol —
-    [stored](ENGINE-SPLIT-stored.md) 22c · needs 68, 74
+69. [x] stored 22c: rule and policy payloads, remap protocol —
+    [stored](ENGINE-SPLIT-stored.md) 22c · needs 68, 74 (`7eb30702d`, `06b8adad6`, `a3cd3577f`, `c06636d9f`, `751c1a011`, then the
+    docs commit) · 21 files in `stored`; `Rule`/`RuleAction` parts API;
+    rule, policy and row-security dumps; rule, policy and partition
+    remaps; `ReownExpressions`; `DeparseInquiry` measured and left in the
+    root; 3 more type aliases · selected unit and dual-mode proof,
+    byte-identical dump smoke and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 70. [ ] stored 22d: aliases removed — [stored](ENGINE-SPLIT-stored.md) 22d ·
     needs 69 · **broad**
 

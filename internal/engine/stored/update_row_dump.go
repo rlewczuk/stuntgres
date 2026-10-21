@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"context"
@@ -8,15 +8,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 )
 
 // Destination coercions rebind from the independent SELECT's output schema on
 // Restore. Rendering each output as a scalar SELECT would duplicate its demand.
-func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *analyze.Binding, action ruleAction) (string, error) {
+func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *analyze.Binding, action RuleAction) (string, error) {
 	var sql strings.Builder
 	targetSQL := func(i int) (string, error) {
-		column, err := stored.DeparseAttribute(b.Relation, b.Relation.Attributes[b.Targets[i]])
+		column, err := DeparseAttribute(b.Relation, b.Relation.Attributes[b.Targets[i]])
 		if err != nil {
 			return "", err
 		}

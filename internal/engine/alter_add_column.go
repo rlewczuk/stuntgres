@@ -144,7 +144,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 			added.dependencies, added.consumer = persisted.Dependencies, old
 		}
 	}
-	if err := refreshGenerationChecks(&next, auth.Catalog); err != nil {
+	if err := stored.RefreshGenerationChecks(&next, auth.Catalog); err != nil {
 		return fail(err)
 	}
 	return &next, added, nil

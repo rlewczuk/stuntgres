@@ -65,7 +65,7 @@ private restore stage, and install the replacement catalog atomically.
 | Switch #2: Dump phase emission | was `control.go:1095`–`1190` | done in 18c: `dumpPhaseEmitters` (`dump_emit.go`) and `dumpSections` (`dump_sections.go`) |
 | Switch #3: Restore statement allow-list and per-statement hooks | was `control.go:276`–`512` (since 18c), plus the hook calls around it | done in 30a: `restoreHooks` (`restore_hooks.go`), admit entries in `restore_admit.go` |
 | `remapPreparedCatalog` (descriptor-kind switch over owners and ACLs) | `principal_remap.go:16` | `catalog` 5i (done: `catalog.RemapPrincipals`); mapper construction stays in the root |
-| `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `catalog_expression_reown.go:15` | `stored` 22c (`ReownExpressions`) |
+| `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `catalog_expression_reown.go:15` | done: `stored.ReownExpressions` (22c); `remapCatalogExpressions` stays as the Restore entry |
 | `remapViewRuleOIDs` | `catalog_expression_reown.go:312` | stays in the root: it allocates OIDs (the `stored` prompt) |
 | `dumpPredecessor` (descriptor-kind dependency resolver) | `dump_resolver.go` (was `view_dump.go`, then `dump_graph.go`) | root `dumpResolver` implements `dump.Resolver` (18b); 30b decides whether it moves with the drivers |
 

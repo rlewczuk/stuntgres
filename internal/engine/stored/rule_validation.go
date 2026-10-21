@@ -1,15 +1,14 @@
-package engine
+package stored
 
 import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
-func validateRules(view catalog.Read, d *catalog.Relation) error {
+func ValidateRules(view catalog.Read, d *catalog.Relation) error {
 	if d.Rules == nil {
 		return nil
 	}
@@ -17,7 +16,7 @@ func validateRules(view catalog.Read, d *catalog.Relation) error {
 }
 
 // validateRuleList checks rules owned by d.
-func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefinition) error {
+func validateRuleList(view catalog.Read, d *catalog.Relation, rules []Rule) error {
 	previous := ""
 	for i, r := range rules {
 		if r.OID == 0 || r.Name == "" || i != 0 && strings.Compare(previous, r.Name) >= 0 {
@@ -32,7 +31,7 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefini
 		}
 		providers := 0
 		for _, action := range r.actions {
-			if ruleEvent(action.syntax) == "" || action.binding.Parameters.Count != 0 {
+			if RuleEvent(action.syntax) == "" || action.binding.Parameters.Count != 0 {
 				return fmt.Errorf("stuntgres: invalid rule action")
 			}
 			if action.binding.Returning != nil {
@@ -44,7 +43,7 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefini
 			if action.binding.Ref != (ids.ObjectRef{}) {
 				address := action.binding.Ref.Address
 				provider, ok := view.Relation(address)
-				if !ok || !stored.ReferenceEpochValid(view, d, action.binding.Ref) || provider == nil {
+				if !ok || !ReferenceEpochValid(view, d, action.binding.Ref) || provider == nil {
 					return fmt.Errorf("stuntgres: invalid rule action target")
 				}
 			}
@@ -54,7 +53,7 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefini
 			whole.SubID = 0
 			provider := view.Get(whole)
 			if address.ClassID == 2606 && address.SubID == 0 {
-				parent := constraintParent(view, address)
+				parent := ConstraintParent(view, address)
 				if parent == nil {
 					return fmt.Errorf("stuntgres: missing rule dependency")
 				}
