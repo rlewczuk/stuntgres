@@ -595,7 +595,8 @@ Outstanding aliases: none (30a added none).
 - The hook bodies stay root `Engine` methods for good, reached through the
   table (decision 6 of 30b); table 24d.3 moves only their cores into
   `table`, and partition 25d (item 93) only the replay capture and match
-  cores (25c).
+  cores (25c). View 27c: 27d (item 102) moves no Restore hook body;
+  `importMaterializedSnapshots` stays in the root.
 - Partition 25c noted that four root trust checks
   (`partitionConstraintReplayImport`, `partitionDefaultReplayAllowed`,
   `partitionAttachAuthorization`, `partitionParentAuthorization`) repeat

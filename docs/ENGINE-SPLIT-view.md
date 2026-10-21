@@ -368,73 +368,330 @@ references, (3) tests, (4) docs.
 
 ## Part B
 
-### 27c — Refine the host (docs only)
+### 27c — Refine the host (docs only; linear item 101)
 
-Re-measure the handlers listed under "Dirty declarations". Write the host
-interface, the move set and the commit sequence into this file, and wait
-for approval. Start from this sketch (draft signatures):
+Re-measure the handlers listed under "Dirty declarations", then write the
+host interface, the move set and the commit sequence into this file, and
+wait for approval. The draft sketch had a `view.Host` embedding `ddl.Host`
+plus relation resolution, row-type staging, root-built binders for view
+queries, rule definitions and policy expressions, dependent staging and
+rename/SET SCHEMA forwarders. Three questions were open: (1) where
+`view.Host` lives; (2) which CREATE OR REPLACE VIEW checks are pure; (3)
+whether the RLS layer selection can be a pure function.
 
-- **Shared DDL host** (from `ddl`, step 20): `AccessView`, `Recapture`,
-  `CreationNamespace`, `CheckCreateIn`, `Stage`, `StageRead`,
-  `AllocateOID`, `Revision`, `DropTarget`, `RecordDependencyPath`,
-  `DependencyObject`, `EmitNotice`, `Context`. Embed `ddl.Host`; do not
-  copy these.
-- **Relations:** `ResolveRelation(auth ddl.Authority, name parser.ObjectName,
-  kind string) (ids.ObjectRef, *catalog.Relation, error)` (today
-  `resolveRelationReference`), `StageRowType(*catalog.Relation) error`,
-  `DisplaceAssociatedArray`, `AssociatedArrayName` (CREATE VIEW stages a
-  row type, as `typedef` does).
-- **Binding, done by the root** (the root owns `newExpressionBinder`):
-  `BindViewQuery(auth, stmt *parser.CreateView, input) (analyze.Binding,
-  error)` (today in `prepareViewCreation`), `BindRuleDefinition(auth,
-  relation *catalog.Relation, stmt *parser.CreateRule, input)
-  (<stored rule definition>, error)` (today `bindRuleDefinitionLocked`),
-  `BindPolicyExpression(auth, relation, raw parser.Expr, input)
-  (expr.Expr, []catalog.ExpressionDependency, error)` (today
-  `bindPolicyExpression`).
-- **Dependents:** `StageExpressionDependents(...)` and
-  `DropCascadeNames() []string` for DROP VIEW and DROP RULE/POLICY
-  CASCADE (the root's `dropProvider` and `stageViewDependentsLocked` stay
-  behind them).
-- **Rename and schema moves:** `RenameRelation`, `SetRelationSchema` (they
-  are table code; the host forwards to the root or to `table`).
+**27c refine (approved; measured at `116432550`).** `frontier` over the 11
+root files that hold the DDL handlers (`view.go`, `view_alter.go`,
+`rule_ddl.go`, `rule_definition.go`, `rule_action_presentation.go`,
+`policy_ddl.go`, `policy_expression.go`, `view_definition.go`,
+`materialized_refresh.go`, `rls_base.go`, `rls_base_ddl.go`; output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-REFINE/frontier-view.txt`): 27
+declarations, 116 engine edges. The root still has 28 view files, about
+3.9k lines. Findings:
 
-Every method above runs with `Engine.mu` held and never waits. Lock waits
-(`view_locks.go`, `acquireViewWriteTarget`, `acquireMaterializedRefresh`)
-happen before the handler runs, in `relation_scope.go`, and stay in the
-root. REFRESH MATERIALIZED VIEW releases `Engine.mu` to run its query
-(`refreshMaterializedLocked` consumes the lock); keep that orchestration in
-the root and move only its decisions.
+- **One handler shape.** ALTER VIEW, CREATE/ALTER/DROP RULE and
+  CREATE/ALTER/DROP POLICY all run: `Engine.mu` → statement authority →
+  resolve the relation (an IF EXISTS miss ends in a fenced NOTICE) →
+  compare with `scope.lockedRef` → decisions → `BeginCatalogStage` and
+  `authorizeLocked` → unlock → `Replace` unlocked → `ValidateCatalogStage`
+  → `publishCatalogOperation`. CREATE VIEW looks its name up in the
+  admitted creation namespace and stages `Create`/`Replace`, the row type
+  and the array displacement *before* it unlocks, then waits for its
+  definition references. DROP VIEW resolves under one window, waits, checks
+  again under a second and stages unlocked. The decisions read only
+  `auth.Catalog`, `auth.Check`, `e.catalog.Domain.Ref`, OID and revision
+  allocation, `resolveRelationReference(auth, name, true)`, the binder, and
+  for CREATE VIEW the row-type, array-displacement and type-reown staging.
+- **The shared DDL host covers most edges.** `AccessView` gives `Catalog`,
+  `Check` (with the authority as environment), `Owner.Domain` and
+  `State.CurrentUser`; `Allocator` is `allocateOIDLocked` and
+  `revisionLocked`; `Stage()`, `CreationACL`, `StageRowType` and
+  `DisplaceAssociatedArray` are already on `ddlHost`; role's
+  `ResolveRelation` is exactly the utility `resolveRelationReference`.
+- **Restore guard.** CREATE VIEW runs `CheckCreate`, then, whenever the
+  operation is a trusted table destination, the superuser guard (its error
+  wins), and only then drops a 42501. `CheckCreateIn` guards only after a
+  42501, so it is not the same check; `TrustedRestoreDestination(auth,
+  "destination")` is. The guard stays in the root header (below).
+- **Freezing.** `freezeViewDefinitionLocked`,
+  `freezeRuleActionPresentationLocked` and
+  `freezeRuleModifierPresentationsLocked` are dirty only through
+  `catalogSourceTemporaryOwner(auth)` (the session token) and one
+  `allocateOIDLocked`. `freezeRuleActionPresentationLocked` calls
+  `view.RetainRuleCTEPresentation`, so the freezers go to `view`, not
+  `stored`.
+- **`creationError`** (`engine.go`) is pure (`sqlstate`, `parser`) and has
+  9 callers: `create_table.go` (5), `fdw_table.go`, `query_table_create.go`,
+  `relation_scope.go`, `rule_definition.go`. Rule definitions need it in
+  `view`, table 24d.1 in `table`.
+- **`prepareViewCreation` is admission**, not a handler: it binds with the
+  scope's lock admission, attaches CTE view targets, revalidates the query
+  sources and writes the `view.CreationScope` slot. It stays, so the
+  sketch's `BindViewQuery` is not needed.
+- **DROP VIEW stages unlocked and waits**: `stage.Remove`,
+  `stageExpressionDependents` (it waits) and the AccessExclusive locks on
+  cascaded views all run after `Engine.mu` is released. So the sketch's
+  `StageExpressionDependents` and `DropCascadeNames` are not needed; the
+  root keeps that orchestration. ALTER VIEW RENAME and SET SCHEMA dispatch
+  to the root's `renameRelationLocked` and `alterSchemaLocked` (table 24c
+  keeps both), so `RenameRelation` and `SetRelationSchema` are not needed
+  either.
+- **ENABLE/FORCE ROW LEVEL SECURITY.** The flag decision is already
+  `access.RowSecurityFlags` (B6). `stageRowSecurityFlagsLocked` only
+  installs it: catalog authority, journal clone, revision bump, stage,
+  `catalogChangeLocked`. Nothing is left to move.
+- **REFRESH MATERIALIZED VIEW.** Its admission decisions moved in 27b
+  (`MaterializedRefreshAccess`, `MaterializedRefreshCompatible`,
+  `MaterializedConcurrentAdmission`, `MaterializedEligibleIndexes`,
+  `MaterializedConcurrentRows`). Left in the root: the concurrent
+  live-version filter of `refreshMaterializedLocked` and the replacement
+  record checks (`validateMaterializedReplacement`,
+  `materializedReplacementCurrent`), which read only the record, the staged
+  descriptor and the stage base.
+- **RLS.** `configureRowSecurityLocked` writes the five fields of
+  `statementMutation.rls` from the binding, the statement kind, the roles,
+  the catalog, the `row_security` setting and the current user; it writes
+  some fields before it can fail. 14 root uses read the group, in
+  `execute.go`, `execute_bound.go`, `insert_query.go`, `merge_rows.go`,
+  `mutation_targets.go`, `cte_mutation_scope.go` and `rls_base.go`.
+- **27b record correction.** Its Status line said "`REFERENCE=1` pending";
+  `.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-PACKAGE/ref-real.log` shows the
+  selections passed (rc=0) before the merge (`116432550`).
 
-Questions to settle in 27c:
+Decisions:
 
-1. Does `view.Host` live on the shared `ddl` adapter (20b), or on a
-   `viewHost` over the same fields, as `typedefHost` did before 20b?
-2. Which of CREATE OR REPLACE VIEW's checks (column compatibility, check
-   option, persistence) are pure decisions over the old and new
-   descriptors? List them; they move.
-3. The RLS application (`configureRowSecurityLocked`) writes the scope's
-   RLS group. Can its decision (which layers and policies apply) be a pure
-   function over `access.View`, the relation and the binding, with the
-   root only writing the result?
+1. **Two hosts on the shared `ddlHost`** (question 1), like role 28c's
+   `role.Host`/`role.StageHost`. Every method of both runs with `Engine.mu`
+   held, never takes or releases it, and never waits. New root file
+   `view_host.go` with `var _ view.Host = ddlHost{}` and `var _
+   view.StageHost = ddlHost{}`.
+   - `view.Host`, for the decisions made before a stage exists (the root
+     passes `ddlHost{e: e, op: scope.op}`, no stage):
+     - `ddl.Allocator`, `Context() context.Context`,
+       `AccessView(ddl.Authority) access.View`;
+     - `ResolveRelation(auth ddl.Authority, name parser.ObjectName)
+       (ids.ObjectRef, error)`: role's method, declared again;
+     - `TemporaryOwner(auth ddl.Authority) ids.SessionToken`
+       (`catalogSourceTemporaryOwner`);
+     - binding, by the root (rule 6): `DescribeRule(auth, stmt
+       parser.Statement, target ids.ObjectRef, input
+       sqltype.InputEnvironment, ns *analyze.RuleNamespace)
+       (analyze.Binding, error)` (`describeWithRule` over
+       `analysisHost(op)`, no lock admission; both the ON SELECT
+       `CreateView` and each rule action use it);
+       `BindRuleCondition(auth, ns *analyze.RuleNamespace, raw parser.Expr,
+       input) (expr.Expr, *parser.Select, analyze.Binding, error)` (the
+       binder block of `bindRuleDefinitionLocked`: the bound condition, the
+       synthetic SELECT and its capture binding with frozen attributes);
+       `BindPolicyExpression(auth, relation *catalog.Relation, raw
+       parser.Expr, input) (*stored.Policy, error)` (today
+       `bindPolicyExpression`, body whole in the root like
+       `BindDomainDefault`; nil for a nil expression).
+   - `view.StageHost`, for CREATE VIEW staging (`ddlHost{e, op, stage}`):
+     `Host` + `ddl.Host` + `StageRowType(*catalog.Relation) error` +
+     `DisplaceAssociatedArray(namespace ids.ObjectAddress, name string)
+     (bool, error)` + new `ReownDisplacedTypes() error` (no-op when
+     `stage.OldNameCount()` is zero, else `reownStagedTypeGenerationsLocked`;
+     `query_table_create.go` has the same pair for CREATE MATERIALIZED
+     VIEW).
+   - Not needed from the sketch: `BindViewQuery`, a relation-returning
+     `ResolveRelation(…, kind)`, `AssociatedArrayName`,
+     `StageExpressionDependents`, `DropCascadeNames`, `RenameRelation`,
+     `SetRelationSchema`, `RecordDependencyPath` for DROP (the root keeps
+     `referencePath` with its stage).
+2. **CREATE OR REPLACE VIEW** (question 2). Three functions, in today's
+   order:
+   - `CreateTarget(v access.View, env access.Environment, s
+     *parser.CreateView, ns, locked ids.ObjectRef) (*catalog.Relation,
+     error)`: the existing relation, 42P07 without OR REPLACE,
+     `ErrCatalogReplaced` against `locked` both ways, owner check, 42809
+     "is not a view";
+   - `CheckCreate(view catalog.Read, s *parser.CreateView, b
+     analyze.Binding, old *catalog.Relation) (CreateOptions, error)`: the
+     check-option declaration (`stored.ValidateViewCheckDeclaration`),
+     `CheckViewOutputNames` and `CheckViewPrefix` against `old`, the
+     `record`/`record[]` pseudo-type 42P16, the VOID boundary
+     (`analyze.CheckViewOutputTypes`, OR REPLACE only), `stored.ViewOptions`
+     (barrier, invoker, check mode), and output names for a new view;
+   - `StageCreate(h StageHost, auth ddl.Authority, s *parser.CreateView,
+     old *catalog.Relation, ns ids.ObjectRef, b analyze.Binding, options
+     CreateOptions, temporary bool) error`: array displacement and its
+     42710 (new views), the relation and rule OIDs (or the old ones), the
+     revision, `FreezeDefinition`, the descriptor (fresh or copied from
+     `old`), the creation ACL, the temporary consumer, attribute numbering
+     and column origins, `StageRowType`, `Create`/`Replace`, then
+     `ReownDisplacedTypes` for new views.
+   The root keeps the header (`validateLockedRelation`, authority, the
+   private catalog and `stagedTemporary` of a temporary creation,
+   `CheckCreate` with the restore guard), `validateQuerySources`, the count
+   check, stage begin and authorization, the unlock,
+   `acquireViewDefinitionReferences`, the replacement-read release and the
+   overlay or publication. Persistence and the namespace
+   (`relationCreationNamespaceLocked`, `adjustRelationCreationPersistence`)
+   are admission and stay. Optional: `prepareViewCreation`'s 0A000
+   (modifying WITH), the temporary-view NOTICE text and the 42P22 collation
+   check become `view.CheckCreationBinding`.
+3. **RLS selection** (question 3): yes. `rowSecurityMutation` moves to
+   `view` as `RowSecurity` with exported fields (`TargetDenied`,
+   `Proposal`, `MergeUpdate`, `MergeInsert`, `ProposalTable`);
+   `statementMutation.rls` keeps its name and holds `view.RowSecurity`.
+   `configureRowSecurityLocked` becomes:
+   - `view.RowSecurityTarget(b analyze.Binding, stmt parser.Statement)
+     (RowSecurity, catalog.PolicyCommand, bool)`: the reset, the command,
+     `ProposalTable`, and whether RLS applies (false for a non-DML
+     statement, no target or RLS disabled);
+   - `view.SelectRowSecurity(r RowSecurity, v access.View, enabled bool, b
+     analyze.Binding, stmt parser.Statement, command
+     catalog.PolicyCommand) (RowSecurity, error)`: the layers, the setting
+     guard, the target decision and the proposal groups. It returns the
+     partly written value with its error, and the root assigns it either
+     way, as today.
+   The root keeps the statement authority, the rule-action current user,
+   the private catalog and the recapture. `rowSecurityInputLocked` keeps
+   its authority setup; its core becomes `view.RowSecurityInputDenied(v
+   access.View, enabled bool, d *catalog.Relation, principal
+   authorization.PrincipalRef, command catalog.PolicyCommand, selectRead
+   bool) (bool, error)`.
+4. **Rules.** `view.PlanRule(h Host, auth ddl.Authority, stmt
+   parser.Statement, locked ids.ObjectRef, input sqltype.InputEnvironment)
+   (RelationChange, error)` is `executeRule` from the name switch to the
+   QuoteRevision bump: resolve (an IF EXISTS miss becomes `Skip`),
+   `ErrCatalogReplaced`, the missing-rule skip and 42704, the owner check,
+   the relation-kind checks, the ON SELECT path (over `DescribeRule`,
+   `RuleResultCheck`, `FreezeDefinition`), the CREATE/ALTER/DROP list
+   change, the sort and the revision.
+   `RelationChange{Skip string; Ref ids.ObjectRef; Next *catalog.Relation;
+   Sources []catalog.Descriptor}`: `Skip` is the NOTICE text that the root
+   passes to `finishPolicyNoticeLocked`; `Sources` are the relations the
+   stage records as `querySources`; `Ref.Epoch` is the publication token.
+   `bindRuleDefinitionLocked` becomes the unexported `bindRuleDefinition(h,
+   auth, d, ref, s, input)` over `BindRuleCondition`, `ResolveRelation`
+   (with `ddl.CreationError`) and `DescribeRule`; its 0A000, 42P02 and
+   RETURNING checks move with it. The freezers move: `FreezeDefinition(a
+   ddl.Allocator, view catalog.Read, owner ids.SessionToken, syntax
+   *parser.Select, b analyze.Binding, barrier, invoker bool, rule ids.OID,
+   kind catalog.RelationKind, temporary bool) (*stored.View, error)`
+   (exported: CREATE MATERIALIZED VIEW in `query_table_create.go` stays a
+   root caller and passes `ddlHost{e: e}`), and the unexported
+   `freezeRuleActionPresentation` and `freezeRuleModifierPresentations`
+   over `(catalog.Read, ids.SessionToken)`.
+5. **Policies.** The root keeps `PolicyPreflight` (it takes the operation
+   for its WARNING; the handler passes `notices=false`) and then calls
+   `view.PlanPolicy(h Host, auth, stmt, locked, input) (RelationChange,
+   error)`: `ResolvePolicyRoles`, resolve (the relation and schema skip
+   texts), `ErrCatalogReplaced`, the missing-policy skip and 42704, the
+   owner check with `PolicyOwnerNoun`, the catalog and kind checks,
+   `BindPolicyExpression` for USING then CHECK, the list change with its
+   OID, `PolicyClauses` for ALTER, the sort, the revision and the
+   presentation sources.
+6. **ALTER and DROP VIEW.**
+   - `view.AlterChange(a ddl.Allocator, view catalog.Read, old
+     *catalog.Relation, s *parser.AlterView) (*catalog.Relation,
+     *catalog.Extension, error)`: DEPENDS ON EXTENSION, SET and RESET with
+     their checks and the 0A000 default; a nil relation means no change (no
+     revision is allocated), the extension is the stage's query source.
+     The root keeps resolution with its fenced IF EXISTS NOTICE,
+     `AlterViewAuthority`, the replacement-read release, the RENAME and SET
+     SCHEMA dispatch, the stage and publication.
+   - `view.DropTargets(h Host, auth, s *parser.DropView) ([]ids.ObjectRef,
+     []sqlstate.Error, error)`: the resolve loop with `ViewDropMissing` and
+     its NOTICE texts, the 42809 hints, `ViewDropOwner`, de-duplication.
+     `view.RecheckDropTargets(v access.View, env access.Environment, refs
+     []ids.ObjectRef) error`: the post-wait loop (missing relation or
+     foreign domain is `ErrCatalogReplaced`, then `ViewDropOwner`). The root
+     keeps the sort, the AccessExclusive waits, the epoch check, the stage,
+     `referencePath`, removal, `stageExpressionDependents`, the cascade
+     locks, publication and the cascade NOTICEs.
+7. **REFRESH MATERIALIZED VIEW.** `view.ConcurrentPrevious(previous
+   storage.Relation, own []storage.RowVersion, deletes
+   *visibility.PrivateDeletes, frontier ids.CommitSeq) storage.Relation` (the
+   live-version filter; the root keeps `index.BuildIndexEntries`, which
+   needs the statement host). `view.ValidateMaterializedReplacement(r
+   *MaterializedReplacement, staged catalog.Descriptor, base catalog.Read)
+   error` and `(*MaterializedReplacement).Current(staged
+   catalog.Descriptor, base catalog.Read, snapshot *catalog.State, stored
+   *storage.Relation) error`; the `CatalogStage` methods stay as root
+   wrappers, so their callers (`catalog.go`, `catalog_message.go`,
+   `materialized_refresh_concurrent_test.go`) do not change.
+   `acquireMaterializedRefresh`, `refreshMaterializedLocked`,
+   `materializedRefreshRowsLocked` and `stageMaterializedRows` stay
+   (admission waits, the consumed lock, the stored query, storage
+   allocation and stage internals).
+8. **Dependents** (optional pure cores; `dropProvider` stays):
+   `view.DependencyClosure(views []*catalog.Relation, targets
+   []ids.ObjectAddress) []DependencyEdge` (the root collects the live views
+   in OID order), `view.KeepRules(base catalog.Read, rules []stored.Rule,
+   targets []ids.ObjectAddress) []stored.Rule` and
+   `view.KeepPolicies(policies []catalog.PolicyDefinition, targets
+   []ids.ObjectAddress) []catalog.PolicyDefinition`. `viewClosure`,
+   `ruleDependents` and `policyDependents` stay `dropProvider` methods.
+9. **Hand-offs.** `creationError` becomes `ddl.CreationError` (next to
+   `ddl.Check`); table 24d.1 (item 89a) needs it too, so whichever of 89a
+   and 27d lands first moves it. CREATE MATERIALIZED VIEW
+   (`prepareQueryTableLocked`, table 24c decision 8) calls
+   `view.FreezeDefinition` and may use `ReownDisplacedTypes`.
+   `viewLeafRowMark` stays in the root (`query_lock_admission.go`; table
+   24c's note about `inheritanceQueryLeaves`): it is pure over `stored.View`
+   and `plan.RowMark`, so `stored` can take it if table needs it. DML 29c
+   composes `view.RowSecurity` and `SelectRowSecurity`; `execute_bound.go`
+   stays the caller. Control 30c: `view` has no Restore hook body to move;
+   `importMaterializedSnapshots` stays in the root.
+10. **27d stays one item** (linear item 102; about 0.9k lines; not broad).
 
-### 27d — Move the handler decisions
+### 27d — Move the handler decisions (linear item 102)
 
-Follow 27c. Expected to move: CREATE VIEW descriptor and option decisions,
-CREATE OR REPLACE checks, ALTER VIEW option changes, DROP VIEW target
-decisions, CREATE/ALTER/DROP RULE and POLICY list changes and their
-diagnostics, the ENABLE/FORCE ROW LEVEL SECURITY flag decision, the
-REFRESH admission decisions, and the RLS layer selection. Remove any
-outstanding aliases.
+Follow decisions 1–9 above.
+
+**Moves to `view`:** `PlanRule` with `bindRuleDefinition`,
+`FreezeDefinition`, `freezeRuleActionPresentation`,
+`freezeRuleModifierPresentations` and `RelationChange`; `PlanPolicy`;
+`CreateTarget`, `CheckCreate` with `CreateOptions`, `StageCreate`;
+`AlterChange`; `DropTargets`, `RecheckDropTargets`; `RowSecurity`,
+`RowSecurityTarget`, `SelectRowSecurity`, `RowSecurityInputDenied`;
+`ConcurrentPrevious`, `ValidateMaterializedReplacement`,
+`MaterializedReplacement.Current`; optionally `CheckCreationBinding`,
+`DependencyClosure`, `KeepRules`, `KeepPolicies`. `creationError` goes to
+`ddl` (unless 89a moved it).
 
 **Stays in the root after 27d:** dispatch (`execute.go`), `Engine.mu`, lock
-waits, `relation_scope.go` admission, rule program execution and admission
-(they run DML), view source opening and authorization (`view_source.go`),
-`checkViewRow`, refresh row production and staging
+waits, `relation_scope.go` admission and `prepareViewCreation`, the handler
+skeletons (`executeCreateView`, `executeAlterView`, `executeDropView`,
+`executeRule`, `executePolicy`, `finishPolicyNoticeLocked`) with their
+authority setup, stage lifecycle, unlocked staging and publication, the
+host bodies (`DescribeRule`, `BindRuleCondition`, `BindPolicyExpression`),
+rule program execution and admission (they run DML), view source opening
+and authorization (`view_source.go`), `checkViewRow`, REFRESH admission and
+`refreshMaterializedLocked` with refresh row production and staging
 (`materializedRefreshRowsLocked`, `stageMaterializedRows`), the
-materialized source fence and its kind, `importMaterializedSnapshots`, the
-privilege walkers (`CheckViewWrite`, `row_security_setting.go`), the drop
-diagnostics and `dropProvider`, the journal and publication.
+`CatalogStage` replacement wrappers, the materialized source fence and its
+kind, `importMaterializedSnapshots`, `stageRowSecurityFlagsLocked`,
+`configureRowSecurityLocked` and `rowSecurityInputLocked` as authority
+wrappers, the privilege walkers (`CheckViewWrite`,
+`row_security_setting.go`), the drop diagnostics and `dropProvider`, the
+journal and publication.
+
+**Commit sequence:**
+
+1. `creationError` → `ddl.CreationError` (skip if 89a did it).
+2. Seam: `view/host.go` (`Host`, `StageHost`, `RelationChange`) and root
+   `view_host.go` (the new `ddlHost` methods; `bindPolicyExpression` takes
+   the operation and input instead of the scope). Unit test for
+   `ReownDisplacedTypes` being a no-op without renamed names.
+3. Port in place: the decisions become root-local functions over the two
+   hosts (`planRule`, `planPolicy`, `createViewTarget`, …, the freezers over
+   `(catalog.Read, ids.SessionToken)`); the handlers call them; no
+   behavior or error-order change.
+4. Move them into `view` (`movex -qual view`), with `RelationChange`.
+5. RLS: `view.RowSecurity` and the three selection functions; the 14 field
+   uses renamed.
+6. REFRESH cores and, optionally, the dependents cores and
+   `CheckCreationBinding`.
+7. Docs (README, this file, STATUS, ENGINE-SPLIT.md).
+
+Tests: `policy_test.go` calls the host's `BindPolicyExpression`;
+`inheritance_query_stored_view_test.go`, `intagg_retention_test.go`,
+`materialized_view_test.go` and `temporary_view_test.go` call
+`view.FreezeDefinition`. Verify with the targeted tests and reference
+selections below (quick and `REFERENCE=1`), and quickcheck.
 
 ## Invariants
 
@@ -524,9 +781,10 @@ in the root. The checks in §8.3 pass.
   moved or deleted.
 - [x] 27b — `view` created and clean set moved (`03468b5b6`,
   `d7cd77e1a`, `b61bed3bb`, `73c98d60b`, then the docs commit) · selected
-  unit proof and quickcheck passed, `REFERENCE=1` pending; racecheck/finalcheck
-  skipped at user request; see the 27b record below
-- [ ] 27c — Host refined (docs only)
+  unit proof, quickcheck and the `REFERENCE=1` selections passed;
+  racecheck/finalcheck skipped at user request; see the 27b record below
+- [x] 27c — Host refined (docs only; the refine is in Part B above; the
+  docs commit only) · see the 27c record below
 - [ ] 27d — Handler decisions moved
 
 Outstanding aliases: none (27b added none).
@@ -586,17 +844,37 @@ move set, its OUT and IN edges and the moved files were unchanged).
   concurrently refreshed materialized view) printed identical output on
   master and the branch, and every restore round-tripped byte-identically;
   quickcheck passed; quick-mode reference suite passed (in quickcheck);
-  `REFERENCE=1` selections still to run before merge. racecheck, finalcheck and bench skipped at user
-  request (no startup change).
+  the `REFERENCE=1` selections passed before the merge (`116432550`;
+  `.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-PACKAGE/ref-real.log`, corrected in
+  27c). racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
+### 27c record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-VIEW-REFINE` from `116432550`
+(view 27b merged), rebased onto `bbc6d23a8` (partition 25c and control
+30b, both docs only; the measured code did not change). Docs only: the refine (findings and decisions 1–10) is
+in Part B above, and 27d has its move set and commit sequence. No code
+commit. Deviations from the notes and the sketch:
+
+- `rowSecurityMutation` moves to `view` as `RowSecurity` after all
+  (decision 3): it holds only `access` values, and the root assigning a
+  `view` value is simpler than copying five fields. `ruleActionScope`
+  stays root scope state (it holds an `*AuthorizationView`).
+- The sketch's binder for view queries, the dependent-staging and
+  rename/SET SCHEMA methods are not needed (findings); the rule definition
+  binder splits into `DescribeRule` and `BindRuleCondition` so that the
+  rule DDL checks and the presentation freezing move.
+- The 27b record said the `REFERENCE=1` selections were pending; they had
+  passed before the merge. Corrected above and in STATUS.
 
 ### Notes for later steps
 
-- 27c: `rowSecurityMutation` and `ruleActionScope` are clean but stay as
-  root scope state; question 3 (RLS layer selection) can return a value
-  the root copies into `rowSecurityMutation`. `prepareStoredExecutionRoot`
-  stays with root query preflight. `view.CreationScope`,
-  `view.MaterializedRefreshScope` and `view.MaterializedStage` are the slot
-  records; their accessors are root methods.
+- 27d: `prepareStoredExecutionRoot` stays with root query preflight.
+  `view.CreationScope`, `view.MaterializedRefreshScope` and
+  `view.MaterializedStage` are the slot records; their accessors stay root
+  methods. `ruleActionScope` stays root scope state; `RowSecurity` moves
+  (27c decision 3).
 
 - Role 28c, for 27b/27d: ALTER MATERIALIZED VIEW OWNER keeps its
   `alterViewAuthority` call in the root's `executeRelationOwnership`,

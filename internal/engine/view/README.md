@@ -98,8 +98,11 @@ and staging (`refreshMaterializedLocked`, `materializedRefreshRowsLocked`,
 groups it writes (`rowSecurityMutation`, `ruleActionScope`), the privilege
 walkers (`CheckViewWrite`, `row_security_setting.go`), the drop
 diagnostics and `dropProvider`, and the slot accessors on `CatalogStage`
-and `StatementScope`. 27c/27d move the handler decisions behind a
-`view.Host`.
+and `StatementScope`. 27d (planned in 27c) moves the handler decisions
+behind `view.Host` and `view.StageHost`, both implemented by the root's
+shared `ddlHost` under `Engine.mu`, and moves `rowSecurityMutation` here as
+`RowSecurity`; the handler skeletons, waits and publication stay. See
+[ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md) 27c.
 
 ## Invariants
 

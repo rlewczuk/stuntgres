@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `a57b52753` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 103, 104, 105, 106, 107, 111 and 112). Steps 8–17 were
+Last verified against `master` at `bbc6d23a8` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 103, 104, 105, 106, 107, 111 and 112). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,9 +16,9 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **Upper features, refined:** 101 (view 27c, docs only).
 - **DML and Dump/Restore:** 108 (DML 29b), 113 (control 30c).
-- **Upper features, decisions:** 85b (index 23d.2), 89a (table 24d.1).
+- **Upper features, decisions:** 85b (index 23d.2), 89a (table 24d.1), 102
+  (view 27d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -108,6 +108,9 @@ Item 92 (partition 25c, docs only) is done; partition 25d (item 93)
 still waits for table 24d.1 and 24d.2 (items 89a and 89b).
 Item 112 (control 30b, docs only) is done, so control 30c (item 113) is
 ready; the end-state review (item 114) still waits for 98, 110 and 113.
+Item 101 (view 27c) is done, so view 27d (item 102) is ready; it and table
+24d.1 (item 89a) both want `creationError` in `ddl`, and whichever lands
+first moves it.
 
 ## Task tree
 
@@ -564,7 +567,7 @@ ready; the end-state review (item 114) still waits for 98, 110 and 113.
     `a5e32e52a`, `512cf3e1c`, `24b0bfde4`, then the docs commit)
   - [x] 27b — `view` created and clean set moved *(broad)*
     (`03468b5b6`, `d7cd77e1a`, `b61bed3bb`, `73c98d60b`, then the docs commit)
-  - [ ] 27c — Host refined (docs only)
+  - [x] 27c — Host refined (docs only) (the docs commit)
   - [ ] 27d — Handler decisions moved
 - [x] **Step 28 — `role`** ([prompt](ENGINE-SPLIT-role.md); 28b needs 21b,
   B6) *(lower priority)*
@@ -1308,8 +1311,18 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      aliases; ran broad (about 125 files) · selected unit and dual-mode
      proof and quickcheck passed; racecheck/finalcheck skipped at user
      request
-101. [ ] View 27c: host refined (docs only) — [view](ENGINE-SPLIT-view.md)
-     27c · needs 100, 61
+101. [x] View 27c: host refined (docs only) — [view](ENGINE-SPLIT-view.md)
+     27c · needs 100, 61 (the docs commit) · `view.Host` on a stage-less
+     `ddlHost` (`ddl.Allocator`, `Context`, `AccessView`, `ResolveRelation`,
+     `TemporaryOwner`, `DescribeRule`, `BindRuleCondition`,
+     `BindPolicyExpression`) and `view.StageHost` (`ddl.Host` +
+     `StageRowType`, `DisplaceAssociatedArray`, `ReownDisplacedTypes`);
+     CREATE OR REPLACE VIEW, ALTER VIEW, DROP VIEW targets, RULE and POLICY
+     plans (`RelationChange`), the view and rule presentation freezers, RLS
+     selection (`view.RowSecurity`) and the REFRESH replacement checks
+     move; `creationError` to `ddl`; 27d move set and commit sequence
+     written; 27b's `REFERENCE=1` note corrected · docs only, no checks
+     needed
 102. [ ] View 27d: handler decisions moved — [view](ENGINE-SPLIT-view.md)
      27d · needs 101
 103. [x] Role 28a: in place — [role](ENGINE-SPLIT-role.md) 28a · needs —
