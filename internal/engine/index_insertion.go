@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
@@ -8,12 +9,13 @@ import (
 
 // revalidateIndexRows rebinds after a stale unique binding, readmits the
 // statement's programs and reprobes every row of batch.
-func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
-	prior := s.UniqueBinding
+func revalidateIndexRows(h dml.Host, ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
+	c := h.Command()
+	prior := c.UniqueBinding
 	if prior != nil && prior.Ref != ref {
-		prior = s.IndexBindings[ref.Address]
+		prior = c.IndexBindings[ref.Address]
 	}
-	binding, err := s.bindUniqueWrite(ref)
+	binding, err := bindUniqueWrite(h, ref)
 	if err != nil {
 		return err
 	}
@@ -25,7 +27,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 		}
 	}
 	if prior != nil {
-		if err := s.writeHost().ReadmitRevalidation(prior, binding); err != nil {
+		if err := h.ReadmitRevalidation(prior, binding); err != nil {
 			return err
 		}
 	}
@@ -35,12 +37,12 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 		if old != nil {
 			excluded = old[:i+1]
 		}
-		conflict, err := s.probeUniqueRow(ref, &candidate, excluded, batch.Prefix(i), nil, purpose)
+		conflict, err := probeUniqueRow(h, ref, &candidate, excluded, batch.Prefix(i), nil, purpose)
 		if err != nil {
 			return err
 		}
 		if conflict.index != nil {
-			return conflict.diagnostic(s, ref)
+			return conflict.diagnostic(h, ref)
 		}
 		batch.Set(i, candidate)
 	}

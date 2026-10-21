@@ -232,13 +232,13 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	first, err := scope.bindUniqueWrite(parentRef)
+	first, err := bindUniqueWrite(scope.writeHost(), parentRef)
 	if err != nil {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal(err)
 	}
-	again, err := scope.bindUniqueWrite(parentRef)
+	again, err := bindUniqueWrite(scope.writeHost(), parentRef)
 	if err != nil || first != again || first.Keys[0].Ordering.Slots[0] != 1 {
 		scope.Finish(err)
 		op.Done()
@@ -289,7 +289,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	next, err := scope.bindUniqueWrite(parentRef)
+	next, err := bindUniqueWrite(scope.writeHost(), parentRef)
 	if err != nil || next == first || next.Keys[0].Ordering.Slots[0] != 0 {
 		scope.Finish(err)
 		op.Done()

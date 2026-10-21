@@ -51,7 +51,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				idx, _ := concurrentUnitIndex(t, e, "ui", phase != "nonready", phase == "valid")
 				scope, op, _ := concurrentUnitSnapshotScope(t, e, consumer)
 				ref := roleTableRef(t, e, "t")
-				binding, err := scope.bindUniqueWrite(ref)
+				binding, err := bindUniqueWrite(scope.writeHost(), ref)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -79,7 +79,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				if err != nil {
 					t.Fatal(err)
 				}
-				changed, err := scope.uniqueKeyChanged(ref, old, next)
+				changed, err := uniqueKeyChanged(scope.writeHost(), ref, old, next)
 				if err != nil || changed != simple {
 					t.Fatal("computed dependencies leaked into UPDATE strength", changed, err)
 				}
@@ -88,7 +88,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				if err != nil {
 					t.Fatal(err)
 				}
-				changed, err = scope.uniqueKeyChanged(ref, old, next)
+				changed, err = uniqueKeyChanged(scope.writeHost(), ref, old, next)
 				if err != nil || changed {
 					t.Fatal("INCLUDE or mixed simple component strengthened UPDATE", changed, err)
 				}

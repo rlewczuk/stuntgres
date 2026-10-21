@@ -271,7 +271,7 @@ func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.So
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(candidate.Ref, current); err != nil {
+		if err := claimUniqueRow(s.writeHost(), candidate.Ref, current); err != nil {
 			return Result{}, err
 		}
 		deleted, err := s.Writes().Delete(candidate)

@@ -245,7 +245,7 @@ func TestStatementHostReadmitRevalidation(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(v INT UNIQUE)")
 	scope, b, _ := deleteProbeScope(t, s)
 	h := scope.writeHost()
-	binding, err := scope.bindUniqueWrite(b.Ref)
+	binding, err := bindUniqueWrite(scope.writeHost(), b.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

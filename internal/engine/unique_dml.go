@@ -4,42 +4,41 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) bindUniqueWrite(ref ids.ObjectRef) (*index.UniqueWriteBinding, error) {
+func bindUniqueWrite(h dml.Host, ref ids.ObjectRef) (*index.UniqueWriteBinding, error) {
+	c := h.Command()
 retry:
-	parent, view, err := s.writeHost().UniqueParent(ref)
+	parent, view, err := h.UniqueParent(ref)
 	if err != nil {
 		return nil, err
 	}
-	if b := s.UniqueBinding; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
+	if b := c.UniqueBinding; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
 		return b, nil
 	}
-	if b := s.IndexBindings[ref.Address]; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
-		s.UniqueBinding = b
+	if b := c.IndexBindings[ref.Address]; b != nil && b.Ref == ref && b.Parent == parent && b.Catalog == view.State() {
+		c.UniqueBinding = b
 		return b, nil
 	}
-	if overlay := s.writeOverlay(); overlay != nil && s.UniqueBinding != nil && s.UniqueBinding.Ref == ref {
+	if overlay := c.WriteOverlay(); overlay != nil && c.UniqueBinding != nil && c.UniqueBinding.Ref == ref {
 		overlay.Overlays = nil
 	}
 	b, err := index.BuildUniqueWriteBinding(ref, parent, view)
 	if err != nil {
 		return nil, err
 	}
-	if err := b.InheritConsumedPrograms(s.IndexBindings[ref.Address]); err != nil {
+	if err := b.InheritConsumedPrograms(c.IndexBindings[ref.Address]); err != nil {
 		return nil, err
 	}
 	if b.Checked {
-		stale, err := s.writeHost().BindingAuthority(b, view)
+		stale, err := h.BindingAuthority(b, view)
 		if err != nil {
 			return nil, err
 		}
@@ -47,26 +46,33 @@ retry:
 			goto retry
 		}
 	}
-	s.UniqueBinding = b
+	c.UniqueBinding = b
 	if b.Checked {
-		if s.IndexBindings == nil {
-			s.IndexBindings = make(map[ids.ObjectAddress]*index.UniqueWriteBinding)
+		if c.IndexBindings == nil {
+			c.IndexBindings = make(map[ids.ObjectAddress]*index.UniqueWriteBinding)
 		}
-		s.IndexBindings[ref.Address] = b
+		c.IndexBindings[ref.Address] = b
 	}
 	return b, nil
 }
 
-func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersion) error {
-	binding, err := s.bindUniqueWrite(ref)
+// bindingEvaluation is the evaluation context of b's key programs: the
+// statement's context and environments over b's catalog.
+func bindingEvaluation(h dml.Host, b *index.UniqueWriteBinding) exec.Context {
+	input, output := h.Environments()
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: h.Context(), Host: h, Input: input, Output: output, Catalog: h.CatalogRead(b.Catalog)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	if b.TypeName != nil {
+		evaluation.Input.TypeDiagnosticName = b.TypeName
+	}
+	return evaluation
+}
+
+func claimUniqueRow(h dml.Host, ref ids.ObjectRef, row storage.RowVersion) error {
+	binding, err := bindUniqueWrite(h, ref)
 	if err != nil {
 		return err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.Catalog = s.engine().catalog.read(binding.Catalog)
-	if binding.TypeName != nil {
-		evaluation.Input.TypeDiagnosticName = binding.TypeName
-	}
+	evaluation := bindingEvaluation(h, binding)
 	purpose := index.ProbeRuntime
 	if binding.Checked {
 		purpose = index.ProbeTracked
@@ -83,7 +89,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersio
 				continue
 			}
 		}
-		member, key, err := s.existingUniqueOutput(bound, row, &evaluation, purpose)
+		member, key, err := existingUniqueOutput(h, bound, row, &evaluation, purpose)
 		if err != nil {
 			return err
 		}
@@ -95,7 +101,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersio
 		}
 		indexRef := ref
 		indexRef.Address = idx.Address()
-		if err := s.writeHost().ClaimUniqueKey(indexRef, bound, key); err != nil {
+		if err := h.ClaimUniqueKey(indexRef, bound, key); err != nil {
 			return err
 		}
 	}
@@ -116,41 +122,40 @@ type uniqueConflict struct {
 	position      int
 }
 
-// disclosureEnv is the access environment of the statement's operation over
-// v, for key disclosure decisions. It never locks.
-func (s *StatementScope) disclosureEnv(v access.View) access.Environment {
-	return s.engine().operationAuthority(s.op, v)
-}
-
-// checkWriteBinding is the ON CONFLICT binding check over v. It never locks.
-func (s *StatementScope) checkWriteBinding(v access.View, b analyze.Binding) error {
-	return analyze.CheckBinding(s.engine().operationAuthority(s.op, v), b, &parser.Insert{})
-}
-
-func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error {
-	allowed, err := index.UniqueKeyDetailAllowed(c.auth, s.disclosureEnv(c.auth), ref, c.index.SQLIndex.Keys)
+func (c *uniqueConflict) diagnostic(h dml.Host, ref ids.ObjectRef) error {
+	allowed, err := index.UniqueKeyDetailAllowed(c.auth, h.DisclosureEnv(c.auth), ref, c.index.SQLIndex.Keys)
 	if err != nil {
 		return err
 	}
+	_, output := h.Environments()
 	if c.index.SQLIndex.IsExclusion() {
-		return index.ExclusionDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.existing, c.schema, s.output, allowed, false, c.view)
+		return index.ExclusionDiagnostic(h.Context(), c.parent, c.index, c.key, c.existing, c.schema, output, allowed, false, c.view)
 	}
-	return index.UniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
+	return index.UniqueDiagnostic(h.Context(), c.parent, c.index, c.key, c.schema, output, allowed, false, c.view)
 }
-func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch) error {
-	conflict, err := s.probeUniqueRow(ref, candidate, excluded, prefix, nil, index.ProbeRuntime)
+func checkUniqueRow(h dml.Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch) error {
+	conflict, err := probeUniqueRow(h, ref, candidate, excluded, prefix, nil, index.ProbeRuntime)
 	if err != nil {
 		return err
 	}
 	if conflict.index != nil {
-		return conflict.diagnostic(s, ref)
+		return conflict.diagnostic(h, ref)
 	}
 	return nil
 }
-func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *dml.InsertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
+
+// snapshotStable reports whether the statement's isolation keeps one
+// snapshot (REPEATABLE READ or SERIALIZABLE).
+func snapshotStable(h dml.Host) bool {
+	stable, _ := h.Snapshot()
+	return stable
+}
+
+func probeUniqueRow(h dml.Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *dml.InsertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
 	row := candidate.Values
+	c := h.Command()
 retry:
-	binding, err := s.bindUniqueWrite(ref)
+	binding, err := bindUniqueWrite(h, ref)
 	if err != nil {
 		return uniqueConflict{}, err
 	}
@@ -161,16 +166,10 @@ retry:
 	if len(row) != len(parent.Columns) {
 		return uniqueConflict{}, errors.New("stuntgres: invalid staged row width")
 	}
-	e := s.engine()
-	ctx := s.op.Context()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.Catalog = e.catalog.read(binding.Catalog)
-	if binding.TypeName != nil {
-		evaluation.Input.TypeDiagnosticName = binding.TypeName
-	}
+	evaluation := bindingEvaluation(h, binding)
+	ctx := evaluation.Context
 	if action != nil && action.Catalog != binding.Catalog {
-		view := e.catalog.read(binding.Catalog)
-		if err := action.SelectArbiters(&evaluation, parent, view); err != nil {
+		if err := action.SelectArbiters(&evaluation, parent, evaluation.Catalog); err != nil {
 			return uniqueConflict{}, err
 		}
 	}
@@ -198,7 +197,7 @@ retry:
 		}
 		idx := bound.Index
 		if idx.SQLIndex.IsExclusion() {
-			if conflict, err := s.probeExclusionRow(ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.index != nil {
+			if conflict, err := probeExclusionRow(h, ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.index != nil {
 				return conflict, err
 			}
 			continue
@@ -218,22 +217,22 @@ retry:
 		}
 		indexRef := ref
 		indexRef.Address = idx.Address()
-		if err := s.writeHost().ClaimUniqueKey(indexRef, bound, key); err != nil {
+		if err := h.ClaimUniqueKey(indexRef, bound, key); err != nil {
 			return uniqueConflict{}, err
 		}
-		heads := action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || idx.SQLIndex.HasRuntimeDomainKeyConversion())
-		probe, err := s.writeHost().CaptureUniqueProbe(ref, binding, idx, heads)
+		heads := action != nil && (action.Update != nil || snapshotStable(h) || idx.SQLIndex.HasRuntimeDomainKeyConversion())
+		probe, err := h.CaptureUniqueProbe(ref, binding, idx, heads)
 		if err != nil {
 			return uniqueConflict{}, err
 		}
 		if probe.Stale {
-			s.UniqueBinding = nil
+			c.UniqueBinding = nil
 			goto retry
 		}
 		parent, idx = probe.Parent, probe.Index
 		current, root, versions := probe.View, probe.Root, probe.Versions
-		if check := s.InsertConflict; check != nil {
-			if err := s.checkWriteBinding(probe.Authority, dml.BindingForConflict(ref, parent, check)); err != nil {
+		if check := c.InsertConflict; check != nil {
+			if err := h.CheckWriteBinding(probe.Authority, dml.BindingForConflict(ref, parent, check)); err != nil {
 				return uniqueConflict{}, err
 			}
 		}
@@ -254,24 +253,25 @@ retry:
 			if cmp != 0 {
 				break
 			}
-			if index.UniqueRowExcluded(entry.Row, excluded) || index.UniqueRowDeleted(entry.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+			private := h.PrivateRows(ref.Address)
+			if index.UniqueRowExcluded(entry.Row, excluded) || index.UniqueRowDeleted(entry.Row, private.OwnDeletes, private.StagedDeletes) {
 				continue
 			}
 			replaced := false
-			if c := s.writeOverlay(); c != nil {
-				_, replaced = c.AffectedRows[entry.Row]
+			if overlay := c.WriteOverlay(); overlay != nil {
+				_, replaced = overlay.AffectedRows[entry.Row]
 				if !replaced {
-					_, replaced = s.insertOwnRow(ref, entry.Row)
+					_, replaced = insertOwnRow(h, ref, entry.Row)
 				}
 			} else {
-				for _, own := range s.ownWrites[ref.Address] {
+				for _, own := range private.Own {
 					if own.Row == entry.Row {
 						replaced = true
 						break
 					}
 				}
 				if !replaced {
-					for _, own := range s.stage.rows[ref.Address] {
+					for _, own := range private.Staged {
 						if own.Row == entry.Row {
 							replaced = true
 							break
@@ -297,8 +297,8 @@ retry:
 				return outcome, nil
 			}
 		}
-		if c := s.writeOverlay(); c != nil {
-			own, found, err := s.probeInsertWriteOverlay(ref, bound, &evaluation, key, excluded, purpose)
+		if c.WriteOverlay() != nil {
+			own, found, err := probeInsertWriteOverlay(h, ref, bound, &evaluation, key, excluded, purpose)
 			if err != nil {
 				return uniqueConflict{}, err
 			}
@@ -312,17 +312,19 @@ retry:
 				return outcome, nil
 			}
 		} else {
-			for overlayIndex, overlay := range [2][]storage.RowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address]} {
+			private := h.PrivateRows(ref.Address)
+			for overlayIndex, overlay := range [2][]storage.RowVersion{private.Staged, private.Own} {
 				for _, own := range overlay {
+					fresh := h.PrivateRows(ref.Address)
 					if overlayIndex == 1 {
-						if _, _, replaced := storage.RowByID(s.stage.rows[ref.Address], own.Row, -1); replaced {
+						if _, _, replaced := storage.RowByID(fresh.Staged, own.Row, -1); replaced {
 							continue
 						}
 					}
-					if index.UniqueRowExcluded(own.Row, excluded) || index.UniqueRowDeleted(own.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+					if index.UniqueRowExcluded(own.Row, excluded) || index.UniqueRowDeleted(own.Row, fresh.OwnDeletes, fresh.StagedDeletes) {
 						continue
 					}
-					equal, err := s.matchesExistingUnique(bound, own, &evaluation, key, purpose)
+					equal, err := matchesExistingUnique(h, bound, own, &evaluation, key, purpose)
 					if err != nil {
 						return uniqueConflict{}, err
 					}
@@ -353,8 +355,8 @@ retry:
 	return uniqueConflict{}, nil
 }
 
-func (s *StatementScope) uniqueKeyChanged(ref ids.ObjectRef, old, next []sqltype.Value) (bool, error) {
-	binding, err := s.bindUniqueWrite(ref)
+func uniqueKeyChanged(h dml.Host, ref ids.ObjectRef, old, next []sqltype.Value) (bool, error) {
+	binding, err := bindUniqueWrite(h, ref)
 	if err != nil {
 		return false, err
 	}

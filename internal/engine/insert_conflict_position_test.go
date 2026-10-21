@@ -199,7 +199,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 				t.Fatal("nonstable omission must not recover version", admitted, err)
 			}
 			scope.InsertConflict = nil
-			err = scope.checkUniqueRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
+			err = checkUniqueRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 				t.Fatal("ordinary enforcement must not recover version", err)

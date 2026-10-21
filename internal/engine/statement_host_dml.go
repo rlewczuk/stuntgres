@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -62,13 +63,16 @@ func (h *statementHost) PositionedRow(b analyze.Binding) (dml.MutationRowIdentit
 	return h.scope().positionedMutationRow(b)
 }
 
-// CheckWriteBinding checks b over v with the operation's environment.
+// CheckWriteBinding is the ON CONFLICT binding check of b over v with the
+// operation's environment. It never locks.
 func (h *statementHost) CheckWriteBinding(v access.View, b analyze.Binding) error {
-	return h.scope().checkWriteBinding(v, b)
+	return analyze.CheckBinding(h.scope().engine().operationAuthority(h.op, v), b, &parser.Insert{})
 }
 
+// DisclosureEnv is the access environment of the statement's operation over
+// v, for key disclosure decisions. It never locks.
 func (h *statementHost) DisclosureEnv(v access.View) access.Environment {
-	return h.scope().disclosureEnv(v)
+	return h.scope().engine().operationAuthority(h.op, v)
 }
 
 func (h *statementHost) CommandError(err error) error     { return h.op.CommandError(err) }

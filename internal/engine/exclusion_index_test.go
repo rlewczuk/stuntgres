@@ -132,7 +132,7 @@ func TestExclusionStrongRowKeys(t *testing.T) {
 			if err := scope.gate(statement(t, "INSERT INTO t VALUES(1)")); err != nil {
 				t.Fatal(err)
 			}
-			binding, err := scope.bindUniqueWrite(roleTableRef(t, e, "public.t"))
+			binding, err := bindUniqueWrite(scope.writeHost(), roleTableRef(t, e, "public.t"))
 			if err != nil {
 				t.Fatal(err)
 			}

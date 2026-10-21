@@ -144,7 +144,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
-	binding, err := scope.bindUniqueWrite(ref)
+	binding, err := bindUniqueWrite(scope.writeHost(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}

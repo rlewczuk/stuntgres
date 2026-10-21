@@ -32,7 +32,7 @@ func TestIndexWriteHostPublishExclusionAdvancesGeneration(t *testing.T) {
 	h := scope.writeHost()
 	var _ index.WriteHost = h
 	ref := roleTableRef(t, e, "public.t")
-	binding, err := scope.bindUniqueWrite(ref)
+	binding, err := bindUniqueWrite(scope.writeHost(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}

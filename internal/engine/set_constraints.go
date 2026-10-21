@@ -44,7 +44,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 			remaining = append(remaining, event)
 			continue
 		}
-		binding, err := s.bindUniqueWrite(event.Parent)
+		binding, err := bindUniqueWrite(s.writeHost(), event.Parent)
 		if err != nil {
 			return err
 		}
@@ -58,12 +58,12 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if bound == nil {
 			continue
 		}
-		conflict, _, err := s.probeExclusion(event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
+		conflict, _, err := probeExclusion(s.writeHost(), event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if conflict.index != nil {
-			return conflict.diagnostic(s, event.Parent)
+			return conflict.diagnostic(s.writeHost(), event.Parent)
 		}
 	}
 	s.indexes().ExclusionModes.Events = remaining

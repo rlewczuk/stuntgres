@@ -70,7 +70,7 @@ func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *ind
 		admitted := true
 		var err error
 		if s.PartitionInsert != nil {
-			err = s.checkUniqueRow(ref, &proposal, nil, index.WriteBatch{})
+			err = checkUniqueRow(s.writeHost(), ref, &proposal, nil, index.WriteBatch{})
 		} else {
 			admitted, err = s.admitInsertRow(ref, &proposal, index.WriteBatch{}, evaluation)
 		}
@@ -102,7 +102,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 	if candidate.Indexes != nil || candidate.Precheck != nil || candidate.Exclusion != nil {
 		batch.States = states[:]
 	}
-	if err := s.validateIndexCandidates(ref, &batch); err != nil {
+	if err := validateIndexCandidates(s.writeHost(), ref, &batch); err != nil {
 		return false, false, err
 	}
 	*candidate = batch.Candidate(0)

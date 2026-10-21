@@ -32,7 +32,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			return v
 		}
 		proposal := []sqltype.Value{integer(1), integer(2)}
-		hit, err := scope.probeUniqueRow(b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
+		hit, err := probeUniqueRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
 		entry := e.storage.IndexRoots[scope.InsertConflict.Selected[0]].Entries[0]
 		store := e.storage.Relations[b.Ref.Address]
 		if err != nil || !hit.committed || entry.Position != 1 || hit.position != 1 || hit.row.Row != entry.Row || hit.row.Version != entry.Version || &hit.row.Values[0] != &store.Versions[1].Values[0] {
@@ -44,7 +44,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			t.Fatal(admitted, err)
 		}
 		stage := scope.stage.rows[b.Ref.Address]
-		replacement, err := scope.probeUniqueRow(b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
+		replacement, err := probeUniqueRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
 		if err != nil || replacement.committed || len(stage) != 1 || replacement.row.Row != old.Row || replacement.row.Version != stage[0].Version || replacement.row.Base != old.Version || replacement.row.Version == old.Version || testExport(old.Values[1]) != int64(10) {
 			t.Fatal("current-command replacement overlay/provenance", replacement, stage, old, err)
 		}
@@ -61,7 +61,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		prior := s.Transactions.Writes[b.Ref.Address][0]
 		op2, scope2, b2 := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,4) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
-		own, err := scope2.probeUniqueRow(b2.Ref, &index.WriteCandidate{Values: nextProposal}, nil, index.WriteBatch{}, scope2.InsertConflict, index.ProbeRuntime)
+		own, err := probeUniqueRow(scope2.writeHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, nil, index.WriteBatch{}, scope2.InsertConflict, index.ProbeRuntime)
 		if err != nil || own.committed || own.row.Row != prior.Row || own.row.Version != prior.Version || len(scope2.InsertConflict.AffectedRows) != 0 {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}

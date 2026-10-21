@@ -30,12 +30,12 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := evaluation.Context.Err(); err != nil {
 			return err
 		}
-		hit, err := s.probeUniqueRow(ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
+		hit, err := probeUniqueRow(s.writeHost(), ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if hit.index == nil {
-			other, err := s.probeUniqueRow(ref, candidate, nil, index.WriteBatch{}, nil, index.ProbeRuntime)
+			other, err := probeUniqueRow(s.writeHost(), ref, candidate, nil, index.WriteBatch{}, nil, index.ProbeRuntime)
 			if err != nil {
 				return err
 			}
@@ -45,7 +45,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				continue
 			}
 			if other.index != nil {
-				return other.diagnostic(s, ref)
+				return other.diagnostic(s.writeHost(), ref)
 			}
 			if s.ViewWrite != nil {
 				b := dml.BindingForConflict(ref, s.ViewWrite.BaseRelation, c)
@@ -68,7 +68,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			} else {
 				var batch index.WriteBatch
 				batch.Append(*candidate)
-				if err := s.Writes().applyValidated(ref, batch); err != nil {
+				if err := applyValidated(s.writeHost(), ref, batch); err != nil {
 					return err
 				}
 			}
@@ -100,7 +100,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			continue
 		}
 		// Reacquire row -> key, and demand the same physical identity under both.
-		checked, err := s.probeUniqueRow(ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
+		checked, err := probeUniqueRow(s.writeHost(), ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
@@ -144,7 +144,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := e.validatePhysicalInsertRow(s, b, &b, schema, row, &evaluation); err != nil {
 			return err
 		}
-		keyChanged, err := s.uniqueKeyChanged(ref, old.Values, row)
+		keyChanged, err := uniqueKeyChanged(s.writeHost(), ref, old.Values, row)
 		if err != nil {
 			return err
 		}
@@ -161,7 +161,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				return errors.New("stuntgres: conflict update predecessor changed under row lock")
 			}
 		}
-		if err := s.claimUniqueRow(ref, old); err != nil {
+		if err := claimUniqueRow(s.writeHost(), ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -173,7 +173,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		replacement := index.WriteCandidate{Values: row}
-		if err := s.checkUniqueRow(ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
+		if err := checkUniqueRow(s.writeHost(), ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
 			return err
 		}
 		b.ViewWrite = view.ViewWriteSlotOf(s.ViewWrite)
@@ -183,7 +183,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		var batch index.WriteBatch
 		batch.ActionMode = actionMode
 		batch.Append(replacement)
-		if err := s.Writes().replaceDistinct(ref, []storage.RowVersion{old}, batch); err != nil {
+		if err := replaceRows(s.writeHost(), ref, []storage.RowVersion{old}, batch, dml.ReplaceConflict); err != nil {
 			return err
 		}
 		c.MarkAffected(old.Row, len(s.stage.rows[ref.Address])-1)

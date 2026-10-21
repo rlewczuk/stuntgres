@@ -34,9 +34,9 @@ func stageMergeRows(rows *dml.MergeRows, w *WriteStage, ref ids.ObjectRef) error
 		if action.Action == parser.MergeUpdateAction {
 			batch := rows.WriteBatch.Slice(first, last)
 			batch.ActionMode = action.UpdateMode
-			err = w.replace(ref, rows.Predecessors[first:last], batch)
+			err = replaceRows(w.scope.writeHost(), ref, rows.Predecessors[first:last], batch, dml.ReplaceMerge)
 		} else {
-			err = w.applyValidated(ref, rows.WriteBatch.Slice(first, last))
+			err = applyValidated(w.scope.writeHost(), ref, rows.WriteBatch.Slice(first, last))
 		}
 		if err != nil {
 			return err
@@ -346,7 +346,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		}
 		// Initial DELETE owns rowUpdate before following a predecessor; an
 		// initial UPDATE restarts under the hasDelete strong-mode union.
-		if err := scope.claimUniqueRow(b.Ref, old); err != nil {
+		if err := claimUniqueRow(scope.writeHost(), b.Ref, old); err != nil {
 			return err
 		}
 		if err := scope.physicalRowEvent(b.Ref, old, lock.MultiUpdateAction, 0); err != nil {
@@ -403,7 +403,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		if accepted[old.Row] {
 			return dml.MergeCardinalityError()
 		}
-		keyChanged, err := scope.uniqueKeyChanged(b.Ref, old.Values, row)
+		keyChanged, err := uniqueKeyChanged(scope.writeHost(), b.Ref, old.Values, row)
 		if err != nil {
 			return err
 		}
@@ -412,7 +412,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 				return err
 			}
 		}
-		if err := scope.claimUniqueRow(b.Ref, old); err != nil {
+		if err := claimUniqueRow(scope.writeHost(), b.Ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -428,7 +428,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 	}
 	candidate := index.WriteCandidate{Values: row}
 	if unique {
-		if err := scope.checkUniqueRow(b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
+		if err := checkUniqueRow(scope.writeHost(), b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
 			return err
 		}
 	}
@@ -445,7 +445,7 @@ func (s *StatementScope) mergeFollowChainStrong(b analyze.Binding) (bool, error)
 	if b.Merge.HasDelete {
 		return true, nil
 	}
-	unique, err := s.bindUniqueWrite(b.Ref)
+	unique, err := bindUniqueWrite(s.writeHost(), b.Ref)
 	if err != nil {
 		return false, err
 	}

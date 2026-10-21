@@ -169,12 +169,12 @@ func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partition.I
 
 func (s *StatementScope) checkInsertUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch) error {
 	if s.PartitionInsert == nil {
-		return s.checkUniqueRow(ref, candidate, nil, prefix)
+		return checkUniqueRow(s.writeHost(), ref, candidate, nil, prefix)
 	}
 	group := s.partitionInsertionGroup(ref)
 	s.UniqueBinding = group.Unique
 	candidate.Values = s.partitionStoredRow(candidate.Values)
-	if err := s.checkUniqueRow(group.Ref, candidate, nil, group.Rows); err != nil {
+	if err := checkUniqueRow(s.writeHost(), group.Ref, candidate, nil, group.Rows); err != nil {
 		return err
 	}
 	group.Unique = s.UniqueBinding
@@ -189,7 +189,7 @@ func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows index.Writ
 	count := 0
 	for _, group := range s.PartitionInsert.Order {
 		s.UniqueBinding = group.Unique
-		if err := s.Writes().applyValidated(group.Ref, group.Rows); err != nil {
+		if err := applyValidated(s.writeHost(), group.Ref, group.Rows); err != nil {
 			return 0, err
 		}
 		count += len(group.Rows.Values)
