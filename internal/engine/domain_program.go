@@ -25,7 +25,11 @@ type domainCheckPhase struct {
 	admission routineAdmissionProgram
 }
 
-func (s *StatementScope) readmitPreparedPrograms(auth AuthorizationView) error {
+func (s *StatementScope) readmitPreparedPrograms(view AuthorizationView) error {
+	if len(s.domains.preparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.indexBindings) == 0 {
+		return nil
+	}
+	auth := routineAccessOf(view)
 	for _, programme := range s.domains.preparedChecks {
 		phases := programPhases(programme)
 		for i := range phases {
@@ -47,7 +51,7 @@ func (s *StatementScope) readmitPreparedPrograms(auth AuthorizationView) error {
 
 // A new trusted caller phase may borrow phase-independent cooked values only
 // after admitting the exact original consumed graph under its own actual actor.
-func (p *routineAdmissionProgram) initializePhase(original *routineAdmissionProgram, auth AuthorizationView) error {
+func (p *routineAdmissionProgram) initializePhase(original *routineAdmissionProgram, auth exec.RoutineAccess) error {
 	for _, call := range original.calls {
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}
 		if err := admitRoutineDescriptor(auth, dependency[:], call.routine, call.consumer); err != nil {

@@ -26,7 +26,7 @@ func inquiryRoutine(outer *catalog.Procedure) bool {
 
 // The declaration edge chooses a candidate, not its lifetime. A current owned
 // descriptor can be selected only after matching the exact original manifest.
-func bodyRoutineDescriptor(c *exec.Context, auth AuthorizationView, dependencies []catalog.ExpressionDependency, edge catalog.RoutineBodyEdge) (*catalog.Procedure, error) {
+func bodyRoutineDescriptor(c *exec.Context, auth exec.RoutineAccess, dependencies []catalog.ExpressionDependency, edge catalog.RoutineBodyEdge) (*catalog.Procedure, error) {
 	var original ids.ObjectRef
 	var revision ids.DefinitionRevision
 	if c.RoutineReferences != nil {
@@ -76,7 +76,7 @@ func bodyRoutineDescriptor(c *exec.Context, auth AuthorizationView, dependencies
 
 func validateInquiryBodyLifetime(c *exec.Context, node expr.Expr, outer *catalog.Procedure) error {
 	auth, dependencies, err := routineAdmissionAuthority(c)
-	if err != nil || auth.engine == nil {
+	if err != nil || !auth.Live() {
 		return err
 	}
 	return exec.WalkRoutineBody(outer, node, func(body *catalog.Procedure) error {
@@ -109,7 +109,7 @@ func admitRoutineBody(c *exec.Context, node expr.Expr, outer *catalog.Procedure,
 		return nil
 	}
 	auth, dependencies, err := routineAdmissionAuthority(c)
-	if err != nil || auth.engine == nil {
+	if err != nil || !auth.Live() {
 		return err
 	}
 	if !constant && node != nil {
@@ -145,7 +145,7 @@ func admitOverlapsPair(c *exec.Context, e functions.DatetimeOverlaps, pair int) 
 		return err
 	}
 	auth, dependencies, err := routineAdmissionAuthority(c)
-	if err != nil || auth.engine == nil {
+	if err != nil || !auth.Live() {
 		return err
 	}
 	if err = admitRecipeRoutineDescriptor(c, auth, dependencies, outer); err != nil {

@@ -42,7 +42,7 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 		return err
 	}
 	auth, dependencies, err := routineAdmissionAuthority(&local)
-	if err != nil || auth.engine == nil {
+	if err != nil || !auth.Live() {
 		return err
 	}
 	ri := scope.foreignActionAuth != nil && scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
@@ -77,7 +77,7 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 	return nil
 }
 
-func (s *StatementScope) readmitRoutinePrograms(auth AuthorizationView) error {
+func (s *StatementScope) readmitRoutinePrograms(auth exec.RoutineAccess) error {
 	for i := range s.routinePrograms {
 		if err := s.routinePrograms[i].admission.readmit(auth); err != nil {
 			return err

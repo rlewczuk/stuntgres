@@ -124,7 +124,7 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	if authErr != nil {
 		t.Fatal(authErr)
 	}
-	if err := scope.routinePrograms[0].admission.readmit(auth); err == nil {
+	if err := scope.routinePrograms[0].admission.readmit(routineAccessOf(auth)); err == nil {
 		t.Fatal("coalesced consumed calls accepted a foreign authority")
 	}
 }

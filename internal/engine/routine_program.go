@@ -56,7 +56,7 @@ func (p *routineAdmissionProgram) record(c *exec.Context, dependencies []catalog
 	return nil
 }
 
-func (p *routineAdmissionProgram) readmit(auth AuthorizationView) error {
+func (p *routineAdmissionProgram) readmit(auth exec.RoutineAccess) error {
 	for _, call := range p.calls {
 		current := auth
 		current.State.CurrentUser = call.actor

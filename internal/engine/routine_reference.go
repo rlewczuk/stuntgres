@@ -21,12 +21,12 @@ func selectExpressionRecipe(c *exec.Context, recipe *catalog.Relation) error {
 	if err != nil {
 		return err
 	}
-	if auth.engine != nil {
+	if auth.Live() {
 		current, ok := auth.Catalog.Relation(recipe.Address())
 		if !ok || current.View != recipe.View || recipe.Owner.ID() == 0 || recipe.Owner != auth.Owner.Principals.Principal(recipe.Owner.ID()) {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	c.RoutineChecks = viewOf(recipe).Dependencies()
+	c.RoutineChecks = recipe.View.Dependencies()
 	return nil
 }

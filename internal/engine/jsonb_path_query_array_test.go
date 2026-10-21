@@ -66,10 +66,10 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := admitRoutineDescriptor(auth, b.Dependencies, captured, nil); err != nil {
+	if err := admitRoutineDescriptor(routineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 		t.Fatal("original omitted-argument binding authority", err)
 	}
-	if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
+	if err := admitRoutineDescriptor(routineAccessOf(auth), nil, captured, nil); err == nil {
 		t.Fatal("current OID repaired missing original manifest")
 	}
 	checks := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -78,7 +78,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 			checks[i].Revision++
 		}
 	}
-	if err := admitRoutineDescriptor(auth, checks, captured, nil); err == nil {
+	if err := admitRoutineDescriptor(routineAccessOf(auth), checks, captured, nil); err == nil {
 		t.Fatal("stale full-signature routine lifetime admitted")
 	}
 }

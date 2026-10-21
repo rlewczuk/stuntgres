@@ -11,10 +11,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The routine admission slots of EvalAdmission are opaque to the runtime: it
-// copies them with the context (the borrowed pointer, never the pointee) and
-// only engine helpers look inside. A nil pointer is stored as an untyped nil.
-type AdmissionAuthority interface{ AdmissionAuthoritySlot() }
+// AdmissionAuthority is the borrowed local DDL admission authority of
+// EvalAdmission. The runtime copies the slot with the context (the borrowed
+// pointer, never the pointee) and reads it only through AdmissionAccess. A nil
+// pointer is stored as an untyped nil.
+type AdmissionAuthority interface{ AdmissionAccess() RoutineAccess }
+
+// The routine program slot is opaque to the runtime: only engine helpers look
+// inside.
 
 type AdmissionProgram interface{ AdmissionProgramSlot() }
 

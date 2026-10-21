@@ -12,6 +12,9 @@ import (
 type ViewPayload interface {
 	// RuleOID returns the pg_rewrite identity of the view's _RETURN rule.
 	RuleOID() ids.OID
+	// Dependencies returns the frozen expression dependencies, shared with
+	// the payload; callers must not modify the slice.
+	Dependencies() []ExpressionDependency
 	// DependsOn reports whether the presentation reads target. A zero SubID
 	// matches the whole object.
 	DependsOn(target ids.ObjectAddress) bool

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -28,6 +29,12 @@ type Preparation interface {
 	// DomainCatalog is the catalog that c's domain checks read: its captured
 	// view, else the statement's domain input or resolution catalog.
 	DomainCatalog(c *Context) catalog.Read
+	// ReturnsSet reports whether d returns a set, including the installed
+	// intagg enumerator.
+	ReturnsSet(d *catalog.Procedure) bool
+	// StoredReferenceValid reports whether ref, captured by consumer's stored
+	// SQL, still names its object in view, bridging a TEMP owner's epochs.
+	StoredReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool
 	// ValidInstalledText reports whether an installed text call still names
 	// its captured extension provider.
 	ValidInstalledText(n plan.InstalledTextExpr) bool
@@ -71,6 +78,14 @@ func (missingPreparation) CheckDomain(context.Context, *Context, *sqltype.Descri
 }
 
 func (missingPreparation) DomainCatalog(*Context) catalog.Read {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) ReturnsSet(*catalog.Procedure) bool {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) StoredReferenceValid(catalog.Read, *catalog.Relation, ids.ObjectRef) bool {
 	panic("exec: preparation not installed")
 }
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -17,7 +16,7 @@ import (
 // Only an original binding lifetime can authorize a selected call. The opaque
 // descriptor identifies the declaration; neither its ACL nor its address alone
 // supplies authority. Admission borrows the immutable manifest without copying.
-func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation) error {
+func admitRoutineDescriptor(auth exec.RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation) error {
 	current, err := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
 	if err != nil {
 		return err
@@ -98,7 +97,7 @@ func admitRoutineCall(c *exec.Context, node expr.Expr, scalarPlanning, constantC
 		return nil
 	}
 	auth, dependencies, err := routineAdmissionAuthority(c)
-	if err != nil || auth.engine == nil {
+	if err != nil || !auth.Live() {
 		return err
 	}
 	if strictScalarRoutine(captured) {
@@ -126,13 +125,13 @@ func admitCaseEquality(c *exec.Context, arm plan.CaseBranch) error {
 		return nil
 	}
 	auth, dependencies, err := routineAdmissionAuthority(c)
-	if err != nil || auth.engine == nil {
+	if err != nil || !auth.Live() {
 		return err
 	}
 	return admitRecipeRoutineDescriptor(c, auth, dependencies, arm.Routine)
 }
 
-func admitRecipeRoutineDescriptor(c *exec.Context, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
+func admitRecipeRoutineDescriptor(c *exec.Context, auth exec.RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
 	if err := checkRecipeRoutineDescriptor(c, auth, dependencies, captured); err != nil {
 		return err
 	}
@@ -142,7 +141,7 @@ func admitRecipeRoutineDescriptor(c *exec.Context, auth AuthorizationView, depen
 	return nil
 }
 
-func checkRecipeRoutineDescriptor(c *exec.Context, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
+func checkRecipeRoutineDescriptor(c *exec.Context, auth exec.RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
 	if c.RoutineChecks != nil {
 		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer)
 	}
@@ -170,21 +169,21 @@ func checkRecipeRoutineDescriptor(c *exec.Context, auth AuthorizationView, depen
 	return admitRoutineDescriptor(auth, dependencies, captured, nil)
 }
 
-func routineAdmissionAuthority(c *exec.Context) (AuthorizationView, []catalog.ExpressionDependency, error) {
-	var auth AuthorizationView
+func routineAdmissionAuthority(c *exec.Context) (exec.RoutineAccess, []catalog.ExpressionDependency, error) {
+	var auth exec.RoutineAccess
 	var dependencies []catalog.ExpressionDependency
-	if routineAuth := routineAuthorityView(c); routineAuth != nil {
-		auth = *routineAuth
-	} else if scope := scopeOf(c.LiveHost()); scope != nil {
-		if scope.finished {
-			return auth, nil, fmt.Errorf("stuntgres: ended routine admission authority")
+	if c.RoutineAuthority != nil {
+		auth = c.RoutineAuthority.AdmissionAccess()
+	} else if host := c.LiveHost(); host != nil {
+		var err error
+		if auth, dependencies, err = host.RoutineAdmission(); err != nil {
+			return auth, nil, err
 		}
-		auth, dependencies = scope.routineAuth, scope.routineDependencies
 	} else {
 		// Standalone private provider fixtures have no SQL admission owner.
 		return auth, nil, nil
 	}
-	if auth.engine == nil {
+	if !auth.Live() {
 		return auth, nil, fmt.Errorf("stuntgres: missing live routine admission authority")
 	}
 	if c.RoutineRecipe {
@@ -198,7 +197,7 @@ func routineAdmissionAuthority(c *exec.Context) (AuthorizationView, []catalog.Ex
 // inputs, and is independent of any comparator or aggregate support function.
 func admitRoutineReference(c *exec.Context, ref ids.ObjectRef, noun string) error {
 	auth, dependencies, err := routineAdmissionAuthority(c)
-	if err != nil || auth.engine == nil {
+	if err != nil || !auth.Live() {
 		return err
 	}
 	if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.ObjectID == 0 || ref.Address.SubID != 0 {
@@ -251,28 +250,4 @@ func evaluatePlanningExpression(c *exec.Context, node expr.Expr) (sqltype.Value,
 		return sqltype.Value{}, failure
 	}
 	return node.Eval(c)
-}
-
-// Query equality is caller-checked; index/hash support and native semantic-tree
-// grouping are deliberately not callable PostgreSQL routines.
-func admitQueryGroupings(c *exec.Context, groups []plan.Grouping, keys []expr.Expr) error {
-	if len(groups) != len(keys) {
-		return fmt.Errorf("stuntgres: missing query grouping identity")
-	}
-	for i, group := range groups {
-		private := analyze.PrivateTreeGrouping(keys[i].ResultUsage().Type)
-		if private != group.PrivateTree {
-			return fmt.Errorf("stuntgres: changed query grouping capability")
-		}
-		if private {
-			if group.Routine.Address.ObjectID != 0 {
-				return fmt.Errorf("stuntgres: native tree grouping has a callable identity")
-			}
-			continue
-		}
-		if err := admitRoutineReference(c, group.Routine, "function"); err != nil {
-			return err
-		}
-	}
-	return nil
 }

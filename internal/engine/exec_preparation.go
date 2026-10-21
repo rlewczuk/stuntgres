@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 )
 
@@ -26,6 +27,12 @@ func (enginePreparation) AdmitExpression(c *exec.Context, e expr.Expr, view cata
 
 func (enginePreparation) DomainCatalog(c *exec.Context) catalog.Read {
 	return domainCatalog(c)
+}
+
+func (enginePreparation) ReturnsSet(d *catalog.Procedure) bool { return procedureReturnsSet(d) }
+
+func (enginePreparation) StoredReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
+	return storedReferenceEpochValid(view, consumer, ref)
 }
 
 func (enginePreparation) ValidInstalledText(n plan.InstalledTextExpr) bool {

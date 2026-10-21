@@ -632,3 +632,27 @@ func fullJoinComparisonOperator(operator string, negate bool) string {
 	}
 	return ""
 }
+
+// Query equality is caller-checked; index/hash support and native semantic-tree
+// grouping are deliberately not callable PostgreSQL routines.
+func admitQueryGroupings(c *exec.Context, groups []plan.Grouping, keys []expr.Expr) error {
+	if len(groups) != len(keys) {
+		return fmt.Errorf("stuntgres: missing query grouping identity")
+	}
+	for i, group := range groups {
+		private := analyze.PrivateTreeGrouping(keys[i].ResultUsage().Type)
+		if private != group.PrivateTree {
+			return fmt.Errorf("stuntgres: changed query grouping capability")
+		}
+		if private {
+			if group.Routine.Address.ObjectID != 0 {
+				return fmt.Errorf("stuntgres: native tree grouping has a callable identity")
+			}
+			continue
+		}
+		if err := admitRoutineReference(c, group.Routine, "function"); err != nil {
+			return err
+		}
+	}
+	return nil
+}

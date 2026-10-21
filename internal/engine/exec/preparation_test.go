@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -23,6 +24,10 @@ func TestMissingPreparationFailsLoudly(t *testing.T) {
 			_, _, _ = PreflightCoercionsWithPolicy(&c, nil, true)
 		},
 		"AdmitExpression": func() { _ = AdmitExpression(&c, nil, catalog.Read{}) },
+		"ReturnsSet":      func() { _ = preparation.ReturnsSet(nil) },
+		"StoredReferenceValid": func() {
+			_ = preparation.StoredReferenceValid(catalog.Read{}, nil, ids.ObjectRef{})
+		},
 	}
 	for name, route := range routes {
 		t.Run(name, func(t *testing.T) {
@@ -59,6 +64,12 @@ func (p *recordingPreparation) AdmitExpression(*Context, expr.Expr, catalog.Read
 }
 
 func (p *recordingPreparation) DomainCatalog(*Context) catalog.Read { return catalog.Read{} }
+
+func (p *recordingPreparation) ReturnsSet(*catalog.Procedure) bool { return false }
+
+func (p *recordingPreparation) StoredReferenceValid(catalog.Read, *catalog.Relation, ids.ObjectRef) bool {
+	return false
+}
 
 func (p *recordingPreparation) ValidInstalledText(plan.InstalledTextExpr) bool { return true }
 

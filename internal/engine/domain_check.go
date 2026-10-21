@@ -191,7 +191,7 @@ func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 	}
 	phase := domainCheckPhase{number: c.DomainPhase, actor: auth.State.CurrentUser, ri: ri}
 	if exists {
-		if err := phase.admission.initializePhase(&programPhases(programme)[0].admission, auth); err != nil {
+		if err := phase.admission.initializePhase(&programPhases(programme)[0].admission, routineAccessOf(auth)); err != nil {
 			return err
 		}
 	} else {

@@ -66,10 +66,10 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := admitRoutineDescriptor(auth, b.Dependencies, captured, nil); err != nil {
+			if err := admitRoutineDescriptor(routineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 				t.Fatal("actual admission", err)
 			}
-			if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
+			if err := admitRoutineDescriptor(routineAccessOf(auth), nil, captured, nil); err == nil {
 				t.Fatal("missing dependency repaired")
 			}
 			stale := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -78,7 +78,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 					stale[i].Revision++
 				}
 			}
-			if err := admitRoutineDescriptor(auth, stale, captured, nil); err == nil {
+			if err := admitRoutineDescriptor(routineAccessOf(auth), stale, captured, nil); err == nil {
 				t.Fatal("stale declaration admitted")
 			}
 			// Reuse the actual routine through the existing custom-operator seam.
