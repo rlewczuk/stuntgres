@@ -49,8 +49,8 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
 - **Enums**: the PostgreSQL sort-order insertion rule (`enum_order.go`) and
   `EnumSafety`.
 - **Composites and typed tables**: `CompositeOpenError`, `ContainsRowType`,
-  `RowRewriteError`, `CompositeMembers`, `ChooseAssociatedArrayName`
-  (`row_type.go`), the typed-table shape checks (`typed_shape.go`), the
+  `RowRewriteError`, `CompositeMembers`, `ChooseAssociatedArrayName`,
+  `SynchronizeRowTypeMetadata` (`row_type.go`; table 24b moved it here), the typed-table shape checks (`typed_shape.go`), the
   typed inheritance plan helpers (`TypedShapeActions`,
   `FinishTypedInheritance`, `TypedSortedAddresses`) and `TypedColumnAction`.
 - **Type helpers** (`types.go`, `usage_dependency.go`):
@@ -143,8 +143,8 @@ graph edges of type declarations (`dumpColumnPredecessors`,
 (its `Validate` reaches the expression binder); domain check programs and
 evaluation; `reownCatalogScalarTypes`; the typed
 inheritance and mutation steps that use ALTER TABLE records; the column
-default records (`domain_default.go`); `domainDependency` and
-`conversionDefault`.
+default records (`domain_default.go`); `conversionDefault`
+(`domainDependency` is `table.DomainDependency` since table 24b).
 
 ## Testing
 

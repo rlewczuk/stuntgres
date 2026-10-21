@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `e2fef61ae` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86, 90, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
+Last verified against `master` at `9528f845f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86, 87, 90, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -14,9 +14,11 @@ planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); 87 is the only broad item ready.
+as another broad item (§8); 100 is the only broad item ready.
 
-- **Upper features, packages:** 87 (table 24b, **broad**).
+- **Upper features, packages:** 91 (partition 25b), 100 (view 27b,
+  **broad**).
+- **Upper features, refined:** 88 (table 24c, docs only).
 - **Upper features, decisions:** 85a (index 23d.1).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -87,6 +89,9 @@ ready, 85b needs 85a's seam commit; table 24c (item 88) still waits for
 87, table 24d (item 89) needs 85a and DML 29c (item 109) needs 85b.
 Item 106 (role 28d) is done and closes step 28; only the end-state
 review (item 114) needs it, and that still waits for 98, 110 and 113.
+Item 87 (table 24b) is done, so table 24c (item 88, docs only),
+partition 25b (item 91) and view 27b (item 100, broad) are ready; DML
+29b (item 108) and control 30b (item 112) still wait for 91 and 100.
 
 ## Task tree
 
@@ -510,7 +515,8 @@ review (item 114) needs it, and that still waits for 98, 110 and 113.
   24a needs 5i, 24b needs 23b, 18b, B6)
   - [x] 24a — In place: renames, slots, cuts (`56270ba2f`, `4dcdf411c`,
     `b210c6777`, `260ed66c6`, `5b4ac930a`, `36249b2b4`, `e247d07c6`, docs)
-  - [ ] 24b — `table` created and clean set moved *(broad)*
+  - [x] 24b — `table` created and clean set moved *(broad)* (`7e9873c11`,
+    `b05bbcdf9`, `8797fe715`, `a0ef76b6c`, `e0eb9d15d`, `30ed6f576`, docs)
   - [ ] 24c — Host refined (docs only)
   - [ ] 24d — Handler decisions moved
 - [ ] **Step 25 — `partition`** ([prompt](ENGINE-SPLIT-partition.md); 25b
@@ -1163,8 +1169,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `dropDependencyReader`; `emitMaterializedSnapshot` a function; clean
     +0.79k · selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-87. [ ] Table 24b: `table` created, clean set moved (with inheritance) —
+87. [x] Table 24b: `table` created, clean set moved (with inheritance) —
     [table](ENGINE-SPLIT-table.md) 24b · needs 86, 83, 56, 79 · **broad**
+    (`7e9873c11`, `b05bbcdf9`, `8797fe715`, `a0ef76b6c`, `e0eb9d15d`,
+    `30ed6f576`, then the docs commit) · 64 files (about 7.0k lines) in
+    `table`: the dump record, NOT NULL, CHECK, DEFAULT and generated, FK DDL
+    and probe, ALTER records and inheritance; definition delta and
+    prepared-holder cuts; no aliases; ran broad (about 240 files) · selected
+    unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 88. [ ] Table 24c: host refined (docs only) — [table](ENGINE-SPLIT-table.md)
     24c · needs 87, 84
 89. [ ] Table 24d: handler decisions moved — [table](ENGINE-SPLIT-table.md)
