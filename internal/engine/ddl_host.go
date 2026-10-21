@@ -74,6 +74,8 @@ func (h ddlHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class
 		kind = analyze.ConversionLookup
 	case ids.OperatorClassID:
 		kind = analyze.OperatorLookup
+	case ids.ProcedureClassID:
+		kind = analyze.FunctionLookup
 	default:
 		return nil, fmt.Errorf("stuntgres: no namespace search for class %d", class)
 	}
