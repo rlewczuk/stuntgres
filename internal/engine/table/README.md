@@ -70,6 +70,28 @@ admission and DML expansion goes to `dml`.
   recipe/owner/FK repair records, and `PhysicalNotNullDumpDependencies`
   (`physical_not_null_dump_graph.go`), the dump graph edges of moved
   physical NOT NULL providers over a `dump.Resolver`.
+- **Restore repair cores** (24d.3; `*_restore*.go`,
+  `inheritance_recipe_restore.go`, `inheritance_retired_remap.go`,
+  `default_replay.go`): the decisions inside the root Restore hooks, over a
+  `catalog.Read` or `access.View`. Whole: the captures
+  (`CaptureRestoredPlaceholders`, `CaptureRestoredNotNulls`,
+  `CaptureHistoricalFacts`, `CapturePhysicalImportIndex`),
+  `RetiredArchiveHighWater` and `RemapRetiredConstraints`, and
+  `ValidateForeignKeyData`. Split, with no stage: a shape check before
+  authorization (`RestoredGenerationShape`, `InheritedOwnerShape`,
+  `PhysicalSelfForeignKeyShape`, ...) and a decision after resolution
+  (`PairRestoredGeneration`, `InheritedCheckRecipe`, `PairRestoredNotNull`,
+  `CaptureInheritedOwner`, `CaptureInheritedForeignKey`,
+  `PreparePhysicalNotNullConstructor`, `CapturePhysicalNotNullConstructor`,
+  `CapturePhysicalForeignKeyProvider`, `ValidateRestoredDefault`, ...).
+  Around their own stage: `NoInheritNotNullCandidate`,
+  `AttributeRankCandidate`, `PhysicalNotNullCleanup` and
+  `RetiredConstraintCandidate` return the next relation (nil for no
+  change), and the caller applies `Advance` or `CommitRetiredRepair` after
+  publication. The receipts `RestoredPhysicalNotNull` and
+  `RestoredPhysicalForeignKeyProvider` hold a role record, not an
+  authorization view. Root-only validators come in as arguments
+  (`catalog.Provider`, `*ids.Domain`).
 - **Inheritance** (`inheritance_*.go`, `typed_inheritance.go`): the recursion
   plan record `InheritanceAlterPlan` (the root holder
   `inheritanceAlterState` adds the stage, journal and prepared nodes),
@@ -112,10 +134,12 @@ PARTITION OF children, ADD IDENTITY and FOREIGN KEY staging need: `index.Host`
 collation resolution, the table and sequence stage slots
 (`TableStage`, `SequenceStage`, `SequenceColumns`, `NameBinding`,
 `StageChanged`), `StagedTemporary`, relation resolution (`Resolver`,
-`ResolveRestoredRelation`), `DescribeCreateTable` and the binders
+`RestoreResolver`), `DescribeCreateTable` and the binders
 `BindColumnDefaults`, `BindGenerations` and `BindChecks`. The root `ddlHost`
 implements it (`table_host.go`). `Resolver` is its stage-less part, used by
-`DropTargets` before DROP TABLE begins a stage. `AlterHost` declares the
+`DropTargets` before DROP TABLE begins a stage; `RestoreResolver`
+(`ResolveRestoredRelation`) is the stage-less part `RetiredConstraintCandidate`
+resolves retired parents through. `AlterHost` declares the
 scope-bound ALTER contract that 24d.2 implements. Every method runs with
 `Engine.mu` held, never takes or releases it, and never waits; the
 authority is an opaque `ddl.Authority`, so code here re-reads
@@ -144,13 +168,21 @@ Also in the root: the binder bodies behind the host (`bindCreateDefaults`,
 `bindCreateGenerations`, `bindColumnChecks`),
 `projectColumnShapeRoots`, `alterTableActionKind` (it calls the SET
 TABLESPACE check), `inheritanceQueryLeaves` and the inheritance query
-scope methods (query admission), and `validateRestoredInheritedForeignKey`. FK write-time
+scope methods (query admission). Restore keeps its hook bodies in the
+root (control reaches them): the context check, authorization, the
+superuser 42501, the `Engine.mu` window, the trust checks
+(`partitionConstraintReplayImport`, the captured roles, the attribute-rank
+authority), name resolution, and the shared stage tail
+`publishRestoreRepairLocked`; also the pending foreign-key binder
+(`captureRestoredForeignKeys`, `resolveRestoredForeignKeyTargets`,
+`bindRestoredForeignKeys`, `validateRestoredInheritedForeignKey`) and
+`restore_replay.go`. FK write-time
 enforcement and FK actions (`foreignKeyJob`, `foreign_action*.go`) and
 `mutation_targets.go` go to `dml`; the materialized snapshot codec is in `view`.
 24c refined the hosts: `table.Host` (on the root `ddlHost`) and
 `table.AlterHost` (on a scope-bound root `alterHost`), every method under
-`Engine.mu` and never waiting; 24d.1 moved the CREATE decisions, 24d.2 and
-24d.3 move the ALTER and Restore decisions behind them (see
+`Engine.mu` and never waiting; 24d.1 moved the CREATE decisions and 24d.3
+the Restore cores, and 24d.2 moves the ALTER decisions behind them (see
 [ENGINE-SPLIT-table.md](../../../docs/ENGINE-SPLIT-table.md) Part B). The
 removal interface stays table-local: `DropDependencyReader` is passed in,
 and its callers hold nothing.
@@ -178,6 +210,7 @@ make check RUN='^TestOwnedSequenceName|^TestTableHost'
 make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
 make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'
 make check RACE=1 RUN='^TestNotNullAXWaitCancellationAndEnd$'
+make check RUN='^Test(AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit|RestoreInherited|InheritanceForeignKeyForwardReplay|PhysicalNotNull|InheritanceRetiredLocalCheckReconstruction)'
 ```
 
 Public behavior is covered by the dual-mode reference suite:
