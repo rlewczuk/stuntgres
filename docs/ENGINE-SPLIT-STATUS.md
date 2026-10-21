@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `e68b939e8` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78 and 79). Steps 8–17 were
+Last verified against `master` at `1eabe1ff6` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79 and 81). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,7 +20,7 @@ after each lands.
 
 - **Seams:** 63 (ddl 20d), 66 (regobj 21c), 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
-- **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
+- **Dump statements onto `dump`:** 80 (routine 14e).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
@@ -47,7 +47,9 @@ Part A moves. Item 76 (exec 11f) is done; only the end-state review
 (session 13f) is done; only item 114 needs it. Item 62 (ddl 20c, docs
 only) is done, so ddl 20d (item 63) is ready. Item 79
 (access B6) is done; table 24b (item 87) still waits for 86 and 83, and
-role 28b (item 104) for 103.
+role 28b (item 104) for 103. Item 81 (typedef 15e) is done; control 30b
+(item 112) and the end-state review (item 114) still wait for their other
+items.
 
 ## Task tree
 
@@ -525,7 +527,8 @@ role 28b (item 104) for 103.
     docs) *(racecheck/finalcheck skipped at user request)*
   - [ ] 14e — Operator and SQL routine dumps moved
     ([routine](ENGINE-SPLIT-routine.md))
-  - [ ] 15e — Type dump statements moved ([typedef](ENGINE-SPLIT-typedef.md))
+  - [x] 15e — Type dump statements moved ([typedef](ENGINE-SPLIT-typedef.md);
+    `daaaf0da3`, `f1b6a78c7`, `27fe76274`, docs) *(racecheck/finalcheck skipped at user request)*
 
 `access` is tracked under Part B above, not under the later waves.
 
@@ -1011,8 +1014,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     racecheck/finalcheck skipped at user request
 80. [ ] Routine 14e: operator and SQL routine dumps —
     [routine](ENGINE-SPLIT-routine.md) 14e · needs 56, 67
-81. [ ] Typedef 15e: type dump statements —
+81. [x] Typedef 15e: type dump statements —
     [typedef](ENGINE-SPLIT-typedef.md) 15e · needs 56, 67
+    (`daaaf0da3`, `f1b6a78c7`, `27fe76274`, then the docs commit) · collation, conversion,
+    domain/composite (`MixedDumpStatements`) and NOT VALID domain CHECK dump
+    statements in `typedef`; `dump.Presenter` gains `DomainDefault` and
+    `DomainCheck`; graph edges and the Emit entry stay; no aliases ·
+    selected unit and dual-mode proof, byte-identical dump smoke and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 
 ### Group J — upper features (steps 23–28)
 

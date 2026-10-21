@@ -210,7 +210,8 @@ Status):**
   the first changes rendering.
 - `domainDumpStatement` renders domain checks through `scalarRenderer`.
   15e needs a `Presenter.CheckSQL`-style method for it; add it in 15e, not
-  here, so the interface only grows with a caller.
+  here, so the interface only grows with a caller. *(Done in 15e:
+  `Presenter.DomainDefault` and `DomainCheck`.)*
 
 ### 18c — Registration tables in `Engine.Dump` (pattern 5)
 

@@ -36,9 +36,12 @@ callback. Step 18 of the split created it; see
 - **Capabilities** (`capabilities.go`), implemented above this package:
   - `Resolver.Predecessor` maps a dependency address to the OID of the
     dump event that must precede its consumer, or 0.
-  - `Presenter` renders type and column declarations and routine
-    identities. Every method is a pure function of its arguments: no
-    engine state, no lock. Methods are added with their first caller.
+  - `Presenter` renders type and column declarations, routine
+    identities and domain DEFAULT and CHECK expressions (`DomainDefault`,
+    `DomainCheck`; first callers: the `typedef` dump statements, 15e).
+    Every method is a pure function of its arguments: no engine state, no
+    lock; the expression methods also honor cancellation. Methods are
+    added with their first caller.
 
 ## What stays in the engine
 
@@ -46,8 +49,9 @@ callback. Step 18 of the split created it; see
 emission sequence) and `Engine.Restore` until step 30. `dumpPredecessor`
 (`dump_resolver.go`) reaches partition, operator-shell and competing-index
 helpers, so it stays in the root behind the `dumpResolver` adapter.
-`dumpPresenter` (`dump_presenter.go`) forwards to the root's type, column
-and routine presentation helpers until `regobj` (step 21) owns them. The
+`dumpPresenter` (`dump_presenter.go`) forwards type, column and routine
+presentation to `regobj` and the domain expressions to the root's
+stored-SQL renderer (`scalarRenderer`, until `stored`, step 22). The
 table dump record `dumpRelation` moves with `table` (step 24).
 
 ### How `Engine.Dump` runs (root)
@@ -104,6 +108,12 @@ Engine witnesses that build dump graphs or call the validators:
 
 ```sh
 make check RUN='^Test(PartitionAttachDumpPhaseDependencies|UserOperatorDump|PartitionDetach(Replay|UniqueReplay)|InheritanceControls|InheritanceGraph|DomainAlterConstraint|RegTS|PartitionConstraints|IndexPropertyDump)'
+```
+
+The root presenter's domain expression methods:
+
+```sh
+make check RUN='^TestDumpPresenterDomainExpressions$'
 ```
 
 Public behavior is covered by the Dump, Restore and Control reference tests
