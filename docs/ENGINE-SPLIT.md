@@ -1505,6 +1505,10 @@ a third copy. Done: `ddlHost` implements `ddl.Host` (`ddl_host.go`),
 
 **Schema-level DDL (20c, 20d).** The decisions of CREATE/ALTER/DROP SCHEMA
 and CREATE TABLESPACE (about 0.3k lines) move behind the shared host.
+Refined (20c): `ddl.SchemaHost` is `ddl.Host` plus five methods on
+`ddlHost` (one table element, the schema dependents, one removal, a cascade
+notice, a relation diagnostic); CREATE TABLESPACE takes only the
+`access.View`; the seed comments go to `catalog`.
 
 **Stays in the root.** Search path resolution (`schema_path.go`), COMMENT
 staging, the schema statement dispatch and `dropProvider`. The first Part B
@@ -2073,7 +2077,7 @@ package-specific scope. This section holds the rules every session follows.
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c refined (decisions move, orchestration stays; no `sequence.Host`); 17d done (handler, identity, serial, prepared-literal, call and Control decisions and the stage slot moved; orchestration stays in the root) (racecheck/finalcheck skipped at user request) |
 | 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b done (`dump` created: event graph, `Order`, `Statement`, `Group`, Restore scalar validators, `Resolver`/`Presenter` with root adapters; no aliases; racecheck/finalcheck skipped at user request); 18c done (`captureDumpLocked` unlocks once; ordered Collect tables, phase-indexed Emit table and section list; output byte-identical; racecheck/finalcheck skipped at user request) |
 | 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | done (19a cursors split in place; 19b `copyfmt` created and the codec moved: options, FORCE binding, `LineReader`, `BinaryReader`, no aliases; racecheck/finalcheck skipped at user request) |
-| 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b done (one root staging adapter `ddlHost`; racecheck/finalcheck skipped at user request); 20c–20d planned |
+| 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b done (one root staging adapter `ddlHost`; racecheck/finalcheck skipped at user request); 20c refined (`ddl.SchemaHost` on `ddlHost`, schema and tablespace decisions move, orchestration stays); 20d planned |
 | 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | 21a done in place (regclass, literal, namespace-visibility and identity files; `pgIdentifier` is `catalog.Identifier`; racecheck/finalcheck skipped at user request); 21b–21c planned |
 | 22 | [`ENGINE-SPLIT-stored.md`](ENGINE-SPLIT-stored.md) | 22b: 21b, F6, 18b, 12f; 22c: 5j | 22a done in place (coverage and freeze cuts, `viewDefinition` read accessors, renames, name `stored` settled; racecheck/finalcheck skipped at user request); 22b–22d planned |
 | 23 | [`ENGINE-SPLIT-index.md`](ENGINE-SPLIT-index.md) | 23b: 22b, 5i, 10e, 11e; 23c: 20b | planned (23a–23d) |

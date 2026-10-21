@@ -827,7 +827,8 @@ keeps its constants; it is not a catalog alias.
   nodes). `sameRelationRowShape` calls `analyze.SameStatementUsage`.
 - **"5i decides" items from the ddl prompt.** `parameterProvider` stays in
   the root; only `installParameterGrant` moved. The seed comments
-  (`comment_builtin.go`) were not examined; 20d decides.
+  (`comment_builtin.go`) were not examined; 20c decided they move to
+  `catalog` in 20d.
 - **Tests.** `TestTablespaceNameValidation` and
   `TestTablespaceCanonicalPaths` moved to
   `catalog/tablespace_validate_test.go` (their diagnostic helper is copied;
