@@ -68,7 +68,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			return nil, nil, err
 		}
 	}
-	if scope.materializedOrZero().refresh && ref == scope.lockedRef {
+	if scope.materializedOrZero().Refresh && ref == scope.lockedRef {
 		if err := e.initializeQueryLocksLocked(scope, root, leaves); err != nil {
 			e.mu.Unlock()
 			return nil, nil, err
@@ -146,7 +146,7 @@ func prepareStoredExecutionRoot(c *exec.Context, definition *stored.View, output
 	demanded := definition.Query().Root
 	if project, ok := demanded.(*plan.ProjectNode); ok {
 		var err error
-		demanded, err = storedProjectionDemand(project, outputUses)
+		demanded, err = StoredProjectionDemand(project, outputUses)
 		if err != nil {
 			return nil, nil, err
 		}

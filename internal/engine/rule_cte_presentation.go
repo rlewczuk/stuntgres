@@ -12,7 +12,7 @@ import (
 // Mutation-owned WITH bodies are not the INSERT source SELECT's own WITH.
 // Retain even unused definitions in the existing analysis-only query carrier so
 // current-name/literal presentation and remapping see their ordinary typed graph.
-func retainRuleCTEPresentation(view catalog.Read, b analyze.Binding) analyze.Binding {
+func RetainRuleCTEPresentation(view catalog.Read, b analyze.Binding) analyze.Binding {
 	if b.Query == nil || len(b.CTEs) == 0 {
 		return b
 	}

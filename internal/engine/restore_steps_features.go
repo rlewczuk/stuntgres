@@ -38,7 +38,7 @@ func decodeRestoreExtensionOwners(r *restoreRun, comment string, _ parser.Positi
 
 // decodeRestoreMaterializedSnapshot collects a materialized view snapshot.
 func decodeRestoreMaterializedSnapshot(r *restoreRun, comment string, _ parser.Position) (bool, error) {
-	record, recognized, err := decodeMaterializedSnapshot(comment)
+	record, recognized, err := DecodeMaterializedSnapshot(comment)
 	if err != nil || !recognized {
 		return false, err
 	}

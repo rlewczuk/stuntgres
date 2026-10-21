@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func isolateRuleCTEFrames(view catalog.Read, original, action analyze.Binding, syntax parser.Statement) (analyze.Binding, error) {
+func IsolateRuleCTEFrames(view catalog.Read, original, action analyze.Binding, syntax parser.Statement) (analyze.Binding, error) {
 	if len(original.CTEs) == 0 {
 		return action, nil
 	}

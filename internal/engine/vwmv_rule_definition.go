@@ -11,19 +11,19 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func ruleIndex(d *catalog.Relation, name string) int {
+func RuleIndex(d *catalog.Relation, name string) int {
 	return slices.IndexFunc(stored.RulesOf(d), func(r stored.Rule) bool { return r.Name == name })
 }
 
-func ruleMissing(name string, d *catalog.Relation) error {
+func RuleMissing(name string, d *catalog.Relation) error {
 	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.Name()))
 }
 
-func ruleDuplicate(name string, d *catalog.Relation) error {
+func RuleDuplicate(name string, d *catalog.Relation) error {
 	return sqlError("42710", fmt.Sprintf(`rule "%s" for relation "%s" already exists`, name, d.Name()))
 }
 
-func ruleResultCheck(d *catalog.Relation, schema []catalog.Column, selectRule bool) error {
+func RuleResultCheck(d *catalog.Relation, schema []catalog.Column, selectRule bool) error {
 	prefix := "RETURNING list"
 	if selectRule {
 		prefix = "SELECT rule's target list"

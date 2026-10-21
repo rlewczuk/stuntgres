@@ -76,10 +76,10 @@ func TestViewCheckDeclaration(t *testing.T) {
 func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScope, op *session.Operation) analyze.Binding {
 	t.Helper()
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := bindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Update{}); err != nil {
+	if err := BindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
-	return physicalBinding(b)
+	return PhysicalBinding(b)
 }
 
 func TestViewCheckStack(t *testing.T) {
@@ -117,7 +117,7 @@ func TestViewCheckStack(t *testing.T) {
 					layers[i].View = stored.ViewOf(layers[i]).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckMode(mode) })
 				}
 				b := analyze.Binding{Relation: layers[2], Ref: refs[2]}
-				if err := bindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
+				if err := BindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
 					t.Fatal(err)
 				}
 				var want, got []string
@@ -126,8 +126,8 @@ func TestViewCheckStack(t *testing.T) {
 						want = append(want, layers[2-depth].Name())
 					}
 				}
-				for _, group := range viewWriteOf(b.ViewWrite).checks {
-					got = append(got, group.relation.Name())
+				for _, group := range ViewWriteOf(b.ViewWrite).Checks {
+					got = append(got, group.Relation.Name())
 				}
 				if !reflect.DeepEqual(got, want) {
 					t.Fatal(top, middle, leaf, got, want)
@@ -151,7 +151,7 @@ func TestViewCheckMapping(t *testing.T) {
 	project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: column}
 	scope, op := f.scope(t)
 	b := viewCheckUnitBinding(t, f, scope, op)
-	mapped, ok := stored.ViewDirectColumn(viewWriteOf(b.ViewWrite).checks[0].predicates[0])
+	mapped, ok := stored.ViewDirectColumn(ViewWriteOf(b.ViewWrite).Checks[0].Predicates[0])
 	if !ok || mapped.Slot != 0 || !stored.SameViewRelation(mapped.Origin, f.baseRef) {
 		t.Fatal(mapped, ok)
 	}
@@ -177,7 +177,7 @@ func TestViewCheckPredicate(t *testing.T) {
 		return sqltype.Boolean(f.boolean, true), nil
 	})
 	for _, value := range []sqltype.Value{sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)} {
-		b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: viewWriteSlotOf(&viewWrite{checks: []viewCheckGroup{{relation: &catalog.Relation{ObjectName: "outer"}, predicates: []expr.Expr{pass}}, {relation: f.view, predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: value}}}}})}
+		b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: ViewWriteSlotOf(&viewWrite{Checks: []viewCheckGroup{{Relation: &catalog.Relation{ObjectName: "outer"}, Predicates: []expr.Expr{pass}}, {Relation: f.view, Predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: value}}}}})}
 		eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
 		err := f.e.checkViewRow(scope, &b, row, &eval)
 		var d *sqlstate.Error
@@ -185,7 +185,7 @@ func TestViewCheckPredicate(t *testing.T) {
 			t.Fatal(err, calls, eval.Row)
 		}
 	}
-	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: viewWriteSlotOf(&viewWrite{checks: []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{pass}}}})}
+	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: ViewWriteSlotOf(&viewWrite{Checks: []viewCheckGroup{{Relation: f.view, Predicates: []expr.Expr{pass}}}})}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
 	if err := f.e.checkViewRow(scope, &b, row, &eval); err != nil || calls != 1 || len(eval.Row) != 1 {
 		t.Fatal("produced NEW check skipped or OLD frame replaced", err, calls, eval.Row)
@@ -202,7 +202,7 @@ func TestViewCheckAdmission(t *testing.T) {
 			calls++
 			return sqltype.Boolean(f.boolean, closeFailure || calls == 1), nil
 		})
-		b := analyze.Binding{Relation: f.base, Ref: f.baseRef, Targets: []int{0, 1, 2}, ViewWrite: viewWriteSlotOf(&viewWrite{checks: []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{guard}}}})}
+		b := analyze.Binding{Relation: f.base, Ref: f.baseRef, Targets: []int{0, 1, 2}, ViewWrite: ViewWriteSlotOf(&viewWrite{Checks: []viewCheckGroup{{Relation: f.view, Predicates: []expr.Expr{guard}}}})}
 		originals := f.e.storage.Relations[f.base.Address()].Versions
 		cursor := &insertConflictInputCursor{schema: f.base.Columns, rows: [][]sqltype.Value{originals[0].Values, originals[1].Values}}
 		if closeFailure {
@@ -241,7 +241,7 @@ func TestViewCheckCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(scope.op.Context())
 	defer cancel()
 	guard := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) { cancel(); return sqltype.Boolean(f.boolean, true), nil })
-	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: viewWriteSlotOf(&viewWrite{checks: []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{guard}}}})}
+	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: ViewWriteSlotOf(&viewWrite{Checks: []viewCheckGroup{{Relation: f.view, Predicates: []expr.Expr{guard}}}})}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Output: scope.output}}
 	err := f.e.checkViewRow(scope, &b, row, &eval)
 	if !errors.Is(err, context.Canceled) {
@@ -273,7 +273,7 @@ func TestViewCheckFinish(t *testing.T) {
 	if err := scope.gate(&parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
-	w := &viewWrite{base: f.base, ref: f.baseRef, layers: []viewWriteLayer{{relation: f.view, ref: f.viewRef, source: f.base, sourceRef: f.baseRef}}}
+	w := &viewWrite{BaseRelation: f.base, Ref: f.baseRef, Layers: []viewWriteLayer{{Relation: f.view, Ref: f.viewRef, Source: f.base, SourceRef: f.baseRef}}}
 	scope.lockedRef, scope.lockedDescriptor = f.viewRef, f.view
 	if err := scope.acquireViewWriteTarget(w); err != nil {
 		t.Fatal(err)
@@ -286,8 +286,8 @@ func TestViewCheckFinish(t *testing.T) {
 	originals := f.e.storage.Relations[f.base.Address()].Versions
 	row := append([]sqltype.Value(nil), originals[0].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	w.checks = []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}}}}
-	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: viewWriteSlotOf(w)}
+	w.Checks = []viewCheckGroup{{Relation: f.view, Predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}}}}
+	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: ViewWriteSlotOf(w)}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Output: scope.output}}
 	if err := f.e.checkViewRow(scope, &b, row, &eval); err != nil {
 		t.Fatal(err)

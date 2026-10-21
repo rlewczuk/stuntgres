@@ -8,6 +8,6 @@ import (
 // the replacement being published and the source snapshot it read. Only
 // REFRESH and materialized population write it.
 type materializedStage struct {
-	replacement *materializedReplacement
-	sourceView  *visibility.Data
+	Replacement *materializedReplacement
+	SourceView  *visibility.Data
 }

@@ -92,8 +92,8 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	if err := e.captureDomainStageLocked(s, c, current); err != nil {
 		return err
 	}
-	if r := s.materializedOrZero().replacement; r != nil {
-		if err := s.materializedReplacementCurrent(current, e.stageStorageLocked(s, r.original.Address())); err != nil {
+	if r := s.materializedOrZero().Replacement; r != nil {
+		if err := s.materializedReplacementCurrent(current, e.stageStorageLocked(s, r.Original.Address())); err != nil {
 			return err
 		}
 	}
@@ -165,10 +165,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		domainBases = nil
 	}
 	for _, source := range s.querySources {
-		if !materializedSourceCurrent(s.materializedOrZero().sourceView, source, current, e.stageStorageLocked(s, source.Address())) {
+		if !MaterializedSourceCurrent(s.materializedOrZero().SourceView, source, current, e.stageStorageLocked(s, source.Address())) {
 			return catalog.Conflict{}
 		}
-		if snapshot := s.materializedOrZero().sourceView; snapshot != nil {
+		if snapshot := s.materializedOrZero().SourceView; snapshot != nil {
 			if relation, ok := source.(*catalog.Relation); ok && relation.RelationKind == catalog.MaterializedViewRelation {
 				fence := materializedSourceFence{ref: e.catalog.Domain.Ref(snapshot.Catalog.Epoch(), relation.Address()), relation: relation, storage: snapshot.GenerationAt(relation.Address())}
 				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.Descriptors[relation.Address()] == nil {

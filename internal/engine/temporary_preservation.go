@@ -603,7 +603,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	}
 	for _, descriptor := range next.Descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
-			if err := validatePolicies(e.catalog.read(next), relation); err != nil {
+			if err := ValidatePolicies(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
@@ -618,7 +618,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			}
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok && relation.View != nil {
-			if err := validateViewDefinition(e.catalog.read(next), relation); err != nil {
+			if err := ValidateViewDefinition(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}

@@ -16,9 +16,9 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth ruleAuthori
 	matched := func(relation *catalog.Relation, statement parser.Statement) bool {
 		return relation != nil && slices.ContainsFunc(stored.RulesOf(relation), func(rule stored.Rule) bool { return rule.Event() == stored.RuleEvent(statement) })
 	}
-	needed := b.Rule.Template || matched(bindingRuleRelation(*b), statement)
+	needed := b.Rule.Template || matched(BindingRuleRelation(*b), statement)
 	for _, definition := range b.CTEs {
-		if mutation, ok := analyze.MutationBinding(definition); ok && matched(bindingRuleRelation(*mutation), definition.Statement) {
+		if mutation, ok := analyze.MutationBinding(definition); ok && matched(BindingRuleRelation(*mutation), definition.Statement) {
 			needed = true
 			break
 		}
@@ -28,31 +28,31 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth ruleAuthori
 	}
 	for _, definition := range b.CTEs {
 		mutation, ok := analyze.MutationBinding(definition)
-		if !ok || ruleCTEsOf(b.Rule.CTEs)[definition] != nil {
+		if !ok || RuleCTEsOf(b.Rule.CTEs)[definition] != nil {
 			continue
 		}
 		original := *mutation
 		original.Parameters = b.Parameters
 		original.CTEs = b.CTEs
-		program := ruleProgram{count: -1, returning: -1}
-		if _, err := (ruleRewriter{e.catalog.owner()}).expandLocked(auth, definition.Statement, original, nil, &program); err != nil {
+		program := ruleProgram{Count: -1, Returning: -1}
+		if _, err := (ruleRewriter{e.catalog.owner()}).ExpandLocked(auth, definition.Statement, original, nil, &program); err != nil {
 			return err
 		}
-		if err := ruleCTEProgramError(program); err != nil {
+		if err := RuleCTEProgramError(program); err != nil {
 			return err
 		}
-		command := program.commands[0]
+		command := program.Commands[0]
 		if b.Rule.CTEs == nil {
-			b.Rule.CTEs = ruleCTEsSlotOf(make(map[*plan.CTEDefinition]*ruleCTECommand))
+			b.Rule.CTEs = RuleCTEsSlotOf(make(map[*plan.CTEDefinition]*ruleCTECommand))
 		}
-		ruleCTEsOf(b.Rule.CTEs)[definition] = &ruleCTECommand{definition: definition, command: command, caller: auth, events: program.events, mutation: -1}
-		b.Dependencies = append(b.Dependencies, program.events...)
-		if command.binding.Relation != nil {
-			b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: command.binding.Ref, Revision: command.binding.Relation.Revision()})
+		RuleCTEsOf(b.Rule.CTEs)[definition] = &ruleCTECommand{Definition: definition, Command: command, Caller: auth, Events: program.Events, Mutation: -1}
+		b.Dependencies = append(b.Dependencies, program.Events...)
+		if command.Binding.Relation != nil {
+			b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: command.Binding.Ref, Revision: command.Binding.Relation.Revision()})
 		}
-		b.Dependencies = append(b.Dependencies, command.binding.Dependencies...)
-		b.Prepared.SequenceConstants = append(b.Prepared.SequenceConstants, command.binding.Prepared.SequenceConstants...)
-		b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, command.binding.Prepared.RegtypeConstants...)
+		b.Dependencies = append(b.Dependencies, command.Binding.Dependencies...)
+		b.Prepared.SequenceConstants = append(b.Prepared.SequenceConstants, command.Binding.Prepared.SequenceConstants...)
+		b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, command.Binding.Prepared.RegtypeConstants...)
 	}
 	return nil
 }
@@ -61,34 +61,34 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth ruleAuthori
 // original parsed contexts remain present for caller/name/storage fences.
 // Enter held; success retains Engine.mu, failure releases it.
 func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Statement, b *analyze.Binding) ([]ids.ObjectRef, error) {
-	if len(ruleCTEsOf(b.Rule.CTEs)) == 0 {
+	if len(RuleCTEsOf(b.Rule.CTEs)) == 0 {
 		return nil, nil
 	}
 	// Prepared bindings retain analysis recipes, never an execution's admitted
 	// index or refreshed principal. Each request owns these mutable tuples.
-	commands := make(map[*plan.CTEDefinition]*ruleCTECommand, len(ruleCTEsOf(b.Rule.CTEs)))
-	for definition, recipe := range ruleCTEsOf(b.Rule.CTEs) {
+	commands := make(map[*plan.CTEDefinition]*ruleCTECommand, len(RuleCTEsOf(b.Rule.CTEs)))
+	for definition, recipe := range RuleCTEsOf(b.Rule.CTEs) {
 		copy := *recipe
 		commands[definition] = &copy
 	}
-	b.Rule.CTEs = ruleCTEsSlotOf(commands)
+	b.Rule.CTEs = RuleCTEsSlotOf(commands)
 	program := ruleProgram{}
 	var normalized []*ruleCTECommand
 	for _, definition := range b.CTEs {
-		rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]
+		rewrite := RuleCTEsOf(b.Rule.CTEs)[definition]
 		if rewrite == nil {
 			continue
 		}
 		mutation, _ := analyze.MutationBinding(definition)
-		if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.caller), *mutation, definition.Statement); err != nil {
+		if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
-		if _, selectOnly := rewrite.command.syntax.(*parser.Select); selectOnly {
+		if _, selectOnly := rewrite.Command.Syntax.(*parser.Select); selectOnly {
 			continue
 		}
-		program.commands = append(program.commands, rewrite.command)
-		program.events = append(program.events, rewrite.events...)
+		program.Commands = append(program.Commands, rewrite.Command)
+		program.Events = append(program.Events, rewrite.Events...)
 		normalized = append(normalized, rewrite)
 	}
 	refs, err := e.admitRuleCommandsLocked(scope, statement, &program)
@@ -100,24 +100,24 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		e.mu.Unlock()
 		return nil, err
 	}
-	for _, rewrite := range ruleCTEsOf(b.Rule.CTEs) {
+	for _, rewrite := range RuleCTEsOf(b.Rule.CTEs) {
 		caller := fresh
-		caller.State.CurrentUser = rewrite.caller.Access().State.CurrentUser
+		caller.State.CurrentUser = rewrite.Caller.Access().State.CurrentUser
 		if err := caller.Roles.ValidatePrincipal(caller.State.CurrentUser); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
-		mutation, _ := analyze.MutationBinding(rewrite.definition)
+		mutation, _ := analyze.MutationBinding(rewrite.Definition)
 		if err := checkRowSecurityBinding(scope, caller, *mutation); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
 	}
-	for _, rewrite := range ruleCTEsOf(b.Rule.CTEs) {
+	for _, rewrite := range RuleCTEsOf(b.Rule.CTEs) {
 		caller := fresh
-		caller.State.CurrentUser = rewrite.caller.Access().State.CurrentUser
-		mutation, _ := analyze.MutationBinding(rewrite.definition)
-		if err := analyze.CheckBinding(caller, *mutation, rewrite.definition.Statement); err != nil {
+		caller.State.CurrentUser = rewrite.Caller.Access().State.CurrentUser
+		mutation, _ := analyze.MutationBinding(rewrite.Definition)
+		if err := analyze.CheckBinding(caller, *mutation, rewrite.Definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -127,15 +127,15 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		scope.activeMutation = 0
 	}
 	for i, rewrite := range normalized {
-		rewrite.command = program.commands[i]
-		if index := scope.mutationIndex(rewrite.definition.Statement); rewrite.command.syntax == rewrite.definition.Statement && index >= 0 {
-			rewrite.mutation = index
+		rewrite.Command = program.Commands[i]
+		if index := scope.mutationIndex(rewrite.Definition.Statement); rewrite.Command.Syntax == rewrite.Definition.Statement && index >= 0 {
+			rewrite.Mutation = index
 			continue
 		}
-		physical := physicalBinding(rewrite.command.binding)
+		physical := PhysicalBinding(rewrite.Command.Binding)
 		scope.mutations[scope.activeMutation] = scope.statementMutation
-		rewrite.mutation = len(scope.mutations)
-		scope.mutations = append(scope.mutations, statementMutation{statement: rewrite.command.syntax, mutationTarget: mutationTarget{lockedRef: physical.Ref, lockedDescriptor: physical.Relation, lockedStorage: physical.Storage}, viewWrite: viewWriteOf(rewrite.command.binding.ViewWrite)})
+		rewrite.Mutation = len(scope.mutations)
+		scope.mutations = append(scope.mutations, statementMutation{statement: rewrite.Command.Syntax, mutationTarget: mutationTarget{lockedRef: physical.Ref, lockedDescriptor: physical.Relation, lockedStorage: physical.Storage}, viewWrite: ViewWriteOf(rewrite.Command.Binding.ViewWrite)})
 	}
 	return refs, nil
 }

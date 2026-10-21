@@ -226,7 +226,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						}
 					}
 				case *catalog.Relation:
-					if viewDepends(owner, target) || materializedExtensionDepends(owner, target) || table.CheckDepends(owner, target) || table.DefaultDepends(owner, target) || table.GenerationDepends(owner, target) || index.ExpressionDepends(owner, target) {
+					if ViewDepends(owner, target) || MaterializedExtensionDepends(owner, target) || table.CheckDepends(owner, target) || table.DefaultDepends(owner, target) || table.GenerationDepends(owner, target) || index.ExpressionDepends(owner, target) {
 						return catalog.Conflict{}
 					}
 					if candidate.Get(target) == nil {

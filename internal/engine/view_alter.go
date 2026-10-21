@@ -51,7 +51,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
-	if err = alterViewAuthority(auth.View, auth, ref, s); err != nil {
+	if err = AlterViewAuthority(auth.View, auth, ref, s); err != nil {
 		return fail(err)
 	}
 	if scope.replacementRead {
@@ -124,7 +124,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				}
 			}
 		}
-		definition.Options = transformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
+		definition.Options = TransformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
 		altered := stored.NewView(definition)
 		if altered.CheckOption() != stored.CheckNone {
 			if err := stored.ValidateViewCheckDeclaration(altered); err != nil {
@@ -192,9 +192,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		if err != nil {
 			if !s.IfExists || !table.RenameMissing(err) {
 				e.mu.Unlock()
-				return Result{}, viewDropMissing(err, name, label)
+				return Result{}, ViewDropMissing(err, name, label)
 			}
-			diagnostic := viewDropMissing(err, name, label).(*sqlstate.Error)
+			diagnostic := ViewDropMissing(err, name, label).(*sqlstate.Error)
 			notices = append(notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: diagnostic.Message + ", skipping"})
 			continue
 		}
@@ -214,7 +214,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			e.mu.Unlock()
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.Name(), label), Hint: hint}
 		}
-		if err := viewDropOwner(auth.View, auth, ref, d); err != nil {
+		if err := ViewDropOwner(auth.View, auth, ref, d); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -260,7 +260,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		if err := viewDropOwner(auth.View, auth, ref, d); err != nil {
+		if err := ViewDropOwner(auth.View, auth, ref, d); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

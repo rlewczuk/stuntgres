@@ -52,7 +52,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	check("direct bypass", bypass, catalog.PolicySelect, false, access.RLSUnrestricted)
 	check("attribute not inherited", member, catalog.PolicySelect, false, access.RLSDefaultDeny)
 	check("direct superuser", d.Owner, catalog.PolicySelect, false, access.RLSUnrestricted)
-	next.Security.Policies = []catalog.PolicyDefinition{{Permissive: false, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(using)}}
+	next.Security.Policies = []catalog.PolicyDefinition{{Permissive: false, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: PolicyPayloadOf(using)}}
 	check("restrictive only", member, catalog.PolicySelect, false, access.RLSDefaultDeny)
 	next.Security.Policies[0].Permissive = true
 	next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: owner}}
@@ -70,7 +70,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	next.Security.Policies[0].Using = nil
 	check("omitted using", member, catalog.PolicySelect, false, access.RLSDefaultDeny)
 	next.Security.Policies[0].Command = catalog.PolicyInsert
-	next.Security.Policies[0].Check = policyPayloadOf(using)
+	next.Security.Policies[0].Check = PolicyPayloadOf(using)
 	check("explicit check", member, catalog.PolicyInsert, true, access.RLSNeedsExpressions)
 	got, err = access.RowSecurityGroups(auth.Roles, &next, member, catalog.PolicyInsert, true, true)
 	if err != nil || got != access.RLSDefaultDeny {
@@ -107,7 +107,7 @@ func TestRLSBaseDecision(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source, err := captureDeniedQuerySource(view, ref)
+		source, err := CaptureDeniedQuerySource(view, ref)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,7 +170,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := *d
-	old.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "retained", Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Ref: d.Owner}}, Using: policyPayloadOf(expression), Check: policyPayloadOf(expression)}}
+	old.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "retained", Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Ref: d.Owner}}, Using: PolicyPayloadOf(expression), Check: PolicyPayloadOf(expression)}}
 	actions := []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}, {Action: parser.DisableRowSecurity}}
 	next := access.RowSecurityFlags(&old, actions)
 	if next == &old || next.Security.RLSEnabled || !next.Security.RLSForced || old.Security.RLSEnabled || old.Security.RLSForced {

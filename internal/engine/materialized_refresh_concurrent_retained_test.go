@@ -18,7 +18,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 		previous := original
 		for i, concurrent := range sequence {
 			replacement := &storage.Relation{Generation: previous.Generation + 1}
-			stage := &CatalogStage{materializedSlot: &materializedStage{replacement: &materializedReplacement{original: d, descriptor: d, predecessor: previous, storage: replacement, generation: previous.Generation, ends: previous.Ends, concurrent: concurrent}}}
+			stage := &CatalogStage{materializedSlot: &materializedStage{Replacement: &materializedReplacement{Original: d, Descriptor: d, Predecessor: previous, Storage: replacement, Generation: previous.Generation, Ends: previous.Ends, Concurrent: concurrent}}}
 			e.mu.Lock()
 			e.stageCatalogChangesLocked(stage, changes)
 			e.mu.Unlock()
@@ -41,7 +41,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	private := &storage.Relation{}
 	changes := session.NewJournal()
 	changes.Storage[d.Address()] = session.StorageChange{Replacement: private, Relation: d}
-	stage := &CatalogStage{materializedSlot: &materializedStage{replacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &storage.Relation{}, concurrent: true}}}
+	stage := &CatalogStage{materializedSlot: &materializedStage{Replacement: &materializedReplacement{Original: d, Descriptor: d, Predecessor: private, Storage: &storage.Relation{}, Concurrent: true}}}
 	e.mu.Lock()
 	e.stageCatalogChangesLocked(stage, changes)
 	e.mu.Unlock()
@@ -62,7 +62,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.Address()), relation: old, storage: stored}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()
-	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {
+	if !MaterializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {
 		t.Fatal("compatible publication rejected captured source")
 	}
 	changes := session.NewJournal()
@@ -78,14 +78,14 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	changed := *current
 	changed.ObjectName = "renamed"
 	e.catalog.state.SetDescriptor(current.Address(), &changed)
-	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) {
+	if e.materializedSourceFenceCurrent(fence) || MaterializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) {
 		t.Fatal("source definition retargeted")
 	}
 	e.catalog.state.SetDescriptor(current.Address(), current)
 	e.mu.Unlock()
 	current = concurrentUnitReplace(t, e, current, refreshUnitRows(t, current, 3), false, true)
 	e.mu.Lock()
-	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[current.Address()]) {
+	if e.materializedSourceFenceCurrent(fence) || MaterializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[current.Address()]) {
 		t.Fatal("plain rewrite bridged active source snapshot")
 	}
 	e.mu.Unlock()

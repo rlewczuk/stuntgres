@@ -346,7 +346,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			// Use surviving scalar recipes, not dead conditional branches, to
 			// choose child payload demand. Scalar preparation keeps its usual
 			// precedence over opening/preparing the source.
-			demanded, err := ruleQueryProducerDemand(n, nil, 0)
+			demanded, err := RuleQueryProducerDemand(n, nil, 0)
 			if err != nil {
 				return nil, err
 			}

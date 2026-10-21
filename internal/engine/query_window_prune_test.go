@@ -112,7 +112,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			schema = append(schema, schema[0])
 			input := &plan.EvaluationNode{QuerySchema: plan.QuerySchema(schema), Child: original.Child}
 			slots := make(map[int]int)
-			grafted, err := ruleGraftSchemas(query.Root, original.Child, input, slots)
+			grafted, err := RuleGraftSchemas(query.Root, original.Child, input, slots)
 			if err != nil {
 				t.Fatal(err)
 			}

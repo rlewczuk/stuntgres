@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-func materializedRefreshAccess(view access.View, env access.Environment, ref ids.ObjectRef) error {
+func MaterializedRefreshAccess(view access.View, env access.Environment, ref ids.ObjectRef) error {
 	d, ok := view.Catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != view.Owner.Domain || ref.Epoch != view.Catalog.Epoch() {
 		return ids.ErrCatalogReplaced
@@ -29,27 +29,27 @@ func materializedRefreshAccess(view access.View, env access.Environment, ref ids
 
 // A preceding refresh changes rows/population/revision, not defining authority.
 // Capture its new store only at target grant; never retry name resolution.
-func materializedRefreshCompatible(old, current *catalog.Relation) bool {
+func MaterializedRefreshCompatible(old, current *catalog.Relation) bool {
 	return current != nil && current.RelationKind == catalog.MaterializedViewRelation &&
 		catalog.RelationDefiningAuthorityCompatible(old, current)
 }
 
 type materializedReplacement struct {
-	original    *catalog.Relation
-	predecessor *storage.Relation
-	storage     *storage.Relation
-	generation  uint64
-	length      int
-	descriptor  *catalog.Relation
-	ends        *storage.DeletionRoot
-	concurrent  bool
-	indexCount  int
+	Original    *catalog.Relation
+	Predecessor *storage.Relation
+	Storage     *storage.Relation
+	Generation  uint64
+	Length      int
+	Descriptor  *catalog.Relation
+	Ends        *storage.DeletionRoot
+	Concurrent  bool
+	IndexCount  int
 }
 
 // materializedRefreshScope is the statement's REFRESH MATERIALIZED VIEW slot:
 // the refresh flag, the captured source descriptors and their visibility data.
 type materializedRefreshScope struct {
-	refresh    bool
-	sources    []catalog.Descriptor
-	sourceView *visibility.Data
+	Refresh    bool
+	Sources    []catalog.Descriptor
+	SourceView *visibility.Data
 }

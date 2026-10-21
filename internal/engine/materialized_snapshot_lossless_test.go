@@ -87,7 +87,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 			t.Fatal(sample.sql, err)
 		}
 		raw := statements[0].(*parser.Select).Targets[0]
-		if err := materializedSnapshotScalar(raw); (err == nil) != sample.valid {
+		if err := MaterializedSnapshotScalar(raw); (err == nil) != sample.valid {
 			t.Fatal("snapshot concatenation boundary", sample.sql, err)
 		}
 	}

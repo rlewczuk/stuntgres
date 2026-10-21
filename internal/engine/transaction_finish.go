@@ -277,7 +277,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.indexesSlot.EndStatement()
 	s.inheritance.endStatement()
 	s.ticket = nil
-	s.viewCreationSlot.endStatement()
+	s.viewCreationSlot.EndStatement()
 	s.querySources = nil
 	s.queryLockAdmission = analyze.LockAdmission{}
 	s.queryLocks = nil

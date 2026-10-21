@@ -114,10 +114,10 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	assertSourceWait()
 	// The pending-request mutex observation synchronizes with the prewait
 	// manifest capture. The holder keeps the worker blocked during inspection.
-	snapshot := scope.materializedOrZero().sourceView
+	snapshot := scope.materializedOrZero().SourceView
 	assertManifest := func() {
 		t.Helper()
-		if scope.materializedOrZero().sourceView != snapshot || snapshot == nil || snapshot.Frontier != frontier || len(snapshot.Committed) != 2 {
+		if scope.materializedOrZero().SourceView != snapshot || snapshot == nil || snapshot.Frontier != frontier || len(snapshot.Committed) != 2 {
 			t.Fatal("physical mixed producer manifest changed", snapshot)
 		}
 		for address, stored := range map[ids.ObjectAddress]*storage.Relation{inner.Address(): innerStorage, gate.Address(): gateStorage} {
@@ -169,8 +169,8 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	transactionEnd(t, holder, holderTx, false)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	stage.querySources = scope.materializedOrZero().sources
-	stage.materialized().sourceView = snapshot
+	stage.querySources = scope.materializedOrZero().Sources
+	stage.materialized().SourceView = snapshot
 	provider := stage.Base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.RowType)})
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
@@ -179,7 +179,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materialized().replacement.concurrent = true
+	stage.materialized().Replacement.Concurrent = true
 	changes := session.NewJournal()
 	e.mu.Lock()
 	defer e.mu.Unlock()

@@ -157,5 +157,5 @@ func evalDefaultExpression(c *exec.Context, node expr.Expr, origin analyze.Defau
 }
 
 func evalBindingDefault(b *analyze.Binding, c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
-	return evalDefaultExpression(c, node, bindingDefaultOrigin(b, slot))
+	return evalDefaultExpression(c, node, BindingDefaultOrigin(b, slot))
 }

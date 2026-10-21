@@ -39,7 +39,7 @@ func TestArrayCompareVisitorsRawEngine(t *testing.T) {
 					t.Fatal("restore parameter child lost", stored)
 				}
 			}
-			if err := materializedSnapshotScalar(form.make(literal)); err == nil {
+			if err := MaterializedSnapshotScalar(form.make(literal)); err == nil {
 				t.Fatal("closed codec snapshot boundary widened")
 			}
 		})

@@ -14,10 +14,10 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	original := len(viewWriteOf(b.ViewWrite).logical.QuerySources)
+	original := len(ViewWriteOf(b.ViewWrite).Logical.QuerySources)
 	for i := original; i < len(b.QuerySources); i++ {
 		rewritten := false
-		for _, ordinal := range viewWriteOf(b.ViewWrite).queryOccurrences {
+		for _, ordinal := range ViewWriteOf(b.ViewWrite).QueryOccurrences {
 			if ordinal == i {
 				rewritten = true
 				break
@@ -28,15 +28,15 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 		}
 		source := &b.QuerySources[i]
 		source.Storage = e.privateStorageLocked(scope.owner.Catalog, source.Ref.Address)
-		for key, ordinal := range viewWriteOf(b.ViewWrite).queryOccurrences {
+		for key, ordinal := range ViewWriteOf(b.ViewWrite).QueryOccurrences {
 			if ordinal != i {
 				continue
 			}
-			for _, layer := range viewWriteOf(b.ViewWrite).layers {
-				if stored.ViewOf(layer.relation) != key.definition {
+			for _, layer := range ViewWriteOf(b.ViewWrite).Layers {
+				if stored.ViewOf(layer.Relation) != key.Definition {
 					continue
 				}
-				current := auth.Catalog.MustRelation(layer.ref.Address)
+				current := auth.Catalog.MustRelation(layer.Ref.Address)
 				source.Principal = current.Owner
 				if stored.ViewOf(current).Invoker() {
 					source.Principal = auth.State.CurrentUser

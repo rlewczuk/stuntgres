@@ -237,7 +237,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 	}
 	target := ref.Address
 	target.SubID = original.Attributes[source]
-	if err := policyTypeChangeError(auth.Catalog, target); err != nil {
+	if err := PolicyTypeChangeError(auth.Catalog, target); err != nil {
 		return fail(err)
 	}
 	if path, pathErr := e.lookupPath(auth, analyze.RelationLookup); pathErr != nil {
@@ -248,7 +248,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 		return fail(d)
 	}
 	if edges := viewDependencyClosure(auth.Catalog, []ids.ObjectAddress{target}, stage); len(edges) != 0 {
-		view := edges[0].view
+		view := edges[0].View
 		name := view.Name()
 		if parser.IdentifierNeedsQuotes(name) {
 			name = catalog.QuoteIdentifier(name)

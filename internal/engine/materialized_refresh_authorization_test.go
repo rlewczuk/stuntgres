@@ -38,7 +38,7 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.CatalogRead(), RoleRecord: e.roles.published, Catalog: e.CatalogRead(), Roles: e.Roles(), State: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}, engine: e}
 	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
 		d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
-		err := materializedRefreshAccess(auth.View, auth, ref)
+		err := MaterializedRefreshAccess(auth.View, auth, ref)
 		if privilege == authorization.MaintainPrivilege {
 			if err != nil {
 				t.Fatal(err)
@@ -53,13 +53,13 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	for _, kind := range []catalog.RelationKind{catalog.ViewRelation, catalog.SequenceRelation, catalog.IndexRelation} {
 		d.RelationKind = kind
 		var diagnostic *sqlstate.Error
-		if err := materializedRefreshAccess(auth.View, auth, ref); !errors.As(err, &diagnostic) || diagnostic.Code != "42809" {
+		if err := MaterializedRefreshAccess(auth.View, auth, ref); !errors.As(err, &diagnostic) || diagnostic.Code != "42809" {
 			t.Fatal(kind, err)
 		}
 	}
 	d.RelationKind = catalog.TableRelation
 	var diagnostic *sqlstate.Error
-	if err := materializedRefreshAccess(auth.View, auth, ref); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
+	if err := MaterializedRefreshAccess(auth.View, auth, ref); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 		t.Fatal(err)
 	}
 }

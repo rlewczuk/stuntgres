@@ -41,10 +41,10 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		tbl, name = s.Table, s.Name.Text
 		drop = true
 	}
-	if err = policyPreflight(op, auth.View, stmt, false); err != nil {
+	if err = PolicyPreflight(op, auth.View, stmt, false); err != nil {
 		return fail(err)
 	}
-	roles, _, err := resolvePolicyRoles(auth.View, rawRoles)
+	roles, _, err := ResolvePolicyRoles(auth.View, rawRoles)
 	if err != nil {
 		return fail(err)
 	}
@@ -63,14 +63,14 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
-	index := policyIndex(old, name)
+	index := PolicyIndex(old, name)
 	if drop && index < 0 {
 		if stmt.(*parser.DropPolicy).IfExists {
 			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`policy "%s" for relation "%s" does not exist, skipping`, name, old.Name()))
 		}
-		return fail(policyMissing(name, old))
+		return fail(PolicyMissing(name, old))
 	}
-	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: PolicyOwnerNoun(stmt)}); err != nil {
 		return fail(err)
 	}
 	if old.RelationKind == catalog.CatalogRelation {
@@ -93,7 +93,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	next.Security.Policies = slices.Clone(old.Security.Policies)
 	if create {
 		if index >= 0 {
-			return fail(policyDuplicate(name, old))
+			return fail(PolicyDuplicate(name, old))
 		}
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
@@ -102,17 +102,17 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		s := stmt.(*parser.CreatePolicy)
 		next.Security.Policies = append(next.Security.Policies, catalog.PolicyDefinition{
 			OID: oid, Name: name, Permissive: s.Permissive, Command: catalog.PolicyCommand(s.Command),
-			Roles: roles, Using: policyPayloadOf(using), Check: policyPayloadOf(check),
+			Roles: roles, Using: PolicyPayloadOf(using), Check: PolicyPayloadOf(check),
 		})
 	} else if alter {
 		s := stmt.(*parser.AlterPolicy)
-		if s.Rename != nil && policyIndex(old, s.Rename.Text) >= 0 {
-			return fail(policyDuplicate(s.Rename.Text, old))
+		if s.Rename != nil && PolicyIndex(old, s.Rename.Text) >= 0 {
+			return fail(PolicyDuplicate(s.Rename.Text, old))
 		}
 		if index < 0 {
-			return fail(policyMissing(name, old))
+			return fail(PolicyMissing(name, old))
 		}
-		if err = policyClauses(old.Security.Policies[index].Command, rawUsing, rawCheck, false); err != nil {
+		if err = PolicyClauses(old.Security.Policies[index].Command, rawUsing, rawCheck, false); err != nil {
 			return fail(err)
 		}
 		p := &next.Security.Policies[index]
@@ -123,10 +123,10 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 			p.Roles = roles
 		}
 		if rawUsing != nil {
-			p.Using = policyPayloadOf(using)
+			p.Using = PolicyPayloadOf(using)
 		}
 		if rawCheck != nil {
-			p.Check = policyPayloadOf(check)
+			p.Check = PolicyPayloadOf(check)
 		}
 	} else {
 		next.Security.Policies = append(next.Security.Policies[:index], next.Security.Policies[index+1:]...)

@@ -95,7 +95,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 					return fmt.Errorf("stuntgres: invalid materialized view snapshot row width")
 				}
 				for _, raw := range row {
-					if err := materializedSnapshotScalar(raw); err != nil {
+					if err := MaterializedSnapshotScalar(raw); err != nil {
 						return err
 					}
 				}

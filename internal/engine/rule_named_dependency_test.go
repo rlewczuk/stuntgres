@@ -76,7 +76,7 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 				if conflict.Constraint != want || !inferred && conflict.NamedIndex != backing {
 					t.Fatal("named constraint/physical arbiter identity lost", conflict.Constraint, conflict.NamedIndex)
 				}
-				refs, err := ruleReferences(context.Background(), view, r)
+				refs, err := RuleReferences(context.Background(), view, r)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -309,7 +309,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			if err := stored.ValidateRules(view, mappedEvent); err != nil {
 				t.Fatal(err)
 			}
-			refs, err := ruleReferences(context.Background(), view, mappedRule)
+			refs, err := RuleReferences(context.Background(), view, mappedRule)
 			if err != nil || !slices.Contains(refs, provider) || slices.Contains(refs, oldConstraint) {
 				t.Fatal("remapped canonical collector retained obsolete identity", refs, err)
 			}

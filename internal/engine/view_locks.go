@@ -25,7 +25,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	e.mu.Lock()
 	catalogView := e.privateCatalogLocked(s.owner.Catalog)
 	d, _ := catalogView.Relation(s.lockedRef.Address)
-	hasView := d != nil && (d.RelationKind == catalog.ViewRelation || s.materializedOrZero().refresh && d.RelationKind == catalog.MaterializedViewRelation)
+	hasView := d != nil && (d.RelationKind == catalog.ViewRelation || s.materializedOrZero().Refresh && d.RelationKind == catalog.MaterializedViewRelation)
 	for _, leaf := range s.querySources {
 		if leaf.Relation.RelationKind == catalog.ViewRelation {
 			hasView = true
@@ -51,8 +51,8 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || !ok {
 			return ids.ErrCatalogReplaced
 		}
-		if s.materializedOrZero().refresh && !visited {
-			s.materialized().sources = append(s.materializedOrZero().sources, d)
+		if s.materializedOrZero().Refresh && !visited {
+			s.materialized().Sources = append(s.materializedOrZero().Sources, d)
 			if ref != s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
 				hasMaterializedSource = true
 			}
@@ -68,7 +68,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
 			refs = append(refs, ref)
 		}
-		if d.RelationKind == catalog.ViewRelation || s.materializedOrZero().refresh && ref == s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
+		if d.RelationKind == catalog.ViewRelation || s.materializedOrZero().Refresh && ref == s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
 			if stored.ViewOf(d).Temporary() != (ids.SessionToken{}) {
 				for old := range stored.ViewOf(d).References() {
 					if old.Epoch != e.catalog.state.Epoch() {
@@ -108,7 +108,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 		err = visit(leaf.Ref, leaf.Mark.Mode)
 	}
-	if err == nil && s.materializedOrZero().refresh && hasMaterializedSource {
+	if err == nil && s.materializedOrZero().Refresh && hasMaterializedSource {
 		var leaves []exec.Leaf
 		for ref := range seen {
 			if ref == s.lockedRef {
@@ -129,7 +129,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			var view *visibility.View
 			view, err = s.acquireDataViewsLocked(e, physical)
 			if err == nil {
-				s.materialized().sourceView = view.Load()
+				s.materialized().SourceView = view.Load()
 			}
 		}
 	}
@@ -143,9 +143,9 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	catalogView = e.privateCatalogLocked(s.owner.Catalog)
-	if s.materializedOrZero().refresh {
-		for _, observed := range s.materializedOrZero().sources {
-			if !materializedSourceCurrent(s.materializedOrZero().sourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.Catalog, observed.Address())) {
+	if s.materializedOrZero().Refresh {
+		for _, observed := range s.materializedOrZero().Sources {
+			if !MaterializedSourceCurrent(s.materializedOrZero().SourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.Catalog, observed.Address())) {
 				return ids.ErrCatalogReplaced
 			}
 		}

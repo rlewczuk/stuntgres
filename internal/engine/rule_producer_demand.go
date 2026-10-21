@@ -91,7 +91,7 @@ func ruleProducerOutputUses(original analyze.Binding, rule stored.Rule, action a
 // rule-program static preparation. Slots are interpreted in their retained
 // lexical input frame, including the offset contributed by preceding join arms.
 // Analysis-only expressions are not executable demand.
-func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), targetPrefix int) (plan.Node, error) {
+func RuleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), targetPrefix int) (plan.Node, error) {
 	type producer struct {
 		frame   uint32
 		offset  int
@@ -269,7 +269,7 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 	}
 	pruned := make(map[*plan.ProjectNode]*plan.ProjectNode)
 	for project, outputUses := range uses {
-		demanded, err := storedProjectionDemand(project, outputUses)
+		demanded, err := StoredProjectionDemand(project, outputUses)
 		if err != nil {
 			return nil, err
 		}
@@ -301,7 +301,7 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 // Mutation consumers live outside their FROM/USING query root. Pass those real
 // expressions into the same liveness pass, without inventing a project/provider
 // or moving their execution frontier into the source.
-func ruleMutationProducerDemand(b analyze.Binding) (analyze.Binding, error) {
+func RuleMutationProducerDemand(b analyze.Binding) (analyze.Binding, error) {
 	root := b.Delete.Using
 	if b.Update != nil {
 		root = b.Update.From
@@ -309,7 +309,7 @@ func ruleMutationProducerDemand(b analyze.Binding) (analyze.Binding, error) {
 	if root == nil {
 		return b, nil
 	}
-	mapped, err := ruleQueryProducerDemand(root, func(visit func(expr.Expr)) {
+	mapped, err := RuleQueryProducerDemand(root, func(visit func(expr.Expr)) {
 		targets := b.ArrayTargets
 		if b.Update != nil {
 			for _, expression := range b.Update.Assignments {

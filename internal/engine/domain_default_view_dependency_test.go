@@ -34,14 +34,14 @@ func TestDomainDefaultViewSQLDependenciesInternal(t *testing.T) {
 		passive bool
 	}{{"dd_view_column", true}, {"dd_view_explicit", false}, {"dd_view_literal", false}} {
 		d := view.MustRelation(roleTableRef(t, e, tc.name).Address)
-		if !viewDepends(d, domain.Address()) {
+		if !ViewDepends(d, domain.Address()) {
 			t.Fatal("missing original lifetime capture", tc.name)
 		}
 		got, err := provider.passiveViewTypeDependency(d, domain.Address())
 		if err != nil || got != tc.passive {
 			t.Fatal("SQL column/type edge classification", tc.name, got, err)
 		}
-		if !viewDepends(d, domain.Address()) {
+		if !ViewDepends(d, domain.Address()) {
 			t.Fatal("SQL classification pruned lifetime authority", tc.name)
 		}
 	}

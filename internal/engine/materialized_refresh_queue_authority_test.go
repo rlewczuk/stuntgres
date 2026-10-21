@@ -119,7 +119,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("changed frozen authority was admitted", phase, err)
 			}
-			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedOrZero().sources) != 0 {
+			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedOrZero().Sources) != 0 {
 				t.Fatal("rejected queue captured or retargeted a producer")
 			}
 			if e.catalog.state.Get(expectedAddress) != &next || e.storage.Relations[expectedAddress] != expectedStorage || len(expectedStorage.Versions) != 3 || e.visibility.CommitSeq() != before || e.storage.RowFrontier() != rowCounter || e.storage.VersionFrontier() != versionCounter || !next.Populated {

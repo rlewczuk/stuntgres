@@ -71,7 +71,7 @@ func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *session.Jou
 			return nil, ids.ErrCatalogReplaced
 		}
 	} else if storage := e.privateStorageLocked(changes, source.Ref.Address); storage != source.Storage &&
-		!sameMaterializedLineage(source.Relation, current, source.Storage, storage) {
+		!SameMaterializedLineage(source.Relation, current, source.Storage, storage) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return current, nil
@@ -302,7 +302,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			return nil, err
 		}
 		if denied {
-			source, err = captureDeniedQuerySource(view, leaf.Ref)
+			source, err = CaptureDeniedQuerySource(view, leaf.Ref)
 		} else {
 			switch leaf.Relation.RelationKind {
 			case catalog.SequenceRelation:
@@ -310,7 +310,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				source, err = e.captureSequenceSourceLocked(scope, leaf.Ref, leaf.Relation)
 			case catalog.MaterializedViewRelation:
 				if !leaf.Relation.Populated {
-					err = materializedViewReadError(leaf.Relation)
+					err = MaterializedViewReadError(leaf.Relation)
 				} else {
 					source, err = exec.CapturePrefix(view, leaf.Ref)
 				}

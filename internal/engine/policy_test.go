@@ -144,7 +144,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
+	next.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []catalog.PolicyRole{{Public: true}}, Using: PolicyPayloadOf(expression)}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {
@@ -182,7 +182,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: policyPayloadOf(expression)}}
+	next.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: PolicyPayloadOf(expression)}}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -215,7 +215,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if imported.Roles().ValidatePrincipal(p.Roles[0].Ref) != nil || p.Roles[1].Ref != p.Roles[0].Ref {
 		t.Fatal("lost principal provenance/multiplicity")
 	}
-	if err = validatePolicies(view, copied); err != nil {
+	if err = ValidatePolicies(view, copied); err != nil {
 		t.Fatal(err)
 	}
 	if stored.PolicyOf(p.Using) == expression || expression.Presentation().Sources()[0].Ref.Domain() != e.catalog.Domain {
@@ -258,7 +258,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			base := e.CatalogRead()
 			state := catalog.CloneState(base.State())
 			attached := *owner
-			attached.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
+			attached.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Public: true}}, Using: PolicyPayloadOf(expression)}}
 			state.SetDescriptor(owner.Address(), &attached)
 			base = base.WithState(state)
 			var target ids.ObjectAddress

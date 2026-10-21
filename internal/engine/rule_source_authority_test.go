@@ -68,11 +68,11 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					action := ruleUnitInsert(e, sink, 7, 8)
 					ref := lookupRef
 					ref.Address.SubID = sink.Attributes[0]
-					value := expr.Expr(plan.ColumnExpr{Info: ruleColumnInfo(sink.Columns[0]), Origin: ref, Scope: 1, Frame: 1})
+					value := expr.Expr(plan.ColumnExpr{Info: RuleColumnInfo(sink.Columns[0]), Origin: ref, Scope: 1, Frame: 1})
 					if dependent {
 						ref = original.Ref
 						ref.Address.SubID = src.Attributes[0]
-						value = plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}
+						value = plan.ColumnExpr{Info: RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}
 					}
 					action = action.With(func(p *stored.RuleActionParts) {
 						p.Binding.Expressions = nil
@@ -81,14 +81,14 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 						p.Binding.QuerySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
 					})
 					src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: event, Actions: []stored.RuleAction{action}})})
-					program := ruleProgram{count: -1, returning: -1}
+					program := ruleProgram{Count: -1, Returning: -1}
 					e.mu.Lock()
-					_, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, syntax, original, nil, &program)
+					_, err = ruleRewriter{e.catalog.owner()}.ExpandLocked(auth, syntax, original, nil, &program)
 					e.mu.Unlock()
 					if err != nil {
 						t.Fatal(err)
 					}
-					sources := program.commands[0].binding.QuerySources
+					sources := program.Commands[0].Binding.QuerySources
 					want := 1
 					if dependent {
 						want = 3

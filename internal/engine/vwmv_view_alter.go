@@ -11,7 +11,7 @@ import (
 
 // PostgreSQL uses different callbacks for column, dependency and other forms.
 // Keep admission and execution on the same action-specific authority contract.
-func alterViewAuthority(view access.View, env access.Environment, ref ids.ObjectRef, s *parser.AlterView) error {
+func AlterViewAuthority(view access.View, env access.Environment, ref ids.ObjectRef, s *parser.AlterView) error {
 	d := view.Catalog.MustRelation(ref.Address)
 	kind, label := catalog.ViewRelation, "view"
 	ownerChecked := false
@@ -36,7 +36,7 @@ func alterViewAuthority(view access.View, env access.Environment, ref ids.Object
 	return view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
 }
 
-func viewDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
+func ViewDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
 	ownerErr := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
 	if ownerErr == nil {
 		return nil
@@ -52,7 +52,7 @@ func viewDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, 
 	return ownerErr
 }
 
-func viewDropMissing(err error, name parser.ObjectName, label string) error {
+func ViewDropMissing(err error, name parser.ObjectName, label string) error {
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Code != "42P01" {
 		return err

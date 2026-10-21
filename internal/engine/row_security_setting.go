@@ -16,8 +16,8 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b an
 	if scope.rowSecurity {
 		return nil
 	}
-	if relation := physicalBinding(b).Relation; relation != nil {
-		principal := access.RowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
+	if relation := PhysicalBinding(b).Relation; relation != nil {
+		principal := access.RowSecurityPrincipal(auth.State.CurrentUser, RowSecurityLayers(auth.Catalog, b))
 		if err := access.RowSecuritySettingGuard(false, auth.Roles, relation, principal); err != nil {
 			return err
 		}
@@ -34,14 +34,14 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b an
 	for _, definition := range b.CTEs {
 		if mutation, ok := analyze.MutationBinding(definition); ok {
 			caller := auth
-			if rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
-				caller = ruleAuthorizationOf(rewrite.caller)
+			if rewrite := RuleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
+				caller = ruleAuthorizationOf(rewrite.Caller)
 			}
 			if err := checkRowSecurityBinding(scope, caller, *mutation); err != nil {
 				return err
 			}
-			if rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
-				if err := checkRowSecurityBinding(scope, ruleAuthorizationOf(rewrite.command.auth), rewrite.command.binding); err != nil {
+			if rewrite := RuleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
+				if err := checkRowSecurityBinding(scope, ruleAuthorizationOf(rewrite.Command.Auth), rewrite.Command.Binding); err != nil {
 					return err
 				}
 			}
@@ -53,14 +53,14 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b an
 // Nonempty rule actions retain the caller's original range-table obligations.
 // INSTEAD NOTHING has no executable query and therefore no such checks.
 func checkRowSecurityRuleProgram(scope *StatementScope, auth AuthorizationView, original analyze.Binding, program ruleProgram) error {
-	if scope.rowSecurity || len(program.commands) == 0 {
+	if scope.rowSecurity || len(program.Commands) == 0 {
 		return nil
 	}
 	if err := checkRowSecurityBinding(scope, auth, original); err != nil {
 		return err
 	}
-	for _, command := range program.commands {
-		if err := checkRowSecurityBinding(scope, ruleAuthorizationOf(command.auth), command.binding); err != nil {
+	for _, command := range program.Commands {
+		if err := checkRowSecurityBinding(scope, ruleAuthorizationOf(command.Auth), command.Binding); err != nil {
 			return err
 		}
 	}

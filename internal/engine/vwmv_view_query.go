@@ -11,7 +11,7 @@ import (
 // demand. Clause/key stages and volatile outputs remain executable. nil uses
 // means a full consumer (including materialized refresh); a nonnil empty list
 // means only row presence is consumed. The stored definition is never changed.
-func storedProjectionDemand(project *plan.ProjectNode, uses []int) (*plan.ProjectNode, error) {
+func StoredProjectionDemand(project *plan.ProjectNode, uses []int) (*plan.ProjectNode, error) {
 	if uses == nil {
 		return project, nil
 	}

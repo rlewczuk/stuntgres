@@ -206,7 +206,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	projectionRef := catalogRef(t, e, view, "expr_retag_projection")
 	projection := stored.ViewOf(view.MustRelation(projectionRef.Address)).Query().Root.(*plan.ProjectNode)
-	demanded, err := storedProjectionDemand(projection, []int{1})
+	demanded, err := StoredProjectionDemand(projection, []int{1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,13 +238,13 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 		t.Fatal("stored source definition mutated or conflict suppressed", err)
 	}
-	if full, err := storedProjectionDemand(projection, nil); err != nil || full != projection {
+	if full, err := StoredProjectionDemand(projection, nil); err != nil || full != projection {
 		t.Fatal("full consumer lost stored targets", full, err)
 	}
-	if full, err := storedProjectionDemand(projection, []int{0, 1}); err != nil || full != projection {
+	if full, err := StoredProjectionDemand(projection, []int{0, 1}); err != nil || full != projection {
 		t.Fatal("star demand changed stored targets", full, err)
 	}
-	if _, err := storedProjectionDemand(projection, []int{2}); err == nil {
+	if _, err := StoredProjectionDemand(projection, []int{2}); err == nil {
 		t.Fatal("malformed stored slot admitted")
 	}
 	typesRef := catalogRef(t, e, view, "expr_retag_domain_types")

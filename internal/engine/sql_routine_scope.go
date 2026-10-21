@@ -65,7 +65,7 @@ type sqlRoutineScratch struct {
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.activeMutation, cteInvocation: s.cteInvocation,
-		activeViews: s.viewCreationOrZero().active, inheritanceRelations: s.inheritance.relations, inheritanceCatalog: s.inheritance.catalog,
+		activeViews: s.viewCreationOrZero().Active, inheritanceRelations: s.inheritance.relations, inheritanceCatalog: s.inheritance.catalog,
 		authority: s.authority, routineAuth: s.routineAuth, expected: s.Expected,
 		prepared: s.prepared, admissionWaited: s.admissionWaited,
 		initialParameters: s.initialParameters, input: s.input, output: s.output,

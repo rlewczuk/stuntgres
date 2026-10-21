@@ -37,9 +37,9 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	}
 	invoker := execution.auth.State.CurrentUser
 	if b.ViewWrite != nil {
-		for _, layer := range viewWriteOf(b.ViewWrite).layers {
-			invoker = layer.relation.Owner
-			if stored.ViewOf(layer.relation).Invoker() {
+		for _, layer := range ViewWriteOf(b.ViewWrite).Layers {
+			invoker = layer.Relation.Owner
+			if stored.ViewOf(layer.Relation).Invoker() {
 				invoker = execution.auth.State.CurrentUser
 			}
 		}
@@ -157,7 +157,7 @@ func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Bind
 		output = exec.NewFinalRows(b.Returning.Schema, 0)
 		output.Output = s.output
 	}
-	rowByRow := b.Returning != nil || b.ViewWrite != nil && len(viewWriteOf(b.ViewWrite).checks) != 0
+	rowByRow := b.Returning != nil || b.ViewWrite != nil && len(ViewWriteOf(b.ViewWrite).Checks) != 0
 	count, err := m.InsertRows(s.op.Context(), s.foreignWrites(), rows, rowByRow, func(row []sqltype.Value) error {
 		if err := s.engine().checkViewRow(s, &b, row, evaluation); err != nil {
 			return err

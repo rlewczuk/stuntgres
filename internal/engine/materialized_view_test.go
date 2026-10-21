@@ -136,14 +136,14 @@ func TestMaterializedViewDefinition(t *testing.T) {
 
 func TestMaterializedViewSnapshotCodec(t *testing.T) {
 	encode := func(raw string) string {
-		return materializedSnapshotMarker + " " + base64.StdEncoding.EncodeToString([]byte(raw))
+		return MaterializedSnapshotMarker + " " + base64.StdEncoding.EncodeToString([]byte(raw))
 	}
 	raw := `{"schema":"quote\"\\雪","name":"newline\n*/--","populated":true,"rows":"INSERT INTO public.unit_mv VALUES (NULL);\n"}`
-	record, recognized, err := decodeMaterializedSnapshot(encode(raw))
+	record, recognized, err := DecodeMaterializedSnapshot(encode(raw))
 	if err != nil || !recognized || record.Schema != "quote\"\\雪" || record.Name != "newline\n*/--" || record.Rows != "INSERT INTO public.unit_mv VALUES (NULL);\n" {
 		t.Fatalf("lossy codec: %#v %v", record, err)
 	}
-	if _, recognized, err := decodeMaterializedSnapshot("ordinary comment"); recognized || err != nil {
+	if _, recognized, err := DecodeMaterializedSnapshot("ordinary comment"); recognized || err != nil {
 		t.Fatal("ordinary comment gained import authority")
 	}
 	for _, raw := range []string{
@@ -155,12 +155,12 @@ func TestMaterializedViewSnapshotCodec(t *testing.T) {
 		`{"schema":"public","name":"unit_mv","populated":true,"rows":""} {}`,
 		`{"schema":"","name":"unit_mv","populated":true,"rows":""}`,
 	} {
-		if _, recognized, err := decodeMaterializedSnapshot(encode(raw)); !recognized || err == nil {
+		if _, recognized, err := DecodeMaterializedSnapshot(encode(raw)); !recognized || err == nil {
 			t.Fatalf("accepted malformed envelope %s", raw)
 		}
 	}
 	for _, text := range []string{"stuntgres-matview-v2 e30=", "stuntgres-matview-v1 !!!", "stuntgres-matview-v1 " + base64.StdEncoding.EncodeToString([]byte{0xff})} {
-		if _, recognized, err := decodeMaterializedSnapshot(text); !recognized || err == nil {
+		if _, recognized, err := DecodeMaterializedSnapshot(text); !recognized || err == nil {
 			t.Fatalf("accepted framing %q", text)
 		}
 	}

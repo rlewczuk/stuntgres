@@ -39,7 +39,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if parser.HasModifyingCTE(view.Query) {
 		return sqlError("0A000", "views must not contain data-modifying statements in WITH")
 	}
-	persistence := requestedViewPersistence(auth.Catalog, view, b.QuerySources)
+	persistence := RequestedViewPersistence(auth.Catalog, view, b.QuerySources)
 	if persistence == "temporary" && view.Persistence != "temporary" {
 		s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
 	}
@@ -69,9 +69,9 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if err != nil {
 		return err
 	}
-	s.viewCreation().namespace, s.viewCreation().persistence, s.viewCreation().binding = ns, persistence, b
+	s.viewCreation().Namespace, s.viewCreation().Persistence, s.viewCreation().Binding = ns, persistence, b
 	if persistence == "temporary" {
-		s.viewCreation().changes = changes
+		s.viewCreation().Changes = changes
 	}
 	return nil
 }
@@ -88,11 +88,11 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	ns := scope.viewCreationOrZero().namespace
-	if scope.viewCreationOrZero().changes != nil {
-		auth.Catalog = e.privateCatalogLocked(scope.viewCreationOrZero().changes)
+	ns := scope.viewCreationOrZero().Namespace
+	if scope.viewCreationOrZero().Changes != nil {
+		auth.Catalog = e.privateCatalogLocked(scope.viewCreationOrZero().Changes)
 		auth.Recapture(auth.Catalog)
-		if table, ok := scope.viewCreationOrZero().changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
+		if table, ok := scope.viewCreationOrZero().Changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
 			auth.stagedTemporary = table.Address()
 		}
 	}
@@ -138,7 +138,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	b := scope.viewCreationOrZero().binding
+	b := scope.viewCreationOrZero().Binding
 	if err := scope.validateQuerySources(b.QuerySources); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -158,11 +158,11 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		}
 	}
 	if old != nil {
-		if err := checkViewOutputNames(b.Query.Root.Schema(), old); err != nil {
+		if err := CheckViewOutputNames(b.Query.Root.Schema(), old); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if err := checkViewPrefix(auth.Catalog, old.Columns, b.Query.Root.Schema()); err != nil {
+		if err := CheckViewPrefix(auth.Catalog, old.Columns, b.Query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -192,7 +192,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, err
 	}
 	if old == nil {
-		if err := checkViewOutputNames(b.Query.Root.Schema(), nil); err != nil {
+		if err := CheckViewOutputNames(b.Query.Root.Schema(), nil); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -230,14 +230,14 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewCreationOrZero().persistence == "temporary")
+	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewCreationOrZero().Persistence == "temporary")
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
 	definition = definition.With(func(p *stored.ViewParts) {
 		p.CheckOption = mode
-		p.Options = transformViewOptions(nil, view.Options, false)
+		p.Options = TransformViewOptions(nil, view.Options, false)
 		p.QuoteRevision = revision
 	})
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: stored.ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.Query.Root.Schema()))}
@@ -252,7 +252,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if old == nil {
 		d.Security.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
 	}
-	if scope.viewCreationOrZero().persistence == "temporary" {
+	if scope.viewCreationOrZero().Persistence == "temporary" {
 		definition = definition.With(func(p *stored.ViewParts) { p.Consumer = d.Address() })
 		d.View = stored.ViewPayload(definition)
 	}
@@ -301,9 +301,9 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	if scope.viewCreationOrZero().changes != nil {
+	if scope.viewCreationOrZero().Changes != nil {
 		scope.owner.AccessedTemporary = true
-		if err := e.stageCatalogOverlay(scope, stage, scope.viewCreationOrZero().changes); err != nil {
+		if err := e.stageCatalogOverlay(scope, stage, scope.viewCreationOrZero().Changes); err != nil {
 			return Result{}, err
 		}
 		return Result{}, nil
@@ -335,6 +335,6 @@ func (s *StatementScope) viewCreationOrZero() viewCreationScope {
 // stack never allocates the slot.
 func (s *StatementScope) setActiveViews(active []ids.ObjectAddress) {
 	if active != nil || s.viewCreationSlot != nil {
-		s.viewCreation().active = active
+		s.viewCreation().Active = active
 	}
 }

@@ -136,7 +136,7 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 		return bad()
 	}
 	raw := selectStmt.Targets[0]
-	if err = materializedSnapshotScalar(raw); err != nil {
+	if err = MaterializedSnapshotScalar(raw); err != nil {
 		return sqltype.Value{}, 0, err
 	}
 	e.mu.Lock()

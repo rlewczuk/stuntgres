@@ -12,8 +12,8 @@ import (
 // The logical binder has checked arity, expressions and types. Logical view
 // defaults win for exposed columns; only true absence falls back to the base.
 func lowerViewInsert(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, s *parser.Insert) error {
-	d := viewWriteOf(b.ViewWrite).base
-	physical := analyze.Binding{Relation: d, Ref: viewWriteOf(b.ViewWrite).ref}
+	d := ViewWriteOf(b.ViewWrite).BaseRelation
+	physical := analyze.Binding{Relation: d, Ref: ViewWriteOf(b.ViewWrite).Ref}
 	domainScheduling := analyze.BindInsertDefaults(owner, &physical, view, parser.OverrideNone)
 	b.Insert.Defaults, b.Insert.DefaultOrigins = physical.Insert.Defaults, physical.Insert.DefaultOrigins
 	if b.Insert.Defaults == nil {
@@ -21,17 +21,17 @@ func lowerViewInsert(owner *catalog.Owner, view catalog.Read, b *analyze.Binding
 	}
 	b.Insert.IdentityDiscard = nil
 	b.Insert.Projection = nil
-	for i, output := range viewWriteOf(b.ViewWrite).outputs {
+	for i, output := range ViewWriteOf(b.ViewWrite).outputs {
 		direct, ok := stored.ViewDirectColumn(output)
 		if !ok {
 			continue
 		}
-		node, origin := analyze.ColumnDefault(view, viewWriteOf(b.ViewWrite).logical.Relation, i)
+		node, origin := analyze.ColumnDefault(view, ViewWriteOf(b.ViewWrite).Logical.Relation, i)
 		if origin.Definition.Expression != nil {
 			if b.Insert.DefaultOrigins == nil {
 				b.Insert.DefaultOrigins = make([]analyze.DefaultOrigin, len(d.Columns))
 				for j := range d.Columns {
-					b.Insert.DefaultOrigins[j] = bindingDefaultOrigin(&physical, j)
+					b.Insert.DefaultOrigins[j] = BindingDefaultOrigin(&physical, j)
 				}
 			}
 			b.Insert.Defaults[direct.Slot] = analyze.DefaultDestination(node, d.Columns[direct.Slot].Usage)
@@ -97,10 +97,10 @@ func lowerViewInsert(owner *catalog.Owner, view catalog.Read, b *analyze.Binding
 // physicalBinding is used only after logical and per-layer permission checks.
 // RETURNING keeps its analyzed logical schema, even when the target is hidden
 // from the view after an UPDATE or was never visible after an INSERT.
-func physicalBinding(b analyze.Binding) analyze.Binding {
+func PhysicalBinding(b analyze.Binding) analyze.Binding {
 	if b.ViewWrite == nil {
 		return b
 	}
-	b.Relation, b.Ref = viewWriteOf(b.ViewWrite).base, viewWriteOf(b.ViewWrite).ref
+	b.Relation, b.Ref = ViewWriteOf(b.ViewWrite).BaseRelation, ViewWriteOf(b.ViewWrite).Ref
 	return b
 }

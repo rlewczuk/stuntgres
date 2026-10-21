@@ -19,32 +19,32 @@ import (
 )
 
 type ruleProducer struct {
-	root     plan.Node
-	old, new []expr.Expr
-	sources  []exec.Leaf
+	Root     plan.Node
+	old, New []expr.Expr
+	Sources  []exec.Leaf
 }
 
 type ruleCommandSource uint8
 
 const (
-	ruleOriginal ruleCommandSource = iota
-	ruleAlso
-	ruleConditionalInstead
-	ruleInstead
+	RuleOriginal ruleCommandSource = iota
+	RuleAlso
+	RuleConditionalInstead
+	RuleInstead
 )
 
 type ruleCommand struct {
-	syntax  parser.Statement
-	binding analyze.Binding
-	auth    ruleAuthority
-	source  ruleCommandSource
+	Syntax  parser.Statement
+	Binding analyze.Binding
+	Auth    ruleAuthority
+	Source  ruleCommandSource
 }
 
 type ruleProgram struct {
-	commands  []ruleCommand
-	events    []catalog.ExpressionDependency
-	count     int
-	returning int
+	Commands  []ruleCommand
+	Events    []catalog.ExpressionDependency
+	Count     int
+	Returning int
 }
 
 type ruleAncestry struct {
@@ -52,50 +52,50 @@ type ruleAncestry struct {
 	event string
 }
 
-func ruleColumnInfo(column catalog.Column) expr.Info {
+func RuleColumnInfo(column catalog.Column) expr.Info {
 	return expr.Info{Usage: column.Usage, Pos: parser.Position{Offset: -1}, Property: expr.Properties{RowDependent: true}}
 }
 
-func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, outputUses ...[]int) (ruleProducer, error) {
+func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, outputUses ...[]int) (ruleProducer, error) {
 	d := b.Relation
-	p := ruleProducer{old: make([]expr.Expr, len(d.Columns)), new: make([]expr.Expr, len(d.Columns)), sources: b.QuerySources}
+	p := ruleProducer{old: make([]expr.Expr, len(d.Columns)), New: make([]expr.Expr, len(d.Columns)), Sources: b.QuerySources}
 	for i, column := range d.Columns {
 		ref := b.Ref
 		ref.Address.SubID = d.Attributes[i]
-		p.old[i] = plan.ColumnExpr{Info: ruleColumnInfo(column), Origin: ref, Scope: 1, Frame: 1, Slot: i}
-		p.new[i] = p.old[i]
+		p.old[i] = plan.ColumnExpr{Info: RuleColumnInfo(column), Origin: ref, Scope: 1, Frame: 1, Slot: i}
+		p.New[i] = p.old[i]
 	}
 	if event == "INSERT" {
 		for i, column := range d.Columns {
-			p.old[i] = plan.LiteralExpr{Info: ruleColumnInfo(column), Value: sqltype.Null(column.Usage.Type)}
-			p.new[i] = p.old[i]
+			p.old[i] = plan.LiteralExpr{Info: RuleColumnInfo(column), Value: sqltype.Null(column.Usage.Type)}
+			p.New[i] = p.old[i]
 			if len(b.Insert.Defaults) > i && b.Insert.Defaults[i] != nil {
-				p.new[i] = b.Insert.Defaults[i]
+				p.New[i] = b.Insert.Defaults[i]
 			}
 		}
 		assign := func(output int, value expr.Expr) {
 			slot := b.Targets[output]
 			if len(b.ArrayTargets) > output && b.ArrayTargets[output] != nil {
-				value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, Base: p.new[slot], Value: value, Target: b.ArrayTargets[output]}
+				value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.New[slot].Properties(), value.Properties())}, Base: p.New[slot], Value: value, Target: b.ArrayTargets[output]}
 			}
-			p.new[slot] = value
+			p.New[slot] = value
 		}
 		if b.Query != nil {
 			project := b.Query.Root.(*plan.ProjectNode)
 			if b.Insert.SubquerySource {
 				if len(outputUses) != 0 {
 					var err error
-					project, err = storedProjectionDemand(project, outputUses[0])
+					project, err = StoredProjectionDemand(project, outputUses[0])
 					if err != nil {
 						return p, err
 					}
 				}
-				p.root = &plan.DerivedNode{QuerySchema: plan.QuerySchema(project.Schema()), Query: &plan.Query{Root: project}}
+				p.Root = &plan.DerivedNode{QuerySchema: plan.QuerySchema(project.Schema()), Query: &plan.Query{Root: project}}
 				for i := range b.Targets {
-					assign(i, plan.ColumnExpr{Info: ruleColumnInfo(project.Schema()[i]), Scope: 1, Frame: project.Frame, Slot: i})
+					assign(i, plan.ColumnExpr{Info: RuleColumnInfo(project.Schema()[i]), Scope: 1, Frame: project.Frame, Slot: i})
 				}
 			} else {
-				p.root = project.Child
+				p.Root = project.Child
 				for i := range b.Targets {
 					assign(i, project.Expressions[i])
 				}
@@ -103,7 +103,7 @@ func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 		} else if len(b.Expressions) == 1 {
 			// Released transformInsertStmt gives a single VALUES row target
 			// recipes directly, without a VALUES RTE or supplied-datum sharing.
-			p.root = &plan.SingletonNode{}
+			p.Root = &plan.SingletonNode{}
 			for i := range b.Targets {
 				assign(i, b.Expressions[0][i])
 			}
@@ -114,17 +114,17 @@ func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 				if len(b.Expressions) != 0 {
 					schema[i].Usage = b.Expressions[0][i].ResultUsage()
 				}
-				assign(i, plan.ColumnExpr{Info: ruleColumnInfo(schema[i]), Scope: 1, Frame: 1, Slot: i})
+				assign(i, plan.ColumnExpr{Info: RuleColumnInfo(schema[i]), Scope: 1, Frame: 1, Slot: i})
 			}
 			if len(b.Expressions) == 0 {
-				p.root = &plan.SingletonNode{}
+				p.Root = &plan.SingletonNode{}
 			} else {
-				p.root = &plan.ValuesNode{QuerySchema: schema, Rows: b.Expressions}
+				p.Root = &plan.ValuesNode{QuerySchema: schema, Rows: b.Expressions}
 			}
 		}
 	} else {
-		p.sources = append([]exec.Leaf{{Ref: b.Ref, Relation: d, Storage: b.Storage, Uses: b.UsedColumns}}, b.QuerySources...)
-		p.root = &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: b.Ref, Occurrence: 0}
+		p.Sources = append([]exec.Leaf{{Ref: b.Ref, Relation: d, Storage: b.Storage, Uses: b.UsedColumns}}, b.QuerySources...)
+		p.Root = &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: b.Ref, Occurrence: 0}
 		var from plan.Node
 		var condition expr.Expr
 		if event == "UPDATE" {
@@ -133,9 +133,9 @@ func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 			for i, slot := range b.Targets {
 				value := b.Update.Assignments[i]
 				if len(b.Update.ArrayTargets) > i && b.Update.ArrayTargets[i] != nil {
-					value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, Base: p.new[slot], Value: value, Target: b.Update.ArrayTargets[i]}
+					value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.New[slot].Properties(), value.Properties())}, Base: p.New[slot], Value: value, Target: b.Update.ArrayTargets[i]}
 				}
-				p.new[slot] = value
+				p.New[slot] = value
 			}
 		} else {
 			from = b.Delete.Using
@@ -159,9 +159,9 @@ func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 				return column, changed, nil
 			})
 		}
-		for i, expr := range p.new {
+		for i, expr := range p.New {
 			var err error
-			p.new[i], _, err = mapper(expr)
+			p.New[i], _, err = mapper(expr)
 			if err != nil {
 				return p, err
 			}
@@ -179,7 +179,7 @@ func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 			if err != nil {
 				return p, err
 			}
-			p.root = ruleJoin(p.root, from)
+			p.Root = ruleJoin(p.Root, from)
 		}
 		if condition != nil {
 			var err error
@@ -187,7 +187,7 @@ func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 			if err != nil {
 				return p, err
 			}
-			p.root = &plan.FilterNode{QuerySchema: plan.QuerySchema(p.root.Schema()), Child: p.root, Predicate: condition}
+			p.Root = &plan.FilterNode{QuerySchema: plan.QuerySchema(p.Root.Schema()), Child: p.Root, Predicate: condition}
 		}
 	}
 	return p, nil
@@ -325,7 +325,7 @@ func normalizeRuleInsert(b analyze.Binding) analyze.Binding {
 	} else {
 		projection := make([]expr.Expr, len(schema))
 		for i, column := range schema {
-			projection[i] = plan.ColumnExpr{Info: ruleColumnInfo(column), Scope: 1, Frame: 1, Slot: i}
+			projection[i] = plan.ColumnExpr{Info: RuleColumnInfo(column), Scope: 1, Frame: 1, Slot: i}
 		}
 		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{QuerySchema: schema, Rows: b.Expressions}, Expressions: projection, Frame: 1}}
 	}
@@ -334,7 +334,7 @@ func normalizeRuleInsert(b analyze.Binding) analyze.Binding {
 	return b
 }
 
-func ruleSetAction(b analyze.Binding, syntax parser.Statement) bool {
+func RuleSetAction(b analyze.Binding, syntax parser.Statement) bool {
 	if _, selecting := syntax.(*parser.Select); !selecting || b.Query == nil {
 		return false
 	}
@@ -342,13 +342,13 @@ func ruleSetAction(b analyze.Binding, syntax parser.Statement) bool {
 	return set
 }
 
-func composeRuleAction(auth ruleAuthority, original analyze.Binding, event string, r stored.Rule, action stored.RuleAction) (analyze.Binding, error) {
+func ComposeRuleAction(auth ruleAuthority, original analyze.Binding, event string, r stored.Rule, action stored.RuleAction) (analyze.Binding, error) {
 	qualified := original.Predicate != nil || original.Update != nil && original.Update.Predicate != nil
-	if (qualified || r.Condition() != nil) && ruleSetAction(action.Binding(), action.Syntax()) {
+	if (qualified || r.Condition() != nil) && RuleSetAction(action.Binding(), action.Syntax()) {
 		return analyze.Binding{}, sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 	}
 	catalog := auth.Access().Catalog
-	p, err := makeRuleProducer(catalog, original, event, ruleProducerOutputUses(original, r, action.Binding()))
+	p, err := MakeRuleProducer(catalog, original, event, ruleProducerOutputUses(original, r, action.Binding()))
 	if err != nil {
 		return analyze.Binding{}, err
 	}
@@ -356,7 +356,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	// namespace run independently of the event table's physical row count.
 	// INSERT retains its producer cardinality even without NEW demand.
 	if event != "INSERT" && !qualified && r.Condition() == nil && !ruleBindingHasPseudo(action.Binding()) {
-		p.root, p.sources = &plan.SingletonNode{}, nil
+		p.Root, p.Sources = &plan.SingletonNode{}, nil
 	}
 	// Resolve authority at the retained producer boundary, before switching
 	// to the event owner's context for stored action refresh and composition.
@@ -365,7 +365,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	b := action.Binding()
 	dependenciesPrivate := false
 	b.Insert.Conflict = b.Insert.Conflict.Clone()
-	b, err = refreshRuleActionCTEs(auth, b)
+	b, err = RefreshRuleActionCTEs(auth, b)
 	if err != nil {
 		return b, err
 	}
@@ -379,14 +379,14 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 			return b, err
 		}
 	}
-	b, err = refreshRuleSources(auth, b)
+	b, err = RefreshRuleSources(auth, b)
 	if err != nil {
 		return b, err
 	}
 	if _, ok := action.Syntax().(*parser.Insert); ok {
 		b = normalizeRuleInsert(b)
 	}
-	b, err = isolateRuleCTEFrames(catalog, original, b, action.Syntax())
+	b, err = IsolateRuleCTEFrames(catalog, original, b, action.Syntax())
 	if err != nil {
 		return b, err
 	}
@@ -429,7 +429,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 				return old + actionMax + 1
 			}
 		}
-		p.root, _, err = rewriteRuleFrames(catalog, p.root, nil, rootFrame, original.CTEs)
+		p.Root, _, err = rewriteRuleFrames(catalog, p.Root, nil, rootFrame, original.CTEs)
 		if err != nil {
 			return b, err
 		}
@@ -439,14 +439,14 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 				return b, err
 			}
 		}
-		for i, expr := range p.new {
-			_, p.new[i], err = rewriteRuleFrames(catalog, nil, expr, frame)
+		for i, expr := range p.New {
+			_, p.New[i], err = rewriteRuleFrames(catalog, nil, expr, frame)
 			if err != nil {
 				return b, err
 			}
 		}
 	}
-	width := len(p.root.Schema())
+	width := len(p.Root.Schema())
 	targetWidth := 0
 	if _, ok := action.Syntax().(*parser.Update); ok {
 		targetWidth = len(b.Relation.Columns)
@@ -454,8 +454,8 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	if _, ok := action.Syntax().(*parser.Delete); ok {
 		targetWidth = len(b.Relation.Columns)
 	}
-	sourceOffset := len(p.sources)
-	b, err = offsetRuleSources(catalog, b, sourceOffset, original.CTEs)
+	sourceOffset := len(p.Sources)
+	b, err = OffsetRuleSources(catalog, b, sourceOffset, original.CTEs)
 	if err != nil {
 		return b, err
 	}
@@ -476,7 +476,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 		if column.Scope == analyze.RulePseudoScope {
 			recipes := p.old
 			if column.Frame == 2 {
-				recipes = p.new
+				recipes = p.New
 			}
 			slot := slices.Index(original.Relation.Attributes, column.Origin.Address.SubID)
 			if slot < 0 || slot >= len(recipes) {
@@ -489,7 +489,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 			}
 			recipe := recipes[slot]
 			if column.Frame == 2 {
-				if err := validateRuleNewUpdateOutput(recipe); err != nil {
+				if err := ValidateRuleNewUpdateOutput(recipe); err != nil {
 					return nil, false, err
 				}
 			}
@@ -564,11 +564,11 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	condition := r.Condition()
 	var conditionSources []exec.Leaf
 	if r.ConditionBinding() != nil {
-		cb, refreshErr := refreshRuleSources(auth, *r.ConditionBinding())
+		cb, refreshErr := RefreshRuleSources(auth, *r.ConditionBinding())
 		if refreshErr != nil {
 			return b, refreshErr
 		}
-		cb, err = offsetRuleSources(catalog, cb, sourceOffset+len(b.QuerySources))
+		cb, err = OffsetRuleSources(catalog, cb, sourceOffset+len(b.QuerySources))
 		if err != nil {
 			return b, err
 		}
@@ -598,7 +598,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	}
 	graft := func(root plan.Node) (plan.Node, error) {
 		if root == nil {
-			return p.root, nil
+			return p.Root, nil
 		}
 		input := ruleQueryInput(root)
 		correlated := ruleQueryHasPseudo(input)
@@ -620,7 +620,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 			}
 			projection := make([]expr.Expr, len(right.Schema()))
 			for i, column := range right.Schema() {
-				projection[i] = plan.ColumnExpr{Info: ruleColumnInfo(column), Scope: 1, Frame: innerFrame, Slot: i}
+				projection[i] = plan.ColumnExpr{Info: RuleColumnInfo(column), Scope: 1, Frame: innerFrame, Slot: i}
 			}
 			right = &plan.ProjectNode{QuerySchema: plan.QuerySchema(right.Schema()), Child: right, Expressions: projection, Frame: innerFrame, RuleInvocation: true}
 		} else {
@@ -629,14 +629,14 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 				return nil, err
 			}
 		}
-		joined := ruleJoin(p.root, right).(*plan.JoinNode)
+		joined := ruleJoin(p.Root, right).(*plan.JoinNode)
 		joined.Frame = actionFrame
 		joined.CorrelatedRight = correlated
 		var replacement plan.Node = joined
 		if condition != nil && targetWidth == 0 {
 			replacement = &plan.FilterNode{QuerySchema: plan.QuerySchema(joined.Schema()), Child: joined, Predicate: condition}
 		}
-		patched, err := ruleGraftSchemas(root, input, replacement, windowSlots)
+		patched, err := RuleGraftSchemas(root, input, replacement, windowSlots)
 		if err != nil {
 			return nil, err
 		}
@@ -679,7 +679,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 			return b, err
 		}
 		if condition != nil {
-			u.Predicate = viewWritePredicate([]expr.Expr{condition}, u.Predicate)
+			u.Predicate = ViewWritePredicate([]expr.Expr{condition}, u.Predicate)
 		}
 		u.From, err = graft(u.From)
 		if err != nil {
@@ -694,7 +694,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 			return b, err
 		}
 		if condition != nil {
-			b.Predicate = viewWritePredicate([]expr.Expr{condition}, b.Predicate)
+			b.Predicate = ViewWritePredicate([]expr.Expr{condition}, b.Predicate)
 		}
 		b.Delete.Using, err = graft(b.Delete.Using)
 		if err != nil {
@@ -718,7 +718,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	if definitions != nil {
 		b.CTEs = definitions
 	}
-	b.QuerySources = append(slices.Clone(p.sources), b.QuerySources...)
+	b.QuerySources = append(slices.Clone(p.Sources), b.QuerySources...)
 	b.QuerySources = append(b.QuerySources, conditionSources...)
 	for i := range b.QuerySources {
 		if i < sourceOffset {
@@ -738,13 +738,13 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 // ruleRewriter expands rules over one catalog owner. Expansion reads live
 // storage through the rule authority, so the caller holds Engine.mu.
 type ruleRewriter struct {
-	owner *catalog.Owner
+	Owner *catalog.Owner
 }
 
-func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
+func (rw ruleRewriter) ExpandLocked(auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
 	event := stored.RuleEvent(stmt)
-	firstCommand := len(program.commands)
-	b = physicalBinding(b)
+	firstCommand := len(program.Commands)
+	b = PhysicalBinding(b)
 	if event == "" || b.Relation == nil {
 		return appendRuleCommand(program, auth, stmt, b), nil
 	}
@@ -759,7 +759,7 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 	}
 	if insert, ok := stmt.(*parser.Insert); ok && b.Rule.Template {
 		b.Insert.Defaults = nil
-		analyze.BindInsertDefaults(rw.owner, &b, auth.Access().Catalog, insert.Override)
+		analyze.BindInsertDefaults(rw.Owner, &b, auth.Access().Catalog, insert.Override)
 	}
 	if current.RelationKind != catalog.ViewRelation {
 		b.Storage = auth.StorageLocked(b.Ref.Address)
@@ -768,16 +768,16 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 	matched := slices.ContainsFunc(rules, func(r stored.Rule) bool { return r.Event() == event })
 	if matched {
 		dependency := catalog.ExpressionDependency{Ref: b.Ref, Revision: current.Revision()}
-		if !slices.Contains(program.events, dependency) {
-			program.events = append(program.events, dependency)
+		if !slices.Contains(program.Events, dependency) {
+			program.Events = append(program.Events, dependency)
 		}
 	}
 	if current.RelationKind == catalog.ViewRelation && !matched {
 		b.ViewWrite = nil
-		if err := bindViewWrite(rw.owner, auth.Access().Catalog, &b, stmt); err != nil {
+		if err := BindViewWrite(rw.Owner, auth.Access().Catalog, &b, stmt); err != nil {
 			return -1, err
 		}
-		return rw.expandLocked(auth, stmt, b, ancestry, program)
+		return rw.ExpandLocked(auth, stmt, b, ancestry, program)
 	}
 	if len(rules) == 0 {
 		return appendRuleCommand(program, auth, stmt, b), nil
@@ -807,7 +807,7 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 	residual := b
 	if original {
 		var err error
-		residual, err = ruleResidual(auth, b, event, rules)
+		residual, err = RuleResidual(auth, b, event, rules)
 		if err != nil {
 			return -1, err
 		}
@@ -815,13 +815,13 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 	count := -1
 	if event == "INSERT" && original {
 		var err error
-		start := len(program.commands)
+		start := len(program.Commands)
 		count, err = rw.expandResidualLocked(auth, stmt, residual, ancestry, program)
 		if err != nil {
 			return -1, err
 		}
 		if conditionalInstead {
-			markRuleCommandSource(program, start, ruleConditionalInstead)
+			markRuleCommandSource(program, start, RuleConditionalInstead)
 		}
 	}
 	providers := 0
@@ -833,12 +833,12 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 			whole := address
 			whole.SubID = 0
 			if descriptor, ok := auth.Access().Catalog.Find(whole); ok {
-				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: rw.owner.Domain.Ref(auth.Access().Catalog.Epoch(), address), Revision: descriptor.Revision()})
+				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: rw.Owner.Domain.Ref(auth.Access().Catalog.Epoch(), address), Revision: descriptor.Revision()})
 			}
 		}
 		for _, action := range r.Actions() {
 			actionAuth := auth.AsUser(current.Owner)
-			composed, err := composeRuleAction(auth, b, event, r, action)
+			composed, err := ComposeRuleAction(auth, b, event, r, action)
 			if err != nil {
 				return -1, err
 			}
@@ -854,20 +854,20 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 					return -1, err
 				}
 			}
-			start := len(program.commands)
-			index, err := rw.expandLocked(actionAuth, action.Syntax(), composed, ancestry, program)
+			start := len(program.Commands)
+			index, err := rw.ExpandLocked(actionAuth, action.Syntax(), composed, ancestry, program)
 			if err != nil {
 				return -1, err
 			}
-			source := ruleInstead
+			source := RuleInstead
 			if !r.Instead() {
-				source = ruleAlso
+				source = RuleAlso
 			} else if r.Condition() != nil {
-				source = ruleConditionalInstead
+				source = RuleConditionalInstead
 			}
 			markRuleCommandSource(program, start, source)
 			if composed.Returning != nil && ruleReturning(stmt) != nil {
-				program.returning = index
+				program.Returning = index
 			}
 			if !original && r.Instead() && stored.RuleEvent(action.Syntax()) == event {
 				count = index
@@ -876,41 +876,41 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 	}
 	if event != "INSERT" && original {
 		var err error
-		start := len(program.commands)
+		start := len(program.Commands)
 		count, err = rw.expandResidualLocked(auth, stmt, residual, ancestry, program)
 		if err != nil {
 			return -1, err
 		}
 		if conditionalInstead {
-			markRuleCommandSource(program, start, ruleConditionalInstead)
+			markRuleCommandSource(program, start, RuleConditionalInstead)
 		}
 	}
 	if (!original || conditionalInstead) && ruleReturning(stmt) != nil && providers == 0 {
 		return -1, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot perform %s RETURNING on relation "%s"`, event, b.Relation.Name()), Hint: "You need an unconditional ON " + event + " DO INSTEAD rule with a RETURNING clause."}
 	}
-	if len(parser.StatementWith(stmt)) != 0 && len(program.commands)-firstCommand > 1 {
+	if len(parser.StatementWith(stmt)) != 0 && len(program.Commands)-firstCommand > 1 {
 		return -1, sqlError("0A000", "WITH cannot be used in a query that is rewritten by rules into multiple queries")
 	}
 	return count, nil
 }
 
 func appendRuleCommand(program *ruleProgram, auth ruleAuthority, stmt parser.Statement, b analyze.Binding) int {
-	index := len(program.commands)
-	program.commands = append(program.commands, ruleCommand{syntax: stmt, binding: b, auth: auth})
+	index := len(program.Commands)
+	program.Commands = append(program.Commands, ruleCommand{Syntax: stmt, Binding: b, Auth: auth})
 	return index
 }
 
 func markRuleCommandSource(program *ruleProgram, start int, source ruleCommandSource) {
-	for i := start; i < len(program.commands); i++ {
-		if program.commands[i].source == ruleOriginal {
-			program.commands[i].source = source
+	for i := start; i < len(program.Commands); i++ {
+		if program.Commands[i].Source == RuleOriginal {
+			program.Commands[i].Source = source
 		}
 	}
 }
 
-func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []stored.Rule) (analyze.Binding, error) {
+func RuleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []stored.Rule) (analyze.Binding, error) {
 	catalog := auth.Access().Catalog
-	p, err := makeRuleProducer(catalog, b, event)
+	p, err := MakeRuleProducer(catalog, b, event)
 	if err != nil {
 		return b, err
 	}
@@ -921,11 +921,11 @@ func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []s
 		}
 		qualification := r.Condition()
 		if r.ConditionBinding() != nil {
-			cb, refreshErr := refreshRuleSources(auth, *r.ConditionBinding())
+			cb, refreshErr := RefreshRuleSources(auth, *r.ConditionBinding())
 			if refreshErr != nil {
 				return b, refreshErr
 			}
-			cb, err = offsetRuleSources(catalog, cb, len(b.QuerySources))
+			cb, err = OffsetRuleSources(catalog, cb, len(b.QuerySources))
 			if err != nil {
 				return b, err
 			}
@@ -949,7 +949,7 @@ func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []s
 			if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 				recipes := p.old
 				if column.Frame == 2 {
-					recipes = p.new
+					recipes = p.New
 				}
 				slot := slices.Index(b.Relation.Attributes, column.Origin.Address.SubID)
 				if slot < 0 || slot >= len(recipes) {
@@ -957,7 +957,7 @@ func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []s
 				}
 				recipe := recipes[slot]
 				if column.Frame == 2 {
-					if err := validateRuleNewUpdateOutput(recipe); err != nil {
+					if err := ValidateRuleNewUpdateOutput(recipe); err != nil {
 						return nil, false, err
 					}
 				}
@@ -983,18 +983,18 @@ func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []s
 		projection := make([]expr.Expr, len(b.Targets))
 		for i, slot := range b.Targets {
 			schema[i] = b.Relation.Columns[slot]
-			projection[i] = p.new[slot]
+			projection[i] = p.New[slot]
 		}
-		root := &plan.FilterNode{QuerySchema: plan.QuerySchema(p.root.Schema()), Child: p.root, Predicate: viewWritePredicate(predicates, nil)}
+		root := &plan.FilterNode{QuerySchema: plan.QuerySchema(p.Root.Schema()), Child: p.Root, Predicate: ViewWritePredicate(predicates, nil)}
 		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: frame}}
 		b.CommandQuery = true
 		b.Expressions = nil
 	} else if event == "UPDATE" {
 		u := *b.Update
-		u.Predicate = viewWritePredicate(predicates, u.Predicate)
+		u.Predicate = ViewWritePredicate(predicates, u.Predicate)
 		b.Update = &u
 	} else {
-		b.Predicate = viewWritePredicate(predicates, b.Predicate)
+		b.Predicate = ViewWritePredicate(predicates, b.Predicate)
 	}
 	return b, nil
 }
@@ -1030,19 +1030,19 @@ func (rw ruleRewriter) expandResidualLocked(auth ruleAuthority, stmt parser.Stat
 	if b.Relation.RelationKind != catalog.ViewRelation {
 		return appendRuleCommand(program, auth, stmt, b), nil
 	}
-	prior := viewWriteOf(b.ViewWrite)
+	prior := ViewWriteOf(b.ViewWrite)
 	b.ViewWrite = nil
-	if err := bindViewWrite(rw.owner, auth.Access().Catalog, &b, stmt, b.Ref); err != nil {
+	if err := BindViewWrite(rw.Owner, auth.Access().Catalog, &b, stmt, b.Ref); err != nil {
 		return -1, err
 	}
 	if b.ViewWrite != nil && prior != nil {
-		viewWriteOf(b.ViewWrite).layers = append(slices.Clone(prior.layers), viewWriteOf(b.ViewWrite).layers...)
-		viewWriteOf(b.ViewWrite).logical = prior.logical
+		ViewWriteOf(b.ViewWrite).Layers = append(slices.Clone(prior.Layers), ViewWriteOf(b.ViewWrite).Layers...)
+		ViewWriteOf(b.ViewWrite).Logical = prior.Logical
 	}
-	return rw.expandLocked(auth, stmt, b, ancestry, program)
+	return rw.ExpandLocked(auth, stmt, b, ancestry, program)
 }
 
-func refreshRuleSources(auth ruleAuthority, b analyze.Binding) (analyze.Binding, error) {
+func RefreshRuleSources(auth ruleAuthority, b analyze.Binding) (analyze.Binding, error) {
 	catalog := auth.Access().Catalog
 	var sources []exec.Leaf
 	for i, source := range b.QuerySources {

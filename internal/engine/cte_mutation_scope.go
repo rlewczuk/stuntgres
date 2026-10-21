@@ -176,7 +176,7 @@ func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *analyze.Bi
 		scope.activateMutation(index)
 		if execute {
 			e.mu.Unlock()
-			err := scope.acquireViewWriteTarget(viewWriteOf(mutation.ViewWrite))
+			err := scope.acquireViewWriteTarget(ViewWriteOf(mutation.ViewWrite))
 			e.mu.Lock()
 			if err != nil {
 				return err

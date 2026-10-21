@@ -59,7 +59,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 		from = &plan.SingletonNode{}
 	}
 	metadata.Query = &plan.Query{Root: &plan.ProjectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
-	metadata = retainRuleCTEPresentation(auth.Catalog, metadata)
+	metadata = RetainRuleCTEPresentation(auth.Catalog, metadata)
 	presentation, err := stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, metadata, false, false, 0, "", false)
 	if err != nil {
 		return nil, err

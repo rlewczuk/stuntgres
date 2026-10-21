@@ -13,7 +13,7 @@ import (
 
 // Empty protected inputs still own their immutable visibility catalog. Do not
 // capture physical prefixes or permit later live-version selection to revive rows.
-func captureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*exec.Source, error) {
+func CaptureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*exec.Source, error) {
 	pin := view.Retain()
 	if pin == nil {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
@@ -28,13 +28,13 @@ func captureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*exec.S
 
 // rowSecurityLayers collects the owner and security_invoker flag of each
 // view layer of an auto-updatable view write, outermost first.
-func rowSecurityLayers(view catalog.Read, b analyze.Binding) []access.RowSecurityLayer {
+func RowSecurityLayers(view catalog.Read, b analyze.Binding) []access.RowSecurityLayer {
 	if b.ViewWrite == nil {
 		return nil
 	}
-	layers := make([]access.RowSecurityLayer, 0, len(viewWriteOf(b.ViewWrite).layers))
-	for _, layer := range viewWriteOf(b.ViewWrite).layers {
-		current := view.MustRelation(layer.ref.Address)
+	layers := make([]access.RowSecurityLayer, 0, len(ViewWriteOf(b.ViewWrite).Layers))
+	for _, layer := range ViewWriteOf(b.ViewWrite).Layers {
+		current := view.MustRelation(layer.Ref.Address)
 		layers = append(layers, access.RowSecurityLayer{Owner: current.Owner, Invoker: stored.ViewOf(current).Invoker()})
 	}
 	return layers

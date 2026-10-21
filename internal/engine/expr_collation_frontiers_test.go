@@ -134,7 +134,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {
 			t.Fatal("fixture lacks reached original conflict", tc.name, err)
 		}
-		demanded, err := storedProjectionDemand(project, []int{0, 2})
+		demanded, err := StoredProjectionDemand(project, []int{0, 2})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +156,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		shared := *project
 		shared.Expressions = append([]expr.Expr(nil), project.Expressions...)
 		shared.Expressions[2] = unused
-		demanded, err = storedProjectionDemand(&shared, []int{0, 2})
+		demanded, err = StoredProjectionDemand(&shared, []int{0, 2})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -193,7 +193,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		}
 		transitive := *project
 		transitive.Child = chained
-		demanded, err = storedProjectionDemand(&transitive, []int{0, 2})
+		demanded, err = StoredProjectionDemand(&transitive, []int{0, 2})
 		if err != nil {
 			t.Fatal(err)
 		}

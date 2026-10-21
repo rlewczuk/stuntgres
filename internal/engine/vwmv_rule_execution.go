@@ -5,6 +5,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func bindingRuleRelation(b analyze.Binding) *catalog.Relation {
-	return physicalBinding(b).Relation
+func BindingRuleRelation(b analyze.Binding) *catalog.Relation {
+	return PhysicalBinding(b).Relation
 }

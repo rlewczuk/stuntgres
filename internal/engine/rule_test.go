@@ -63,10 +63,10 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	original.Expressions = append(original.Expressions, []expr.Expr{ruleUnitInt(src, 2), ruleUnitInt(src, 20)})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
-	pseudo := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2, Slot: 0}
+	pseudo := plan.ColumnExpr{Info: RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2, Slot: 0}
 	action := ruleUnitInsert(e, sink, 0, 0)
 	action.Binding().Expressions[0][0] = pseudo
-	composed, err := composeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
+	composed, err := ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	condition = condition.With(func(p *stored.RuleParts) {
 		p.Condition = plan.LiteralExpr{Info: expr.Info{Usage: func() sqltype.Usage { typ, _ := auth.Catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, Value: func() sqltype.Value { typ, _ := auth.Catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
 	})
-	residual, err := ruleResidual(auth, original, "INSERT", []stored.Rule{condition})
+	residual, err := RuleResidual(auth, original, "INSERT", []stored.Rule{condition})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		output := plan.ArithmeticExpr{Info: ruleColumnInfo(src.Columns[1]), Left: pseudoV, Right: ruleUnitInt(src, 10), Provider: provider}
+		output := plan.ArithmeticExpr{Info: RuleColumnInfo(src.Columns[1]), Left: pseudoV, Right: ruleUnitInt(src, 10), Provider: provider}
 		projection := []expr.Expr{pseudo, output}
 		order, err := (*analyze.Binder)(nil).FinishOrder(&plan.SingletonNode{}, []plan.SortKey{{Expression: output, Slot: -1, Cache: -1, TargetIdentity: 2}}, projection)
 		if err != nil {
@@ -119,7 +119,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			p.Binding.CommandQuery = true
 			p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: order, Expressions: projection, Frame: 1}}
 		})
-		rewritten, err := composeRuleAction(auth, original, "INSERT", stored.Rule{}, template)
+		rewritten, err := ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, template)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -148,15 +148,15 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		selectBinding := original
 		selectBinding.Query, selectBinding.Expressions = &plan.Query{Root: source}, nil
 		selectBinding.Insert.SubquerySource = true
-		producer, err := makeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
+		producer, err := MakeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
 			t.Fatal(err)
 		}
-		derived, ok := producer.root.(*plan.DerivedNode)
+		derived, ok := producer.Root.(*plan.DerivedNode)
 		if !ok || derived.Query.Root != source {
 			t.Fatal("volatile projected output was pruned or producer project lifted")
 		}
-		supplied := producer.new[1].(plan.ColumnExpr)
+		supplied := producer.New[1].(plan.ColumnExpr)
 		if supplied.Scope != 1 || supplied.Frame != 2 || supplied.Slot != 1 {
 			t.Fatal("NEW lost derived output identity")
 		}
@@ -164,17 +164,17 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		pure.Expressions = []expr.Expr{source.Expressions[0], ruleUnitInt(src, 99)}
 		pure.QuerySchema = plan.QuerySchema(src.Columns)
 		selectBinding.Query = &plan.Query{Root: &pure}
-		producer, err = makeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
+		producer, err = MakeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
 			t.Fatal(err)
 		}
-		pruned := producer.root.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
+		pruned := producer.Root.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
 		if pruned == &pure || !pruned.Expressions[1].(plan.LiteralExpr).Value.IsNull() || pure.Expressions[1].(plan.LiteralExpr).Value.IsNull() {
 			t.Fatal("pure unused projection demand or template immutability lost")
 		}
 		template := ruleUnitInsert(e, sink, 0, 0)
 		template.Binding().Expressions[0][0] = pseudo
-		rewritten, err := composeRuleAction(auth, selectBinding, "INSERT", stored.Rule{}, template)
+		rewritten, err := ComposeRuleAction(auth, selectBinding, "INSERT", stored.Rule{}, template)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -186,11 +186,11 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		valuesBinding := selectBinding
 		valuesBinding.Insert.SubquerySource = false
-		producer, err = makeRuleProducer(auth.Catalog, valuesBinding, "INSERT")
+		producer, err = MakeRuleProducer(auth.Catalog, valuesBinding, "INSERT")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := producer.root.(*plan.DerivedNode); ok {
+		if _, ok := producer.Root.(*plan.DerivedNode); ok {
 			t.Fatal("VALUES provenance became SELECT materialization")
 		}
 	})
@@ -288,15 +288,15 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("single_values_macro", func(t *testing.T) {
 		single := ruleUnitInsert(e, src, 1, 10).Binding()
-		producer, err := makeRuleProducer(auth.Catalog, single, "INSERT")
+		producer, err := MakeRuleProducer(auth.Catalog, single, "INSERT")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := producer.root.(*plan.SingletonNode); !ok {
+		if _, ok := producer.Root.(*plan.SingletonNode); !ok {
 			t.Fatal("single VALUES became a materialized supplied row")
 		}
 		for i, expression := range single.Expressions[0] {
-			if !analyze.SameGroupExpression(producer.new[i], expression) {
+			if !analyze.SameGroupExpression(producer.New[i], expression) {
 				t.Fatal("single VALUES recipe replaced by an output Var")
 			}
 		}
@@ -304,23 +304,23 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	t.Run("event_source_identity", func(t *testing.T) {
 		f := viewWriteMechanics(t)
 		original := analyze.Binding{Relation: f.base, Ref: f.baseRef, Storage: f.e.storage.Relations[f.base.Address()], Targets: []int{0}, UsedColumns: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-		producer, err := makeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
+		producer, err := MakeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(producer.sources) != 1 || producer.sources[0].Storage != original.Storage {
+		if len(producer.Sources) != 1 || producer.Sources[0].Storage != original.Storage {
 			t.Fatal("event producer lost original physical storage capture")
 		}
-		current, err := currentQuerySourceLocked(f.e, f.e.CatalogRead(), nil, producer.sources[0])
+		current, err := currentQuerySourceLocked(f.e, f.e.CatalogRead(), nil, producer.Sources[0])
 		if err != nil || current != f.base {
 			t.Fatal("event source fails its genuine identity/storage fence", err)
 		}
 		op, done := roleOperation(t, f.e, "postgres")
 		defer done()
 		authority := f.authorization(t, op)
-		imported := producer.sources[0]
+		imported := producer.Sources[0]
 		imported.Storage = nil
-		refreshed, err := refreshRuleSources(authority, analyze.Binding{QuerySources: []exec.Leaf{imported}})
+		refreshed, err := RefreshRuleSources(authority, analyze.Binding{QuerySources: []exec.Leaf{imported}})
 		if err != nil || refreshed.QuerySources[0].Storage != original.Storage || imported.Storage != nil {
 			t.Fatal("stored/imported source did not capture current physical storage immutably", err)
 		}
@@ -331,18 +331,18 @@ func TestRuleProgramOrdering(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 3, 30)}})})
 	original := ruleUnitInsert(e, src, 4, 40)
-	p := ruleProgram{count: -1, returning: -1}
+	p := ruleProgram{Count: -1, Returning: -1}
 	e.mu.Lock()
-	count, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	count, err := ruleRewriter{e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 0 || len(p.commands) != 4 {
-		t.Fatalf("authority=%d commands=%d want0/4", count, len(p.commands))
+	if count != 0 || len(p.Commands) != 4 {
+		t.Fatalf("authority=%d commands=%d want0/4", count, len(p.Commands))
 	}
 	for i, want := range []int64{1, 2, 3} {
-		project := p.commands[i+1].binding.Query.Root.(*plan.ProjectNode)
+		project := p.Commands[i+1].Binding.Query.Root.(*plan.ProjectNode)
 		literal, ok := project.Expressions[0].(plan.LiteralExpr)
 		if !ok || !sqltype.SameDatum(literal.Value, ruleUnitInt(src, want).(plan.LiteralExpr).Value) {
 			t.Fatalf("action order %d differs from %d", i, want)
@@ -354,25 +354,25 @@ func TestRuleProgramAuthority(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 2, 20)}})})
 	original := ruleUnitInsert(e, src, 9, 90)
-	p := ruleProgram{count: -1, returning: -1}
+	p := ruleProgram{Count: -1, Returning: -1}
 	e.mu.Lock()
-	count, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	count, err := ruleRewriter{e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 1 || len(p.commands) != 2 {
-		t.Fatalf("last same-event authority=%d commands=%d want1/2", count, len(p.commands))
+	if count != 1 || len(p.Commands) != 2 {
+		t.Fatalf("last same-event authority=%d commands=%d want1/2", count, len(p.Commands))
 	}
 	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "nothing", Event: "INSERT", Instead: true})})
-	p = ruleProgram{count: -1, returning: -1}
+	p = ruleProgram{Count: -1, Returning: -1}
 	e.mu.Lock()
-	count, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	count, err = ruleRewriter{e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
-	if err != nil || count != -1 || len(p.commands) != 0 {
-		t.Fatalf("NOTHING authority=%d commands=%d error=%v", count, len(p.commands), err)
+	if err != nil || count != -1 || len(p.Commands) != 0 {
+		t.Fatalf("NOTHING authority=%d commands=%d error=%v", count, len(p.Commands), err)
 	}
-	if len(p.events) != 1 || p.events[0].Ref != ruleUnitRef(e, src) || p.events[0].Revision != src.Revision() {
+	if len(p.Events) != 1 || p.Events[0].Ref != ruleUnitRef(e, src) || p.Events[0].Revision != src.Revision() {
 		t.Fatal("NOTHING lost rule event locking/prepared dependency authority")
 	}
 	t.Run("layered_boundary", func(t *testing.T) {
@@ -388,24 +388,24 @@ func TestRuleProgramAuthority(t *testing.T) {
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
-		if err := bindViewWrite(f.e.catalog.owner(), auth.Catalog, &mapped, &parser.Update{}); err != nil {
+		if err := BindViewWrite(f.e.catalog.owner(), auth.Catalog, &mapped, &parser.Update{}); err != nil {
 			t.Fatal(err)
 		}
-		if mapped.Ref != f.viewRef || mapped.Relation != f.view || physicalBinding(mapped).Ref != f.baseRef || mapped.Targets[0] != 1 {
+		if mapped.Ref != f.viewRef || mapped.Relation != f.view || PhysicalBinding(mapped).Ref != f.baseRef || mapped.Targets[0] != 1 {
 			t.Fatal("layered outer authority or inner event mapping lost")
 		}
-		if len(viewWriteOf(mapped.ViewWrite).checks) != 0 || len(viewWriteOf(mapped.ViewWrite).predicates) == 0 {
+		if len(ViewWriteOf(mapped.ViewWrite).Checks) != 0 || len(ViewWriteOf(mapped.ViewWrite).Predicates) == 0 {
 			t.Fatal("rewrite boundary conflated CHECK enforcement with selection")
 		}
 		if original.ViewWrite != nil || original.Targets[0] != 0 || original.Ref != f.viewRef {
 			t.Fatal("original binding mutated")
 		}
-		program := ruleProgram{count: -1, returning: -1}
+		program := ruleProgram{Count: -1, Returning: -1}
 		f.e.mu.Lock()
-		count, err := ruleRewriter{f.e.catalog.owner()}.expandLocked(auth, &parser.Update{}, mapped, nil, &program)
+		count, err := ruleRewriter{f.e.catalog.owner()}.ExpandLocked(auth, &parser.Update{}, mapped, nil, &program)
 		f.e.mu.Unlock()
-		if err != nil || count != -1 || len(program.commands) != 0 {
-			t.Fatalf("inner unconditional boundary must stop before automatic validation: count=%d commands=%d error=%v", count, len(program.commands), err)
+		if err != nil || count != -1 || len(program.Commands) != 0 {
+			t.Fatalf("inner unconditional boundary must stop before automatic validation: count=%d commands=%d error=%v", count, len(program.Commands), err)
 		}
 	})
 }
@@ -417,7 +417,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{}
 	e.mu.Lock()
-	_, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	_, err := ruleRewriter{e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
 	if err == nil || !strings.Contains(err.Error(), "infinite recursion detected in rules for relation") {
 		t.Fatalf("recursion error=%v", err)
@@ -426,10 +426,10 @@ func TestRuleProgramRecursion(t *testing.T) {
 	stored.RulesOf(src)[0] = stored.RulesOf(src)[0].With(func(p *stored.RuleParts) { p.Actions = append(p.Actions, ruleUnitInsert(e, sink, 2, 20)) })
 	p = ruleProgram{}
 	e.mu.Lock()
-	_, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	_, err = ruleRewriter{e.catalog.owner()}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
 	e.mu.Unlock()
-	if err != nil || len(p.commands) != 3 {
-		t.Fatalf("sibling target reuse: commands=%d error=%v", len(p.commands), err)
+	if err != nil || len(p.Commands) != 3 {
+		t.Fatalf("sibling target reuse: commands=%d error=%v", len(p.Commands), err)
 	}
 }
 
@@ -464,7 +464,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		outer = outer.With(func(p *stored.RuleActionParts) {
 			p.Binding.CTEs = []*plan.CTEDefinition{{Statement: auxiliary.Syntax(), Mutation: &auxiliaryBinding, Owner: 1}}
 		})
-		refs, err := ruleReferences(context.Background(), auth.Catalog, stored.NewRule(stored.RuleParts{Actions: []stored.RuleAction{outer}}))
+		refs, err := RuleReferences(context.Background(), auth.Catalog, stored.NewRule(stored.RuleParts{Actions: []stored.RuleAction{outer}}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -478,9 +478,9 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
-	condition := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2}
+	condition := plan.ColumnExpr{Info: RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2}
 	r := stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: condition, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})
-	refs, err := ruleReferences(context.Background(), auth.Catalog, r)
+	refs, err := RuleReferences(context.Background(), auth.Catalog, r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -527,7 +527,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	oldRef := ruleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, References: []ids.ObjectAddress{oldRef.Address}, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})})
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: plan.ColumnExpr{Info: RuleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, References: []ids.ObjectAddress{oldRef.Address}, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})})
 	newSrc, newSink := *src, *sink
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10
@@ -560,18 +560,18 @@ func TestRuleDefinitionRemap(t *testing.T) {
 
 func TestRuleViewReturnReplacement(t *testing.T) {
 	_, _, src, _ := ruleUnitCatalog(t)
-	if err := ruleResultCheck(src, slices.Clone(src.Columns), true); err != nil {
+	if err := RuleResultCheck(src, slices.Clone(src.Columns), true); err != nil {
 		t.Fatal(err)
 	}
-	if err := ruleResultCheck(src, src.Columns[:1], true); err == nil || !strings.Contains(err.Error(), "SELECT rule's target list has too few entries") {
+	if err := RuleResultCheck(src, src.Columns[:1], true); err == nil || !strings.Contains(err.Error(), "SELECT rule's target list has too few entries") {
 		t.Fatalf("arity error=%v", err)
 	}
 	bad := slices.Clone(src.Columns)
 	bad[0].Name = "other"
-	if err := ruleResultCheck(src, bad, true); err == nil || !strings.Contains(err.Error(), "different column name") {
+	if err := RuleResultCheck(src, bad, true); err == nil || !strings.Contains(err.Error(), "different column name") {
 		t.Fatalf("name error=%v", err)
 	}
-	if err := ruleResultCheck(src, bad, false); err != nil {
+	if err := RuleResultCheck(src, bad, false); err != nil {
 		t.Fatal("RETURNING incorrectly requires event column names:", err)
 	}
 }

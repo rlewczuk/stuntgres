@@ -16,7 +16,7 @@ import (
 // Output names are downstream definition checks, not SELECT/alias analysis.
 // Existing replacements check their descriptor before options; fresh CREATE
 // checks options first. The caller has already resolved the real destination.
-func checkViewOutputNames(columns []catalog.Column, old *catalog.Relation) error {
+func CheckViewOutputNames(columns []catalog.Column, old *catalog.Relation) error {
 	if len(columns) < 2 {
 		return nil
 	}
@@ -35,7 +35,7 @@ func checkViewOutputNames(columns []catalog.Column, old *catalog.Relation) error
 
 // Relation occurrences, including unused/join/subquery leaves, determine PG18
 // inference. Expression-only regclass/sequence dependencies deliberately do not.
-func requestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sources []exec.Leaf) string {
+func RequestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sources []exec.Leaf) string {
 	if view.Persistence == "temporary" {
 		return "temporary"
 	}
@@ -47,7 +47,7 @@ func requestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sou
 	return "logged"
 }
 
-func checkViewPrefix(catalog catalog.Read, old, next []catalog.Column) error {
+func CheckViewPrefix(catalog catalog.Read, old, next []catalog.Column) error {
 	if len(next) < len(old) {
 		return sqlError("42P16", "cannot drop columns from view")
 	}
@@ -79,18 +79,18 @@ func checkViewPrefix(catalog catalog.Read, old, next []catalog.Column) error {
 // namespace, persistence, binding and staged changes, plus the stack of views
 // being expanded (for recursion checks).
 type viewCreationScope struct {
-	namespace   ids.ObjectRef
-	persistence string
-	binding     analyze.Binding
-	changes     *session.Journal
-	active      []ids.ObjectAddress
+	Namespace   ids.ObjectRef
+	Persistence string
+	Binding     analyze.Binding
+	Changes     *session.Journal
+	Active      []ids.ObjectAddress
 }
 
 // endStatement clears the view-creation state when the statement finishes.
 // The active view stack is lexical expansion state and is left as it was.
-func (v *viewCreationScope) endStatement() {
+func (v *viewCreationScope) EndStatement() {
 	if v == nil {
 		return
 	}
-	v.namespace, v.persistence, v.binding, v.changes = ids.ObjectRef{}, "", analyze.Binding{}, nil
+	v.Namespace, v.Persistence, v.Binding, v.Changes = ids.ObjectRef{}, "", analyze.Binding{}, nil
 }

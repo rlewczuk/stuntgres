@@ -107,8 +107,8 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 // original of a replaced materialized view to index.ValidateMaintenance.
 func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 	var replacedParent ids.ObjectAddress
-	if replacement := s.materializedOrZero().replacement; replacement != nil {
-		replacedParent = replacement.original.Address()
+	if replacement := s.materializedOrZero().Replacement; replacement != nil {
+		replacedParent = replacement.Original.Address()
 	}
 	return index.ValidateMaintenance(s.indexesOrZero(), s.Base, current, replacedParent)
 }

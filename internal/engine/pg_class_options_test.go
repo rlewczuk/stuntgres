@@ -19,26 +19,26 @@ func TestPgClassOptionHistory(t *testing.T) {
 	if err != nil || !barrier || invoker || mode != stored.CheckNone {
 		t.Fatal("execution flags", barrier, invoker, mode, err)
 	}
-	old := transformViewOptions(nil, created, false)
+	old := TransformViewOptions(nil, created, false)
 	if !reflect.DeepEqual(old, []string{"security_invoker=false", "security_barrier=true"}) {
 		t.Fatal(old)
 	}
-	set := transformViewOptions(old, []parser.ViewOption{option("security_invoker", "off")}, false)
+	set := TransformViewOptions(old, []parser.ViewOption{option("security_invoker", "off")}, false)
 	if !reflect.DeepEqual(set, []string{"security_barrier=true", "security_invoker=off"}) || !reflect.DeepEqual(old, []string{"security_invoker=false", "security_barrier=true"}) {
 		t.Fatal("SET ordering/immutability", set, old)
 	}
-	reset := transformViewOptions(set, []parser.ViewOption{{Name: parser.Identifier{Text: "security_barrier"}}}, true)
+	reset := TransformViewOptions(set, []parser.ViewOption{{Name: parser.Identifier{Text: "security_barrier"}}}, true)
 	if !reflect.DeepEqual(reset, []string{"security_invoker=off"}) {
 		t.Fatal(reset)
 	}
-	if got := transformViewOptions(reset, []parser.ViewOption{{Name: parser.Identifier{Text: "security_invoker"}}}, true); len(got) != 0 {
+	if got := TransformViewOptions(reset, []parser.ViewOption{{Name: parser.Identifier{Text: "security_invoker"}}}, true); len(got) != 0 {
 		t.Fatal("RESET final option", got)
 	}
-	if got := transformViewOptions(nil, nil, false); len(got) != 0 {
+	if got := TransformViewOptions(nil, nil, false); len(got) != 0 {
 		t.Fatal("replacement absent options", got)
 	}
 	lexical := []parser.ViewOption{option("security_invoker", "0"), option("security_barrier", "on"), option("check_option", "local")}
-	if got := transformViewOptions(nil, lexical, false); !reflect.DeepEqual(got, []string{"security_invoker=0", "security_barrier=on", "check_option=local"}) {
+	if got := TransformViewOptions(nil, lexical, false); !reflect.DeepEqual(got, []string{"security_invoker=0", "security_barrier=on", "check_option=local"}) {
 		t.Fatal("lexical facts", got)
 	}
 	e := New()
@@ -48,7 +48,7 @@ func TestPgClassOptionHistory(t *testing.T) {
 		t.Fatal("remap lost installed options", mapped, err)
 	}
 	mapped = mapped.With(func(p *stored.ViewParts) {
-		p.Options = transformViewOptions(p.Options, []parser.ViewOption{option("security_invoker", "true")}, false)
+		p.Options = TransformViewOptions(p.Options, []parser.ViewOption{option("security_invoker", "true")}, false)
 	})
 	if !reflect.DeepEqual(original.Options(), old) || !reflect.DeepEqual(mapped.Options(), []string{"security_barrier=true", "security_invoker=true"}) {
 		t.Fatal("remapped mutation touched retained facts")

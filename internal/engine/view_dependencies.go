@@ -38,7 +38,7 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 	var visit func(ids.ObjectAddress)
 	visit = func(target ids.ObjectAddress) {
 		for _, view := range views {
-			if !seen[view.Address()] && viewDepends(view, target) {
+			if !seen[view.Address()] && ViewDepends(view, target) {
 				seen[view.Address()] = true
 				edges = append(edges, viewDependencyEdge{view, target})
 				visit(view.Address())
@@ -58,7 +58,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		expanded = make([]ids.ObjectAddress, len(targets), len(targets)+len(edges))
 		copy(expanded, targets)
 		for _, edge := range edges {
-			expanded = append(expanded, edge.view.Address())
+			expanded = append(expanded, edge.View.Address())
 		}
 	}
 	policies := provider.policyDependentLabels(expanded)
@@ -91,7 +91,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	}
 	activeEdges := edges[:0]
 	for _, edge := range edges {
-		d := edge.view
+		d := edge.View
 		if provider.Removed(d.Address()) {
 			continue
 		}

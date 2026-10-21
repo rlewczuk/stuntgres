@@ -174,7 +174,7 @@ func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress,
 		policyTargets = make([]ids.ObjectAddress, len(targets), len(targets)+len(views))
 		copy(policyTargets, targets)
 		for _, edge := range views {
-			policyTargets = append(policyTargets, edge.view.Address())
+			policyTargets = append(policyTargets, edge.View.Address())
 		}
 	}
 	dependents := policyDependentLabels(catalog, policyTargets, path)
@@ -195,7 +195,7 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 		dependents = append(dependents, supportedDependent{oid: edge.Check.OID, target: edge.Target, label: label, checkOwner: edge.Relation.Address().ObjectID, checkOrdinal: edge.Check.Ordinal})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, supportedDependent{oid: edge.view.Address().ObjectID, target: edge.target, view: edge.view.Address(), label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalogView, edge.view, path)})
+		dependents = append(dependents, supportedDependent{oid: edge.View.Address().ObjectID, target: edge.Target, view: edge.View.Address(), label: relationDiagnosticKind(edge.View) + " " + dependencyRelationName(catalogView, edge.View, path)})
 	}
 	for _, edge := range foreign {
 		if !edge.Automatic {
@@ -259,8 +259,8 @@ func supportedRestrictErrorLabels(catalog catalog.Read, views []viewDependencyEd
 	if !multipleDeletion {
 		target := dependents[0].target
 		for i := len(views) - 1; i >= 0; i-- {
-			if views[i].view.Address() == target {
-				target = views[i].target
+			if views[i].View.Address() == target {
+				target = views[i].Target
 			}
 		}
 		message = "cannot drop " + dependencyObject(catalog, target, path) + " because other objects depend on it"
@@ -293,7 +293,7 @@ func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, pat
 		}
 		for _, r := range stored.RulesOf(d) {
 			for _, target := range targets {
-				if ruleDepends(view, r, target) {
+				if RuleDepends(view, r, target) {
 					if observe != nil {
 						observe(d.Address())
 					}
@@ -322,7 +322,7 @@ func policyDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, p
 		}
 		for _, p := range d.Security.Policies {
 			for _, target := range targets {
-				if policyDepends(p, target) {
+				if PolicyDepends(p, target) {
 					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + dependencyRelationName(view, d, path)})
 					break
 				}

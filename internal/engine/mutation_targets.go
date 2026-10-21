@@ -130,7 +130,7 @@ func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 // command view has frozen its roots. Each segment retains real physical rows.
 func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibility.View, b analyze.Binding) (*exec.Source, error) {
 	if s.rls.targetDenied {
-		return captureDeniedQuerySource(view, b.Ref)
+		return CaptureDeniedQuerySource(view, b.Ref)
 	}
 	if len(s.inheritedTargets) == 0 {
 		return exec.CaptureSource(ctx, view, b.Ref)

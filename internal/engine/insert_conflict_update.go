@@ -51,8 +51,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				return other.diagnostic(s, ref)
 			}
 			if s.viewWrite != nil {
-				b := bindingForConflict(ref, s.viewWrite.base, c)
-				b.ViewWrite = viewWriteSlotOf(s.viewWrite)
+				b := bindingForConflict(ref, s.viewWrite.BaseRelation, c)
+				b.ViewWrite = ViewWriteSlotOf(s.viewWrite)
 				b.Targets = c.Targets
 				if err := e.checkViewRow(s, &b, proposal, &evaluation); err != nil {
 					return err
@@ -177,7 +177,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.checkUniqueRow(ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
 			return err
 		}
-		b.ViewWrite = viewWriteSlotOf(s.viewWrite)
+		b.ViewWrite = ViewWriteSlotOf(s.viewWrite)
 		if err := e.checkViewRow(s, &b, row, &evaluation); err != nil {
 			return err
 		}

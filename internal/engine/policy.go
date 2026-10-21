@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 )
 
-func policyOwnerNoun(stmt parser.Statement) string {
+func PolicyOwnerNoun(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.CreatePolicy, *parser.AlterPolicy:
 		return "table"
@@ -24,7 +24,7 @@ func policyOwnerNoun(stmt parser.Statement) string {
 	}
 }
 
-func policyClauses(command catalog.PolicyCommand, using, check parser.Expr, creating bool) error {
+func PolicyClauses(command catalog.PolicyCommand, using, check parser.Expr, creating bool) error {
 	if command == catalog.PolicyInsert && using != nil {
 		return sqlError("42601", "only WITH CHECK expression allowed for INSERT")
 	}
@@ -37,7 +37,7 @@ func policyClauses(command catalog.PolicyCommand, using, check parser.Expr, crea
 	return nil
 }
 
-func resolvePolicyRoles(view access.View, raw []parser.GrantGrantee) ([]catalog.PolicyRole, bool, error) {
+func ResolvePolicyRoles(view access.View, raw []parser.GrantGrantee) ([]catalog.PolicyRole, bool, error) {
 	if raw == nil {
 		return []catalog.PolicyRole{{Public: true}}, false, nil
 	}
@@ -58,11 +58,11 @@ func resolvePolicyRoles(view access.View, raw []parser.GrantGrantee) ([]catalog.
 	return roles, false, nil
 }
 
-func policyPreflight(op *session.Operation, view access.View, stmt parser.Statement, notices bool) error {
+func PolicyPreflight(op *session.Operation, view access.View, stmt parser.Statement, notices bool) error {
 	var roles []parser.GrantGrantee
 	switch s := stmt.(type) {
 	case *parser.CreatePolicy:
-		if err := policyClauses(catalog.PolicyCommand(s.Command), s.Using, s.Check, true); err != nil {
+		if err := PolicyClauses(catalog.PolicyCommand(s.Command), s.Using, s.Check, true); err != nil {
 			return err
 		}
 		roles = s.Roles
@@ -74,7 +74,7 @@ func policyPreflight(op *session.Operation, view access.View, stmt parser.Statem
 	default:
 		return nil
 	}
-	_, warn, err := resolvePolicyRoles(view, roles)
+	_, warn, err := ResolvePolicyRoles(view, roles)
 	if err == nil && warn && notices {
 		op.EmitNotice(session.LevelWarning, sqlstate.Error{
 			Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023",
@@ -85,19 +85,19 @@ func policyPreflight(op *session.Operation, view access.View, stmt parser.Statem
 	return err
 }
 
-func policyIndex(d *catalog.Relation, name string) int {
+func PolicyIndex(d *catalog.Relation, name string) int {
 	return slices.IndexFunc(d.Security.Policies, func(p catalog.PolicyDefinition) bool { return p.Name == name })
 }
 
-func policyMissing(name string, d *catalog.Relation) error {
+func PolicyMissing(name string, d *catalog.Relation) error {
 	return sqlError("42704", fmt.Sprintf(`policy "%s" for table "%s" does not exist`, name, d.Name()))
 }
 
-func policyDuplicate(name string, d *catalog.Relation) error {
+func PolicyDuplicate(name string, d *catalog.Relation) error {
 	return sqlError("42710", fmt.Sprintf(`policy "%s" for table "%s" already exists`, name, d.Name()))
 }
 
-func validatePolicies(view catalog.Read, d *catalog.Relation) error {
+func ValidatePolicies(view catalog.Read, d *catalog.Relation) error {
 	if len(d.Security.Policies) != 0 && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
 		return fmt.Errorf("stuntgres: policies require a table")
 	}

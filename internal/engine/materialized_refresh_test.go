@@ -56,7 +56,7 @@ func TestMaterializedRefreshPublication(t *testing.T) {
 		if err := e.stageMaterializedRows(context.Background(), stage, d, store, rows, tc.populated, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
-		candidate := stage.materializedOrZero().replacement.storage
+		candidate := stage.materializedOrZero().Replacement.Storage
 		if tc.count != 0 && &candidate.Versions[0].Values[0] != &rows[0][0] {
 			t.Fatal("refresh copied finalized buffers")
 		}

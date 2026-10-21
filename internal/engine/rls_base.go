@@ -78,13 +78,13 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	principal := access.RowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
+	principal := access.RowSecurityPrincipal(auth.State.CurrentUser, RowSecurityLayers(auth.Catalog, b))
 	if err := access.RowSecuritySettingGuard(scope.rowSecurity, auth.Roles, b.Relation, principal); err != nil {
 		return err
 	}
 	reads := b.Returning != nil || len(b.UsedColumns) != 0
 	if b.ViewWrite != nil {
-		reads = reads || len(viewWriteOf(b.ViewWrite).logical.UsedColumns) != 0
+		reads = reads || len(ViewWriteOf(b.ViewWrite).Logical.UsedColumns) != 0
 	}
 	if command != catalog.PolicyInsert {
 		decision, err := access.RowSecurityGroups(auth.Roles, b.Relation, principal, command, false, reads)

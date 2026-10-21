@@ -118,13 +118,13 @@ func TestUpdateRowRuleRestriction(t *testing.T) {
 	e, b := updateRowTestBinding(t, "UPDATE t SET (a,b)=(SELECT b,a)")
 	for _, recipe := range b.Update.Assignments {
 		wrapped := plan.CollationExpr{Info: expr.InfoOf(recipe), Child: recipe}
-		state(t, validateRuleNewUpdateOutput(wrapped), "0A000")
+		state(t, ValidateRuleNewUpdateOutput(wrapped), "0A000")
 	}
 	_, one := updateRowTestBinding(t, "UPDATE t SET (a)=(SELECT b)")
-	state(t, validateRuleNewUpdateOutput(one.Update.Assignments[0]), "0A000")
+	state(t, ValidateRuleNewUpdateOutput(one.Update.Assignments[0]), "0A000")
 	_, constructor := updateRowTestBinding(t, "UPDATE t SET (a,b)=ROW(b,a)")
 	for _, recipe := range constructor.Update.Assignments {
-		if err := validateRuleNewUpdateOutput(recipe); err != nil {
+		if err := ValidateRuleNewUpdateOutput(recipe); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -133,7 +133,7 @@ func TestUpdateRowRuleRestriction(t *testing.T) {
 	project := query.Root.(*plan.ProjectNode)
 	subqueryTestTarget(t, project, b.Update.Assignments[1])
 	outer := subqueryTestExpression(t, e, query, parser.SubqueryScalar)
-	if err := validateRuleNewUpdateOutput(outer); err != nil {
+	if err := ValidateRuleNewUpdateOutput(outer); err != nil {
 		t.Fatal("restriction crossed scalar SubLink boundary", err)
 	}
 }

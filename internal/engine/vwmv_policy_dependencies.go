@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func policyDepends(p catalog.PolicyDefinition, target ids.ObjectAddress) bool {
+func PolicyDepends(p catalog.PolicyDefinition, target ids.ObjectAddress) bool {
 	for _, condition := range []catalog.PolicyPayload{p.Using, p.Check} {
 		if condition != nil && condition.DependsOn(target) {
 			return true
@@ -17,7 +17,7 @@ func policyDepends(p catalog.PolicyDefinition, target ids.ObjectAddress) bool {
 	return false
 }
 
-func policyTypeChangeError(view catalog.Read, target ids.ObjectAddress) error {
+func PolicyTypeChangeError(view catalog.Read, target ids.ObjectAddress) error {
 	var owners []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok {
@@ -35,7 +35,7 @@ func policyTypeChangeError(view catalog.Read, target ids.ObjectAddress) error {
 	})
 	for _, owner := range owners {
 		for _, p := range owner.Security.Policies {
-			if !policyDepends(p, target) {
+			if !PolicyDepends(p, target) {
 				continue
 			}
 			provider := view.MustRelation(ids.ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID})

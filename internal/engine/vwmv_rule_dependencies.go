@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func ruleReferences(ctx context.Context, catalog catalog.Read, r stored.Rule) ([]ids.ObjectAddress, error) {
+func RuleReferences(ctx context.Context, catalog catalog.Read, r stored.Rule) ([]ids.ObjectAddress, error) {
 	var refs []ids.ObjectAddress
 	add := func(items []ids.ObjectAddress) {
 		for _, a := range items {
@@ -171,7 +171,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r stored.Rule) ([
 	return refs, nil
 }
 
-func ruleDepends(catalog catalog.Read, r stored.Rule, target ids.ObjectAddress) bool {
+func RuleDepends(catalog catalog.Read, r stored.Rule, target ids.ObjectAddress) bool {
 	for _, a := range r.References() {
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true

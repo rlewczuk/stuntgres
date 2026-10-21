@@ -289,7 +289,7 @@ func extensionDropUnitConsumer(t *testing.T, e *Engine, op *session.Operation, c
 	if consumer == "view" {
 		extensionDropUnitLateView(t, e, op)
 		addresses := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ext_drop_late"})
-		if len(addresses) != 1 || !viewDepends(e.CatalogRead().MustRelation(addresses[0]), target) {
+		if len(addresses) != 1 || !ViewDepends(e.CatalogRead().MustRelation(addresses[0]), target) {
 			t.Fatal("view did not bind authentic installed procedure")
 		}
 		return e.CatalogRead().Get(addresses[0])

@@ -12,23 +12,23 @@ import (
 )
 
 type viewWriteOccurrence struct {
-	definition *stored.View
+	Definition *stored.View
 	ordinal    int
 }
 
 // Only transplanted, demanded subqueries acquire an execution source slot.
 // Frozen view layouts are bridged by capture, not by re-resolving SQL names.
-func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.Node, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
+func (w *viewWrite) GraftQuery(b *analyze.Binding, view catalog.Read, root plan.Node, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return plan.RewriteQueryExpressions(root, rewrite)
 	}
 	var definition *stored.View
 	var consumer *catalog.Relation
-	for _, layer := range w.layers {
-		if _, found := stored.ViewOf(layer.relation).Queries()[project.Syntax]; found {
-			definition = stored.ViewOf(layer.relation)
-			consumer = layer.relation
+	for _, layer := range w.Layers {
+		if _, found := stored.ViewOf(layer.Relation).Queries()[project.Syntax]; found {
+			definition = stored.ViewOf(layer.Relation)
+			consumer = layer.Relation
 			break
 		}
 	}
@@ -41,7 +41,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 			return 0, ids.ErrCatalogReplaced
 		}
 		key := viewWriteOccurrence{definition, occurrence}
-		slot, found := w.queryOccurrences[key]
+		slot, found := w.QueryOccurrences[key]
 		if !found {
 			leaf := definition.Sources()[occurrence]
 			relation, ok := view.Relation(leaf.Ref.Address)
@@ -49,10 +49,10 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 				return 0, ids.ErrCatalogReplaced
 			}
 			slot = len(b.QuerySources)
-			if w.queryOccurrences == nil {
-				w.queryOccurrences = make(map[viewWriteOccurrence]int)
+			if w.QueryOccurrences == nil {
+				w.QueryOccurrences = make(map[viewWriteOccurrence]int)
 			}
-			w.queryOccurrences[key] = slot
+			w.QueryOccurrences[key] = slot
 			use, err := stored.ViewUseReference(view, consumer, leaf.Ref)
 			if err != nil {
 				return 0, err

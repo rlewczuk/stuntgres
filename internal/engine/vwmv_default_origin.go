@@ -5,11 +5,11 @@ import (
 	"stuntgres/internal/engine/exec"
 )
 
-func bindingDefaultOrigin(b *analyze.Binding, slot int) analyze.DefaultOrigin {
+func BindingDefaultOrigin(b *analyze.Binding, slot int) analyze.DefaultOrigin {
 	if slot < len(b.Insert.DefaultOrigins) {
 		return b.Insert.DefaultOrigins[slot]
 	}
-	physical := physicalBinding(*b)
+	physical := PhysicalBinding(*b)
 	attribute := physical.Relation.Attributes[slot]
 	definition := physical.Relation.ColumnMeta.Defaults[attribute]
 	if definition.Expression == nil {

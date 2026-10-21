@@ -26,7 +26,7 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 		for _, p := range d.Security.Policies {
 			drop := false
 			for _, target := range targets {
-				if policyDepends(p, target) {
+				if PolicyDepends(p, target) {
 					drop = true
 					break
 				}

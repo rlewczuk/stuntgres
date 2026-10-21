@@ -39,10 +39,10 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err = scope.reownDomainOverlayRows(stage, changes); err != nil {
 		return err
 	}
-	if r := stage.materializedOrZero().replacement; r != nil {
+	if r := stage.materializedOrZero().Replacement; r != nil {
 		// A private CREATE WITH DATA has own rows on the old empty store.
 		// REFRESH replaces that complete target, not an append to those rows.
-		a := r.original.Address()
+		a := r.Original.Address()
 		if len(scope.ownWrites[a]) != 0 || scope.ownDeletes[a] != nil {
 			scope.stageProjectedColumnRoots(a, nil, nil)
 			delete(scope.stage.rows, a)
@@ -104,21 +104,21 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 		}
 		changes.Storage[a] = shape
 	}
-	if r := stage.materializedOrZero().replacement; r != nil {
-		a := r.original.Address()
+	if r := stage.materializedOrZero().Replacement; r != nil {
+		a := r.Original.Address()
 		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = session.StorageChange{Original: r.predecessor, Root: r.predecessor.Versions, Ends: r.ends, Generation: r.generation}
+			shape = session.StorageChange{Original: r.Predecessor, Root: r.Predecessor.Versions, Ends: r.Ends, Generation: r.Generation}
 		}
 		if !exists {
-			shape.MaterializedContinuous = r.concurrent && r.predecessor == e.storage.Relations[a]
+			shape.MaterializedContinuous = r.Concurrent && r.Predecessor == e.storage.Relations[a]
 		} else {
-			shape.MaterializedContinuous = shape.MaterializedContinuous && r.concurrent
+			shape.MaterializedContinuous = shape.MaterializedContinuous && r.Concurrent
 		}
-		shape.MaterializedConcurrent = r.concurrent
+		shape.MaterializedConcurrent = r.Concurrent
 		// Keep the first committed predecessor (or genuine private CREATE
 		// absence). A repeated refresh replaces only the latest private root.
-		shape.Replacement, shape.Relation = r.storage, r.descriptor
+		shape.Replacement, shape.Relation = r.Storage, r.Descriptor
 		shape.Truncated = false
 		shape.Rewritten, shape.Frontier = true, e.visibility.CommitSeq()
 		shape.Snapshot, shape.HasSnapshot = nil, false

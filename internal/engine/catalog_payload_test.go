@@ -44,24 +44,24 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	other := column
 	other.SubID = 3
 	for target, want := range map[ids.ObjectAddress]bool{source: true, whole: true, column: true, other: false, consumer: false} {
-		if d.View.DependsOn(target) != want || viewDepends(d, target) != want {
+		if d.View.DependsOn(target) != want || ViewDepends(d, target) != want {
 			t.Fatal("view dependency", target, want)
 		}
 	}
-	if viewDepends(&catalog.Relation{}, source) {
+	if ViewDepends(&catalog.Relation{}, source) {
 		t.Fatal("absent view has dependencies")
 	}
 
-	if stored.PolicyOf(nil) != nil || policyPayloadOf(nil) != nil {
+	if stored.PolicyOf(nil) != nil || PolicyPayloadOf(nil) != nil {
 		t.Fatal("absent policy payload")
 	}
 	condition := stored.NewPolicy(nil, nil, definition)
-	policy := catalog.PolicyDefinition{Using: policyPayloadOf(condition)}
+	policy := catalog.PolicyDefinition{Using: PolicyPayloadOf(condition)}
 	if stored.PolicyOf(policy.Using) != condition || policy.Check != nil {
 		t.Fatal("policy payload identity")
 	}
 	for target, want := range map[ids.ObjectAddress]bool{source: true, column: true, other: false} {
-		if policy.Using.DependsOn(target) != want || policyDepends(policy, target) != want {
+		if policy.Using.DependsOn(target) != want || PolicyDepends(policy, target) != want {
 			t.Fatal("policy dependency", target, want)
 		}
 	}
@@ -121,13 +121,13 @@ func TestCatalogPayloadReaders(t *testing.T) {
 
 	condition := plan.LiteralExpr{}
 	var seen []expr.Expr
-	if err := policyPayloadOf(stored.NewPolicy(nil, condition, nil)).VisitExpression(func(e expr.Expr) error { seen = append(seen, e); return nil }); err != nil {
+	if err := PolicyPayloadOf(stored.NewPolicy(nil, condition, nil)).VisitExpression(func(e expr.Expr) error { seen = append(seen, e); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if len(seen) != 1 || !reflect.DeepEqual(seen[0], expr.Expr(condition)) {
 		t.Fatal("policy expression", seen)
 	}
-	if err := policyPayloadOf(stored.NewPolicy(nil, condition, nil)).VisitExpression(func(expr.Expr) error { return stop }); err != stop {
+	if err := PolicyPayloadOf(stored.NewPolicy(nil, condition, nil)).VisitExpression(func(expr.Expr) error { return stop }); err != stop {
 		t.Fatal("policy visit error", err)
 	}
 }

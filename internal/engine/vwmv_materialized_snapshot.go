@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-const materializedSnapshotMarker = "stuntgres-matview-v1"
+const MaterializedSnapshotMarker = "stuntgres-matview-v1"
 
 type materializedSnapshot struct {
 	Schema    string `json:"schema"`
@@ -25,13 +25,13 @@ type materializedSnapshot struct {
 	Rows      string `json:"rows"`
 }
 
-func materializedViewReadError(d *catalog.Relation) error {
+func MaterializedViewReadError(d *catalog.Relation) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`materialized view "%s" has not been populated`, d.Name()), Hint: "Use the REFRESH MATERIALIZED VIEW command."}
 }
 
 // emitMaterializedSnapshot writes the materialized view t's snapshot record:
 // its population flag and the rows its table dump emits.
-func emitMaterializedSnapshot(ctx context.Context, t *table.DumpRelation, catalog catalog.Read, emit func(string) error) error {
+func EmitMaterializedSnapshot(ctx context.Context, t *table.DumpRelation, catalog catalog.Read, emit func(string) error) error {
 	var rows strings.Builder
 	if err := t.EmitRows(ctx, catalog, func(line string) error { rows.WriteString(line); return nil }); err != nil {
 		return err
@@ -44,12 +44,12 @@ func emitMaterializedSnapshot(ctx context.Context, t *table.DumpRelation, catalo
 	if err != nil {
 		return err
 	}
-	return emit("-- " + materializedSnapshotMarker + " " + base64.StdEncoding.EncodeToString(data) + "\n")
+	return emit("-- " + MaterializedSnapshotMarker + " " + base64.StdEncoding.EncodeToString(data) + "\n")
 }
 
 // Called only for genuine line comments by Restore's opt-in lexer callback.
 // Strict keys also reject duplicates/null fields, not merely unknown fields.
-func decodeMaterializedSnapshot(comment string) (materializedSnapshot, bool, error) {
+func DecodeMaterializedSnapshot(comment string) (materializedSnapshot, bool, error) {
 	var record materializedSnapshot
 	text := strings.TrimSpace(comment)
 	if !strings.HasPrefix(text, "stuntgres-matview-") {
@@ -59,7 +59,7 @@ func decodeMaterializedSnapshot(comment string) (materializedSnapshot, bool, err
 		return record, true, fmt.Errorf("stuntgres: invalid materialized view snapshot")
 	}
 	marker, payload, found := strings.Cut(text, " ")
-	if !found || marker != materializedSnapshotMarker || payload == "" {
+	if !found || marker != MaterializedSnapshotMarker || payload == "" {
 		return formatError()
 	}
 	data, err := base64.StdEncoding.Strict().DecodeString(payload)
@@ -119,18 +119,18 @@ func decodeMaterializedSnapshot(comment string) (materializedSnapshot, bool, err
 
 // The payload admits only closed canonical codec forms, not Restore's wider
 // scalar whitelist (which includes volatile clocks, identity and DEFAULT).
-func materializedSnapshotScalar(raw parser.Expr) error {
+func MaterializedSnapshotScalar(raw parser.Expr) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid materialized view snapshot scalar") }
 	switch r := raw.(type) {
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		return nil
 	case parser.CastExpr:
-		return materializedSnapshotScalar(r.Child)
+		return MaterializedSnapshotScalar(r.Child)
 	case parser.RegclassExpr:
-		return materializedSnapshotScalar(r.Child)
+		return MaterializedSnapshotScalar(r.Child)
 	case parser.ArrayExpr:
 		for _, child := range r.Elements {
-			if err := materializedSnapshotScalar(child); err != nil {
+			if err := MaterializedSnapshotScalar(child); err != nil {
 				return err
 			}
 		}
@@ -140,7 +140,7 @@ func materializedSnapshotScalar(raw parser.Expr) error {
 			// Routine-containing containers emit closed TEXT concatenation
 			// around qualified alias-to-OID casts, not arbitrary execution.
 			for _, child := range r.Args {
-				if err := materializedSnapshotScalar(child); err != nil {
+				if err := MaterializedSnapshotScalar(child); err != nil {
 					return err
 				}
 			}
@@ -149,14 +149,14 @@ func materializedSnapshotScalar(raw parser.Expr) error {
 		if len(r.Name.Parts) != 1 || len(r.Args) != 1 || (r.Name.Parts[0].Text != "-" && r.Name.Parts[0].Text != "+") {
 			return invalid()
 		}
-		return materializedSnapshotScalar(r.Args[0])
+		return MaterializedSnapshotScalar(r.Args[0])
 	case parser.FunctionExpr:
 		// The exact TIMETZ endpoint codec is the only emitted function form.
 		if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || r.Name.Parts[1].Text != "timezone" || len(r.Args) != 2 || r.Variadic {
 			return invalid()
 		}
 		for _, child := range r.Args {
-			if err := materializedSnapshotScalar(child); err != nil {
+			if err := MaterializedSnapshotScalar(child); err != nil {
 				return err
 			}
 		}

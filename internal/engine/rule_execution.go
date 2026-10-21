@@ -54,20 +54,20 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 }
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
-	program := ruleProgram{count: -1, returning: -1}
-	count, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, stmt, b, nil, &program)
+	program := ruleProgram{Count: -1, Returning: -1}
+	count, err := ruleRewriter{e.catalog.owner()}.ExpandLocked(auth, stmt, b, nil, &program)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	program.count = count
+	program.Count = count
 	if tag := modifyingTag(stmt); scope.owner.ReadOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
-	for i := range program.commands {
-		command := &program.commands[i]
-		if err := e.normalizeRuleCTEsLocked(scope, command.auth, command.syntax, &command.binding); err != nil {
+	for i := range program.Commands {
+		command := &program.Commands[i]
+		if err := e.normalizeRuleCTEsLocked(scope, command.Auth, command.Syntax, &command.Binding); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -78,15 +78,15 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	}
 	// Empty suppression has no executor. Nonempty actions retain caller ACL
 	// obligations, after every original/action row-security rewrite guard.
-	if len(program.commands) != 0 {
+	if len(program.Commands) != 0 {
 		if err := analyze.CheckBinding(auth, b, stmt); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	for i := range program.commands {
-		command := &program.commands[i]
-		if err := analyze.CheckBinding(ruleAuthorizationOf(command.auth), command.binding, command.syntax); err != nil {
+	for i := range program.Commands {
+		command := &program.Commands[i]
+		if err := analyze.CheckBinding(ruleAuthorizationOf(command.Auth), command.Binding, command.Syntax); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -127,26 +127,26 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			}
 		}
 	}()
-	prepared := make([]preparedCTEProgram, len(program.commands))
-	for i, command := range program.commands {
+	prepared := make([]preparedCTEProgram, len(program.Commands))
+	for i, command := range program.Commands {
 		if err := scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		physical := physicalBinding(command.binding)
-		commandAuth := ruleAuthorizationOf(command.auth)
-		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: viewWriteOf(command.binding.ViewWrite), sources: command.binding.QuerySources, ruleAction: ruleActionScope{auth: &commandAuth}})
+		physical := PhysicalBinding(command.Binding)
+		commandAuth := ruleAuthorizationOf(command.Auth)
+		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.Syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: ViewWriteOf(command.Binding.ViewWrite), sources: command.Binding.QuerySources, ruleAction: ruleActionScope{auth: &commandAuth}})
 		captures := &exec.QuoteCaptureCandidate{}
-		if command.binding.Parameters.Count == 0 {
+		if command.Binding.Parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
 			pruneQuoteCaptures(captures, commandAuth.Catalog)
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: commandAuth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 		e.mu.Lock()
-		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, commandAuth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
+		if _, err := e.prepareCTECommandsLocked(scope, command.Syntax, command.Binding, commandAuth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
 			return Result{}, err
 		}
 	}
-	for i, command := range program.commands {
+	for i, command := range program.Commands {
 		if err := scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
@@ -171,7 +171,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			scope.ownWrites, scope.ownDeletes = data.Own, data.Deleted
 		}
 		e.mu.Lock()
-		output, err := e.executePreparedCTECommandsLocked(scope, command.syntax, &prepared[i], parameters, nil, nil)
+		output, err := e.executePreparedCTECommandsLocked(scope, command.Syntax, &prepared[i], parameters, nil, nil)
 		if err != nil {
 			if output.Rows != nil {
 				output.Rows.Close()
@@ -181,13 +181,13 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			}
 			return Result{}, err
 		}
-		if i == program.count {
+		if i == program.Count {
 			result.Count = output.Count
 		}
 		if output.Rows != nil {
-			if command.binding.Returning != nil && (i == program.returning || i == program.count) {
+			if command.Binding.Returning != nil && (i == program.Returning || i == program.Count) {
 				result.Rows = output.Rows
-			} else if _, selecting := command.syntax.(*parser.Select); selecting && b.Returning == nil && scope.Expected == nil {
+			} else if _, selecting := command.Syntax.(*parser.Select); selecting && b.Returning == nil && scope.Expected == nil {
 				result.RowSets = append(result.RowSets, output.Rows)
 			} else {
 				output.Rows.Close()

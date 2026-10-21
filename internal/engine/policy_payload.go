@@ -6,7 +6,7 @@ import (
 )
 
 // policyPayloadOf stores e as a payload; a nil condition stays a nil payload.
-func policyPayloadOf(e *stored.Policy) catalog.PolicyPayload {
+func PolicyPayloadOf(e *stored.Policy) catalog.PolicyPayload {
 	if e == nil {
 		return nil
 	}

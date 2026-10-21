@@ -150,9 +150,9 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	definition := stored.NewView(stored.ViewParts{Queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, Sources: []stored.ViewLeaf{{Ref: ref}, {Ref: ref}}})
 	consumer := *d
 	consumer.View = stored.ViewPayload(definition)
-	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
+	w := &viewWrite{Layers: []viewWriteLayer{{Relation: &consumer}}}
 	b := analyze.Binding{QuerySources: []exec.Leaf{{Ref: ref, Relation: d}}}
-	mapped, err := w.graftQuery(&b, view, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
+	mapped, err := w.GraftQuery(&b, view, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	innerAdd.Left = innerLeft
 	inner := &plan.ProjectNode{Frame: 8, Child: join, Expressions: []expr.Expr{innerAdd, innerRight}}
 	outer := &plan.ProjectNode{Frame: 4, Syntax: syntax, Child: &plan.DerivedNode{Query: &plan.Query{Root: inner}}}
-	derived, err := w.graftQuery(&b, view, outer, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
+	derived, err := w.GraftQuery(&b, view, outer, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
 	}

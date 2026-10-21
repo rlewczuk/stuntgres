@@ -8,25 +8,25 @@ import (
 // The original definition remains the provider key and SQL/output authority.
 // Only this execution-private tuple chooses the executable command/context.
 type ruleCTECommand struct {
-	definition *plan.CTEDefinition
-	command    ruleCommand
-	caller     ruleAuthority
-	events     []catalog.ExpressionDependency
-	mutation   int
+	Definition *plan.CTEDefinition
+	Command    ruleCommand
+	Caller     ruleAuthority
+	Events     []catalog.ExpressionDependency
+	Mutation   int
 }
 
-func ruleCTEProgramError(program ruleProgram) error {
-	if len(program.commands) == 1 {
+func RuleCTEProgramError(program ruleProgram) error {
+	if len(program.Commands) == 1 {
 		return nil
 	}
-	if len(program.commands) == 0 {
+	if len(program.Commands) == 0 {
 		return sqlError("0A000", "DO INSTEAD NOTHING rules are not supported for data-modifying statements in WITH")
 	}
-	for _, command := range program.commands {
-		switch command.source {
-		case ruleConditionalInstead:
+	for _, command := range program.Commands {
+		switch command.Source {
+		case RuleConditionalInstead:
 			return sqlError("0A000", "conditional DO INSTEAD rules are not supported for data-modifying statements in WITH")
-		case ruleAlso:
+		case RuleAlso:
 			return sqlError("0A000", "DO ALSO rules are not supported for data-modifying statements in WITH")
 		}
 	}

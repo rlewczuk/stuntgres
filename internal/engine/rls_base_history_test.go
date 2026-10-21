@@ -90,7 +90,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		if err != nil || decision != access.RLSDefaultDeny {
 			t.Fatal("effective ordinary principal is not denied", command, decision, err)
 		}
-		source, err := captureDeniedQuerySource(view, leaf.Ref)
+		source, err := CaptureDeniedQuerySource(view, leaf.Ref)
 		if err != nil {
 			t.Fatal(err)
 		}

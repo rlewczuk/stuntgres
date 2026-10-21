@@ -43,7 +43,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	if ruleOID == 0 {
 		t.Fatal("missing analyzed ordinary rule fixture")
 	}
-	if viewDepends(event, provider) {
+	if ViewDepends(event, provider) {
 		t.Fatal("domain entered the view's unrelated SELECT definition")
 	}
 	closure := func(target ids.ObjectAddress) []table.DomainDependency {

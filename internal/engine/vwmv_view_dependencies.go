@@ -6,16 +6,16 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func viewDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
+func ViewDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	return d.View != nil && d.View.DependsOn(target)
 }
 
 type viewDependencyEdge struct {
-	view   *catalog.Relation
-	target ids.ObjectAddress
+	View   *catalog.Relation
+	Target ids.ObjectAddress
 }
 
-func validateViewDefinition(v catalog.Read, d *catalog.Relation) error {
+func ValidateViewDefinition(v catalog.Read, d *catalog.Relation) error {
 	if d.View == nil {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}

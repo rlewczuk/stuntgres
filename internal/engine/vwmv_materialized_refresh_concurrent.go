@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func materializedIndexEligible(parent, index *catalog.Relation) bool {
+func MaterializedIndexEligible(parent, index *catalog.Relation) bool {
 	if parent == nil || parent.RelationKind != catalog.MaterializedViewRelation || index == nil || index.RelationKind != catalog.IndexRelation || index.SQLIndex == nil {
 		return false
 	}
@@ -35,7 +35,7 @@ func materializedIndexEligible(parent, index *catalog.Relation) bool {
 	return true
 }
 
-func materializedConcurrentAdmission(view catalog.Read, parent *catalog.Relation, noData bool) error {
+func MaterializedConcurrentAdmission(view catalog.Read, parent *catalog.Relation, noData bool) error {
 	if !parent.Populated {
 		return sqlError("0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
 	}
@@ -43,7 +43,7 @@ func materializedConcurrentAdmission(view catalog.Read, parent *catalog.Relation
 		return sqlError("42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
 	}
 	for _, descriptor := range view.Descriptors() {
-		if index, ok := descriptor.(*catalog.Relation); ok && materializedIndexEligible(parent, index) {
+		if index, ok := descriptor.(*catalog.Relation); ok && MaterializedIndexEligible(parent, index) {
 			return nil
 		}
 	}
@@ -51,17 +51,17 @@ func materializedConcurrentAdmission(view catalog.Read, parent *catalog.Relation
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, catalog.Identifier(namespace.Name()), catalog.Identifier(parent.Name())), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
 }
 
-func materializedEligibleIndexes(view catalog.Read, parent *catalog.Relation) []*catalog.Relation {
+func MaterializedEligibleIndexes(view catalog.Read, parent *catalog.Relation) []*catalog.Relation {
 	var indices []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		if index, ok := descriptor.(*catalog.Relation); ok && materializedIndexEligible(parent, index) {
+		if index, ok := descriptor.(*catalog.Relation); ok && MaterializedIndexEligible(parent, index) {
 			indices = append(indices, index)
 		}
 	}
 	return indices
 }
 
-func materializedSameRow(a, b []sqltype.Value) bool {
+func MaterializedSameRow(a, b []sqltype.Value) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -73,7 +73,7 @@ func materializedSameRow(a, b []sqltype.Value) bool {
 	return true
 }
 
-func materializedNewEntries(ctx context.Context, ordering index.Ordering, rows [][]sqltype.Value) ([]storage.IndexEntry, error) {
+func MaterializedNewEntries(ctx context.Context, ordering index.Ordering, rows [][]sqltype.Value) ([]storage.IndexEntry, error) {
 	entries := make([]storage.IndexEntry, len(rows))
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for i, values := range rows {
@@ -108,7 +108,7 @@ func materializedGroupEnd(ctx context.Context, ordering index.Ordering, entries 
 	return end, nil
 }
 
-func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, parent *catalog.Relation, ordering index.Ordering, entries []storage.IndexEntry, rows [][]sqltype.Value, output sqltype.OutputEnvironment) error {
+func MaterializedDuplicatePreflight(ctx context.Context, view catalog.Read, parent *catalog.Relation, ordering index.Ordering, entries []storage.IndexEntry, rows [][]sqltype.Value, output sqltype.OutputEnvironment) error {
 	duplicate := len(rows)
 	for start := 0; start < len(entries) && duplicate != 0; {
 		end, err := materializedGroupEnd(ctx, ordering, entries, start)
@@ -126,7 +126,7 @@ func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, pare
 				}
 				b := entries[j].Position
 				candidate := min(a, b)
-				if candidate < duplicate && materializedSameRow(rows[a], rows[b]) {
+				if candidate < duplicate && MaterializedSameRow(rows[a], rows[b]) {
 					duplicate = candidate
 				}
 			}
@@ -167,14 +167,14 @@ func materializedRowsMatch(ctx context.Context, orderings []index.Ordering, old,
 			}
 		}
 	}
-	return materializedSameRow(old, new), nil
+	return MaterializedSameRow(old, new), nil
 }
 
 // Called outside Engine.mu with the captured immutable predecessor roots. One
 // eligible key narrows candidates; all eligible key equalities and row images
 // decide matches. Matches are existential, never consumed one-to-one. Datum
 // buffers are shared/transferred, including each surviving old row's image.
-func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *storage.Relation, frontier ids.CommitSeq, oldEntries []storage.IndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
+func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *storage.Relation, frontier ids.CommitSeq, oldEntries []storage.IndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -190,11 +190,11 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 		}
 	}
 	ordering := orderings[0]
-	entries, err := materializedNewEntries(ctx, ordering, rows)
+	entries, err := MaterializedNewEntries(ctx, ordering, rows)
 	if err != nil {
 		return nil, err
 	}
-	if err := materializedDuplicatePreflight(ctx, view, parent, ordering, entries, rows, output); err != nil {
+	if err := MaterializedDuplicatePreflight(ctx, view, parent, ordering, entries, rows, output); err != nil {
 		return nil, err
 	}
 	if len(rows) == 0 || len(previous.Versions) == 0 {
@@ -271,13 +271,13 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	return effective, nil
 }
 
-func sameMaterializedLineage(old, current *catalog.Relation, a, b *storage.Relation) bool {
+func SameMaterializedLineage(old, current *catalog.Relation, a, b *storage.Relation) bool {
 	return old != nil && current != nil && old.RelationKind == catalog.MaterializedViewRelation && current.RelationKind == catalog.MaterializedViewRelation && old.Populated && current.Populated && a != nil && b != nil && a.MaterializedLineage != nil && a.MaterializedLineage == b.MaterializedLineage && catalog.RelationDefiningAuthorityCompatible(old, current)
 }
 
 // A producer snapshot may outlive a compatible source publication, never a
 // defining-authority change. All storage/token observations require Engine.mu.
-func materializedSourceCurrent(snapshot *visibility.Data, observed catalog.Descriptor, current *catalog.State, store *storage.Relation) bool {
+func MaterializedSourceCurrent(snapshot *visibility.Data, observed catalog.Descriptor, current *catalog.State, store *storage.Relation) bool {
 	if current.Get(observed.Address()) == observed {
 		return true
 	}
@@ -289,5 +289,5 @@ func materializedSourceCurrent(snapshot *visibility.Data, observed catalog.Descr
 		return false
 	}
 	live, _ := current.Relation(observed.Address())
-	return sameMaterializedLineage(old, live, snapshot.GenerationAt(observed.Address()), store)
+	return SameMaterializedLineage(old, live, snapshot.GenerationAt(observed.Address()), store)
 }
