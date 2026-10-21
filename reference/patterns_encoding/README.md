@@ -589,21 +589,46 @@ right invocations twice. It is not a public-SQL replacement or an allocation/
 identity-wiring assertion. Root owns fresh verification; these commands are
 required proof selections, not claims that this remedy has passed.
 
-`TestReferenceRegexpActualCancellation` uses an absent literal `z` against the
-all-`a` native input, keeping provider scan work while bounding eager result
-cardinality. This avoids empty-pattern global output competing with cancellation
-at the native regex allocation ceiling. PostgreSQL retains its empty-pattern
-workload and exact streaming-prefix assertions. Provider entry is still observed
-through worker stacks before cancellation; this is scheduler-dependent observation,
-not a synchronous provider-poll hook. A completed operation remains a failure,
-not an alternative accepted outcome. Direct/prepared nil outputs, worker joining,
-unchanged sentinels and SAME-owner recovery assertions remain required.
+`TestReferenceRegexpActualCancellation` uses the absent pattern `a{128}z` against
+the unchanged2MiB all-`a` native input. Unlike a single absent `z`, each candidate
+consumes up to128 `a` characters before failing at `z`, keeping actual matcher
+work observable while retaining zero matches. The tagged matcher resets its
+scratch at each candidate position, so this fixed-length pattern bounds
+per-candidate state rather than accumulating states across the entire input.
+No-match cardinality avoids empty-pattern global output competing with
+cancellation at the native regex allocation ceiling. PostgreSQL retains its
+empty-pattern workload and exact streaming-prefix assertions.
 
-After this fixture change, run both modes with external900-second deadlines:
+The unchanged helper must observe the provider and operation worker in the same
+live stack before cancellation. This remains scheduler-dependent observation,
+not a synchronous provider-poll hook or an elapsed-time readiness assertion.
+A completed operation remains a failure, not an alternative accepted outcome.
+All six statements retain direct/prepared execution, nil native outputs, exact
+context cancellation, worker joining, unchanged sentinels and SAME-owner recovery.
+SQLSTATE57014 and exact user-request diagnostics remain required on PostgreSQL.
+No provider, helper, fixture or deadline changes are involved.
+
+After this input change, run both modes and selected race proof with external
+900-second deadlines:
 
 ```sh
 make check RUN='^TestReferenceRegexpActualCancellation$'
 make check RUN='^TestReferenceRegexpActualCancellation$' REFERENCE=1
+make check RUN='^TestReferenceRegexpActualCancellation$' RACE=1
+```
+
+`TestReferenceLikeHeldEnteredCancellation` retains its original matcher and
+PostgreSQL workloads. Its native normalizer repeats the same escaped Unicode
+pattern eight times (24MB instead of3MB), preserving escape structure while
+giving the same live-provider observation gate bounded normalization work.
+The five-second context, required provider/worker frames, rejection of early
+completion, exact cancellation and held-statement recovery remain unchanged.
+This is not a scheduler-independent provider hook. Verify the complete definition:
+
+```sh
+make check RUN='^TestReferenceLikeHeldEnteredCancellation$'
+make check RUN='^TestReferenceLikeHeldEnteredCancellation$' REFERENCE=1
+make check RUN='^TestReferenceLikeHeldEnteredCancellation$' RACE=1
 ```
 
 

@@ -96,3 +96,31 @@ Native controls are explicit native-only phases; their
 SQL outcomes share the same body with PostgreSQL. Whole-project quickcheck and
 finalcheck do not replace selected dual-mode proof.
 
+### Exhaustive inventory batching efficiency
+
+The inventory helper batches128 rows rather than40: all3397 fixed routine
+identities now require27 statements instead of85 on each of the direct and
+freshly prepared routes. Type, operator and conversion inventories use the
+same helper and retain their complete expected row sets, SQL functions,
+inverse relationships, ordering and metadata assertions. This amortizes
+statement parsing/admission without splitting fixtures, extending contexts,
+renewing clocks or changing production code.
+
+This is a bounded test-workflow remedy for the observed30-second routine
+inventory fixture expiry, not measured proof of a speedup or a passing race
+suite. Root must obtain fresh native and pinned PostgreSQL18.6 UTF8/C evidence
+for the complete affected helper closure, and selected race evidence:
+
+```sh
+make check RUN='^TestReferenceObjectAddressAuthority(Types|Builtins)$'
+make check RUN='^TestReferenceObjectAddressAuthority(Routines|Operators)$'
+make check RUN='^TestReferenceObjectAddressAuthority(Types|Builtins)$' REFERENCE=1
+make check RUN='^TestReferenceObjectAddressAuthority(Routines|Operators)$' REFERENCE=1
+make check RUN='^TestReferenceObjectAddressAuthority(Types|Builtins|Routines|Operators)$' RACE=1
+```
+
+Use external900-second deadlines. These selected commands supplement fresh
+whole-project quickcheck, information_schema.user_mappings dual-mode feature
+smoke and independent remedy review; finalcheck remains required after
+separate remedy integration.
+

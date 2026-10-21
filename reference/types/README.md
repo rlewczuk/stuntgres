@@ -140,6 +140,37 @@ domain/base catalog identity; a late malformed UTF8 parameter raising 22021
 without partial insertion; and native Dump/Reset/Restore with fresh reads.
 The PostgreSQL phase shares the SQL assertions but has no native-control API.
 
+#### Bounded information-schema identity query efficiency
+
+The sql_identifier, cardinal_number and yes_or_no identity witnesses prefilter
+their domain-name and witness-column/relation inputs before joining catalogs.
+These predicates duplicate the original outer WHERE conditions; all joins,
+outer conditions, projected metadata, independently expected rows and
+direct/prepared executions remain intact. This avoids joining unrelated domain
+and attribute candidates on every repeated native-control identity check.
+The same-owner retained cursors, fresh destination, repeated round trips,
+failure atomicity and cancellation assertions retain their original fixtures,
+30-second contexts and lifetimes. No production behavior or deadline changes.
+
+This is a bounded response to the post-merge race-suite fixture deadline
+failures, not measured proof of their elimination. The separate exhaustive
+object-address inventory batching remedy is documented in its owning README.
+
+The complete affected caller closure requires each selected command below in
+native mode and again with `REFERENCE=1` (pinned PostgreSQL18.6 UTF8/C):
+
+```sh
+make check RUN='^TestReferenceInfoSQLIdentifier(Identity|NativeControls|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoCardinalNumber(Identity|NativeControls|NativeFreshRestore|NativeRestoreAtomicity|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoYesOrNo(Identity|NativeControls|FeatureSmoke)$'
+```
+
+Use an external900-second deadline for each selected command. Repeat the three
+commands with `RACE=1` for the reported race-suite paths. Fresh whole-project
+`make quickcheck`, the information_schema.user_mappings feature smoke in both
+modes, and independent review are required before remedy integration; selected
+proof does not replace post-integration `make finalcheck`.
+
 ### INET mask, network and merge contract
 
 The untagged `TestReferenceINETMaskValues`, `Boundaries`, `Resolution`,

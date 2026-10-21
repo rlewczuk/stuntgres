@@ -99,8 +99,11 @@ type objectAddressInventoryRow struct {
 // request deadline. Expected rows come from released fixtures, never SQL output.
 func objectAddressInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, rows []objectAddressInventoryRow, inverse bool) {
 	t.Helper()
-	for start := 0; start < len(rows); start += 40 {
-		end := start + 40
+	// Amortize statement admission and direct/prepared parsing without changing
+	// the exhaustive row set or renewing the fixture's original context.
+	const batchSize = 128
+	for start := 0; start < len(rows); start += batchSize {
+		end := start + batchSize
 		if end > len(rows) {
 			end = len(rows)
 		}

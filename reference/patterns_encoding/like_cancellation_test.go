@@ -116,7 +116,13 @@ func TestReferenceLikeHeldEnteredCancellation(t *testing.T) {
 					db := backend.DB
 					db.SetMaxOpenConns(1)
 					fixture.StringCoreControlExec(t, db, "CREATE TABLE t(v TEXT,p TEXT,e TEXT)")
-					if _, err := db.Exec("INSERT INTO t VALUES($1,$2,$3)", tc.input, tc.pattern, tc.escape); err != nil {
+					pattern := tc.pattern
+					if !backend.PG && tc.name == "normalizer" {
+						// Preserve the same escape structure while keeping normalization
+						// observable by the unchanged live-provider admission gate.
+						pattern = strings.Repeat(pattern, 8)
+					}
+					if _, err := db.Exec("INSERT INTO t VALUES($1,$2,$3)", tc.input, pattern, tc.escape); err != nil {
 						t.Fatal(err)
 					}
 					stmt, err := db.Prepare("SELECT v LIKE p ESCAPE e FROM t")
