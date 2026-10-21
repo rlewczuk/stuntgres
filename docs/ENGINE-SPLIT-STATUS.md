@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `643601c6e` (items 55, 56, 57, 58, 59, 60, 61, 64, 67, 71, 72, 73, 74, 75, 76, 77 and 78). Steps 8–17 were
+Last verified against `master` at `57b18359c` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 67, 71, 72, 73, 74, 75, 76, 77 and 78). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,7 +18,7 @@ as another broad item (§8); none of these is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 62 (ddl 20c, docs only), 65 (regobj 21b), 111 (control 30a).
+- **Seams:** 63 (ddl 20d), 65 (regobj 21b), 111 (control 30a).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
 - **Follow-ups in existing packages:** 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
@@ -44,7 +44,8 @@ done and closes step 19; DML 29b (item 108) still waits for 107, 83, 87,
 Part A moves. Item 76 (exec 11f) is done; only the end-state review
 (item 114) needs it, and that still waits for its other items. Item 77
 (analyze 12f) is done, so stored 22b (item 68) now waits only for 65. Item 78
-(session 13f) is done; only item 114 needs it.
+(session 13f) is done; only item 114 needs it. Item 62 (ddl 20c, docs
+only) is done, so ddl 20d (item 63) is ready.
 
 ## Task tree
 
@@ -428,7 +429,7 @@ Part A moves. Item 76 (exec 11f) is done; only the end-state review
   - [x] 20a — One `Authority`, `Stage` and `Host` contract
   - [x] 20b — One root staging adapter (`b0d3e53b7`, `d25058ea5`, then the
     docs commit)
-  - [ ] 20c — Schema-level DDL host refined (docs only)
+  - [x] 20c — Schema-level DDL host refined (docs only; the docs commit)
   - [ ] 20d — Schema and tablespace decisions moved
 - [ ] **Step 21 — `regobj`** ([prompt](ENGINE-SPLIT-regobj.md); 21b needs
   5j)
@@ -894,8 +895,12 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `routine_host.go` and `typedef_host.go`; `extensionHost` unchanged; no
     aliases · selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-62. [ ] DDL 20c: schema-level DDL host refined (docs only) —
-    [ddl](ENGINE-SPLIT-ddl.md) 20c · needs 61
+62. [x] DDL 20c: schema-level DDL host refined (docs only) —
+    [ddl](ENGINE-SPLIT-ddl.md) 20c · needs 61 (the docs commit) ·
+    `ddl.SchemaHost` = `Host` + five methods on `ddlHost`;
+    `RecordDependencyPath` returns its error; CREATE TABLESPACE over
+    `access.View`; seed comments to `catalog`; 20d move set and commit
+    sequence written · docs only, no checks needed
 63. [ ] DDL 20d: schema and tablespace decisions moved —
     [ddl](ENGINE-SPLIT-ddl.md) 20d · needs 62
 64. [x] regobj 21a: in place — [regobj](ENGINE-SPLIT-regobj.md) 21a · needs —

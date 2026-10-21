@@ -130,7 +130,7 @@ Package-specific, staying in their package's host:
   `extension` uses them in four places (`extension_create.go:83`,
   `extension_drop.go:31`, `extension_update.go:25` and `:59`).
 
-### Schema-level DDL (measured)
+### Schema-level DDL (measured at `c154e14fb`; 20c re-measured it below)
 
 - `schema.go` (656 lines; clean only `schemaReserved`, `schemaNotice`):
   - `stageSchemaLocked` (321 lines) captures authority, begins the stage and
@@ -144,14 +144,15 @@ Package-specific, staying in their package's host:
   - `schemaTableLocked` (159 lines) and `newTableDescriptorLocked` (24):
     table code (step 24).
 - DROP SCHEMA also uses `namespaceChildren` (`namespace_children.go`, 30
-  clean lines), `stageSchemaDomainsLocked` (`domain_dependencies.go`, 63
+  clean lines; 5i made it `catalog.NamespaceChildren`), `stageSchemaDomainsLocked` (`domain_dependencies.go`, 63
   lines), `relationDiagnosticKind`/`relationDiagnosticName`,
   `CatalogStage.removeObjectLocked`, `stage.domainTargets`,
   `stage.dependencyPath` and `stage.schemaCascadeNames`.
 - `tablespace.go` (82 lines): `executeCreateTablespace` (37 lines; it
   validates and then always fails with 0A000, it never stages) and the clean
   validators `tablespaceLocation`, `tablespaceName`,
-  `tablespacePhysicalUnsupported`. `tablespace_catalog.go`:
+  `tablespacePhysicalUnsupported` (5i moved the two validators to
+  `catalog`; the file is 50 lines). `tablespace_catalog.go`:
   `initializeTablespaces` (seeding) and `resolveGrantTablespace` (GRANT).
 
 ### Where each piece of schema-level DDL goes
@@ -171,7 +172,7 @@ The second planning round gave schema-level DDL no package of its own
 | RENAME (`rename.go`, `renameRelationLocked`) | `table` | 24 |
 | Search path (`schema_path.go`: `referencePath`, `creationNamespace`, `lookupNamespaces`) | root | — |
 | COMMENT (`comment.go`, `comment_inquiry.go`) | root | — |
-| Seed comments (`comment_builtin.go`: `builtinTypeComment`, `namespaceCommentBaseline`) | `catalog` or `pgcatalog` | 20d decides (5i left them) |
+| Seed comments (`comment_builtin.go`: `builtinTypeComment`, `namespaceCommentBaseline`) | `catalog` (`BuiltinTypeComment`, `NamespaceCommentBaseline`; 20c decided) | 20d |
 | DROP pipeline (`drop_provider.go`, `dropProvider`, 37 methods) | root; a `ddl` removal interface when a feature needs it | 24c |
 | Object identity (`object_identity.go`, clean part of `object_address_lookup.go`) | `regobj` | 21b |
 | `object_address.go`, `lookupObjectAddress` | root | — |
@@ -269,56 +270,169 @@ other than NOTICE anywhere? (Measured: no.)
 ### 20c — Refine schema-level DDL (docs only; linear item 62)
 
 Measure `stageSchemaLocked`'s three schema cases, `executeCreateTablespace`
-and their helpers again, and write the result into this file. The draft
-below is the starting point.
+and their helpers again, write the method list, the move set and the commit
+sequence into this file, then wait for approval.
 
-**Host sketch (`ddl.SchemaHost`, on `ddlHost`).** `ddl.Host` plus:
-- `DatabaseCreateAllowed(Authority) error`: the `databaseGate` closure
-  (CREATE on the current database, the 42501 text with the unnamed-engine
-  fallback name `stuntgres`).
-- No `Actor` method: read the role descriptor through
-  `AccessView(auth).Roles.Descriptor(...)` (an `authorization.RoleDescriptor`),
-  as `stageSchemaLocked` does today.
-- `StageSchemaTables(auth Authority, namespace ids.ObjectAddress, owner
-  authorization.PrincipalRef, tables []*parser.CreateTable) error`: the
-  embedded `CREATE TABLE` elements, which run `schemaTableLocked` as the
-  schema owner with the new namespace first in the path. The authority
-  changes (`State.CurrentUser`, `pathPrefix`) stay local to the root
-  callback.
-- `StageSchemaDependents(auth, schemas, relations, others, cascade bool)
-  error`: today's `stageSchemaDomainsLocked` branch.
-- `RemoveObject(ref ids.ObjectRef, namespace bool) error`: today's
-  `CatalogStage.removeObjectLocked`. This is the smallest removal method;
-  the general removal interface (dependents, cascade notices, prepared
-  drops) is designed by 24c.
-- `AddCascadeNotice(string)`: `stage.schemaCascadeNames`.
-- `RelationDiagnostic(Authority, *catalog.Relation) (kind, name string)`:
-  `relationDiagnosticKind` and `relationDiagnosticName`.
+**20c refine (approved; measured at `92d17ca19`).** The `frontier` tool
+over `tablespace.go` plus `Engine.stageSchemaLocked`, `schemaReserved` and
+`schemaNotice` (output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-DDL-SCHEMA-REFINE/frontier-schema.txt`):
 
-**Decisions that move (20d):** reserved-name and duplicate checks, owner
-resolution (`access.SchemaOwner`), the SET ROLE rule, the IF [NOT] EXISTS
-notices, ALTER SCHEMA's rename and owner rules (`access.OwnershipSuccessor`,
-`access.OwnershipDatabaseCreate`, `authorization.SchemaACLOwner`), DROP
-SCHEMA's target selection, child classification (which descriptors are
-dependents, which cascade with their owner, which are unsupported) and its
-2BP01 error and detail text; CREATE TABLESPACE's superuser and owner checks
-and the final 0A000, calling the `catalog` validators (5i).
+- **Size.** `schema.go` is 654 lines. `stageSchemaLocked` (320 lines)
+  captures the authority, reads the actor's role descriptor (this read
+  gates every staged statement, the routine and typedef ones too), begins
+  the stage, builds the `ddlHost`, declares three closures (`databaseGate`,
+  `lookup`, `own`; 31 lines) and dispatches. Its own cases are CREATE
+  SCHEMA (60 lines with the `CREATE TABLE` elements), ALTER SCHEMA (47) and
+  DROP SCHEMA (105). A `nil` stage means "nothing to publish": CREATE
+  SCHEMA IF NOT EXISTS on an existing name, ALTER SCHEMA OWNER to the
+  current owner, DROP SCHEMA IF EXISTS with no schema left. `tablespace.go`
+  is 50 lines: `executeCreateTablespace` holds `Engine.mu`, never stages,
+  and reads only the `access.View` (`Roles`, `State`) and the context.
+- **Engine edges (OUT), 33.** Most already have a `ddl` form:
+  `allocateOIDLocked`/`revisionLocked` are `Allocator`; `stage.Create` and
+  `Replace` are `Stage()`; `stage.creationACL` is `CreationACL`;
+  `schemaNotice` is `ddl.Notice`; `auth.Check` is `ddl.Check`;
+  `e.catalog.Domain.Ref(epoch, a)` is `ddl.ObjectRef`; `auth.Effective` is
+  `view.Effective(auth, ...)`; `stage.domainTargets` is `DropTarget`.
+  `access.SchemaOwner`, `OwnershipSuccessor`, `OwnershipDatabaseCreate`,
+  `authorization.SchemaACLOwner`, `MembershipRole`,
+  `catalog.NamespaceChildren`, `ExtensionMembership`, `DependencyIdentifier`
+  and the tablespace validators are already in lower packages. The edges
+  left are `schemaTableLocked` with the `CurrentUser`/`pathPrefix` changes,
+  `stageSchemaDomainsLocked`, `CatalogStage.removeObjectLocked`,
+  `stage.schemaCascadeNames`, `relationDiagnosticKind`/`Name`, and
+  `stage.dependencyPath, err = e.referencePath(auth)`: DROP SCHEMA returns
+  that error, while `RecordDependencyPath` drops it.
+- **Outside uses (IN).** `stageSchemaLocked`: 1 production caller
+  (`executeSchema`) and 11 test calls in 8 engine test files.
+  `executeCreateTablespace`: 1 (`execute.go`). `schemaNotice`: 7 uses in
+  `foreign_ddl.go` and `foreign_table.go`. `tablespacePhysicalUnsupported`:
+  `tablespace_test.go`.
+- **Seed comments.** `comment_builtin.go` (82 lines,
+  `namespaceCommentBaseline`, `builtinTypeComment`) has no engine edge; it is
+  read by seeding (`engine.go`) and Dump (`dump_collect.go`).
 
-**Stays in the root:** `Engine.mu`, authority capture, stage begin,
-publication (`executeSchema`, the CREATE TABLESPACE lock), the
-namespace-object dispatch, the search path, and `schemaTableLocked` (until
-24d).
+Decisions:
 
-Write the method list, the move set and the commit sequence, then wait
-for approval.
+1. **`ddl.SchemaHost`** is `ddl.Host` plus five methods, implemented on
+   `ddlHost` in a new root `schema_host.go` with one assertion:
+   - `StageSchemaTable(auth Authority, namespace ids.ObjectAddress, owner
+     authorization.PrincipalRef, table *parser.CreateTable, input
+     sqltype.InputEnvironment) error`: stages one `CREATE TABLE` element
+     through `schemaTableLocked`. The root sets `State.CurrentUser = owner`
+     and `pathPrefix = namespace` on its own copy of the view, so the
+     caller's authority is unchanged. One element per call, not a batch,
+     so the element checks stay interleaved with staging as today.
+   - `StageSchemaDependents(auth Authority, schemas []*catalog.Namespace,
+     relations []*catalog.Relation, others []catalog.Descriptor, cascade
+     bool) error`: today's `stageSchemaDomainsLocked` (the drop-provider
+     closure; it stays in the root).
+   - `RemoveObject(ref ids.ObjectRef, namespace bool) error`:
+     `CatalogStage.removeObjectLocked`. The general removal interface
+     (dependents, cascade notices, prepared drops) is 24c's.
+   - `AddCascadeNotice(string)`: appends to `stage.schemaCascadeNames`.
+   - `RelationDiagnostic(Authority, *catalog.Relation) (kind, name string)`:
+     `relationDiagnosticKind` and `relationDiagnosticName`.
+2. **`ddl.Host.RecordDependencyPath(Authority) error`.** It still records
+   the path and now also returns the path error. The five existing callers
+   (`routine/operator_ddl.go`; `typedef/domain.go`, `typed_type_drop.go`,
+   `conversion_ddl.go`, `collation_ddl.go`) keep ignoring it, as 20a did
+   for `DependencyObject`; DROP SCHEMA returns it. No second path method.
+3. **No `DatabaseCreateAllowed` host method** (the draft had one). The
+   `databaseGate` closure reads only the `access.View` (`Effective`, `Ref`,
+   `Catalog.MustDatabase`), so it becomes an unexported `ddl` function,
+   `checkDatabaseCreate(view, auth)`, with the same 42501 text and the
+   unnamed-engine fallback name `stuntgres`. It is not
+   `access.OwnershipDatabaseCreate`, whose text differs.
+4. **No actor method.** CREATE SCHEMA reads the descriptor through
+   `AccessView(auth).Roles.Descriptor(State.CurrentUser)`. The root keeps
+   its early read, because it gates the routine and typedef statements too.
+5. **Nothing to publish.** The schema entry points return `(staged bool,
+   err error)`; on `false, nil` the root returns `nil, nil` exactly where it
+   does today.
+6. **CREATE TABLESPACE needs no host.** `ddl.CreateTablespace(ctx
+   context.Context, view access.View, s *parser.CreateTablespace) error`
+   holds the superuser 42501 and its hint, the owner check
+   (`authorization.MembershipRole`), the `catalog` validators, the context
+   check and the final 0A000; it always returns an error.
+   `TablespacePhysicalUnsupported` is exported because
+   `tablespace_test.go` pins it.
+7. **Errors.** `ddl/errors.go` gets the usual package-local `sqlError` and
+   a detail variant for `schemaReserved`; both build the same
+   `sqlstate.Error` as the root's `sqlError` and `roleDiagnostic`.
+8. **Imports.** `ddl` adds only `sqltype` (allowed above) and the standard
+   library; it still imports nothing above `session`.
+9. **Seed comments go to `catalog`** as `NamespaceCommentBaseline` and
+   `BuiltinTypeComment` (`catalog/builtin_comments.go`, next to
+   `BuiltinTablespaces`), not `pgcatalog`: they are seed data that seeding
+   and Dump read, not system relations.
+10. **`schema.go` is not split by 20d.** `schemaTableLocked` and
+    `newTableDescriptorLocked` stay there for 24a to take.
+
+**Move set (20d; new names).** Into `ddl`:
+
+- `schema_host.go`: the `SchemaHost` interface.
+- `schema_create.go`: `StageCreateSchema(h SchemaHost, auth Authority, s
+  *parser.CreateSchema, input sqltype.InputEnvironment) (bool, error)`:
+  owner resolution, the default name, the database gate, the SET ROLE rule,
+  the reserved name, the duplicate and IF NOT EXISTS notice, the namespace
+  descriptor and its ACL, then per element the TEMP 0A000, ON COMMIT 42P16
+  and schema-mismatch 42P15 checks before `StageSchemaTable`.
+- `schema_alter.go`: `StageAlterSchema(h Host, auth Authority, s
+  *parser.AlterSchema) (bool, error)`: rename (duplicate, owner, gate,
+  reserved name) or owner change (same-owner no-op, owner,
+  `OwnershipSuccessor`, `OwnershipDatabaseCreate`, `SchemaACLOwner`), then
+  the revision and `Replace`. It needs only `Host`.
+- `schema_drop.go`: `StageDropSchema(h SchemaHost, auth Authority, s
+  *parser.DropSchema) (bool, error)`: target selection (IF EXISTS notice,
+  duplicates, owner check), child classification as a pure unexported
+  `schemaDependents(read catalog.Read, children []ids.ObjectAddress)`, the
+  REGNAMESPACE drop targets, `RecordDependencyPath`, the dependents branch,
+  the 2BP01 message, detail and hint, the cascade notices and the removals
+  in today's order.
+- `schema.go`: the unexported `schemaReserved`, `lookupSchema` and
+  `checkDatabaseCreate`.
+- `tablespace.go`: `CreateTablespace`, `TablespacePhysicalUnsupported`.
+- `errors.go`: `sqlError` and the detail variant.
+
+Into `catalog`: `NamespaceCommentBaseline`, `BuiltinTypeComment`.
+
+**Stays in the root.** `Engine.mu`; `executeSchema` with its pre-lock
+partition 0A000 checks and the cascade notice emission; `stageSchemaLocked`
+with its signature (the tests call it), authority capture, the early actor
+read, stage begin and the namespace-object dispatch (its schema cases become
+one call each and the closures go); `schemaTableLocked` and
+`newTableDescriptorLocked` (24a, 24d); `stageSchemaDomainsLocked`;
+`schemaNotice` (the fdw files use it); `relationDiagnosticKind` and `Name`;
+`executeCreateTablespace`'s argument count check, lock and authority
+capture.
+
+**Commit sequence (20d).**
+
+1. Seam: `ddl.SchemaHost`; `RecordDependencyPath` returns the error
+   (callers ignore it); `schema_host.go` on `ddlHost` with its assertion.
+   Unit test first, observed failing: `StageSchemaTable` leaves the
+   caller's authority unchanged and stages the table owned by `owner` in
+   `namespace`.
+2. Port in place: root `stageCreateSchema`, `stageAlterSchema`,
+   `stageDropSchema` (`h, auth, s`) and `createTablespace(ctx, view, s)`,
+   naming no `Engine`, `CatalogStage` or `AuthorizationView`.
+3. Move them into `ddl` with `movex` and export the entry points; no
+   aliases.
+4. Move the seed comments into `catalog`.
+5. Docs: the `ddl` README (`SchemaHost`, entry points, what stays), this
+   file's Status, the §8 row and the status page; `AGENTS.md` unchanged.
+
+Proof for 20d: the engine units that reach the moved code
+(`TestTablespace`, the `stageSchemaLocked` tests, `TestDDLHost`), the
+selections under "Targeted tests" in both modes, and quickcheck.
 
 ### 20d — Move the schema-level decisions (linear item 63)
 
-Follow 20c. Typical commits: seam (host methods on `ddlHost`, unit tests
-first); port in place (`stageCreateSchema(h ddl.SchemaHost, auth, s)` and
-friends in the root, naming no `Engine`, `CatalogStage` or
-`AuthorizationView`); move into `ddl` with `movex`; unexport what nothing
-else uses; docs.
+Follow the 20c refine above: seam, port in place, move into `ddl` with
+`movex`, seed comments, docs. Re-measure first; if the code moved since
+`92d17ca19`, update the refine before editing.
 
 ## Invariants
 
@@ -435,7 +549,14 @@ in §8.3 pass.
   compile-time assertions pin the three consumers. Selected unit and
   dual-mode proof and quickcheck passed; no bench (startup untouched);
   racecheck/finalcheck skipped at user request
-- [ ] 20c — Schema-level DDL refined (docs only)
+- [x] 20c — Schema-level DDL refined (docs only; the commit that records
+  this text; linear item 62). Measured at `92d17ca19` with `frontier`; the
+  refine is under 20c above. Deviations from the draft: no
+  `DatabaseCreateAllowed` host method (a `ddl` function over the view), one
+  `StageSchemaTable` per element instead of `StageSchemaTables`,
+  `RecordDependencyPath` returns its error, CREATE TABLESPACE takes the
+  `access.View` and no host, and the seed comments go to `catalog`. No code
+  changed, so no checks ran
 - [ ] 20d — Schema and tablespace decisions moved
 
 Outstanding aliases: none yet.
@@ -445,6 +566,15 @@ Outstanding aliases: none yet.
 - 20c/20d: `ddl.SchemaHost` goes on `ddlHost`; put its schema-only
   methods in their own root file (as `routine_host.go` and
   `typedef_host.go` do) with one assertion.
+- 24a takes `schemaTableLocked` and `newTableDescriptorLocked` from
+  `schema.go`: 20d does not split that file.
+- 24a: the `preparedDrop.scope` token cut has no `ddl` removal interface
+  to coordinate with; 20d adds only `SchemaHost.RemoveObject`.
+- 24 (or later): `relationDiagnosticKind` is a pure function over
+  `catalog.Relation` with 11 root calls in 8 files; it can move to
+  `catalog`.
+- 26: `schemaNotice` stays for `foreign_ddl.go` and `foreign_table.go`;
+  when their DDL moves, it becomes `ddl.Notice` and the root helper goes.
 - 23c–28c (Part B of the upper features): a feature host embeds `ddl.Host`;
   do not declare another `Authority` or `Stage`. Its root adapter embeds
   `ddlHost` (Go promotes the shared methods) or `ddlHost` implements the new

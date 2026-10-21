@@ -214,8 +214,8 @@ Do the steps in this order; each numbered step is one commit and builds.
      `catalog_overlay_stage.go` (they are generic publication helpers).
    - `table.go` → `drop_table.go`.
    - `schemaTableLocked` and `newTableDescriptorLocked` out of `schema.go`
-     into `create_table_stage.go`. Step 20d also splits `schema.go`: if 20d
-     has landed, take them from its new file.
+     into `create_table_stage.go`. 20d does not split `schema.go` (20c
+     refine), so take them from there.
    - `prepareAlterTableActions`, `alterTablePreparation` and
      `alterTableActionKind` out of `alter_tablespace.go` into
      `alter_table_prepare.go`; the SET TABLESPACE checks stay.
@@ -240,7 +240,8 @@ Do the steps in this order; each numbered step is one commit and builds.
 4. **Cuts** (pattern 6 and signature cuts; each its own commit):
    - `preparedDrop.scope` and `preparedIdentityDrop.scope` become an opaque
      statement token compared by identity (they are only an identity
-     check). Coordinate with 20c's `ddl` removal interface if it exists.
+     check). 20c planned no `ddl` removal interface (only
+     `SchemaHost.RemoveObject`), so there is nothing to coordinate with.
    - Split `inheritanceAlterState` (`inheritance_alter.go:18`) into a pure
      plan record (root, targets, selected, graph, actions, events,
      prepared, tablespace, types) and a root holder of `stage` and
