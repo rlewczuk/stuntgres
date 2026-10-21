@@ -2,10 +2,12 @@ package ddl
 
 import (
 	"context"
+	"fmt"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -42,4 +44,14 @@ func CreateTablespace(ctx context.Context, view access.View, s *parser.CreateTab
 	// WITH is retained structurally but cannot be applied without physical
 	// creation. Never allocate an OID, stage a row or pretend data was placed.
 	return sqlError("0A000", TablespacePhysicalUnsupported)
+}
+
+// TablespaceRef resolves a tablespace named by GRANT, ALTER TABLESPACE or
+// ALTER TABLE SET TABLESPACE.
+func TablespaceRef(view access.View, name string) (ids.ObjectRef, error) {
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.TablespaceClassID, Name: name})
+	if address == (ids.ObjectAddress{}) {
+		return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`tablespace "%s" does not exist`, name))
+	}
+	return view.Ref(address), nil
 }

@@ -44,7 +44,8 @@ driver import it. See
   lookup (`Find`, `Class`, `Label`, `IsCatalogClass`, `CommandTag`,
   `ObjectRef`, `GrantKind`), mapping and ownership authority over an
   `access.View` (`MappedRole`, `MappingAuthority`, `MappingDiagnostic`,
-  `OwnershipEligibility`, `MappingFor`), validator jobs (`Validation`,
+  `MappingFor`; the owner change rule is `access.ForeignOwnershipEligibility`,
+  which REASSIGN OWNED shares), validator jobs (`Validation`,
   `ValidatorJob`, `RunValidations`), IMPORT helpers (`HandlerFor`,
   `ImportExpression`, `ImportedOptions`, `ImportError`), foreign-table
   syntax checks (`CheckTableDeclaration`, `TableSyntax`, `AlterAdmission`)

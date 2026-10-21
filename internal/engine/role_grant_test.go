@@ -380,9 +380,7 @@ func TestObjectGrantPlanWarningsBeforeError(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	req, err := role.ObjectGrantRequest(op.Context(), v.View, request, func() ([]catalog.Descriptor, error) {
-		return []catalog.Descriptor{v.Catalog.Get(address)}, nil
-	})
+	req, err := role.ObjectGrantRequest(ddlHost{e: e, op: op}, v, request)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

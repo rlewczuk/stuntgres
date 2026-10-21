@@ -1,27 +1,46 @@
 # internal/engine/role
 
-Role and ACL DDL decisions: the GRANT/REVOKE request and plan, the ALTER
-DEFAULT PRIVILEGES plan, the REASSIGN OWNED and DROP OWNED plan, ownership
-and DROP OWNED staging, and the role diagnostics. Step 28 of the engine
-split created it (28b moved the clean set; 28d moves the remaining handler
-decisions behind a host). The package is an upper feature at layer L12 of
+Role and ACL DDL decisions: GRANT/REVOKE targets, request and plan,
+database GRANT, the SET ROLE and SESSION AUTHORIZATION targets, DROP ROLE,
+the ALTER DEFAULT PRIVILEGES plan, the ALTER ... OWNER checks, the REASSIGN
+OWNED and DROP OWNED plan and staging, and the role diagnostics. Step 28 of
+the engine split created it (28b moved the clean set; 28d moved the handler
+decisions behind `Host` and `StageHost`). The package is an upper feature
+at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
-it imports `access`, `authorization`, `catalog`, `ddl`, `extension`, `ids`,
-`routine`, `session`, `parser`, `sqlstate` and the standard library, and
+it imports `access`, `analyze` (types and pure functions), `authorization`,
+`catalog`, `ddl`, `extension`, `ids`, `regobj`, `routine`, `sequence`,
+`session`, `stored`, `parser`, `sqlstate` and the standard library, and
 never the engine, `analyze`'s binder or another upper feature. See
 [ENGINE-SPLIT-role.md](../../../docs/ENGINE-SPLIT-role.md).
 
 ## What it owns
 
-- **GRANT/REVOKE on objects** (`grant_plan.go`, `grant_objects.go`):
-  `ObjectGrantRequest` validates grantor, kind, targets, grantees,
-  privileges and GRANT OPTION for PUBLIC in PostgreSQL's order; it calls the
-  `resolve` callback for the targets at the old point, so error precedence
-  is unchanged. `ObjectGrantPlan` builds the new table, column and
-  non-relation ACLs into a `GrantPlan` (`Candidate`, `Changed`); sequence
-  plan stamps come from a `revision` allocator; the partial-grant warning
-  is `authorization.GrantWarning`, which database and FDW grants share.
-  `GrantRoutineArgumentDisplay` renders a routine target's argument types.
+- **Hosts** (`host.go`): `Host` serves the decisions made outside a catalog
+  stage (`AccessView`, `SearchNamespaces`, relation, argument type and
+  parameter lookups, the features referencing a role and the DROP ROLE
+  dependency text); `StageHost` is `ddl.Host` plus `AddDomainBase`,
+  `RemoveObject` and `OwnerStage` for REASSIGN and DROP OWNED staging. The
+  engine's `ddlHost` implements both (`role_host.go`); for `Host` it has no
+  stage.
+- **GRANT/REVOKE on objects** (`grant_plan.go`, `grant_targets.go`,
+  `grant_objects.go`): `ObjectGrantRequest(h, auth, s)` validates grantor,
+  kind, targets, grantees, privileges and GRANT OPTION for PUBLIC in
+  PostgreSQL's order. Its targets (`objectGrantTargets`: parameters,
+  relations, tablespaces, schemas, types, domains, routines and ALL ... IN
+  SCHEMA in OID order) resolve through `Host` after the kind check.
+  `ObjectGrantPlan` builds the new table, column and non-relation ACLs into
+  a `GrantPlan` (`Candidate`, `Changed`); sequence plan stamps come from a
+  `revision` allocator; the partial-grant warning is
+  `authorization.GrantWarning`, which database and FDW grants share.
+- **Database GRANT** (`database_grant.go`): `PlanDatabaseGrant` returns the
+  new database descriptor (nil: unchanged) and the warnings, also before a
+  returned error.
+- **Role DDL** (`roles.go`): `SetRoleTarget` and
+  `SessionAuthorizationTarget` pick and check the new role;
+  `PlanDropRoles` checks DROP ROLE (superuser gate, 42704, 55006,
+  predefined roles, sorted 2BP01 dependency details) and returns the
+  retired role record in a `DropRolesPlan`.
 - **Default privileges** (`default_privileges.go`): `DefaultPrivilegesPlan`
   returns the default ACL records ALTER DEFAULT PRIVILEGES changes, without
   OIDs.
@@ -30,8 +49,15 @@ never the engine, `analyze`'s binder or another upper feature. See
   (`OwnedPlan`); `StageOwnedCleanup` stages DROP OWNED's ACL, policy,
   default-privilege and membership cleanup; `OwnedCleanupAddsDeletionRoot`
   decides the singular/plural diagnostic primary.
-- **Ownership staging** (`ownership.go`): `StageOwnership` stages a new
-  owner for one descriptor and its reciprocal members.
+- **Ownership** (`ownership.go`): `PlanTypeOwnership`,
+  `PlanDatabaseOwnership` and `PlanRelationOwnership` check ALTER ... OWNER
+  and return an `OwnerChange` (nil `Object`: owner unchanged);
+  `StageOwnership` stages a new owner for one descriptor and its reciprocal
+  members.
+- **Owned staging** (`owned_stage.go`): `StageOwned` stages REASSIGN
+  OWNED's eligibility checks, owners and provider expressions, or DROP
+  OWNED's removals, over `StageHost`; `OwnedDependentsError` rewords DROP
+  OWNED's 2BP01.
 - **Stage interfaces** (`stage.go`): `OwnerStage` (`ddl.Stage` plus the base
   catalog and cascade revisions) and `OwnedCleanupStage` (removals, default
   ACL records and the role candidate). The engine's `*CatalogStage`
@@ -43,12 +69,14 @@ never the engine, `analyze`'s binder or another upper feature. See
 
 - **Authority is a per-call value.** Every function takes the captured
   `access.View` (and an `access.Environment` where it needs the reference
-  path); none captures or caches authority. `PlanOwned` names objects
-  through a `describe` callback, so the root's DROP diagnostics stay there.
+  path), or a `ddl.Authority` it reads through the host; none captures or
+  caches authority. `PlanOwned` names objects through a `describe`
+  callback, so the root's DROP diagnostics stay there.
 - **No locks, no publication.** The package adds no mutex and publishes
-  nothing. Plans return candidates and warnings; the engine emits the
-  warnings (in statement order, also before a returned error), allocates
-  OIDs and revisions and installs the result.
+  nothing. Every `Host` and `StageHost` method runs with `Engine.mu` held;
+  none takes, releases or waits on a lock. Plans return candidates and
+  warnings; the engine emits the warnings (in statement order, also before a
+  returned error), allocates OIDs and revisions and installs the result.
 - **Role publication stays atomic.** `StageOwnedCleanup` joins its
   membership deletion to the stage through `SetRoleCandidate`, so it
   publishes with the catalog change.
@@ -59,24 +87,31 @@ never the engine, `analyze`'s binder or another upper feature. See
 
 `Engine.mu` and its unlock/relock windows, lock waits, `AuthorizationView`
 capture, `roleStore` publication and `installOperationRolesLocked`,
-`SetObjectACL`/`SetRoleReferences`, the `*CatalogStage` adapters
-(`owned_stage.go`), grant target resolution (`objectGrantTargets`,
-`resolveGrantObject`, `resolveGrantRoutine`), the role DDL handlers
-(`executeRole`, `executeRoleAttributes`, `dropRolesLocked`), the ALTER
-OWNER, REASSIGN OWNED and DROP OWNED orchestration, `dependencyObject` and
-dispatch. 28c plans the host that 28d moves the decisions behind.
+`SetObjectACL`/`SetRoleReferences`, the host adapter (`role_host.go`) and
+the `*CatalogStage` adapters (`owned_stage.go`), the parameter targets
+(`parameter_catalog.go`), `dependencyDescription` and `dependencyObject`,
+and the orchestration: `initialRole`, `executeRole` (dispatch, the SET LOCAL
+warning, session mutation, `publishDroppedRolesLocked`),
+`executeRoleAttributes`, `membershipLocked`, `objectGrantLocked`,
+`executeDatabaseGrant` and `alterDefaultPrivilegesLocked` (warnings,
+OIDs and installation), the three ALTER OWNER executors (resolution, the
+materialized view authority, `ownershipStage`, lock waits,
+`publishOwnership`) and `executeOwned` (the stage, lock waits,
+`StageOwnedCleanup`, the scope dependents, publication and the cascade
+notice).
 
 ## Testing
 
 ```sh
-make check RUN='^Test(Role|ObjectGrant|ObjectRevoke|DefaultPrivileges|DropOwned|ReassignOwned|Membership|ObjectACL|DatabaseACL)'
-make check RUN='^TestReference(Role|ObjectGrant|DefaultPrivilege|Reassign|DropOwned)|Ownership|Owned'
+make check RUN='^Test(Role|ObjectGrant|ObjectRevoke|DefaultPrivileges|DropOwned|ReassignOwned|Membership|ObjectACL|DatabaseACL|Ownership|ParameterTablespaceGrant|DDLHost)'
+make check RUN='^TestReference(Role|ObjectGrant|DefaultPrivilege|Reassign|DropOwned)|Ownership|Owned|^TestReferenceSchema(Owner|ACL|Authorization)|Tablespace'
 make check RUN='^TestReferenceDumpRoundTrip$'
 ```
 
 The package has no unit tests of its own: the tests of its plans and
 staging need an `Engine` fixture and stay in `internal/engine`
 (`role_*_test.go`, `ownership*_test.go`, `owned_roles_cleanup_test.go`,
-`object_acl_*_test.go`). Add `RACE=1` for the connection-limit and role
+`object_acl_*_test.go`). `TestRoleHostStageless` (`role_host_test.go`)
+pins the host seam: a stage-less `ddlHost` as `Host`. Add `RACE=1` for the connection-limit and role
 switch tests, and `REFERENCE=1` to the reference selections for the real
 PostgreSQL oracle.

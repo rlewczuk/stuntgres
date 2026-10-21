@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -45,7 +46,7 @@ func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *session.Ope
 			}
 			prepared.types[len(prepared.types)-1] = captured
 		case parser.SetTablespace:
-			destination, err := resolveGrantTablespace(auth, action.Tablespace.Text)
+			destination, err := ddl.TablespaceRef(auth.View, action.Tablespace.Text)
 			if err != nil {
 				return fail(err)
 			}

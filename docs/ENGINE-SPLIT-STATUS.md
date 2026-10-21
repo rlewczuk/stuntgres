@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `b6b282564` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86, 90, 94, 95, 96, 97, 99, 103, 104, 105, 107 and 111). Steps 8–17 were
+Last verified against `master` at `e2fef61ae` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86, 90, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -17,7 +17,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); 87 is the only broad item ready.
 
 - **Upper features, packages:** 87 (table 24b, **broad**).
-- **Upper features, decisions:** 85a (index 23d.1), 106 (role 28d).
+- **Upper features, decisions:** 85a (index 23d.1).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -85,6 +85,8 @@ Item 84 (index 23c, docs only) is done and split 23d into 23d.1 (item
 85a, DDL decisions) and 23d.2 (item 85b, write-time decisions): 85a is
 ready, 85b needs 85a's seam commit; table 24c (item 88) still waits for
 87, table 24d (item 89) needs 85a and DML 29c (item 109) needs 85b.
+Item 106 (role 28d) is done and closes step 28; only the end-state
+review (item 114) needs it, and that still waits for 98, 110 and 113.
 
 ## Task tree
 
@@ -535,7 +537,7 @@ ready, 85b needs 85a's seam commit; table 24c (item 88) still waits for
   - [ ] 27b — `view` created and clean set moved *(broad)*
   - [ ] 27c — Host refined (docs only)
   - [ ] 27d — Handler decisions moved
-- [ ] **Step 28 — `role`** ([prompt](ENGINE-SPLIT-role.md); 28b needs 21b,
+- [x] **Step 28 — `role`** ([prompt](ENGINE-SPLIT-role.md); 28b needs 21b,
   B6) *(lower priority)*
   - [x] 28a — In place: renames, `access.View` cuts, ownership stage
     interfaces, grant, default-privilege and owned plans split
@@ -544,7 +546,7 @@ ready, 85b needs 85a's seam commit; table 24c (item 88) still waits for
   - [x] 28b — `role` created and clean set moved (`a781528f1`,
     `eb6d750cc`, `0521e3b83`, `2492afb3f`, then the docs commit)
   - [x] 28c — Host refined (docs only) (the docs commit)
-  - [ ] 28d — Handler decisions moved
+  - [x] 28d — Handler decisions moved (`c320c6ec8`, `d0ad04e54`, `1ef3f87f9`, `0a0c9ef3e`, `6455845cc`, then the docs commit)
 - [ ] **Step 29 — `dml`** ([prompt](ENGINE-SPLIT-dml.md); 29b needs Part A of
   19 and 23–27, 29c needs Part B of 23–27)
   - [x] 29a — In place: `insert.go`, misplaced code to owners, receivers
@@ -1251,8 +1253,16 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      OWNED staging move; `fdw.OwnershipEligibility` to `access`,
      `resolveGrantTablespace` to `ddl.TablespaceRef`; 28d move set and
      commit sequence written · docs only, no checks needed
-106. [ ] Role 28d: handler decisions moved — [role](ENGINE-SPLIT-role.md)
-     28d · needs 105
+106. [x] Role 28d: handler decisions moved — [role](ENGINE-SPLIT-role.md)
+     28d · needs 105 (`c320c6ec8`, `d0ad04e54`, `1ef3f87f9`, `0a0c9ef3e`, `6455845cc`, then the docs commit) · `role.Host` and
+     `role.StageHost` on `ddlHost` (`role_host.go`); GRANT targets,
+     `PlanDatabaseGrant`, `SetRoleTarget`, `SessionAuthorizationTarget`,
+     `PlanDropRoles`, the ALTER OWNER plans with `OwnerChange`, `StageOwned`
+     and `OwnedDependentsError` in `role`; `access.ForeignOwnershipEligibility`,
+     `ddl.TablespaceRef`; the root keeps capture, lock windows and waits,
+     the stage lifecycle, publication and dispatch; no aliases · selected
+     unit, `RACE=1` session and dual-mode proof and quickcheck passed;
+     racecheck/finalcheck skipped at user request
 
 ### Group K — DML and Dump/Restore (steps 29–30)
 

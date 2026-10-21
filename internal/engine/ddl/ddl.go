@@ -78,7 +78,7 @@ type Host interface {
 	// exception.
 	CheckCreateIn(Authority, ids.ObjectRef) error
 	// SearchNamespaces returns the namespaces a name of class searches, in
-	// order. Type, conversion and operator names are supported.
+	// order. Type, conversion, operator and function names are supported.
 	SearchNamespaces(auth Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error)
 	// LookupFunction finds the function with exactly signature on the
 	// function path; nil without error when there is none.

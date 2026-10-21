@@ -204,7 +204,7 @@ func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target st
 		next.ObjectName = s.NewName.Text
 	}
 	if s.Owner != nil {
-		if er := OwnershipEligibility(view, auth, old, successor); er != nil {
+		if er := access.ForeignOwnershipEligibility(view, auth, old, successor); er != nil {
 			return nil, nil, er
 		}
 		if successor == old.Owner {

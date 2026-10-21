@@ -77,7 +77,7 @@ func TestDDLHostSearchNamespacesMapsClasses(t *testing.T) {
 	h := ddlHost{e: e, op: op, stage: stage}
 	name := ddlHostName("seam")
 	results := map[ids.OID][]ids.ObjectAddress{}
-	for class, kind := range map[ids.OID]analyze.LookupKind{ids.TypeClassID: analyze.TypeLookup, ids.ConversionClassID: analyze.ConversionLookup, ids.OperatorClassID: analyze.OperatorLookup} {
+	for class, kind := range map[ids.OID]analyze.LookupKind{ids.TypeClassID: analyze.TypeLookup, ids.ConversionClassID: analyze.ConversionLookup, ids.OperatorClassID: analyze.OperatorLookup, ids.ProcedureClassID: analyze.FunctionLookup} {
 		got, err := h.SearchNamespaces(auth, name, class)
 		if err != nil {
 			t.Fatal(err)

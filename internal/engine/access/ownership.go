@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // OwnershipSuccessor checks that the current user can SET ROLE to target.
@@ -116,4 +117,51 @@ func OwnershipRoot(view catalog.Read, d catalog.Descriptor, operatorSeeded func(
 		return true
 	}
 	return false
+}
+
+// ForeignOwnershipEligibility checks that the current user may give a
+// foreign-data wrapper or server to target: wrappers need superusers on
+// both sides; servers need ownership, SET ROLE to target and target's USAGE
+// on the wrapper. ALTER SERVER and REASSIGN OWNED share it.
+func ForeignOwnershipEligibility(view View, env Environment, object *catalog.ForeignObject, target authorization.PrincipalRef) error {
+	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
+	if err != nil {
+		return err
+	}
+	if object.Address().ClassID == ids.ForeignWrapperClassID {
+		failure := func(hint string) error {
+			d := sqlError("42501", fmt.Sprintf(`permission denied to change owner of foreign-data wrapper "%s"`, object.Name())).(*sqlstate.Error)
+			d.Hint = hint
+			return d
+		}
+		if !actor.Superuser {
+			return failure("Must be superuser to change owner of a foreign-data wrapper.")
+		}
+		recipient, err := view.Roles.Descriptor(target)
+		if err != nil {
+			return err
+		}
+		if !recipient.Superuser {
+			return failure("The owner of a foreign-data wrapper must be a superuser.")
+		}
+		return nil
+	}
+	if object.Owner == target || actor.Superuser {
+		return nil
+	}
+	if err = view.Check(env, Requirement{Object: view.Ref(object.Address()), OwnerOnly: true}); err != nil {
+		return err
+	}
+	if err = OwnershipEligibility(view, env, target, ids.ObjectAddress{}); err != nil {
+		return err
+	}
+	wrapper, ok := view.Catalog.Foreign(object.Wrapper)
+	if !ok {
+		return ids.ErrCatalogReplaced
+	}
+	// The environment only names types and temporary namespaces in
+	// diagnostics; a wrapper check never reads it, so env stays the actor's.
+	recipient := view
+	recipient.State.CurrentUser = target
+	return recipient.Check(env, Requirement{Object: recipient.Ref(wrapper.Address()), Privileges: authorization.UsagePrivilege})
 }
