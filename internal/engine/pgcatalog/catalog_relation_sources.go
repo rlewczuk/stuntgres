@@ -147,7 +147,7 @@ func capturePGRewrite(in Input) ([][]sqltype.Value, error) {
 		if relation.View != nil {
 			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.View.RuleOID())), text(1, "_RETURN"), oid(2, uint32(relation.Address().ObjectID)), text(3, "1"), text(4, "O"), boolean(5, true)})
 		}
-		if err := in.Runtime.VisitRules(relation, func(rule RuleFact) error {
+		if err := relation.VisitRules(func(rule catalog.RuleFact) error {
 			rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.Address().ObjectID)), text(3, rule.Event), text(4, "O"), boolean(5, rule.Instead)})
 			return nil
 		}); err != nil {

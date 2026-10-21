@@ -122,16 +122,6 @@ func (r engineCatalogRuntime) ForeignServerVisible(server *catalog.ForeignObject
 	}
 	return visible, nil
 }
-func (r engineCatalogRuntime) VisitPolicyExpressions(policy catalog.PolicyDefinition, visit func(expr.Expr) error) error {
-	for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
-		if condition != nil {
-			if err := visit(condition.expression); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
 func (r engineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *catalog.Relation, expression expr.Expr, visit func(int32) error) error {
 	var failure error
 	plan.WalkExpression(expression, func(node expr.Expr) {
@@ -192,20 +182,6 @@ func (r engineCatalogRuntime) PartitionReferences(ctx context.Context, view cata
 		refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)})
 	}
 	return refs.finish()
-}
-func (r engineCatalogRuntime) HasRules(relation *catalog.Relation) bool {
-	return len(rulesOf(relation)) != 0
-}
-func (r engineCatalogRuntime) VisitRules(relation *catalog.Relation, visit func(pgcatalog.RuleFact) error) error {
-	for _, rule := range rulesOf(relation) {
-		if err := visit(pgcatalog.RuleFact{rule.OID, rule.Name, ruleEventCode(rule.event), rule.instead, rule.references}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-func (r engineCatalogRuntime) ViewOptions(relation *catalog.Relation) []string {
-	return viewOf(relation).options
 }
 func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	presentation := r.presentation

@@ -34,11 +34,17 @@ standard library, and never the engine or its sibling `functions`. The lower
   stay top-level. Sub-records are values, never pointers, so copying a
   `Relation` shares their slices and maps exactly like its top-level ones.
 - **Payload interfaces.** Engine-defined payloads stay behind interfaces
-  that expose only what catalog code needs: `ViewPayload`, `RulesPayload`,
-  `PolicyPayload` and `ExtensionImplementation`. Expression payloads hold
-  `expr.Expr`. The engine's checked accessors (`viewOf`, `rulesOf`,
-  `policyExpressionOf`, `extension.PgcryptoProviderOf`, ...) recover the
-  concrete types.
+  that expose only what catalog code and the packages above it need:
+  `ViewPayload`, `RulesPayload`, `PolicyPayload` and
+  `ExtensionImplementation`. Expression payloads hold `expr.Expr`. The
+  readers `RulesPayload.Len`/`Visit` (ordered `RuleFact`s: OID, name, event
+  code, INSTEAD, references), `ViewPayload.Options` and
+  `PolicyPayload.VisitExpression` serve `analyze`, `pgcatalog` and the
+  object-identity helpers; the nil-safe `Relation.HasRules`,
+  `Relation.VisitRules` and `PolicyDefinition.VisitExpressions` (USING, then
+  WITH CHECK) are the usual entry points. Visitors stop at the first error.
+  The engine's checked accessors (`viewOf`, `rulesOf`, `policyExpressionOf`,
+  `extension.PgcryptoProviderOf`, ...) recover the concrete types.
 - **State and Read.** `State` is one catalog snapshot: the epoch, namespace
   generation, descriptor and name maps, operator/procedure name indexes, default ACL
   records, dump priorities and the replacement-only translations. `Read` is
@@ -195,8 +201,9 @@ external900-second deadline; public dual-mode proof is documented in
 
 - Read and write API: `make check RUN='^TestCatalog(ReadTypedAccessors|ReadUntypedAndNameAccessors|ReadAccessorsRequirePopulatedRead|StateWritesStayOnTheirState)$'`.
 - Diagnostic names: `make check RUN='^Test(DependencyIdentifierQuotesLikeQuoteIdentifier|IdentifierQuotesOnlyWhenNeeded|TypeDiagnosticNameAtQualifiesHiddenTypes)$'`.
-- Engine-side catalog seams (registry, payload accessors, operator index,
-  publication): `make check RUN='^Test(CatalogAllocatorAndProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayloadAccessors|UserOperatorIndex)'`.
+- Engine-side catalog seams (registry, payload accessors and readers,
+  operator index, publication): `make check RUN='^Test(CatalogAllocatorAndProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload(Accessors|Readers)|UserOperatorIndex)'`.
+- Descriptor payload readers: `make check RUN='^TestPayloadReadersOnDescriptors$'`.
 - Candidate ownership: `make check RUN='^TestCandidate(PrivateUpdates|RenameRemovalReuse|DefaultObservations|RetainedState)$'`.
 - Revision frontiers: `make check RUN='^Test(CatalogStoreRevisionFrontier|AlterDropColumnRevisionFrontier(Failures|Terminal)?|AlterSchema(WholeCandidate|OverflowAndSkip))$'`.
 - Retained policy/index authority: `make check RUN='^Test(DefaultPrivileges(CloneStage|RetainedMessage|SchemaLifecycle|CreationFence)|SQLRoutineStagedLookup|CatalogCopiesStayIndependent|UserOperatorIndex(CopyOnWrite|PublicationAndOverlay)|BuiltinProcedureNamesCopyOnEdit)$'`.

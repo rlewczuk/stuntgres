@@ -272,8 +272,9 @@ startup regression. 5f completes the step; optional 5g is done too.
   (the commit that records this status) *(quickcheck passed; further racecheck
   and finalcheck skipped at user request)*
 - [ ] 5i — Pure helpers moved into `catalog` (linear item 72)
-- [ ] 5j — Payload accessors replace five host and runtime methods
-  (linear item 74)
+- [x] 5j — Payload accessors replace five host and runtime methods
+  (linear item 74) (`946137fa2`, `f4e53eef6`, then the commit that records
+  this status) *(racecheck/finalcheck skipped at user request)*
 
 Exported names chosen (5d; applied by 5e's move, with engine aliases):
 
@@ -774,6 +775,34 @@ keeps its constants; it is not a catalog alias.
   Warm allocations remain 5152 and bytes about 1.65–1.66MB/op. No warm allocation
   regression was demonstrated; timing equivalence, optimization or target
   attainment is not claimed. Startup optimization remains outside this part.
+
+5j results:
+
+- **Seam.** `RulesPayload` gained `Len` and `Visit` over
+  `catalog.RuleFact` (moved from `pgcatalog`), `ViewPayload` gained
+  `Options` and `PolicyPayload` gained `VisitExpression`. The nil-safe
+  descriptor readers `(*Relation).HasRules`, `(*Relation).VisitRules` and
+  `PolicyDefinition.VisitExpressions` (USING, then WITH CHECK) are what
+  callers use. Visitors keep stored order and stop at the first error. Root
+  bodies: `ruleList`, `*viewDefinition.Options`, `*policyExpression`.
+- **Removed.** `analyze.Host.RelationHasRules`, `pgcatalog.Runtime.HasRules`,
+  `VisitRules`, `ViewOptions`, `VisitPolicyExpressions`, their root bodies
+  (`analysis_host.go`, `catalog_source_runtime.go`) and `pgcatalog.RuleFact`.
+  `ownedAddressName` and `ownedAddressByName` (class 2618) read rules through
+  `VisitRules` and keep the first match, so regobj 21b names no root rule
+  type. No aliases.
+- **Tests.** New `TestCatalogPayloadReaders` (root concrete payloads) and
+  `TestPayloadReadersOnDescriptors` (`catalog`, fake payloads). Deleted
+  `TestAnalysisHostReportsRelationRules`: it pinned the removed host method;
+  `TestPayloadReadersOnDescriptors` covers the same empty/non-empty cases and
+  `TestReferenceRuleRestrictionsMergeMaterialized` covers the public MERGE
+  rejection.
+- **Proof.** Build, selected unit tests and full quickcheck passed. Public
+  selection `^TestReference(RuleDDL|RuleDependencies|RuleSelectReturn|RuleRestrictionsMergeMaterialized|RuleReview6Named(RenameRoundTrip|NameReuseRoundTrip|Dependency|Retirement)|ViewCatalogInputs|PgClass(Shape|Options)|MaterializedViewMetadata|RLSPolicyPostgresReplay|CatalogRelationsInventory|ObjectAddress(Stale|QuotingVisibility))$`
+  passed in quick and `REFERENCE=1` modes. `make bench`: 0.836–1.034 ms/op,
+  5014 allocs/op, about 1.64 MB/op (not a startup path; the <1 ms miss is
+  pre-existing). `make deps` lists only module paths; `catalog` imports are
+  unchanged. Racecheck/finalcheck skipped at user request.
 
 Notes for later steps:
 

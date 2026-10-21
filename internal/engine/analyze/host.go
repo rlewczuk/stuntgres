@@ -39,7 +39,6 @@ type Host interface {
 	// Catalog.
 	CatalogOwner() *catalog.Owner
 	CurrentCatalog() catalog.Read
-	RelationHasRules(relation *catalog.Relation) bool
 
 	// Names.
 	LookupNamespaces(auth Authority, name parser.ObjectName, kind LookupKind) (NamespaceSelection, error)

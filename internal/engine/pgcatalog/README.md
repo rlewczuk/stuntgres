@@ -67,7 +67,10 @@ descriptor registration order and differs from the registry order.
 `Runtime` is the narrow interface the engine implements per call
 (`engineCatalogRuntime`, §4.1 pattern 3). Methods take and return values; none
 return engine structs. Building the adapter reads nothing; only the selected
-producer calls the methods it needs.
+producer calls the methods it needs. Rule facts (`catalog.RuleFact`), view
+options and policy conditions are read from the catalog payloads directly
+(`Relation.HasRules`, `Relation.VisitRules`, `ViewPayload.Options`,
+`PolicyDefinition.VisitExpressions`), not through `Runtime`.
 
 | Methods | Why they are engine-owned |
 |---|---|
@@ -81,9 +84,9 @@ producer calls the methods it needs.
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
 | `ExpressionTree` | native structural `pg_node_tree` output of bound expressions |
-| `VisitPolicyExpressions`, `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
+| `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
-| `HasRules`, `VisitRules`, `ViewOptions`, `ViewDefinition`, `IndexDefinition` | rule payloads, view and index definition rendering |
+| `ViewDefinition`, `IndexDefinition` | view and index definition rendering |
 | `Pinned`, `OperatorSeeded`, `OperatorDependencies`, `TypeProviderProcedure` | pin decisions; the builtin operator inventory and operator dependencies owned by `routine` (L10, above this package); extension type providers (`pg_depend`, `pg_operator`) |
 | `VisitSequenceDefinitions` | sequence definitions with the statement's journal overlay (`pg_sequence`) |
 

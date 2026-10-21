@@ -10,6 +10,17 @@ func (r ruleList) Validate(v catalog.Read, owner *catalog.Relation) error {
 	return validateRuleList(v, owner, r)
 }
 
+func (r ruleList) Len() int { return len(r) }
+
+func (r ruleList) Visit(visit func(catalog.RuleFact) error) error {
+	for _, rule := range r {
+		if err := visit(catalog.RuleFact{OID: rule.OID, Name: rule.Name, Event: ruleEventCode(rule.event), Instead: rule.instead, References: rule.references}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // rulesOf returns d's rules, or nil when d stores none.
 func rulesOf(d *catalog.Relation) []ruleDefinition {
 	r, _ := d.Rules.(ruleList)

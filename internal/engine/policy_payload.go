@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -25,4 +26,8 @@ func (e *policyExpression) DependsOn(target ids.ObjectAddress) bool {
 
 func (e *policyExpression) Validate(v catalog.Read, owner *catalog.Relation) error {
 	return validatePolicyExpression(v, owner, e)
+}
+
+func (e *policyExpression) VisitExpression(visit func(expr.Expr) error) error {
+	return visit(e.expression)
 }
