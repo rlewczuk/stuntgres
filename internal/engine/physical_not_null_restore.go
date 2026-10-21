@@ -1,61 +1,19 @@
 package engine
 
 import (
-	"fmt"
-	"maps"
-	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-type restoredPhysicalNotNull struct {
-	op             *session.Operation
-	authority      AuthorizationView
-	ref            ids.ObjectRef
-	current        *catalog.Relation
-	repairs        []table.PhysicalNotNullRepair
-	facts          []table.RestoredPhysicalNotNullFact
-	primary        *catalog.PhysicalPrimarySupport
-	position       int
-	ownerDirective bool
-}
-
 func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *parser.AlterTable, repairs []table.PhysicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
 	if len(repairs) == 0 {
 		return nil, nil
 	}
-	reject := func() (*table.PhysicalNotNullConstructor, error) {
+	if !PhysicalNotNullConstructorShape(raw, repairs) {
 		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
-	}
-	if raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 {
-		return reject()
-	}
-	first := repairs[0]
-	if raw.Name.Parts[0].Text != first.Relation.Parts[0].Text || raw.Name.Parts[1].Text != first.Relation.Parts[1].Text {
-		return reject()
-	}
-	action := raw.Actions[0]
-	if first.Primary == "" {
-		if !raw.Only || len(repairs) != 1 || action.Action != parser.SetNotNull || action.Column.Text != first.Column || action.NoInherit || action.NotValid {
-			return reject()
-		}
-	} else if action.Action == parser.AddUsingIndex {
-		if action.UsingIndex == nil || !action.UsingIndex.Primary || action.UsingIndex.Name.Text != first.Primary || action.UsingIndex.Index.Text == "" {
-			return reject()
-		}
-	} else {
-		if !raw.Only || action.Action != parser.AddUnique || action.Unique == nil || !action.Unique.Primary || action.Unique.NullsNotDistinct || action.Unique.Name.Text != first.Primary || len(action.Unique.Columns) != len(first.Keys) {
-			return reject()
-		}
-		for i, column := range action.Unique.Columns {
-			if column.Text != first.Keys[i] {
-				return reject()
-			}
-		}
 	}
 	auth, err := operationAuthorization(op)
 	if err != nil {
@@ -64,127 +22,35 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *p
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if !partitionConstraintReplayImport(e, op, auth) {
-		return reject()
+		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, false)
 	if err != nil {
 		return nil, err
 	}
-	old, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || catalog.InheritanceHasChildren(auth.Catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
-		return reject()
-	}
-	seen := make(map[int32]bool, len(repairs))
-	for _, repair := range repairs {
-		if repair.RelationText != first.RelationText || repair.Primary != first.Primary || !slices.Equal(repair.Keys, first.Keys) {
-			return reject()
-		}
-		slot, exists := old.Index[repair.Column]
-		if !exists || !old.Columns[slot].Nullable || !old.Columns[slot].NullabilityKnown {
-			return reject()
-		}
-		attribute := old.Attributes[slot]
-		if seen[attribute] || slices.ContainsFunc(old.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.Attribute == attribute }) {
-			return reject()
-		}
-		seen[attribute] = true
-	}
-	constructor := &table.PhysicalNotNullConstructor{Before: old, Ref: ref, Repairs: repairs}
-	if action.Action == parser.AddUsingIndex {
-		constructor.IndexName = action.UsingIndex.Index.Text
-	}
-	return constructor, nil
+	return PreparePhysicalNotNullConstructor(auth.Catalog, ref, raw, repairs, created)
 }
 
 // Capture actual normal constructor results, not a generated-name prediction.
-func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*restoredPhysicalNotNull, error) {
+func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*RestoredPhysicalNotNull, error) {
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	reject := func() (*restoredPhysicalNotNull, error) {
+	if !partitionConstraintReplayImport(e, op, auth) || constructor.Ref.Epoch != auth.Catalog.Epoch() {
 		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	if !partitionConstraintReplayImport(e, op, auth) || constructor.Ref.Epoch != auth.Catalog.Epoch() {
-		return reject()
-	}
-	current, ok := auth.Catalog.Relation(constructor.Ref.Address)
-	if !ok || current == constructor.Before || current.Owner != constructor.Before.Owner || current.RelationKind != catalog.TableRelation || current.Partition != nil || current.Membership != nil {
-		return reject()
-	}
-	if constructor.Deferred != nil {
-		return nil, table.ValidateDeferredPhysicalPrimary(constructor, current)
-	}
-	pair := &restoredPhysicalNotNull{op: op, authority: auth, ref: constructor.Ref, current: current, repairs: constructor.Repairs, facts: make([]table.RestoredPhysicalNotNullFact, len(constructor.Repairs))}
-	for i, repair := range constructor.Repairs {
-		slot, exists := current.Index[repair.Column]
-		beforeSlot, beforeExists := constructor.Before.Index[repair.Column]
-		if !exists || !beforeExists || current.Attributes[slot] != constructor.Before.Attributes[beforeSlot] || current.Columns[slot].Usage != constructor.Before.Columns[beforeSlot].Usage || current.Columns[slot].Nullable || !current.Columns[slot].NullabilityKnown {
-			return reject()
-		}
-		attribute := current.Attributes[slot]
-		idx := slices.IndexFunc(current.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
-			return c.Attribute == attribute && c.OID != 0 && !c.NotValid && !c.NoInherit
-		})
-		if idx < 0 {
-			return reject()
-		}
-		if graph := current.Inheritance; graph != nil {
-			fact := graph.NotNull[attribute]
-			if !fact.Local || fact.Count() != 0 {
-				return reject()
-			}
-		}
-		pair.facts[i] = table.RestoredPhysicalNotNullFact{Attribute: attribute, OID: current.Constraints.NotNull[idx].OID, Usage: current.Columns[slot].Usage}
-		primary := catalog.PhysicalPrimaryForAttribute(current, attribute)
-		if repair.Primary == "" {
-			if slices.ContainsFunc(current.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
-				return reject()
-			}
-		} else {
-			if primary == nil || primary.Name != repair.Primary || len(primary.Attributes) != len(repair.Keys) {
-				return reject()
-			}
-			for k, key := range primary.Attributes {
-				if current.Columns[current.IndexForAttribute(key)].Name != repair.Keys[k] {
-					return reject()
-				}
-			}
-			if pair.primary == nil {
-				pair.primary = catalog.CapturePhysicalPrimarySupport(current, primary)
-				if !index.PhysicalPrimarySupportValid(auth.Catalog, current, primary, pair.primary) {
-					return reject()
-				}
-				if constructor.IndexName != "" && !table.PhysicalImportedIndexMatches(indexes[primary.Index], constructor, current, primary) {
-					return reject()
-				}
-			} else if primary.OID != pair.primary.Constraint || primary.Index != pair.primary.Index {
-				return reject()
-			}
-		}
-	}
-	return pair, nil
-}
-
-func (pair *restoredPhysicalNotNull) admits(stmt parser.Statement) bool {
-	if _, ok := stmt.(*parser.Delete); ok {
-		return true
-	}
-	if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && !pair.ownerDirective {
-		pair.ownerDirective = true
-		return true
-	}
-	return false
+	return CapturePhysicalNotNullConstructor(op, auth.RoleRecord, auth.Catalog, constructor, indexes)
 }
 
 // The selected NN and its outbound dependency projection disappear together in
 // the sole private stage. The surviving physical flag is not a synthetic NN row.
-func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delete, pair *restoredPhysicalNotNull) error {
+func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delete, pair *RestoredPhysicalNotNull) error {
 	repair, valid := table.RestorePhysicalNotNullSyntax(raw)
 	reject := func() error { return sqlError("0A000", table.RestorePhysicalNotNullBoundary) }
-	if !valid || pair == nil || pair.op != op || pair.position >= len(pair.repairs) || !table.SamePhysicalRepair(repair, pair.repairs[pair.position]) {
+	if !valid || !pair.Pairs(op, repair) {
 		return reject()
 	}
 	if err := op.Context().Err(); err != nil {
@@ -202,7 +68,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 		return sqlError("42501", "permission denied for table pg_constraint")
 	}
 	e.mu.Lock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.RoleRecord != pair.authority.RoleRecord || auth.Catalog.Epoch() != pair.ref.Epoch || auth.Catalog.Get(pair.ref.Address) != pair.current {
+	if !partitionConstraintReplayImport(e, op, auth) || auth.Catalog.Epoch() != pair.Ref.Epoch || !pair.Holds(auth.RoleRecord, auth.Catalog) {
 		e.mu.Unlock()
 		return reject()
 	}
@@ -211,75 +77,14 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 		e.mu.Unlock()
 		return err
 	}
-	old := pair.current
-	if ref != pair.ref || old.Partition != nil || old.Membership != nil || catalog.InheritanceHasChildren(auth.Catalog, old.Address()) {
-		e.mu.Unlock()
-		return reject()
-	}
-	fact := pair.facts[pair.position]
-	slot := old.IndexForAttribute(fact.Attribute)
-	idx := slices.IndexFunc(old.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
-		return c.OID == fact.OID && c.Attribute == fact.Attribute && !c.NotValid && !c.NoInherit
-	})
-	if slot < 0 || old.Columns[slot].Name != repair.Column || old.Columns[slot].Usage != fact.Usage || old.Columns[slot].Nullable || !old.Columns[slot].NullabilityKnown || idx < 0 {
-		e.mu.Unlock()
-		return reject()
-	}
-	if graph := old.Inheritance; graph != nil {
-		provenance := graph.NotNull[fact.Attribute]
-		if !provenance.Local || provenance.Count() != 0 {
-			e.mu.Unlock()
-			return reject()
-		}
-	}
-	primary := catalog.PhysicalPrimaryForAttribute(old, fact.Attribute)
-	if pair.primary == nil {
-		if primary != nil || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
-			e.mu.Unlock()
-			return reject()
-		}
-	} else if !index.PhysicalPrimarySupportValid(auth.Catalog, old, primary, pair.primary) {
-		e.mu.Unlock()
-		return reject()
-	}
-	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
-		e.mu.Unlock()
-		return fmt.Errorf("stuntgres: definition revision exhausted")
-	}
-	next := *old
-	next.ObjectRevision++
-	next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
-	if old.Inheritance != nil {
-		next.Inheritance = catalog.CloneInheritance(old.Inheritance)
-	}
-	table.RemoveDetachedNotNullMetadata(&next, old.Constraints.NotNull[idx])
-	cause := &catalog.PhysicalNotNullCause{Kind: catalog.PhysicalNotNullImportFlag, Ref: ref, Origin: ref, Attribute: fact.Attribute, RemovedNN: fact.OID, Usage: fact.Usage}
-	if pair.primary != nil {
-		cause.Kind = catalog.PhysicalNotNullImportCleanup
-		cause.Primary = pair.primary.Constraint
-		cause.Index = pair.primary.Index
-	}
-	cause.Self = cause
-	next.Constraints.PhysicalNotNull = maps.Clone(old.Constraints.PhysicalNotNull)
-	if next.Constraints.PhysicalNotNull == nil {
-		next.Constraints.PhysicalNotNull = make(map[int32]catalog.PhysicalNotNullProof)
-	}
-	next.Constraints.PhysicalNotNull[fact.Attribute] = catalog.PhysicalNotNullProof{Cause: cause, Usage: fact.Usage, Support: pair.primary}
-	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	e.mu.Unlock()
-	defer e.DiscardCatalogStage(stage)
-	if err = stage.Replace(&next); err != nil {
-		return err
-	}
-	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
+	next, err := PhysicalNotNullCleanup(auth.Catalog, pair, ref, repair)
 	if err != nil {
+		e.mu.Unlock()
 		return err
 	}
-	if _, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
+	if err := e.publishRestoreRepairLocked(op, auth, next, ref.Epoch); err != nil {
 		return err
 	}
-	pair.current = &next
-	pair.position++
+	pair.Advance(next)
 	return nil
 }

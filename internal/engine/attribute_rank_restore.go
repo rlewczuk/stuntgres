@@ -2,9 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"slices"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -46,43 +43,10 @@ func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update)
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != catalog.TableRelation {
+	next, err := AttributeRankCandidate(auth.Catalog, ref, column, rank)
+	if err != nil || next == nil {
 		e.mu.Unlock()
-		return sqlError("0A000", table.RestoreAttributeRankBoundary)
-	}
-	slot, exists := old.Index[column]
-	if !exists {
-		e.mu.Unlock()
-		return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, old.Name()))
-	}
-	if rank != 0 && !old.Columns[slot].Usage.Type.IsArray() {
-		e.mu.Unlock()
-		return sqlError("0A000", table.RestoreAttributeRankBoundary)
-	}
-	if old.Columns[slot].DeclaredDimensions == rank {
-		e.mu.Unlock()
-		return nil
-	}
-	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
-		e.mu.Unlock()
-		return fmt.Errorf("stuntgres: definition revision exhausted")
-	}
-	next := *old
-	next.ObjectRevision++
-	next.Columns = slices.Clone(old.Columns)
-	next.Columns[slot].DeclaredDimensions = rank
-	staged := e.BeginCatalogStage(auth.Catalog)
-	staged.authorizeLocked(auth, op.Session)
-	e.mu.Unlock()
-	defer e.DiscardCatalogStage(staged)
-	if err = staged.Replace(&next); err != nil {
 		return err
 	}
-	prepared, err := e.ValidateCatalogStage(op.Context(), staged)
-	if err != nil {
-		return err
-	}
-	_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: ref.Epoch})
-	return err
+	return e.publishRestoreRepairLocked(op, auth, next, ref.Epoch)
 }

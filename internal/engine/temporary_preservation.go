@@ -596,7 +596,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := table.RemapInheritanceConstraintOrigins(next, previous); err != nil {
 		return err
 	}
-	if err := e.remapRetiredConstraints(next, previous); err != nil {
+	if err := RemapRetiredConstraints(e.catalog.Domain, next, previous); err != nil {
 		return err
 	}
 	if err := e.remapPhysicalNotNull(next, previous); err != nil {

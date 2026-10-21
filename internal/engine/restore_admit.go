@@ -313,15 +313,15 @@ func replayRestorePhysicalNotNull(r *restoreRun, op *session.Operation, s *parse
 	if err := r.stage.restorePhysicalNotNull(op, s, r.pairedPhysical); err != nil {
 		return err
 	}
-	if r.pairedPhysical.position == len(r.pairedPhysical.repairs) {
+	if r.pairedPhysical.Position == len(r.pairedPhysical.Repairs) {
 		var err error
-		r.physicalForeignProvider, err = r.stage.capturePhysicalForeignKeyProvider(op, r.pairedPhysical.repairs[0].Relation, r.historicalRefs)
+		r.physicalForeignProvider, err = r.stage.capturePhysicalForeignKeyProvider(op, r.pairedPhysical.Repairs[0].Relation, r.historicalRefs)
 		if err != nil {
 			return err
 		}
-		if r.pairedPhysical.primary == nil {
+		if r.pairedPhysical.Primary == nil {
 			r.deferredPhysical = r.pairedPhysical
-			r.deferredPhysical.ownerDirective = false
+			r.deferredPhysical.OwnerDirective = false
 		}
 		r.pairedPhysical = nil
 	}

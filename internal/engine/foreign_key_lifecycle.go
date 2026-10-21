@@ -144,7 +144,7 @@ func (s *StatementScope) validateAlterForeignKeys(view catalog.Read, address ids
 			if err != nil {
 				return err
 			}
-			if err := validateForeignKeyData(s.op.Context(), auth, child, parent, f, comparisons, children, parents, s.input, s.output); err != nil {
+			if err := ValidateForeignKeyData(s.op.Context(), auth.View, auth, child, parent, f, comparisons, children, parents, s.input, s.output); err != nil {
 				return err
 			}
 		}

@@ -146,13 +146,13 @@ func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *table.Res
 	} {
 		roleExecute(t, e, op, q)
 	}
-	a := &table.RestoredHistoryAuthority{Facts: make(map[ids.OID]table.RestoredHistoricalFact), Archives: make(map[uint64]uint64), Sources: make(map[table.RetiredSourceIdentity]table.RetiredSourceDescription), NextArchive: e.retiredArchiveHighWater()}
+	a := &table.RestoredHistoryAuthority{Facts: make(map[ids.OID]table.RestoredHistoricalFact), Archives: make(map[uint64]uint64), Sources: make(map[table.RetiredSourceIdentity]table.RetiredSourceDescription), NextArchive: RetiredArchiveHighWater(e.CatalogRead())}
 	refs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	for _, name := range []string{"c", "d", "f"} {
 		r := retiredUnitTable(t, e, name)
 		refs[r.Address()] = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), r.Address())
 	}
-	e.captureHistoricalFacts(refs, a.Facts)
+	CaptureHistoricalFacts(e.CatalogRead(), refs, a.Facts)
 	return e, op, a
 }
 func retiredAuthorityClone(a *table.RestoredHistoryAuthority) *table.RestoredHistoryAuthority {

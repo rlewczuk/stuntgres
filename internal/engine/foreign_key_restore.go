@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -141,7 +140,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 			}
 			children := table.ForeignKeyRows{Storage: childStore, Committed: childStore.Versions, Ends: childStore.Ends, Frontier: e.visibility.CommitSeq()}
 			parents := table.ForeignKeyRows{Storage: parentStore, Committed: parentStore.Versions, Ends: parentStore.Ends, Frontier: e.visibility.CommitSeq(), Index: f.Index, Root: e.storage.IndexRoots[f.Index]}
-			if err := validateForeignKeyData(ctx, auth, child, parent, f, comparisons, children, parents, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
+			if err := ValidateForeignKeyData(ctx, auth.View, auth, child, parent, f, comparisons, children, parents, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
 				return err
 			}
 		}
@@ -152,36 +151,4 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 	}
 	_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: base.Epoch()})
 	return err
-}
-
-func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, comparisons []table.ForeignKeyComparison, children, parents table.ForeignKeyRows, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
-	index, ok := auth.Catalog.Relation(f.Index)
-	if !ok {
-		return ids.ErrCatalogReplaced
-	}
-	key := make([]sqltype.Value, len(comparisons))
-	return children.Each(func(row storage.RowVersion) (bool, error) {
-		if err := ctx.Err(); err != nil {
-			return false, err
-		}
-		any, all := table.ForeignKeyNullState(comparisons, row.Values)
-		if any {
-			if f.Full && !all {
-				return false, table.ForeignKeyDiagnostic(ctx, auth.View, auth, child, parent, f, row.Values, false, true, output)
-			}
-			return false, nil
-		}
-		if err := table.PrepareForeignKeyChild(ctx, comparisons, row.Values, key, input); err != nil {
-			return false, err
-		}
-		matching, _, err := table.FindForeignKeyParent(ctx, index, comparisons, parents, key, input)
-		if err != nil {
-			return false, err
-		}
-		found := matching.Row != 0
-		if !found {
-			return false, table.ForeignKeyDiagnostic(ctx, auth.View, auth, child, parent, f, row.Values, false, false, output)
-		}
-		return false, nil
-	})
 }
