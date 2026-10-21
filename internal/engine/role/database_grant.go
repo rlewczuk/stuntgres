@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"context"
@@ -12,11 +12,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// planDatabaseGrant decides GRANT or REVOKE on the current database, named
+// PlanDatabaseGrant decides GRANT or REVOKE on the current database, named
 // database. It returns the new database descriptor, or nil when nothing
 // changes, and the statement's warnings, which are set even when an error
 // follows them. revision allocates the new descriptor revision.
-func planDatabaseGrant(ctx context.Context, view access.View, s *parser.ObjectGrant, database string, revision func() (ids.DefinitionRevision, error)) (*catalog.Database, []sqlstate.Error, error) {
+func PlanDatabaseGrant(ctx context.Context, view access.View, s *parser.ObjectGrant, database string, revision func() (ids.DefinitionRevision, error)) (*catalog.Database, []sqlstate.Error, error) {
 	if s.Kind != "database" || len(s.Relations) == 0 || len(s.Schemas) != 0 {
 		return nil, nil, sqlError("0A000", "statement is not supported")
 	}

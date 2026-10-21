@@ -2,7 +2,6 @@ package role
 
 import (
 	"context"
-	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -90,23 +89,4 @@ func changeNonRelationGrant(ctx context.Context, view access.View, d catalog.Des
 		return nil, warning, err
 	}
 	return next, warning, nil
-}
-
-// GrantRoutineArgumentDisplay renders the argument types of a missing or
-// mismatched GRANT routine target, qualifying user types the path hides.
-func GrantRoutineArgumentDisplay(view access.View, env access.Environment, inputs []ids.OID) string {
-	path, _ := env.ReferencePath()
-	var display strings.Builder
-	for i, id := range inputs {
-		if i != 0 {
-			display.WriteString(", ")
-		}
-		typ := view.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.SQLType.IsUserDefined() {
-			display.WriteString(catalog.TypeDiagnosticNameAt(view.Catalog, typ, path))
-		} else {
-			display.WriteString(typ.SQLType.DiagnosticName())
-		}
-	}
-	return display.String()
 }

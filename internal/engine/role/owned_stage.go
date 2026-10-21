@@ -1,19 +1,18 @@
-package engine
+package role
 
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 )
 
-// stageOwned stages a planned REASSIGN OWNED (each root's eligibility, its
+// StageOwned stages a planned REASSIGN OWNED (each root's eligibility, its
 // new owner and the expressions of changed providers) or DROP OWNED (each
 // root's removal). It runs with Engine.mu held, after the lock waits.
-func stageOwned(h role.StageHost, auth ddl.Authority, plan role.OwnedPlan) error {
+func StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error {
 	view := h.AccessView(auth)
 	stage := h.OwnerStage()
 	base := h.StageBase()
@@ -60,7 +59,7 @@ func stageOwned(h role.StageHost, auth ddl.Authority, plan role.OwnedPlan) error
 		if err != nil {
 			return err
 		}
-		if err = role.StageOwnership(stage, d, target); err != nil {
+		if err = StageOwnership(stage, d, target); err != nil {
 			return err
 		}
 		switch d.(type) {
@@ -91,10 +90,10 @@ func stageOwned(h role.StageHost, auth ddl.Authority, plan role.OwnedPlan) error
 	return nil
 }
 
-// ownedDependentsError rewords DROP OWNED's 2BP01 dependents error: it names
+// OwnedDependentsError rewords DROP OWNED's 2BP01 dependents error: it names
 // primary, the one object the statement drops, or the dropped objects in
 // general when primary is empty.
-func ownedDependentsError(err error, primary string) error {
+func OwnedDependentsError(err error, primary string) error {
 	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "2BP01" {
 		if primary != "" {
 			diagnostic.Message = "cannot drop " + primary + " because other objects depend on it"

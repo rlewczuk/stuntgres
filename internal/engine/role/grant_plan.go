@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -41,10 +42,11 @@ type GrantRequest struct {
 }
 
 // ObjectGrantRequest validates s: grantor, object kind, targets, grantees,
-// privileges and GRANT OPTION for PUBLIC, in PostgreSQL's order. resolve
-// returns the targets; it is called only for supported kinds, after the kind
-// check and before grantees are resolved.
-func ObjectGrantRequest(ctx context.Context, view access.View, s *parser.ObjectGrant, resolve func() ([]catalog.Descriptor, error)) (GrantRequest, error) {
+// privileges and GRANT OPTION for PUBLIC, in PostgreSQL's order. The targets
+// are resolved only for supported kinds, after the kind check and before
+// grantees are resolved.
+func ObjectGrantRequest(h Host, auth ddl.Authority, s *parser.ObjectGrant) (GrantRequest, error) {
+	ctx, view := h.Context(), h.AccessView(auth)
 	if s.Grantor != nil {
 		grantor, err := authorization.MembershipRole(view.Roles, view.State, *s.Grantor)
 		if err != nil {
@@ -71,7 +73,7 @@ func ObjectGrantRequest(ctx context.Context, view access.View, s *parser.ObjectG
 	var req GrantRequest
 	var err error
 	if unavailable == "" {
-		req.targets, err = resolve()
+		req.targets, err = objectGrantTargets(h, auth, s)
 		if err != nil {
 			return GrantRequest{}, err
 		}

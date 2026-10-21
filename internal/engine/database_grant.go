@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -19,7 +20,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	next, warnings, err := planDatabaseGrant(op.Context(), v.View, s, e.databaseName, e.catalog.revisionLocked)
+	next, warnings, err := role.PlanDatabaseGrant(op.Context(), v.View, s, e.databaseName, e.catalog.revisionLocked)
 	for _, warning := range warnings {
 		op.EmitNotice(session.LevelWarning, warning)
 	}

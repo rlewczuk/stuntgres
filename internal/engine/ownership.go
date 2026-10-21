@@ -67,7 +67,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 			return fail(err)
 		}
 	}
-	change, err := planRelationOwnership(auth.View, auth, old, ref, kind, targetName, identity)
+	change, err := role.PlanRelationOwnership(auth.View, auth, old, ref, kind, targetName, identity)
 	if err != nil {
 		return fail(err)
 	}
@@ -116,7 +116,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	if err != nil {
 		return fail(err)
 	}
-	change, err := planTypeOwnership(ddlHost{e: e, op: scope.op}, auth, s, name, identity)
+	change, err := role.PlanTypeOwnership(ddlHost{e: e, op: scope.op}, auth, s, name, identity)
 	if err != nil {
 		return fail(err)
 	}
@@ -155,7 +155,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err != nil {
 		return fail(err)
 	}
-	change, err := planDatabaseOwnership(auth.View, auth, s, name, identity)
+	change, err := role.PlanDatabaseOwnership(auth.View, auth, s, name, identity)
 	if err != nil {
 		return fail(err)
 	}

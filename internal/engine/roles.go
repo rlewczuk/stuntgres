@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -69,7 +70,7 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 	case *parser.RoleMembership:
 		return e.membershipLocked(op, v, s)
 	case *parser.RoleSelection:
-		target, err := setRoleTarget(v.View, s)
+		target, err := role.SetRoleTarget(v.View, s)
 		if err != nil {
 			return Result{}, err
 		}
@@ -93,7 +94,7 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		a.Revision++
 		return Result{}, nil
 	case *parser.SessionAuthorization:
-		target, err := sessionAuthorizationTarget(v.View, s)
+		target, err := role.SessionAuthorizationTarget(v.View, s)
 		if err != nil {
 			return Result{}, err
 		}
@@ -117,7 +118,7 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		a.Revision++
 		return Result{}, nil
 	case *parser.DropRole:
-		plan, err := planDropRoles(ddlHost{e: e, op: op}, v, s)
+		plan, err := role.PlanDropRoles(ddlHost{e: e, op: op}, v, s)
 		if err != nil {
 			return Result{}, err
 		}
@@ -213,7 +214,7 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 
 // publishDroppedRolesLocked installs a decided DROP ROLE: the role record
 // joins the operation, and a retained transaction remembers the retired roles.
-func (e *Engine) publishDroppedRolesLocked(op *session.Operation, plan dropRolesPlan) (Result, error) {
+func (e *Engine) publishDroppedRolesLocked(op *session.Operation, plan role.DropRolesPlan) (Result, error) {
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {

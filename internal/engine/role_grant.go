@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
@@ -14,8 +13,7 @@ import (
 // request, plans the ACL changes, emits their warnings and installs the
 // candidate catalog with an advanced role record.
 func (e *Engine) objectGrantLocked(op *session.Operation, v AuthorizationView, s *parser.ObjectGrant) (Result, error) {
-	h := ddlHost{e: e, op: op}
-	req, err := role.ObjectGrantRequest(op.Context(), v.View, s, func() ([]catalog.Descriptor, error) { return objectGrantTargets(h, v, s) })
+	req, err := role.ObjectGrantRequest(ddlHost{e: e, op: op}, v, s)
 	if err != nil {
 		return Result{}, err
 	}

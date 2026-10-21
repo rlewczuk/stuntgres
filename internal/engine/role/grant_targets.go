@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"fmt"
@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +21,7 @@ import (
 // objectGrantTargets resolves the targets of GRANT or REVOKE on objects, in
 // statement order: parameters (deduplicated), named objects, routines, then
 // every matching object of each ALL ... IN SCHEMA schema in OID order.
-func objectGrantTargets(h role.Host, auth ddl.Authority, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
+func objectGrantTargets(h Host, auth ddl.Authority, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
 	view := h.AccessView(auth)
 	targets := make([]catalog.Descriptor, 0, len(s.Relations)+len(s.Routines))
 	for _, name := range s.Relations {
@@ -112,7 +111,7 @@ func objectGrantTargets(h role.Host, auth ddl.Authority, s *parser.ObjectGrant) 
 
 // grantObject resolves a named GRANT target of kind: a relation, tablespace,
 // schema, type or domain.
-func grantObject(h role.Host, auth ddl.Authority, name parser.ObjectName, kind string) (ids.ObjectRef, error) {
+func grantObject(h Host, auth ddl.Authority, name parser.ObjectName, kind string) (ids.ObjectRef, error) {
 	view := h.AccessView(auth)
 	if kind == "" || kind == "sequence" {
 		return h.ResolveRelation(auth, name)
@@ -161,7 +160,7 @@ func grantObject(h role.Host, auth ddl.Authority, name parser.ObjectName, kind s
 
 // grantRoutine resolves a GRANT routine target of kind (function, procedure
 // or routine) on the function path.
-func grantRoutine(h role.Host, auth ddl.Authority, target parser.GrantRoutineTarget, kind string) (ids.ObjectRef, error) {
+func grantRoutine(h Host, auth ddl.Authority, target parser.GrantRoutineTarget, kind string) (ids.ObjectRef, error) {
 	view := h.AccessView(auth)
 	namespaces, err := h.SearchNamespaces(auth, target.Name, ids.ProcedureClassID)
 	if err != nil {
@@ -234,7 +233,7 @@ func grantRoutine(h role.Host, auth ddl.Authority, target parser.GrantRoutineTar
 		if !target.SignatureSpecified {
 			return ids.ObjectRef{}, sqlError("42883", fmt.Sprintf(`could not find a %s named "%s"`, noun, display))
 		}
-		display += "(" + role.GrantRoutineArgumentDisplay(view, auth, inputTypes[:inputCount]) + ")"
+		display += "(" + grantRoutineArgumentDisplay(view, auth, inputTypes[:inputCount]) + ")"
 		return ids.ObjectRef{}, sqlError("42883", noun+" "+display+" does not exist")
 	}
 	if count > 1 {
@@ -252,7 +251,26 @@ func grantRoutine(h role.Host, auth ddl.Authority, target parser.GrantRoutineTar
 		return ids.ObjectRef{}, sqlError("0A000", "routine privileges are unsupported for unimplemented routines in embedded mode")
 	}
 	if !routine.GrantRoutineKindMatches(kind, p.RoutineKind) {
-		return ids.ObjectRef{}, sqlError("42809", display+"("+role.GrantRoutineArgumentDisplay(view, auth, inputTypes[:inputCount])+") is not a "+noun)
+		return ids.ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(view, auth, inputTypes[:inputCount])+") is not a "+noun)
 	}
 	return view.Ref(address), nil
+}
+
+// grantRoutineArgumentDisplay renders the argument types of a missing or
+// mismatched GRANT routine target, qualifying user types the path hides.
+func grantRoutineArgumentDisplay(view access.View, env access.Environment, inputs []ids.OID) string {
+	path, _ := env.ReferencePath()
+	var display strings.Builder
+	for i, id := range inputs {
+		if i != 0 {
+			display.WriteString(", ")
+		}
+		typ := view.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
+		if typ.SQLType.IsUserDefined() {
+			display.WriteString(catalog.TypeDiagnosticNameAt(view.Catalog, typ, path))
+		} else {
+			display.WriteString(typ.SQLType.DiagnosticName())
+		}
+	}
+	return display.String()
 }

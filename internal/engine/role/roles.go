@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"fmt"
@@ -8,13 +8,12 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ddl"
-	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
 )
 
-// setRoleTarget returns the role SET ROLE or RESET ROLE switches to, after
+// SetRoleTarget returns the role SET ROLE or RESET ROLE switches to, after
 // checking that the session user may switch to it.
-func setRoleTarget(view access.View, s *parser.RoleSelection) (authorization.PrincipalRef, error) {
+func SetRoleTarget(view access.View, s *parser.RoleSelection) (authorization.PrincipalRef, error) {
 	target := view.State.SessionUser
 	if s.Reset && view.State.ResetRole != (authorization.PrincipalRef{}) {
 		target = view.State.ResetRole
@@ -45,9 +44,9 @@ func setRoleTarget(view access.View, s *parser.RoleSelection) (authorization.Pri
 	return target, nil
 }
 
-// sessionAuthorizationTarget returns the role SET SESSION AUTHORIZATION
+// SessionAuthorizationTarget returns the role SET SESSION AUTHORIZATION
 // switches to, after checking that the authenticated role may.
-func sessionAuthorizationTarget(view access.View, s *parser.SessionAuthorization) (authorization.PrincipalRef, error) {
+func SessionAuthorizationTarget(view access.View, s *parser.SessionAuthorization) (authorization.PrincipalRef, error) {
 	target := view.State.Authenticated
 	if !s.Default {
 		d, ok := view.Roles.Lookup(s.Name)
@@ -63,34 +62,34 @@ func sessionAuthorizationTarget(view access.View, s *parser.SessionAuthorization
 	return target, nil
 }
 
-// dropRolesPlan is a decided DROP ROLE: the role record with the roles
+// DropRolesPlan is a decided DROP ROLE: the role record with the roles
 // retired, and the retired roles in statement order.
-type dropRolesPlan struct {
+type DropRolesPlan struct {
 	Roles   *access.RoleRecord
 	Retired []authorization.PrincipalRef
 }
 
-// planDropRoles decides DROP ROLE: the superuser gate, missing, current and
+// PlanDropRoles decides DROP ROLE: the superuser gate, missing, current and
 // session roles, predefined roles and every remaining dependency, in
 // PostgreSQL's order.
-func planDropRoles(h role.Host, auth ddl.Authority, s *parser.DropRole) (dropRolesPlan, error) {
+func PlanDropRoles(h Host, auth ddl.Authority, s *parser.DropRole) (DropRolesPlan, error) {
 	view := h.AccessView(auth)
 	actor, exists := view.Roles.Find(view.State.CurrentUser)
 	if !exists || !actor.Superuser {
-		return dropRolesPlan{}, role.Diagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
+		return DropRolesPlan{}, Diagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
 	}
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor, len(s.Names))
 	ordered := make([]authorization.PrincipalRef, 0, len(s.Names))
 	for _, name := range s.Names {
 		d, ok := view.Roles.Lookup(name)
 		if !ok {
-			return dropRolesPlan{}, sqlError("42704", fmt.Sprintf("role \"%s\" does not exist", name))
+			return DropRolesPlan{}, sqlError("42704", fmt.Sprintf("role \"%s\" does not exist", name))
 		}
 		if d.Ref == view.State.CurrentUser {
-			return dropRolesPlan{}, sqlError("55006", "current user cannot be dropped")
+			return DropRolesPlan{}, sqlError("55006", "current user cannot be dropped")
 		}
 		if d.Ref == view.State.SessionUser {
-			return dropRolesPlan{}, sqlError("55006", "session user cannot be dropped")
+			return DropRolesPlan{}, sqlError("55006", "session user cannot be dropped")
 		}
 		if _, ok := targets[d.Ref]; !ok {
 			ordered = append(ordered, d.Ref)
@@ -103,7 +102,7 @@ func planDropRoles(h role.Host, auth ddl.Authority, s *parser.DropRole) (dropRol
 	for _, ref := range ordered {
 		d := targets[ref]
 		if d.Predefined() {
-			return dropRolesPlan{}, role.Diagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
+			return DropRolesPlan{}, Diagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
 		}
 		var dependencies []access.RoleDependency
 		for _, object := range view.Catalog.Descriptors() {
@@ -141,12 +140,12 @@ func planDropRoles(h role.Host, auth ddl.Authority, s *parser.DropRole) (dropRol
 			for i, dep := range dependencies {
 				details[i] = h.DescribeRoleDependency(auth, dep)
 			}
-			return dropRolesPlan{}, role.Diagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
+			return DropRolesPlan{}, Diagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
 		}
 	}
 	if view.RoleRecord.Revision == ^uint64(0) {
-		return dropRolesPlan{}, fmt.Errorf("stuntgres: authorization revision exhausted")
+		return DropRolesPlan{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	retired := view.RoleRecord.Root.Retire(targets)
-	return dropRolesPlan{Roles: &access.RoleRecord{Root: retired, Revision: view.RoleRecord.Revision + 1}, Retired: ordered}, nil
+	return DropRolesPlan{Roles: &access.RoleRecord{Root: retired, Revision: view.RoleRecord.Revision + 1}, Retired: ordered}, nil
 }

@@ -50,7 +50,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	}
 	e.mu.Lock()
-	err = stageOwned(ddlHost{e: e, op: scope.op, stage: stage}, auth, plan)
+	err = role.StageOwned(ddlHost{e: e, op: scope.op, stage: stage}, auth, plan)
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
@@ -70,7 +70,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			if primaryRoot != (ids.ObjectAddress{}) {
 				primary = dependencyObject(stage.Base, primaryRoot, stage.dependencyPath)
 			}
-			return Result{}, ownedDependentsError(err, primary)
+			return Result{}, role.OwnedDependentsError(err, primary)
 		}
 		if err = scope.stageOwnedSequences(stage, roots, mode, nil); err != nil {
 			return Result{}, err
