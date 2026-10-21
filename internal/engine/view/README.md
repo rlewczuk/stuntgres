@@ -64,10 +64,13 @@ never imports `view`.
   `RuleResultCheck`, `ruleReturning`, `RuleDepends`, `RuleReferences`,
   `BindingRuleRelation`.
 - **Writes through views** (`write.go`, `write_insert.go`,
-  `write_query.go`, `binding_slots.go`, `default_origin.go`): `Write`,
-  `WriteLayer`, `CheckGroup`, `viewWriteOccurrence`, `BindViewWrite`,
-  `lowerViewWrite`, `lowerViewInsert`, `PhysicalBinding`,
-  `BindingDefaultOrigin`, and the `analyze` slot helpers `ViewWriteOf`,
+  `write_query.go`, `write_sources.go`, `binding_slots.go`,
+  `default_origin.go`): `Write`, `WriteLayer`, `CheckGroup`,
+  `viewWriteOccurrence`, `BindViewWrite`, `lowerViewWrite`,
+  `lowerViewInsert`, `PhysicalBinding`, `BindingDefaultOrigin`,
+  `EvalBindingDefault`, `FreezeWriteSources` (the frozen-layout bridges of
+  a view write's sources, borrowing the statement's query authority or
+  host), and the `analyze` slot helpers `ViewWriteOf`,
   `ViewWriteSlotOf`, `RuleCTECommands`, `RuleCTEsOf`, `RuleCTEsSlotOf`.
 - **View DDL records and checks** (`view.go`, `alter.go`,
   `dependencies.go`, `options.go`, `query.go`): `CreationScope` (the CREATE

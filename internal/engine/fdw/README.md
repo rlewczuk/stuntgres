@@ -34,7 +34,9 @@ never imports it. The engine and the driver import it. See
 - **Write protocol** (`modify.go`): `Modification` drives a provider's
   Begin/Exec/End callbacks through a `WriteRuntime` (participant
   enlistment, modification tracking and value environments; the engine's
-  `statementHost` implements it); `ModifyAdmission`, `OperationSupported`
+  `statementHost` implements it); `PlanModification` (the operation check
+  and the wrapper's row identity and planning callbacks; the caller has
+  released the replacement read), `ModifyAdmission`, `OperationSupported`
   and the TRUNCATE group record `TruncateGroup`.
 - **Transaction participants** (`transaction.go`): `Transaction` is the
   owner's FDW state (`Participant`, `Enlist`, `Retire`, `TakeCleanup`,

@@ -188,17 +188,19 @@ context.
   head versions), `ExistingIndexRoot`, `CaptureExclusionScan`
   (`ExclusionScan`), `ExclusionScanCurrent`, `PublishExclusion` (epoch and
   state check, row identity, the `ExclusionEdit` and install in one
-  window), `DiscardExclusion`, `OwnExclusionKeys` and `AdmitExclusion`
-  (standalone windows; the admit window checks no epoch, as before).
+  window), `DiscardExclusion`, `OwnExclusionKeys`, `AdmitExclusion` and
+  `EndExclusionRow` (standalone windows; the admit window checks no epoch,
+  as before; `EndExclusionRow` projects the end of a row version deleted
+  outside the write stage, for MERGE's DELETE arm).
 - Waits: `ClaimUniqueKey` (pin, unique claim with the operation's lock
   policy, the `replacementMu` release and re-acquire, program readmission
   after a wait) and `WaitTransaction`.
 
-The probe and scan captures read the write authority in the same window.
-The engine's probe loops call the concrete `captureUniqueProbe` and
-`captureExclusionScan`, which also return the `AuthorizationView`; the
-exported methods drop it, so no view is boxed per probe. The loops call
-the concrete methods, never the interface.
+The probe and scan captures read the write authority in the same window
+and return it as `UniqueProbe.Authority` and `ExclusionScan.Authority`, an
+`access.View` held by value (the scan's acts as a mutating FK action's
+owner). The engine rebuilds the access environment from it only on error
+paths (key disclosure) and for the ON CONFLICT binding check.
 
 Pure decisions over captured values:
 
