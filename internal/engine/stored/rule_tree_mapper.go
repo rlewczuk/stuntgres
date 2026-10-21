@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"slices"
@@ -15,7 +15,7 @@ type ruleTreeMapper struct {
 	Definition func(*plan.CTEDefinition) (*plan.CTEDefinition, error)
 }
 
-type ruleTreeMapping struct {
+type RuleTreeMapping struct {
 	OwnerFrame func(uint32) uint32
 	Leaf       func(expr.Expr) (expr.Expr, bool, error)
 	Boundary   func(plan.Node) (plan.Node, bool)
@@ -25,11 +25,11 @@ type ruleTreeMapping struct {
 
 // One memo owns the entire binding: every action-local provider and its scans
 // share one mapped definition/project. Protected statement providers stay exact.
-func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int, retained []*plan.CTEDefinition, options ...ruleTreeMapping) ruleTreeMapper {
+func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int, retained []*plan.CTEDefinition, options ...RuleTreeMapping) ruleTreeMapper {
 	if frame == nil {
 		frame = func(value uint32) uint32 { return value }
 	}
-	var mapping ruleTreeMapping
+	var mapping RuleTreeMapping
 	if len(options) != 0 {
 		mapping = options[0]
 	}

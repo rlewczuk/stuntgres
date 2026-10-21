@@ -10,6 +10,9 @@ type (
 	pgRenderParent    = stored.DeparseParent
 	policyExpression  = stored.Policy
 	procedureProvider = stored.ProcedureProvider
+	ruleAction        = stored.RuleAction
+	ruleDefinition    = stored.Rule
+	ruleTreeMapping   = stored.RuleTreeMapping
 	scalarRenderer    = stored.ScalarRenderer
 	viewCheckMode     = stored.CheckMode
 	viewDefinition    = stored.View

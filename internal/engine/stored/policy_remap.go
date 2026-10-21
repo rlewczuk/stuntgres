@@ -1,10 +1,9 @@
-package engine
+package stored
 
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -21,12 +20,12 @@ func RemapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 			if *slot == nil {
 				continue
 			}
-			expression := stored.PolicyOf(*slot)
-			frozen, err := stored.RemapView(view, expression.Presentation(), mapping, ref, typ, collation)
+			expression := PolicyOf(*slot)
+			frozen, err := RemapView(view, expression.Presentation(), mapping, ref, typ, collation)
 			if err != nil {
 				return nil, err
 			}
-			*slot = stored.NewPolicy(expression.Syntax(), frozen.Query().Root.(*plan.ProjectNode).Expressions[0], frozen)
+			*slot = NewPolicy(expression.Syntax(), frozen.Query().Root.(*plan.ProjectNode).Expressions[0], frozen)
 		}
 	}
 	return &copy, nil

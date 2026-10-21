@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"slices"
@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -48,19 +47,19 @@ func RemapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 			}
 			if key.Derived != nil {
 				derived := *key.Derived
-				derived.Definition, _, err = stored.RetagTypes(view, derived.Definition, typ, collation)
+				derived.Definition, _, err = RetagTypes(view, derived.Definition, typ, collation)
 				if err != nil {
 					return nil, err
 				}
-				derived.Definition, err = stored.RemapExpression(derived.Definition, ref, nil)
+				derived.Definition, err = RemapExpression(derived.Definition, ref, nil)
 				if err != nil {
 					return nil, err
 				}
-				derived.Execution, _, err = stored.RetagTypes(view, derived.Execution, typ, collation)
+				derived.Execution, _, err = RetagTypes(view, derived.Execution, typ, collation)
 				if err != nil {
 					return nil, err
 				}
-				derived.Execution, err = stored.RemapExpression(derived.Execution, ref, nil)
+				derived.Execution, err = RemapExpression(derived.Execution, ref, nil)
 				if err != nil {
 					return nil, err
 				}

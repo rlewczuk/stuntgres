@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -72,5 +73,5 @@ func isolateRuleCTEFrames(view catalog.Read, original, action analyze.Binding, s
 		}
 		return ownerFrame(old)
 	}
-	return MapRuleBindingRecipes(action, NewRuleTreeMapper(view, frame, 0, original.CTEs, ruleTreeMapping{OwnerFrame: ownerFrame}))
+	return stored.MapRuleBindingRecipes(action, stored.NewRuleTreeMapper(view, frame, 0, original.CTEs, ruleTreeMapping{OwnerFrame: ownerFrame}))
 }

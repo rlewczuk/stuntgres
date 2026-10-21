@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/stored"
 )
 
 func PolicyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dump.Group, error) {
@@ -54,8 +53,8 @@ func PolicyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 			}
 			for _, clause := range []struct {
 				name string
-				expr *policyExpression
-			}{{"USING", stored.PolicyOf(policy.Using)}, {"WITH CHECK", stored.PolicyOf(policy.Check)}} {
+				expr *Policy
+			}{{"USING", PolicyOf(policy.Using)}, {"WITH CHECK", PolicyOf(policy.Check)}} {
 				if clause.expr == nil {
 					continue
 				}
@@ -79,7 +78,7 @@ func PolicyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
-				text, err := stored.PolicySQL(ctx, view, clause.expr)
+				text, err := PolicySQL(ctx, view, clause.expr)
 				if err != nil {
 					return nil, err
 				}

@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -263,7 +264,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					continue
 				}
 				var name string
-				for _, rule := range RulesOf(d) {
+				for _, rule := range stored.RulesOf(d) {
 					if ruleDepends(provider.base, rule, target) {
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -17,7 +18,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	original := ruleUnitInsert(e, src, 1, 10).Binding()
 	action := ruleUnitInsert(e, sink, 1, 10)
 	recipe := &analyze.InsertConflict{Targets: action.Binding().Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
-	action = action.With(func(p *RuleActionParts) { p.Binding.Insert.Conflict = recipe })
+	action = action.With(func(p *stored.RuleActionParts) { p.Binding.Insert.Conflict = recipe })
 	first, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 	if err != nil {
 		t.Fatal(err)
@@ -71,12 +72,12 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 			t.Fatal("target/EXCLUDED namespaces lost their distinct halves")
 		}
 	}
-	next, err := RefreshRuleBinding(view, b, &current)
+	next, err := stored.RefreshRuleBinding(view, b, &current)
 	if err != nil {
 		t.Fatal(err)
 	}
 	check(next)
-	mapped, err := RemapRuleBinding(view, b, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+	mapped, err := stored.RemapRuleBinding(view, b, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			}
 			ref := original.Ref
 			ref.Address.SubID = src.Attributes[0]
-			action = action.With(func(p *RuleActionParts) {
+			action = action.With(func(p *stored.RuleActionParts) {
 				p.Binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
 			})
 			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)

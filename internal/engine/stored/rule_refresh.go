@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"slices"
@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -73,7 +72,7 @@ func RefreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalo
 		return next, err
 	}
 	mapTargets := func(targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
-		return stored.MapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) { return RewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return MapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) { return RewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	b.ArrayTargets, err = mapTargets(b.ArrayTargets)
 	if err != nil {
@@ -169,7 +168,7 @@ func refreshRuleConflict(catalog catalog.Read, b analyze.Binding, current *catal
 		}
 		return column, true, nil
 	}
-	mapper := NewRuleTreeMapper(catalog, nil, 0, nil, ruleTreeMapping{Leaf: leaf})
+	mapper := NewRuleTreeMapper(catalog, nil, 0, nil, RuleTreeMapping{Leaf: leaf})
 	mapped, err := MapRuleBindingRecipes(analyze.Binding{Insert: analyze.InsertBinding{Conflict: &c}}, mapper)
 	if err != nil {
 		return nil, err

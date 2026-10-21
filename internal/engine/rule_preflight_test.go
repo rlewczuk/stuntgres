@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -153,7 +154,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				}
 			}
 			if shape == "dead_case" {
-				expression, _, err = RewriteViewExpression(catalog.Read{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
+				expression, _, err = stored.RewriteViewExpression(catalog.Read{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
 					if parameter, ok := node.(plan.ParameterExpr); ok {
 						info := parameter.Info
 						info.Property = expr.Properties{RowDependent: true}
@@ -224,7 +225,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			statement, query := bind("SELECT "+output+" AS out FROM (SELECT 1/NEW.v AS n) AS q", true)
 			template := query.Root.(*plan.ProjectNode)
 			childTemplate := template.Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
-			action := NewRuleAction(RuleActionParts{Syntax: statement, Binding: analyze.Binding{Query: query, CommandQuery: true}})
+			action := stored.NewRuleAction(stored.RuleActionParts{Syntax: statement, Binding: analyze.Binding{Query: query, CommandQuery: true}})
 			composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
@@ -289,7 +290,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		schema := plan.QuerySchema{{Name: "n", Usage: bad.ResultUsage()}}
 		child := &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
 		source := &plan.DerivedNode{QuerySchema: schema, Query: &plan.Query{Root: child}, ScanFrame: 1}
-		predicate, _, err := RewriteViewExpression(catalog.Read{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
+		predicate, _, err := stored.RewriteViewExpression(catalog.Read{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			if parameter, ok := node.(plan.ParameterExpr); ok {
 				info := parameter.Info
 				info.Property = expr.Properties{RowDependent: true}

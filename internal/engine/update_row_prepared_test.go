@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/stored"
 	"testing"
 )
 
@@ -51,7 +52,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			}
 			assertBorrowed()
 			input := catalogRef(t, e, e.CatalogRead(), "input")
-			stored := RulesOf(e.CatalogRead().MustRelation(input.Address))[0]
+			stored := stored.RulesOf(e.CatalogRead().MustRelation(input.Address))[0]
 			if len(stored.Actions()[0].Binding().Prepared.SequenceConstants) == 0 {
 				t.Fatal("recipe lost its own sequence capture")
 			}

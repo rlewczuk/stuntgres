@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -96,7 +97,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 		if err == nil && providersChanged {
 			candidate := e.stageRead(stage).State()
-			err = ReownExpressions(e.catalog.read(candidate), candidate, nil, false)
+			err = stored.ReownExpressions(e.catalog.read(candidate), candidate, nil, false)
 			if err == nil {
 				for a, d := range candidate.Descriptors() {
 					if old := stage.Get(a); old != nil {

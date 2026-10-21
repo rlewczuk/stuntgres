@@ -141,7 +141,7 @@ func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 			condition = b.Predicate
 		}
 		mapper := func(bound expr.Expr) (expr.Expr, bool, error) {
-			return RewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+			return stored.RewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 				column, ok := expr.(plan.ColumnExpr)
 				if !ok {
 					return expr, false, nil
@@ -373,7 +373,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 		if !ok {
 			return b, ids.ErrCatalogReplaced
 		}
-		b, err = RefreshRuleBinding(catalog, b, current)
+		b, err = stored.RefreshRuleBinding(catalog, b, current)
 		if err != nil {
 			return b, err
 		}
@@ -494,7 +494,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 			}
 			if targetOffset != 0 {
 				var err error
-				recipe, _, err = RewriteViewExpression(catalog, recipe, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+				recipe, _, err = stored.RewriteViewExpression(catalog, recipe, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					c, ok := expr.(plan.ColumnExpr)
 					if ok && c.Scope == 1 && c.Frame == actionFrame {
 						c.Slot += targetOffset
@@ -523,7 +523,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	}
 	var opaque map[plan.Node]bool
 	finish := ruleQueryFinalizer(catalog)
-	tree := NewRuleTreeMapper(catalog, nil, 0, original.CTEs, ruleTreeMapping{
+	tree := stored.NewRuleTreeMapper(catalog, nil, 0, original.CTEs, ruleTreeMapping{
 		Leaf:   substitute,
 		Finish: finish,
 		Boundary: func(node plan.Node) (plan.Node, bool) {
@@ -741,7 +741,7 @@ type ruleRewriter struct {
 }
 
 func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
-	event := RuleEvent(stmt)
+	event := stored.RuleEvent(stmt)
 	firstCommand := len(program.commands)
 	b = physicalBinding(b)
 	if event == "" || b.Relation == nil {
@@ -752,7 +752,7 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 		return -1, ids.ErrCatalogReplaced
 	}
 	var err error
-	b, err = RefreshRuleBinding(auth.Access().Catalog, b, current)
+	b, err = stored.RefreshRuleBinding(auth.Access().Catalog, b, current)
 	if err != nil {
 		return -1, err
 	}
@@ -763,7 +763,7 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 	if current.RelationKind != catalog.ViewRelation {
 		b.Storage = auth.StorageLocked(b.Ref.Address)
 	}
-	rules := RulesOf(b.Relation)
+	rules := stored.RulesOf(b.Relation)
 	matched := slices.ContainsFunc(rules, func(r ruleDefinition) bool { return r.Event() == event })
 	if matched {
 		dependency := catalog.ExpressionDependency{Ref: b.Ref, Revision: current.Revision()}
@@ -868,7 +868,7 @@ func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b
 			if composed.Returning != nil && ruleReturning(stmt) != nil {
 				program.returning = index
 			}
-			if !original && r.Instead() && RuleEvent(action.Syntax()) == event {
+			if !original && r.Instead() && stored.RuleEvent(action.Syntax()) == event {
 				count = index
 			}
 		}
@@ -944,7 +944,7 @@ func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []r
 			b.Prepared.SequenceConstants = append(slices.Clone(b.Prepared.SequenceConstants), cb.Prepared.SequenceConstants...)
 			b.Prepared.RegtypeConstants = append(slices.Clone(b.Prepared.RegtypeConstants), cb.Prepared.RegtypeConstants...)
 		}
-		tree := NewRuleTreeMapper(catalog, nil, 0, b.CTEs, ruleTreeMapping{Finish: ruleQueryFinalizer(catalog), Leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
+		tree := stored.NewRuleTreeMapper(catalog, nil, 0, b.CTEs, ruleTreeMapping{Finish: ruleQueryFinalizer(catalog), Leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 			if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 				recipes := p.old
 				if column.Frame == 2 {
@@ -1008,7 +1008,7 @@ func ruleReturningProjection(catalog catalog.Read, original, provider *analyze.R
 	copy.Expressions = slices.Clone(original.Expressions)
 	for i, bound := range copy.Expressions {
 		var err error
-		copy.Expressions[i], _, err = RewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+		copy.Expressions[i], _, err = stored.RewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 			column, ok := expr.(plan.ReturningColumnExpr)
 			if !ok {
 				return expr, false, nil

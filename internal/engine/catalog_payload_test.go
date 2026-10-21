@@ -66,19 +66,19 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 		}
 	}
 
-	if RulesOf(&catalog.Relation{}) != nil || RulesPayload(nil) != nil {
+	if stored.RulesOf(&catalog.Relation{}) != nil || stored.RulesPayload(nil) != nil {
 		t.Fatal("absent rules payload")
 	}
-	empty := &catalog.Relation{Rules: RulesPayload([]ruleDefinition{})}
-	if empty.Rules == nil || RulesOf(empty) == nil || len(RulesOf(empty)) != 0 {
+	empty := &catalog.Relation{Rules: stored.RulesPayload([]ruleDefinition{})}
+	if empty.Rules == nil || stored.RulesOf(empty) == nil || len(stored.RulesOf(empty)) != 0 {
 		t.Fatal("empty rule list collapsed")
 	}
 	rules := []ruleDefinition{{OID: 40001, Name: "a"}, {OID: 40002, Name: "b"}}
-	withRules := &catalog.Relation{Rules: RulesPayload(rules)}
-	if got := RulesOf(withRules); len(got) != 2 || &got[0] != &rules[0] {
+	withRules := &catalog.Relation{Rules: stored.RulesPayload(rules)}
+	if got := stored.RulesOf(withRules); len(got) != 2 || &got[0] != &rules[0] {
 		t.Fatal("rule list identity")
 	}
-	if ValidateRules(catalog.Read{}, &catalog.Relation{}) != nil {
+	if stored.ValidateRules(catalog.Read{}, &catalog.Relation{}) != nil {
 		t.Fatal("absent rules rejected")
 	}
 	rules[1].Name = "a"
@@ -92,8 +92,8 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 // conditions.
 func TestCatalogPayloadReaders(t *testing.T) {
 	refs := []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: 20002}}
-	rules := ruleList{NewRule(RuleParts{OID: 40001, Name: "a", Event: "UPDATE", Instead: true, References: refs}), NewRule(RuleParts{OID: 40002, Name: "b", Event: "DELETE"})}
-	if rules.Len() != 2 || (ruleList{}).Len() != 0 {
+	rules := stored.RuleList{stored.NewRule(stored.RuleParts{OID: 40001, Name: "a", Event: "UPDATE", Instead: true, References: refs}), stored.NewRule(stored.RuleParts{OID: 40002, Name: "b", Event: "DELETE"})}
+	if rules.Len() != 2 || (stored.RuleList{}).Len() != 0 {
 		t.Fatal("rule count")
 	}
 	var facts []catalog.RuleFact

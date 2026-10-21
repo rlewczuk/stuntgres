@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -56,13 +57,17 @@ func nonZero(t *testing.T, typ reflect.Type) reflect.Value {
 		return m
 	case reflect.Bool:
 		return reflect.ValueOf(true).Convert(typ)
+	case reflect.String:
+		return reflect.ValueOf("x").Convert(typ)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return reflect.ValueOf(int64(1)).Convert(typ)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return reflect.ValueOf(uint64(1)).Convert(typ)
 	case reflect.Interface:
-		if v := reflect.ValueOf(parser.LiteralExpr{}); v.Type().Implements(typ) {
-			return v.Convert(typ)
+		for _, candidate := range []any{parser.LiteralExpr{}, plan.LiteralExpr{}, &parser.Insert{}} {
+			if v := reflect.ValueOf(candidate); v.Type().Implements(typ) {
+				return v.Convert(typ)
+			}
 		}
 	case reflect.Struct:
 		v := reflect.New(typ).Elem()

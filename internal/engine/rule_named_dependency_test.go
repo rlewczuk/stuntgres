@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -36,7 +37,7 @@ func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine,
 
 func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier bool) (ruleDefinition, *analyze.InsertConflict) {
 	t.Helper()
-	for _, r := range RulesOf(event) {
+	for _, r := range stored.RulesOf(event) {
 		if r.Name != "r" {
 			continue
 		}
@@ -145,20 +146,20 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 							t.Fatal(err)
 						}
 						current := e.stageRead(stage).MustRelation(event.Address())
-						rules := len(RulesOf(current))
+						rules := len(stored.RulesOf(current))
 						want := 1
 						if inferred {
 							want = 2
 						}
-						if rules != want || RulesOf(current)[0].Name != "keep_r" || len(stage.Get(parent.Address()).(*catalog.Relation).Constraints.Unique) != 0 {
-							t.Fatal("retirement changed unrelated rule or missed provider", RulesOf(current))
+						if rules != want || stored.RulesOf(current)[0].Name != "keep_r" || len(stage.Get(parent.Address()).(*catalog.Relation).Constraints.Unique) != 0 {
+							t.Fatal("retirement changed unrelated rule or missed provider", stored.RulesOf(current))
 						}
 						removal, removed := stage.Removal(parent.Constraints.Unique[0].Index)
 						if !removed || removal.Ref.Address != parent.Constraints.Unique[0].Index {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}
-					if e.catalog.state != before || len(RulesOf(event)) != 2 || len(parent.Constraints.Unique) != 1 {
+					if e.catalog.state != before || len(stored.RulesOf(event)) != 2 || len(parent.Constraints.Unique) != 1 {
 						t.Fatal("private retirement mutated published catalog")
 					}
 				})
@@ -240,7 +241,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 				t.Fatal("no-collision import copied unchanged rule/provider owners", err)
 			}
 			if allocations := testing.AllocsPerRun(10, func() {
-				result, err := RemapRuleConstraintIdentities(e.CatalogRead(), event, nil)
+				result, err := stored.RemapRuleConstraintIdentities(e.CatalogRead(), event, nil)
 				if err != nil || result != event {
 					t.Fatal("no-change constraint visitor lost descriptor identity", err)
 				}
@@ -304,7 +305,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 					t.Fatal("analyzed modifier consumer scan missing")
 				}
 			}
-			if err := ValidateRules(view, mappedEvent); err != nil {
+			if err := stored.ValidateRules(view, mappedEvent); err != nil {
 				t.Fatal(err)
 			}
 			refs, err := ruleReferences(context.Background(), view, mappedRule)

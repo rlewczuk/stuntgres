@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -18,7 +19,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if err := reownCatalogScalarTypes(next, nil, nil); err != nil {
 		return err
 	}
-	if err := ReownExpressions(e.catalog.read(next), next, nil, true); err != nil {
+	if err := stored.ReownExpressions(e.catalog.read(next), next, nil, true); err != nil {
 		return err
 	}
 	// ALTER changes executable domain recipes, unlike mere retained-value

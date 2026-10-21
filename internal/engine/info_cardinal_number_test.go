@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -149,7 +150,7 @@ func TestInfoCardinalNumberBuiltinBaseRebind(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}
-	if err := ReownExpressions(source.catalog.read(next), next, nil, true); err != nil {
+	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true); err != nil {
 		t.Fatal(err)
 	}
 	view := source.catalog.read(next)

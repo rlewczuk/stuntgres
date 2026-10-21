@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"stuntgres/internal/engine/analyze"
@@ -7,22 +7,22 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type ruleAction struct {
+type RuleAction struct {
 	syntax                parser.Statement
 	binding               analyze.Binding
-	presentation          *viewDefinition
-	modifierPresentations map[parser.Statement]*viewDefinition
+	presentation          *View
+	modifierPresentations map[parser.Statement]*View
 }
 
-type ruleDefinition struct {
+type Rule struct {
 	OID                   ids.OID
 	Name                  string
 	event                 string
 	instead               bool
 	condition             expr.Expr
-	conditionPresentation *viewDefinition
+	conditionPresentation *View
 	conditionBinding      *analyze.Binding
-	actions               []ruleAction
+	actions               []RuleAction
 	references            []ids.ObjectAddress
 }
 

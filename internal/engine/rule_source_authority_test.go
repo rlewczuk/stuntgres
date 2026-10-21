@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -73,13 +74,13 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 						ref.Address.SubID = src.Attributes[0]
 						value = plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}
 					}
-					action = action.With(func(p *RuleActionParts) {
+					action = action.With(func(p *stored.RuleActionParts) {
 						p.Binding.Expressions = nil
 						p.Binding.CommandQuery = true
 						p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
 						p.Binding.QuerySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
 					})
-					src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "r", Event: event, Actions: []ruleAction{action}})})
+					src.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: event, Actions: []ruleAction{action}})})
 					program := ruleProgram{count: -1, returning: -1}
 					e.mu.Lock()
 					_, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, syntax, original, nil, &program)

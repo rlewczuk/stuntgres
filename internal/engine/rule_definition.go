@@ -16,7 +16,7 @@ import (
 )
 
 func ruleIndex(d *catalog.Relation, name string) int {
-	return slices.IndexFunc(RulesOf(d), func(r ruleDefinition) bool { return r.Name == name })
+	return slices.IndexFunc(stored.RulesOf(d), func(r ruleDefinition) bool { return r.Name == name })
 }
 func ruleMissing(name string, d *catalog.Relation) error {
 	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.Name()))
@@ -93,7 +93,7 @@ func ruleReturning(s parser.Statement) *parser.Returning {
 }
 
 func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule) (ruleDefinition, error) {
-	p := RuleParts{Name: s.Name.Text, Event: strings.ToUpper(s.Event), Instead: s.Instead}
+	p := stored.RuleParts{Name: s.Name.Text, Event: strings.ToUpper(s.Event), Instead: s.Instead}
 	ns := &analyze.RuleNamespace{Relation: d, Ref: ref, Event: p.Event}
 	if s.Condition != nil {
 		binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
@@ -106,11 +106,11 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		var err error
 		p.Condition, err = binder.Bind(s.Condition, analyze.ExpressionPolicy{Context: analyze.FilterContext})
 		if err != nil {
-			return NewRule(p), err
+			return stored.NewRule(p), err
 		}
 		normalizedCondition := binder.NormalizeStoredExpression(s.Condition)
 		if err := binder.CaptureViewLiterals(normalizedCondition, p.Condition, analyze.ViewTargetLiteral, 0); err != nil {
-			return NewRule(p), err
+			return stored.NewRule(p), err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
 		b := analyze.Binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: p.Condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{p.Condition}, Frame: binder.FrameID(), Syntax: query}}, Dependencies: binder.Dependencies, QuerySources: binder.Query.Sources, Capture: analyze.ViewCapture{Columns: binder.Capture.Columns, Literals: binder.Capture.Literals, CastUsages: binder.Capture.CastUsages, Composites: binder.Capture.Composites, Collations: binder.Capture.Collations, Namespaces: binder.Capture.Namespaces}, Prepared: analyze.PreparedCaptures{SequenceConstants: binder.Prepared.SequenceConstants, RegtypeConstants: binder.Prepared.RegtypeConstants}}
@@ -122,13 +122,13 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		p.ConditionBinding = &b
 		p.ConditionPresentation, err = stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
 		if err != nil {
-			return NewRule(p), err
+			return stored.NewRule(p), err
 		}
 	}
 	providers := 0
 	for _, action := range s.Actions {
 		if _, notify := action.(*parser.Notify); notify {
-			return NewRule(p), sqlError("0A000", "NOTIFY is unsupported")
+			return stored.NewRule(p), sqlError("0A000", "NOTIFY is unsupported")
 		}
 		var target ids.ObjectRef
 		var err error
@@ -145,52 +145,52 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			target, err = e.resolveRelationReference(auth, targetName, true)
 		}
 		if err != nil {
-			return NewRule(p), creationError(err, targetName)
+			return stored.NewRule(p), creationError(err, targetName)
 		}
 		b, err := describeWithRule(scope.op.Context(), e.analysisHost(scope.op), action, auth, target, scope.input, nil, nil, ns)
 		if err != nil {
-			return NewRule(p), err
+			return stored.NewRule(p), err
 		}
 		if p.Condition != nil && ruleSetAction(b, action) {
-			return NewRule(p), sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
+			return stored.NewRule(p), sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 		}
 		if err := validateRuleActionCTEs(action, b); err != nil {
-			return NewRule(p), err
+			return stored.NewRule(p), err
 		}
 		b = retainRuleCTEPresentation(auth.Catalog, b)
 		b.Rule.Template = true
 		if b.Parameters.Count != 0 {
-			return NewRule(p), sqlError("42P02", "there is no parameter $1")
+			return stored.NewRule(p), sqlError("42P02", "there is no parameter $1")
 		}
 		for i := range b.QuerySources {
 			b.QuerySources[i].FrozenAttributes = slices.Clone(b.QuerySources[i].Relation.Attributes)
 		}
 		if b.Returning != nil {
 			if p.Condition != nil {
-				return NewRule(p), sqlError("0A000", "RETURNING lists are not supported in conditional rules")
+				return stored.NewRule(p), sqlError("0A000", "RETURNING lists are not supported in conditional rules")
 			}
 			if !p.Instead {
-				return NewRule(p), sqlError("0A000", "RETURNING lists are not supported in non-INSTEAD rules")
+				return stored.NewRule(p), sqlError("0A000", "RETURNING lists are not supported in non-INSTEAD rules")
 			}
 			providers++
 			if providers > 1 {
-				return NewRule(p), sqlError("0A000", "cannot have multiple RETURNING lists in a rule")
+				return stored.NewRule(p), sqlError("0A000", "cannot have multiple RETURNING lists in a rule")
 			}
 			if err := ruleResultCheck(d, b.Returning.Schema, false); err != nil {
-				return NewRule(p), err
+				return stored.NewRule(p), err
 			}
 		}
 		presentation, err := e.freezeRuleActionPresentationLocked(auth, action, b)
 		if err != nil {
-			return NewRule(p), err
+			return stored.NewRule(p), err
 		}
 		modifiers, err := e.freezeRuleModifierPresentationsLocked(auth, b)
 		if err != nil {
-			return NewRule(p), err
+			return stored.NewRule(p), err
 		}
-		p.Actions = append(p.Actions, NewRuleAction(RuleActionParts{Syntax: action, Binding: b, Presentation: presentation, ModifierPresentations: modifiers}))
+		p.Actions = append(p.Actions, stored.NewRuleAction(stored.RuleActionParts{Syntax: action, Binding: b, Presentation: presentation, ModifierPresentations: modifiers}))
 	}
 	var err error
-	p.References, err = ruleReferences(scope.op.Context(), auth.Catalog, NewRule(p))
-	return NewRule(p), err
+	p.References, err = ruleReferences(scope.op.Context(), auth.Catalog, stored.NewRule(p))
+	return stored.NewRule(p), err
 }

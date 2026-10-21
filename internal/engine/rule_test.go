@@ -54,7 +54,7 @@ func ruleUnitInt(d *catalog.Relation, n int64) expr.Expr {
 	return plan.LiteralExpr{Info: expr.Info{Usage: d.Columns[0].Usage, Pos: parser.Position{Offset: -1}}, Value: value}
 }
 func ruleUnitInsert(e *Engine, d *catalog.Relation, id, v int64) ruleAction {
-	return NewRuleAction(RuleActionParts{Syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, Binding: analyze.Binding{Relation: d, Ref: ruleUnitRef(e, d), Targets: []int{0, 1}, Expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}})
+	return stored.NewRuleAction(stored.RuleActionParts{Syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, Binding: analyze.Binding{Relation: d, Ref: ruleUnitRef(e, d), Targets: []int{0, 1}, Expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}})
 }
 
 func TestRuleTemplateSubstitution(t *testing.T) {
@@ -82,8 +82,8 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	if action.Binding().Expressions[0][0].(plan.ColumnExpr).Scope != analyze.RulePseudoScope {
 		t.Fatal("mutated stored template")
 	}
-	condition := NewRule(RuleParts{Event: "INSERT", Instead: true, Condition: pseudo})
-	condition = condition.With(func(p *RuleParts) {
+	condition := stored.NewRule(stored.RuleParts{Event: "INSERT", Instead: true, Condition: pseudo})
+	condition = condition.With(func(p *stored.RuleParts) {
 		p.Condition = plan.LiteralExpr{Info: expr.Info{Usage: func() sqltype.Usage { typ, _ := auth.Catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, Value: func() sqltype.Value { typ, _ := auth.Catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
 	})
 	residual, err := ruleResidual(auth, original, "INSERT", []ruleDefinition{condition})
@@ -114,7 +114,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal(err)
 		}
 		template := ruleUnitInsert(e, sink, 0, 0)
-		template = template.With(func(p *RuleActionParts) {
+		template = template.With(func(p *stored.RuleActionParts) {
 			p.Binding.Expressions = nil
 			p.Binding.CommandQuery = true
 			p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: order, Expressions: projection, Frame: 1}}
@@ -329,7 +329,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 
 func TestRuleProgramOrdering(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "a", Event: "INSERT", Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}), NewRule(RuleParts{OID: 900102, Name: "z", Event: "INSERT", Actions: []ruleAction{ruleUnitInsert(e, sink, 3, 30)}})})
+	src.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Actions: []ruleAction{ruleUnitInsert(e, sink, 3, 30)}})})
 	original := ruleUnitInsert(e, src, 4, 40)
 	p := ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
@@ -352,7 +352,7 @@ func TestRuleProgramOrdering(t *testing.T) {
 
 func TestRuleProgramAuthority(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "a", Event: "INSERT", Instead: true, Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}), NewRule(RuleParts{OID: 900102, Name: "z", Event: "INSERT", Instead: true, Actions: []ruleAction{ruleUnitInsert(e, sink, 2, 20)}})})
+	src.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Instead: true, Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Instead: true, Actions: []ruleAction{ruleUnitInsert(e, sink, 2, 20)}})})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
@@ -364,7 +364,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	if count != 1 || len(p.commands) != 2 {
 		t.Fatalf("last same-event authority=%d commands=%d want1/2", count, len(p.commands))
 	}
-	src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "nothing", Event: "INSERT", Instead: true})})
+	src.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{OID: 900101, Name: "nothing", Event: "INSERT", Instead: true})})
 	p = ruleProgram{count: -1, returning: -1}
 	e.mu.Lock()
 	count, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
@@ -381,7 +381,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		defer done()
 		auth := f.authorization(t, op)
 		f.base.RelationKind, f.base.VirtualView = catalog.ViewRelation, true
-		f.base.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900201, Name: "inner_stop", Event: "UPDATE", Instead: true})})
+		f.base.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{OID: 900201, Name: "inner_stop", Event: "UPDATE", Instead: true})})
 		f.view.View = stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckCascaded })
 		project := stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode)
 		predicate := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
@@ -412,8 +412,8 @@ func TestRuleProgramAuthority(t *testing.T) {
 
 func TestRuleProgramRecursion(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "cycle", Event: "INSERT", Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}})})
-	sink.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900102, Name: "cycle", Event: "INSERT", Actions: []ruleAction{ruleUnitInsert(e, src, 1, 10)}})})
+	src.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{OID: 900101, Name: "cycle", Event: "INSERT", Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}})})
+	sink.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{OID: 900102, Name: "cycle", Event: "INSERT", Actions: []ruleAction{ruleUnitInsert(e, src, 1, 10)}})})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := ruleProgram{}
 	e.mu.Lock()
@@ -423,7 +423,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 		t.Fatalf("recursion error=%v", err)
 	}
 	sink.Rules = nil
-	RulesOf(src)[0] = RulesOf(src)[0].With(func(p *RuleParts) { p.Actions = append(p.Actions, ruleUnitInsert(e, sink, 2, 20)) })
+	stored.RulesOf(src)[0] = stored.RulesOf(src)[0].With(func(p *stored.RuleParts) { p.Actions = append(p.Actions, ruleUnitInsert(e, sink, 2, 20)) })
 	p = ruleProgram{}
 	e.mu.Lock()
 	_, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
@@ -461,10 +461,10 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		outer := ruleUnitInsert(e, src, 1, 10)
 		auxiliary := ruleUnitInsert(e, sink, 7, 70)
 		auxiliaryBinding := auxiliary.Binding()
-		outer = outer.With(func(p *RuleActionParts) {
+		outer = outer.With(func(p *stored.RuleActionParts) {
 			p.Binding.CTEs = []*plan.CTEDefinition{{Statement: auxiliary.Syntax(), Mutation: &auxiliaryBinding, Owner: 1}}
 		})
-		refs, err := ruleReferences(context.Background(), auth.Catalog, NewRule(RuleParts{Actions: []ruleAction{outer}}))
+		refs, err := ruleReferences(context.Background(), auth.Catalog, stored.NewRule(stored.RuleParts{Actions: []ruleAction{outer}}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -479,7 +479,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
 	condition := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2}
-	r := NewRule(RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: condition, Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}})
+	r := stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: condition, Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}})
 	refs, err := ruleReferences(context.Background(), auth.Catalog, r)
 	if err != nil {
 		t.Fatal(err)
@@ -489,8 +489,8 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 			t.Fatalf("missing dependency %v in %v", want, refs)
 		}
 	}
-	r = r.With(func(p *RuleParts) { p.References = refs })
-	src.Rules = RulesPayload([]ruleDefinition{r})
+	r = r.With(func(p *stored.RuleParts) { p.References = refs })
+	src.Rules = stored.RulesPayload([]ruleDefinition{r})
 	edges, err := pgcatalog.CollectDepend(context.Background(), auth.Catalog, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	oldRef := ruleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, References: []ids.ObjectAddress{oldRef.Address}, Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}})})
+	src.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Condition: plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, References: []ids.ObjectAddress{oldRef.Address}, Actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}})})
 	newSrc, newSink := *src, *sink
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10
@@ -546,14 +546,14 @@ func TestRuleDefinitionRemap(t *testing.T) {
 		old.Epoch = next.Epoch()
 		return old
 	}
-	mapped, err := RemapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
+	mapped, err := stored.RemapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if RulesOf(mapped)[0].Condition().(plan.ColumnExpr).Origin.Address.ObjectID != newSrc.Address().ObjectID || RulesOf(mapped)[0].Actions()[0].Binding().Ref.Address != newSink.Address() {
+	if stored.RulesOf(mapped)[0].Condition().(plan.ColumnExpr).Origin.Address.ObjectID != newSrc.Address().ObjectID || stored.RulesOf(mapped)[0].Actions()[0].Binding().Ref.Address != newSink.Address() {
 		t.Fatal("nested rule references not remapped")
 	}
-	if RulesOf(src)[0].Condition().(plan.ColumnExpr).Origin != oldRef || RulesOf(src)[0].Actions()[0].Binding().Ref.Address != sink.Address() {
+	if stored.RulesOf(src)[0].Condition().(plan.ColumnExpr).Origin != oldRef || stored.RulesOf(src)[0].Actions()[0].Binding().Ref.Address != sink.Address() {
 		t.Fatal("remapping mutated original template")
 	}
 }

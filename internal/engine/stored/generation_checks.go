@@ -1,18 +1,17 @@
-package engine
+package stored
 
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
 // CHECK recipes belong to the completed destination, not a copied source.
 func RefreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 	for i := range d.Constraints.Check {
-		next, changed, err := stored.MapExpression(catalog, d.Constraints.Check[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
+		next, changed, err := MapExpression(catalog, d.Constraints.Check[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(plan.ColumnExpr)
 			if !ok || column.Origin.Address.ClassID != d.Address().ClassID || column.Origin.Address.ObjectID != d.Address().ObjectID {
 				return node, false, nil

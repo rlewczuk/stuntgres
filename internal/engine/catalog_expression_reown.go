@@ -10,7 +10,7 @@ import (
 )
 
 func (e *Engine) remapCatalogExpressions(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
-	return ReownExpressions(e.catalog.read(next), next, mapping, false)
+	return stored.ReownExpressions(e.catalog.read(next), next, mapping, false)
 }
 
 // Imported rules have identities outside the descriptor address map. Reserve

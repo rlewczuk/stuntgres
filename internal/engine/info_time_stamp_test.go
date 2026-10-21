@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -88,7 +89,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if err := ReownExpressions(source.catalog.read(next), next, nil, true); err != nil {
+	if err := stored.ReownExpressions(source.catalog.read(next), next, nil, true); err != nil {
 		t.Fatal(err)
 	}
 	view := source.catalog.read(next)

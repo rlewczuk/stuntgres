@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -122,7 +123,7 @@ func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView
 	if err := e.stageLikeChecks(op, auth, d, b.Create.Likes); err != nil {
 		return err
 	}
-	if err := RefreshGenerationChecks(d, auth.Catalog); err != nil {
+	if err := stored.RefreshGenerationChecks(d, auth.Catalog); err != nil {
 		return err
 	}
 	if err := e.assignDefinitionOIDsLocked(d); err != nil {

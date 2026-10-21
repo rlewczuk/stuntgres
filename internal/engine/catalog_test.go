@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -263,7 +264,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		e.mu.Lock()
 		next := catalog.CloneState(e.catalog.state)
 		next.SetEpoch(epoch)
-		err := ReownExpressions(e.catalog.read(next), next, nil, false)
+		err := stored.ReownExpressions(e.catalog.read(next), next, nil, false)
 		if err == nil {
 			e.catalog.state = next
 		}

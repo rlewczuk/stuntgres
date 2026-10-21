@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"fmt"
@@ -7,12 +7,11 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
-// reownExpressions remaps and retags every stored expression of next after
+// ReownExpressions remaps and retags every stored expression of next after
 // its objects were renumbered by mapping (or, with typesOnly, after only
 // their types changed). view is the catalog view of next; its owner supplies
 // the reference domain.
@@ -66,11 +65,11 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			copy.DomainChecks = append([]catalog.DomainCheckConstraint(nil), domain.DomainChecks...)
 			for i := range copy.DomainChecks {
 				check := &copy.DomainChecks[i]
-				node, err := stored.RemapExpression(check.Expression, ref, nil)
+				node, err := RemapExpression(check.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = stored.RetagTypes(view, node, typ, collation)
+				node, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -87,11 +86,11 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			}
 			if domain.DomainDefault != nil {
 				definition := *domain.DomainDefault
-				node, err := stored.RemapExpression(definition.Expression, ref, nil)
+				node, err := RemapExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = stored.RetagTypes(view, node, typ, collation)
+				node, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -117,18 +116,18 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			}
 			next.SetDescriptor(address, d)
 		}
-		if typesOnly && next.ACLItemImport() == nil && !stored.ExpressionTypesChanged(d, typ) {
+		if typesOnly && next.ACLItemImport() == nil && !ExpressionTypesChanged(d, typ) {
 			continue
 		}
 		if len(d.ColumnMeta.Defaults) != 0 {
 			copy := *d
 			copy.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(d.ColumnMeta.Defaults))
 			for attribute, definition := range d.ColumnMeta.Defaults {
-				node, err := stored.RemapExpression(definition.Expression, ref, nil)
+				node, err := RemapExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = stored.RetagTypes(view, node, typ, collation)
+				node, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -146,20 +145,20 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			copy := *d
 			copy.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration, len(d.ColumnMeta.Generations))
 			for attribute, definition := range d.ColumnMeta.Generations {
-				node, err := stored.RemapExpression(definition.Expression, ref, nil)
+				node, err := RemapExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = stored.RetagTypes(view, node, typ, collation)
+				node, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
 				definition.Expression = node
-				planned, err := stored.RemapExpression(definition.Planned, ref, nil)
+				planned, err := RemapExpression(definition.Planned, ref, nil)
 				if err != nil {
 					return err
 				}
-				planned, _, err = stored.RetagTypes(view, planned, typ, collation)
+				planned, _, err = RetagTypes(view, planned, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -178,11 +177,11 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
 			for i := range copy.Constraints.Check {
 				c := &copy.Constraints.Check[i]
-				node, err := stored.RemapExpression(c.Expression, ref, nil)
+				node, err := RemapExpression(c.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = stored.RetagTypes(view, node, typ, collation)
+				node, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -224,20 +223,20 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 					continue
 				}
 				derived := *key.Derived
-				node, err := stored.RemapExpression(derived.Definition, ref, nil)
+				node, err := RemapExpression(derived.Definition, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = stored.RetagTypes(view, node, typ, collation)
+				node, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
 				derived.Definition = node
-				node, err = stored.RemapExpression(derived.Execution, ref, nil)
+				node, err = RemapExpression(derived.Execution, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = stored.RetagTypes(view, node, typ, collation)
+				node, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -250,19 +249,19 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			}
 			if predicate := definition.Predicate; predicate != nil {
 				p := *predicate
-				node, err := stored.RemapExpression(p.Definition, ref, nil)
+				node, err := RemapExpression(p.Definition, ref, nil)
 				if err != nil {
 					return err
 				}
-				p.Definition, _, err = stored.RetagTypes(view, node, typ, collation)
+				p.Definition, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
-				node, err = stored.RemapExpression(p.Execution, ref, nil)
+				node, err = RemapExpression(p.Execution, ref, nil)
 				if err != nil {
 					return err
 				}
-				p.Execution, _, err = stored.RetagTypes(view, node, typ, collation)
+				p.Execution, _, err = RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -295,12 +294,12 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		if d.View == nil {
 			continue
 		}
-		definition, err := stored.RemapView(view, stored.ViewOf(d), mapping, ref, typ, collation)
+		definition, err := RemapView(view, ViewOf(d), mapping, ref, typ, collation)
 		if err != nil {
 			return err
 		}
 		copy := *d
-		copy.View = stored.ViewPayload(definition)
+		copy.View = ViewPayload(definition)
 		next.SetDescriptor(address, &copy)
 	}
 	return nil

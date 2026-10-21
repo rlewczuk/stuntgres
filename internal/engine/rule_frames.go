@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 // Transplanted queries retain lexical identity, including expression-owned
@@ -14,7 +15,7 @@ func rewriteRuleFrames(view catalog.Read, root plan.Node, expr expr.Expr, frame 
 	if len(retainedCTEs) != 0 {
 		retained = retainedCTEs[0]
 	}
-	mapper := NewRuleTreeMapper(view, frame, 0, retained)
+	mapper := stored.NewRuleTreeMapper(view, frame, 0, retained)
 	mapped, err := mapper.Query(root)
 	if err != nil {
 		return nil, nil, err
@@ -94,5 +95,5 @@ func offsetRuleSources(view catalog.Read, b analyze.Binding, offset int, retaine
 	if len(retainedCTEs) != 0 {
 		retained = retainedCTEs[0]
 	}
-	return MapRuleBindingRecipes(b, NewRuleTreeMapper(view, nil, offset, retained))
+	return stored.MapRuleBindingRecipes(b, stored.NewRuleTreeMapper(view, nil, offset, retained))
 }

@@ -1,11 +1,10 @@
-package engine
+package stored
 
 import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -32,7 +31,7 @@ func MapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 		return copied, true, nil
 	}
 	targets := func(values []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
-		return stored.MapRuleAssignmentTargets(values, mapper.Expression, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return MapRuleAssignmentTargets(values, mapper.Expression, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	var err error
 	b.ArrayTargets, err = targets(b.ArrayTargets)

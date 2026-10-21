@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -31,8 +30,8 @@ func ruleRelationSQL(view catalog.Read, ref ids.ObjectRef) (string, error) {
 	return catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name()), nil
 }
 
-func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action ruleAction, sourceRoots ...plan.Node) (string, error) {
-	r := pgRenderer{View: view, ShowImplicit: true}
+func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action RuleAction, sourceRoots ...plan.Node) (string, error) {
+	r := Deparser{View: view, ShowImplicit: true}
 	r.ColumnSQL = func(column plan.ColumnExpr) (string, error) {
 		if column.Scope == 1 && column.Frame == 1 && len(sourceRoots) != 0 {
 			return ruleSourceColumnSQL(view, sourceRoots[0], column.Slot, action, func(root plan.Node, expr expr.Expr) (string, error) {
@@ -59,7 +58,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if !ok {
 			return "", ids.ErrCatalogReplaced
 		}
-		name, err := stored.DeparseAttribute(d, column.Origin.Address.SubID)
+		name, err := DeparseAttribute(d, column.Origin.Address.SubID)
 		if err != nil {
 			return "", err
 		}
@@ -92,7 +91,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if !ok || project.Syntax == nil {
 			return "", true, fmt.Errorf("stuntgres: missing rule subquery syntax")
 		}
-		renderer := stored.NewQueryRenderer(action.presentation)
+		renderer := NewQueryRenderer(action.presentation)
 		// Replacement remaps executable and frozen graphs independently.
 		// Every slot cache and frame lookup in this render must use the
 		// retained presentation graph, selected by immutable syntax identity.
@@ -115,7 +114,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		}
 		parts := make([]string, len(subquery.Comparisons))
 		for i, comparison := range subquery.Comparisons {
-			parts[i], err = r.SQL(ctx, comparison.Left, pgRenderParent{})
+			parts[i], err = r.SQL(ctx, comparison.Left, DeparseParent{})
 			if err != nil {
 				return "", true, err
 			}
@@ -143,14 +142,14 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 	if err != nil {
 		return "", err
 	}
-	return r.SQL(ctx, node, pgRenderParent{})
+	return r.SQL(ctx, node, DeparseParent{})
 }
 
 // A mutation's target/FROM frame is not emitted by SELECT rendering. Seed only
 // actual correlated recipes under that frozen outer root, using the same target
 // and source-offset authority as ordinary rule expressions. Unreferenced retired
 // columns are never rendered, and the frozen presentation remains immutable.
-func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query plan.Node, columnSQL func(plan.ColumnExpr) (string, error)) error {
+func seedRuleMutationSlots(renderer *QueryRenderer, action RuleAction, query plan.Node, columnSQL func(plan.ColumnExpr) (string, error)) error {
 	switch action.syntax.(type) {
 	case *parser.Update, *parser.Delete:
 	default:
@@ -187,7 +186,7 @@ func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query plan
 	return failure
 }
 
-func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action ruleAction) (string, error) {
+func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action RuleAction) (string, error) {
 	if root == nil {
 		return "", nil
 	}
@@ -232,7 +231,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 		if !ok || project.Syntax == nil || action.presentation == nil {
 			return "", fmt.Errorf("stuntgres: missing rule derived-query presentation")
 		}
-		renderer := stored.NewQueryRenderer(action.presentation)
+		renderer := NewQueryRenderer(action.presentation)
 		project = renderer.Queries()[project.Syntax]
 		if project == nil {
 			return "", fmt.Errorf("stuntgres: missing retained rule derived-query presentation")
@@ -292,10 +291,10 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 	return "", fmt.Errorf("stuntgres: missing rule FROM presentation for %T", root)
 }
 
-func RuleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (string, error) {
+func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (string, error) {
 	b := action.binding
 	if _, selecting := action.syntax.(*parser.Select); selecting {
-		return action.presentation.SelectSQL(ctx, view, viewPresentation{})
+		return action.presentation.SelectSQL(ctx, view, Presentation{})
 	}
 	name, err := ruleRelationSQL(view, b.Ref)
 	if err != nil {
@@ -304,7 +303,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 	d := view.MustRelation(b.Ref.Address)
 	var sql strings.Builder
 	if definitions := parser.StatementWith(action.syntax); len(definitions) != 0 {
-		renderer := stored.NewQueryRenderer(action.presentation)
+		renderer := NewQueryRenderer(action.presentation)
 		prefix, err := renderer.WithClauseSQL(ctx, view, definitions, parser.StatementWithRecursive(action.syntax), func(statement parser.Statement) (string, error) {
 			if query, ok := statement.(*parser.Select); ok {
 				project := renderer.Queries()[query]
@@ -322,7 +321,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				if presentation == nil {
 					return "", fmt.Errorf("stuntgres: missing retained rule modifier presentation")
 				}
-				return RuleActionSQL(ctx, view, ruleAction{syntax: statement, binding: *mutation, presentation: presentation, modifierPresentations: action.modifierPresentations})
+				return RuleActionSQL(ctx, view, RuleAction{syntax: statement, binding: *mutation, presentation: presentation, modifierPresentations: action.modifierPresentations})
 			}
 			return "", fmt.Errorf("stuntgres: missing retained rule modifier binding")
 		})
@@ -338,7 +337,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 			names := make([]string, len(b.Targets))
 			for i, slot := range b.Targets {
 				attribute := b.Relation.Attributes[slot]
-				names[i], err = stored.DeparseAttribute(d, attribute)
+				names[i], err = DeparseAttribute(d, attribute)
 				if err != nil {
 					return "", err
 				}
@@ -359,7 +358,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		if s.DefaultValues {
 			sql.WriteString(" DEFAULT VALUES")
 		} else if action.presentation != nil && s.Source != nil && b.Query != nil {
-			text, err := action.presentation.SelectSQL(ctx, view, viewPresentation{})
+			text, err := action.presentation.SelectSQL(ctx, view, Presentation{})
 			if err != nil {
 				return "", err
 			}
@@ -397,7 +396,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				parts := make([]string, len(b.Insert.Conflict.Keys))
 				for i, key := range b.Insert.Conflict.Keys {
 					if key.Attribute != 0 {
-						parts[i], err = stored.DeparseAttribute(d, key.Attribute)
+						parts[i], err = DeparseAttribute(d, key.Attribute)
 					} else {
 						parts[i], err = ruleExpressionSQL(ctx, view, key.Expression, action)
 						parts[i] = "(" + parts[i] + ")"
@@ -429,7 +428,7 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 					if i != 0 {
 						sql.WriteString(", ")
 					}
-					column, err := stored.DeparseAttribute(d, b.Relation.Attributes[b.Insert.Conflict.UpdateTargets[i]])
+					column, err := DeparseAttribute(d, b.Relation.Attributes[b.Insert.Conflict.UpdateTargets[i]])
 					if err != nil {
 						return "", err
 					}
@@ -550,7 +549,7 @@ func RuleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			}
 			sql.WriteString("CREATE RULE " + catalog.QuoteIdentifier(r.Name) + " AS ON " + r.event + " TO " + table)
 			if r.condition != nil {
-				renderer := stored.NewQueryRenderer(r.conditionPresentation)
+				renderer := NewQueryRenderer(r.conditionPresentation)
 				renderer.Frame = r.conditionPresentation.Query().Root.(*plan.ProjectNode).Frame
 				text, err := renderer.ExpressionSQL(ctx, view, r.conditionPresentation.Syntax().Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {

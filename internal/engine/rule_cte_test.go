@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -46,7 +47,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	definition := &plan.CTEDefinition{Statement: original.Syntax(), Mutation: &originalBinding, Schema: plan.QuerySchema(src.Columns), Owner: 1}
 	t.Run("complete_executable_tuple", func(t *testing.T) {
 		action := ruleUnitInsert(e, sink, 1, 11)
-		src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{Name: "redirect", Event: "INSERT", Instead: true, Actions: []ruleAction{action}})})
+		src.Rules = stored.RulesPayload([]ruleDefinition{stored.NewRule(stored.RuleParts{Name: "redirect", Event: "INSERT", Instead: true, Actions: []ruleAction{action}})})
 		defer func() { src.Rules = nil }()
 		parent := analyze.Binding{CTEs: []*plan.CTEDefinition{definition}}
 		e.mu.Lock()
@@ -68,7 +69,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		selection := &plan.CTEDefinition{Query: provider, Owner: 1}
 		for _, protected := range []*plan.CTEDefinition{definition, selection} {
 			scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(src.Columns), Query: protected.Query, CTE: protected, ScanFrame: 1}
-			mapped, err := NewRuleTreeMapper(auth.Catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*plan.CTEDefinition{protected}).Query(scan)
+			mapped, err := stored.NewRuleTreeMapper(auth.Catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*plan.CTEDefinition{protected}).Query(scan)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -149,7 +150,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		root := &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)}, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}
 		finalized := make(map[plan.Node]bool)
 		finishCount := 0
-		mapper := NewRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{
+		mapper := stored.NewRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{
 			Leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 					return ruleUnitInt(sink, 11), true, nil
@@ -196,7 +197,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		owned := &plan.CTEDefinition{Statement: auxiliary.Syntax(), Mutation: &auxiliaryBinding, Owner: 1, Name: "ignored"}
 		b := original.Binding()
 		b.CTEs = []*plan.CTEDefinition{owned}
-		mapped, err := RemapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+		mapped, err := stored.RemapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -218,12 +219,12 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		Update:        &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
 		UpdateTargets: []int{1}, Width: 2,
 	}
-	modifier = modifier.With(func(p *RuleActionParts) { p.Binding.Insert.Conflict = recipe })
+	modifier = modifier.With(func(p *stored.RuleActionParts) { p.Binding.Insert.Conflict = recipe })
 	modifierBinding := modifier.Binding()
 	definition := &plan.CTEDefinition{Statement: modifier.Syntax(), Mutation: &modifierBinding, Schema: plan.QuerySchema(sink.Columns), Owner: 3}
 	scan := &plan.DerivedNode{QuerySchema: definition.Schema, CTE: definition, ScanFrame: 1}
 	action := ruleUnitInsert(e, sink, 1, 10)
-	action = action.With(func(p *RuleActionParts) {
+	action = action.With(func(p *stored.RuleActionParts) {
 		p.Binding.Expressions = nil
 		p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{
 			QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan,

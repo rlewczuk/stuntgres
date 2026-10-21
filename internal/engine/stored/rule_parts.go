@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"stuntgres/internal/engine/analyze"
@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// RuleParts mirrors every ruleDefinition field. NewRule builds a rule from
+// RuleParts mirrors every Rule field. NewRule builds a rule from
 // it; Parts and With copy a rule out and back without changing it.
 type RuleParts struct {
 	OID                   ids.OID
@@ -15,15 +15,15 @@ type RuleParts struct {
 	Event                 string
 	Instead               bool
 	Condition             expr.Expr
-	ConditionPresentation *viewDefinition
+	ConditionPresentation *View
 	ConditionBinding      *analyze.Binding
-	Actions               []ruleAction
+	Actions               []RuleAction
 	References            []ids.ObjectAddress
 }
 
 // NewRule builds a rule from p.
-func NewRule(p RuleParts) ruleDefinition {
-	return ruleDefinition{
+func NewRule(p RuleParts) Rule {
+	return Rule{
 		OID:                   p.OID,
 		Name:                  p.Name,
 		event:                 p.Event,
@@ -37,7 +37,7 @@ func NewRule(p RuleParts) ruleDefinition {
 }
 
 // Parts returns r's fields.
-func (r ruleDefinition) Parts() RuleParts {
+func (r Rule) Parts() RuleParts {
 	return RuleParts{
 		OID:                   r.OID,
 		Name:                  r.Name,
@@ -53,47 +53,47 @@ func (r ruleDefinition) Parts() RuleParts {
 
 // With returns r's parts after edit as a new rule. It never changes r, so a
 // published rule list stays immutable.
-func (r ruleDefinition) With(edit func(*RuleParts)) ruleDefinition {
+func (r Rule) With(edit func(*RuleParts)) Rule {
 	p := r.Parts()
 	edit(&p)
 	return NewRule(p)
 }
 
 // Event returns the rule's event: SELECT, INSERT, UPDATE or DELETE.
-func (r ruleDefinition) Event() string { return r.event }
+func (r Rule) Event() string { return r.event }
 
 // Instead reports whether the rule is a DO INSTEAD rule.
-func (r ruleDefinition) Instead() bool { return r.instead }
+func (r Rule) Instead() bool { return r.instead }
 
 // Condition returns the analyzed WHERE condition, or nil.
-func (r ruleDefinition) Condition() expr.Expr { return r.condition }
+func (r Rule) Condition() expr.Expr { return r.condition }
 
 // ConditionPresentation returns the frozen definition that renders the
 // condition, or nil.
-func (r ruleDefinition) ConditionPresentation() *viewDefinition {
+func (r Rule) ConditionPresentation() *View {
 	return r.conditionPresentation
 }
 
 // ConditionBinding returns the condition's binding, or nil.
-func (r ruleDefinition) ConditionBinding() *analyze.Binding { return r.conditionBinding }
+func (r Rule) ConditionBinding() *analyze.Binding { return r.conditionBinding }
 
 // Actions returns the rule's actions; callers never write through it.
-func (r ruleDefinition) Actions() []ruleAction { return r.actions }
+func (r Rule) Actions() []RuleAction { return r.actions }
 
 // References returns the objects the rule depends on.
-func (r ruleDefinition) References() []ids.ObjectAddress { return r.references }
+func (r Rule) References() []ids.ObjectAddress { return r.references }
 
-// RuleActionParts mirrors every ruleAction field, like RuleParts.
+// RuleActionParts mirrors every RuleAction field, like RuleParts.
 type RuleActionParts struct {
 	Syntax                parser.Statement
 	Binding               analyze.Binding
-	Presentation          *viewDefinition
-	ModifierPresentations map[parser.Statement]*viewDefinition
+	Presentation          *View
+	ModifierPresentations map[parser.Statement]*View
 }
 
 // NewRuleAction builds a rule action from p.
-func NewRuleAction(p RuleActionParts) ruleAction {
-	return ruleAction{
+func NewRuleAction(p RuleActionParts) RuleAction {
+	return RuleAction{
 		syntax:                p.Syntax,
 		binding:               p.Binding,
 		presentation:          p.Presentation,
@@ -102,7 +102,7 @@ func NewRuleAction(p RuleActionParts) ruleAction {
 }
 
 // Parts returns a's fields.
-func (a ruleAction) Parts() RuleActionParts {
+func (a RuleAction) Parts() RuleActionParts {
 	return RuleActionParts{
 		Syntax:                a.syntax,
 		Binding:               a.binding,
@@ -112,23 +112,23 @@ func (a ruleAction) Parts() RuleActionParts {
 }
 
 // With returns a's parts after edit as a new action; a is not changed.
-func (a ruleAction) With(edit func(*RuleActionParts)) ruleAction {
+func (a RuleAction) With(edit func(*RuleActionParts)) RuleAction {
 	p := a.Parts()
 	edit(&p)
 	return NewRuleAction(p)
 }
 
 // Syntax returns the action statement.
-func (a ruleAction) Syntax() parser.Statement { return a.syntax }
+func (a RuleAction) Syntax() parser.Statement { return a.syntax }
 
 // Binding returns the action's analyzed template.
-func (a ruleAction) Binding() analyze.Binding { return a.binding }
+func (a RuleAction) Binding() analyze.Binding { return a.binding }
 
 // Presentation returns the frozen definition that renders the action.
-func (a ruleAction) Presentation() *viewDefinition { return a.presentation }
+func (a RuleAction) Presentation() *View { return a.presentation }
 
 // ModifierPresentations returns the frozen definitions of the action's
 // data-modifying WITH queries.
-func (a ruleAction) ModifierPresentations() map[parser.Statement]*viewDefinition {
+func (a RuleAction) ModifierPresentations() map[parser.Statement]*View {
 	return a.modifierPresentations
 }
