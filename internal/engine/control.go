@@ -136,16 +136,14 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	var snapshots []materializedSnapshot
-	var extensionOwners []extension.OwnerRecord
-	var domainReplays []typedef.PositionedDomainReplay
-	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
+	r := &restoreRun{stage: stage, source: string(data)}
+	r.statements, err = parser.ParseWithOptions(r.source, parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
 		domainRecord, domainRecognized, domainErr := typedef.DecodeDomainReplay(comment)
 		if domainErr != nil {
 			return domainErr
 		}
 		if domainRecognized {
-			domainReplays = append(domainReplays, typedef.PositionedDomainReplay{Record: domainRecord, End: position.Offset + len(comment)})
+			r.domainReplays = append(r.domainReplays, typedef.PositionedDomainReplay{Record: domainRecord, End: position.Offset + len(comment)})
 			return nil
 		}
 		ownerRecord, ownerRecognized, ownerErr := extension.DecodeOwners(comment)
@@ -153,19 +151,19 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			return ownerErr
 		}
 		if ownerRecognized {
-			extensionOwners = append(extensionOwners, ownerRecord)
+			r.extensionOwners = append(r.extensionOwners, ownerRecord)
 			return nil
 		}
 		record, recognized, err := decodeMaterializedSnapshot(comment)
 		if err == nil && recognized {
-			snapshots = append(snapshots, record)
+			r.snapshots = append(r.snapshots, record)
 		}
 		return err
 	}})
 	if err != nil {
 		return err
 	}
-	domainReplayPairs, err := typedef.PairDomainReplay(string(data), statements, domainReplays)
+	r.domainReplayPairs, err = typedef.PairDomainReplay(r.source, r.statements, r.domainReplays)
 	if err != nil {
 		return err
 	}
@@ -188,105 +186,89 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		operationReplay(op).partitionUsingIndex = nil
 		operationReplay(op).partitionUnique = nil
 	}()
-	var pendingForeignKeys []restoredForeignKeys
-	partitionTeardowns := make(map[ids.ObjectAddress]partitionReplayTeardown)
-	notNullOrigins := make(map[ids.OID]restoredNotNull)
-	var pairedNotNull restoredNotNull
-	var pairedPhysical *restoredPhysicalNotNull
-	var deferredPhysical *restoredPhysicalNotNull
-	physicalIndexes := make(map[ids.ObjectAddress]*catalog.Relation)
-	var physicalForeignProvider *restoredPhysicalForeignKeyProvider
-	placeholderOrigins := make(map[restoredGenerationKey]restoredGenerationRecipe)
-	var generationRepairs []restoredGenerationRecipe
-	var lastAuthorization, createOwner authorization.PrincipalRef
-	var pairedOwner restoredInheritedOwner
-	var pairedDomainOwner typedef.RestoredDomainOwner
-	historicalRefs := make(map[ids.ObjectAddress]ids.ObjectRef)
-	historicalAuthority := &restoredHistoryAuthority{facts: make(map[ids.OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
-	for statementIndex, stmt := range statements {
-		if routine.ReplayDirective(string(data), stmt) {
+	r.startCaptures(e.retiredArchiveHighWater())
+	for statementIndex, stmt := range r.statements {
+		r.cur = restoreStatement{index: statementIndex}
+		if routine.ReplayDirective(r.source, stmt) {
 			operationReplay(op).sqlBodies = true
 			continue
 		}
-		if pairedPhysical != nil && !pairedPhysical.admits(stmt) {
+		if r.pairedPhysical != nil && !r.pairedPhysical.admits(stmt) {
 			return sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
-		var physicalConstructor *physicalNotNullConstructor
 		if alteration, ok := stmt.(*parser.AlterTable); ok {
-			physicalConstructor, err = stage.preparePhysicalNotNullConstructor(op, alteration, physicalNotNullFollowing(statements, statementIndex), historicalRefs)
+			r.cur.physicalConstructor, err = stage.preparePhysicalNotNullConstructor(op, alteration, physicalNotNullFollowing(r.statements, r.cur.index), r.historicalRefs)
 			if err != nil {
 				return err
 			}
-			if physicalConstructor == nil {
-				physicalConstructor, err = stage.prepareDeferredPhysicalPrimary(op, alteration, deferredPhysical, historicalRefs)
+			if r.cur.physicalConstructor == nil {
+				r.cur.physicalConstructor, err = stage.prepareDeferredPhysicalPrimary(op, alteration, r.deferredPhysical, r.historicalRefs)
 				if err != nil {
 					return err
 				}
 			}
 		}
-		if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && deferredPhysical != nil && !deferredPhysical.ownerDirective {
-			deferredPhysical.ownerDirective = true
+		if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && r.deferredPhysical != nil && !r.deferredPhysical.ownerDirective {
+			r.deferredPhysical.ownerDirective = true
 		} else {
-			deferredPhysical = nil
+			r.deferredPhysical = nil
 		}
-		var physicalIndexBase catalog.Read
 		if _, ok := stmt.(*parser.CreateIndex); ok {
-			physicalIndexBase = stage.CatalogRead()
+			r.cur.physicalIndexBase = stage.CatalogRead()
 		}
-		priorAuthorization, ownerForCreate, ownerPair := lastAuthorization, createOwner, pairedOwner
-		domainOwnerPair := pairedDomainOwner
-		pairedDomainOwner = typedef.RestoredDomainOwner{}
-		lastAuthorization, createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
-		pairedOwner = restoredInheritedOwner{}
-		if alteration, ok := stmt.(*parser.AlterTable); ok && physicalConstructor == nil {
-			declaration, admitted, captureErr := stage.captureInheritedForeignKey(op, alteration, historicalRefs)
+		r.cur.priorAuthorization, r.cur.ownerForCreate, r.cur.ownerPair = r.lastAuthorization, r.createOwner, r.pairedOwner
+		r.cur.domainOwnerPair = r.pairedDomainOwner
+		r.pairedDomainOwner = typedef.RestoredDomainOwner{}
+		r.lastAuthorization, r.createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
+		r.pairedOwner = restoredInheritedOwner{}
+		if alteration, ok := stmt.(*parser.AlterTable); ok && r.cur.physicalConstructor == nil {
+			declaration, admitted, captureErr := stage.captureInheritedForeignKey(op, alteration, r.historicalRefs)
 			if captureErr != nil {
 				return captureErr
 			}
 			if admitted {
-				pendingForeignKeys = append(pendingForeignKeys, declaration)
-				physicalForeignProvider = nil
-				pairedNotNull = restoredNotNull{}
+				r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
+				r.physicalForeignProvider = nil
+				r.pairedNotNull = restoredNotNull{}
 				continue
 			}
 		}
-		if physicalForeignProvider != nil {
-			if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && !physicalForeignProvider.ownerDirective {
-				physicalForeignProvider.ownerDirective = true
+		if r.physicalForeignProvider != nil {
+			if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && !r.physicalForeignProvider.ownerDirective {
+				r.physicalForeignProvider.ownerDirective = true
 			} else if alteration, ok := stmt.(*parser.AlterTable); ok {
-				declaration, admitted, captureErr := stage.capturePhysicalSelfForeignKey(op, alteration, physicalForeignProvider, historicalRefs)
+				declaration, admitted, captureErr := stage.capturePhysicalSelfForeignKey(op, alteration, r.physicalForeignProvider, r.historicalRefs)
 				if captureErr != nil {
 					return captureErr
 				}
 				if admitted {
-					pendingForeignKeys = append(pendingForeignKeys, declaration)
-					pairedNotNull = restoredNotNull{}
+					r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
+					r.pairedNotNull = restoredNotNull{}
 					continue
 				}
-				physicalConstructor, err = stage.preparePhysicalCompetingUnique(op, alteration, physicalForeignProvider, historicalRefs)
+				r.cur.physicalConstructor, err = stage.preparePhysicalCompetingUnique(op, alteration, r.physicalForeignProvider, r.historicalRefs)
 				if err != nil {
 					return err
 				}
-				if physicalConstructor == nil {
-					physicalForeignProvider = nil
+				if r.cur.physicalConstructor == nil {
+					r.physicalForeignProvider = nil
 				}
 			} else {
-				physicalForeignProvider = nil
+				r.physicalForeignProvider = nil
 			}
 		}
-		var pending restoredForeignKeys
 		switch s := stmt.(type) {
 		case *parser.AlterOwner:
 			if s.Kind == "domain" {
-				if err := stage.restoreDomainOwner(op, s, domainOwnerPair); err != nil {
+				if err := stage.restoreDomainOwner(op, s, r.cur.domainOwnerPair); err != nil {
 					return err
 				}
-			} else if err := stage.restoreInheritedOwner(op, s, ownerPair); err != nil {
+			} else if err := stage.restoreInheritedOwner(op, s, r.cur.ownerPair); err != nil {
 				return err
 			}
 		case *parser.CreateTable:
 			if declarations := foreignKeyDeclarations(s); len(declarations) != 0 {
-				pending, err = stage.captureRestoredForeignKeys(op, declarations)
+				r.cur.pending, err = stage.captureRestoredForeignKeys(op, declarations)
 				if err != nil {
 					return err
 				}
@@ -357,14 +339,14 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.CreatePolicy:
 		case *parser.CreateRule:
 		case *parser.AlterTable:
-			if physicalConstructor != nil {
+			if r.cur.physicalConstructor != nil {
 				break
 			}
 			if access.RowSecurityActions(s.Actions) {
 				break
 			}
 			if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {
-				if err := stage.restoreInheritedCheck(op, s, generationRepairs); err != nil {
+				if err := stage.restoreInheritedCheck(op, s, r.generationRepairs); err != nil {
 					return err
 				}
 				break
@@ -385,13 +367,13 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return captureErr
 			}
 			if record.child.Domain() != nil {
-				partitionTeardowns[record.child.Address] = record
+				r.partitionTeardowns[record.child.Address] = record
 			}
 		case *parser.DropTable:
 			if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, partitionReplayStem) {
 				return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 			}
-			if err := stage.validatePartitionReplayTeardown(op, s.Names[0], partitionTeardowns); err != nil {
+			if err := stage.validatePartitionReplayTeardown(op, s.Names[0], r.partitionTeardowns); err != nil {
 				return err
 			}
 		case *parser.AlterTableAttachPartition:
@@ -431,7 +413,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		case *parser.SessionAuthorization:
 			if s.Default {
-				generationRepairs = nil
+				r.generationRepairs = nil
 			}
 			if !s.OwnerDirective && !s.Default {
 				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives or DEFAULT")
@@ -439,36 +421,36 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.Update:
 			var repairErr error
 			if restoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
-				repairErr = stage.restoreRetiredConstraint(op, s, historicalAuthority)
+				repairErr = stage.restoreRetiredConstraint(op, s, r.historicalAuthority)
 			} else if restoreCatalogName(s.Name, "pg_constraint") {
-				repairErr = stage.restoreNoInheritNotNull(op, s, pairedNotNull)
+				repairErr = stage.restoreNoInheritNotNull(op, s, r.pairedNotNull)
 				if repairErr == nil {
-					delete(notNullOrigins, pairedNotNull.constraint)
+					delete(r.notNullOrigins, r.pairedNotNull.constraint)
 				}
 			} else {
 				repairErr = stage.restoreAttributeRank(op, s)
 			}
-			pairedNotNull = restoredNotNull{}
+			r.pairedNotNull = restoredNotNull{}
 			if repairErr != nil {
 				return repairErr
 			}
 			continue
 		case *parser.Delete:
-			if err := stage.restorePhysicalNotNull(op, s, pairedPhysical); err != nil {
+			if err := stage.restorePhysicalNotNull(op, s, r.pairedPhysical); err != nil {
 				return err
 			}
-			if pairedPhysical.position == len(pairedPhysical.repairs) {
-				physicalForeignProvider, err = stage.capturePhysicalForeignKeyProvider(op, pairedPhysical.repairs[0].relation, historicalRefs)
+			if r.pairedPhysical.position == len(r.pairedPhysical.repairs) {
+				r.physicalForeignProvider, err = stage.capturePhysicalForeignKeyProvider(op, r.pairedPhysical.repairs[0].relation, r.historicalRefs)
 				if err != nil {
 					return err
 				}
-				if pairedPhysical.primary == nil {
-					deferredPhysical = pairedPhysical
-					deferredPhysical.ownerDirective = false
+				if r.pairedPhysical.primary == nil {
+					r.deferredPhysical = r.pairedPhysical
+					r.deferredPhysical.ownerDirective = false
 				}
-				pairedPhysical = nil
+				r.pairedPhysical = nil
 			}
-			pairedNotNull = restoredNotNull{}
+			r.pairedNotNull = restoredNotNull{}
 			continue
 		case *parser.Insert:
 			if len(s.With) != 0 {
@@ -513,23 +495,23 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		default:
 			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
-		if insertion, ok := stmt.(*parser.Insert); ok && len(generationRepairs) != 0 {
-			generationRepairs, err = stage.closeRestoredRecipesForData(op, insertion, generationRepairs)
+		if insertion, ok := stmt.(*parser.Insert); ok && len(r.generationRepairs) != 0 {
+			r.generationRepairs, err = stage.closeRestoredRecipesForData(op, insertion, r.generationRepairs)
 			if err != nil {
 				return err
 			}
 		}
 		if _, ownerDirective := stmt.(*parser.SessionAuthorization); !ownerDirective {
-			pairedNotNull = restoredNotNull{}
+			r.pairedNotNull = restoredNotNull{}
 		}
-		if alteration, ok := stmt.(*parser.AlterTable); physicalConstructor == nil && ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetNotNull {
-			pairedNotNull, err = stage.pairRestoredNotNull(op, alteration, notNullOrigins)
+		if alteration, ok := stmt.(*parser.AlterTable); r.cur.physicalConstructor == nil && ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetNotNull {
+			r.pairedNotNull, err = stage.pairRestoredNotNull(op, alteration, r.notNullOrigins)
 			if err != nil {
 				return err
 			}
 		}
 		if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetExpression {
-			if err := stage.pairRestoredGeneration(op, alteration, placeholderOrigins); err != nil {
+			if err := stage.pairRestoredGeneration(op, alteration, r.placeholderOrigins); err != nil {
 				return err
 			}
 		}
@@ -603,13 +585,13 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if err := stage.beginPartitionUniqueReplay(op, alteration); err != nil {
 				return err
 			}
-			if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && operationReplayOrZero(op).partitionUnique == nil && physicalConstructor == nil {
+			if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && operationReplayOrZero(op).partitionUnique == nil && r.cur.physicalConstructor == nil {
 				return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
 			}
 		}
 		var result Result
 		if insertion, ok := stmt.(*parser.Insert); ok {
-			if record, paired := domainReplayPairs[insertion]; paired {
+			if record, paired := r.domainReplayPairs[insertion]; paired {
 				result, err = stage.executeDomainReplayInsert(op, insertion, record)
 			} else {
 				result, err = stage.Execute(op, stmt, 0, nil)
@@ -633,24 +615,24 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if err != nil {
 			return err
 		}
-		if physicalConstructor != nil {
-			pairedPhysical, err = stage.capturePhysicalNotNullConstructor(op, physicalConstructor, physicalIndexes)
+		if r.cur.physicalConstructor != nil {
+			r.pairedPhysical, err = stage.capturePhysicalNotNullConstructor(op, r.cur.physicalConstructor, r.physicalIndexes)
 			if err != nil {
 				return err
 			}
 		}
-		if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && pairedPhysical == nil && (alteration.Actions[0].Action == parser.AddUnique || alteration.Actions[0].Action == parser.AddUsingIndex) {
-			physicalForeignProvider, err = stage.capturePhysicalForeignKeyProvider(op, alteration.Name, historicalRefs)
+		if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && r.pairedPhysical == nil && (alteration.Actions[0].Action == parser.AddUnique || alteration.Actions[0].Action == parser.AddUsingIndex) {
+			r.physicalForeignProvider, err = stage.capturePhysicalForeignKeyProvider(op, alteration.Name, r.historicalRefs)
 			if err != nil {
 				return err
 			}
-			if physicalForeignProvider != nil && physicalConstructor != nil && physicalConstructor.competing {
-				physicalForeignProvider.permuted = true
+			if r.physicalForeignProvider != nil && r.cur.physicalConstructor != nil && r.cur.physicalConstructor.competing {
+				r.physicalForeignProvider.permuted = true
 			}
 		}
 		if creation, ok := stmt.(*parser.CreateIndex); ok {
-			if index := stage.capturePhysicalImportIndex(physicalIndexBase, creation, historicalRefs); index != nil {
-				physicalIndexes[index.Address()] = index
+			if index := stage.capturePhysicalImportIndex(r.cur.physicalIndexBase, creation, r.historicalRefs); index != nil {
+				r.physicalIndexes[index.Address()] = index
 			}
 		}
 		if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default {
@@ -662,24 +644,24 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if roleErr != nil {
 				return roleErr
 			}
-			if actor.Superuser && priorAuthorization != (authorization.PrincipalRef{}) && priorAuthorization != actor.Ref {
-				createOwner = priorAuthorization
+			if actor.Superuser && r.cur.priorAuthorization != (authorization.PrincipalRef{}) && r.cur.priorAuthorization != actor.Ref {
+				r.createOwner = r.cur.priorAuthorization
 			}
-			lastAuthorization = actor.Ref
+			r.lastAuthorization = actor.Ref
 		}
-		if _, domain := stmt.(*parser.CreateDomain); domain && ownerForCreate != (authorization.PrincipalRef{}) && result.created != (ids.ObjectRef{}) {
-			pairedDomainOwner, err = stage.captureRestoredDomainOwner(op, result.created, ownerForCreate)
+		if _, domain := stmt.(*parser.CreateDomain); domain && r.cur.ownerForCreate != (authorization.PrincipalRef{}) && result.created != (ids.ObjectRef{}) {
+			r.pairedDomainOwner, err = stage.captureRestoredDomainOwner(op, result.created, r.cur.ownerForCreate)
 			if err != nil {
 				return err
 			}
 		}
 		if creation, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
-			historicalRefs[result.created.Address] = result.created
-			captureHistoricalRelation(stage.CatalogRead(), result.created, historicalAuthority.facts)
-			stage.captureRestoredNotNulls(result.created, creation, notNullOrigins)
-			stage.captureRestoredPlaceholders(result.created, creation, placeholderOrigins)
-			if ownerForCreate != (authorization.PrincipalRef{}) && len(creation.Parents) != 0 {
-				pairedOwner, err = stage.captureInheritedOwner(op, result.created, ownerForCreate)
+			r.historicalRefs[result.created.Address] = result.created
+			captureHistoricalRelation(stage.CatalogRead(), result.created, r.historicalAuthority.facts)
+			stage.captureRestoredNotNulls(result.created, creation, r.notNullOrigins)
+			stage.captureRestoredPlaceholders(result.created, creation, r.placeholderOrigins)
+			if r.cur.ownerForCreate != (authorization.PrincipalRef{}) && len(creation.Parents) != 0 {
+				r.pairedOwner, err = stage.captureInheritedOwner(op, result.created, r.cur.ownerForCreate)
 				if err != nil {
 					return err
 				}
@@ -688,14 +670,14 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if alteration, altered := stmt.(*parser.AlterTable); altered && slices.ContainsFunc(alteration.Actions, func(a parser.AlterTableAction) bool {
 			return a.Action == parser.AddCheck || a.Action == parser.AddNotNull || a.Action == parser.SetNotNull
 		}) {
-			stage.captureHistoricalFacts(historicalRefs, historicalAuthority.facts)
+			stage.captureHistoricalFacts(r.historicalRefs, r.historicalAuthority.facts)
 		}
-		if result.created != (ids.ObjectRef{}) && len(pending.definitions) != 0 {
-			pending.child = result.created
-			if err := stage.resolveRestoredForeignKeyTargets(&pending); err != nil {
+		if result.created != (ids.ObjectRef{}) && len(r.cur.pending.definitions) != 0 {
+			r.cur.pending.child = result.created
+			if err := stage.resolveRestoredForeignKeyTargets(&r.cur.pending); err != nil {
 				return err
 			}
-			pendingForeignKeys = append(pendingForeignKeys, pending)
+			r.pendingForeignKeys = append(r.pendingForeignKeys, r.cur.pending)
 		}
 		if alteration, ok := stmt.(*parser.AlterTableDefault); ok {
 			if err := stage.validateRestoredDefault(op, alteration); err != nil {
@@ -707,20 +689,20 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if captureErr != nil {
 				return captureErr
 			}
-			generationRepairs = append(generationRepairs, record)
-			delete(placeholderOrigins, restoredGenerationKey{record.ref.Address, record.attribute})
+			r.generationRepairs = append(r.generationRepairs, record)
+			delete(r.placeholderOrigins, restoredGenerationKey{record.ref.Address, record.attribute})
 		}
 	}
-	if pairedPhysical != nil {
+	if r.pairedPhysical != nil {
 		return sqlError("0A000", restorePhysicalNotNullBoundary)
 	}
-	if err := stage.bindRestoredForeignKeys(ctx, op, pendingForeignKeys); err != nil {
+	if err := stage.bindRestoredForeignKeys(ctx, op, r.pendingForeignKeys); err != nil {
 		return err
 	}
-	if err := stage.importExtensionOwners(ctx, op, extensionOwners); err != nil {
+	if err := stage.importExtensionOwners(ctx, op, r.extensionOwners); err != nil {
 		return err
 	}
-	if err := stage.importMaterializedSnapshots(ctx, op, snapshots); err != nil {
+	if err := stage.importMaterializedSnapshots(ctx, op, r.snapshots); err != nil {
 		return err
 	}
 	if err := stage.validateRestoredSQLRoutines(ctx, op); err != nil {
