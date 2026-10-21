@@ -492,6 +492,5 @@ Outstanding aliases: none yet.
   moves with the materialized snapshot records.
 - `typedef`: `typed_inheritance.go`'s clean part moves here, not to
   `typedef` (it uses `columnTransformation`).
-- `analyze` (12f): `closedRegclassDefault` (`serial.go`, used by
-  `defaultReplayDeferrable`) belongs next to `analyze.ClosedSequenceDefault`
-  (sequence notes).
+- `analyze` (12f, done): `closedRegclassDefault` (used by
+  `defaultReplayDeferrable`) is now `analyze.ClosedRegclassDefault`.

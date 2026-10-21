@@ -119,7 +119,7 @@ are used only by `expression_retag.go`; they move here, not to `exec`.
 | `view.go` | `viewDefinition`, `viewLeaf`, `viewOptions`, `validateNamespaces`, `namespaceRoot` | CREATE VIEW handling (step 27) |
 | `scalar_function_sql.go` | `scalarRenderer.scalarFunctionSQL` | `literalSQL` (in `catalog_literal.go` since 21a) goes to `regobj` (21b) |
 | `foreign_key_lifecycle.go` | `pgRenderer.foreignKeyConstraintSQL`, `foreignKeyConstraintSQLWithPrimary`, `foreignKeyActionSQL` | FK lifecycle (step 24) |
-| `query_graph.go` | nothing: analyze 12f (item 77) moves the whole file first; the set calls `analyze`'s exported names | — |
+| `query_graph.go` | nothing: analyze 12f (item 77) moved the whole file (`analyze.CollectQueryFrames`, ...); the set calls `analyze`'s exported names | — |
 | `view_write.go` | `viewWriteShape`, `viewDirectColumn`, `sameViewRelation` | view-write lowering (step 27) |
 | `unique.go` | `pgRenderer.uniqueConstraintSQL` | unique enforcement (step 23) |
 | `policy.go`, `policy_payload.go` | `policyExpression`, `policyExpressionOf`, its `DependsOn` and `Validate` | policy DDL (step 27) |

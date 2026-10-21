@@ -902,7 +902,8 @@ pipeline, the 12d.4 `frontier` and the 11a `reach`.
 Notes for later steps:
 
 - 12f/22b: `query_preflight.go` and `query_set_preflight.go` can follow
-  once `pruneProjectWindows` (12f), `ruleQueryProducerDemand` and
+  once `pruneProjectWindows` (12f; done, now `analyze.PruneProjectWindows`),
+  `ruleQueryProducerDemand` and
   `storedProjectionDemand*` (22b) and `mapBoundExpressionReader` (retag)
   have owners that `analyze` can call; until then `exec` reaches them
   through `Preparation.PreflightQuery`.
