@@ -60,10 +60,6 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 	return fmt.Errorf("stuntgres: cyclic partition index hierarchy")
 }
 
-func partitionIndexPromotionPath(view catalog.Read, start, target ids.ObjectAddress) bool {
-	return (&dropProvider{base: view}).partitionIndexPromotionPath(start, target)
-}
-
 func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.ObjectAddress) bool {
 	for remaining := provider.descriptorCount(); start != (ids.ObjectAddress{}) && remaining > 0; remaining-- {
 		if start == target {

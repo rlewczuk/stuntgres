@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
@@ -64,14 +65,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			return fail(sqlError("0A000", "partial concurrent indexes are unsupported"))
 		}
 		if len(s.Options) != 0 {
-			method := catalog.BtreeMethod
-			if s.Method == "hash" {
-				method = catalog.HashMethod
-			}
-			if s.Method == "gist" {
-				method = catalog.GistMethod
-			}
-			if err := index.ValidateIndexReloptions(s.Options, method, false); err != nil {
+			if err := index.ValidateIndexReloptions(s.Options, index.MethodOf(s.Method), false); err != nil {
 				return fail(err)
 			}
 		}
@@ -96,7 +90,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 					break
 				}
 			}
-			name = generatedRelationName(parent.Name(), addition.String(), "idx", func(n string) bool {
+			name = ddl.GeneratedRelationName(parent.Name(), addition.String(), "idx", func(n string) bool {
 				_, ok := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: n})
 				return ok
 			})

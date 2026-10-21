@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
@@ -115,7 +116,7 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 				}
 				constraints = catalog.ConstraintNames(read, destination.Namespace(), destination)
 			}
-			name := generatedRelationName(destination.Name(), strings.Join(labels, "_"), label, func(name string) bool {
+			name := ddl.GeneratedRelationName(destination.Name(), strings.Join(labels, "_"), label, func(name string) bool {
 				return constraints[name] || name == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: name})) != 0
 			})
 			oid, err := e.catalog.allocateOIDLocked()

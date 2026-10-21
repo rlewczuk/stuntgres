@@ -124,3 +124,26 @@ func ValidateIndexMethod(s *parser.CreateIndex) error {
 		return sqlError("42704", fmt.Sprintf(`access method "%s" does not exist`, s.Method))
 	}
 }
+
+// MethodOf maps a CREATE INDEX access method name to its method. Names that
+// ValidateIndexMethod rejects never reach it; anything else is B-tree.
+func MethodOf(name string) catalog.IndexMethod {
+	switch name {
+	case "hash":
+		return catalog.HashMethod
+	case "gist":
+		return catalog.GistMethod
+	}
+	return catalog.BtreeMethod
+}
+
+// RejectVirtualUses rejects an index that reads a virtual generated column
+// through any of slots.
+func RejectVirtualUses(parent *catalog.Relation, slots []int) error {
+	for _, slot := range slots {
+		if definition, ok := parent.ColumnMeta.Generations[parent.Attributes[slot]]; ok && definition.Kind == catalog.GenerationVirtual {
+			return sqlError("0A000", "indexes on virtual generated columns are not supported")
+		}
+	}
+	return nil
+}

@@ -54,7 +54,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 		}
 		for _, constraint := range parent.Constraints.NotNull {
 			if constraint.NotValid && slices.Contains(captured.Attributes, constraint.Attribute) {
-				prepared.Err = table.IncompatibleNotValid(constraint.Name, parent.Name())
+				prepared.Err = index.IncompatibleNotValid(constraint.Name, parent.Name())
 				return prepared, nil
 			}
 		}

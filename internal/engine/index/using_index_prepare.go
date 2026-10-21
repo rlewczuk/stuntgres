@@ -49,3 +49,11 @@ type UsingIndexPreparation struct {
 	Notice             sqlstate.Error
 	Err                error
 }
+
+// IncompatibleNotValid reports a NOT VALID NOT NULL constraint that blocks a
+// primary key or a NOT NULL change.
+func IncompatibleNotValid(name, table string) error {
+	diagnostic := sqlError("55000", fmt.Sprintf(`incompatible NOT VALID constraint "%s" on relation "%s"`, name, table)).(*sqlstate.Error)
+	diagnostic.Hint = "You might need to validate it using ALTER TABLE ... VALIDATE CONSTRAINT."
+	return diagnostic
+}

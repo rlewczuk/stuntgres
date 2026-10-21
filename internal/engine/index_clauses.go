@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -111,13 +110,7 @@ func (e *Engine) validateSystemIndexKey(op *session.Operation, auth Authorizatio
 
 func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
-	d := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
-	if s.Method == "hash" {
-		d.Method = catalog.HashMethod
-	}
-	if s.Method == "gist" {
-		d.Method = catalog.GistMethod
-	}
+	d := &catalog.IndexDefinition{Method: index.MethodOf(s.Method), Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
 	columns := make([]catalog.Column, total)
 	attributes := make([]int32, total)
 	lookup := make(map[string]int, total)
@@ -176,7 +169,7 @@ func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputE
 			if !exists {
 				return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Column.Text)))
 			}
-			if err := table.RejectVirtualIndexUses(parent, []int{slot}); err != nil {
+			if err := index.RejectVirtualUses(parent, []int{slot}); err != nil {
 				return fail(err)
 			}
 			columns[i] = parent.Columns[slot]
