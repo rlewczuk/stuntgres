@@ -6,14 +6,14 @@ transforms, the foreign write protocol, the foreign transaction
 participants and the pure helpers of WRAPPER, SERVER, USER MAPPING, IMPORT
 FOREIGN SCHEMA, GRANT and foreign-table DDL. Step 26 of the engine split
 created it (26b moved the clean set, 26d the WRAPPER, SERVER, USER MAPPING,
-IMPORT and GRANT decisions; 26e moves the foreign-table decisions).
+IMPORT and GRANT decisions, 26e the foreign-table decisions).
 The package is an upper feature at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `authorization`, `catalog`, `ddl`, `exec`, `expr`,
-`ids`, `plan`, `parser`, `session`, `sqlstate`, `sqltype` and the standard
-library, and never
-the engine, `dml`, `table` or another upper feature. The engine and the
-driver import it. See
+`ids`, `plan`, `parser`, `session`, `sqlstate`, `sqltype`, `table` (CREATE
+FOREIGN TABLE stages through `table.StageCreateTable`) and the standard
+library, and never the engine, `dml` or another upper feature. `table`
+never imports it. The engine and the driver import it. See
 [ENGINE-SPLIT-fdw.md](../../../docs/ENGINE-SPLIT-fdw.md).
 
 ## What it owns
@@ -51,14 +51,25 @@ driver import it. See
   syntax checks (`CheckTableDeclaration`, `TableSyntax`, `AlterAdmission`)
   and scan requests (`ScanRequest`, `RequiredAttributes`).
 - **DDL decisions** (`host.go`, `stage.go`, `stage_drop.go`, `handler.go`,
-  `grant.go`, `import.go`). `Host` is `ddl.Host` plus `AddDomainBase`,
-  `RemoveObject` and `StageForeignTable`; the engine's one staging adapter
-  `ddlHost` implements it. `StageDDL` stages CREATE, ALTER and DROP of
+  `grant.go`, `import.go`, `table_stage.go`, `table_alter.go`). `Host` is
+  `table.Host` (and through it `ddl.Host` and `AddDomainBase`) plus
+  `RemoveObject` and the utility `ResolveRelation`; the engine's one
+  staging adapter `ddlHost` implements it. `StageDDL` stages CREATE, ALTER and DROP of
   wrappers, servers and user mappings in today's order (actor, owner
   operand, wrapper superuser gate, the foreign-table route, then the drop or
   definition path with its IF [NOT] EXISTS notices, HANDLER/VALIDATOR
   resolution, options, rename, ownership change and the two ALTER WRAPPER
   warnings) and returns the validator jobs and the dropped roots.
+  `StageTable` stages CREATE FOREIGN TABLE (namespace and CREATE, name
+  conflict, server USAGE, declaration checks, `table.StageCreateTable`,
+  the foreign definition, options and one validator job for the table and
+  each column) and DROP FOREIGN TABLE (IF EXISTS notices, kind and owner
+  checks, removal); IMPORT stages each table through it too. ALTER FOREIGN
+  TABLE's decisions are `AlterTarget` (resolution, IF EXISTS notice, kind,
+  admission reference and owner), `AlterBases` (server and wrapper as
+  observed dependencies), `AlterCandidate` (the working copy),
+  `AlterColumn`, `AlterOptions`, `CheckAddedColumn`, `AddedColumnOptions`
+  and `UnsupportedAlter`.
   `PlanImport` decides IMPORT FOREIGN SCHEMA up to the importer callback and
   records the server, wrapper, mapping, handler and local schema as observed
   dependencies; `ImportSelected` applies LIMIT TO/EXCEPT and `ImportedTable`
@@ -94,10 +105,12 @@ stages, releases `replacementMu` before callbacks and publishes:
 `executeForeignImport` (the importer callback, the per-table relock,
 re-authorization and epoch check, provider acquisition) and
 `executeForeignGrant` (the journal clone, emitting the warnings and
-`catalogChangeLocked` per change). The foreign-table staging and ALTER
-(`stageForeignTableLocked`, `executeForeignTableAlter`,
-`stageForeignValidatorJob`) stay until 26e, which also removes
-`Host.StageForeignTable`; `InstallForeignDefinitions`
+`catalogChangeLocked` per change); `executeForeignTableAlter` (the
+OWNER, RENAME and SET SCHEMA routes to the shared relation executors, the
+stage, the phased action loop with its context checks and lock windows,
+the table candidates through the engine's ALTER wrappers, DROP COLUMN,
+whose candidate waits on locks, the CHECK capture and rebind, OIDs,
+validations and publication); `InstallForeignDefinitions`
 and `RegistrationError`; scan capture (`captureForeignSourceLocked`) and
 participant enlistment (`enlistForeign`, `TouchForeignScan`), which need the
 statement scope; the commit and savepoint call sites; and the scope slot
@@ -116,9 +129,9 @@ make check RUN='^TestReferenceObjectGrant'
 
 The first selection runs this package's unit tests (`TestFDWModifyIdentity`,
 `TestFDWOptionsTransform`, `TestFDWValidateDefinitions`,
-`TestFDWImportSelected`) and the engine's FDW unit tests, which need an
+`TestFDWImportSelected`, `TestFDWAlterCandidate`) and the engine's FDW unit tests, which need an
 `Engine` and stay in `internal/engine` (`fdw_*_test.go`, including the
-`Host` seam test `TestFDWHostStageForeignTable`,
+`StageTable` test `TestFDWStageTable`,
 `transaction_extension_test.go`). `^TestReferenceObjectGrant` covers the
 GRANT warnings `PlanGrant` shares through `authorization.GrantWarning`. Add `RACE=1` for the
 participant tests, and `REFERENCE=1` to the reference selections for the

@@ -477,6 +477,54 @@ root wrappers build `alterHost{ddlHost{e, op, stage}, scope}` and take
 `bindColumnChecks(altering)` calls hold `Engine.mu` themselves (that
 binding no longer locks per CHECK).
 
+**26e refine (measured at `6c19d97d0`).** The move set differs from the
+24c sketch in two ways:
+
+- **The ALTER FOREIGN TABLE action loop stays in the root**, like ALTER
+  TABLE's after 24d.2. Its DROP COLUMN candidate goes through the engine's
+  `dropProvider`, which takes `Engine.mu` itself and waits on lock
+  acquisition, so the loop cannot run inside one host call.
+- **The root ALTER wrappers stay** (`addColumnCandidate`,
+  `generationCandidate`, `prepareAlterTypeLocked`, `alterTypeCandidate`,
+  `rebindAlterTypeChecks`, `cookAlterDefaultLocked`): ALTER TABLE, typed
+  mutation and engine tests share them, and each builds the `alterHost` and
+  owns its lock window. Calling the `table` functions directly from the
+  foreign loop would duplicate that. The forwarders 26e drops are the
+  fdw-only ones: `Host.StageForeignTable` (and `ddlHost`'s method), the root
+  `stageForeignValidatorJob`, and `schemaNotice`'s two FDW uses.
+
+Everything else needs no new engine edge: `index.Host` already carries
+`ddl.Host` and `AddDomainBase`, `table.Host` embeds it, and `ddlHost`
+already has `RemoveObject` (`ddl.SchemaHost`) and the utility
+`ResolveRelation` (`role.Host`, `resolveRelationReference(…, true)`).
+`schemaNotice` is `ddl.Notice`; `op.ExistingRelationNotice` is
+`EmitNotice` of `session.ExistingRelation`. Decisions:
+
+1. `fdw.Host` = `table.Host` + `RemoveObject` + `ResolveRelation`;
+   `StageForeignTable` goes. `fdw` imports `table` (a new L12 arrow
+   `table` → `fdw`; `table` never imports `fdw`).
+2. `StageTable(h, auth, s, input)` (`table_stage.go`) is
+   `stageForeignTableLocked`; `StageDDL` and the root IMPORT call it.
+3. ALTER (`table_alter.go`): `AlterTarget` (resolution, IF EXISTS notice,
+   42809, admission reference, owner), `AlterBases` (server and wrapper as
+   observed dependencies; the root now begins the stage first, which has no
+   side effects), `AlterCandidate`, `AlterColumn` (the shared 42703),
+   `AlterOptions`, `CheckAddedColumn`, `AddedColumnOptions`,
+   `UnsupportedAlter`. The OPTIONS and added-column validator jobs read the
+   stage base and record a domain base through the host, so the root holds
+   `Engine.mu` around them (stage-private work, no wait).
+4. The root keeps `executeForeignTableAlter`'s orchestration: the lock,
+   `authorizationLocked`, the OWNER, RENAME and SET SCHEMA routes, the stage,
+   the phased loop with context checks, the candidates through its wrappers,
+   DROP COLUMN, CHECK capture and rebind, revision and OIDs, `Replace`,
+   providers, the `replacementMu` release, validations and publication.
+
+Commits: (1) `StageTable` with the seam test rewritten first and observed
+failing (`TestFDWStageTable` replaces `TestFDWHostStageForeignTable`);
+(2) the ALTER decisions with `TestFDWAlterCandidate`; (3) docs. The code is
+small, so it was written into `fdw` directly rather than ported in place
+and moved with `movex`; string literals were checked as a multiset.
+
 ## Invariants
 
 - **Callbacks never run under `Engine.mu` or `replacementMu`.** Scan,
@@ -621,7 +669,24 @@ pass.
   `^TestReferenceObjectACLDatabase$` in quick and `REFERENCE=1` mode, and
   quickcheck; racecheck/finalcheck skipped at user request; bench not run
   (no startup or hot-path change).
-- [ ] 26e — Foreign-table decisions moved (after 24d)
+- [x] 26e — Foreign-table decisions moved (`10443e154`, `739267fa4`, then
+  the docs commit). Follow the 26e refine above. `fdw.Host` embeds
+  `table.Host` and adds `ResolveRelation`; `StageForeignTable`, the root
+  `stageForeignTableLocked` and `stageForeignValidatorJob` are gone.
+  Moved into `fdw`: `StageTable` (`table_stage.go`), `AlterTarget`,
+  `AlterBases`, `AlterCandidate`, `AlterColumn`, `AlterOptions`,
+  `CheckAddedColumn`, `AddedColumnOptions` and `UnsupportedAlter`
+  (`table_alter.go`). The root keeps `executeForeignTableAlter`'s loop and
+  orchestration and the shared ALTER wrappers. No aliases. String literals
+  unchanged as a multiset except that the two identical 42703 lookups share
+  `AlterColumn`. Tests: `TestFDWHostStageForeignTable` became
+  `TestFDWStageTable` (calls `fdw.StageTable`, same assertions; observed
+  failing first); added `TestFDWAlterCandidate` (`fdw/table_alter_test.go`).
+  Verified with `^(TestFDW|TestOwnerExtension)` (also `RACE=1`),
+  `^Test(AlterAddColumn|AlterGeneration)`, `^TestReferenceFDW` and
+  `^TestReferenceDumpRoundTrip$` in quick and `REFERENCE=1` mode, and
+  quickcheck; racecheck/finalcheck skipped at user request; bench not run
+  (no startup or hot-path change).
 
 Outstanding aliases: none yet.
 
@@ -657,11 +722,11 @@ Outstanding aliases: none yet.
 - 26d: follow the 26c refine above. The decisions use the moved helpers
   (`fdw.Find`, `fdw.MappingAuthority`, `fdw.ValidatorJob`, ...). Role 28b
   already moved `grantWarning` to `authorization.GrantWarning`.
-- 26e: `fdw.Host.StageForeignTable` and the root `stageForeignValidatorJob`
-  exist only for the foreign-table path (`fdw.stageValidatorJob` is the
-  host form of the latter); 26e replaces both when
-  `stageForeignTableLocked` and `executeForeignTableAlter` move, and drops
-  `schemaNotice`'s last FDW users.
+- 26e (done): `Host.StageForeignTable` and the root
+  `stageForeignValidatorJob` are gone; `schemaNotice` has no FDW users.
+- 26e for the end-state review (114): `executeForeignTableAlter` stays in
+  the root on purpose (see the 26e refine); it calls the shared root ALTER
+  wrappers, as ALTER TABLE does.
 - 29b: `foreignTargetRows` (`fdw_execute.go`) is the engine function that
   replaced `foreignModification.targetRows`; it moves to `dml` with the
   rest of foreign DML execution and reads `fdw.Modification.Source` and
