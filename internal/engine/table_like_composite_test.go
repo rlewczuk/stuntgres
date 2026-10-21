@@ -91,7 +91,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		t.Fatal("inapplicable composite providers invented")
 	}
 	capturedRelation, capturedType := false, false
-	for _, descriptor := range stage.likeSources {
+	for _, descriptor := range stage.tableOrZero().likeSources {
 		capturedRelation = capturedRelation || descriptor == source
 	}
 	for _, descriptor := range stage.domainBases {

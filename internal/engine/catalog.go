@@ -377,7 +377,7 @@ type CatalogStage struct {
 	initialTables    map[ids.ObjectAddress]*storage.Relation
 	initialTx        ids.TxRef
 	querySources     []catalog.Descriptor
-	likeSources      []catalog.Descriptor // CREATE-only exact descriptor captures, not dependencies.
+	tableSlot        *tableStage
 	indexesSlot      *indexStage
 	materializedSlot *materializedStage
 }

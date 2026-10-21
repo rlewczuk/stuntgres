@@ -21,19 +21,20 @@ func remapLikeExpression(in *analyze.LikeInput, node expr.Expr, destination *cat
 }
 
 func (s *CatalogStage) captureLikeSource(source catalog.Descriptor) {
-	if !slices.Contains(s.likeSources, source) {
-		s.likeSources = append(s.likeSources, source)
+	if table := s.table(); !slices.Contains(table.likeSources, source) {
+		table.likeSources = append(table.likeSources, source)
 	}
 }
 
 func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
-	if len(s.likeSources) == 0 {
+	sources := s.tableOrZero().likeSources
+	if len(sources) == 0 {
 		return nil
 	}
 	if current.Epoch() != s.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	for _, source := range s.likeSources {
+	for _, source := range sources {
 		address := source.Address()
 		if original, incumbent := s.Base.Find(address); incumbent {
 			if original != source || current.Get(address) != source {

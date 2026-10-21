@@ -182,7 +182,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			}
 		}
 	}
-	for _, sources := range [][]catalog.Descriptor{s.likeSources, domainBases} {
+	for _, sources := range [][]catalog.Descriptor{s.tableOrZero().likeSources, domainBases} {
 		for _, d := range sources {
 			observed := s.Base.Get(d.Address())
 			if observed != nil {
