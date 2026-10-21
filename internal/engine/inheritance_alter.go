@@ -18,6 +18,8 @@ type inheritanceAlterState struct {
 	inheritanceAlterPlan
 	stage   *CatalogStage
 	changes *session.Journal
+	// prepared holds the root's prepared nodes, keyed by relation.
+	prepared map[ids.ObjectAddress]*inheritancePreparedNode
 }
 
 // inheritanceAlterPlan is the statement's recursion plan: the ordered targets,
@@ -35,7 +37,6 @@ type inheritanceAlterPlan struct {
 	validating map[string]bool
 	preparing  bool
 	definition inheritanceDefinitionReader
-	prepared   map[ids.ObjectAddress]*inheritancePreparedNode
 	tablespace ids.ObjectRef          // Prepared root-only destination; never propagated.
 	types      []alterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
 }

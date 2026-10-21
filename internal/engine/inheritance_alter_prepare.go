@@ -89,7 +89,7 @@ phases:
 				if err == nil {
 					next = step.drop.next
 					prior = step.drop
-					reader.appendDrop(step.drop)
+					reader.appendDelta(step.drop)
 				}
 			case parser.AddColumn:
 				next, step.added, err = e.addColumnCandidate(scope, op, auth, next, action, nil)
@@ -102,7 +102,7 @@ phases:
 				step.identity, err = e.prepareIdentityDropDefinition(scope, auth, next, action)
 				if err == nil {
 					next = step.identity.next
-					reader.appendIdentity(step.identity)
+					reader.appendDelta(step.identity)
 				}
 			default:
 				// These providers require preparatory all-closure grants and therefore
@@ -143,7 +143,7 @@ phases:
 			if prepared.afterDrop != nil {
 				next = prepared.afterDrop.next
 				prior = prepared.afterDrop
-				reader.appendDrop(prepared.afterDrop)
+				reader.appendDelta(prepared.afterDrop)
 			}
 		}
 		if prepared.phaseZeroOnly {

@@ -871,6 +871,29 @@ func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.De
 	return p.readInputDescriptor(address)
 }
 
+// DefinitionDelta reports only the prepared drop's own descriptor effects.
+func (prepared *preparedDrop) DefinitionDelta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
+	if slot := prepared.slots[address]; slot.descriptor != 0 {
+		if slot.removed {
+			return nil, false, true
+		}
+		effect := prepared.effects[slot.descriptor-1]
+		if effect.after != nil {
+			return effect.after, true, true
+		}
+		return effect.descriptor, effect.descriptor != nil, true
+	}
+	return nil, false, false
+}
+
+// LayoutDelta reports only the prepared drop's own index layout effects.
+func (prepared *preparedDrop) LayoutDelta(address ids.ObjectAddress) (index.LayoutLineage, bool) {
+	if slot := prepared.slots[address]; slot.layout != 0 {
+		return *prepared.effects[slot.layout-1].layout, true
+	}
+	return index.LayoutLineage{}, false
+}
+
 func (prepared *preparedDrop) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	provider := &dropProvider{base: prepared.base, prepared: prepared}
 	return provider.IndexLayout(address)

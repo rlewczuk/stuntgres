@@ -8,13 +8,20 @@ import (
 	"stuntgres/internal/engine/index"
 )
 
+// definitionDelta is one prepared provider result the reader overlays (a
+// prepared column drop or identity drop). It reports only real effects; the
+// reader owns fallback to its base and resolution observations.
+type definitionDelta interface {
+	DefinitionDelta(ids.ObjectAddress) (descriptor catalog.Descriptor, present, handled bool)
+	LayoutDelta(ids.ObjectAddress) (index.LayoutLineage, bool)
+}
+
 // Each link is an actual provider result, never a reconstructed candidate
 // catalog. Readers retain the exact base captured for that cooking invocation.
 type inheritanceDefinitionEffect struct {
 	previous   *inheritanceDefinitionEffect
 	descriptor catalog.Descriptor
-	identity   *preparedIdentityDrop
-	drop       *preparedDrop
+	delta      definitionDelta
 }
 type inheritanceDefinitionObservations struct {
 	descriptors map[ids.ObjectAddress]catalog.Descriptor
@@ -43,21 +50,9 @@ func (r inheritanceDefinitionReader) Descriptor(address ids.ObjectAddress) (cata
 		if effect.descriptor != nil && effect.descriptor.Address() == address {
 			return effect.descriptor, true
 		}
-		if effect.identity != nil {
-			if descriptor, present, handled := effect.identity.delta(address); handled {
+		if effect.delta != nil {
+			if descriptor, present, handled := effect.delta.DefinitionDelta(address); handled {
 				return descriptor, present
-			}
-		}
-		if effect.drop != nil {
-			if slot := effect.drop.slots[address]; slot.descriptor != 0 {
-				delta := effect.drop.effects[slot.descriptor-1]
-				if slot.removed {
-					return nil, false
-				}
-				if delta.after != nil {
-					return delta.after, true
-				}
-				return delta.descriptor, delta.descriptor != nil
 			}
 		}
 	}
@@ -110,13 +105,8 @@ func (r inheritanceDefinitionReader) HasSQLProcedureName(name string) bool {
 }
 func (r inheritanceDefinitionReader) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	for effect := r.effects; effect != nil; effect = effect.previous {
-		if effect.drop != nil {
-			if slot := effect.drop.slots[address]; slot.layout != 0 {
-				return *effect.drop.effects[slot.layout-1].layout, true
-			}
-		}
-		if effect.identity != nil {
-			if layout, present := effect.identity.IndexLayout(address); present {
+		if effect.delta != nil {
+			if layout, present := effect.delta.LayoutDelta(address); present {
 				return layout, true
 			}
 		}
@@ -126,11 +116,8 @@ func (r inheritanceDefinitionReader) IndexLayout(address ids.ObjectAddress) (ind
 func (r *inheritanceDefinitionReader) appendDescriptor(descriptor catalog.Descriptor) {
 	r.effects = &inheritanceDefinitionEffect{previous: r.effects, descriptor: descriptor}
 }
-func (r *inheritanceDefinitionReader) appendDrop(drop *preparedDrop) {
-	r.effects = &inheritanceDefinitionEffect{previous: r.effects, drop: drop}
-}
-func (r *inheritanceDefinitionReader) appendIdentity(identity *preparedIdentityDrop) {
-	r.effects = &inheritanceDefinitionEffect{previous: r.effects, identity: identity}
+func (r *inheritanceDefinitionReader) appendDelta(delta definitionDelta) {
+	r.effects = &inheritanceDefinitionEffect{previous: r.effects, delta: delta}
 }
 func (r inheritanceDefinitionReader) validate(view catalog.Read) error {
 	if view.Owner() != r.base.Owner() || view.Epoch() != r.base.Epoch() {
