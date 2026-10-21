@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"slices"
+	"testing"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -11,10 +13,10 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func refreshUnitPrincipals(e *Engine) (authorization.PrincipalRef, authorization.PrincipalRef) {
@@ -129,10 +131,10 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if schema != "pg_catalog" {
 				t.Fatal(schema)
 			}
-			captured, ok := c.Input.Regtype.(capturedRegtypeInput)
-			env, _ := captured.capture.Authority.Environment.(AuthorizationView)
-			if !ok || captured.capture.Authority.View.State.CurrentUser != owner || captured.capture.Authority.View.State.SessionUser != caller || !env.materializedPopulation ||
-				!slices.Equal(captured.capture.Path, []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}) ||
+			captured, ok := c.Input.Regtype.(regobj.TypeInput)
+			env, _ := captured.Authority().Environment.(AuthorizationView)
+			if !ok || captured.Authority().View.State.CurrentUser != owner || captured.Authority().View.State.SessionUser != caller || !env.materializedPopulation ||
+				!slices.Equal(captured.Path(), []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}) ||
 				c.Input.Regclass == nil || c.Input.Regrole == nil || c.Input.Operator == nil || c.Input.Regproc == nil ||
 				c.Input.TypeDiagnosticName != nil || !c.Input.ExactSnapshot {
 				t.Fatal("population did not recapture coherent restricted input", c.Input)
@@ -165,9 +167,9 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 				t.Fatal("population did not evaluate retained routine coercion", id, err)
 			}
 		}
-		restored := scope.input.Regtype.(capturedRegtypeInput)
-		before := beforeInput.Regtype.(capturedRegtypeInput)
-		if restored.capture.Authority.View.State != before.capture.Authority.View.State || !slices.Equal(restored.capture.Path, before.capture.Path) ||
+		restored := scope.input.Regtype.(regobj.TypeInput)
+		before := beforeInput.Regtype.(regobj.TypeInput)
+		if restored.Authority().View.State != before.Authority().View.State || !slices.Equal(restored.Path(), before.Path()) ||
 			scope.input.TypeDiagnosticName == nil || scope.input.TypeDiagnosticName(sqltype.Regprocedure) != "caller-naming" ||
 			scope.input.ExactSnapshot != beforeInput.ExactSnapshot {
 			t.Fatal("population leaked input context")

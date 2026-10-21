@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -8,17 +8,20 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 )
 
-type capturedRegTSInput struct {
-	capture   regobj.InputCapture
+type TextSearchInput struct {
+	capture   InputCapture
 	qualified *[]ids.ObjectAddress
 	resolved  *[]catalog.ExpressionDependency
 }
 
-func (r capturedRegTSInput) name(ctx context.Context, text string) ([]parser.Identifier, string, error) {
+// NewTextSearchInput returns the regconfig and regdictionary resolver over c;
+// c.Path is the text-search path, which excludes TEMP.
+func NewTextSearchInput(c InputCapture) TextSearchInput { return TextSearchInput{capture: c} }
+
+func (r TextSearchInput) name(ctx context.Context, text string) ([]parser.Identifier, string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, "", err
 	}
@@ -43,13 +46,13 @@ func (r capturedRegTSInput) name(ctx context.Context, text string) ([]parser.Ide
 	}
 	return parts, spelling, nil
 }
-func (r capturedRegTSInput) ResolveRegconfig(ctx context.Context, text string) (uint32, error) {
+func (r TextSearchInput) ResolveRegconfig(ctx context.Context, text string) (uint32, error) {
 	if _, _, err := r.name(ctx, text); err != nil {
 		return 0, err
 	}
 	return 0, sqlError("0A000", "text search configuration name lookup is not supported")
 }
-func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text string) (uint32, error) {
+func (r TextSearchInput) ResolveRegdictionary(ctx context.Context, text string) (uint32, error) {
 	parts, spelling, err := r.name(ctx, text)
 	if err != nil {
 		return 0, err

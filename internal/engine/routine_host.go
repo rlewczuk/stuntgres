@@ -38,7 +38,7 @@ func (h ddlHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, 
 	if err != nil {
 		return 0, err
 	}
-	id, err := input.resolveParsedTypeName(h.op.Context(), raw, h.op)
+	id, err := input.ResolveParsedTypeName(h.op.Context(), raw, h.op)
 	return ids.OID(id), err
 }
 

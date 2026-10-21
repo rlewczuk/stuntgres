@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -8,25 +8,31 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type capturedOperatorInput struct {
-	types     capturedRegtypeInput
+type OperatorInput struct {
+	types     TypeInput
 	path      []ids.ObjectAddress
 	groups    exec.OperatorGroups
 	qualified *[]ids.ObjectAddress
 	operands  *[]catalog.ExpressionDependency
 }
 
-func (r capturedOperatorInput) OperatorParameter(slot int, empty bool) sqltype.OperatorResolver {
-	r.types = r.types.RegtypeParameter(slot, empty).(capturedRegtypeInput)
+// NewOperatorInput returns the regoper and regoperator resolver: operand
+// types resolve through types, operator names on path over the operator
+// groups of the types' catalog.
+func NewOperatorInput(types TypeInput, path []ids.ObjectAddress) OperatorInput {
+	return OperatorInput{types: types, path: path, groups: CollectOperatorGroups(types.capture.Authority.View.Catalog)}
+}
+
+func (r OperatorInput) OperatorParameter(slot int, empty bool) sqltype.OperatorResolver {
+	r.types = r.types.RegtypeParameter(slot, empty).(TypeInput)
 	return r
 }
-func (r capturedOperatorInput) numeric(ctx context.Context, text string) (uint32, bool, error) {
+func (r OperatorInput) numeric(ctx context.Context, text string) (uint32, bool, error) {
 	if len(text) == 0 {
 		return 0, false, nil
 	}
@@ -43,7 +49,7 @@ func (r capturedOperatorInput) numeric(ctx context.Context, text string) (uint32
 	n, err := v.OID()
 	return n, true, err
 }
-func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, error) {
+func (r OperatorInput) candidates(text string) ([]*catalog.Operator, error) {
 	raw, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return nil, sqlError("42602", "invalid name syntax")
@@ -81,9 +87,9 @@ func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, err
 		}
 		path = []ids.ObjectAddress{ns}
 	}
-	return regobj.VisibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
+	return VisibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
 }
-func (r capturedOperatorInput) ResolveRegoper(ctx context.Context, text string) (uint32, error) {
+func (r OperatorInput) ResolveRegoper(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -102,7 +108,7 @@ func (r capturedOperatorInput) ResolveRegoper(ctx context.Context, text string) 
 	}
 	return uint32(candidates[0].Address().ObjectID), nil
 }
-func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text string) (uint32, error) {
+func (r OperatorInput) ResolveRegoperator(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}

@@ -7,11 +7,13 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -292,7 +294,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	c.state.Output.Regproc, c.state.Output.Regrole, c.state.Output.Operator = nil, nil, nil
 	c.state.Output.Regcollation, c.state.Output.Regnamespace, c.state.Output.RegTS = nil, nil, nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
-	detachCursorInput(&c.state.Input, c.authority)
+	regobj.DetachCursorInput(&c.state.Input, c.authority)
 	c.foreignOwner = s.foreignTablesSlot.takeOwner()
 	bind := s.protocolOrZero().bind
 	bind.producer = c

@@ -75,7 +75,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 		t.Fatal("TEMP text-search path isolation", path)
 	}
 	capture := inputCapture(auth, path)
-	input := capturedRegTSInput{capture: capture}
+	input := regobj.NewTextSearchInput(capture)
 	id, err := input.ResolveRegdictionary(context.Background(), "UNACCENT")
 	if err != nil || id != 91001 {
 		t.Fatal("first-path lookup", id, err)
@@ -140,7 +140,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	}
 	quotedCapture := capture
 	quotedCapture.Authority.View.Recapture(quoted)
-	quotedInput := capturedRegTSInput{capture: quotedCapture}
+	quotedInput := regobj.NewTextSearchInput(quotedCapture)
 	id, err = quotedInput.ResolveRegdictionary(context.Background(), `"Reg.TS".`+strings.Repeat("x", 70))
 	if err != nil || id != 92002 {
 		t.Fatal("identifier byte truncation", id, err)
@@ -302,7 +302,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	}
 	op, actorDone := roleOperation(t, e, "reg_ts_acl_actor")
 	defer actorDone()
-	capture := func() capturedRegTSInput {
+	capture := func() regobj.TextSearchInput {
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
 		e.mu.Unlock()

@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -21,8 +20,8 @@ import (
 
 // Input authority is captured beside the existing regclass authority, not a
 // separate registry. The catalog generation and effective type path are immutable.
-type capturedRegtypeInput struct {
-	capture   regobj.InputCapture
+type TypeInput struct {
+	capture   InputCapture
 	op        *session.Operation
 	authority *exec.Authority
 	position  parser.Position
@@ -31,7 +30,19 @@ type capturedRegtypeInput struct {
 	resolved  *[]catalog.ExpressionDependency
 }
 
-func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (uint32, error) {
+// NewTypeInput returns the regtype resolver over c. Without an execution
+// authority its notices go to op.
+func NewTypeInput(c InputCapture, op *session.Operation) TypeInput {
+	return TypeInput{capture: c, op: op}
+}
+
+// Authority returns the captured read authority.
+func (r TypeInput) Authority() Authority { return r.capture.Authority }
+
+// Path returns the captured type lookup path.
+func (r TypeInput) Path() []ids.ObjectAddress { return r.capture.Path }
+
+func (r TypeInput) ResolveRegtype(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -63,11 +74,11 @@ type typeNotices func(session.NoticeLevel, sqlstate.Error)
 // notices returns where this resolver's notices go: the captured operation
 // without an execution authority, otherwise the authority's current host if
 // it takes notices. The host is read at each call, never at capture.
-func (r capturedRegtypeInput) notices() typeNotices {
+func (r TypeInput) notices() typeNotices {
 	if r.authority == nil {
 		return operationNotices(r.op)
 	}
-	if host, ok := r.authority.Host.(regobj.NoticeHost); ok {
+	if host, ok := r.authority.Host.(NoticeHost); ok {
 		return host.TypeNameNotice
 	}
 	return nil
@@ -82,7 +93,7 @@ func operationNotices(op *session.Operation) typeNotices {
 
 // resolveTypeName resolves decoded SQL type syntax, without the numeric OID and
 // dash shortcuts accepted by whole REGTYPE inputs.
-func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) (uint32, error) {
+func (r TypeInput) resolveTypeName(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -104,11 +115,11 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 // Object-address lists and SQL routine declarations already have positioned
 // type syntax. Reuse captured identity lookup without reparsing text or
 // admitting a use provider. Modifier warnings go to op.
-func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw parser.TypeName, op *session.Operation) (uint32, error) {
+func (r TypeInput) ResolveParsedTypeName(ctx context.Context, raw parser.TypeName, op *session.Operation) (uint32, error) {
 	return r.resolveParsed(ctx, raw, operationNotices(op))
 }
 
-func (r capturedRegtypeInput) resolveParsed(ctx context.Context, raw parser.TypeName, emit typeNotices) (uint32, error) {
+func (r TypeInput) resolveParsed(ctx context.Context, raw parser.TypeName, emit typeNotices) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -246,7 +257,7 @@ func (r capturedRegtypeInput) resolveParsed(ctx context.Context, raw parser.Type
 	return uint32(typ.ID()), nil
 }
 
-func (r capturedRegtypeInput) RegtypeParameter(slot int, empty bool) sqltype.RegtypeResolver {
+func (r TypeInput) RegtypeParameter(slot int, empty bool) sqltype.RegtypeResolver {
 	text := "..."
 	if empty {
 		text = ""

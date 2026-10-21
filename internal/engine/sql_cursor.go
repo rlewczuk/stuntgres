@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -215,7 +217,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	c.state.Output.Regcollation, c.state.Output.Regnamespace = nil, nil
 	c.state.Output.RegTS = nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
-	detachCursorInput(&c.state.Input, c.authority)
+	regobj.DetachCursorInput(&c.state.Input, c.authority)
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}

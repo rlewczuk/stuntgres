@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -7,15 +7,18 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 )
 
 // Namespace input uses only catalog names. Collation input additionally owns an
 // immutable collation path, database name and qualified-schema authorization.
-type capturedRegObjectInput struct{ capture regobj.InputCapture }
+type ObjectInput struct{ capture InputCapture }
 
-func (r capturedRegObjectInput) ResolveRegnamespace(ctx context.Context, input string) (uint32, error) {
+// NewObjectInput returns the regnamespace and regcollation resolver over c;
+// c.Path is the collation path.
+func NewObjectInput(c InputCapture) ObjectInput { return ObjectInput{capture: c} }
+
+func (r ObjectInput) ResolveRegnamespace(ctx context.Context, input string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -32,7 +35,7 @@ func (r capturedRegObjectInput) ResolveRegnamespace(ctx context.Context, input s
 	return uint32(address.ObjectID), nil
 }
 
-func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input string) (uint32, error) {
+func (r ObjectInput) ResolveRegcollation(ctx context.Context, input string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -92,8 +95,8 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		address := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: parts[len(parts)-1].Text})
 		descriptor, _ := catalog.DescriptorAt(a.View.Catalog, a.Definitions, address)
 		if d, exists := descriptor.(*catalog.Collation); exists {
-			one := [1]regobj.CollationCandidate{{Address: address, Encoding: d.Encoding}}
-			if regobj.SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {
+			one := [1]CollationCandidate{{Address: address, Encoding: d.Encoding}}
+			if SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {
 				return uint32(address.ObjectID), nil
 			}
 		}

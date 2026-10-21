@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func TestTypeInputNoticesFollowTheCurrentHost(t *testing.T) {
 	long := strings.Repeat("a", 70)
 	first, second := &typeNoticeRecorder{}, &typeNoticeRecorder{}
 	authority := &exec.Authority{Host: first}
-	input := capturedRegtypeInput{authority: authority}.RegtypeParameter(2, false).(capturedRegtypeInput)
+	input := TypeInput{authority: authority}.RegtypeParameter(2, false).(TypeInput)
 	resolve := func() {
 		t.Helper()
 		_, err := input.resolveTypeName(context.Background(), long)
