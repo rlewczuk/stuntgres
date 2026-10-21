@@ -127,7 +127,7 @@ var restoreHooks = []restoreHook{
 	// Line comment decoders.
 	{name: "typedef: domain replay records", decode: decodeRestoreDomainReplay},
 	{name: "extension: owner records", decode: decodeRestoreExtensionOwners},
-	{name: "view: materialized snapshots", decode: decodeRestoreMaterializedSnapshot},
+	{name: "view: materialized snapshot records", decode: decodeRestoreMaterializedSnapshot},
 
 	// Before admission.
 	{name: "inline before", before: (*restoreRun).inlineBefore},
@@ -171,5 +171,6 @@ var restoreHooks = []restoreHook{
 	{name: "table: physical NOT NULL boundary at end", finish: finishRestorePhysicalBoundary},
 	{name: "table: foreign keys", finish: finishRestoreForeignKeys},
 	{name: "extension: owners", finish: finishRestoreExtensionOwners},
+	{name: "view: materialized snapshots", finish: finishRestoreMaterializedSnapshots},
 	{name: "inline finish", finish: (*restoreRun).inlineFinish},
 }

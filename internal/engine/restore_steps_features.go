@@ -95,3 +95,9 @@ func afterRestoreDomainOwner(r *restoreRun, op *session.Operation, stmt parser.S
 func finishRestoreExtensionOwners(r *restoreRun, ctx context.Context, op *session.Operation) error {
 	return r.stage.importExtensionOwners(ctx, op, r.extensionOwners)
 }
+
+// finishRestoreMaterializedSnapshots populates materialized views from the
+// decoded snapshots.
+func finishRestoreMaterializedSnapshots(r *restoreRun, ctx context.Context, op *session.Operation) error {
+	return r.stage.importMaterializedSnapshots(ctx, op, r.snapshots)
+}
