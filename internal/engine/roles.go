@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -45,9 +46,6 @@ func (e *Engine) initialRole(ctx context.Context, authenticated authorization.Pr
 	return target.Ref, nil
 }
 
-func roleDiagnostic(code, message, detail string) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
-}
 func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)

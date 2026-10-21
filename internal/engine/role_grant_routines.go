@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -108,23 +107,4 @@ func (e *Engine) resolveGrantRoutine(op *session.Operation, v AuthorizationView,
 		return ids.ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(v.View, v, inputTypes[:inputCount])+") is not a "+noun)
 	}
 	return e.catalog.Domain.Ref(v.Catalog.Epoch(), address), nil
-}
-
-// grantRoutineArgumentDisplay renders the argument types of a missing or
-// mismatched GRANT routine target, qualifying user types the path hides.
-func grantRoutineArgumentDisplay(view access.View, env access.Environment, inputs []ids.OID) string {
-	path, _ := env.ReferencePath()
-	var display strings.Builder
-	for i, id := range inputs {
-		if i != 0 {
-			display.WriteString(", ")
-		}
-		typ := view.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.SQLType.IsUserDefined() {
-			display.WriteString(catalog.TypeDiagnosticNameAt(view.Catalog, typ, path))
-		} else {
-			display.WriteString(typ.SQLType.DiagnosticName())
-		}
-	}
-	return display.String()
 }
