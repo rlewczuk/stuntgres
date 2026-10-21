@@ -81,7 +81,7 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 }
 
 // Released builtin metadata preserves its existing nodeToString witness. User
-// defaults use catalogTree's genuine native structural representation instead.
+// defaults use plan.CatalogTree's genuine native structural representation instead.
 type pgTypeDefaultTree string
 
 func (s pgTypeDefaultTree) StructuralOutput(ctx context.Context) (string, error) {

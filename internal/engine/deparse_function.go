@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -144,7 +145,7 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		tree, ok := carrier.(boundTree)
+		tree, ok := carrier.(plan.BoundTree)
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign structural tree")
 		}
@@ -156,7 +157,7 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 			}
 		}
 		renderer.relation = relation
-		text, err = renderer.sql(c.Context, tree.expression, pgRenderParent{})
+		text, err = renderer.sql(c.Context, tree.Expression, pgRenderParent{})
 		if err != nil {
 			return sqltype.Value{}, err
 		}

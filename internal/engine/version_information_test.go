@@ -112,7 +112,7 @@ func TestVersionInformationRemap(t *testing.T) {
 		if err != nil || text != want {
 			t.Fatal(text, err)
 		}
-		tree, err := (boundTree{expression: copy}).StructuralOutput(ctx)
+		tree, err := (plan.BoundTree{Expression: copy}).StructuralOutput(ctx)
 		if err != nil || !strings.Contains(tree, "VersionInformation") || strings.Contains(tree, "Const") {
 			t.Fatal(tree, err)
 		}

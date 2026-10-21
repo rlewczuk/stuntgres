@@ -284,11 +284,11 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 			t.Fatal("missing actual predicate BOOL/INT4", tree.types)
 		}
 	}
-	definitionBefore, err := (boundTree{expression: predicate.Definition}).StructuralOutput(context.Background())
+	definitionBefore, err := (plan.BoundTree{Expression: predicate.Definition}).StructuralOutput(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	executionBefore, err := (boundTree{expression: predicate.Execution}).StructuralOutput(context.Background())
+	executionBefore, err := (plan.BoundTree{Expression: predicate.Execution}).StructuralOutput(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,11 +328,11 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 			}
 		})
 	}
-	definitionAfter, err := (boundTree{expression: predicate.Definition}).StructuralOutput(context.Background())
+	definitionAfter, err := (plan.BoundTree{Expression: predicate.Definition}).StructuralOutput(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	executionAfter, err := (boundTree{expression: predicate.Execution}).StructuralOutput(context.Background())
+	executionAfter, err := (plan.BoundTree{Expression: predicate.Execution}).StructuralOutput(context.Background())
 	if err != nil || definitionAfter != definitionBefore || executionAfter != executionBefore || !slices.Equal(predicate.Dependencies, manifest) || !slices.Equal(predicate.Attributes, attributes) {
 		t.Fatal("replacement mutated predicate trees/manifests/layout", err)
 	}

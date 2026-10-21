@@ -60,7 +60,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 					t.Fatal("symbolic SQL", text, err)
 				}
 				var tree strings.Builder
-				if err = appendBoundTree(ctx, &tree, node); err != nil || !strings.Contains(tree.String(), "AdvisorySession "+name) {
+				if err = plan.AppendBoundTree(ctx, &tree, node); err != nil || !strings.Contains(tree.String(), "AdvisorySession "+name) {
 					t.Fatal("symbolic tree", tree.String(), err)
 				}
 				reparsed := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
@@ -310,7 +310,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	column := plan.ColumnExpr{Info: expr.Info{Usage: trueNode.ResultUsage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
 	stored := bind("pg_try_advisory_lock(NULL::integer,CASE WHEN pg_try_advisory_lock(3201) THEN 2 ELSE 3 END)")
 	var before strings.Builder
-	if err := appendBoundTree(ctx, &before, stored); err != nil {
+	if err := plan.AppendBoundTree(ctx, &before, stored); err != nil {
 		t.Fatal(err)
 	}
 	d := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "a_row", Expression: column}, {Name: "b_null", Expression: stored}}}}
@@ -338,7 +338,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 		t.Fatal("CHECK evaluator leaked its row frame")
 	}
 	var after strings.Builder
-	if err := appendBoundTree(ctx, &after, d.Constraints.Check[1].Expression); err != nil || after.String() != before.String() {
+	if err := plan.AppendBoundTree(ctx, &after, d.Constraints.Check[1].Expression); err != nil || after.String() != before.String() {
 		t.Fatal("execution preparation changed stored analyzed syntax", err, before.String(), after.String())
 	}
 	// Descriptor identity, not a relation name/address, bounds cache reuse;

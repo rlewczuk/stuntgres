@@ -245,7 +245,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	if err != nil || !strings.Contains(text, "generate_series(") || strings.Count(text, ",") != 2 {
 		t.Fatal(text, err)
 	}
-	tree, err := (boundTree{expression: original}).StructuralOutput(context.Background())
+	tree, err := (plan.BoundTree{Expression: original}).StructuralOutput(context.Background())
 	if err != nil || !strings.Contains(tree, "Series generate_series") || strings.Count(tree, "node Const") != 3 {
 		t.Fatal(tree, err)
 	}

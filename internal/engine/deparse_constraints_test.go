@@ -203,7 +203,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	treeType, _ := view.LookupType(sqltype.PgNodeTree)
-	saved, err := catalogTree(treeType, d.ColumnMeta.Defaults[1].Expression)
+	saved, err := plan.CatalogTree(treeType, d.ColumnMeta.Defaults[1].Expression)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), payload.(boundTree).expression, pgRenderParent{})
+	got, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), payload.(plan.BoundTree).Expression, pgRenderParent{})
 	if err != nil || got != "(1 / 0)" {
 		t.Fatal(got, err)
 	}
@@ -271,7 +271,7 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 		return plan.LiteralExpr{Info: expr.Info{Usage: v.Type().Usage()}, Value: v}
 	}
 	zero, _ := sqltype.OIDValue(oidType, 0)
-	tree, err := catalogTree(treeType, literal(zero))
+	tree, err := plan.CatalogTree(treeType, literal(zero))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +414,7 @@ func TestDeparseConstraintsVolatileTreesDoNotExecute(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	typ, _ := view.LookupType(sqltype.PgNodeTree)
-	tree, err := catalogTree(typ, d.Constraints.Check[0].Expression)
+	tree, err := plan.CatalogTree(typ, d.Constraints.Check[0].Expression)
 	if err != nil {
 		t.Fatal(err)
 	}

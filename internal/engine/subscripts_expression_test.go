@@ -259,7 +259,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	if err != nil || !strings.Contains(text, "generate_subscripts(") || !strings.Contains(text, "ARRAY") && !strings.Contains(text, "{NULL") {
 		t.Fatal("symbolic deparse", text, err)
 	}
-	tree, err := (boundTree{expression: original}).StructuralOutput(context.Background())
+	tree, err := (plan.BoundTree{Expression: original}).StructuralOutput(context.Background())
 	if err != nil || !strings.Contains(tree, "Subscripts generate_subscripts") || strings.Count(tree, "node Const") != 3 {
 		t.Fatal(tree, err)
 	}

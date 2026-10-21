@@ -108,7 +108,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if err != nil || rendered != sql {
 			t.Fatal(rendered, err)
 		}
-		tree, err := (boundTree{expression: leaf}).StructuralOutput(ctx)
+		tree, err := (plan.BoundTree{Expression: leaf}).StructuralOutput(ctx)
 		if err != nil || !strings.Contains(tree, "TransactionTime") || strings.Contains(tree, "Const") {
 			t.Fatal(tree, err)
 		}

@@ -222,7 +222,7 @@ func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visi
 	return nil
 }
 func (r engineCatalogRuntime) ExpressionTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
-	return catalogTree(typ, expression)
+	return plan.CatalogTree(typ, expression)
 }
 func (r engineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]pgcatalog.ForeignKeyComparison, error) {
 	bound, err := bindForeignKeyComparison(view, child, parent, index, key)

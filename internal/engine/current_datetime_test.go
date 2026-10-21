@@ -47,7 +47,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if err != nil || replay != sql {
 			t.Fatal(replay, sql, err)
 		}
-		tree, err := (boundTree{expression: node}).StructuralOutput(ctx)
+		tree, err := (plan.BoundTree{Expression: node}).StructuralOutput(ctx)
 		if err != nil || !strings.Contains(tree, "CurrentDateTime") || strings.Contains(tree, "Const") {
 			t.Fatal(tree, err)
 		}

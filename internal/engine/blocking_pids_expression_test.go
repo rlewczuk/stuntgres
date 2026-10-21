@@ -42,7 +42,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if got, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, n, pgRenderParent{}); err != nil || !strings.Contains(got, name+"(") {
 			t.Fatal("typed deparse", got, err)
 		}
-		if got, err := (boundTree{n}).StructuralOutput(ctx); err != nil || !strings.Contains(got, "BlockingInquiry") {
+		if got, err := (plan.BoundTree{Expression: n}).StructuralOutput(ctx); err != nil || !strings.Contains(got, "BlockingInquiry") {
 			t.Fatal("structural recipe", got, err)
 		}
 		if !b.SameGroupExpression(n, n) || generationImmutable(n) || exec.PlannedVolatility(n) != expr.Volatile {

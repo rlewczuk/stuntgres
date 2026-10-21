@@ -528,7 +528,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				var result []string
 				for _, key := range index.SQLIndex.Keys {
 					for _, node := range []expr.Expr{key.Derived.Definition, key.Derived.Execution} {
-						s, err := (boundTree{expression: node}).StructuralOutput(ctx)
+						s, err := (plan.BoundTree{Expression: node}).StructuralOutput(ctx)
 						if err != nil {
 							t.Fatal(err)
 						}
