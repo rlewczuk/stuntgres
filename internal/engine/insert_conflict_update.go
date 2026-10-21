@@ -22,9 +22,9 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 	proposal := candidate.Values
 	c := s.insertConflict
 	e := s.engine()
-	manager := e.locks
-	manager.BeginUniqueDelta(s.ticket)
-	defer manager.EndUniqueDelta(s.ticket)
+	journal := s.uniqueJournal()
+	journal.BeginDelta()
+	defer journal.EndDelta()
 	// Borrow the producer's one captured query state and canonical parameters.
 	// Action columns are an independent target/excluded frame, not source rows.
 	evaluation := *proposalEvaluation
@@ -44,7 +44,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				return err
 			}
 			if c.Catalog != s.uniqueBinding.Catalog {
-				manager.RestoreUniqueDelta(s.ticket)
+				journal.RestoreDelta()
 				s.writeHost().DiscardExclusion(candidate)
 				continue
 			}
@@ -65,7 +65,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 					return err
 				}
 				if retry {
-					manager.RestoreUniqueDelta(s.ticket)
+					journal.RestoreDelta()
 					s.writeHost().DiscardExclusion(candidate)
 					continue
 				}
@@ -82,7 +82,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		}
 		// A speculative key must never be held while queuing for the selected row.
 		// Restore only this candidate's newly granted keys, preserving prior claims.
-		manager.RestoreUniqueDelta(s.ticket)
+		journal.RestoreDelta()
 		s.writeHost().DiscardExclusion(candidate)
 		mode := lock.ForNoKeyUpdate
 		for _, target := range c.UpdateTargets {
@@ -108,7 +108,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		if checked.index == nil || checked.row.Row != old.Row || checked.row.Version != old.Version {
-			manager.RestoreUniqueDelta(s.ticket)
+			journal.RestoreDelta()
 			s.writeHost().DiscardExclusion(candidate)
 			continue
 		}
@@ -133,7 +133,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		if !matches {
-			manager.RestoreUniqueDelta(s.ticket)
+			journal.RestoreDelta()
 			s.writeHost().DiscardExclusion(candidate)
 			return nil
 		}

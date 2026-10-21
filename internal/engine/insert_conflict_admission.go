@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -18,13 +19,18 @@ func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *index.Writ
 	return s.admitInsertConflictRow(ref, candidate, prefix, index.ProbeRuntime)
 }
 
+// uniqueJournal is the statement ticket's unique-key journal.
+func (s *StatementScope) uniqueJournal() lock.UniqueJournal {
+	return s.engine().locks.UniqueJournal(s.ticket)
+}
+
 func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch, purpose index.ProbePurpose) (bool, error) {
 	action := s.insertConflict
-	manager := s.engine().locks
+	journal := s.uniqueJournal()
 	if action.StatementKeys == nil {
-		action.StatementKeys = manager.CheckpointUnique(s.ticket, nil)
+		action.StatementKeys = journal.Checkpoint(nil)
 	}
-	action.Checkpoint = manager.CheckpointUnique(s.ticket, action.Checkpoint)
+	action.Checkpoint = journal.Checkpoint(action.Checkpoint)
 	for {
 		conflict, err := s.probeUniqueRow(ref, candidate, nil, prefix, action, purpose)
 		if err != nil {
@@ -34,7 +40,7 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 			if err := s.insertConflictVisible(conflict.row, conflict.committed); err != nil {
 				return false, err
 			}
-			manager.RestoreUnique(s.ticket, action.Checkpoint)
+			journal.Restore(action.Checkpoint)
 			s.writeHost().DiscardExclusion(candidate)
 			return false, nil
 		}
@@ -79,7 +85,7 @@ func (w *WriteStage) applyInsertBatch(ref ids.ObjectRef, rows index.WriteBatch) 
 }
 func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows index.WriteBatch) (index.WriteBatch, error) {
 	prior := s.uniqueBinding
-	s.engine().locks.RestoreUnique(s.ticket, s.insertConflict.StatementKeys)
+	s.uniqueJournal().Restore(s.insertConflict.StatementKeys)
 	s.uniqueBinding = nil
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
