@@ -101,19 +101,10 @@ func (s *StatementScope) existingUniqueOutput(bound *index.UniqueBoundKey, row s
 	if purpose == index.ProbeRevalidation && row.Born == 0 {
 		return false, nil, ids.ErrCatalogReplaced
 	}
-	e := s.engine()
-	e.mu.Lock()
-	current := e.privateCatalogLocked(s.owner.Catalog)
-	currentIndex, ok := current.Relation(idx.Address())
-	if !ok || !index.SameIndexKeySemantics(idx, currentIndex) {
-		e.mu.Unlock()
-		return false, nil, ids.ErrCatalogReplaced
+	root, err := s.writeHost().ExistingIndexRoot(idx)
+	if err != nil {
+		return false, nil, err
 	}
-	root := e.storage.IndexRoots[idx.Address()]
-	if changes := s.owner.Catalog; changes != nil && index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()] != nil {
-		root = index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()]
-	}
-	e.mu.Unlock()
 	if root == nil {
 		return false, nil, fmt.Errorf("stuntgres: existing index root is missing")
 	}
@@ -210,7 +201,7 @@ func (s *StatementScope) existingUniqueOutput(bound *index.UniqueBoundKey, row s
 		}
 		return true, entry.Keys, nil
 	}
-	err := bound.Ordering.FillKeys(row.Values, bound.Scratch, evaluation)
+	err = bound.Ordering.FillKeys(row.Values, bound.Scratch, evaluation)
 	return true, bound.Scratch, err
 }
 

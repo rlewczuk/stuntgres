@@ -13,26 +13,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Admission owns private overlays for this statement; committed immutable roots
-// are recaptured only after each key grant, including after peer outcome waits.
-func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*catalog.Relation, catalog.Read, error) {
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
-		return nil, catalog.Read{}, ids.ErrCatalogReplaced
-	}
-	view := e.privateCatalogLocked(s.owner.Catalog)
-	parent, ok := view.Relation(ref.Address)
-	if !ok {
-		return nil, catalog.Read{}, errors.New("stuntgres: invalid unique parent")
-	}
-	return parent, view, nil
-}
-
 func (s *StatementScope) bindUniqueWrite(ref ids.ObjectRef) (*index.UniqueWriteBinding, error) {
 retry:
-	parent, view, err := s.uniqueParent(ref)
+	parent, view, err := s.writeHost().UniqueParent(ref)
 	if err != nil {
 		return nil, err
 	}
@@ -170,24 +153,12 @@ retry:
 		return nil, err
 	}
 	if b.Checked {
-		e := s.engine()
-		e.mu.Lock()
-		if e.privateCatalogLocked(s.owner.Catalog).State() != view.State() {
-			e.mu.Unlock()
-			goto retry
-		}
-		auth, captureErr := s.writeAuthorizationLocked(e)
-		if captureErr == nil {
-			auth.Catalog = view
-			auth.Recapture(view)
-			b.TypeName, captureErr = e.captureTypeDiagnosticName(auth)
-		}
-		e.mu.Unlock()
-		if captureErr != nil {
-			return nil, captureErr
-		}
-		if err := s.readmitPreparedPrograms(auth); err != nil {
+		stale, err := s.writeHost().BindingAuthority(b, view)
+		if err != nil {
 			return nil, err
+		}
+		if stale {
+			goto retry
 		}
 	}
 	s.uniqueBinding = b
@@ -238,7 +209,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersio
 		}
 		indexRef := ref
 		indexRef.Address = idx.Address()
-		if err := s.acquireUnique(indexRef, bound, key); err != nil {
+		if err := s.writeHost().ClaimUniqueKey(indexRef, bound, key); err != nil {
 			return err
 		}
 	}
@@ -350,50 +321,20 @@ retry:
 		}
 		indexRef := ref
 		indexRef.Address = idx.Address()
-		if err := s.acquireUnique(indexRef, bound, key); err != nil {
+		if err := s.writeHost().ClaimUniqueKey(indexRef, bound, key); err != nil {
 			return uniqueConflict{}, err
 		}
-		e.mu.Lock()
-		if ref.Epoch != e.catalog.state.Epoch() {
-			e.mu.Unlock()
-			return uniqueConflict{}, ids.ErrCatalogReplaced
-		}
-		current := e.privateCatalogLocked(s.owner.Catalog)
-		if current.State() != binding.Catalog {
-			e.mu.Unlock()
-			s.uniqueBinding = nil
-			goto retry
-		}
-		currentParent, parentOK := current.Relation(ref.Address)
-		currentIndex, indexOK := current.Relation(idx.Address())
-		if !parentOK || !indexOK || currentParent.Revision() != parent.Revision() || !index.SameRelationRowShape(parent, currentParent) || currentIndex.Revision() != idx.Revision() || !index.SameIndexKeySemantics(idx, currentIndex) {
-			e.mu.Unlock()
-			return uniqueConflict{}, ids.ErrCatalogReplaced
-		}
-		parent, idx = currentParent, currentIndex
-		auth, err := s.writeAuthorizationLocked(e)
-		auth.Catalog = current
-		auth.Recapture(auth.Catalog)
-		namespace, _ := current.Namespace(parent.Namespace())
-		root := e.storage.IndexRoots[idx.Address()]
-		if changes := s.owner.Catalog; changes != nil {
-			if private := index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()]; private != nil {
-				root = private
-			}
-		}
-		var versions []storage.RowVersion
-		if action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || idx.SQLIndex.HasRuntimeDomainKeyConversion()) {
-			if stored := e.privateStorageLocked(s.owner.Catalog, ref.Address); stored != nil {
-				versions = stored.Versions
-			}
-		}
-		e.mu.Unlock()
+		heads := action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || idx.SQLIndex.HasRuntimeDomainKeyConversion())
+		probe, auth, err := s.writeHost().captureUniqueProbe(ref, binding, idx, heads)
 		if err != nil {
 			return uniqueConflict{}, err
 		}
-		if namespace == nil {
-			return uniqueConflict{}, ids.ErrCatalogReplaced
+		if probe.Stale {
+			s.uniqueBinding = nil
+			goto retry
 		}
+		parent, idx = probe.Parent, probe.Index
+		current, root, versions := probe.View, probe.Root, probe.Versions
 		if check := s.insertConflict; check != nil {
 			if err := analyze.CheckBinding(auth, bindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
 				return uniqueConflict{}, err
@@ -402,7 +343,7 @@ retry:
 		if root == nil {
 			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
-		outcome := uniqueConflict{parent: parent, index: idx, key: key, auth: auth, view: current, schema: namespace.Name()}
+		outcome := uniqueConflict{parent: parent, index: idx, key: key, auth: auth, view: current, schema: probe.Schema}
 		lo, hi := 0, len(root.Entries)
 		for lo < hi {
 			mid := lo + (hi-lo)/2
@@ -451,7 +392,7 @@ retry:
 				}
 			}
 			if !replaced {
-				if action != nil && (action.Update != nil || stableIsolation(s.owner.Isolation) || idx.SQLIndex.HasRuntimeDomainKeyConversion()) {
+				if heads {
 					head, err := index.ConflictEntryVersion(versions, entry)
 					if err != nil {
 						return uniqueConflict{}, err
