@@ -233,7 +233,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 // declarations and the operators' deferred link statements.
 func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID) error {
 	var err error
-	if s.declarations, err = mixedDumpStatements(ctx, s.catalogView, s.domainRoles, viewOrder, s.domainNodes, s.composites); err != nil {
+	if s.declarations, err = mixedDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, viewOrder, s.domainNodes, s.composites); err != nil {
 		return err
 	}
 	for _, d := range s.sqlRoutines {

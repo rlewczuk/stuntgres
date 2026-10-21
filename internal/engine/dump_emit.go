@@ -192,7 +192,7 @@ func emitDumpRetiredConstraints(_ context.Context, s *dumpScript, w *dumpWriter,
 }
 
 func emitDumpDomainChecks(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	text, err := domainInvalidDumpStatement(ctx, s.catalogView, s.domainNodes[event.OID])
+	text, err := domainInvalidDumpStatement(ctx, dumpPresenter{}, s.catalogView, s.domainNodes[event.OID])
 	if err != nil {
 		return err
 	}
