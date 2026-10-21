@@ -617,9 +617,10 @@ Outstanding aliases: none.
   drops stay root, and the table decisions take the table-local
   `table.DropDependencyReader` as an argument; `RemoveObject` stays the
   only removal method on a `ddl`-level host.
-- Table 24d.2 moves `alterTablespaceKind` and `checkAlterTablespaceCreate`
-  (`alter_tablespace.go`) into `ddl` next to `TablespaceRef`, after
-  `relationDiagnosticKind` becomes `catalog.RelationDiagnosticKind` (24d.1).
+- Table 24d.2 moved `alterTablespaceKind` and `checkAlterTablespaceCreate`
+  (`alter_tablespace.go`) into `ddl` next to `TablespaceRef`, as
+  `ddl.AlterTablespaceKind` and `ddl.CheckAlterTablespaceCreate` (over
+  `access.View` and its environment).
 - 5i moved `tablespaceLocation`, `tablespaceName` and `namespaceChildren`
   into `catalog` (`ValidateTablespaceLocation`, `ValidateTablespaceName`,
   `NamespaceChildren`); 20d calls them there.

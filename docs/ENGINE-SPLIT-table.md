@@ -942,7 +942,12 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   unit (also `RACE=1`) and dual-mode proof, Dump→Restore→Dump smoke and
   quickcheck passed; racecheck/finalcheck skipped at user request; see the
   24d.1 record below
-- [ ] 24d.2 — ALTER and inheritance decisions moved — linear item 89b
+- [x] 24d.2 — ALTER and inheritance decisions moved — linear item 89b
+  (`dbaf9d8f9`, `b7ed253d3`, `4bb411191`, `b542587c5`, `e39ec498a`, `f4f982aa9`,
+  then the docs commit) · selected unit (also `RACE=1`) and dual-mode proof
+  (`REFERENCE=1` apart from drift that fails on master too) and quickcheck
+  passed; racecheck/finalcheck skipped at user request; see
+  the 24d.2 record below
 - [x] 24d.3 — Restore and dump cores moved — linear item 89c (`a6936164a`,
   `44f1ae9bf`, then the docs commit) · selected unit (also `RACE=1`) and
   dual-mode proof, Dump→Restore→Dump smoke and quickcheck passed;
@@ -1131,6 +1136,108 @@ was `sqlError` alone.
   no anonymous-interface assertion in the root names an unexported moved
   method.
 
+### 24d.2 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-TABLE-ALTER-DECISIONS` from
+`9156a1120` (control 30c merged), rebased onto `10581f8cc` (table 24d.3);
+the code replayed without conflicts, only the `table` README conflicted.
+Re-measured with `frontier` at `2f96d483d`: the ALTER files gave 39
+members, the inheritance files 13. About 2.1k lines moved into `table`; the
+root lost about 1.8k.
+
+| Commit | Change |
+|---|---|
+| `dbaf9d8f9` | Pure helpers: `ddl.AlterTablespaceKind`, `ddl.CheckAlterTablespaceCreate` (over `access.View`); the four inheritance event functions as nil-safe `*table.InheritanceAlterPlan` methods (`inheritance_alter_record.go`) behind `scope.inheritancePlan()`; the dead `stageOwnedSequenceDependencies` deleted |
+| `b7ed253d3` | Seam: `table.AlterHost` revised, root `alterHost{ddlHost; scope}` (`alter_host.go`); `TestAlterHostInputReflectsCheckSnapshotCapture` written first and observed failing (`undefined: alterHost`); the candidate wrappers take `Engine.mu` across the call |
+| `4bb411191` | `DropDependencyReader` gains `Remove`, `ExpressionDependencies`, `Notice`, `CaptureIdentitySequence`, `TombstoneIdentity` and its lock-contract comment; `MissingColumnNotice` became a `Notice` call |
+| `b542587c5` | The ALTER candidates and post-loop rebuilds ported straight into `table` |
+| `e39ec498a` | The loop pieces, constraint rename, inheritance and drop decisions ported straight into `table` |
+| `f4f982aa9` | The SET TABLESPACE kind assertions moved to `ddl.TestAlterTablespaceKind` |
+
+- **Moved**: `AddColumnCandidate`, `GenerationCandidate`,
+  `AdmitAlterType`, `CompleteAlterType`, `PrepareAlterType`,
+  `AlterTypeCandidate`, `PrepareAlterTableActions`, `AlterTableActionKind`,
+  `PrepareAddedChecks`, `StageAddedUnique`, `StageAddedForeignKey`,
+  `CaptureAlterTypeIndexes`, `RebindAlterTypeIndexes`,
+  `RebindAlterTypeChecks`, `AlterDefaultColumn`, `AlterDefaultCandidate`,
+  `CookAlterDefault`, `AddIdentityCandidate`, `PrepareIdentitySet`,
+  `FinishIdentitySet`, `DropIdentity`, `RebuildAlterNotNulls`,
+  `RebuildAlterForeignKeys`, `RebindPhysicalNotNullType`,
+  `RemapPhysicalNotNull`, `OnlySetNotNull`, `AddedCheckSyntax`,
+  `StoredReplacements`, `DependencyTargets`, `RenameConstraintKind`,
+  `StageRenameConstraint`, `PlanInheritanceAlter`, `InheritedAlterActions`,
+  `FinishInheritanceAlterCandidate`, `InheritanceDefaultCandidate`,
+  `RenameInheritanceColumn[Precheck]`,
+  `RenameInheritanceConstraint[Precheck]`, `DropConstraintIndexes`,
+  `OwnedSequences`, and `insertError` (`table/errors.go`).
+- **Root left**: the locking wrappers that build the host
+  (`addColumnCandidate`, `generationCandidate`, `alterTypeCandidate`,
+  `prepareAlterTypeLocked`, `prepareAlterTableActions`,
+  `prepareAddedChecks`, `stageAddedUnique`, `stageAddedForeignKey`,
+  `rebindAlterTypeChecks`, `rebindAlterTypeIndexes`,
+  `cookAlterDefaultLocked`, `captureAlterTypeIndexes`); `identityCandidate`
+  (the SET wait and option staging between the two cores);
+  `inheritedAlterActions` and `finishInheritanceAlterCandidate` (they pick
+  the stage or definition read); `stageAddedChecks` (the prepared-node
+  selection, the stage install and `RecordChecks`); `alterDefaultLocked`,
+  `alterInheritanceDefaultLocked`, `renameConstraintLocked`,
+  `alterInheritanceLocked` and the rename handlers as orchestration;
+  `dropIdentityDefinition` is gone (`prepareIdentityDropDefinition` reads the
+  capture from the provider). `rebuildAlterNotNullsLocked`,
+  `rebuildAlterForeignKeysLocked`, `rebindPhysicalNotNullType`,
+  `remapPhysicalNotNull`, `dropConstraintIndexes` and `ownedSequences` have no
+  root forwarder; callers name `table` directly. Deleted:
+  `physical_not_null.go`, `physical_not_null_control.go`, `not_null_type.go`,
+  `inheritance_alter_events.go`.
+- **Deviations from the plan.** (1) `AlterHost` gained `LiveEpoch` (four
+  mid-function epoch checks keep their place) and `BindAddedChecks` (ADD
+  CHECK keeps `bindColumnChecks`' altering semantics); `CookDefault` became
+  `BindDefault` (table renders and omits, in each caller's order: ADD COLUMN
+  binds, omits, renders with the operation's definitions; SET DEFAULT binds,
+  renders, omits); `TypeChangeDependents` takes the column name;
+  `BindAlterTypeUsing` lost its column (a missing USING is the old column,
+  built in `table`). (2) The port went straight into `table` instead of
+  root `tblmv_*.go` files: `table` cannot import the root, so the compiler
+  proves the edges, and no move script was needed. (3) RENAME CONSTRAINT has
+  two cores, because the inheritance branch and the stage begin sit between
+  the kind lookup and the staging. (4) The inheritance rename cores run per
+  member inside the root's `Replace` loop, so the first error is unchanged.
+  (5) ALTER DEFAULT has a guard core and a candidate core; the candidate runs
+  where its revision check ran, before the storage lookup. (6) The no-change
+  predicate and the `stageAddedChecks` install stayed in the root: both read
+  stage internals and are a few lines. (7) `PrepareAddedChecks` takes the
+  nil-safe plan instead of a new value type. (8) `RemapPhysicalNotNull`
+  takes one `catalog.Read` (its domain replaces the ref builder).
+- **Lock windows.** The wrappers hold `Engine.mu` across ADD COLUMN, ALTER
+  TYPE (prefix included), SET/DROP EXPRESSION (unlocked before), ADD CHECK
+  binding, the TYPE CHECK and index rebinds (per item before) and
+  ADD UNIQUE / FOREIGN KEY staging (their `NotNullCandidate`, stage read and
+  `Replace` were outside the window). None of these windows contains a wait:
+  the binders, the snapshot captures, type and collation resolution and
+  `CatalogStage.Replace` take no lock. `bindColumnChecks(altering)` no longer
+  locks per CHECK; ALTER FOREIGN TABLE's two callers hold `Engine.mu` around
+  it. ADD IDENTITY now passes the operation when a scope is present.
+  `CaptureIdentitySequence` keeps the direct AX `acquireSequence` wait, then
+  one window.
+- **Tests.** New: `TestAlterHostInputReflectsCheckSnapshotCapture`. Moved: the
+  kind assertions of `TestAlterTablespacePreparation` →
+  `ddl.TestAlterTablespaceKind`. Adapted: `inheritance_alter_test.go` and
+  `inheritance_retired_test.go` (`RecordAction` on the plan),
+  `primary_key_lifecycle_test.go` and `physical_not_null_test.go`
+  (`table.RebuildAlterNotNulls`, `table.RebindPhysicalNotNullType`). None
+  deleted.
+- **Checks.** String-literal multiset unchanged apart from the new tests,
+  `insertError` and import paths; 767 selected engine units passed, also
+  with `RACE=1`; `table` imports no root, `partition`, `view`, `dml` or
+  `control` package; no root anonymous-interface assertion names an
+  unexported method. The 24d.1 reference selection passed in quick mode and
+  with `REFERENCE=1` apart from known drift that fails the same way on
+  master: the `postgres` leaves of `AlterAddConstraintDiagnostics`,
+  `AlterNullability(Names|ActionLists)`,
+  `NotNull(FormsAndAlter|CurrentCommandNamesAndCompatibleReuse)` and
+  `TemporaryTableDiagnostics`, and the PG-only `SerialDefaultProvider`
+  tests.
+
 ### 24d.3 record
 
 Done on `implement-part/PG18-ENGINE-SPLIT-TABLE-RESTORE-CORES` from
@@ -1239,11 +1346,22 @@ was `sqlError` alone.
   `evolveStageIndexesLocked`).
 - `analyze` (12f, done): `closedRegclassDefault` (used by
   `defaultReplayDeferrable`) is now `analyze.ClosedRegclassDefault`.
-- 24d.1 for 24d.2: add `alterHost{ddlHost; scope}` with its methods and the
-  operation, and pass it to `StageCreateIdentities` (ADD IDENTITY) and
-  `StageForeignKey` (`stageAddedForeignKey`), which use op-less hosts now.
-  `table.Resolver` already holds `ResolveReference`. `identity.go` in the
-  root now holds only `evaluateInsertValuesRow` (DML; 29b left it in the root).
+- 24d.1 for 24d.2 (done): `alterHost{ddlHost; scope}` exists; ADD IDENTITY
+  and `stageAddedForeignKey` now pass the operation. `identity.go` in the
+  root holds only `evaluateInsertValuesRow` (DML; 29b left it in the root).
+- 24d.2 for partition 25d: ALTER on a partitioned table reaches the same
+  `table` candidates; a partition host that embeds `table.Host` can build an
+  `alterHost` the same way (`alterHost{ddlHost{e, op, stage}, scope}`, one
+  per call, under `Engine.mu`). `partition_unique_replay.go` calls the root
+  `stageAddedUnique` wrapper.
+- 24d.2 for fdw 26e: ALTER FOREIGN TABLE still calls the root wrappers
+  (`addColumnCandidate`, `generationCandidate`, `prepareAlterTypeLocked`,
+  `alterTypeCandidate`, `rebindAlterTypeChecks`, `cookAlterDefaultLocked`);
+  26e can call the `table` functions with an `alterHost` and drop them. Its
+  `bindColumnChecks(altering)` calls hold `Engine.mu` themselves now;
+  `AlterHost.BindAddedChecks` is the same binding.
+- 24d.2 for DML 29c: nothing ALTER-side is left for `dml`; the FK action and
+  write-time paths are unchanged.
 - 24d.1 for 24d.3 (done): `ResolveRestoredRelation` now sits in
   `table.RestoreResolver`, which `Host` embeds; `RetiredConstraintCandidate`
   uses it.
