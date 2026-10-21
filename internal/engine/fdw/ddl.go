@@ -183,7 +183,3 @@ func OwnershipEligibility(view access.View, env access.Environment, object *cata
 	recipient.State.CurrentUser = target
 	return recipient.Check(env, access.Requirement{Object: ObjectRef(recipient, wrapper), Privileges: authorization.UsagePrivilege})
 }
-
-func GrantKind(kind string) bool {
-	return kind == "foreign server" || kind == "foreign-data wrapper"
-}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -22,7 +23,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		return Result{}, err
 	}
 	changes := scope.owner.Catalog.Clone()
-	plan, warnings, err := planForeignGrant(op.Context(), auth.View, s, changes.Descriptors, e.catalog.revisionLocked)
+	plan, warnings, err := fdw.PlanGrant(op.Context(), auth.View, s, changes.Descriptors, e.catalog.revisionLocked)
 	for _, warning := range warnings {
 		op.EmitNotice(session.LevelWarning, warning)
 	}

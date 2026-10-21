@@ -67,5 +67,5 @@ func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, 
 // stageForeignLocked stages WRAPPER, SERVER, USER MAPPING and CREATE or
 // DROP FOREIGN TABLE through fdw.StageDDL on the statement's ddlHost.
 func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
-	return stageForeignDDL(ddlHost{e: e, op: scope.op, stage: stage}, auth, s, scope.input)
+	return fdw.StageDDL(ddlHost{e: e, op: scope.op, stage: stage}, auth, s, scope.input)
 }

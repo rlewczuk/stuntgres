@@ -16,7 +16,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.authorizeLocked(auth, scope.op.Session)
-	importer, request, err := planForeignImport(ddlHost{e: e, op: scope.op, stage: stage}, auth, s)
+	importer, request, err := fdw.PlanImport(ddlHost{e: e, op: scope.op, stage: stage}, auth, s)
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
@@ -34,10 +34,10 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		if err := scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		if !foreignImportSelected(s, definition.Name) {
+		if !fdw.ImportSelected(s, definition.Name) {
 			continue
 		}
-		table, err := foreignImportedTable(scope.op.Context(), definition, s)
+		table, err := fdw.ImportedTable(scope.op.Context(), definition, s)
 		if err != nil {
 			return Result{}, fdw.ImportError(err, definition.Name)
 		}

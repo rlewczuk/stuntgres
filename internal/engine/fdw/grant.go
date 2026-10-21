@@ -1,4 +1,4 @@
-package engine
+package fdw
 
 import (
 	"context"
@@ -6,27 +6,31 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-// foreignGrantChange is the new descriptor of one wrapper or server whose
+// GrantKind reports whether a GRANT object kind is a wrapper or server.
+func GrantKind(kind string) bool {
+	return kind == "foreign server" || kind == "foreign-data wrapper"
+}
+
+// GrantChange is the new descriptor of one wrapper or server whose
 // ACL a GRANT or REVOKE changes.
-type foreignGrantChange struct {
+type GrantChange struct {
 	Address ids.ObjectAddress
 	Object  *catalog.ForeignObject
 }
 
-// planForeignGrant decides GRANT or REVOKE USAGE on foreign-data wrappers or
+// PlanGrant decides GRANT or REVOKE USAGE on foreign-data wrappers or
 // servers with the same role closure, grant-source and ACL transformation
 // as other GRANTs. pending holds the transaction's uncommitted descriptors;
 // the plan reads them and never writes them, and a name repeated in s sees
 // the plan's own earlier change. revision allocates each change's
 // definition revision. The changes come back in statement order; the
 // warnings raised before an error come back with it, to be emitted first.
-func planForeignGrant(ctx context.Context, view access.View, s *parser.ObjectGrant, pending map[ids.ObjectAddress]catalog.Descriptor, revision func() (ids.DefinitionRevision, error)) ([]foreignGrantChange, []sqlstate.Error, error) {
+func PlanGrant(ctx context.Context, view access.View, s *parser.ObjectGrant, pending map[ids.ObjectAddress]catalog.Descriptor, revision func() (ids.DefinitionRevision, error)) ([]GrantChange, []sqlstate.Error, error) {
 	if s.Grantor != nil {
 		grantor, err := authorization.MembershipRole(view.Roles, view.State, *s.Grantor)
 		if err != nil {
@@ -68,14 +72,14 @@ func planForeignGrant(ctx context.Context, view access.View, s *parser.ObjectGra
 	if s.Kind == "foreign-data wrapper" {
 		class = ids.ForeignWrapperClassID
 	}
-	var changes []foreignGrantChange
+	var changes []GrantChange
 	var warnings []sqlstate.Error
 	changed := make(map[ids.ObjectAddress]*catalog.ForeignObject)
 	for _, name := range s.Relations {
 		if len(name.Parts) != 1 {
 			return nil, warnings, sqlError("42601", "SQL/MED global names cannot be qualified")
 		}
-		d, er := fdw.Find(view.Catalog, class, name.Parts[0].Text)
+		d, er := Find(view.Catalog, class, name.Parts[0].Text)
 		if er != nil {
 			return nil, warnings, er
 		}
@@ -119,7 +123,7 @@ func planForeignGrant(ctx context.Context, view access.View, s *parser.ObjectGra
 			return nil, warnings, er
 		}
 		changed[d.Address()] = &next
-		changes = append(changes, foreignGrantChange{Address: d.Address(), Object: &next})
+		changes = append(changes, GrantChange{Address: d.Address(), Object: &next})
 	}
 	return changes, warnings, nil
 }

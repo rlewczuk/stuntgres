@@ -1,4 +1,4 @@
-package engine
+package fdw
 
 import (
 	"fmt"
@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -15,9 +14,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// foreignStageTarget is the object one WRAPPER, SERVER or USER MAPPING
+// stageTarget is the object one WRAPPER, SERVER or USER MAPPING
 // statement names. A mapping also carries its role, server and wrapper.
-type foreignStageTarget struct {
+type stageTarget struct {
 	class   ids.OID
 	name    string
 	role    authorization.PrincipalRef
@@ -25,12 +24,12 @@ type foreignStageTarget struct {
 	wrapper *catalog.ForeignObject
 }
 
-// stageForeignDDL stages CREATE, ALTER and DROP of a foreign-data wrapper,
+// StageDDL stages CREATE, ALTER and DROP of a foreign-data wrapper,
 // server or user mapping, and routes CREATE and DROP FOREIGN TABLE to the
 // host. It returns the validator jobs, which the engine runs after releasing
 // Engine.mu and replacementMu, and the dropped roots, whose dependents the
 // engine stages. A nil, nil, nil result means there is nothing to publish.
-func stageForeignDDL(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.InputEnvironment) ([]fdw.Validation, []ids.ObjectAddress, error) {
+func StageDDL(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.InputEnvironment) ([]Validation, []ids.ObjectAddress, error) {
 	view := h.AccessView(auth)
 	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
@@ -53,7 +52,7 @@ func stageForeignDDL(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL, input
 	if s.Kind == "table" {
 		return h.StageForeignTable(auth, s, input)
 	}
-	target := foreignStageTarget{class: fdw.Class(s.Kind)}
+	target := stageTarget{class: Class(s.Kind)}
 	if len(s.Name.Parts) != 0 {
 		if len(s.Name.Parts) != 1 {
 			return nil, nil, sqlError("42601", "SQL/MED global names cannot be qualified")
@@ -61,7 +60,7 @@ func stageForeignDDL(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL, input
 		target.name = s.Name.Parts[0].Text
 	}
 	if s.Kind == "mapping" {
-		target.role, err = fdw.MappedRole(view, s.Role)
+		target.role, err = MappedRole(view, s.Role)
 		if err != nil {
 			if s.Action == "drop" && s.IfExists {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
@@ -71,7 +70,7 @@ func stageForeignDDL(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL, input
 			}
 			return nil, nil, err
 		}
-		target.server, err = fdw.Find(view.Catalog, ids.ForeignServerClassID, s.Server.Text)
+		target.server, err = Find(view.Catalog, ids.ForeignServerClassID, s.Server.Text)
 		if err != nil {
 			if s.Action == "drop" && s.IfExists {
 				ddl.Notice(h, "00000", fmt.Sprintf(`server "%s" does not exist, skipping`, s.Server.Text))
@@ -79,7 +78,7 @@ func stageForeignDDL(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL, input
 			}
 			return nil, nil, err
 		}
-		if err = fdw.MappingAuthority(view, auth, target.server, target.role); err != nil {
+		if err = MappingAuthority(view, auth, target.server, target.role); err != nil {
 			return nil, nil, err
 		}
 		target.name = catalog.ForeignMappingName(target.server.Address(), target.role)
@@ -87,22 +86,22 @@ func stageForeignDDL(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL, input
 		target.wrapper, _ = view.Catalog.Foreign(target.server.Wrapper)
 	}
 	if s.Action == "drop" {
-		roots, err := stageForeignDrop(h, auth, s, target)
+		roots, err := stageDrop(h, auth, s, target)
 		return nil, roots, err
 	}
-	return stageForeignDefinition(h, auth, s, target, successor)
+	return stageDefinition(h, auth, s, target, successor)
 }
 
-// stageForeignDefinition stages CREATE or ALTER of target. successor is the
+// stageDefinition stages CREATE or ALTER of target. successor is the
 // resolved new owner of ALTER ... OWNER TO.
-func stageForeignDefinition(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL, target foreignStageTarget, successor authorization.PrincipalRef) ([]fdw.Validation, []ids.ObjectAddress, error) {
+func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target stageTarget, successor authorization.PrincipalRef) ([]Validation, []ids.ObjectAddress, error) {
 	view := h.AccessView(auth)
 	class, name, role, server, wrapper := target.class, target.name, target.role, target.server, target.wrapper
-	old, _ := fdw.Find(view.Catalog, class, name)
+	old, _ := Find(view.Catalog, class, name)
 	if s.Action == "create" && old != nil {
-		message := fmt.Sprintf(`%s "%s" already exists`, fdw.Label(class), name)
+		message := fmt.Sprintf(`%s "%s" already exists`, Label(class), name)
 		if class == ids.ForeignMappingClassID {
-			message = fdw.MappingDiagnostic(view, role, server, true)
+			message = MappingDiagnostic(view, role, server, true)
 		}
 		if s.IfNotExists {
 			ddl.Notice(h, "42710", message+", skipping")
@@ -113,15 +112,15 @@ func stageForeignDefinition(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL
 	var err error
 	if s.Action == "alter" && old == nil {
 		if class == ids.ForeignMappingClassID {
-			return nil, nil, sqlError("42704", fdw.MappingDiagnostic(view, role, server, false))
+			return nil, nil, sqlError("42704", MappingDiagnostic(view, role, server, false))
 		}
-		_, err = fdw.Find(view.Catalog, class, name)
+		_, err = Find(view.Catalog, class, name)
 		return nil, nil, err
 	}
 	var next catalog.ForeignObject
 	if old != nil {
 		if class != ids.ForeignMappingClassID && s.Owner == nil {
-			if err = ddl.Check(h, auth, access.Requirement{Object: fdw.ObjectRef(view, old), OwnerOnly: true}); err != nil {
+			if err = ddl.Check(h, auth, access.Requirement{Object: ObjectRef(view, old), OwnerOnly: true}); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -140,7 +139,7 @@ func stageForeignDefinition(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL
 	switch class {
 	case ids.ForeignWrapperClassID:
 		if s.HandlerSet {
-			p, er := foreignHandlerProcedure(h, auth, s.Handler, catalog.ForeignHandlerSignature)
+			p, er := handlerProcedure(h, auth, s.Handler, catalog.ForeignHandlerSignature)
 			if er != nil {
 				return nil, nil, er
 			}
@@ -151,7 +150,7 @@ func stageForeignDefinition(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL
 			}
 		}
 		if s.ValidatorSet {
-			p, er := foreignHandlerProcedure(h, auth, s.Validator, catalog.ForeignValidatorSignature)
+			p, er := handlerProcedure(h, auth, s.Validator, catalog.ForeignValidatorSignature)
 			if er != nil {
 				return nil, nil, er
 			}
@@ -164,11 +163,11 @@ func stageForeignDefinition(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL
 		wrapper = &next
 	case ids.ForeignServerClassID:
 		if old == nil {
-			wrapper, err = fdw.Find(view.Catalog, ids.ForeignWrapperClassID, s.Server.Text)
+			wrapper, err = Find(view.Catalog, ids.ForeignWrapperClassID, s.Server.Text)
 			if err != nil {
 				return nil, nil, err
 			}
-			if err = ddl.Check(h, auth, access.Requirement{Object: fdw.ObjectRef(view, wrapper), Privileges: authorization.UsagePrivilege}); err != nil {
+			if err = ddl.Check(h, auth, access.Requirement{Object: ObjectRef(view, wrapper), Privileges: authorization.UsagePrivilege}); err != nil {
 				return nil, nil, err
 			}
 			next.Wrapper = wrapper.Address()
@@ -196,7 +195,7 @@ func stageForeignDefinition(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper descriptor")
 	}
 	if old == nil || s.Options != nil {
-		next.Options, err = fdw.TransformOptions(next.Options, s.Options)
+		next.Options, err = TransformOptions(next.Options, s.Options)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -205,7 +204,7 @@ func stageForeignDefinition(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL
 		next.ObjectName = s.NewName.Text
 	}
 	if s.Owner != nil {
-		if er := fdw.OwnershipEligibility(view, auth, old, successor); er != nil {
+		if er := OwnershipEligibility(view, auth, old, successor); er != nil {
 			return nil, nil, er
 		}
 		if successor == old.Owner {
@@ -215,12 +214,12 @@ func stageForeignDefinition(h fdw.Host, auth ddl.Authority, s *parser.ForeignDDL
 		next.Owner = successor
 	}
 	if a := h.Stage().LookupName(catalog.DescriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.Address()) {
-		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, fdw.Label(class), next.Name()))
+		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, Label(class), next.Name()))
 	}
 	h.AddDomainBase(wrapper)
-	var jobs []fdw.Validation
+	var jobs []Validation
 	if old == nil || s.Options != nil {
-		job, er := stageForeignValidatorJobFor(h, wrapper, catalog.ForeignObjectKind(class), next.Options)
+		job, er := stageValidatorJob(h, wrapper, catalog.ForeignObjectKind(class), next.Options)
 		if er != nil {
 			return nil, nil, er
 		}

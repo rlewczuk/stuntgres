@@ -1,19 +1,18 @@
-package engine
+package fdw
 
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-// foreignHandlerProcedure resolves the HANDLER or VALIDATOR function of a
+// handlerProcedure resolves the HANDLER or VALIDATOR function of a
 // wrapper: it must exist with signature, be executable by the actor and
 // return fdw_handler or void. A nil name (NO HANDLER, NO VALIDATOR) is nil.
-func foreignHandlerProcedure(h fdw.Host, auth ddl.Authority, name *parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
+func handlerProcedure(h Host, auth ddl.Authority, name *parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
 	if name == nil {
 		return nil, nil
 	}
@@ -28,7 +27,7 @@ func foreignHandlerProcedure(h fdw.Host, auth ddl.Authority, name *parser.Object
 		}
 		return nil, sqlError("42883", "function "+catalog.ObjectNameText(*name)+"("+args+") does not exist")
 	}
-	if err := ddl.Check(h, auth, access.Requirement{Object: fdw.ObjectRef(h.AccessView(auth), p), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err := ddl.Check(h, auth, access.Requirement{Object: ObjectRef(h.AccessView(auth), p), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
 	}
 	result := ids.OID(3115)
@@ -41,10 +40,10 @@ func foreignHandlerProcedure(h fdw.Host, auth ddl.Authority, name *parser.Object
 	return p, nil
 }
 
-// stageForeignValidatorJobFor builds the job against the stage base and
+// stageValidatorJob builds the job against the stage base and
 // records its validator procedure among the stage's observed dependencies.
-func stageForeignValidatorJobFor(h fdw.Host, wrapper *catalog.ForeignObject, kind catalog.ForeignObjectKind, options []catalog.ForeignOption) (fdw.Validation, error) {
-	job, validator, err := fdw.ValidatorJob(h.StageBase(), wrapper, kind, options)
+func stageValidatorJob(h Host, wrapper *catalog.ForeignObject, kind catalog.ForeignObjectKind, options []catalog.ForeignOption) (Validation, error) {
+	job, validator, err := ValidatorJob(h.StageBase(), wrapper, kind, options)
 	if validator != nil {
 		h.AddDomainBase(validator)
 	}
