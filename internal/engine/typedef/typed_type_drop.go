@@ -5,13 +5,14 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func StageDropCompositeLocked(h StageHost, auth Authority, s *parser.DropComposite) error {
+func StageDropCompositeLocked(h StageHost, auth ddl.Authority, s *parser.DropComposite) error {
 	view := h.AccessView(auth)
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
@@ -19,7 +20,7 @@ func StageDropCompositeLocked(h StageHost, auth Authority, s *parser.DropComposi
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
 				if s.IfExists {
-					notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+					ddl.Notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 					continue
 				}
 				return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
@@ -29,8 +30,8 @@ func StageDropCompositeLocked(h StageHost, auth Authority, s *parser.DropComposi
 		if _, err := StandaloneComposite(view.Catalog, typ, nil); err != nil {
 			return expr.ErrorAt("0A000", "statement is unsupported", s.Pos)
 		}
-		ref := objectRef(h, auth, typ.Address())
-		if err := check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := ddl.ObjectRef(h, auth, typ.Address())
+		if err := ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if !seen[ref.Address] {

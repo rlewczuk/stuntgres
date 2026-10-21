@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -14,7 +15,7 @@ import (
 )
 
 // Domain declarations use the same private catalog publication as schema DDL.
-func StageCreateDomainLocked(h StageHost, auth Authority, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -83,7 +84,7 @@ func StageCreateDomainLocked(h StageHost, auth Authority, s *parser.CreateDomain
 	if err != nil {
 		return err
 	}
-	ref := objectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
+	ref := ddl.ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
 	h.AddDomainBase(view.Catalog.Get(ref.Address))
 	if err = view.CanUse(auth, ref); err != nil {
 		return err
@@ -134,7 +135,7 @@ func StageCreateDomainLocked(h StageHost, auth Authority, s *parser.CreateDomain
 	return h.Stage().Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: view.State.CurrentUser, ACL: authorization.DefaultBaseline(view.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
-func StageDropDomainLocked(h StageHost, auth Authority, s *parser.DropDomain) error {
+func StageDropDomainLocked(h StageHost, auth ddl.Authority, s *parser.DropDomain) error {
 	view := h.AccessView(auth)
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
@@ -151,7 +152,7 @@ func StageDropDomainLocked(h StageHost, auth Authority, s *parser.DropDomain) er
 		}
 		if len(found) != 1 {
 			if s.IfExists {
-				notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+				ddl.Notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
@@ -160,8 +161,8 @@ func StageDropDomainLocked(h StageHost, auth Authority, s *parser.DropDomain) er
 		if !target.SQLType.IsDomain() {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, catalog.ObjectNameText(name)))
 		}
-		ref := objectRef(h, auth, target.Address())
-		if err = check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := ddl.ObjectRef(h, auth, target.Address())
+		if err = ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if seen[ref.Address] {
