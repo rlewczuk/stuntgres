@@ -1,12 +1,11 @@
 package engine
 
 import (
-	"fmt"
-	"maps"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -46,27 +45,10 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *sessio
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
+		next, err := table.InheritanceDefaultCandidate(old, childSlot, definition)
+		if err != nil {
 			e.mu.Unlock()
-			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
-		}
-		next := *old
-		next.ObjectRevision++
-		next.ColumnMeta.Defaults = maps.Clone(old.ColumnMeta.Defaults)
-		attribute := old.Attributes[childSlot]
-		if definition.Expression == nil {
-			delete(next.ColumnMeta.Defaults, attribute)
-		} else {
-			if next.ColumnMeta.Defaults == nil {
-				next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
-			}
-			next.ColumnMeta.Defaults[attribute] = definition
-		}
-		if next.Inheritance != nil {
-			next.Inheritance = catalog.CloneInheritance(old.Inheritance)
-			provenance := next.Inheritance.Columns[attribute]
-			provenance.ExplicitDefault = true
-			next.Inheritance.Columns[attribute] = provenance
+			return Result{}, err
 		}
 		store := e.privateStorageLocked(scope.owner.Catalog, old.Address())
 		if store == nil {
@@ -75,7 +57,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *sessio
 		}
 		length, generation, ends := len(store.Versions), store.Generation, store.Ends
 		e.mu.Unlock()
-		if err := stage.alterRelation(op.Context(), ref, &next, store, store, length, generation, ends); err != nil {
+		if err := stage.alterRelation(op.Context(), ref, next, store, store, length, generation, ends); err != nil {
 			return Result{}, err
 		}
 	}

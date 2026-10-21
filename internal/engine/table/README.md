@@ -117,6 +117,29 @@ admission and DML expansion goes to `dml`.
   `StageCreateSerials`, `StageForeignKey`, `StageCreateForeignKeys` and
   `CreateCheckSyntax`; `NewRelation` and `AssignDefinitionOIDs` over a
   `ddl.Allocator` (typedef's composite relations use `NewRelation` too).
+- **ALTER TABLE decisions** (24d.2), over `AlterHost`: the candidates
+  `AddColumnCandidate`, `GenerationCandidate`, `AlterTypeCandidate` with
+  `AdmitAlterType`, `CompleteAlterType` and `PrepareAlterType`,
+  `PrepareAlterTableActions` with `AlterTableActionKind`,
+  `PrepareAddedChecks` (it takes the nil-safe recursion plan),
+  `RebindAlterTypeChecks`, `RebindAlterTypeIndexes`, `CookAlterDefault`;
+  over `Host`: `StageAddedUnique`, `StageAddedForeignKey`,
+  `AddIdentityCandidate`; over `ddl.Host` or `ddl.Stage`: the post-loop
+  rebuilds `RebuildAlterNotNulls`, `RebuildAlterForeignKeys`,
+  `RebindPhysicalNotNullType`; pure: `CaptureAlterTypeIndexes`,
+  `PrepareIdentitySet`/`FinishIdentitySet` (around the root's sequence
+  wait), `AlterDefaultColumn`, `AlterDefaultCandidate`,
+  `RemapPhysicalNotNull` (over a `catalog.Read`), `RenameConstraintKind`,
+  `StageRenameConstraint` (over an `index.DescriptorStage`) and the loop
+  pieces `OnlySetNotNull`, `AddedCheckSyntax`, `StoredReplacements`,
+  `DependencyTargets` (`alter_table_loop.go`). The inheritance recursion
+  decisions are host-less: `PlanInheritanceAlter`, `InheritedAlterActions`,
+  `FinishInheritanceAlterCandidate`, the nil-safe plan methods
+  `RecordAction`, `RecordChecks`, `NotNullMode` and `OnlyCreatedConstraint`
+  (`inheritance_alter_record.go`), `InheritanceDefaultCandidate` and the
+  per-member rename cores `RenameInheritanceColumn[Precheck]` and
+  `RenameInheritanceConstraint[Precheck]`. Over `DropDependencyReader`:
+  `DropConstraintIndexes`, `OwnedSequences` and `DropIdentity`.
 - **Other table DDL cores** (pure, no stage): `DropTargets` (DROP TABLE
   resolution, kinds and ownership over `Resolver`), the SET SCHEMA cores
   `SetSchemaOwned`, `SetSchemaGroup`, `SetSchemaCandidates` and
@@ -139,8 +162,16 @@ collation resolution, the table and sequence stage slots
 implements it (`table_host.go`). `Resolver` is its stage-less part, used by
 `DropTargets` before DROP TABLE begins a stage; `RestoreResolver`
 (`ResolveRestoredRelation`) is the stage-less part `RetiredConstraintCandidate`
-resolves retired parents through. `AlterHost` declares the
-scope-bound ALTER contract that 24d.2 implements. Every method runs with
+resolves retired parents through. `AlterHost` adds what one
+ALTER statement's bindings need: the live `Input` (captures mutate it, so
+callers read it again before each binding), `LiveEpoch`, the snapshot
+captures (`CaptureTypeDiagnosticName`, `CaptureCommentSnapshot`,
+`CaptureCheckSnapshots`), the binders `BindDefault`, `BindGeneration`,
+`BindAddedChecks`, `RebindCheck` and `BindAlterTypeUsing`,
+`OperationDefinition`, `TypeChangeDependents` and
+`StageIdentitySequenceOptions`. The root `alterHost{ddlHost; scope}`
+(`alter_host.go`) implements it; the root builds one per call because the
+ALTER loop begins its stage lazily, so the stage may be nil. Every method runs with
 `Engine.mu` held, never takes or releases it, and never waits; the
 authority is an opaque `ddl.Authority`, so code here re-reads
 `AccessView` after every `Recapture`.
@@ -161,13 +192,20 @@ builds the host), `dropTableLocked`, `alterSchemaLocked` and
 functions that stage or wait (`addColumnCandidate`, `alterTypeCandidate`,
 `dropColumnCandidate`, ...), row rewrites and validation
 (`rewriteTypeRows`, `validateAddedConstraintRows`), `Engine.mu` windows,
-lock admission (`acquireDefinitionProviders`, `admitInheritanceAlter`),
-the inheritance prepare side (`prepareInheritanceNode`,
-`inheritancePreparedNode`, `inheritancePreparedAction`), and Finish.
+lock admission (`acquireDefinitionProviders`, `admitInheritanceAlter`,
+`acquireInheritanceDefinitions`), the identity sequence waits and staging
+(`stageAlterIdentityTypes`, `alterIdentityTypeSequence`,
+`refreshIdentitySequenceLocked`), the inheritance prepare side
+(`prepareInheritanceNode`, `inheritancePreparedNode`,
+`inheritancePreparedAction`), prepared drops (`preparedDrop`,
+`preparedIdentityDrop`), and Finish. The candidate wrappers
+(`addColumnCandidate`, `alterTypeCandidate`, `generationCandidate`,
+`prepareAddedChecks`, `rebindAlterTypeChecks`, `rebindAlterTypeIndexes`,
+`stageAddedUnique`, `stageAddedForeignKey`) take `Engine.mu` across the
+`table` call and build the host; nothing inside waits.
 Also in the root: the binder bodies behind the host (`bindCreateDefaults`,
 `bindCreateGenerations`, `bindColumnChecks`),
-`projectColumnShapeRoots`, `alterTableActionKind` (it calls the SET
-TABLESPACE check), `inheritanceQueryLeaves` and the inheritance query
+`projectColumnShapeRoots`, `inheritanceQueryLeaves` and the inheritance query
 scope methods (query admission). Restore keeps its hook bodies in the
 root (control reaches them): the context check, authorization, the
 superuser 42501, the `Engine.mu` window, the trust checks
@@ -181,11 +219,13 @@ enforcement and FK actions (`foreignKeyJob`, `foreign_action*.go`) and
 `mutation_targets.go` go to `dml`; the materialized snapshot codec is in `view`.
 24c refined the hosts: `table.Host` (on the root `ddlHost`) and
 `table.AlterHost` (on a scope-bound root `alterHost`), every method under
-`Engine.mu` and never waiting; 24d.1 moved the CREATE decisions and 24d.3
-the Restore cores, and 24d.2 moves the ALTER decisions behind them (see
+`Engine.mu` and never waiting; 24d.1 moved the CREATE decisions, 24d.2 the
+ALTER and inheritance decisions and 24d.3 the Restore cores (see
 [ENGINE-SPLIT-table.md](../../../docs/ENGINE-SPLIT-table.md) Part B). The
 removal interface stays table-local: `DropDependencyReader` is passed in,
-and its callers hold nothing.
+and its callers hold nothing; its comment marks the methods that wait
+(`Acquire`, `CaptureIdentitySequence`, the dependency passes) or take
+`Engine.mu` (`Remove`, `ApplyViewDependents`).
 
 ## Invariants
 
@@ -202,11 +242,13 @@ and its callers hold nothing.
 
 Package-local tests cover pure helpers (`TestOwnedSequenceNameTruncatesToValidUTF8`).
 Every other table unit test builds an engine and stays in the root package,
-naming the moved code as `table.X`; the host seam has
-`TestTableHost(BindColumnDefaultsMatchesCreateTable|StageChangedReportsStagedDescriptor)`.
+naming the moved code as `table.X`; the host seams have
+`TestTableHost(BindColumnDefaultsMatchesCreateTable|StageChangedReportsStagedDescriptor)`
+and `TestAlterHostInputReflectsCheckSnapshotCapture`.
 
 ```sh
-make check RUN='^TestOwnedSequenceName|^TestTableHost'
+make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost'
+make check RUN='^Test(AlterAdd|AlterGenerated|AlterTablespace|AlterType|AlterDefault|IdentityAlter|ConstraintRename|InheritanceAlter|InheritanceRetired|InheritanceMetadata)'
 make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
 make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'
 make check RACE=1 RUN='^TestNotNullAXWaitCancellationAndEnd$'

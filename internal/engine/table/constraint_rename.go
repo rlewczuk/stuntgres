@@ -6,6 +6,9 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 func RenameLocalConstraint(parent *catalog.Relation, old, destination string, kind byte) (*catalog.Relation, error) {
@@ -72,4 +75,80 @@ func RenameLocalConstraint(parent *catalog.Relation, old, destination string, ki
 		}
 	}
 	return nil, ids.ErrCatalogReplaced
+}
+
+// RenameConstraintKind is the kind of parent's constraint name ('n', 'c', 'u',
+// 'x' or 'f') and, for UNIQUE and EXCLUDE, its backing index. PostgreSQL
+// accepts view and index targets here, then performs constraint lookup.
+func RenameConstraintKind(parent *catalog.Relation, name string) (byte, ids.ObjectAddress, error) {
+	if parent.RelationKind == catalog.SequenceRelation {
+		return 0, ids.ObjectAddress{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.Name()), Detail: "This operation is not supported for sequences."}
+	}
+	var backing ids.ObjectAddress
+	kind := byte(0)
+	for _, c := range parent.Constraints.NotNull {
+		if c.Name == name {
+			kind = 'n'
+			break
+		}
+	}
+	for _, c := range parent.Constraints.Check {
+		if c.Name == name {
+			kind = 'c'
+			break
+		}
+	}
+	for _, c := range parent.Constraints.Unique {
+		if c.Name == name {
+			kind = 'u'
+			backing = c.Index
+			break
+		}
+	}
+	for _, c := range parent.Constraints.Exclusion {
+		if c.Name == name {
+			kind = 'x'
+			backing = c.Index
+			break
+		}
+	}
+	for _, c := range parent.Constraints.ForeignKeys {
+		if c.Name == name {
+			kind = 'f'
+			break
+		}
+	}
+	if kind == 0 {
+		return 0, ids.ObjectAddress{}, sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, name, parent.Name()))
+	}
+	return kind, backing, nil
+}
+
+// StageRenameConstraint stages RENAME CONSTRAINT of a local constraint of
+// parent, or of the index backing a UNIQUE or EXCLUDE constraint.
+func StageRenameConstraint(stage index.DescriptorStage, view catalog.Read, parent *catalog.Relation, raw *parser.AlterTableRenameConstraint, kind byte, backing ids.ObjectAddress) error {
+	if backing != (ids.ObjectAddress{}) {
+		idx, ok := view.Relation(backing)
+		if !ok {
+			return ids.ErrCatalogReplaced
+		}
+		if _, exists := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.NewName.Text}); exists {
+			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text))
+		}
+		if idx.Revision() == ids.DefinitionRevision(^uint64(0)) {
+			return fmt.Errorf("stuntgres: definition revision exhausted")
+		}
+		next := *idx
+		next.ObjectName = raw.NewName.Text
+		next.ObjectRevision++
+		if err := index.StageBackingIndexRename(stage, &next); err != nil {
+			return err
+		}
+		return stage.Replace(&next)
+	}
+	next, err := RenameLocalConstraint(parent, raw.Constraint.Text, raw.NewName.Text, kind)
+	if err != nil {
+		return err
+	}
+	return stage.Replace(next)
 }

@@ -3,15 +3,14 @@ package engine
 import (
 	"fmt"
 	"iter"
-	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // An identity DROP owns its real grant-time sequence capture separately from
@@ -30,67 +29,36 @@ type identityDropCapture struct {
 	original catalog.Descriptor
 }
 
-// dropIdentityDefinition is the incumbent provider algorithm shared by ordinary
-// execution and immutable preparation. Only the execution sink owns a stage.
-func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, identityDropCapture, error) {
-	var capture identityDropCapture
-	if catalog.IsSystemColumn(action.Column.Text) {
-		return old, capture, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
-	}
-	slot, present := old.Index[action.Column.Text]
-	if !present {
-		return old, capture, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.Name()))
-	}
-	attribute := old.Attributes[slot]
-	identity, exists := old.ColumnMeta.Identities[attribute]
-	if !exists {
-		message := fmt.Sprintf(`column "%s" of relation "%s" is not an identity column`, action.Column.Text, old.Name())
-		if !action.IfExists {
-			return old, capture, sqlError("55000", message)
-		}
-		notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message + ", skipping"}
-		if provider.prepared == nil {
-			provider.scope.op.EmitNotice(session.LevelNotice, notice)
-		} else {
-			provider.prepared.recordEffect(dropEffect{missing: &notice})
-		}
-		return old, capture, nil
-	}
-	ref := e.catalog.Domain.Ref(provider.base.Epoch(), identity.Sequence)
+// CaptureIdentitySequence waits for the exact sequence's AX grant, then in one
+// Engine.mu window captures its definition: refreshed into the stage, or as
+// the prepared drop's immutable observation.
+func (p *dropProvider) CaptureIdentitySequence(relation *catalog.Relation, attribute int32, ref ids.ObjectRef) error {
 	// Do not capture the sequence definition before its actual operation grant:
 	// the incumbent refresh selects this provider at grant time, not by name.
-	if err := provider.scope.acquireSequence(ref, lock.AccessExclusive, false); err != nil {
-		return old, capture, err
+	if err := p.scope.acquireSequence(ref, lock.AccessExclusive, false); err != nil {
+		return err
 	}
+	e := p.owner
 	e.mu.Lock()
-	var err error
-	if provider.stage != nil {
-		err = e.refreshIdentitySequenceLocked(provider.scope, provider.stage, old, attribute, identity.Sequence)
-		if err == nil {
-			provider.base = provider.stage.Base
-			capture = identityDropCapture{sequence: ref, original: e.catalog.state.Get(identity.Sequence)}
-			provider.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.Sequence}})
-		}
-	} else {
-		capture, err = e.captureIdentityDropDefinitionLocked(provider, old, attribute, ref)
+	defer e.mu.Unlock()
+	if p.stage == nil {
+		capture, err := e.captureIdentityDropDefinitionLocked(p, relation, attribute, ref)
+		p.identityDrop = capture
+		return err
 	}
-	e.mu.Unlock()
-	if err != nil {
-		return old, capture, err
+	if err := e.refreshIdentitySequenceLocked(p.scope, p.stage, relation, attribute, ref.Address); err != nil {
+		return err
 	}
-	if err := provider.ApplyViewDependents([]ids.ObjectAddress{identity.Sequence}, parser.DropRestrict); err != nil {
-		return old, capture, err
+	p.base = p.stage.Base
+	p.identityDrop = identityDropCapture{sequence: ref, original: e.catalog.state.Get(ref.Address)}
+	p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{e.catalog.state, []ids.ObjectAddress{ref.Address}})
+	return nil
+}
+
+func (p *dropProvider) TombstoneIdentity(address ids.ObjectAddress) {
+	if p.stage != nil {
+		applyIdentityDropTombstone(p.stage, address)
 	}
-	if err := provider.remove(ref); err != nil {
-		return old, capture, err
-	}
-	if provider.stage != nil {
-		applyIdentityDropTombstone(provider.stage, identity.Sequence)
-	}
-	next := *old
-	next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
-	delete(next.ColumnMeta.Identities, attribute)
-	return &next, capture, nil
 }
 
 // The caller holds Engine.mu after the exact sequence's AX grant. This captures
@@ -148,10 +116,11 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	if provider.owner != e {
 		return nil, ids.ErrCatalogReplaced
 	}
-	next, capture, err := e.dropIdentityDefinition(provider, old, action)
+	next, err := table.DropIdentity(provider, old, action)
 	if err != nil {
 		return nil, err
 	}
+	capture := provider.identityDrop
 	drop, err := scope.finishDropDefinition(provider, next)
 	if err != nil {
 		return nil, err

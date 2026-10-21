@@ -202,7 +202,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	rebuilt, err := rebindPhysicalNotNullType(stage, &next, []index.ColumnTransformation{{Attribute: 2}})
+	rebuilt, err := table.RebindPhysicalNotNullType(stage, &next, []index.ColumnTransformation{{Attribute: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	}
 	before := local.Constraints.NotNull[0]
 	archive := provenance.Retired[0]
-	rebuilt, err := e.rebuildAlterNotNullsLocked(stage, &local, []index.ColumnTransformation{{Attribute: 1}})
+	rebuilt, err := table.RebuildAlterNotNulls(ddlHost{e: e, stage: stage}, &local, []index.ColumnTransformation{{Attribute: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

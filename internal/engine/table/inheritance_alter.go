@@ -186,3 +186,40 @@ func InheritedNotNull(view catalog.Read, parents []ids.ObjectAddress, name strin
 	}
 	return nil
 }
+
+// PlanInheritanceAlter checks ALTER TABLE raw on the inheritance root and
+// plans its recursion: the actions (ONLY rewritten), the targets in recursion
+// order, and whether preparatory locks are needed before the targets are
+// visited.
+func PlanInheritanceAlter(view catalog.Read, root *catalog.Relation, raw *parser.AlterTable) (InheritanceAlterPlan, bool, error) {
+	actions := raw.Actions
+	if err := InheritanceAlterActionsGuard(view, root, actions); err != nil {
+		return InheritanceAlterPlan{}, false, err
+	}
+	children := catalog.InheritanceChildren(view, root.Address())
+	if raw.Only {
+		for _, a := range raw.Actions {
+			if a.Action == parser.AddUnique && a.Unique.Primary && len(children) != 0 {
+				for _, column := range a.Unique.Columns {
+					if slot, ok := root.Index[column.Text]; ok && root.Columns[slot].Nullable {
+						return InheritanceAlterPlan{}, false, sqlError("XX000", fmt.Sprintf(`column "%s" of table "%s" is not marked NOT NULL`, column.Text, children[0].Name()))
+					}
+				}
+			}
+		}
+		var err error
+		actions, err = InheritanceOnlyActions(root, len(children) != 0, actions)
+		if err != nil {
+			return InheritanceAlterPlan{}, false, err
+		}
+	}
+	preparatory := InheritancePreparatoryLocks(actions, raw.Only)
+	recurse := preparatory || slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool {
+		return InheritanceRecursiveAction(root, a, raw.Only) || a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint
+	})
+	targets := []*catalog.Relation{root}
+	if recurse {
+		targets = InheritanceAlterOrder(view, root)
+	}
+	return InheritanceAlterPlan{Root: root, Targets: targets, Selected: map[ids.ObjectAddress]bool{}, Only: raw.Only, Actions: actions, Events: make(map[ids.ObjectAddress][]InheritanceAlterEvent)}, preparatory, nil
+}

@@ -7,12 +7,19 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
-// dropDependencyReader is what the column, CHECK, DEFAULT and foreign-key
-// dependency passes need from the drop pipeline: the input catalog with this
-// drop's replacements and removals, staging of replaced descriptors, and the
-// passes that stay with the pipeline. dropProvider implements it.
+// DropDependencyReader is what the column, CHECK, DEFAULT, foreign-key,
+// constraint-index, owned-sequence and DROP IDENTITY decisions need from the
+// drop pipeline: the input catalog with this drop's replacements and
+// removals, staging of replaced descriptors and removals, and the passes that
+// stay with the pipeline. The engine's dropProvider implements it.
+//
+// Callers hold nothing. Acquire, CaptureIdentitySequence,
+// CompositeFieldDependencies, OwnedExpressionDependencies and
+// ExpressionDependencies wait for locks; Remove and ApplyViewDependents take
+// Engine.mu; the other methods do neither.
 type DropDependencyReader interface {
 	Context() context.Context
 	BaseRead() catalog.Read
@@ -23,12 +30,12 @@ type DropDependencyReader interface {
 	Replace(catalog.Descriptor) error
 	Revision(ids.DefinitionRevision) (ids.DefinitionRevision, error)
 	InheritanceAlterGuard(*catalog.Relation) error
-	// baseRef names address in the domain at the base epoch.
+	// BaseRef names address in the domain at the base epoch.
 	BaseRef(ids.ObjectAddress) ids.ObjectRef
-	// statementBound reports whether a statement runs the drop (not a
+	// StatementBound reports whether a statement runs the drop (not a
 	// stage-only dependency query).
 	StatementBound() bool
-	// recursingInheritance reports whether the statement is an inheritance
+	// RecursingInheritance reports whether the statement is an inheritance
 	// ALTER TABLE recursion.
 	RecursingInheritance() bool
 	DependencyClosure(targets []ids.ObjectAddress) ([]DomainDependency, error)
@@ -36,5 +43,17 @@ type DropDependencyReader interface {
 	ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...DomainDependency) error
 	CompositeFieldDependencies(source *catalog.Relation, attribute int32, mode parser.DropMode) error
 	OwnedExpressionDependencies(targets []ids.ObjectAddress, mode parser.DropMode) error
-	MissingColumnNotice(column, relation string)
+	// Remove removes ref with this drop.
+	Remove(ref ids.ObjectRef) error
+	// ExpressionDependencies drops or rejects what depends on roots on behalf
+	// of subject.
+	ExpressionDependencies(roots []ids.ObjectAddress, mode parser.DropMode, subject ids.ObjectAddress) error
+	// Notice emits notice, or records it for a prepared drop.
+	Notice(notice sqlstate.Error)
+	// CaptureIdentitySequence acquires the identity sequence seq of relation's
+	// attribute and captures its definition at the grant.
+	CaptureIdentitySequence(relation *catalog.Relation, attribute int32, seq ids.ObjectRef) error
+	// TombstoneIdentity forgets the staged identity sequence at address; a
+	// prepared drop applies it when consumed.
+	TombstoneIdentity(address ids.ObjectAddress)
 }

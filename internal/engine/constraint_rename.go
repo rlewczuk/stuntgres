@@ -5,11 +5,9 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // The owner-authorized AX grant pins the private parent incarnation. Rename is
@@ -34,80 +32,16 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 		return fail(err)
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
-	if parent.RelationKind == catalog.SequenceRelation {
-		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.Name()), Detail: "This operation is not supported for sequences."})
-	}
-	// PostgreSQL accepts view/index targets here, then performs constraint lookup.
-	var backing ids.ObjectAddress
-	kind := byte(0)
-	for _, c := range parent.Constraints.NotNull {
-		if c.Name == raw.Constraint.Text {
-			kind = 'n'
-			break
-		}
-	}
-	for _, c := range parent.Constraints.Check {
-		if c.Name == raw.Constraint.Text {
-			kind = 'c'
-			break
-		}
-	}
-	for _, c := range parent.Constraints.Unique {
-		if c.Name == raw.Constraint.Text {
-			kind = 'u'
-			backing = c.Index
-			break
-		}
-	}
-	for _, c := range parent.Constraints.Exclusion {
-		if c.Name == raw.Constraint.Text {
-			kind = 'x'
-			backing = c.Index
-			break
-		}
-	}
-	for _, c := range parent.Constraints.ForeignKeys {
-		if c.Name == raw.Constraint.Text {
-			kind = 'f'
-			break
-		}
-	}
-	if kind == 0 {
-		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.Name())))
+	kind, backing, err := table.RenameConstraintKind(parent, raw.Constraint.Text)
+	if err != nil {
+		return fail(err)
 	}
 	if (kind == 'n' || kind == 'c') && catalog.InheritanceParticipant(auth.Catalog, parent) {
 		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
-	if backing != (ids.ObjectAddress{}) {
-		idx, ok := auth.Catalog.Relation(backing)
-		if !ok {
-			e.DiscardCatalogStage(stage)
-			return fail(ids.ErrCatalogReplaced)
-		}
-		if _, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.NewName.Text}); exists {
-			e.DiscardCatalogStage(stage)
-			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text)))
-		}
-		if idx.Revision() == ids.DefinitionRevision(^uint64(0)) {
-			e.DiscardCatalogStage(stage)
-			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
-		}
-		next := *idx
-		next.ObjectName = raw.NewName.Text
-		next.ObjectRevision++
-		err = index.StageBackingIndexRename(stage, &next)
-		if err == nil {
-			err = stage.Replace(&next)
-		}
-	} else {
-		var next *catalog.Relation
-		next, err = table.RenameLocalConstraint(parent, raw.Constraint.Text, raw.NewName.Text, kind)
-		if err == nil {
-			err = stage.Replace(next)
-		}
-	}
+	err = table.StageRenameConstraint(stage, auth.Catalog, parent, raw, kind, backing)
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return fail(err)

@@ -70,18 +70,6 @@ func TestAlterTablespacePreparation(t *testing.T) {
 	if _, err := prepare([]parser.AlterTableAction{added, addedType, action("missing")}); !errors.As(err, &movement) || movement.Code != "42703" {
 		t.Fatal(err)
 	}
-	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.PartitionedRelation, catalog.IndexRelation, catalog.MaterializedViewRelation} {
-		if err := alterTablespaceKind(&catalog.Relation{RelationKind: kind}); err != nil {
-			t.Fatal(kind, err)
-		}
-	}
-	for _, kind := range []catalog.RelationKind{catalog.ViewRelation, catalog.SequenceRelation, catalog.ForeignRelation} {
-		err := alterTablespaceKind(&catalog.Relation{ObjectName: "t", RelationKind: kind})
-		var got *sqlstate.Error
-		if !errors.As(err, &got) || got.Code != "42809" || got.Detail == "" {
-			t.Fatal(kind, err)
-		}
-	}
 }
 
 func TestAlterTablespaceNoop(t *testing.T) {

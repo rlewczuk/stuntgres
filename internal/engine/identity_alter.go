@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -12,74 +11,38 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// identityCandidate applies ADD, SET or DROP identity. SET acquires the
+// identity sequence between the table decisions; ADD stages under Engine.mu.
 func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, error) {
-	if action.Action == parser.DropIdentity {
-		next, _, err := e.dropIdentityDefinition(stageDropProvider(scope.op.Context(), stage, scope, nil, nil), old, action)
-		return next, err
-	}
-	slot, ok := old.Index[action.Column.Text]
-	if catalog.IsSystemColumn(action.Column.Text) {
-		return old, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
-	}
-	if !ok {
-		return old, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.Name()))
-	}
-	attribute := old.Attributes[slot]
-	identity, exists := old.ColumnMeta.Identities[attribute]
-	message := fmt.Sprintf(`column "%s" of relation "%s"`, action.Column.Text, old.Name())
-	if action.Action == parser.AddIdentity {
-		// PostgreSQL executes the sequence before-command before table guards.
-		// Stage it privately; a failed guard must not change the old link.
-		next := *old
-		next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
-		column := &parser.Column{Name: action.Column.Text, Constraints: []parser.ColumnConstraint{{Identity: action.Identity}}}
+	switch action.Action {
+	case parser.DropIdentity:
+		return table.DropIdentity(stageDropProvider(scope.op.Context(), stage, scope, nil, nil), old, action)
+	case parser.AddIdentity:
+		h := ddlHost{e: e, stage: stage}
+		if scope != nil {
+			h.op = scope.op
+		}
 		e.mu.Lock()
-		err := table.StageCreateIdentities(ddlHost{e: e, stage: stage}, auth, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
-		e.mu.Unlock()
-		if err != nil {
-			return old, err
-		}
-		if exists {
-			return old, sqlError("55000", message+" is already an identity column")
-		}
-		if old.Columns[slot].Nullable {
-			return old, sqlError("55000", message+" must be declared NOT NULL before identity can be added")
-		}
-		if _, ok := old.ColumnMeta.Defaults[attribute]; ok || old.ColumnMeta.Generations[attribute].Expression != nil {
-			return old, sqlError("55000", message+" already has a default value")
-		}
-		return &next, nil
+		defer e.mu.Unlock()
+		return table.AddIdentityCandidate(h, auth, old, action)
 	}
-	if !exists {
-		return old, sqlError("55000", message+" is not an identity column")
+	attribute, identity, err := table.PrepareIdentitySet(old, action)
+	if err != nil {
+		return old, err
 	}
-	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), identity.Sequence)
-	definition := action.Identity
-	if len(definition.Options) != 0 {
-		if err := sequence.CheckIdentitySetOptions(definition.Options); err != nil {
-			return old, err
-		}
+	if options := action.Identity.Options; len(options) != 0 {
+		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), identity.Sequence)
 		if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 			return old, err
 		}
 		e.mu.Lock()
-		err := e.stageIdentitySequenceOptionsLocked(scope, stage, old, attribute, identity.Sequence, definition.Options)
+		err := (alterHost{ddlHost{e: e, op: scope.op, stage: stage}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
 		e.mu.Unlock()
 		if err != nil {
 			return old, err
 		}
 	}
-	// Numeric before-command errors take precedence over a utility mode conflict.
-	if definition.ConflictingModes {
-		return old, sqlError("42601", "conflicting or redundant options")
-	}
-	next := *old
-	next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
-	if definition.Mode != parser.IdentityNone {
-		identity.Mode = definition.Mode
-		next.ColumnMeta.Identities[attribute] = identity
-	}
-	return &next, nil
+	return table.FinishIdentitySet(old, attribute, identity, action)
 }
 
 // Both identity SET and TYPE AS use the sequence owner's migration/state rules.

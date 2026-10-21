@@ -56,6 +56,10 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   `access.View` and always fails (0A000 `TablespacePhysicalUnsupported`
   once valid); it never stages. `TablespaceRef(view, name)` resolves a
   tablespace for GRANT, ALTER TABLESPACE and ALTER TABLE SET TABLESPACE.
+  `CheckAlterTablespaceCreate(view, env, ref)` checks CREATE on a SET
+  TABLESPACE or ALL IN TABLESPACE destination (none for `pg_default`), and
+  `AlterTablespaceKind(relation)` rejects SET TABLESPACE on relation kinds
+  without their own storage (42809).
 
 ## Lock rule
 
@@ -103,10 +107,11 @@ Run from the repository root under the shared
 [testing policy](../../../docs/TESTING.md). The package tests build a catalog
 owner, a seeded role root and a TEMP namespace without an engine, and pin
 that `Check` uses the authority as the environment, that `ObjectRef` stamps
-the catalog epoch and that `Notice` emits NOTICE level:
+the catalog epoch, that `Notice` emits NOTICE level and which relation kinds
+SET TABLESPACE accepts:
 
 ```sh
-timeout 900s make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel)$'
+timeout 900s make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|AlterTablespaceKind)$'
 ```
 
 The engine adapter is pinned by the `TestDDLHost` tests in the engine

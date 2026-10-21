@@ -469,7 +469,13 @@ if the move set differs from 24d's result. Table 24c: until 26e,
 TABLE's candidate calls (`alterTypeCandidate`, `addColumnCandidate`,
 `generationCandidate`, `rebindAlterTypeChecks`, `cookAlterDefaultLocked`,
 `bindColumnChecks(altering)`) become calls of the 24d.2 functions over an
-`alterHost`, and 26e drops the forwarders.
+`alterHost`, and 26e drops the forwarders. 24d.2 is done: the functions are
+`table.AddColumnCandidate`, `GenerationCandidate`, `PrepareAlterType`,
+`AlterTypeCandidate`, `RebindAlterTypeChecks` and `CookAlterDefault`, the
+root wrappers build `alterHost{ddlHost{e, op, stage}, scope}` and take
+`Engine.mu` around the call, and ALTER FOREIGN TABLE's two
+`bindColumnChecks(altering)` calls hold `Engine.mu` themselves (that
+binding no longer locks per CHECK).
 
 ## Invariants
 

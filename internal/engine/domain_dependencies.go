@@ -516,10 +516,10 @@ func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, root
 // A nonzero subject attributes only the RESTRICT message to one SQL DROP;
 // retirement roots, dependency discovery, locks and mutations stay unchanged.
 func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error, subject ids.ObjectAddress) error {
-	return stageDropProvider(ctx, stage, scope, changes, project).expressionDependencies(roots, mode, subject)
+	return stageDropProvider(ctx, stage, scope, changes, project).ExpressionDependencies(roots, mode, subject)
 }
 
-func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, mode parser.DropMode, subject ids.ObjectAddress) error {
+func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, mode parser.DropMode, subject ids.ObjectAddress) error {
 	scope := provider.scope
 	if len(roots) == 0 {
 		return nil
@@ -642,7 +642,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	// after surviving column candidates have finished binding against them.
 	for _, target := range targets[len(roots):] {
 		if target.ClassID == ids.RelationClassID && target.SubID == 0 {
-			if err = provider.remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
+			if err = provider.Remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
 				break
 			}
 		}
@@ -722,7 +722,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	}
 	for _, target := range targets {
 		if fdw.IsCatalogClass(target.ClassID) || target.ClassID == ids.OperatorClassID || target.ClassID == ids.TypeClassID || target.ClassID == ids.CollationClassID || target.ClassID == ids.ConversionClassID || target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ProcedureClassID || target.ClassID == ids.TSTemplateClassID || target.ClassID == ids.TSDictionaryClassID {
-			if err = provider.remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
+			if err = provider.Remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
 				break
 			}
 		}

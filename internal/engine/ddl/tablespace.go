@@ -55,3 +55,22 @@ func TablespaceRef(view access.View, name string) (ids.ObjectRef, error) {
 	}
 	return view.Ref(address), nil
 }
+
+// CheckAlterTablespaceCreate checks CREATE on the destination of ALTER TABLE
+// SET TABLESPACE or ALTER TABLE ALL IN TABLESPACE; pg_default needs none.
+func CheckAlterTablespaceCreate(view access.View, env access.Environment, ref ids.ObjectRef) error {
+	if ref.Address.ObjectID == 1663 {
+		return nil
+	}
+	return view.CheckCreate(env, ref)
+}
+
+// AlterTablespaceKind rejects SET TABLESPACE on relation kinds that have no
+// storage of their own.
+func AlterTablespaceKind(d *catalog.Relation) error {
+	switch d.RelationKind {
+	case catalog.TableRelation, catalog.PartitionedRelation, catalog.IndexRelation, catalog.MaterializedViewRelation:
+		return nil
+	}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action SET TABLESPACE cannot be performed on relation "%s"`, d.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", catalog.RelationDiagnosticKind(d))}
+}

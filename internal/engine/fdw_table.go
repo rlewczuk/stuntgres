@@ -259,7 +259,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			case parser.AddCheck:
 				candidate = &next
 				candidate.Constraints.Check = slices.Clone(next.Constraints.Check)
+				e.mu.Lock()
 				err = e.bindColumnChecks(scope.op, auth, []*parser.CheckConstraint{a.Check}, candidate, scope.input, true, nil)
+				e.mu.Unlock()
 			case parser.DropColumn:
 				candidate, err = scope.dropColumnCandidate(stage, &next, ref, a, nil)
 			case parser.AddColumn:
@@ -282,7 +284,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 						if len(checks) != 0 {
 							candidate.Constraints.Check = slices.Clone(candidate.Constraints.Check)
+							e.mu.Lock()
 							err = e.bindColumnChecks(scope.op, auth, checks, candidate, scope.input, true, nil)
+							e.mu.Unlock()
 						}
 					}
 					if err == nil {

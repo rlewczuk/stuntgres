@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `9156a1120` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89c, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
+Last verified against `master` at `10581f8cc` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,7 +16,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **Upper features, decisions:** 89b (table 24d.2).
+- **Upper features, decisions:** 93 (partition 25d), 98 (fdw 26e).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -125,6 +125,9 @@ Item 113 (control 30c) is done and closes step 30; the end-state review
 skips it.
 Item 89c (table 24d.3) is done; the end-state review (item 114) still
 waits for 98 and 110, and table 24d.2 (item 89b) stays ready.
+Item 89b (table 24d.2) is done and closes step 24, so partition 25d (item
+93) and fdw 26e (item 98) are ready; DML 29c (item 109) still waits for 93,
+and the end-state review (item 114) for 98 and 110.
 
 ## Task tree
 
@@ -545,7 +548,7 @@ waits for 98 and 110, and table 24d.2 (item 89b) stays ready.
     `506da64a4`, `a92895430`, docs)
   - [x] 23d.2 — Write-time decisions moved (unique and exclusion
     enforcement) (`8b8d9e3af`, `b63014942`, `2f9b50b4b`, docs)
-- [ ] **Step 24 — `table`**, with inheritance ([prompt](ENGINE-SPLIT-table.md);
+- [x] **Step 24 — `table`**, with inheritance ([prompt](ENGINE-SPLIT-table.md);
   24a needs 5i, 24b needs 23b, 18b, B6)
   - [x] 24a — In place: renames, slots, cuts (`56270ba2f`, `4dcdf411c`,
     `b210c6777`, `260ed66c6`, `5b4ac930a`, `36249b2b4`, `e247d07c6`, docs)
@@ -555,8 +558,9 @@ waits for 98 and 110, and table 24d.2 (item 89b) stays ready.
   - [x] 24d.1 — CREATE decisions moved (CREATE TABLE, LIKE, identity and
     serial, FK staging, DROP/SET SCHEMA cores) (`89660982b`, `383a943e6`,
     `3c0c77d50`, `7f9263745`, docs)
-  - [ ] 24d.2 — ALTER and inheritance decisions moved (candidates,
-    rebuilds, recursion decisions, removal reader)
+  - [x] 24d.2 — ALTER and inheritance decisions moved (candidates,
+    rebuilds, recursion decisions, removal reader) (`dbaf9d8f9`,
+    `b7ed253d3`, `4bb411191`, `b542587c5`, `e39ec498a`, `f4f982aa9`, docs)
   - [x] 24d.3 — Restore and dump cores moved (`a6936164a`, `44f1ae9bf`, docs)
 - [ ] **Step 25 — `partition`** ([prompt](ENGINE-SPLIT-partition.md); 25b
   needs 24b)
@@ -1268,8 +1272,18 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `catalog.RelationDiagnosticKind`, `catalog.AdvanceRevisionFrontier`; no
     aliases · selected unit, `RACE=1` and dual-mode proof, dump smoke and
     quickcheck passed; racecheck/finalcheck skipped at user request
-89b. [ ] Table 24d.2: ALTER and inheritance decisions moved —
-    [table](ENGINE-SPLIT-table.md) 24d · needs 89a
+89b. [x] Table 24d.2: ALTER and inheritance decisions moved —
+    [table](ENGINE-SPLIT-table.md) 24d · needs 89a (`dbaf9d8f9`, `b7ed253d3`, `4bb411191`, `b542587c5`, `e39ec498a`, `f4f982aa9`,
+    then the docs commit) · `table.AlterHost` on a scope-bound root
+    `alterHost` (with `LiveEpoch`, `BindDefault`, `BindAddedChecks`); the
+    ALTER candidates, post-loop rebuilds, loop pieces, RENAME CONSTRAINT
+    cores, inheritance plan/actions/finish and per-member rename cores, and
+    the constraint-index, owned-sequence and DROP IDENTITY decisions over an
+    extended `DropDependencyReader` in `table`; `ddl.AlterTablespaceKind`,
+    `ddl.CheckAlterTablespaceCreate`; the wrappers hold `Engine.mu` across
+    each call; no aliases · selected unit, `RACE=1` and dual-mode proof
+    (`REFERENCE=1` apart from drift that fails on master too) and
+    quickcheck passed; racecheck/finalcheck skipped at user request
 89c. [x] Table 24d.3: Restore and dump cores moved —
     [table](ENGINE-SPLIT-table.md) 24d · needs 89a (`a6936164a`, `44f1ae9bf`, then
     the docs commit) · the Restore hooks keep their root bodies; the
