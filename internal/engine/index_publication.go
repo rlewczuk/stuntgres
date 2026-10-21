@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/access"
@@ -180,25 +181,50 @@ func evolveIndexRevision(index, oldParent, parent *catalog.Relation, transformat
 	}
 	return &clone, nil
 }
+
+// indexEvolutionReader is what selecting an index for evolution reads: the
+// staged replacement and removal of a descriptor. *CatalogStage and
+// *dropProvider implement it.
+type indexEvolutionReader interface {
+	removed(ids.ObjectAddress) bool
+	replacement(ids.ObjectAddress) catalog.Descriptor
+}
+
+// indexEvolutionTarget is what evolving an index reads and writes in a drop
+// or layout pass. *dropProvider implements it.
+type indexEvolutionTarget interface {
+	indexEvolutionReader
+	inputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	evolutionBase() catalog.Read
+	indexLayout(ids.ObjectAddress) (indexLayoutLineage, bool)
+	recordIndexLayout(ids.ObjectAddress, indexLayoutLineage)
+	terminalCleanup() bool
+	removeIndex(ids.ObjectAddress) error
+	replace(catalog.Descriptor) error
+}
+
 func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
 	// Preserve the incumbent map walk. In particular an unrelated staged
-	// relation must not allocate an adapter/iterator/yield closure.
-	provider := dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
+	// relation must not allocate an adapter/iterator/yield closure: the
+	// selector reads the stage itself, and a provider exists only for an
+	// affected index.
 	for address, descriptor := range stage.Base.Descriptors() {
-		index, parent, staged, affected := provider.indexEvolutionInput(address, descriptor)
+		index, parent, staged, affected := indexEvolutionInput(stage, address, descriptor)
 		if !affected {
 			continue
 		}
-		if err := provider.evolveIndex(address, index, parent, staged, typeParent, transformations); err != nil {
+		provider := &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
+		if err := applyIndexEvolution(provider, address, index, parent, staged, typeParent, transformations); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// The selector is shared and read-only. It cannot retain its adapter; the value
-// receiver of the effect worker below is entered only for an affected parent.
-func (provider *dropProvider) indexEvolutionInput(address ids.ObjectAddress, descriptor catalog.Descriptor) (*catalog.Relation, *catalog.Relation, bool, bool) {
+// indexEvolutionInput selects an index whose parent a pass replaced or
+// removed, and returns the index, its new parent (nil when removed), and
+// whether the index itself is staged. The selector is shared and read-only.
+func indexEvolutionInput(provider indexEvolutionReader, address ids.ObjectAddress, descriptor catalog.Descriptor) (*catalog.Relation, *catalog.Relation, bool, bool) {
 	index, ok := descriptor.(*catalog.Relation)
 	if !ok || index.SQLIndex == nil || provider.removed(address) {
 		return nil, nil, false, false
@@ -225,21 +251,23 @@ func (provider *dropProvider) indexEvolutionInput(address ids.ObjectAddress, des
 }
 
 // Prepared and ordinary adapters share the exact evolution/application worker.
-func (provider *dropProvider) evolveIndexes(typeParent ids.ObjectAddress, transformations []columnTransformation) error {
+func evolveIndexes(provider indexEvolutionTarget, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
 	for address, descriptor := range provider.inputDescriptors() {
-		index, parent, staged, affected := provider.indexEvolutionInput(address, descriptor)
+		index, parent, staged, affected := indexEvolutionInput(provider, address, descriptor)
 		if !affected {
 			continue
 		}
-		if err := provider.evolveIndex(address, index, parent, staged, typeParent, transformations); err != nil {
+		if err := applyIndexEvolution(provider, address, index, parent, staged, typeParent, transformations); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, parent *catalog.Relation, staged bool, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
-	oldParent := provider.base.MustRelation(index.SQLIndex.Parent)
+// applyIndexEvolution evolves one selected index: it replaces or removes the
+// index and records a slot-only layout lineage.
+func applyIndexEvolution(provider indexEvolutionTarget, address ids.ObjectAddress, index, parent *catalog.Relation, staged bool, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
+	oldParent := provider.evolutionBase().MustRelation(index.SQLIndex.Parent)
 	prior, chained := provider.indexLayout(address)
 	chained = chained && prior.target == index
 	if chained {
@@ -256,7 +284,7 @@ func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, paren
 		return err
 	}
 	if next == nil {
-		if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address), false); err != nil {
+		if err := provider.removeIndex(address); err != nil {
 			return err
 		}
 	} else if next != index {
@@ -265,7 +293,7 @@ func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, paren
 		}
 	}
 	if next != nil && next.SQLIndex.Ready && next.SQLIndex.Live && len(dependentTypes) == 0 && indexLayoutInputsUnchanged(index, oldParent, parent) {
-		source, ok := provider.base.Relation(address)
+		source, ok := provider.evolutionBase().Relation(address)
 		if chained {
 			source, ok = index, true
 		}

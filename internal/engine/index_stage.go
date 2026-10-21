@@ -19,6 +19,17 @@ type indexStage struct {
 	output     sqltype.OutputEnvironment
 }
 
+// removed reports whether the stage removed address.
+func (s *CatalogStage) removed(address ids.ObjectAddress) bool {
+	_, removed := s.Removal(address)
+	return removed
+}
+
+// replacement returns the descriptor the stage holds for address, or nil.
+func (s *CatalogStage) replacement(address ids.ObjectAddress) catalog.Descriptor {
+	return s.Get(address)
+}
+
 // indexes returns the indexes slot, allocating it on first use.
 func (s *CatalogStage) indexes() *indexStage {
 	if s.indexesSlot == nil {
