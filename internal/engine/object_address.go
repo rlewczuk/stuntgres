@@ -2,23 +2,12 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
-
-func objectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Value, error) {
-	values := make([]sqltype.Value, len(names))
-	for i, name := range names {
-		values[i] = sqltype.String(d.Element(), name)
-	}
-	var dims []sqltype.ArrayDimension
-	if len(names) != 0 {
-		dims = []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(names))}}
-	}
-	return sqltype.OwnedArrayValue(d, dims, values)
-}
 
 func (h *statementHost) LookupObjectAddress(c *exec.Context, values [3]sqltype.Value) (ids.ObjectAddress, error) {
 	scope := h.scope()
