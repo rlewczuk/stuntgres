@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
 // The insertion producer has already materialized every checked index in order.
 // Staging validates exact produced-data authority and never invokes index SQL.
-func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *indexWriteBatch) error {
+func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index.WriteBatch) error {
 	if len(batch.Values) == 0 {
 		return nil
 	}
@@ -30,15 +31,15 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 	for i := range batch.Values {
 		outputs := batch.Candidate(i).Indexes
 		for j := range binding.Keys {
-			index := binding.Keys[j].Index
-			if output, exists := outputs[index.Address()]; !exists || !OutputMatches(output, index) {
+			idx := binding.Keys[j].Index
+			if output, exists := outputs[idx.Address()]; !exists || !index.OutputMatches(output, idx) {
 				return ids.ErrCatalogReplaced
 			}
 		}
 		for j := range binding.Insertion {
 			insertion := &binding.Insertion[j]
 			if insertion.Unique == nil {
-				if output, exists := outputs[insertion.Index.Address()]; !exists || !OutputMatches(output, insertion.Index) {
+				if output, exists := outputs[insertion.Index.Address()]; !exists || !index.OutputMatches(output, insertion.Index) {
 					return ids.ErrCatalogReplaced
 				}
 			}
@@ -47,31 +48,31 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 	return nil
 }
 
-func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
-	index := bound.Index
+func (s *StatementScope) existingUniqueOutput(bound *index.UniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, purpose index.ProbePurpose) (bool, []sqltype.Value, error) {
+	idx := bound.Index
 	read := func(output storage.IndexOutput) (bool, []sqltype.Value, error) {
-		if !OutputMatches(output, index) {
+		if !index.OutputMatches(output, idx) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
-		if index.SQLIndex.Method == catalog.HashMethod && output.Member {
+		if idx.SQLIndex.Method == catalog.HashMethod && output.Member {
 			bound.Scratch[0] = output.Key
 			return true, bound.Scratch, nil
 		}
 		return output.Member, output.Keys, nil
 	}
-	if output, exists := row.IndexOutputs[index.Address()]; exists {
+	if output, exists := row.IndexOutputs[idx.Address()]; exists {
 		return read(output)
 	}
-	identity := indexRowIdentity{Row: row.Row, Version: row.Version}
-	if output, exists := s.indexesOrZero().ExistingOutputs[index.Address()][identity]; exists {
+	identity := index.RowIdentity{Row: row.Row, Version: row.Version}
+	if output, exists := s.indexesOrZero().ExistingOutputs[idx.Address()][identity]; exists {
 		return read(output)
 	}
-	if !index.SQLIndex.HasRuntimeDomainConversion() && purpose != ProbeRevalidation {
-		member, err := bound.Preparation.PredicateMatches(evaluation, bound.Parent, index.SQLIndex, row.Values, &bound.Ordering, nil)
+	if !idx.SQLIndex.HasRuntimeDomainConversion() && purpose != index.ProbeRevalidation {
+		member, err := bound.Preparation.PredicateMatches(evaluation, bound.Parent, idx.SQLIndex, row.Values, &bound.Ordering, nil)
 		if err != nil {
 			return false, nil, err
 		}
-		if purpose == ProbeRuntime {
+		if purpose == index.ProbeRuntime {
 			if !member {
 				return false, nil, nil
 			}
@@ -80,9 +81,9 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 			err := bound.FillKeys(row.Values, bound.Scratch, evaluation)
 			return true, bound.Scratch, err
 		}
-		output := storage.IndexOutput{Index: index, Member: member}
+		output := storage.IndexOutput{Index: idx, Member: member}
 		if member {
-			if index.SQLIndex.Method == catalog.HashMethod {
+			if idx.SQLIndex.Method == catalog.HashMethod {
 				if err := bound.FillKeys(row.Values, bound.Scratch, evaluation); err != nil {
 					return false, nil, err
 				}
@@ -94,29 +95,29 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 				}
 			}
 		}
-		s.retainExistingIndexOutput(index, row, output)
+		s.retainExistingIndexOutput(idx, row, output)
 		return read(output)
 	}
-	if purpose == ProbeRevalidation && row.Born == 0 {
+	if purpose == index.ProbeRevalidation && row.Born == 0 {
 		return false, nil, ids.ErrCatalogReplaced
 	}
 	e := s.engine()
 	e.mu.Lock()
 	current := e.privateCatalogLocked(s.owner.Catalog)
-	currentIndex, ok := current.Relation(index.Address())
-	if !ok || !SameIndexKeySemantics(index, currentIndex) {
+	currentIndex, ok := current.Relation(idx.Address())
+	if !ok || !index.SameIndexKeySemantics(idx, currentIndex) {
 		e.mu.Unlock()
 		return false, nil, ids.ErrCatalogReplaced
 	}
-	root := e.storage.IndexRoots[index.Address()]
-	if changes := s.owner.Catalog; changes != nil && JournalIndexesOrZero(changes).UniqueRoots[index.Address()] != nil {
-		root = JournalIndexesOrZero(changes).UniqueRoots[index.Address()]
+	root := e.storage.IndexRoots[idx.Address()]
+	if changes := s.owner.Catalog; changes != nil && index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()] != nil {
+		root = index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()]
 	}
 	e.mu.Unlock()
 	if root == nil {
 		return false, nil, fmt.Errorf("stuntgres: existing index root is missing")
 	}
-	if purpose == ProbeRevalidation {
+	if purpose == index.ProbeRevalidation {
 		if root.Hash != nil {
 			if root.Hash.RowEntries != nil {
 				entry := root.Hash.RowEntries[row.Row]
@@ -141,7 +142,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 				}
 			}
 		} else {
-			if index.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
+			if idx.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
 				return false, nil, nil
 			}
 			if root.RowEntries != nil {
@@ -167,7 +168,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 		return false, nil, nil
 	}
 	if root.Hash != nil {
-		if !index.SQLIndex.HasRuntimeDomainKeyConversion() {
+		if !idx.SQLIndex.HasRuntimeDomainKeyConversion() {
 			if err := bound.Ordering.FillKeys(row.Values, bound.Scratch, evaluation); err != nil {
 				return false, nil, err
 			}
@@ -195,10 +196,10 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 		bound.Scratch[0] = entry.Key
 		return true, bound.Scratch, nil
 	}
-	if index.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
+	if idx.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
 		return false, nil, nil
 	}
-	if index.SQLIndex.HasRuntimeDomainKeyConversion() {
+	if idx.SQLIndex.HasRuntimeDomainKeyConversion() {
 		ordinal, ok := root.RowEntries[row.Row]
 		if !ok || ordinal < 0 || ordinal >= len(root.Entries) {
 			return false, nil, fmt.Errorf("stuntgres: existing index key identity is missing")
@@ -213,8 +214,8 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 	return true, bound.Scratch, err
 }
 
-func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
-	if purpose == ProbeRuntime && !bound.Index.SQLIndex.HasRuntimeDomainConversion() && row.IndexOutputs == nil {
+func (s *StatementScope) matchesExistingUnique(bound *index.UniqueBoundKey, row storage.RowVersion, evaluation *exec.Context, key []sqltype.Value, purpose index.ProbePurpose) (bool, error) {
+	if purpose == index.ProbeRuntime && !bound.Index.SQLIndex.HasRuntimeDomainConversion() && row.IndexOutputs == nil {
 		return bound.Matches(evaluation, row.Values, key)
 	}
 	member, produced, err := s.existingUniqueOutput(bound, row, evaluation, purpose)

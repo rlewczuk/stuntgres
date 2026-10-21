@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -60,7 +61,7 @@ func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *session.Jou
 	current, ok := view.Relation(source.Ref.Address)
 	if !ok || source.Relation == nil || source.Ref.Domain() != e.catalog.Domain || source.Ref.Epoch != e.catalog.state.Epoch() || source.Ref.Address.SubID != 0 ||
 		current.Address() != source.Relation.Address() || current.Namespace() != source.Relation.Namespace() || current.Name() != source.Relation.Name() || current.RelationKind != source.Relation.RelationKind ||
-		!SameRelationRowShape(current, source.Relation) {
+		!index.SameRelationRowShape(current, source.Relation) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if current.RelationKind == catalog.SequenceRelation {
@@ -431,31 +432,31 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf,
 		return nil
 	}
 	for address, carrier := range e.storage.IndexRoots {
-		index, ok := data.Catalog.Relation(address)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != catalog.HashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.Hash == nil {
+		idx, ok := data.Catalog.Relation(address)
+		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Method != catalog.HashMethod || idx.SQLIndex.Parent != a || carrier == nil || carrier.Hash == nil {
 			continue
 		}
 		// Readiness permits maintenance, not complete query coverage. A
 		// grandfathered commit may legitimately be absent from an invalid root.
-		if !index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live {
+		if !idx.SQLIndex.Ready || !idx.SQLIndex.Valid || !idx.SQLIndex.Live {
 			continue
 		}
 		live, ok := e.catalog.state.Relation(address)
-		if !ok || !SameIndexKeySemantics(index, live) {
+		if !ok || !index.SameIndexKeySemantics(idx, live) {
 			continue
 		}
 		root := carrier.Hash
 		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.Committed) || root.Ends != data.Ends[a] {
 			continue
 		}
-		usage, err := KeyUsage(leaf.Relation, index.SQLIndex.Keys[0])
+		usage, err := index.KeyUsage(leaf.Relation, idx.SQLIndex.Keys[0])
 		if err != nil {
 			return err
 		}
 		if usage != root.Binding.Usage {
 			continue
 		}
-		source.HashIndexes = append(source.HashIndexes, exec.CapturedHashIndex{Definition: index.SQLIndex, Root: root, Usage: usage})
+		source.HashIndexes = append(source.HashIndexes, exec.CapturedHashIndex{Definition: idx.SQLIndex, Root: root, Usage: usage})
 	}
 	return nil
 }

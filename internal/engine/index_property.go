@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqltype"
 )
 
@@ -34,7 +35,7 @@ func (h *statementHost) IndexProperty(kind functions.IndexPropertyKind, oid uint
 		if err != nil {
 			return false, false, err
 		}
-		value, known = ColumnCapability(relation.SQLIndex, ordinal, property)
+		value, known = index.ColumnCapability(relation.SQLIndex, ordinal, property)
 	}
 	return value, known, nil
 }

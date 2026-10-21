@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/index"
 )
 
 // The caller is the affected historical-only NN branch of real TYPE cleanup.
@@ -38,7 +39,7 @@ func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotN
 func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinary map[int32]bool) error {
 	var validated *catalog.PhysicalPrimarySupport
 	for attribute, proof := range table.Constraints.PhysicalNotNull {
-		if ordinary[attribute] || !PhysicalNotNullOriginValid(view, table, attribute, proof) {
+		if ordinary[attribute] || !index.PhysicalNotNullOriginValid(view, table, attribute, proof) {
 			return fmt.Errorf("stuntgres: invalid physical not-null origin")
 		}
 		primary := catalog.PhysicalPrimaryForAttribute(table, attribute)
@@ -59,7 +60,7 @@ func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinar
 			return fmt.Errorf("stuntgres: missing physical not-null primary support")
 		}
 		if proof.Support != validated {
-			if !PhysicalPrimarySupportValid(view, table, primary, proof.Support) {
+			if !index.PhysicalPrimarySupportValid(view, table, primary, proof.Support) {
 				return fmt.Errorf("stuntgres: invalid physical not-null primary support")
 			}
 			validated = proof.Support
@@ -94,7 +95,7 @@ func prunePhysicalNotNull(next *catalog.Relation) {
 
 // Rebind only after the existing ordinary TYPE/unique/index providers finish.
 // This does not mint constraints, indexes or NN records and performs no row work.
-func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, changes []columnTransformation) (*catalog.Relation, error) {
+func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, changes []index.ColumnTransformation) (*catalog.Relation, error) {
 	if len(parent.Constraints.PhysicalNotNull) == 0 {
 		return parent, nil
 	}

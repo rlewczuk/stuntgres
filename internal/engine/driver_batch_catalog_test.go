@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -51,14 +52,14 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if !ok {
 				t.Fatal("pending table")
 			}
-			index, ok := private.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ix"})
+			idx, ok := private.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ix"})
 			if !ok {
 				t.Fatal("pending index")
 			}
-			if changes.Storage[table].Original != nil || len(JournalIndexesOrZero(changes).UniqueRoots[index].Entries) != 0 || len(a.Transactions.Writes[table]) != 2 {
+			if changes.Storage[table].Original != nil || len(index.JournalIndexesOrZero(changes).UniqueRoots[idx].Entries) != 0 || len(a.Transactions.Writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
-			if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {
+			if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[idx] != nil {
 				t.Fatal("candidate escaped before message end")
 			}
 			if _, ok := e.Roles().Lookup("batch_member"); ok {
@@ -71,7 +72,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if _, ok := e.Roles().Lookup("batch_member"); !ok {
 					t.Fatal("role root not installed with catalog")
 				}
-				if e.catalog.state == beforeCatalog || e.roles.published == beforeRoles || len(e.storage.Relations[table].Versions) != 2 || len(e.storage.IndexRoots[index].Entries) != 2 {
+				if e.catalog.state == beforeCatalog || e.roles.published == beforeRoles || len(e.storage.Relations[table].Versions) != 2 || len(e.storage.IndexRoots[idx].Entries) != 2 {
 					t.Fatal("incomplete atomic installation")
 				}
 				sessionSQL(t, a, "RESET ROLE")

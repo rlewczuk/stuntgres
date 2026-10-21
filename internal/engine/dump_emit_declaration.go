@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
@@ -66,11 +67,11 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 
 // emitDumpIndex writes an index definition, the physical primary-key
 // cleanup that follows it, and records its name as occupied.
-func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, index dumpView) error {
-	if err := w.setOwner(index.owner); err != nil {
+func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx dumpView) error {
+	if err := w.setOwner(idx.owner); err != nil {
 		return err
 	}
-	if err := w.emit(index.sql); err != nil {
+	if err := w.emit(idx.sql); err != nil {
 		return err
 	}
 	original := s.originalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
@@ -81,17 +82,17 @@ func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, index dumpView) er
 				if err := emitPhysicalPrimaryCleanup(s.originalCatalog, parent, &parent.Constraints.Unique[i], w.emit, w.setOwner); err != nil {
 					return err
 				}
-				if err := emitPhysicalSelfForeignKeys(s.originalCatalog, parent, index.owner, true, w.emit, w.setOwner); err != nil {
+				if err := emitPhysicalSelfForeignKeys(s.originalCatalog, parent, idx.owner, true, w.emit, w.setOwner); err != nil {
 					return err
 				}
-				if err := emitPhysicalCompetingUniques(s.originalCatalog, parent, index.owner, true, w.emit, w.setOwner); err != nil {
+				if err := emitPhysicalCompetingUniques(s.originalCatalog, parent, idx.owner, true, w.emit, w.setOwner); err != nil {
 					return err
 				}
 				break
 			}
 		}
 	}
-	if PartitionReplayVirtualUniqueRoot(s.originalCatalog, original) != nil {
+	if index.PartitionReplayVirtualUniqueRoot(s.originalCatalog, original) != nil {
 		if err := w.emit(s.constraintReplay.virtualUniqueRenames(s.originalCatalog, original)); err != nil {
 			return err
 		}
@@ -323,16 +324,16 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if physicalPrimaryDeferred(t.descriptor, &c) {
 				continue
 			}
-			index, ok := s.catalogView.Relation(c.Index)
+			idx, ok := s.catalogView.Relation(c.Index)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing unique dump index")
 			}
-			if _, moved, err := physicalCompetingIndexSource(s.originalCatalog, index); err != nil {
+			if _, moved, err := physicalCompetingIndexSource(s.originalCatalog, idx); err != nil {
 				return "", err
 			} else if moved {
 				continue
 			}
-			if PartitionReplaySeparateConstraint(s.catalogView, index) {
+			if index.PartitionReplaySeparateConstraint(s.catalogView, idx) {
 				continue
 			}
 			text, err := (pgRenderer{View: s.catalogView}).UniqueConstraintSQL(t.descriptor, &c)
@@ -349,14 +350,14 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if c.Parent != 0 {
 				continue
 			}
-			index, ok := s.catalogView.Relation(c.Index)
+			idx, ok := s.catalogView.Relation(c.Index)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing exclusion dump index")
 			}
-			if PartitionReplaySeparateConstraint(s.catalogView, index) {
+			if index.PartitionReplaySeparateConstraint(s.catalogView, idx) {
 				continue
 			}
-			text, err := DefinitionSQL(ctx, s.catalogView, index, indexPresentation{Dump: true, Exclusion: true})
+			text, err := index.DefinitionSQL(ctx, s.catalogView, idx, index.Presentation{Dump: true, Exclusion: true})
 			if err != nil {
 				return "", err
 			}

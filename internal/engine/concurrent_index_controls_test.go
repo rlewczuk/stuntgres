@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -336,17 +337,17 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			definition.Ready = true
 			next.SQLIndex = &definition
 			next.ObjectRevision++
-			root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &definition, &snapshot, nil)
+			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &definition, &snapshot, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := ValidateUniqueRoot(context.Background(), parent, &next, root, "public", sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
+			if err := index.ValidateUniqueRoot(context.Background(), parent, &next, root, "public", sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
 				t.Fatal(err)
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
 			stage.indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
-			stage.indexes().Candidates = map[ids.ObjectAddress]indexRootCandidate{next.Address(): {Index: &next, Root: root, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
+			stage.indexes().Candidates = map[ids.ObjectAddress]index.RootCandidate{next.Address(): {Index: &next, Root: root, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}

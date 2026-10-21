@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -85,7 +86,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		}
 		defer evaluation.Query.Source.Close()
 	}
-	var rows indexWriteBatch
+	var rows index.WriteBatch
 	if scope.insertReturning == nil {
 		rows.Values = make([][]sqltype.Value, 0, len(b.Insert.Rows))
 	}
@@ -105,7 +106,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}
-			candidate := indexWriteCandidate{Values: row}
+			candidate := index.WriteCandidate{Values: row}
 			admitted, admitErr := scope.admitInsertProducer(b, &candidate, rows, &evaluation)
 			if admitErr != nil {
 				return Result{}, admitErr
@@ -157,7 +158,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 			return Result{}, err
 		}
-		candidate := indexWriteCandidate{Values: row}
+		candidate := index.WriteCandidate{Values: row}
 		admitted, admitErr := scope.admitInsertProducer(b, &candidate, rows, &evaluation)
 		if admitErr != nil {
 			return Result{}, admitErr

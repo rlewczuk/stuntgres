@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
@@ -240,7 +241,7 @@ func TestConcurrentIndexU3SafeBuilderClassification(t *testing.T) {
 			sessionSQL(t, owner, "CREATE INDEX ix ON t("+tc.key+")")
 			definition, _ := concurrentUnitIndex(t, e, "ix", true, true)
 			parent := e.CatalogRead().MustRelation(definition.SQLIndex.Parent)
-			safe, err := SimpleConcurrentIndex(parent, definition.SQLIndex)
+			safe, err := index.SimpleConcurrentIndex(parent, definition.SQLIndex)
 			if err != nil || safe != tc.safe {
 				t.Fatal("catalog key classification differs from safe-builder policy", safe, err)
 			}

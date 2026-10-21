@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -216,7 +217,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		ten, _ := sqltype.Integer(b.Relation.Columns[1].Usage.Type, 10)
 		row := []sqltype.Value{one, ten}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		admitted, err := scope.admitInsertRow(b.Ref, &indexWriteCandidate{Values: row}, indexWriteBatch{}, &evaluation)
+		admitted, err := scope.admitInsertRow(b.Ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation)
 		if err != nil || !admitted {
 			t.Fatal(admitted, err)
 		}
@@ -239,13 +240,13 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
-		accepted, retry, err := scope.Writes().appendAcceptedInsert(b.Ref, &indexWriteCandidate{Values: row})
+		accepted, retry, err := scope.Writes().appendAcceptedInsert(b.Ref, &index.WriteCandidate{Values: row})
 		if err != nil || accepted || !retry || len(scope.stage.rows[b.Ref.Address]) != 0 || scope.insertReturning.rows.Count != 0 {
 			t.Fatal("stale provider admitted output", accepted, retry, err, scope.stage.rows)
 		}
 		calls := 0
 		b.Returning.Expressions[0] = queryProbe(b.Relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[1], nil })
-		if _, err := scope.admitInsertProducer(b, &indexWriteCandidate{Values: row}, indexWriteBatch{}, &evaluation); err != nil {
+		if _, err := scope.admitInsertProducer(b, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation); err != nil {
 			t.Fatal(err)
 		}
 		if scope.uniqueBinding == prior || calls != 1 || scope.insertReturning.rows.Count != 1 || len(scope.stage.rows[b.Ref.Address]) != 1 {

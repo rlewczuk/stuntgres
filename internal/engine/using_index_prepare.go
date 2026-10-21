@@ -6,14 +6,15 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
 // Capture the actual physical attachment metadata once; only the stage adapter
 // installs its index name/backing link. No tuple/index build runs here.
-func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*usingIndexPreparation, error) {
-	prepared := &usingIndexPreparation{Parent: parent}
+func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured index.UsingIndexAttachment) (*index.UsingIndexPreparation, error) {
+	prepared := &index.UsingIndexPreparation{Parent: parent}
 	if !captured.NotNullPrepared {
 		candidate, err := usingIndexNotNullCandidate(op, view, reader, parent, captured)
 		if err != nil {
@@ -22,20 +23,20 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 		parent = candidate
 	}
 	descriptor, present := reader.Descriptor(captured.Index.Address())
-	index, ok := descriptor.(*catalog.Relation)
-	if !present || !ok || index.SQLIndex == nil {
+	idx, ok := descriptor.(*catalog.Relation)
+	if !present || !ok || idx.SQLIndex == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
-	prepared.Index = index
+	prepared.Index = idx
 	name := captured.Syntax.Name.Text
 	if name == "" {
-		name = index.Name()
+		name = idx.Name()
 	}
-	if name != index.Name() {
-		prepared.Notice = sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, index.Name(), name)}
+	if name != idx.Name() {
+		prepared.Notice = sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, idx.Name(), name)}
 	}
 	destination := reader.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
-	if destination != (ids.ObjectAddress{}) && destination != index.Address() {
+	if destination != (ids.ObjectAddress{}) && destination != idx.Address() {
 		prepared.Err = sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		return prepared, nil
 	}
@@ -46,7 +47,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 				return prepared, nil
 			}
 		}
-		if index.SQLIndex.NullsNotDistinct {
+		if idx.SQLIndex.NullsNotDistinct {
 			prepared.Err = sqlError("42P16", "primary keys cannot use NULLS NOT DISTINCT indexes")
 			return prepared, nil
 		}
@@ -57,8 +58,8 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 			}
 		}
 	}
-	if index.SQLIndex.Constraint != nil || catalog.RelationConstraintNameExists(parent, name) {
-		prepared.Err = UsingIndexCatalogDuplicate(parent, name)
+	if idx.SQLIndex.Constraint != nil || catalog.RelationConstraintNameExists(parent, name) {
+		prepared.Err = index.UsingIndexCatalogDuplicate(parent, name)
 		return prepared, nil
 	}
 	e.mu.Lock()
@@ -68,20 +69,20 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 		prepared.Err = err
 		return prepared, nil
 	}
-	constraint := catalog.UniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.Attributes, Primary: captured.Syntax.Primary, NullsNotDistinct: index.SQLIndex.NullsNotDistinct, Index: index.Address()}
+	constraint := catalog.UniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.Attributes, Primary: captured.Syntax.Primary, NullsNotDistinct: idx.SQLIndex.NullsNotDistinct, Index: idx.Address()}
 	next := *parent
 	next.Constraints.Unique = make([]catalog.UniqueConstraint, len(parent.Constraints.Unique)+1)
 	copy(next.Constraints.Unique, parent.Constraints.Unique)
 	next.Constraints.Unique[len(parent.Constraints.Unique)] = constraint
-	if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
+	if idx.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		prepared.Err = fmt.Errorf("stuntgres: definition revision exhausted")
 		return prepared, nil
 	}
-	clone := *index
+	clone := *idx
 	clone.ObjectName = name
 	clone.ObjectRevision++
-	definition := *index.SQLIndex
-	definition.Constraint = UniqueBacking(&constraint)
+	definition := *idx.SQLIndex
+	definition.Constraint = index.UniqueBacking(&constraint)
 	clone.SQLIndex = &definition
 	prepared.Next, prepared.Replacement = &next, &clone
 	return prepared, nil

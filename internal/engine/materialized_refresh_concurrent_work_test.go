@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -27,12 +28,12 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 	t.Run("valid_composite_null_group", func(t *testing.T) {
 		e := New()
 		d := concurrentUnitRelation(t, e)
-		index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i,p", "")
+		idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i,p", "")
 		d = e.catalog.state.MustRelation(d.Address())
 		rows := concurrentUnitRows(t, d, make([]any, count)...)
 		d = concurrentUnitReplace(t, e, d, rows, false, true)
 		old := e.storage.Relations[d.Address()]
-		ordering, err := BindIndexOrdering(d, index.SQLIndex)
+		ordering, err := index.BindIndexOrdering(d, idx.SQLIndex)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +43,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		}
 		ctx := &materializedWorkContext{Context: context.Background()}
 		fresh := concurrentUnitRows(t, d, make([]any, count)...)
-		effective, err := materializedConcurrentRows(ctx, e.CatalogRead(), d, old, e.visibility.CommitSeq(), entries, []*catalog.Relation{index}, fresh, sqltype.OutputEnvironment{})
+		effective, err := materializedConcurrentRows(ctx, e.CatalogRead(), d, old, e.visibility.CommitSeq(), entries, []*catalog.Relation{idx}, fresh, sqltype.OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,14 +63,14 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 	t.Run("earliest_duplicate_prunes_remaining_pairs", func(t *testing.T) {
 		e := New()
 		d := concurrentUnitRelation(t, e)
-		index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
+		idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 		d = e.catalog.state.MustRelation(d.Address())
 		payloads := make([]any, count)
 		for i := range payloads {
 			payloads[i] = int64(10)
 		}
 		rows := concurrentUnitRows(t, d, payloads...)
-		ordering, err := BindIndexOrdering(d, index.SQLIndex)
+		ordering, err := index.BindIndexOrdering(d, idx.SQLIndex)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,7 +93,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 func TestMaterializedRefreshConcurrentDuplicateDiagnosticOrder(t *testing.T) {
 	e := New()
 	d := concurrentUnitRelation(t, e)
-	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
+	idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.catalog.state.MustRelation(d.Address())
 	rows := concurrentUnitRows(t, d, int64(10), int64(10), int64(20), int64(20), int64(10))
 	for i, key := range []int64{9, 8, 1, 1, 8} {
@@ -102,7 +103,7 @@ func TestMaterializedRefreshConcurrentDuplicateDiagnosticOrder(t *testing.T) {
 		}
 		rows[i][0] = value
 	}
-	ordering, err := BindIndexOrdering(d, index.SQLIndex)
+	ordering, err := index.BindIndexOrdering(d, idx.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}

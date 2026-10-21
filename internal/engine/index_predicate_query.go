@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -32,7 +33,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf exec.Leaf,
 		return nil
 	}
 	current, ok := e.catalog.state.Relation(parent)
-	if !ok || !SameRelationRowShape(current, leaf.Relation) {
+	if !ok || !index.SameRelationRowShape(current, leaf.Relation) {
 		return nil
 	}
 	if e.catalog.state.Get(candidate.Address()) != candidate || candidate.SQLIndex.Parent != parent {

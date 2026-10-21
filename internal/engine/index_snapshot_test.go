@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -151,7 +152,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 		t.Fatal(err)
 	}
 	importer := target.aclItemImporter(source, source.Roles(), target.Roles(), nil)
-	snapshot := &indexSnapshot{}
+	snapshot := &index.Snapshot{}
 	mapped, err := snapshot.Datum(composite, toComposite, nil, importer)
 	if err != nil {
 		t.Fatal(err)

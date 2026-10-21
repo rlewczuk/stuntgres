@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -81,7 +82,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	if backing != (ids.ObjectAddress{}) {
-		index, ok := auth.Catalog.Relation(backing)
+		idx, ok := auth.Catalog.Relation(backing)
 		if !ok {
 			e.DiscardCatalogStage(stage)
 			return fail(ids.ErrCatalogReplaced)
@@ -90,14 +91,14 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 			e.DiscardCatalogStage(stage)
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text)))
 		}
-		if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
+		if idx.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			e.DiscardCatalogStage(stage)
 			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 		}
-		next := *index
+		next := *idx
 		next.ObjectName = raw.NewName.Text
 		next.ObjectRevision++
-		err = StageBackingIndexRename(stage, &next)
+		err = index.StageBackingIndexRename(stage, &next)
 		if err == nil {
 			err = stage.Replace(&next)
 		}

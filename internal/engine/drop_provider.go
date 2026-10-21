@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -42,7 +43,7 @@ type dropEffect struct {
 	identityRoots []ids.ObjectAddress
 	identityState *catalog.State
 	index         ids.ObjectAddress
-	layout        *indexLayoutLineage
+	layout        *index.LayoutLineage
 }
 
 // Slots index only real ordered effects, never a second descriptor/name catalog.
@@ -72,7 +73,7 @@ type preparedDrop struct {
 }
 
 type definitionIndexLayoutReader interface {
-	IndexLayout(ids.ObjectAddress) (indexLayoutLineage, bool)
+	IndexLayout(ids.ObjectAddress) (index.LayoutLineage, bool)
 }
 
 func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error) *dropProvider {
@@ -380,7 +381,7 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 
 func (p *dropProvider) replacePartitionDescriptor(d *catalog.Relation) error {
 	if p.stage != nil {
-		return StagePartitionDescriptor(p.stage, d)
+		return index.StagePartitionDescriptor(p.stage, d)
 	}
 	return p.Replace(d)
 }
@@ -390,7 +391,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 		p.observe(old.Address())
 		if old.RelationKind != catalog.CompositeRelation && old.RelationKind != catalog.ForeignRelation {
 			p.owner.mu.Lock()
-			err := EvolveIndexes(p, old.Address(), nil)
+			err := index.EvolveIndexes(p, old.Address(), nil)
 			p.owner.mu.Unlock()
 			if err != nil {
 				return err
@@ -716,10 +717,10 @@ func (p *dropProvider) LiveDescriptor(address ids.ObjectAddress) catalog.Descrip
 	return p.projectedDescriptor(address)
 }
 
-// evolutionBase is the catalog the pass started from.
+// EvolutionBase is the catalog the pass started from.
 func (p *dropProvider) EvolutionBase() catalog.Read { return p.base }
 
-// removeIndex removes the index at address from the pass.
+// RemoveIndex removes the index at address from the pass.
 func (p *dropProvider) RemoveIndex(address ids.ObjectAddress) error {
 	return p.removeObjectLocked(p.owner.catalog.Domain.Ref(p.base.Epoch(), address), false)
 }
@@ -728,7 +729,7 @@ func (p *dropProvider) TerminalCleanup() bool {
 	return p.stage != nil && p.stage.terminalCleanup
 }
 
-func (p *dropProvider) IndexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+func (p *dropProvider) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	if p.stage != nil {
 		lineage, present := p.stage.indexesOrZero().Layouts[address]
 		return lineage, present
@@ -743,13 +744,13 @@ func (p *dropProvider) IndexLayout(address ids.ObjectAddress) (indexLayoutLineag
 			return input.IndexLayout(address)
 		}
 	}
-	return indexLayoutLineage{}, false
+	return index.LayoutLineage{}, false
 }
 
-func (p *dropProvider) RecordIndexLayout(address ids.ObjectAddress, lineage indexLayoutLineage) {
+func (p *dropProvider) RecordIndexLayout(address ids.ObjectAddress, lineage index.LayoutLineage) {
 	if p.stage != nil {
 		if p.stage.indexesOrZero().Layouts == nil {
-			p.stage.indexes().Layouts = make(map[ids.ObjectAddress]indexLayoutLineage)
+			p.stage.indexes().Layouts = make(map[ids.ObjectAddress]index.LayoutLineage)
 		}
 		p.stage.indexes().Layouts[address] = lineage
 		return
@@ -870,7 +871,7 @@ func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.De
 	return p.readInputDescriptor(address)
 }
 
-func (prepared *preparedDrop) IndexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+func (prepared *preparedDrop) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	provider := &dropProvider{base: prepared.base, prepared: prepared}
 	return provider.IndexLayout(address)
 }

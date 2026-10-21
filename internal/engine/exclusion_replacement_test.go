@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/index"
 	"testing"
 )
 
@@ -43,9 +44,9 @@ func TestExclusionReplacement(t *testing.T) {
 				t.Fatal("replacement changed retained TEMP identity")
 			}
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
-			index, root := btreeRoot(t, target, "portable.ex")
+			idx, root := btreeRoot(t, target, "portable.ex")
 			current := parent.Constraints.Exclusion[0]
-			if current.Index != index.Address() || !BackingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.Entries) != 1 {
+			if current.Index != idx.Address() || !index.BackingConstraintPresent(parent, idx) || !current.Deferrable || !current.InitiallyDeferred || len(root.Entries) != 1 {
 				t.Fatal("replacement broke the actual exclusion closure")
 			}
 			if root == sourceRoot || self && root.Entries[0].Row == sourceRoot.Entries[0].Row {

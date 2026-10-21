@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -382,7 +383,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 			nextRevision, _ = e.catalog.advanceRevisionFrontier(nextRevision, descriptor)
 		}
 		if err == nil {
-			var prepared remintedIndexStorage
+			var prepared index.RemintedIndexStorage
 			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
 				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared)

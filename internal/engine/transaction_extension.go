@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 )
 
@@ -11,7 +12,7 @@ import (
 // session; its fields keep the owner's admission and owner-lock rules.
 type ownerExtension struct {
 	foreign        fdw.Transaction
-	exclusionModes exclusionModes
+	exclusionModes index.ExclusionModes
 	cursorCleanup  []*sqlCursor // Detached under owner lock; drained unlocked.
 }
 

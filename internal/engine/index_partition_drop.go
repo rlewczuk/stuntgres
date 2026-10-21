@@ -5,23 +5,24 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *catalog.Relation) error {
-	if index.SQLIndex.Constraint != nil {
+func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, idx *catalog.Relation) error {
+	if idx.SQLIndex.Constraint != nil {
 		view := e.stageRead(stage)
-		table := view.MustRelation(index.SQLIndex.Parent)
+		table := view.MustRelation(idx.SQLIndex.Parent)
 		next := *table
 		next.Constraints.Unique = slices.Clone(table.Constraints.Unique)
 		next.ObjectRevision++
-		next.Constraints.Unique = slices.DeleteFunc(next.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Index == index.Address() })
-		next.Constraints.Exclusion = slices.DeleteFunc(slices.Clone(table.Constraints.Exclusion), func(c catalog.ExclusionConstraint) bool { return c.Index == index.Address() })
-		if err := StagePartitionDescriptor(stage, &next); err != nil {
+		next.Constraints.Unique = slices.DeleteFunc(next.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Index == idx.Address() })
+		next.Constraints.Exclusion = slices.DeleteFunc(slices.Clone(table.Constraints.Exclusion), func(c catalog.ExclusionConstraint) bool { return c.Index == idx.Address() })
+		if err := index.StagePartitionDescriptor(stage, &next); err != nil {
 			return err
 		}
 	}
-	return stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), index.Address()))
+	return stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), idx.Address()))
 }
 
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
@@ -80,14 +81,14 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			if c.Parent != 0 {
 				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, table.Name()))
 			}
-			index := view.MustRelation(c.Index)
-			if err := PartitionIndexDropDependency(view, index); err != nil {
+			idx := view.MustRelation(c.Index)
+			if err := index.PartitionIndexDropDependency(view, idx); err != nil {
 				return Result{}, err
 			}
 			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
 				return Result{}, err
 			}
-			if err := e.stagePartitionIndexDrop(stage, index); err != nil {
+			if err := e.stagePartitionIndexDrop(stage, idx); err != nil {
 				return Result{}, err
 			}
 		}
@@ -99,14 +100,14 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			if c.Parent != 0 {
 				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, table.Name()))
 			}
-			index := view.MustRelation(c.Index)
-			if err := PartitionIndexDropDependency(view, index); err != nil {
+			idx := view.MustRelation(c.Index)
+			if err := index.PartitionIndexDropDependency(view, idx); err != nil {
 				return Result{}, err
 			}
 			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
 				return Result{}, err
 			}
-			if err := e.stagePartitionIndexDrop(stage, index); err != nil {
+			if err := e.stagePartitionIndexDrop(stage, idx); err != nil {
 				return Result{}, err
 			}
 		}

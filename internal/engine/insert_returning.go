@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -61,7 +62,7 @@ func (s *StatementScope) finishInsertReturning() (Result, error) {
 }
 
 // Revalidate the proposal before output, never output before possible filtering.
-func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *indexWriteCandidate, evaluation *exec.Context) (bool, error) {
+func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *index.WriteCandidate, evaluation *exec.Context) (bool, error) {
 	row := candidate.Values
 	if s.insertConflict != nil && s.insertConflict.Update != nil {
 		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
@@ -77,9 +78,9 @@ func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *ind
 		admitted := true
 		var err error
 		if s.partitionInsert != nil {
-			err = s.checkUniqueRow(ref, &proposal, nil, indexWriteBatch{})
+			err = s.checkUniqueRow(ref, &proposal, nil, index.WriteBatch{})
 		} else {
-			admitted, err = s.admitInsertRow(ref, &proposal, indexWriteBatch{}, evaluation)
+			admitted, err = s.admitInsertRow(ref, &proposal, index.WriteBatch{}, evaluation)
 		}
 		if err != nil || !admitted {
 			return false, err
@@ -97,15 +98,15 @@ func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *ind
 
 // The same catalog/index authority as canonical batch staging performs the
 // final gate. One immutable row is appended to amortized stage storage.
-func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWriteCandidate) (bool, bool, error) {
+func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.WriteCandidate) (bool, bool, error) {
 	row := candidate.Values
 	s := w.scope
 	if err := s.active(); err != nil {
 		return false, false, err
 	}
 	values := [1][]sqltype.Value{row}
-	states := [1]indexWriteState{{Indexes: candidate.Indexes, Precheck: candidate.Precheck, Exclusion: candidate.Exclusion}}
-	batch := indexWriteBatch{Values: values[:]}
+	states := [1]index.WriteState{{Indexes: candidate.Indexes, Precheck: candidate.Precheck, Exclusion: candidate.Exclusion}}
+	batch := index.WriteBatch{Values: values[:]}
 	if candidate.Indexes != nil || candidate.Precheck != nil || candidate.Exclusion != nil {
 		batch.States = states[:]
 	}
@@ -132,7 +133,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		return false, true, nil
 	}
 	parent, ok := catalog.Relation(ref.Address)
-	if !ok || !SameRelationRowShape(s.uniqueBinding.Parent, parent) {
+	if !ok || !index.SameRelationRowShape(s.uniqueBinding.Parent, parent) {
 		return false, false, ids.ErrCatalogReplaced
 	}
 	if e.privateStorageLocked(s.owner.Catalog, ref.Address) == nil {
@@ -195,7 +196,7 @@ func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionIn
 
 // Returning actions own their immutable payload in WriteStage, so callers must
 // not retain a duplicate producer prefix. Upsert projects at its action seam.
-func (s *StatementScope) admitInsertProducer(b analyze.Binding, candidate *indexWriteCandidate, prefix indexWriteBatch, c *exec.Context) (bool, error) {
+func (s *StatementScope) admitInsertProducer(b analyze.Binding, candidate *index.WriteCandidate, prefix index.WriteBatch, c *exec.Context) (bool, error) {
 	row := candidate.Values
 	if s.insertReturning == nil {
 		return s.admitInsertRow(b.Ref, candidate, prefix, c)

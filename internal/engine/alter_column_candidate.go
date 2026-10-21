@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -172,11 +173,11 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 	}
 	next.Constraints.Exclusion = nil
 	for _, constraint := range old.Constraints.Exclusion {
-		index, ok := descriptor(constraint.Index).(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
+		idx, ok := descriptor(constraint.Index).(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
 		}
-		if !UniqueIndexTypeAffected(index.SQLIndex, []columnTransformation{{Attribute: old.Attributes[slot]}}) {
+		if !index.UniqueIndexTypeAffected(idx.SQLIndex, []index.ColumnTransformation{{Attribute: old.Attributes[slot]}}) {
 			next.Constraints.Exclusion = append(next.Constraints.Exclusion, constraint)
 		}
 	}

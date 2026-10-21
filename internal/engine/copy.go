@@ -6,6 +6,7 @@ import (
 	"io"
 	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
 
 	"stuntgres/internal/engine/analyze"
@@ -220,7 +221,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err = s.readmitPreparedPrograms(auth); err != nil {
 		return 0, err
 	}
-	unique := &uniqueWriteBinding{}
+	unique := &index.UniqueWriteBinding{}
 	if foreign == nil {
 		unique, err = s.bindUniqueWrite(b.Ref)
 		if err != nil {
@@ -240,7 +241,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	} else {
 		cursor = newCopyCursor(s, b, options, source)
 	}
-	rows, err := func() (indexWriteBatch, error) {
+	rows, err := func() (index.WriteBatch, error) {
 		if s.protocolOrZero().command || s.protocolOrZero().simple {
 			s.op.CopyInput.Active.Store(true)
 			// CopyInResponse permits immediate frontend cancellation. Install
@@ -249,7 +250,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			defer s.op.StopCopyInput()
 		}
 		if err := s.startProtocolCopy(hooks, true, options, len(b.Targets)); err != nil {
-			return indexWriteBatch{}, err
+			return index.WriteBatch{}, err
 		}
 		rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.Keys) != 0 || unique.Checked, nil, nil)
 		if err == nil {

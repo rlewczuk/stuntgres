@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -85,7 +86,7 @@ func TestDomainCheckIndexSnapshotAliasRecursive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			snapshot := &indexSnapshot{Mapping: map[ids.ObjectAddress]ids.ObjectAddress{
+			snapshot := &index.Snapshot{Mapping: map[ids.ObjectAddress]ids.ObjectAddress{
 				{ClassID: ids.ProcedureClassID, ObjectID: 41000}:    {ClassID: ids.ProcedureClassID, ObjectID: 42000},
 				{ClassID: ids.TSDictionaryClassID, ObjectID: 41000}: {ClassID: ids.TSDictionaryClassID, ObjectID: 43000},
 				{ClassID: ids.RelationClassID, ObjectID: 41000}:     {ClassID: ids.RelationClassID, ObjectID: 44000},
@@ -173,7 +174,7 @@ func TestDomainCheckIndexSnapshotAliasKeyOutput(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			text, err := UniqueKeyOutput(context.Background(), wrapped, class, catalog, sqltype.OutputEnvironment{})
+			text, err := index.UniqueKeyOutput(context.Background(), wrapped, class, catalog, sqltype.OutputEnvironment{})
 			if err != nil || text != test.want {
 				t.Fatal("physical OID key output", text, err)
 			}

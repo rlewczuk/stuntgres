@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 
@@ -42,8 +43,8 @@ type Engine struct {
 	sessions          map[ids.SessionToken]*session.Session
 	settings          settings.Registry // Immutable, initialized once before publication.
 	visibility        visibility.Registry
-	indexWaits        indexWaitRegistry
-	exclusions        exclusionRegistry
+	indexWaits        index.WaitRegistry
+	exclusions        index.ExclusionRegistry
 	prepared          map[string]*preparedTransaction
 	roles             roleStore
 	importTargets     map[authorization.PrincipalRef]authorization.PrincipalRef

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/stored"
 )
 
@@ -269,14 +270,14 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			}
 			d.Constraints.Unique[i].OID = id
 			recordConstraint(def.OID, id)
-			index, ok := next.Relation(def.Index)
-			if !ok || index.SQLIndex == nil {
+			idx, ok := next.Relation(def.Index)
+			if !ok || idx.SQLIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported unique index")
 			}
-			clone := *index
-			definition := *index.SQLIndex
+			clone := *idx
+			definition := *idx.SQLIndex
 			constraint := d.Constraints.Unique[i]
-			definition.Constraint = UniqueBacking(&constraint)
+			definition.Constraint = index.UniqueBacking(&constraint)
 			clone.SQLIndex = &definition
 			next.SetDescriptor(clone.Address(), &clone)
 			changed = true
@@ -294,13 +295,13 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			}
 			d.Constraints.Exclusion[i].OID = id
 			recordConstraint(def.OID, id)
-			index, ok := next.Relation(def.Index)
-			if !ok || index.SQLIndex == nil {
+			idx, ok := next.Relation(def.Index)
+			if !ok || idx.SQLIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported exclusion index")
 			}
-			clone := *index
-			definition := *index.SQLIndex
-			definition.Constraint = ExclusionBacking(&d.Constraints.Exclusion[i])
+			clone := *idx
+			definition := *idx.SQLIndex
+			definition.Constraint = index.ExclusionBacking(&d.Constraints.Exclusion[i])
 			clone.SQLIndex = &definition
 			next.SetDescriptor(clone.Address(), &clone)
 			changed = true

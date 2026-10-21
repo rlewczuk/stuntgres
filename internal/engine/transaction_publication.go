@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -39,7 +40,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 	}
 	if c != nil && (len(c.Descriptors) != 0 || len(c.Names) != 0 || len(c.DefaultACLs) != 0 ||
 		len(c.Generators) != 0 || len(c.Storage) != 0 || c.Roles != nil ||
-		JournalOf(c.Indexes).Pending()) {
+		index.JournalOf(c.Indexes).Pending()) {
 		return true
 	}
 	for _, rows := range writes {
@@ -148,7 +149,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				return err
 			}
 		}
-		prepared := make([]rowPublication, 0, len(writes)+len(deletes))
+		prepared := make([]index.RowPublication, 0, len(writes)+len(deletes))
 		e.mu.Lock()
 		if ref.Epoch() != e.catalog.state.Epoch() {
 			e.mu.Unlock()
@@ -161,7 +162,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			if nextCatalog != nil {
 				captureCatalog = nextCatalog
 			}
-			indexStores = CaptureIndexStores(e.storage.Relations, captureCatalog)
+			indexStores = index.CaptureIndexStores(e.storage.Relations, captureCatalog)
 		}
 		indexPredecessors := e.storage.IndexRoots
 		var nextSequences map[ids.ObjectAddress]*storage.SequenceGenerator
@@ -210,7 +211,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			if store == nil || !live || a.SubID != 0 {
 				return ids.ErrCatalogReplaced
 			}
-			prepared = append(prepared, rowPublication{Address: a, Store: store, Original: original, OriginalRelation: originalRelation, Relation: relation, Root: store.Versions, Writes: rows, Ends: store.Ends, Deletion: deletion, Generation: store.Generation, SingleSlot: -1})
+			prepared = append(prepared, index.RowPublication{Address: a, Store: store, Original: original, OriginalRelation: originalRelation, Relation: relation, Root: store.Versions, Writes: rows, Ends: store.Ends, Deletion: deletion, Generation: store.Generation, SingleSlot: -1})
 			return nil
 		}
 		for a, rows := range writes {
@@ -310,10 +311,10 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 			var indexErr error
 			var rebuildIntents map[ids.ObjectAddress]*catalog.Relation
-			var indexCandidates map[ids.ObjectAddress]indexRootCandidate
+			var indexCandidates map[ids.ObjectAddress]index.RootCandidate
 			if c != nil {
-				rebuildIntents = JournalIndexesOrZero(c).Rebuilds
-				indexCandidates = JournalIndexesOrZero(c).Candidates
+				rebuildIntents = index.JournalIndexesOrZero(c).Rebuilds
+				indexCandidates = index.JournalIndexesOrZero(c).Candidates
 			}
 			var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
 			if c != nil {
@@ -342,7 +343,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if err == nil && e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.CommitSeq() != frontier || !StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || len(p.Store.Versions) != len(p.Root) {
@@ -355,7 +356,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 						err = ids.ErrCatalogReplaced
 						break
 					}
-				} else if !ok || !SameRelationRowShape(p.OriginalRelation, current) {
+				} else if !ok || !index.SameRelationRowShape(p.OriginalRelation, current) {
 					err = ids.ErrCatalogReplaced
 					break
 				}
@@ -483,7 +484,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				}
 			}
 		}
-		PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
+		index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
 		e.storage.ReplaceIndexRootsLocked(indexRoots)
 		e.visibility.AdvanceCommitSeqLocked()
 		e.visibility.RecordCommitTimestampLocked(ref)

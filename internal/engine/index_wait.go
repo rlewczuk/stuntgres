@@ -2,13 +2,14 @@ package engine
 
 import (
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 
 	"stuntgres/internal/engine/lock"
 )
 
 // Engine.mu is held. This observes a frozen coordinator cohort, not registration
 // of an individual lock-manager request.
-func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner ids.TxRef, kind indexBuildWaitKind) error {
+func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner ids.TxRef, kind index.BuildWaitKind) error {
 	if index == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -19,7 +20,7 @@ func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner ids.Tx
 	return nil
 }
 
-func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, kind indexBuildWaitKind) {
+func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, kind index.BuildWaitKind) {
 	e.mu.Lock()
 	e.indexWaits.ClearLocked(index, owner, kind)
 	e.mu.Unlock()
@@ -42,7 +43,7 @@ func (s *StatementScope) waitCompletion(owner *lock.Ticket, purpose lock.Complet
 	return err
 }
 
-func (s *StatementScope) waitIndexWriters(index ids.ObjectAddress) error {
+func (s *StatementScope) waitIndexWriters(idx ids.ObjectAddress) error {
 	e := s.engine()
 	owners, err := e.locks.IndexWriters(s.ticket, s.lockedRef)
 	if err != nil {
@@ -50,12 +51,12 @@ func (s *StatementScope) waitIndexWriters(index ids.ObjectAddress) error {
 	}
 	// The complete granted cohort is frozen before admission is observable.
 	e.mu.Lock()
-	err = e.admitIndexBuildWaitLocked(index, s.txRef, WaitWriters)
+	err = e.admitIndexBuildWaitLocked(idx, s.txRef, index.WaitWriters)
 	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	defer e.clearIndexBuildWait(index, s.txRef, WaitWriters)
+	defer e.clearIndexBuildWait(idx, s.txRef, index.WaitWriters)
 	for _, owner := range owners {
 		if err := s.waitCompletion(owner, lock.CompletionVirtual); err != nil {
 			return err

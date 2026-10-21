@@ -8,7 +8,7 @@ func (e *Engine) checkTransactionExclusions(s *StatementScope) error {
 	if err := s.checkExclusionEvents(true, nil); err != nil {
 		return err
 	}
-	ownerExtensionOf(s.owner).exclusionModes = s.indexesOrZero().exclusionModes
+	ownerExtensionOf(s.owner).exclusionModes = s.indexesOrZero().ExclusionModes
 	return nil
 }
 

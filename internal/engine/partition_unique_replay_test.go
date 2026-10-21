@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -185,7 +186,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	leaf = view.MustRelation(leaf.Address())
 	local := view.MustRelation(mid.Constraints.Unique[0].Index)
 	child := view.MustRelation(leaf.Constraints.Unique[0].Index)
-	if PartitionReplayUsingIndex(view, local) || PartitionReplayVirtualUniqueRoot(view, child) != local {
+	if index.PartitionReplayUsingIndex(view, local) || index.PartitionReplayVirtualUniqueRoot(view, child) != local {
 		t.Fatal("virtual definition assigned a physical origin")
 	}
 	provider, err := dumpPredecessor(view, child.Address(), ids.ObjectAddress{})

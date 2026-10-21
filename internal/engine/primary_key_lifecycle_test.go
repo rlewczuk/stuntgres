@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,14 +14,14 @@ import (
 )
 
 func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
-	e, _, parent, index := primaryKeyUnitFixture(t)
+	e, _, parent, idx := primaryKeyUnitFixture(t)
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	candidate := *parent
 	candidate.Columns = slices.Clone(parent.Columns)
 	candidate.Columns[0].Usage = indexClausesTypes()[sqltype.Int8].Usage()
 	e.mu.Lock()
-	next, err := e.rebuildAlterUniquesLocked(stage, &candidate, []columnTransformation{{Attribute: parent.Attributes[0]}})
+	next, err := e.rebuildAlterUniquesLocked(stage, &candidate, []index.ColumnTransformation{{Attribute: parent.Attributes[0]}})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -34,13 +35,13 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	if backing.SQLIndex.Constraint == nil || !backing.SQLIndex.Constraint.Primary || backing.SQLIndex.Constraint.OID != rebuilt.OID || backing.SQLIndex.Constraint.Index != backing.Address() || backing.Columns[0].Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(backing)
 	}
-	if _, exists := private.Find(index.Address()); exists {
+	if _, exists := private.Find(idx.Address()); exists {
 		t.Fatal("old backing retained in candidate")
 	}
-	if e.CatalogRead().State() != base.State() || !reflect.DeepEqual(parent.Constraints.Unique[0], old) || index.SQLIndex.Constraint.OID != old.OID || parent.Constraints.NotNull[0].OID == next.Constraints.NotNull[0].OID || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
+	if e.CatalogRead().State() != base.State() || !reflect.DeepEqual(parent.Constraints.Unique[0], old) || idx.SQLIndex.Constraint.OID != old.OID || parent.Constraints.NotNull[0].OID == next.Constraints.NotNull[0].OID || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate changed retained source/savepoint state")
 	}
-	for _, transformations := range [][]columnTransformation{nil, {{Attribute: parent.Attributes[2]}}} {
+	for _, transformations := range [][]index.ColumnTransformation{nil, {{Attribute: parent.Attributes[2]}}} {
 		e.mu.Lock()
 		unchanged, err := e.rebuildAlterUniquesLocked(e.BeginCatalogStage(base), parent, transformations)
 		e.mu.Unlock()

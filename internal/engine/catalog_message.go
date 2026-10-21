@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
@@ -202,10 +203,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		if err := observe(a, d); err != nil {
 			return err
 		}
-		if JournalIndexesOrZero(c).Rebuilds == nil {
-			JournalIndexes(c).Rebuilds = map[ids.ObjectAddress]*catalog.Relation{}
+		if index.JournalIndexesOrZero(c).Rebuilds == nil {
+			index.JournalIndexes(c).Rebuilds = map[ids.ObjectAddress]*catalog.Relation{}
 		}
-		JournalIndexes(c).Rebuilds[a] = d
+		index.JournalIndexes(c).Rebuilds[a] = d
 	}
 	for k, a := range s.Touched() {
 		if current.NameAddress(k) != a {

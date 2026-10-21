@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -41,7 +42,7 @@ func newCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyI
 	return state
 }
 
-func (state *copyInsertionState) record(s *StatementScope, b analyze.Binding, candidate *indexWriteCandidate, position int) {
+func (state *copyInsertionState) record(s *StatementScope, b analyze.Binding, candidate *index.WriteCandidate, position int) {
 	line, size := state.cursor.insertionOrigin()
 	state.lines = append(state.lines, line)
 	state.bytes += size
@@ -68,7 +69,7 @@ func (state *copyInsertionState) full() bool {
 	return state.single || len(state.lines) >= 1000 || state.bytes >= 65535
 }
 
-func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, rows *indexWriteBatch, evaluation *exec.Context) error {
+func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
 	insert := func(position int, group *partitionInsertGroup) error {
 		candidate := rows.Candidate(position)
 		var err error

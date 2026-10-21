@@ -7,11 +7,12 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistory, d *catalog.Relation, attribute int32, before, after []sqltype.Value) (bool, error) {
+func partitionRetainedAttributeChanged(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, attribute int32, before, after []sqltype.Value) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -54,7 +55,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 
 // Only material datum/provider changes make a retained NOT VALID check newly
 // relevant. Descriptor ownership alone does not change its old-row authority.
-func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, d *catalog.Relation, check catalog.CheckConstraint, before, after []sqltype.Value) (bool, error) {
+func partitionRetainedCheckAffected(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, check catalog.CheckConstraint, before, after []sqltype.Value) (bool, error) {
 	var original *catalog.CheckConstraint
 	for i := range h.Relation.Constraints.Check {
 		if h.Relation.Constraints.Check[i].Name == check.Name {
@@ -147,7 +148,7 @@ type partitionRetainedChecks struct {
 	recipeAffected []bool
 }
 
-func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *indexSnapshot, evaluation *exec.Context) (*catalog.Relation, error) {
+func (p *partitionRetainedChecks) forRow(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *index.Snapshot, evaluation *exec.Context) (*catalog.Relation, error) {
 	if !p.initialized {
 		p.descriptor = *d
 		p.descriptor.Constraints.Check = slices.Clone(d.Constraints.Check)

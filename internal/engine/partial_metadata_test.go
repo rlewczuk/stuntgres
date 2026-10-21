@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -22,11 +23,11 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	rows := view.Data().Committed[f.parent.Address()]
 	oldRoot := f.e.storage.IndexRoots[f.index.Address()]
 	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.Address())
-	retained, _, err := ProjectIndexMetadata(ctx, capture, ref)
+	retained, _, err := index.ProjectIndexMetadata(ctx, capture, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	consume := func(label string, metadata indexMetadata, want []plan.Truth, membership map[ids.RowID]ids.VersionID) {
+	consume := func(label string, metadata index.Metadata, want []plan.Truth, membership map[ids.RowID]ids.VersionID) {
 		t.Helper()
 		if metadata.Predicate == nil {
 			t.Fatalf("%s: structural metadata omitted the partial predicate", label)
@@ -68,31 +69,31 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	}
 	definition := *f.index.SQLIndex
 	definition.Predicate = predicate
-	index := *f.index
-	index.ObjectRevision++
-	index.SQLIndex = &definition
+	idx := *f.index
+	idx.ObjectRevision++
+	idx.SQLIndex = &definition
 	next := catalog.CloneState(capture.State())
-	next.SetDescriptor(index.Address(), &index)
+	next.SetDescriptor(idx.Address(), &idx)
 	candidate := f.e.catalog.read(next)
-	if err := ValidateIndexDefinition(candidate, &index); err != nil {
+	if err := index.ValidateIndexDefinition(candidate, &idx); err != nil {
 		t.Fatal(err)
 	}
-	root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
+	root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	f.e.mu.Lock()
 	f.e.catalog.state = next
-	f.e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root})
+	f.e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): root})
 	f.e.mu.Unlock()
-	current, _, err := ProjectIndexMetadata(ctx, f.e.CatalogRead(), ref)
+	current, _, err := index.ProjectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}
 	consume("current projection", current, []plan.Truth{plan.False, plan.True, plan.Unknown, plan.False, plan.False}, map[ids.RowID]ids.VersionID{2: 2})
 	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{2: 2})
 	consume("retained projection", retained, oldTruth, oldMembers)
-	historical, _, err := ProjectIndexMetadata(ctx, capture, ref)
+	historical, _, err := index.ProjectIndexMetadata(ctx, capture, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,15 +119,15 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	// recover the original attribute reference even after simplification.
 	definition := *f.index.SQLIndex
 	definition.Predicate = predicate
-	index := *f.index
-	index.SQLIndex = &definition
+	idx := *f.index
+	idx.SQLIndex = &definition
 	next := catalog.CloneState(capture.State())
-	next.SetDescriptor(index.Address(), &index)
+	next.SetDescriptor(idx.Address(), &idx)
 	candidate := f.e.catalog.read(next)
-	if err := ValidateIndexDefinition(candidate, &index); err != nil {
+	if err := index.ValidateIndexDefinition(candidate, &idx); err != nil {
 		t.Fatal(err)
 	}
-	metadata, _, err := ProjectIndexMetadata(ctx, candidate, f.e.catalog.Domain.Ref(candidate.Epoch(), index.Address()))
+	metadata, _, err := index.ProjectIndexMetadata(ctx, candidate, f.e.catalog.Domain.Ref(candidate.Epoch(), idx.Address()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +149,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	if !reflect.DeepEqual(attributes, []ids.ObjectRef{wantRef}) {
 		t.Fatalf("original predicate relation dependencies=%v want attribute reference=%v", attributes, wantRef)
 	}
-	var preparation indexExecutionPreparation
+	var preparation index.ExecutionPreparation
 	for _, row := range f.store.Versions {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row.Values}}
 		value, err := metadata.Predicate.Eval(&evaluation)

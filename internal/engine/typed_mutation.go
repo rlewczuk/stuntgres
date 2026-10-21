@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -17,7 +18,7 @@ import (
 
 type typedRelationMutation struct {
 	old, next  *catalog.Relation
-	transforms []columnTransformation
+	transforms []index.ColumnTransformation
 	additions  []addedColumn
 	checks     []catalog.CheckConstraint
 }
@@ -77,7 +78,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 				if planned.Usage != nil {
 					prepared.declaredDimensions = planned.DeclaredDimensions
 				}
-				var transform columnTransformation
+				var transform index.ColumnTransformation
 				mutation.next, transform, err = e.alterTypeCandidate(scope, op, auth, stage, old, mutation.next, ref, planned.Action, prepared)
 				if err != nil {
 					return mutation, err
@@ -232,15 +233,15 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	if rewrite || len(mutation.transforms) != 0 {
 		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		builds, err := ValidateAlterIndexBuilds(&indexEvaluation, auth.View, disclosureEnv(&auth), e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil, rewrite)
+		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, disclosureEnv(&auth), e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil, rewrite)
 		if err != nil {
 			return err
 		}
 		for _, build := range builds {
 			if stage.indexesOrZero().Candidates == nil {
-				stage.indexes().Candidates = make(map[ids.ObjectAddress]indexRootCandidate)
+				stage.indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
 			}
-			stage.indexes().Candidates[build.Index.Address()] = indexRootCandidate{Index: build.Index, Root: build.Root, Storage: replacement.IndexIdentity(), Generation: replacement.Generation, Ends: replacement.Ends, Length: len(replacement.Versions)}
+			stage.indexes().Candidates[build.Index.Address()] = index.RootCandidate{Index: build.Index, Root: build.Root, Storage: replacement.IndexIdentity(), Generation: replacement.Generation, Ends: replacement.Ends, Length: len(replacement.Versions)}
 		}
 	}
 	if replacement != store {
@@ -255,9 +256,9 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		if _, _, err := transportIndexLayouts(&evaluation, stage, transported, next, store, replacement, nil, nil); err != nil {
 			return err
 		}
-		for address, candidate := range JournalIndexesOrZero(transported).Candidates {
+		for address, candidate := range index.JournalIndexesOrZero(transported).Candidates {
 			if stage.indexesOrZero().Candidates == nil {
-				stage.indexes().Candidates = make(map[ids.ObjectAddress]indexRootCandidate)
+				stage.indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
 			}
 			stage.indexes().Candidates[address] = candidate
 		}

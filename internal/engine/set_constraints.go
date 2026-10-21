@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -15,30 +16,30 @@ import (
 
 func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]bool) error {
 	if !s.indexesOrZero().ExclusionStarted {
-		s.indexes().exclusionModes = ownerExtensionOrZero(s.owner).exclusionModes
+		s.indexes().ExclusionModes = ownerExtensionOrZero(s.owner).exclusionModes
 	}
-	if len(s.indexesOrZero().exclusionModes.Events) == 0 {
+	if len(s.indexesOrZero().ExclusionModes.Events) == 0 {
 		return nil
 	}
-	remaining := make([]exclusionEvent, 0, len(s.indexesOrZero().exclusionModes.Events))
+	remaining := make([]index.ExclusionEvent, 0, len(s.indexesOrZero().ExclusionModes.Events))
 	e := s.engine()
-	for _, event := range s.indexesOrZero().exclusionModes.Events {
+	for _, event := range s.indexesOrZero().ExclusionModes.Events {
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.Catalog)
 		parent, live := view.Relation(event.Parent.Address)
-		index, exists := view.Relation(event.Index.Address)
+		idx, exists := view.Relation(event.Index.Address)
 		e.mu.Unlock()
 		if event.Parent.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if !live || !exists || index.SQLIndex == nil || !index.SQLIndex.IsExclusion() || index.SQLIndex.Constraint.OID != event.Constraint {
+		if !live || !exists || idx.SQLIndex == nil || !idx.SQLIndex.IsExclusion() || idx.SQLIndex.Constraint.OID != event.Constraint {
 			continue
 		}
-		c := ExclusionDefinition(parent, index)
+		c := index.ExclusionDefinition(parent, idx)
 		if c == nil {
 			continue
 		}
-		due := all || selected != nil && selected[c.OID] || selected == nil && !s.indexesOrZero().exclusionModes.Deferred(c)
+		due := all || selected != nil && selected[c.OID] || selected == nil && !s.indexesOrZero().ExclusionModes.Deferred(c)
 		if !due {
 			remaining = append(remaining, event)
 			continue
@@ -47,7 +48,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if err != nil {
 			return err
 		}
-		var bound *uniqueBoundKey
+		var bound *index.UniqueBoundKey
 		for i := range binding.Keys {
 			if binding.Keys[i].Index.Address() == event.Index.Address {
 				bound = &binding.Keys[i]
@@ -57,7 +58,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if bound == nil {
 			continue
 		}
-		conflict, _, err := s.probeExclusion(event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, ProbeRuntime)
+		conflict, _, err := s.probeExclusion(event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
@@ -65,7 +66,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 			return conflict.diagnostic(s, event.Parent)
 		}
 	}
-	s.indexes().exclusionModes.Events = remaining
+	s.indexes().ExclusionModes.Events = remaining
 	return nil
 }
 
@@ -91,7 +92,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 	auth.Recapture(auth.Catalog)
 	s.beginExclusionProjectionLocked(e)
 	e.mu.Unlock()
-	candidate := s.indexesOrZero().exclusionModes
+	candidate := s.indexesOrZero().ExclusionModes
 	candidate.ByConstraint = maps.Clone(candidate.ByConstraint)
 	selected := make(map[ids.OID]bool)
 	if raw.All {
@@ -101,7 +102,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		for _, name := range raw.Names {
 			path, err := e.lookupNamespaces(auth, name, analyze.OperatorLookup)
 			if err != nil {
-				return Result{}, SemanticError(err)
+				return Result{}, index.SemanticError(err)
 			}
 			label := name.Parts[len(name.Parts)-1].Text
 			found := false
@@ -185,10 +186,10 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		if err := s.checkExclusionEvents(raw.All, selected); err != nil {
 			return Result{}, err
 		}
-		candidate.Events = s.indexesOrZero().exclusionModes.Events
+		candidate.Events = s.indexesOrZero().ExclusionModes.Events
 	}
 	if s.owner.InBlock() {
-		s.indexes().exclusionModes = candidate
+		s.indexes().ExclusionModes = candidate
 	}
 	return Result{}, nil
 }

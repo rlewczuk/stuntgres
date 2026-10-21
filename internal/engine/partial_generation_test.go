@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
@@ -57,14 +58,14 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			definition := *f.index.SQLIndex
 			definition.Predicate = &predicate
-			index := *f.index
-			index.SQLIndex = &definition
+			idx := *f.index
+			idx.SQLIndex = &definition
 			beforeDefinition, beforeExecution := predicate.Definition, predicate.Execution
 			beforeDependencies := append([]ids.ObjectRef(nil), predicate.Dependencies...)
 			beforeAttributes := append([]int32(nil), predicate.Attributes...)
 			next := catalog.CloneState(oldCatalog)
 			next.SetEpoch(next.Epoch() + 1)
-			next.SetDescriptor(index.Address(), &index)
+			next.SetDescriptor(idx.Address(), &idx)
 			typeAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())}
 			typeDefinition := *next.MustType(typeAddress)
 			typeDefinition.SQLType = current
@@ -78,7 +79,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			// Only the partial predicate consumes the changed generation:
 			// the admitted index has a simple INTEGER key and no stored
 			// defaults, generated columns, CHECKs or view expressions.
-			if !stored.ExpressionTypesChanged(&index, typ) {
+			if !stored.ExpressionTypesChanged(&idx, typ) {
 				t.Error("predicate-only type generation was not detected")
 			}
 			stores := map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): f.store}
@@ -95,9 +96,9 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if err := stored.ReownExpressions(f.e.catalog.read(next), next, mapping, true); err != nil {
 				t.Fatal(err)
 			}
-			reowned := next.MustRelation(index.Address())
+			reowned := next.MustRelation(idx.Address())
 			p := reowned.SQLIndex.Predicate
-			if reowned == &index || p == &predicate {
+			if reowned == &idx || p == &predicate {
 				t.Error("changed predicate descriptor was reused")
 			}
 			if !reflect.DeepEqual(p.Dependencies, beforeDependencies) || !reflect.DeepEqual(p.Attributes, beforeAttributes) || reowned.SQLIndex.Parent != f.parent.Address() {
@@ -118,14 +119,14 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 					}
 				}
 			}
-			var preparation indexExecutionPreparation
+			var preparation index.ExecutionPreparation
 			for i, row := range stores[f.parent.Address()].Versions {
 				matched, err := preparation.PredicateMatches(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, reowned.SQLIndex, row.Values, nil, nil)
 				if err != nil || matched != (i == 0 || i == 3 || i == 4) {
 					t.Error("reowned predicate changed TRUE/FALSE/NULL membership", i, matched, err)
 				}
 			}
-			root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, reowned.SQLIndex, stores[f.parent.Address()], nil)
+			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, reowned.SQLIndex, stores[f.parent.Address()], nil)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/routine"
 )
 
@@ -94,7 +95,7 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation) || parent.Namespace() != source.Namespace() || parent.Owner != source.Owner || unique.Index != source.Address() {
 			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
 		}
-		if !BackingConstraintPresent(parent, source) {
+		if !index.BackingConstraintPresent(parent, source) {
 			return 0, fmt.Errorf("stuntgres: orphan unique index dump dependency")
 		}
 		if producer, moved, err := physicalCompetingIndexSource(view, source); err != nil {
@@ -102,9 +103,9 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		} else if moved {
 			source = producer
 		}
-		if root := PartitionReplayVirtualUniqueRoot(view, source); root != nil {
+		if root := index.PartitionReplayVirtualUniqueRoot(view, source); root != nil {
 			source = root
-		} else if !PartitionReplayUsingIndex(view, source) {
+		} else if !index.PartitionReplayUsingIndex(view, source) {
 			source = parent
 		}
 	}

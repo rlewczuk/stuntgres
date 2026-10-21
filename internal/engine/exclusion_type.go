@@ -5,31 +5,32 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
-func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catalog.Relation, transformations []columnTransformation) (*catalog.Relation, error) {
+func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
 	if len(parent.Constraints.Exclusion) == 0 || len(transformations) == 0 {
 		return parent, nil
 	}
 	var next *catalog.Relation
 	for i, old := range parent.Constraints.Exclusion {
-		index, ok := stage.Base.Relation(old.Index)
+		idx, ok := stage.Base.Relation(old.Index)
 		if !ok {
 			if current, exists := stage.Get(old.Index).(*catalog.Relation); exists && current.SQLIndex != nil {
 				continue // New definitions already bind the completed TYPE shape.
 			}
 		}
-		if !ok || index.SQLIndex == nil {
+		if !ok || idx.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: invalid TYPE exclusion index")
 		}
-		if !UniqueIndexTypeAffected(index.SQLIndex, transformations) {
+		if !index.UniqueIndexTypeAffected(idx.SQLIndex, transformations) {
 			continue
 		}
 		if replacement, ok := stage.Get(old.Index).(*catalog.Relation); ok {
-			index = replacement
+			idx = replacement
 		}
 		oldParent := stage.Base.MustRelation(parent.Address())
-		evolved, err := EvolveIndex(index, oldParent, parent, transformations)
+		evolved, err := index.EvolveIndex(idx, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
 		}
@@ -61,12 +62,12 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catal
 			return nil, err
 		}
 		definition := *evolved.SQLIndex
-		definition.Exclusion, err = RebindExclusionOperators(parent, &definition)
+		definition.Exclusion, err = index.RebindExclusionOperators(parent, &definition)
 		if err != nil {
 			return nil, err
 		}
 		c.Operators = definition.Exclusion
-		definition.Constraint = ExclusionBacking(c)
+		definition.Constraint = index.ExclusionBacking(c)
 		definition.Ready, definition.Valid, definition.Live = true, true, true
 		copy.SQLIndex = &definition
 		copy.Columns = slices.Clone(evolved.Columns)

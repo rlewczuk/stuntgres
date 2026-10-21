@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -70,17 +71,17 @@ func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, ow
 		return nil
 	}
 	primaryIndex := view.MustRelation(primary.Index)
-	if PartitionReplaySeparateConstraint(view, primaryIndex) != separate {
+	if index.PartitionReplaySeparateConstraint(view, primaryIndex) != separate {
 		return nil
 	}
 	qualified := catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name())
 	for i := range table.Constraints.Unique {
 		constraint := &table.Constraints.Unique[i]
-		index := view.MustRelation(constraint.Index)
-		if PartitionReplaySeparateConstraint(view, index) {
+		idx := view.MustRelation(constraint.Index)
+		if index.PartitionReplaySeparateConstraint(view, idx) {
 			continue
 		}
-		_, deferred, err := physicalCompetingIndexSource(view, index)
+		_, deferred, err := physicalCompetingIndexSource(view, idx)
 		if err != nil {
 			return err
 		}

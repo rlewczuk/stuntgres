@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
 func TestExclusionMarkNilWhenZero(t *testing.T) {
-	if s := exclusionMarkSlotOf(exclusionModes{}, nil); s != nil {
+	if s := exclusionMarkSlotOf(index.ExclusionModes{}, nil); s != nil {
 		t.Fatalf("zero exclusion state stored slot %v", s)
 	}
 	if got := exclusionMarkOrZero(nil); !got.modes.Zero() || got.projection != nil {
@@ -18,14 +19,14 @@ func TestExclusionMarkNilWhenZero(t *testing.T) {
 
 func TestExclusionMarkRestoresCapturedState(t *testing.T) {
 	byConstraint := map[ids.OID]bool{7: true}
-	projection := &exclusionProjection{}
+	projection := &index.ExclusionProjection{}
 	cases := map[string]struct {
-		modes      exclusionModes
-		projection *exclusionProjection
+		modes      index.ExclusionModes
+		projection *index.ExclusionProjection
 	}{
-		"flags":            {modes: exclusionModes{AllSet: true, AllDeferred: true}},
-		"constraint modes": {modes: exclusionModes{ByConstraint: byConstraint}},
-		"empty events":     {modes: exclusionModes{Events: []exclusionEvent{}}},
+		"flags":            {modes: index.ExclusionModes{AllSet: true, AllDeferred: true}},
+		"constraint modes": {modes: index.ExclusionModes{ByConstraint: byConstraint}},
+		"empty events":     {modes: index.ExclusionModes{Events: []index.ExclusionEvent{}}},
 		"projection only":  {projection: projection},
 	}
 	for name, c := range cases {
@@ -41,7 +42,7 @@ func TestExclusionMarkRestoresCapturedState(t *testing.T) {
 			t.Fatalf("%s: restored events nil-ness differs", name)
 		}
 	}
-	if got := exclusionMarkOrZero(exclusionMarkSlotOf(exclusionModes{ByConstraint: byConstraint}, nil)); reflect.ValueOf(got.modes.ByConstraint).Pointer() != reflect.ValueOf(byConstraint).Pointer() {
+	if got := exclusionMarkOrZero(exclusionMarkSlotOf(index.ExclusionModes{ByConstraint: byConstraint}, nil)); reflect.ValueOf(got.modes.ByConstraint).Pointer() != reflect.ValueOf(byConstraint).Pointer() {
 		t.Fatal("restored constraint modes are not the captured map")
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -147,14 +148,14 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return nil
 	}
 	for _, constraint := range p.child.Constraints.Unique {
-		index := p.stage.Get(constraint.Index).(*catalog.Relation)
-		if err := PartitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
+		idx := p.stage.Get(constraint.Index).(*catalog.Relation)
+		if err := index.PartitionUniqueCoverage(p.child, idx.SQLIndex); err != nil {
 			return err
 		}
 	}
 	for _, constraint := range p.child.Constraints.Exclusion {
-		index := p.stage.Get(constraint.Index).(*catalog.Relation)
-		if err := PartitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
+		idx := p.stage.Get(constraint.Index).(*catalog.Relation)
+		if err := index.PartitionUniqueCoverage(p.child, idx.SQLIndex); err != nil {
 			return err
 		}
 	}
@@ -241,7 +242,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, index := range PartitionIndexDeclarationOrder(p.stage.Base, p.parent) {
+	for _, index := range index.PartitionIndexDeclarationOrder(p.stage.Base, p.parent) {
 		child := e.stageRead(p.stage).MustRelation(p.child.Address())
 		if _, err := e.stagePartitionIndexChild(scope.op, p.stage, p.parent, index, child, true); err != nil {
 			return err

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -120,7 +121,7 @@ func (s *StatementScope) stageTruncate() error {
 		ref := selected.ref
 		d, ok := auth.Catalog.Relation(ref.Address)
 		store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-		if !ok || d.Namespace() != selected.relation.Namespace() || !SameRelationRowShape(d, selected.relation) || store != selected.storage {
+		if !ok || d.Namespace() != selected.relation.Namespace() || !index.SameRelationRowShape(d, selected.relation) || store != selected.storage {
 			err = ids.ErrCatalogReplaced
 			break
 		}
@@ -191,7 +192,7 @@ func (s *StatementScope) stageTruncate() error {
 	for _, selected := range s.truncateOrZero().relations {
 		address := selected.ref.Address
 		if selected.relation.RelationKind != catalog.PartitionedRelation && selected.relation.RelationKind != catalog.ForeignRelation {
-			if err := TransportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage.recordIndexCandidate, address, changes.Storage[address].Replacement); err != nil {
+			if err := index.TransportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage.recordIndexCandidate, address, changes.Storage[address].Replacement); err != nil {
 				return err
 			}
 		}

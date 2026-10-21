@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -51,7 +52,7 @@ func TestJSONBExistsBinding(t *testing.T) {
 			if err != nil || next.Plan != node.Plan || next.Syntax != node.Syntax || next.Property != node.Property {
 				t.Fatal(next, err)
 			}
-			if PGIndexFunctionExpression(node) {
+			if index.PGIndexFunctionExpression(node) {
 				t.Fatal("operator classified as function")
 			}
 		})

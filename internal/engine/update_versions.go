@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -12,22 +13,22 @@ import (
 )
 
 // Conflict UPDATE separately proves cardinality through its affected-row set.
-func (w *WriteStage) replaceDistinct(ref ids.ObjectRef, old []storage.RowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) replaceDistinct(ref ids.ObjectRef, old []storage.RowVersion, rows index.WriteBatch) error {
 	return w.replaceRows(ref, old, rows, true, true)
 }
 
-func (w *WriteStage) replace(ref ids.ObjectRef, old []storage.RowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) replace(ref ids.ObjectRef, old []storage.RowVersion, rows index.WriteBatch) error {
 	return w.replaceRows(ref, old, rows, false, false)
 }
 
 // Ordinary UPDATE proves each accepted physical target distinct through its
 // frozen scan / FROM winner gate, and excludes existing staged RowIDs before
 // choosing this append lane. Ordinary target and RI validation still applies.
-func (w *WriteStage) appendUpdateReplacement(ref ids.ObjectRef, old []storage.RowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) appendUpdateReplacement(ref ids.ObjectRef, old []storage.RowVersion, rows index.WriteBatch) error {
 	return w.replaceRows(ref, old, rows, false, true)
 }
 
-func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, batch indexWriteBatch, conflictDistinct, appendOnly bool) (err error) {
+func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, conflictDistinct, appendOnly bool) (err error) {
 	rows := batch.Values
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")

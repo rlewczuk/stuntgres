@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
@@ -72,17 +73,17 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 		t.Fatal(err)
 	}
 	parent := e.catalog.state.MustRelation(ref.Address)
-	index, root := btreeRoot(t, e, "public.ui_index")
-	if index.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 || index.SQLIndex.Predicate == nil {
+	idx, root := btreeRoot(t, e, "public.ui_index")
+	if idx.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 || idx.SQLIndex.Predicate == nil {
 		t.Fatal("not real standalone partial")
 	}
-	if err := ValidateIndexDefinition(e.CatalogRead(), index); err != nil {
+	if err := index.ValidateIndexDefinition(e.CatalogRead(), idx); err != nil {
 		t.Fatal(err)
 	}
 	if len(root.Entries) != 2 || !maps.Equal(root.Membership, map[ids.RowID]ids.VersionID{e.storage.Relations[ref.Address].Versions[0].Row: e.storage.Relations[ref.Address].Versions[0].Version, e.storage.Relations[ref.Address].Versions[1].Row: e.storage.Relations[ref.Address].Versions[1].Version}) {
 		t.Fatal("seed membership", root)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: idx, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
 	for a, s := range f.stores {
 		f.storeSnapshots[a] = uniquePublicationStore(s)
 	}
@@ -294,7 +295,7 @@ func TestPartialIndexUniquePredicateIdentityFence(t *testing.T) {
 	f := newPartialUniquePublication(t, true, false, "table")
 	same := *f.index
 	same.ObjectName = "renamed"
-	if !SameIndexKeySemantics(f.index, &same) {
+	if !index.SameIndexKeySemantics(f.index, &same) {
 		t.Fatal("retained predicate rename lost reuse")
 	}
 	next := *f.index
@@ -302,7 +303,7 @@ func TestPartialIndexUniquePredicateIdentityFence(t *testing.T) {
 	predicate := *definition.Predicate
 	definition.Predicate = &predicate
 	next.SQLIndex = &definition
-	if SameIndexKeySemantics(f.index, &next) {
+	if index.SameIndexKeySemantics(f.index, &next) {
 		t.Fatal("new predicate identity passed root/admission reuse fence")
 	}
 	// Independently verify that the retained expression and root were untouched.
@@ -318,13 +319,13 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			next := *f.catalog
 			next.CloneDescriptors()
-			index := *f.index
-			definition := *index.SQLIndex
+			idx := *f.index
+			definition := *idx.SQLIndex
 			predicate := *definition.Predicate
 			definition.Predicate = &predicate
-			index.SQLIndex = &definition
-			next.SetDescriptor(index.Address(), &index)
-			roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.catalog, &next, CaptureIndexStores(f.e.storage.Relations, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
+			idx.SQLIndex = &definition
+			next.SetDescriptor(idx.Address(), &idx)
+			roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.catalog, &next, index.CaptureIndexStores(f.e.storage.Relations, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

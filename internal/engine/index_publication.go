@@ -9,24 +9,25 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
+func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []index.ColumnTransformation) error {
 	// Preserve the incumbent map walk. In particular an unrelated staged
 	// relation must not allocate an adapter/iterator/yield closure: the
 	// selector reads the stage itself, and a provider exists only for an
 	// affected index.
 	for address, descriptor := range stage.Base.Descriptors() {
-		index, parent, staged, affected := EvolutionInput(stage, address, descriptor)
+		idx, parent, staged, affected := index.EvolutionInput(stage, address, descriptor)
 		if !affected {
 			continue
 		}
 		provider := &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
-		if err := ApplyIndexEvolution(provider, address, index, parent, staged, typeParent, transformations); err != nil {
+		if err := index.ApplyIndexEvolution(provider, address, idx, parent, staged, typeParent, transformations); err != nil {
 			return err
 		}
 	}
@@ -36,24 +37,24 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.Ob
 // Constructors poll cancellation while doing index work; the publication owner
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
-func (e *Engine) prepareIndexCatalog(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func (e *Engine) prepareIndexCatalog(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]index.RootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	return e.prepareIndexRoots(evaluation, current, next, relations, roots, rebuildParents, rebuildIndexes, nil, true, output, auth, runtimeOwners, candidates)
 }
 
 // prepareIndexRoots reads next, recaptures auth over it, and prepares the
 // index publication. A nil auth is trusted replacement: catalog identity but
 // no SQL principal.
-func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []index.RowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]index.RootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	view := e.catalog.read(next)
 	disclosure := access.View{Catalog: view}
-	var env indexDisclosureEnv
+	var env index.DisclosureEnv
 	if auth != nil {
 		recaptured := *auth
 		recaptured.Catalog = view
 		recaptured.Recapture(recaptured.Catalog)
 		disclosure, env = recaptured.View, disclosureEnv(&recaptured)
 	}
-	return PrepareIndexPublication(evaluation, current, next, view, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, disclosure, env, runtimeOwners, candidates)
+	return index.PrepareIndexPublication(evaluation, current, next, view, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, disclosure, env, runtimeOwners, candidates)
 }
 
 // Explicit statements must discover derived-key errors before installing private
@@ -110,37 +111,37 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Input: input, Output: s.output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
+		idx, ok := descriptor.(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil || !idx.SQLIndex.Ready || !idx.SQLIndex.Live {
 			continue
 		}
-		rows := s.stage.rows[index.SQLIndex.Parent]
+		rows := s.stage.rows[idx.SQLIndex.Parent]
 		if len(rows) == 0 {
 			continue
 		}
-		if index.SQLIndex.Predicate == nil {
+		if idx.SQLIndex.Predicate == nil {
 			derived := false
-			for _, key := range index.SQLIndex.Keys {
+			for _, key := range idx.SQLIndex.Keys {
 				derived = derived || key.Derived != nil
 			}
 			if !derived {
 				continue
 			}
 		}
-		pending := index.SQLIndex.HasRuntimeDomainConversion()
-		var ordering indexOrdering
+		pending := idx.SQLIndex.HasRuntimeDomainConversion()
+		var ordering index.Ordering
 		var hash storage.HashBinding
-		var preparation indexExecutionPreparation
-		parent, ok := view.Relation(index.SQLIndex.Parent)
+		var preparation index.ExecutionPreparation
+		parent, ok := view.Relation(idx.SQLIndex.Parent)
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
 		if pending {
 			var err error
-			if index.SQLIndex.Method == catalog.HashMethod {
-				hash, err = BindHashIndex(parent, index.SQLIndex)
+			if idx.SQLIndex.Method == catalog.HashMethod {
+				hash, err = index.BindHashIndex(parent, idx.SQLIndex)
 			} else {
-				ordering, err = BindIndexKeys(parent, index.SQLIndex)
+				ordering, err = index.BindIndexKeys(parent, idx.SQLIndex)
 			}
 			if err != nil {
 				return err
@@ -148,19 +149,19 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 		}
 		copied := false
 		for i, row := range rows {
-			if !RowMaintainsIndex(row, index) {
+			if !index.RowMaintainsIndex(row, idx) {
 				continue
 			}
-			if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[index.SQLIndex.Parent]) {
+			if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[idx.SQLIndex.Parent]) {
 				continue
 			}
-			if output, ok := row.IndexOutputs[index.Address()]; ok && OutputMatches(output, index) {
+			if output, ok := row.IndexOutputs[idx.Address()]; ok && index.OutputMatches(output, idx) {
 				// The SQL producer already materialized this exact version's
 				// membership/key under the captured index semantics.
 				continue
 			}
 			if pending {
-				output, err := MaterializeIndexOutput(&evaluation, &preparation, parent, index, &ordering, &hash, row.Values)
+				output, err := index.MaterializeIndexOutput(&evaluation, &preparation, parent, idx, &ordering, &hash, row.Values)
 				if err != nil {
 					return err
 				}
@@ -168,7 +169,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 				if outputs == nil {
 					outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
 				}
-				outputs[index.Address()] = output
+				outputs[idx.Address()] = output
 				if !copied {
 					rows = slices.Clone(rows)
 					copied = true
@@ -176,18 +177,18 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 				rows[i].IndexOutputs = outputs
 				continue
 			}
-			matches, err := preparation.PredicateMatches(&evaluation, parent, index.SQLIndex, row.Values, nil, nil)
+			matches, err := preparation.PredicateMatches(&evaluation, parent, idx.SQLIndex, row.Values, nil, nil)
 			if err != nil {
 				return err
 			}
 			if !matches {
 				continue
 			}
-			if err := preparation.PrepareOrdinaryKeys(&evaluation, parent, index.SQLIndex); err != nil {
+			if err := preparation.PrepareOrdinaryKeys(&evaluation, parent, idx.SQLIndex); err != nil {
 				return err
 			}
 			evaluation.Row = row.Values
-			for keyIndex, key := range index.SQLIndex.Keys {
+			for keyIndex, key := range idx.SQLIndex.Keys {
 				if key.Derived == nil {
 					continue
 				}
@@ -197,7 +198,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 			}
 		}
 		if copied {
-			s.stage.rows[index.SQLIndex.Parent] = rows
+			s.stage.rows[idx.SQLIndex.Parent] = rows
 		}
 	}
 	return nil

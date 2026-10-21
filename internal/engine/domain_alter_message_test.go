@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"testing"
 	"time"
@@ -206,15 +207,15 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			}
 			step("INSERT INTO public.stored VALUES(2)")
 			parent := catalogRef(t, e, e.CatalogRead(), "stored").Address
-			index := catalogRef(t, e, e.CatalogRead(), "checked_idx").Address
+			idx := catalogRef(t, e, e.CatalogRead(), "checked_idx").Address
 			sequence := catalogRef(t, e, e.CatalogRead(), "calls").Address
-			oldIndex := e.catalog.state.MustRelation(index)
+			oldIndex := e.catalog.state.MustRelation(idx)
 			original := s.Transactions.Writes[parent][0]
-			output, ok := original.IndexOutputs[index]
+			output, ok := original.IndexOutputs[idx]
 			// Only actual executable conversions need frozen producer outputs;
 			// loading a plain domain-valued column is not a fresh conversion.
 			executable := definition.name != "domain_key"
-			if executable && (!ok || !output.Member || !OutputMatches(output, oldIndex)) {
+			if executable && (!ok || !output.Member || !index.OutputMatches(output, oldIndex)) {
 				t.Fatal("SQL producer lost executable key/predicate output")
 			}
 			if e.storage.Sequences[sequence].Last != 2 {
@@ -222,17 +223,17 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			}
 			step("ALTER DOMAIN public.d ADD CONSTRAINT never_replay CHECK(FALSE) NOT VALID")
 			view := e.privateCatalogLocked(s.Transactions.Catalog)
-			currentIndex := view.MustRelation(index)
+			currentIndex := view.MustRelation(idx)
 			pending := s.Transactions.Writes[parent]
 			if len(pending) != 1 || pending[0].Row != original.Row || pending[0].Version != original.Version {
 				t.Fatal("pending version identity changed")
 			}
 			if executable {
-				current, ok := pending[0].IndexOutputs[index]
-				if !ok || !OutputMatches(current, currentIndex) || current.Member != output.Member || current.Key != output.Key || !slices.Equal(current.Keys, output.Keys) {
+				current, ok := pending[0].IndexOutputs[idx]
+				if !ok || !index.OutputMatches(current, currentIndex) || current.Member != output.Member || current.Key != output.Key || !slices.Equal(current.Keys, output.Keys) {
 					t.Fatal("produced index key/membership was lost during pure generation transport")
 				}
-				if !OutputMatches(original.IndexOutputs[index], oldIndex) {
+				if !index.OutputMatches(original.IndexOutputs[idx], oldIndex) {
 					t.Fatal("retained producer output mutated")
 				}
 			}
@@ -246,7 +247,7 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 				t.Fatal("owner publication replayed CHECK truth")
 			}
 			transactionRows(t, s, "SELECT v::integer AS v FROM public.stored ORDER BY v", 1, 2)
-			root := e.storage.IndexRoots[index]
+			root := e.storage.IndexRoots[idx]
 			entries := len(root.Entries)
 			if root.Hash != nil {
 				entries = 0

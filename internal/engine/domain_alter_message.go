@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -60,7 +61,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
 	if stage.authSession != nil && stage.authSession.Transactions.RetainsTransaction() {
 		if changes := stage.authSession.Transactions.Catalog; changes != nil {
-			if root := JournalIndexesOrZero(changes).UniqueRoots[address]; root != nil {
+			if root := index.JournalIndexesOrZero(changes).UniqueRoots[address]; root != nil {
 				return root
 			}
 		}
@@ -83,7 +84,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			return err
 		}
 		original, target := storage.Relation{Versions: writes}, storage.Relation{Versions: mapped}
-		rebound, err := ReownDomainIndexOutputs(scope.op.Context(), stage.Base.State(), next, &original, &target)
+		rebound, err := index.ReownDomainIndexOutputs(scope.op.Context(), stage.Base.State(), next, &original, &target)
 		if err != nil {
 			return err
 		}

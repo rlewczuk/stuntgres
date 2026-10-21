@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -42,7 +43,7 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 		return ids.ErrCatalogReplaced
 	}
 	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-	if !ok || !SameRelationRowShape(admission.relation, current) || e.privateStorageLocked(s.owner.Catalog, ref.Address) != admission.storage {
+	if !ok || !index.SameRelationRowShape(admission.relation, current) || e.privateStorageLocked(s.owner.Catalog, ref.Address) != admission.storage {
 		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
@@ -97,7 +98,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	}
 	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
 	storage := e.privateStorageLocked(s.owner.Catalog, ref.Address)
-	if !ok || !SameRelationRowShape(current, job.child) || storage == nil {
+	if !ok || !index.SameRelationRowShape(current, job.child) || storage == nil {
 		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
@@ -135,7 +136,7 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 		return storage.RowVersion{}, false, err
 	}
 	stored := s.foreignActionsOrZero().admissions[ref.Address].storage
-	if UniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+	if index.UniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 		return storage.RowVersion{}, false, nil
 	}
 	for _, rows := range [][]storage.RowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], stored.Versions} {
@@ -177,7 +178,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
 		return errors.New("stuntgres: inactive internal action stage")
 	}
-	if UniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
+	if index.UniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
 		return nil
 	}
 	stored := s.foreignActionsOrZero().admissions[ref.Address].storage

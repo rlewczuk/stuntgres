@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -24,15 +25,15 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		names = []parser.ObjectName{v.Name}
 		ifExists = v.IfExists
 	case *parser.Reindex:
-		if err := ValidateReindexOptions(v); err != nil {
+		if err := index.ValidateReindexOptions(v); err != nil {
 			return err
 		}
 		if v.Kind.Text != "index" && v.Kind.Text != "table" {
-			return ReindexControlError(v)
+			return index.ReindexControlError(v)
 		}
 		names = []parser.ObjectName{v.Name}
 	}
-	g := &indexMaintenanceGrant{Descriptors: make(map[ids.ObjectAddress]*catalog.Relation)}
+	g := &index.MaintenanceGrant{Descriptors: make(map[ids.ObjectAddress]*catalog.Relation)}
 	e.mu.Lock()
 	fail := func(err error) error { e.mu.Unlock(); return err }
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -113,7 +114,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		}
 		child := auth.Catalog.MustRelation(ref.Address)
 		if child.SQLIndex == nil {
-			diagnostic := WrongKind(child, false).(*sqlstate.Error)
+			diagnostic := index.WrongKind(child, false).(*sqlstate.Error)
 			diagnostic.Code = "42P17"
 			return fail(diagnostic)
 		}
@@ -121,7 +122,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		g.Descriptors[ref.Address] = child
 		g.Indexes = append(g.Indexes, ref)
 		parent := g.Descriptors[g.Targets[0].Address]
-		if err := PartitionIndexAttachCheck(s.op, auth.Catalog, parent, child); err != nil {
+		if err := index.PartitionIndexAttachCheck(s.op, auth.Catalog, parent, child); err != nil {
 			return fail(err)
 		}
 	}
@@ -132,19 +133,19 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		switch v := stmt.(type) {
 		case *parser.DropIndex:
 			if v.Concurrent.Character > 0 {
-				return fail(Capability("concurrent index operations are unsupported", v.Concurrent))
+				return fail(index.Capability("concurrent index operations are unsupported", v.Concurrent))
 			}
 		case *parser.AlterIndex:
 			switch v.Action {
 			case "set", "reset":
-				return fail(ValidateIndexOptions(v, g.Descriptors[g.Targets[0].Address].SQLIndex.Method))
+				return fail(index.ValidateIndexOptions(v, g.Descriptors[g.Targets[0].Address].SQLIndex.Method))
 			case "tablespace":
-				return fail(Capability("index tablespaces are unsupported", v.ActionPos))
+				return fail(index.Capability("index tablespaces are unsupported", v.ActionPos))
 			case "statistics":
-				return fail(Capability("index statistics are unsupported", v.ActionPos))
+				return fail(index.Capability("index statistics are unsupported", v.ActionPos))
 			}
 		case *parser.Reindex:
-			if err := ReindexControlError(v); err != nil {
+			if err := index.ReindexControlError(v); err != nil {
 				return fail(err)
 			}
 		}

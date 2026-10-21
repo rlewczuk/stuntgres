@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -340,12 +341,12 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		predecessor := [1]storage.RowVersion{old}
-		proposal := indexWriteCandidate{Values: row}
-		if err = s.checkUniqueRow(ref, &proposal, predecessor[:], indexWriteBatch{}); err != nil {
+		proposal := index.WriteCandidate{Values: row}
+		if err = s.checkUniqueRow(ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		replacement := [1][]sqltype.Value{row}
-		batch := indexWriteBatch{Values: replacement[:], ActionMode: actionMode}
+		batch := index.WriteBatch{Values: replacement[:], ActionMode: actionMode}
 		batch.Set(0, proposal)
 		if err = s.stage.replace(ref, predecessor[:], batch); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)

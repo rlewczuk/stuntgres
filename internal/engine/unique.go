@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -122,13 +123,13 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 		if err != nil {
 			return err
 		}
-		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: UniqueBacking(c), Ready: true, Valid: true, Live: true}
-		index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition}
+		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: index.UniqueBacking(c), Ready: true, Valid: true, Live: true}
+		idx := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 		if source := declarations[i-start].Source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.SQLIndex
-			definition.Parent, definition.Constraint = d.Address(), UniqueBacking(c)
+			definition.Parent, definition.Constraint = d.Address(), index.UniqueBacking(c)
 			definition.PartitionParent = ids.ObjectAddress{}
 			definition.Ready, definition.Valid, definition.Live = true, true, true
 			definition.Keys = slices.Clone(source.SQLIndex.Keys)
@@ -159,37 +160,37 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 					return err
 				}
 			}
-			index.Columns = slices.Clone(source.Columns)
-			index.Attributes = slices.Clone(source.Attributes)
-			index.ColumnMeta.HighWater = source.ColumnMeta.HighWater
+			idx.Columns = slices.Clone(source.Columns)
+			idx.Attributes = slices.Clone(source.Attributes)
+			idx.ColumnMeta.HighWater = source.ColumnMeta.HighWater
 			if declarations[i-start].CopyComments {
-				index.Comment = source.Comment
+				idx.Comment = source.Comment
 			}
 		} else {
 			definition.Keys = make([]catalog.IndexKey, len(c.Attributes))
-			index.Columns = make([]catalog.Column, len(c.Attributes))
-			index.Attributes = make([]int32, len(c.Attributes))
-			index.ColumnMeta.HighWater = int32(len(c.Attributes))
+			idx.Columns = make([]catalog.Column, len(c.Attributes))
+			idx.Attributes = make([]int32, len(c.Attributes))
+			idx.ColumnMeta.HighWater = int32(len(c.Attributes))
 			for j, a := range c.Attributes {
 				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
 				if !ok {
-					return DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
+					return index.DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
 				definition.Keys[j] = catalog.IndexKey{Attribute: a, Class: class}
 				column.Nullable, column.NullabilityKnown = true, true
-				index.Columns[j] = column
-				index.Attributes[j] = int32(j + 1)
+				idx.Columns[j] = column
+				idx.Attributes[j] = int32(j + 1)
 			}
 		}
-		index.Index = make(map[string]int, len(index.Columns))
-		for j := range index.Columns {
-			column := &index.Columns[j]
+		idx.Index = make(map[string]int, len(idx.Columns))
+		for j := range idx.Columns {
+			column := &idx.Columns[j]
 			column.OriginTable = uint32(id)
 			column.OriginAttribute = int16(j + 1)
-			index.Index[column.Name] = j
+			idx.Index[column.Name] = j
 		}
-		indices = append(indices, index)
+		indices = append(indices, idx)
 	}
 	var err error
 	if altering {

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
@@ -270,8 +271,8 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		if constraint.Parent != 0 {
 			continue
 		}
-		index := catalogView.MustRelation(constraint.Index)
-		if PartitionReplaySeparateConstraint(catalogView, index) {
+		idx := catalogView.MustRelation(constraint.Index)
+		if index.PartitionReplaySeparateConstraint(catalogView, idx) {
 			continue
 		}
 		definition, err := (pgRenderer{View: catalogView}).UniqueConstraintSQL(d, &constraint)
@@ -284,14 +285,14 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		if constraint.Parent != 0 {
 			continue
 		}
-		index, ok := catalogView.Relation(constraint.Index)
+		idx, ok := catalogView.Relation(constraint.Index)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing exclusion dump index")
 		}
-		if PartitionReplaySeparateConstraint(catalogView, index) {
+		if index.PartitionReplaySeparateConstraint(catalogView, idx) {
 			continue
 		}
-		definition, err := DefinitionSQL(ctx, catalogView, index, indexPresentation{Dump: true, Exclusion: true})
+		definition, err := index.DefinitionSQL(ctx, catalogView, idx, index.Presentation{Dump: true, Exclusion: true})
 		if err != nil {
 			return "", err
 		}

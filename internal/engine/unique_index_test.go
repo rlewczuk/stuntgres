@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -31,7 +32,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 			class, _ := sqltype.LookupIndexClass(c.class)
 			parent := &catalog.Relation{Attributes: []int32{1}, Columns: []catalog.Column{{Usage: typ.Usage()}}}
 			definition := &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}
-			if err := ValidateUniqueProviders(parent, definition, nil); err != nil {
+			if err := index.ValidateUniqueProviders(parent, definition, nil); err != nil {
 				t.Fatal(err)
 			}
 			a, err := typ.Input(ctx, c.first, -1)
@@ -42,7 +43,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ordering, err := BindIndexOrdering(parent, definition)
+			ordering, err := index.BindIndexOrdering(parent, definition)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,7 +51,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 			if err != nil || cmp != 0 {
 				t.Fatal(cmp, err)
 			}
-			group, err := sqltype.BindGrouping(KeyCollation(typ.Usage(), definition.Keys[0]))
+			group, err := sqltype.BindGrouping(index.KeyCollation(typ.Usage(), definition.Keys[0]))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -69,7 +70,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		for _, name := range []string{"bpchar_ops", "bpchar_pattern_ops"} {
 			class, _ := sqltype.LookupIndexClass(name)
 			parent := &catalog.Relation{Attributes: []int32{1}, Columns: []catalog.Column{{Usage: typ.Usage()}}}
-			if err := ValidateUniqueProviders(parent, &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}, nil); err == nil {
+			if err := index.ValidateUniqueProviders(parent, &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}, nil); err == nil {
 				t.Fatal("inconsistent hash provider accepted", id, name)
 			}
 		}
@@ -114,16 +115,16 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	if err != nil || second == first || second.Parent != parent || len(second.Keys) != 1 {
 		t.Fatal("parent-only binding missed added index", err)
 	}
-	index, root := btreeRoot(t, e, "ui_ab")
-	if !index.SQLIndex.Unique || index.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 {
+	idx, root := btreeRoot(t, e, "ui_ab")
+	if !idx.SQLIndex.Unique || idx.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 {
 		t.Fatal("fake attachment")
 	}
-	if err := ValidateIndexDefinition(e.CatalogRead(), index); err != nil {
+	if err := index.ValidateIndexDefinition(e.CatalogRead(), idx); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, peer, "ALTER INDEX ui_ab RENAME TO ui_renamed")
 	renamed, same := btreeRoot(t, e, "ui_renamed")
-	if renamed.Address() != index.Address() || same != root || index.Name() != "ui_ab" {
+	if renamed.Address() != idx.Address() || same != root || idx.Name() != "ui_ab" {
 		t.Fatal("standalone rename changed identity/root")
 	}
 	roleExecute(t, e, peer, "DROP INDEX ui_renamed")

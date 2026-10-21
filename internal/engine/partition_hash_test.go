@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -167,7 +168,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		source.Address():      {},
 		destination.Address(): {Versions: []storage.RowVersion{movedRow}},
 	}
-	snapshot := &indexSnapshot{Sources: map[ids.ObjectAddress]indexSnapshotSource{
+	snapshot := &index.Snapshot{Sources: map[ids.ObjectAddress]index.SnapshotSource{
 		sourceIndex.Address():      {Index: sourceIndex, Parent: source, Frontier: 1},
 		destinationIndex.Address(): {Index: destinationIndex, Parent: &destination, Frontier: 1},
 	}}
@@ -184,7 +185,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	if captured.Row != 7 || captured.Version != 11 {
 		t.Fatal("repaired snapshot aliases reminted candidate identities", captured.Row, captured.Version)
 	}
-	positions := map[ids.ObjectAddress]map[indexRowIdentity]int{
+	positions := map[ids.ObjectAddress]map[index.RowIdentity]int{
 		source.Address():      {},
 		destination.Address(): {{Row: 7, Version: 11}: 0},
 	}

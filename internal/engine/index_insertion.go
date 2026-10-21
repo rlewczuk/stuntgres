@@ -3,12 +3,13 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
 
 // Catalog-drift staging can refresh grants and immutable providers, but cannot
 // manufacture a new checked insertion occurrence after the producer finished.
-func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *indexWriteBatch) error {
+func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
 	prior := s.uniqueBinding
 	if prior != nil && prior.Ref != ref {
 		prior = s.indexBindings[ref.Address]
@@ -17,10 +18,10 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 	if err != nil {
 		return err
 	}
-	purpose := ProbeRuntime
+	purpose := index.ProbeRuntime
 	if binding.Checked || prior != nil && prior.Checked {
-		purpose = ProbeRevalidation
-		if prior != nil && !SameRelationRowShape(prior.Parent, binding.Parent) {
+		purpose = index.ProbeRevalidation
+		if prior != nil && !index.SameRelationRowShape(prior.Parent, binding.Parent) {
 			return ids.ErrCatalogReplaced
 		}
 	}
@@ -69,16 +70,16 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 
 // The mixed lane may need ordinary prior-own keys again after catalog drift.
 // Freeze actual probe data by immutable row/version, not CHECK truth or values.
-func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row storage.RowVersion, output storage.IndexOutput) {
+func (s *StatementScope) retainExistingIndexOutput(idx *catalog.Relation, row storage.RowVersion, output storage.IndexOutput) {
 	if s.indexesOrZero().ExistingOutputs == nil {
-		s.indexes().ExistingOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput)
+		s.indexes().ExistingOutputs = make(map[ids.ObjectAddress]map[index.RowIdentity]storage.IndexOutput)
 	}
-	outputs := s.indexesOrZero().ExistingOutputs[index.Address()]
+	outputs := s.indexesOrZero().ExistingOutputs[idx.Address()]
 	if outputs == nil {
-		outputs = make(map[indexRowIdentity]storage.IndexOutput)
-		s.indexes().ExistingOutputs[index.Address()] = outputs
+		outputs = make(map[index.RowIdentity]storage.IndexOutput)
+		s.indexes().ExistingOutputs[idx.Address()] = outputs
 	}
-	outputs[indexRowIdentity{Row: row.Row, Version: row.Version}] = output
+	outputs[index.RowIdentity{Row: row.Row, Version: row.Version}] = output
 }
 
 // Only actual blocking-grant continuations call this, never a row Eval or an

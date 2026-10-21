@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -25,7 +26,7 @@ type mergeActionRow struct {
 	updateMode lock.MultiMode
 }
 type mergeRows struct {
-	indexWriteBatch
+	index.WriteBatch
 	predecessors []storage.RowVersion
 	actions      []mergeActionRow
 	returning    *exec.FinalRows
@@ -48,11 +49,11 @@ func (rows *mergeRows) stage(w *WriteStage, ref ids.ObjectRef) error {
 		first, last := action.payload, rows.actions[end-1].payload+1
 		var err error
 		if action.action == parser.MergeUpdateAction {
-			batch := rows.indexWriteBatch.Slice(first, last)
+			batch := rows.WriteBatch.Slice(first, last)
 			batch.ActionMode = action.updateMode
 			err = w.replace(ref, rows.predecessors[first:last], batch)
 		} else {
-			err = w.applyValidated(ref, rows.indexWriteBatch.Slice(first, last))
+			err = w.applyValidated(ref, rows.WriteBatch.Slice(first, last))
 		}
 		if err != nil {
 			return err
@@ -454,9 +455,9 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		*excluded = append(*excluded, old)
 		predecessor = old
 	}
-	candidate := indexWriteCandidate{Values: row}
+	candidate := index.WriteCandidate{Values: row}
 	if unique {
-		if err := scope.checkUniqueRow(b.Ref, &candidate, *excluded, result.indexWriteBatch); err != nil {
+		if err := scope.checkUniqueRow(b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
 			return err
 		}
 	}

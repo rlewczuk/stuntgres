@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
@@ -89,7 +90,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if catalog.HierarchyRelation(old) && partitionExclusionAddActions(s) {
 		return e.executePartitionExclusionAddLocked(scope, op, auth, s, old)
 	}
-	if catalog.HierarchyRelation(old) && PartitionConstraintDropActions(old, s.Actions) {
+	if catalog.HierarchyRelation(old) && index.PartitionConstraintDropActions(old, s.Actions) {
 		return e.executePartitionConstraintDropLocked(scope, auth, old, s)
 	}
 	if len(s.Actions) == 0 {
@@ -199,7 +200,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	next := old
 	definition := scope.inheritancePreparedNode()
-	var transformations []columnTransformation
+	var transformations []index.ColumnTransformation
 	var pendingChecks []alterTypeCheck
 	var pendingIndexes []alterTypeIndex
 	var typeChecks []catalog.CheckConstraint
@@ -208,7 +209,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	var addedForeignKeys []ids.OID
 	var additions []addedColumn
 	var replacements []int32
-	var attachments []usingIndexAttachment
+	var attachments []index.UsingIndexAttachment
 	hasAttachments := false
 	hasForeignKeys := len(scope.foreignActionsOrZero().alterKeys) != 0
 	for _, action := range s.Actions {
@@ -259,7 +260,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 					additions = append(additions, added)
 				}
 			} else if action.Action == parser.AlterColumnType {
-				var transformation columnTransformation
+				var transformation index.ColumnTransformation
 				captured := prepared[typeIndex]
 				typeIndex++
 				next, transformation, err = e.alterTypeCandidate(scope, op, auth, stage, old, next, ref, action, captured)
@@ -731,12 +732,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return Result{}, err
 	}
 	indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	indexBuilds, err := ValidateAlterIndexBuilds(&indexEvaluation, disclosure.View, disclosureEnv(&disclosure), e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes, rewrite)
+	indexBuilds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, disclosure.View, disclosureEnv(&disclosure), e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes, rewrite)
 	if err != nil {
 		return Result{}, err
 	}
 	var indexOutputRows bool
-	projectedWrites, indexOutputRows, err = AttachIndexBuildOutputs(op.Context(), projectedWrites, indexBuilds)
+	projectedWrites, indexOutputRows, err = index.AttachIndexBuildOutputs(op.Context(), projectedWrites, indexBuilds)
 	if err != nil {
 		return Result{}, err
 	}
@@ -881,7 +882,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		}
 		indexOutputRows = indexOutputRows || transported
 	}
-	if err := PrepareAlterIndexRoots(&indexEvaluation, changes, stage.Base, next, replacement, indexBuilds, metadataOnly); err != nil {
+	if err := index.PrepareAlterIndexRoots(&indexEvaluation, changes, stage.Base, next, replacement, indexBuilds, metadataOnly); err != nil {
 		return Result{}, err
 	}
 	if err := scope.prepareExclusionShape(old, next, e.stageRead(stage), projectedWrites, projectedDeletes); err != nil {

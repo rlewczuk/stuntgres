@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
@@ -102,12 +103,12 @@ func TestTruncateGeneration(t *testing.T) {
 }
 func TestTruncateIndexes(t *testing.T) {
 	e, s, p, _ := truncateUnitFixture(t)
-	index := roleTableRef(t, e, "p_pkey")
-	retained := e.storage.IndexRoots[index.Address]
+	idx := roleTableRef(t, e, "p_pkey")
+	retained := e.storage.IndexRoots[idx.Address]
 	tx := transactionBegin(t, s)
 	scope := truncateUnitStage(t, e, s, "p")
-	candidate := JournalIndexesOrZero(scope.catalog).UniqueRoots[index.Address]
-	if candidate == nil || len(candidate.Entries) != 0 || len(retained.Entries) != 2 || e.storage.IndexRoots[index.Address] != retained {
+	candidate := index.JournalIndexesOrZero(scope.catalog).UniqueRoots[idx.Address]
+	if candidate == nil || len(candidate.Entries) != 0 || len(retained.Entries) != 2 || e.storage.IndexRoots[idx.Address] != retained {
 		t.Fatal("private index root not rebuilt independently")
 	}
 	if err := scope.Finish(nil); err != nil {
@@ -119,7 +120,7 @@ func TestTruncateIndexes(t *testing.T) {
 		t.Fatal("explicit generation published before commit")
 	}
 	transactionEnd(t, s, tx, true)
-	if len(e.storage.IndexRoots[index.Address].Entries) != 0 || len(retained.Entries) != 2 {
+	if len(e.storage.IndexRoots[idx.Address].Entries) != 0 || len(retained.Entries) != 2 {
 		t.Fatal("live/retained index roots confused")
 	}
 }

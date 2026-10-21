@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 )
 
@@ -60,12 +61,12 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress, first bool) (uint64, error) {
 	for {
 		e.mu.Lock()
-		index, parent, auth, err := e.concurrentIndexAuthorityLocked(scope, syntax, address)
+		idx, parent, auth, err := e.concurrentIndexAuthorityLocked(scope, syntax, address)
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
 		}
-		if index.SQLIndex.Valid || !index.SQLIndex.Live || index.SQLIndex.Ready == first {
+		if idx.SQLIndex.Valid || !idx.SQLIndex.Live || idx.SQLIndex.Ready == first {
 			e.mu.Unlock()
 			return 0, fmt.Errorf("stuntgres: invalid concurrent index phase")
 		}
@@ -75,7 +76,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		// Every retry captures snapshot ownership with the actual immutable row root.
 		e.visibility.WithdrawSnapshotLocked(scope.txRef)
-		safe, err := SimpleConcurrentIndex(parent, index.SQLIndex)
+		safe, err := index.SimpleConcurrentIndex(parent, idx.SQLIndex)
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
@@ -91,7 +92,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			return 0, ids.ErrCatalogReplaced
 		}
 		snapshot := *store
-		next, definition := *index, *index.SQLIndex
+		next, definition := *idx, *idx.SQLIndex
 		definition.Ready = true
 		next.SQLIndex = &definition
 		next.ObjectRevision, err = e.catalog.revisionLocked()
@@ -106,15 +107,15 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		e.mu.Unlock()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
-		root, err := BuildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
+		root, err := index.BuildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
 		if err == nil {
-			err = ValidateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth.View, disclosureEnv(&auth), first)
+			err = index.ValidateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth.View, disclosureEnv(&auth), first)
 		}
 		if err != nil {
 			e.DiscardCatalogStage(stage)
 			return 0, err
 		}
-		stage.indexes().Candidates = map[ids.ObjectAddress]indexRootCandidate{address: {Root: root, Index: &next, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
+		stage.indexes().Candidates = map[ids.ObjectAddress]index.RootCandidate{address: {Root: root, Index: &next, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
 		err = stage.Replace(&next)
 		if err == nil {
 			var prepared *PreparedCatalogPublication

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -41,7 +42,7 @@ type partitionRecipeHost interface {
 
 func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
 	key := owner.Partition.Keys[keyIndex].Derived
-	local := RecipeEvaluation(evaluation, key.Dependencies, owner)
+	local := index.RecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1
 	host, _ := local.LiveHost().(partitionRecipeHost)
 	if host != nil {
@@ -68,7 +69,7 @@ func evaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, 
 			if entry.Derived == nil {
 				continue
 			}
-			expressions[i], err = PrepareIndexRecipe(&local, entry.Derived.Definition, entry.Derived.Dependencies, owner, &admission, true)
+			expressions[i], err = index.PrepareIndexRecipe(&local, entry.Derived.Definition, entry.Derived.Dependencies, owner, &admission, true)
 			evaluation.PreparedDomainChecks = local.PreparedDomainChecks
 			if err != nil {
 				return sqltype.Value{}, err

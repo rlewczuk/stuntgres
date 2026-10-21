@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -227,7 +228,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 	return actions, renames, &graph, nil
 }
 
-func typedTransformAttributes(transforms []columnTransformation) map[int32]bool {
+func typedTransformAttributes(transforms []index.ColumnTransformation) map[int32]bool {
 	if len(transforms) == 0 {
 		return nil
 	}

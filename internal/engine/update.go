@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -285,7 +286,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 	type physicalBatch struct {
 		ref    ids.ObjectRef
 		old    []storage.RowVersion
-		rows   indexWriteBatch
+		rows   index.WriteBatch
 		staged int
 		prior  map[ids.RowID]struct{}
 	}
@@ -394,7 +395,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
 			return Result{}, err
 		}
-		proposal := indexWriteCandidate{Values: physicalRow}
+		proposal := index.WriteCandidate{Values: physicalRow}
 		if err := s.checkUniqueRow(ref, &proposal, batch.old, batch.rows); err != nil {
 			return Result{}, err
 		}

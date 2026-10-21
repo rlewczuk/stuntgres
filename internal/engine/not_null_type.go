@@ -5,11 +5,12 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
 // TYPE recreates affected NN identities without changing names or validity.
 // New attachments already describe the completed shape and are not recreated.
-func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog.Relation, changes []columnTransformation) (*catalog.Relation, error) {
+func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog.Relation, changes []index.ColumnTransformation) (*catalog.Relation, error) {
 	original, ok := stage.Base.Relation(parent.Address())
 	if !ok {
 		return nil, ids.ErrCatalogReplaced

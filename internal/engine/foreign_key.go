@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -72,15 +73,15 @@ func foreignKeyIndex(view catalog.Read, parent *catalog.Relation, attributes []i
 	return found, nil
 }
 
-func foreignKeyIndexEligible(parent, index *catalog.Relation, attributes []int32) (bool, error) {
-	d := index.SQLIndex
+func foreignKeyIndexEligible(parent, idx *catalog.Relation, attributes []int32) (bool, error) {
+	d := idx.SQLIndex
 	if d == nil || d.Parent != parent.Address() || !d.Unique || !d.Ready || !d.Valid || !d.Live || d.Predicate != nil || len(d.Keys) != len(attributes) {
 		return false, nil
 	}
 	for _, attribute := range attributes {
 		matches := 0
 		for _, key := range d.Keys {
-			a, node, err := CatalogKey(parent, key)
+			a, node, err := index.CatalogKey(parent, key)
 			if err != nil {
 				return false, err
 			}
@@ -98,7 +99,7 @@ func foreignKeyIndexEligible(parent, index *catalog.Relation, attributes []int32
 	return true, nil
 }
 
-func bindForeignKeyComparison(view catalog.Read, child, parent, index *catalog.Relation, f catalog.ForeignKeyConstraint) ([]foreignKeyComparison, error) {
+func bindForeignKeyComparison(view catalog.Read, child, parent, idx *catalog.Relation, f catalog.ForeignKeyConstraint) ([]foreignKeyComparison, error) {
 	comparisons := make([]foreignKeyComparison, len(f.Attributes))
 	for i, attribute := range f.Attributes {
 		c, p := slices.Index(child.Attributes, attribute), slices.Index(parent.Attributes, f.Referenced[i])
@@ -109,13 +110,13 @@ func bindForeignKeyComparison(view catalog.Read, child, parent, index *catalog.R
 		var err error
 		bound := foreignKeyComparison{child: c, parent: p}
 		matchedAt := -1
-		for at, key := range index.SQLIndex.Keys {
-			a, node, keyErr := CatalogKey(parent, key)
+		for at, key := range idx.SQLIndex.Keys {
+			a, node, keyErr := index.CatalogKey(parent, key)
 			if keyErr != nil {
 				return nil, keyErr
 			}
 			if node == nil && a == f.Referenced[i] {
-				pu = KeyCollation(pu, key)
+				pu = index.KeyCollation(pu, key)
 				bound.comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.Class, view.LookupType)
 				matchedAt = at
 				break
@@ -409,7 +410,7 @@ func foreignKeyDiagnostic(ctx context.Context, view access.View, env access.Envi
 	for i, a := range attributes {
 		keys[i].Attribute = a
 	}
-	allowed, err := UniqueKeyDetailAllowed(view, env, view.Ref(violating.Address()), keys)
+	allowed, err := index.UniqueKeyDetailAllowed(view, env, view.Ref(violating.Address()), keys)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -25,25 +26,25 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 				continue
 			}
 			descriptor := provider.LiveDescriptor(address)
-			index, ok := descriptor.(*catalog.Relation)
-			if !ok || index.SQLIndex == nil {
+			idx, ok := descriptor.(*catalog.Relation)
+			if !ok || idx.SQLIndex == nil {
 				continue
 			}
-			table, ok := provider.LiveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
+			table, ok := provider.LiveDescriptor(idx.SQLIndex.Parent).(*catalog.Relation)
 			if !ok || table.Partition == nil {
 				continue
 			}
-			valid := CoverageComplete(provider, index)
-			if valid && !index.SQLIndex.Valid && !provider.partitionIndexPromotionPath(promote, index.Address()) {
+			valid := index.CoverageComplete(provider, idx)
+			if valid && !idx.SQLIndex.Valid && !provider.partitionIndexPromotionPath(promote, idx.Address()) {
 				continue
 			}
-			if index.SQLIndex.Valid == valid {
+			if idx.SQLIndex.Valid == valid {
 				continue
 			}
-			if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
+			if idx.Revision() == ids.DefinitionRevision(^uint64(0)) {
 				return fmt.Errorf("stuntgres: definition revision exhausted")
 			}
-			next, definition := *index, *index.SQLIndex
+			next, definition := *idx, *idx.SQLIndex
 			definition.Valid = valid
 			next.SQLIndex = &definition
 			next.ObjectRevision++
@@ -79,7 +80,7 @@ func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.Obje
 
 func (e *Engine) stagePartitionIndexAttach(op *session.Operation, stage *CatalogStage, parent, child *catalog.Relation) error {
 	view := e.stageRead(stage)
-	if err := PartitionIndexAttachCheck(op, view, parent, child); err != nil {
+	if err := index.PartitionIndexAttachCheck(op, view, parent, child); err != nil {
 		return err
 	}
 	if child.SQLIndex.PartitionParent != parent.Address() {

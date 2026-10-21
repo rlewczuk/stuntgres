@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -219,7 +220,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 				frozen := *generator
 				catalogue.Generators[address] = &frozen
 			}
-			JournalIndexes(&catalogue).UniqueRoots = maps.Clone(JournalIndexesOrZero(prepared.catalog).UniqueRoots)
+			index.JournalIndexes(&catalogue).UniqueRoots = maps.Clone(index.JournalIndexesOrZero(prepared.catalog).UniqueRoots)
 			catalogue.Dependencies = slices.Clone(prepared.catalog.Dependencies)
 			value.catalog = &catalogue
 		}
@@ -686,7 +687,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	before := preparedBoundaryCapture(e, entry)
 	original := e.storage.Relations[parent]
 	store := e.privateStorageLocked(entry.catalog, parent)
-	publication := rowPublication{
+	publication := index.RowPublication{
 		Address: parent, Store: store, Original: original,
 		OriginalRelation: e.catalog.state.MustRelation(parent),
 		Relation:         entry.catalog.Cached.MustRelation(parent),
@@ -704,12 +705,12 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if publication.Next != nil || publication.NextEnds != nil || publication.Slots != nil || publication.SingleSlot != -1 {
 		t.Fatal("validation-only PREPARE materialized installable row/deletion/slot roots")
 	}
-	stores := CaptureIndexStores(e.storage.Relations, e.catalog.state)
+	stores := index.CaptureIndexStores(e.storage.Relations, e.catalog.state)
 	rebuild := map[ids.ObjectAddress]bool{}
 	for address, change := range entry.catalog.Storage {
 		stores[address], rebuild[address] = change.Replacement, true
 	}
-	roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []rowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []index.RowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only PREPARE materialized installable index map/root", roots, err)
 	}
@@ -721,7 +722,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if materialized.Next == nil || materialized.NextEnds == nil || len(materialized.Slots) != len(publication.Writes) || materialized.Slots[updatePosition] != predecessorSlot || &materialized.Next[0] == &publication.Root[0] {
 		t.Fatal("completion omitted separate UPDATE replacement heads/deletion/slot installation roots")
 	}
-	roots, err = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []rowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.state, entry.catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []index.RowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || len(roots) == 0 {
 		t.Fatal("completion omitted substantive index installation roots", err)
 	}

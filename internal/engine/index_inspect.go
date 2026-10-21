@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
 // InspectIndex projects authoritative immutable descriptor flags without
@@ -26,16 +27,16 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		e.mu.Unlock()
 		return false, false, false, false, false, fmt.Errorf("stuntgres: index %s.%s does not exist", catalog.QuoteIdentifier(schema), catalog.QuoteIdentifier(name))
 	}
-	index, ok := catalogView.Relation(address)
-	if !ok || index.SQLIndex == nil {
+	idx, ok := catalogView.Relation(address)
+	if !ok || idx.SQLIndex == nil {
 		e.mu.Unlock()
 		return false, false, false, false, false, fmt.Errorf("stuntgres: relation %s.%s is not an index", catalog.QuoteIdentifier(schema), catalog.QuoteIdentifier(name))
 	}
-	ready, valid, live := index.SQLIndex.PublicationState()
+	ready, valid, live := idx.SQLIndex.PublicationState()
 	wait, admitted := e.indexWaits.LookupLocked(address)
 	admitted = admitted && wait.Owner.Domain() == e.catalog.Domain && wait.Owner.Epoch() == e.catalog.state.Epoch() && live && !valid
-	older := admitted && ready && wait.Kind == WaitOlderSnapshots
-	writers := admitted && wait.Kind == WaitWriters
+	older := admitted && ready && wait.Kind == index.WaitOlderSnapshots
+	writers := admitted && wait.Kind == index.WaitWriters
 	e.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return false, false, false, false, false, err

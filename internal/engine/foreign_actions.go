@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -157,8 +158,8 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
 	child, cok := view.Relation(job.child.Address())
 	parent, pok := view.Relation(job.parent.Address())
-	index, iok := view.Relation(job.index.Address())
-	if !cok || !pok || !iok || index.SQLIndex == nil || !SameRelationRowShape(child, job.child) || !SameRelationRowShape(parent, job.parent) || !SameIndexKeySemantics(index, job.index) {
+	idx, iok := view.Relation(job.index.Address())
+	if !cok || !pok || !iok || idx.SQLIndex == nil || !index.SameRelationRowShape(child, job.child) || !index.SameRelationRowShape(parent, job.parent) || !index.SameIndexKeySemantics(idx, job.index) {
 		return ids.ErrCatalogReplaced
 	}
 	found := false
@@ -175,7 +176,7 @@ func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
 	if !found {
 		return ids.ErrCatalogReplaced
 	}
-	job.child, job.parent, job.index = child, parent, index
+	job.child, job.parent, job.index = child, parent, idx
 	return nil
 }
 
@@ -204,7 +205,7 @@ func (s *StatementScope) settleForeignActions() error {
 			return err
 		}
 		for _, next := range rows {
-			if UniqueRowDeleted(next.Row, s.stage.deletes[a]) {
+			if index.UniqueRowDeleted(next.Row, s.stage.deletes[a]) {
 				continue
 			}
 			old, ok := image.previous(next.Row)

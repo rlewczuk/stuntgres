@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
@@ -155,7 +156,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	}
 	var retagAdmission exec.RoutineProgram
 	retagEvaluation := newEvaluation(otherAuth)
-	if _, err := PrepareIndexRecipe(&retagEvaluation, retagged, refs, owner, &retagAdmission, true); err == nil {
+	if _, err := index.PrepareIndexRecipe(&retagEvaluation, retagged, refs, owner, &retagAdmission, true); err == nil {
 		t.Fatal("retag manufactured destination original lifetime")
 	}
 	// A genuinely bound old expression must reject a newer declaration even

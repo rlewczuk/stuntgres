@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -53,7 +54,7 @@ func clearTransaction(t *session.TransactionOwner) {
 	clear(t.Savepoints)
 	t.Savepoints = nil
 	t.AccessedTemporary = false
-	ownerExtensionOf(t).exclusionModes = exclusionModes{}
+	ownerExtensionOf(t).exclusionModes = index.ExclusionModes{}
 }
 
 // transactionSessionEnd is the owner seen as its session's Transaction
@@ -271,7 +272,7 @@ type StatementScope struct {
 	foreignActionsSlot *foreignActionScope
 	viewCreationSlot   *viewCreationScope
 	materializedSlot   *materializedRefreshScope
-	indexesSlot        *indexScope
+	indexesSlot        *index.Scope
 	partitionsSlot     *partitionScope
 	foreignTablesSlot  *foreignTableScope
 }
@@ -465,7 +466,7 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	batch := indexWriteBatch{Values: rows}
+	batch := index.WriteBatch{Values: rows}
 	for i := range batch.Values {
 		candidate := batch.Candidate(i)
 		if err := s.checkUniqueRow(ref, &candidate, nil, batch.Prefix(i)); err != nil {
@@ -478,7 +479,7 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 
 // SQL producers validate each accepted prefix before demanding the next row;
 // only this canonical staging method transfers the completed immutable batch.
-func (w *WriteStage) applyValidated(ref ids.ObjectRef, batch indexWriteBatch) error {
+func (w *WriteStage) applyValidated(ref ids.ObjectRef, batch index.WriteBatch) error {
 	rows := batch.Values
 	s := w.scope
 	if err := s.active(); err != nil {

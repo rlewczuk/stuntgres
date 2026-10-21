@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -47,7 +48,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				case "valid":
 					sessionSQL(t, builder, query)
 				}
-				index, _ := concurrentUnitIndex(t, e, "ui", phase != "nonready", phase == "valid")
+				idx, _ := concurrentUnitIndex(t, e, "ui", phase != "nonready", phase == "valid")
 				scope, op, _ := concurrentUnitSnapshotScope(t, e, consumer)
 				ref := roleTableRef(t, e, "t")
 				binding, err := scope.bindUniqueWrite(ref)
@@ -93,7 +94,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				}
 				// Key extraction still sees all expression/simple components independently
 				// of the native row-key bitmap classification.
-				ordering, err := BindIndexOrdering(parent, index.SQLIndex)
+				ordering, err := index.BindIndexOrdering(parent, idx.SQLIndex)
 				if err != nil {
 					t.Fatal(err)
 				}

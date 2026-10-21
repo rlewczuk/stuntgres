@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -138,8 +139,8 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		var root *storage.IndexRoot
 		if len(indices) != 0 {
 			root = e.storage.IndexRoots[indices[0].Address()]
-			if scope.owner.Catalog != nil && JournalIndexesOrZero(scope.owner.Catalog).UniqueRoots[indices[0].Address()] != nil {
-				root = JournalIndexesOrZero(scope.owner.Catalog).UniqueRoots[indices[0].Address()]
+			if scope.owner.Catalog != nil && index.JournalIndexesOrZero(scope.owner.Catalog).UniqueRoots[indices[0].Address()] != nil {
+				root = index.JournalIndexesOrZero(scope.owner.Catalog).UniqueRoots[indices[0].Address()]
 			}
 		}
 		if root == nil {
@@ -181,7 +182,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 			}
 			previous.Versions, previous.Ends = versions, nil
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.Base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			oldEntries, err = BuildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
+			oldEntries, err = index.BuildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
 			if err != nil {
 				return Result{}, err
 			}

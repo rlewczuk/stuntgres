@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
@@ -12,7 +13,7 @@ import (
 // turn a metadata generation change into another CHECK or index truth event.
 func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalog.State, stores map[ids.ObjectAddress]*storage.Relation) error {
 	for address, store := range stores {
-		rebound, err := ReownDomainIndexOutputs(stage.domainAlter.AlterContext(), stage.Base.State(), next, e.stageStorageLocked(stage, address), store)
+		rebound, err := index.ReownDomainIndexOutputs(stage.domainAlter.AlterContext(), stage.Base.State(), next, e.stageStorageLocked(stage, address), store)
 		if err != nil {
 			return err
 		}
@@ -39,16 +40,16 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	if len(snapshot.Sources) == 0 {
 		return nil
 	}
-	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int)
+	positions := make(map[ids.ObjectAddress]map[index.RowIdentity]int)
 	for _, source := range snapshot.Sources {
 		address := source.Parent.Address()
 		if positions[address] != nil {
 			continue
 		}
 		store := stores[address]
-		selected := make(map[indexRowIdentity]int, len(store.Versions))
+		selected := make(map[index.RowIdentity]int, len(store.Versions))
 		for position, row := range store.Versions {
-			selected[indexRowIdentity{Row: row.Row, Version: row.Version}] = position
+			selected[index.RowIdentity{Row: row.Row, Version: row.Version}] = position
 		}
 		positions[address] = selected
 	}
@@ -57,16 +58,16 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		return err
 	}
 	if stage.indexesOrZero().Candidates == nil {
-		stage.indexes().Candidates = make(map[ids.ObjectAddress]indexRootCandidate, len(roots))
+		stage.indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate, len(roots))
 	}
 	domain := stage.domainAlterState()
 	if domain.IndexRoots == nil {
 		domain.IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(roots))
 	}
 	for address, root := range roots {
-		index := next.MustRelation(address)
-		store := stores[index.SQLIndex.Parent]
-		stage.indexes().Candidates[address] = indexRootCandidate{Index: index, Root: root, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends, Length: len(store.Versions)}
+		idx := next.MustRelation(address)
+		store := stores[idx.SQLIndex.Parent]
+		stage.indexes().Candidates[address] = index.RootCandidate{Index: idx, Root: root, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends, Length: len(store.Versions)}
 		domain.IndexRoots[address] = snapshot.Sources[address].Root
 	}
 	return nil

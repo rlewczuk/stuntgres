@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -44,7 +45,7 @@ func partitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []
 
 // Run only inside the isolated admitted repair statement, after scalar/provider
 // remint and before index transport. Published target/TEMP roots are never touched.
-func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluation *exec.Context, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
+func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluation *exec.Context, auth AuthorizationView, snapshot *index.Snapshot) (map[ids.ObjectAddress]bool, error) {
 	view := evaluation.Catalog
 	var removed map[ids.ObjectAddress]map[int]bool
 	var incoming map[ids.ObjectAddress][]storage.RowVersion
@@ -54,15 +55,15 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 		if !ok || source.Membership == nil || source.Partition != nil {
 			continue
 		}
-		root := PartitionHashReplayTarget(view, source)
+		root := index.PartitionHashReplayTarget(view, source)
 		if root == source {
 			continue
 		}
-		var history partitionRowHistory
+		var history index.PartitionRowHistory
 		if snapshot != nil {
 			history = snapshot.PartitionRows[address]
 		}
-		if history.Relation == nil && PartitionNeedsRowHistory(view, source) {
+		if history.Relation == nil && index.PartitionNeedsRowHistory(view, source) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		historyPosition := 0

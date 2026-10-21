@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -205,7 +206,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return Result{}, err
 	}
 	e.mu.Lock()
-	for _, index := range PartitionIndexDeclarationOrder(auth.Catalog, parent) {
+	for _, index := range index.PartitionIndexDeclarationOrder(auth.Catalog, parent) {
 		current := e.stageRead(stage).MustRelation(child.Address())
 		if _, err = e.stagePartitionIndexChild(op, stage, parent, index, current, false); err != nil {
 			break

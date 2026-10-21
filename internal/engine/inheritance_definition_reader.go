@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
 // Each link is an actual provider result, never a reconstructed candidate
@@ -107,7 +108,7 @@ func (r inheritanceDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress
 func (r inheritanceDefinitionReader) HasSQLProcedureName(name string) bool {
 	return r.base.State().HasSQLProcedureName(name)
 }
-func (r inheritanceDefinitionReader) IndexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+func (r inheritanceDefinitionReader) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.drop != nil {
 			if slot := effect.drop.slots[address]; slot.layout != 0 {
@@ -120,7 +121,7 @@ func (r inheritanceDefinitionReader) IndexLayout(address ids.ObjectAddress) (ind
 			}
 		}
 	}
-	return indexLayoutLineage{}, false
+	return index.LayoutLineage{}, false
 }
 func (r *inheritanceDefinitionReader) appendDescriptor(descriptor catalog.Descriptor) {
 	r.effects = &inheritanceDefinitionEffect{previous: r.effects, descriptor: descriptor}

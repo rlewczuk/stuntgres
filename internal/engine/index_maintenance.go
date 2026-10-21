@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -178,17 +179,17 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 }
 
 // indexes returns the statement's indexes slot, allocating it on first use.
-func (s *StatementScope) indexes() *indexScope {
+func (s *StatementScope) indexes() *index.Scope {
 	if s.indexesSlot == nil {
-		s.indexesSlot = new(indexScope)
+		s.indexesSlot = new(index.Scope)
 	}
 	return s.indexesSlot
 }
 
 // indexesOrZero reads the indexes slot; a nil slot reads as zero.
-func (s *StatementScope) indexesOrZero() indexScope {
+func (s *StatementScope) indexesOrZero() index.Scope {
 	if s.indexesSlot == nil {
-		return indexScope{}
+		return index.Scope{}
 	}
 	return *s.indexesSlot
 }

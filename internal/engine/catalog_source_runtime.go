@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -166,10 +167,10 @@ func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.R
 	return stored.ViewDefinitionSQL(ctx, view, relation, r.presentation)
 }
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
-	return DefinitionSQL(ctx, view, relation, indexPresentation{})
+	return index.DefinitionSQL(ctx, view, relation, index.Presentation{})
 }
 func (r engineCatalogRuntime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {
-	return CatalogKey(parent, key)
+	return index.CatalogKey(parent, key)
 }
 func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visit func(catalog.Descriptor) error) error {
 	for address, descriptor := range r.sequenceBase.Descriptors() {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -203,16 +204,16 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 // exclusionMark is the exclusion constraint state a savepoint captured: the
 // owner's exclusion modes and the engine's pending exclusion projection.
 type exclusionMark struct {
-	modes      exclusionModes
-	projection *exclusionProjection
+	modes      index.ExclusionModes
+	projection *index.ExclusionProjection
 }
 
 func (*exclusionMark) ExclusionMarkSlot() {}
 
 // exclusionMarkSlotOf stores modes and projection. Exactly zero state (see
-// exclusionModes.zero, nil projection) stays a nil slot, so restoring it
+// index.ExclusionModes.Zero, nil projection) stays a nil slot, so restoring it
 // reproduces the captured value.
-func exclusionMarkSlotOf(modes exclusionModes, projection *exclusionProjection) session.ExclusionMarkSlot {
+func exclusionMarkSlotOf(modes index.ExclusionModes, projection *index.ExclusionProjection) session.ExclusionMarkSlot {
 	if projection == nil && modes.Zero() {
 		return nil
 	}

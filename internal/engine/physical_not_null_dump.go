@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
 func physicalPrimaryDeferred(table *catalog.Relation, primary *catalog.UniqueConstraint) bool {
@@ -73,11 +74,11 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 		if !primary.Primary {
 			continue
 		}
-		index, ok := view.Relation(primary.Index)
+		idx, ok := view.Relation(primary.Index)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing physical primary dump index")
 		}
-		if PartitionReplaySeparateConstraint(view, index) {
+		if index.PartitionReplaySeparateConstraint(view, idx) {
 			continue
 		}
 		text, err := (pgRenderer{View: view}).UniqueConstraintSQL(t.descriptor, primary)
@@ -152,14 +153,14 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 		}
 		if relation.Inheritance != nil {
 			for _, parent := range relation.Inheritance.Parents {
-				index := deferred[parent]
-				if index == nil || !PartitionReplaySeparateConstraint(view, index) {
+				idx := deferred[parent]
+				if idx == nil || !index.PartitionReplaySeparateConstraint(view, idx) {
 					continue
 				}
 				table := view.MustRelation(parent)
 				var primary *catalog.UniqueConstraint
 				for i := range table.Constraints.Unique {
-					if table.Constraints.Unique[i].Primary && table.Constraints.Unique[i].Index == index.Address() {
+					if table.Constraints.Unique[i].Primary && table.Constraints.Unique[i].Index == idx.Address() {
 						primary = &table.Constraints.Unique[i]
 						break
 					}
@@ -175,7 +176,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 					}
 				}
 				if temporaryNN {
-					graph.Add(event, dump.Event{OID: index.Address().ObjectID})
+					graph.Add(event, dump.Event{OID: idx.Address().ObjectID})
 				}
 			}
 		}

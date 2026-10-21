@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -383,13 +384,13 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	result.roots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(result.previous))
 	for address := range result.previous {
 		if _, removed := stage.Removal(address); !removed {
-			index, ok := next.Relation(address)
-			if !ok || index.SQLIndex == nil {
+			idx, ok := next.Relation(address)
+			if !ok || idx.SQLIndex == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			shape, ok := stage.rowShapes[index.SQLIndex.Parent]
-			candidate, produced := JournalIndexesOrZero(changes).Candidates[address]
-			if !ok || !produced || !candidate.MatchesIndex(index, shape.replacement) {
+			shape, ok := stage.rowShapes[idx.SQLIndex.Parent]
+			candidate, produced := index.JournalIndexesOrZero(changes).Candidates[address]
+			if !ok || !produced || !candidate.MatchesIndex(idx, shape.replacement) {
 				return nil, ids.ErrCatalogReplaced
 			}
 			result.roots[address] = candidate.Root

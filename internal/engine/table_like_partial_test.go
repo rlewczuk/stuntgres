@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -43,21 +44,21 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	local.Address.SubID = 4
 	var copied []*catalog.Relation
 	for _, descriptor := range stage.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
+		idx, ok := descriptor.(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil {
 			continue
 		}
-		copied = append(copied, index)
+		copied = append(copied, idx)
 		old := ordinary
-		if index.Name() == "clone_expr_idx" {
+		if idx.Name() == "clone_expr_idx" {
 			old = expression
 		}
-		predicate := index.SQLIndex.Predicate
+		predicate := idx.SQLIndex.Predicate
 		if predicate == nil || predicate == old.SQLIndex.Predicate || !reflect.DeepEqual(predicate.Attributes, []int32{1, 2, 3, 4, 5}) {
-			t.Fatal("source predicate/container/layout retained", index.Name(), predicate)
+			t.Fatal("source predicate/container/layout retained", idx.Name(), predicate)
 		}
-		if index.Address() == old.Address() || index.Revision() == old.Revision() || index.SQLIndex.Parent != destination.Address() || !index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live {
-			t.Fatal("index identity/parent/state copied", index)
+		if idx.Address() == old.Address() || idx.Revision() == old.Revision() || idx.SQLIndex.Parent != destination.Address() || !idx.SQLIndex.Ready || !idx.SQLIndex.Valid || !idx.SQLIndex.Live {
+			t.Fatal("index identity/parent/state copied", idx)
 		}
 		if predicate.Definition.ResultUsage() != old.SQLIndex.Predicate.Definition.ResultUsage() || predicate.Execution.ResultUsage() != old.SQLIndex.Predicate.Execution.ResultUsage() || predicate.Definition.Properties() != old.SQLIndex.Predicate.Definition.Properties() || predicate.Execution.Properties() != old.SQLIndex.Predicate.Execution.Properties() || exec.PlannedVolatility(predicate.Execution) != expr.Immutable {
 			t.Fatal("typed predicate properties changed", predicate)
@@ -78,7 +79,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
 		boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-		var preparation indexExecutionPreparation
+		var preparation index.ExecutionPreparation
 		for _, truth := range []sqltype.Value{sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false), sqltype.Null(boolean)} {
 			id, _ := sqltype.Integer(integer, 11)
 			key, _ := sqltype.Integer(integer, 7)
@@ -98,9 +99,9 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		if slices.Contains(executionDependencies, external) || slices.Contains(executionDependencies, externalType) {
 			t.Fatal("fixture lacks analyzed-only dependency", executionDependencies)
 		}
-		if index.Name() == "clone_k_id_idx" {
-			if index.SQLIndex.Keys[0].Attribute != 3 || !reflect.DeepEqual(index.SQLIndex.Include, []int32{2}) || !slices.Contains(predicate.Dependencies, external) {
-				t.Fatal("key/include/external identity lost", index.SQLIndex)
+		if idx.Name() == "clone_k_id_idx" {
+			if idx.SQLIndex.Keys[0].Attribute != 3 || !reflect.DeepEqual(idx.SQLIndex.Include, []int32{2}) || !slices.Contains(predicate.Dependencies, external) {
+				t.Fatal("key/include/external identity lost", idx.SQLIndex)
 			}
 			booleanType := e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
 			regclassType := e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
@@ -108,8 +109,8 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			if !slices.Equal(predicate.Dependencies, []ids.ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
 				t.Fatal("analyzed predicate dependency manifest", predicate.Dependencies)
 			}
-		} else if index.Name() == "clone_expr_idx" {
-			key := index.SQLIndex.Keys[0].Derived
+		} else if idx.Name() == "clone_expr_idx" {
+			key := idx.SQLIndex.Keys[0].Derived
 			if key == nil || !reflect.DeepEqual(key.Attributes, destination.Attributes) {
 				t.Fatal("derived key layout lost", key)
 			}
@@ -124,7 +125,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 				}
 			}
 		} else {
-			t.Fatal("source index name reused", index.Name())
+			t.Fatal("source index name reused", idx.Name())
 		}
 	}
 	if len(copied) != 2 {

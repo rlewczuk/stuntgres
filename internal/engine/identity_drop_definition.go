@@ -6,6 +6,7 @@ import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -238,6 +239,6 @@ func (prepared *preparedIdentityDrop) ProceduresNamed(namespace ids.ObjectAddres
 func (prepared *preparedIdentityDrop) HasSQLProcedureName(name string) bool {
 	return prepared.drop.HasSQLProcedureName(name)
 }
-func (prepared *preparedIdentityDrop) IndexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
+func (prepared *preparedIdentityDrop) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	return prepared.drop.IndexLayout(address)
 }

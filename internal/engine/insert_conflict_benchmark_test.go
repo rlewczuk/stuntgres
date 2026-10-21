@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -26,7 +27,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				}
 				f.e.storage.SetFrontierLocked(uint64(size), uint64(size))
 				f.e.visibility.SetCommitSeqLocked(1)
-				root, err := BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index.SQLIndex, f.store, nil)
+				root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index.SQLIndex, f.store, nil)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -69,14 +70,14 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					b.Fatal(err)
 				}
 				scope.insertConflict = action
-				if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{Values: f.store.Versions[0].Values}, indexWriteBatch{}, nil); admitted || err != nil {
+				if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: f.store.Versions[0].Values}, index.WriteBatch{}, nil); admitted || err != nil {
 					b.Fatal("warmup", admitted, err)
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
 				for range b.N {
 					for i := range f.store.Versions {
-						if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{Values: f.store.Versions[i].Values}, indexWriteBatch{}, nil); admitted || err != nil {
+						if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: f.store.Versions[i].Values}, index.WriteBatch{}, nil); admitted || err != nil {
 							b.Fatal("committed omission", admitted, err)
 						}
 					}

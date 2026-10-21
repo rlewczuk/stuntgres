@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -57,7 +58,7 @@ func TestExclusionDisclosure(t *testing.T) {
 					t.Fatal(err)
 				}
 				parent := e.catalog.state.MustRelation(ref.Address)
-				index, root := btreeRoot(t, e, "public.ex")
+				idx, root := btreeRoot(t, e, "public.ex")
 				previous := root.Entries[0]
 				current := previous
 				current.Row, current.Version = ids.RowID(e.storage.RowFrontier()+1), ids.VersionID(e.storage.VersionFrontier()+1)
@@ -76,7 +77,7 @@ func TestExclusionDisclosure(t *testing.T) {
 						label := "(" + strings.Join([]string{key, "b"}, ", ") + ")"
 						detail = "Key " + label + "=(x, 2)" + middle + label + "=(x, 2)."
 					}
-					err := ValidateExclusionPair(context.Background(), parent, index, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, disclosureEnv(&auth), building)
+					err := index.ValidateExclusionPair(context.Background(), parent, idx, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, disclosureEnv(&auth), building)
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23P01", Message: message, Detail: detail, Schema: "public", Table: "t", Constraint: "ex"})
 				}
 			})

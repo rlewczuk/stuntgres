@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *indexSnapshot) (remintedIndexStorage, error) {
-	prepared := remintedIndexStorage{Catalog: next, BaseCatalog: e.catalog.state, BaseRow: e.storage.RowFrontier(), BaseVersion: e.storage.VersionFrontier(), Frontier: e.visibility.CommitSeq()}
+func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *index.Snapshot) (index.RemintedIndexStorage, error) {
+	prepared := index.RemintedIndexStorage{Catalog: next, BaseCatalog: e.catalog.state, BaseRow: e.storage.RowFrontier(), BaseVersion: e.storage.VersionFrontier(), Frontier: e.visibility.CommitSeq()}
 	var err error
 	prepared.Roots, prepared.NextRow, prepared.NextVersion, err = e.prepareRemintedStorage(ctx, next, relations, snapshot)
 	if err == nil {
@@ -22,7 +23,7 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.S
 // Imported storage is private to replacement. Exact retained TEMP storage keeps
 // its internal lifetime and row identities. Allocator frontiers advance only
 // after comparison, root construction and cancellation have all succeeded.
-func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *indexSnapshot) (map[ids.ObjectAddress]*storage.IndexRoot, uint64, uint64, error) {
+func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *index.Snapshot) (map[ids.ObjectAddress]*storage.IndexRoot, uint64, uint64, error) {
 	retained := catalog.NewState(0)
 	for address, descriptor := range next.Descriptors() {
 		namespace, temporary := next.Namespace(descriptor.Namespace())
@@ -42,14 +43,14 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 	if snapshot == nil {
 		return nil, 0, 0, ids.ErrCatalogReplaced
 	}
-	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int, len(relations))
+	positions := make(map[ids.ObjectAddress]map[index.RowIdentity]int, len(relations))
 	for address, relation := range relations {
 		if descriptor := next.Get(address); descriptor != nil && e.storage.Relations[address] == relation {
 			if namespace, ok := next.Namespace(descriptor.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
 		}
-		selected := make(map[indexRowIdentity]int, len(relation.Versions))
+		selected := make(map[index.RowIdentity]int, len(relation.Versions))
 		positions[address] = selected
 		for i := range relation.Versions {
 			rowID++
@@ -58,7 +59,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			if err := ctx.Err(); err != nil {
 				return nil, 0, 0, err
 			}
-			identity := indexRowIdentity{Row: row.Row, Version: row.Version}
+			identity := index.RowIdentity{Row: row.Row, Version: row.Version}
 			if _, duplicate := selected[identity]; duplicate {
 				return nil, 0, 0, ids.ErrCatalogReplaced
 			}
@@ -75,11 +76,11 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 		return nil, 0, 0, err
 	}
 	for address, descriptor := range next.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
+		idx, ok := descriptor.(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil || !idx.SQLIndex.Ready || !idx.SQLIndex.Live {
 			continue
 		}
-		parent, ok := next.Relation(index.SQLIndex.Parent)
+		parent, ok := next.Relation(idx.SQLIndex.Parent)
 		if !ok {
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
@@ -99,14 +100,14 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
 		schema := ""
-		if index.SQLIndex.Unique || index.SQLIndex.IsExclusion() {
+		if idx.SQLIndex.Unique || idx.SQLIndex.IsExclusion() {
 			namespace := next.Get(parent.Namespace())
 			if namespace == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced
 			}
 			schema = namespace.Name()
 		}
-		if err := ValidateUniqueRoot(ctx, parent, index, root, schema, sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
+		if err := index.ValidateUniqueRoot(ctx, parent, idx, root, schema, sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
 			return nil, 0, 0, err
 		}
 	}

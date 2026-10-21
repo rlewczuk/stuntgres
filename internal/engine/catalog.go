@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"unicode/utf8"
@@ -157,7 +158,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		return fmt.Errorf("stuntgres: index definition requires an index relation")
 	}
 	if r.RelationKind == catalog.IndexRelation {
-		return ValidateIndexDefinition(v, r)
+		return index.ValidateIndexDefinition(v, r)
 	}
 	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.ForeignRelation && len(r.Constraints.Check) != 0 {
 		return fmt.Errorf("stuntgres: CHECK requires a table descriptor")
@@ -216,10 +217,10 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := validateChecks(v, r, names); err != nil {
 		return err
 	}
-	if err := ValidateUniques(v, r, names); err != nil {
+	if err := index.ValidateUniques(v, r, names); err != nil {
 		return err
 	}
-	if err := ValidateExclusions(v, r, names); err != nil {
+	if err := index.ValidateExclusions(v, r, names); err != nil {
 		return err
 	}
 	if err := validateForeignKeys(v, r, names); err != nil {
@@ -379,7 +380,7 @@ type CatalogStage struct {
 	initialTx        ids.TxRef
 	querySources     []catalog.Descriptor
 	tableSlot        *tableStage
-	indexesSlot      *indexStage
+	indexesSlot      *index.Stage
 	materializedSlot *materializedStage
 }
 
@@ -908,7 +909,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				return ChangeSet{}, catalog.Conflict{}
 			}
 		}
-		indexStores := CaptureIndexStores(currentStorage, current)
+		indexStores := index.CaptureIndexStores(currentStorage, current)
 		for _, d := range s.Descriptors() {
 			index, ok := d.(*catalog.Relation)
 			if !ok || index.SQLIndex == nil {
@@ -1112,7 +1113,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			e.mu.Unlock()
 			continue
 		}
-		if !StoresUnchanged(e.storage.Relations, indexStores, current, next, indexRoots, indexPredecessors) {
+		if !index.StoresUnchanged(e.storage.Relations, indexStores, current, next, indexRoots, indexPredecessors) {
 			if op != nil {
 				op.Session.Mu.Unlock()
 			}
@@ -1260,7 +1261,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			}
 			e.catalog.state = next
 			e.storage.ReplaceRelationsLocked(relations)
-			PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
+			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
 			e.storage.ReplaceIndexRootsLocked(indexRoots)
 			for a := range s.Removals() {
 				e.storage.RemoveSequenceLocked(a)
@@ -1355,7 +1356,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	}
 	relations := make(map[ids.ObjectAddress]*storage.Relation, len(relationAddresses))
 	var sequences map[ids.ObjectAddress]*storage.SequenceGenerator
-	var indexes *indexSnapshot
+	var indexes *index.Snapshot
 	copyRows := func(owner *Engine) error {
 		source, frontier := owner.storage.Relations, owner.visibility.CommitSeq()
 		for _, a := range relationAddresses {
@@ -1544,7 +1545,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage) error {
 	if prepared.Catalog != next || prepared.BaseCatalog != e.catalog.state || prepared.BaseRow != e.storage.RowFrontier() || prepared.BaseVersion != e.storage.VersionFrontier() || prepared.Frontier != e.visibility.CommitSeq() {
 		return ids.ErrCatalogReplaced
 	}

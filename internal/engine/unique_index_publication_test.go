@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
@@ -118,21 +119,21 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 		t.Fatal(err)
 	}
 	parent := e.catalog.state.MustRelation(ref.Address)
-	index, _ := btreeRoot(t, e, "public.ui_index")
-	if !index.SQLIndex.Unique || index.SQLIndex.NullsNotDistinct != nnd || len(index.SQLIndex.Keys) != count {
+	idx, _ := btreeRoot(t, e, "public.ui_index")
+	if !idx.SQLIndex.Unique || idx.SQLIndex.NullsNotDistinct != nnd || len(idx.SQLIndex.Keys) != count {
 		t.Fatal("invalid unique fixture")
 	}
 	if attached {
-		if index.SQLIndex.Constraint == nil || len(parent.Constraints.Unique) != 1 || parent.Constraints.Unique[0].Index != index.Address() {
+		if idx.SQLIndex.Constraint == nil || len(parent.Constraints.Unique) != 1 || parent.Constraints.Unique[0].Index != idx.Address() {
 			t.Fatal("attachment must be genuine")
 		}
-	} else if index.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 {
+	} else if idx.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 {
 		t.Fatal("standalone fixture fabricated attachment")
 	}
-	if err := ValidateIndexDefinition(e.CatalogRead(), index); err != nil {
+	if err := index.ValidateIndexDefinition(e.CatalogRead(), idx); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: idx, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -195,17 +196,17 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	if deletion != nil {
 		beforeDeletes = maps.Clone(deletion.Rows)
 	}
-	stores := CaptureIndexStores(f.e.storage.Relations, f.catalog)
+	stores := index.CaptureIndexStores(f.e.storage.Relations, f.catalog)
 	stores[f.parent.Address()] = store
 	parents := map[ids.ObjectAddress]bool{f.parent.Address(): rebuild}
-	publication := rowPublication{Address: f.parent.Address(), Relation: f.parent, OriginalRelation: f.parent, Original: f.stores[f.parent.Address()], Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, Deletion: deletion, SingleSlot: -1}
+	publication := index.RowPublication{Address: f.parent.Address(), Relation: f.parent, OriginalRelation: f.parent, Original: f.stores[f.parent.Address()], Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, Deletion: deletion, SingleSlot: -1}
 	if materialize {
 		if err := f.e.prepareRowPublication(&publication, f.e.catalog.Domain.Tx(ids.SessionToken{}, 0, f.catalog.Epoch(), nil, 0), true); err != nil {
 			t.Fatal(err)
 		}
 	}
 	output := sqltype.OutputEnvironment{DateStyle: sqltype.DateStyle{Style: sqltype.DateGerman, Order: sqltype.DateDMY}}
-	roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.catalog, f.catalog, stores, f.roots, parents, nil, []rowPublication{publication}, materialize, output, &f.auth, nil, nil)
+	roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.catalog, f.catalog, stores, f.roots, parents, nil, []index.RowPublication{publication}, materialize, output, &f.auth, nil, nil)
 	if !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(writes, beforeWrites) || deletion != nil && !reflect.DeepEqual(deletion.Rows, beforeDeletes) {
 		t.Fatal("publication inputs mutated")
 	}

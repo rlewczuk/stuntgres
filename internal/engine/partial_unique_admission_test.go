@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -49,7 +50,7 @@ func TestPartialIndexUniqueAdmissionPrivatePrefix(t *testing.T) {
 					case "prefix":
 						prefix = [][]sqltype.Value{old.Values}
 					}
-					err := scope.checkUniqueRow(f.ref, &indexWriteCandidate{Values: next.Values}, nil, indexWriteBatch{Values: prefix})
+					err := scope.checkUniqueRow(f.ref, &index.WriteCandidate{Values: next.Values}, nil, index.WriteBatch{Values: prefix})
 					if membership == "true" && candidate == "true" {
 						nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui_index"`, Detail: "Key (a, b)=(2001-02-05, 3) already exists.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 					} else if err != nil {
@@ -75,7 +76,7 @@ func TestPartialIndexUniqueAdmissionCommittedAndClaims(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			scope := partialUniqueScope(t, f)
 			row := partialUniqueRow(t, f, 1, "2001-02-03", "1", active)
-			err := scope.checkUniqueRow(f.ref, &indexWriteCandidate{Values: row.Values}, nil, indexWriteBatch{})
+			err := scope.checkUniqueRow(f.ref, &index.WriteCandidate{Values: row.Values}, nil, index.WriteBatch{})
 			if active == "true" {
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui_index"`, Detail: "Key (a, b)=(2001-02-03, 1) already exists.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 			} else {
@@ -154,7 +155,7 @@ func TestPartialIndexUniqueAdmissionNullPredicateError(t *testing.T) {
 			if claim {
 				err = scope.claimUniqueRow(f.ref, row)
 			} else {
-				err = scope.checkUniqueRow(f.ref, &indexWriteCandidate{Values: row.Values}, nil, indexWriteBatch{})
+				err = scope.checkUniqueRow(f.ref, &index.WriteCandidate{Values: row.Values}, nil, index.WriteBatch{})
 			}
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 			uniqueKeyBucketsEmpty(t, f.e)

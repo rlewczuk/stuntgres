@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
@@ -38,8 +39,8 @@ type mutationTarget struct {
 
 // mutationIndexes holds the unique and exclusion write bindings (index).
 type mutationIndexes struct {
-	uniqueBinding *uniqueWriteBinding
-	indexBindings map[ids.ObjectAddress]*uniqueWriteBinding
+	uniqueBinding *index.UniqueWriteBinding
+	indexBindings map[ids.ObjectAddress]*index.UniqueWriteBinding
 }
 
 // mutationInsert holds INSERT's ON CONFLICT and RETURNING state (dml).

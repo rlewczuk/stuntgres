@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
@@ -20,13 +21,13 @@ func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, change
 	if err != nil {
 		return nil, false, err
 	}
-	return TransportCapturedIndexLayouts(evaluation, changes, captures, sourceStore, targetStore, sourceWrites, writes)
+	return index.TransportCapturedIndexLayouts(evaluation, changes, captures, sourceStore, targetStore, sourceWrites, writes)
 }
 
 // captureIndexLayouts takes Engine.mu to check the stage's epoch and capture
 // the lineages of parent with their committed or private source roots.
-func captureIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes *session.Journal, parent *catalog.Relation, sourceStore, targetStore *storage.Relation) ([]indexLayoutCapture, error) {
-	var captures []indexLayoutCapture
+func captureIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes *session.Journal, parent *catalog.Relation, sourceStore, targetStore *storage.Relation) ([]index.LayoutCapture, error) {
+	var captures []index.LayoutCapture
 	e := stage.owner
 	e.mu.Lock()
 	if e.catalog.state.Epoch() != stage.Base.Epoch() {
@@ -41,18 +42,18 @@ func captureIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes 
 		if lineage.TargetParent.Address() != parent.Address() {
 			continue
 		}
-		if lineage.Target.SQLIndex.Parent != parent.Address() || !LayoutInputsUnchanged(lineage.Source, lineage.SourceParent, lineage.TargetParent) || !LayoutInputsUnchanged(lineage.Target, lineage.TargetParent, parent) {
+		if lineage.Target.SQLIndex.Parent != parent.Address() || !index.LayoutInputsUnchanged(lineage.Source, lineage.SourceParent, lineage.TargetParent) || !index.LayoutInputsUnchanged(lineage.Target, lineage.TargetParent, parent) {
 			e.mu.Unlock()
 			return nil, ids.ErrCatalogReplaced
 		}
 		target, ok := evaluation.Catalog.Relation(address)
-		if !ok || !SameIndexKeySemantics(target, lineage.Target) {
+		if !ok || !index.SameIndexKeySemantics(target, lineage.Target) {
 			e.mu.Unlock()
 			return nil, ids.ErrCatalogReplaced
 		}
 		root := e.storage.IndexRoots[address]
-		if private := JournalIndexesOrZero(changes).UniqueRoots[address]; private != nil {
-			candidate, pinned := JournalIndexesOrZero(changes).Candidates[address]
+		if private := index.JournalIndexesOrZero(changes).UniqueRoots[address]; private != nil {
+			candidate, pinned := index.JournalIndexesOrZero(changes).Candidates[address]
 			if pinned {
 				for edge := &lineage; edge != nil; edge = edge.Previous {
 					if candidate.MatchesIndex(edge.Source, sourceStore) {
@@ -70,12 +71,12 @@ func captureIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes 
 			source, ok := e.catalog.state.Relation(address)
 			current := e.storage.Relations[parent.Address()]
 			for edge := &lineage; edge != nil; edge = edge.Previous {
-				if ok && SameIndexKeySemantics(source, edge.Source) {
+				if ok && index.SameIndexKeySemantics(source, edge.Source) {
 					lineage.Source, lineage.SourceParent = edge.Source, edge.SourceParent
 					break
 				}
 			}
-			if !ok || !SameIndexKeySemantics(source, lineage.Source) || sourceStore == nil || current != sourceStore.IndexIdentity() || current.Generation != sourceStore.Generation || current.Ends != sourceStore.Ends || len(current.Versions) != len(sourceStore.Versions) {
+			if !ok || !index.SameIndexKeySemantics(source, lineage.Source) || sourceStore == nil || current != sourceStore.IndexIdentity() || current.Generation != sourceStore.Generation || current.Ends != sourceStore.Ends || len(current.Versions) != len(sourceStore.Versions) {
 				e.mu.Unlock()
 				return nil, ids.ErrCatalogReplaced
 			}
@@ -84,7 +85,7 @@ func captureIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes 
 			e.mu.Unlock()
 			return nil, fmt.Errorf("stuntgres: layout projection is missing its source index root")
 		}
-		captures = append(captures, indexLayoutCapture{Lineage: lineage, Root: root})
+		captures = append(captures, index.LayoutCapture{Lineage: lineage, Root: root})
 	}
 	e.mu.Unlock()
 	return captures, nil

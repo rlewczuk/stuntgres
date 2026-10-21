@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 )
 
@@ -24,13 +25,13 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 	}
 	var queue []alterTypeIndex
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != original.Address() {
+		idx, ok := descriptor.(*catalog.Relation)
+		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Parent != original.Address() {
 			continue
 		}
-		pending := alterTypeIndex{index: index}
+		pending := alterTypeIndex{index: idx}
 		dropped := false
-		for _, key := range index.SQLIndex.Keys {
+		for _, key := range idx.SQLIndex.Keys {
 			if key.Derived == nil {
 				dropped = dropped || !survivor.HasAttribute(key.Attribute)
 			} else {
@@ -42,7 +43,7 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 				}
 			}
 		}
-		if predicate := index.SQLIndex.Predicate; predicate != nil {
+		if predicate := idx.SQLIndex.Predicate; predicate != nil {
 			for _, dep := range predicate.Dependencies {
 				a := dep.Address
 				if a.ClassID != original.Address().ClassID || a.ObjectID != original.Address().ObjectID || a.SubID == 0 {
@@ -57,13 +58,13 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 				}
 			}
 		}
-		for _, attribute := range index.SQLIndex.Include {
+		for _, attribute := range idx.SQLIndex.Include {
 			dropped = dropped || !survivor.HasAttribute(attribute)
 		}
 		if dropped {
 			continue
 		}
-		for i, key := range index.SQLIndex.Keys {
+		for i, key := range idx.SQLIndex.Keys {
 			if key.Derived == nil {
 				continue
 			}
@@ -89,7 +90,7 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 			pending.keys = append(pending.keys, i)
 		}
 		if len(pending.keys) > 0 || pending.predicate {
-			text, err := DefinitionSQL(op.Context(), view, index, indexPresentation{Reconstruct: true, Path: scope.inquiry.deparsePath, Output: scope.output})
+			text, err := index.DefinitionSQL(op.Context(), view, idx, index.Presentation{Reconstruct: true, Path: scope.inquiry.deparsePath, Output: scope.output})
 			if err != nil {
 				return nil, err
 			}
@@ -134,19 +135,19 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 		}
 		oldParent := stage.Base.MustRelation(parent.Address())
 		for i, key := range definition.Keys {
-			oldUsage, err := KeyBaseUsage(oldParent, pending.index.SQLIndex.Keys[i])
+			oldUsage, err := index.KeyBaseUsage(oldParent, pending.index.SQLIndex.Keys[i])
 			if err != nil {
 				return err
 			}
-			newUsage, err := KeyBaseUsage(parent, key)
+			newUsage, err := index.KeyBaseUsage(parent, key)
 			if err != nil {
 				return err
 			}
-			definition.Keys[i] = ReconstructIndexKey(key, oldUsage, newUsage, definition.Method)
+			definition.Keys[i] = index.ReconstructIndexKey(key, oldUsage, newUsage, definition.Method)
 		}
 		// The captured TYPE queue already normalized every key against its
 		// original Usage while retaining the newly rebound expression trees.
-		next, err := EvolveIndex(&copy, oldParent, parent, nil)
+		next, err := index.EvolveIndex(&copy, oldParent, parent, nil)
 		if err != nil {
 			return err
 		}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -384,7 +385,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			e.mu.Unlock()
 			return Result{}, sequence.NotSequenceError(d)
 		}
-		if er = RelationDropOwner(auth.View, auth, ref, d); er != nil {
+		if er = index.RelationDropOwner(auth.View, auth, ref, d); er != nil {
 			e.mu.Unlock()
 			return Result{}, er
 		}
@@ -462,7 +463,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if !ok {
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		if err = RelationDropOwner(auth.View, auth, ref, d); err != nil {
+		if err = index.RelationDropOwner(auth.View, auth, ref, d); err != nil {
 			return Result{}, err
 		}
 		if d.Sequence.Identity {

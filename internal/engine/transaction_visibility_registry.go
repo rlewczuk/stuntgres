@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 )
@@ -58,7 +59,7 @@ func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 	e.mu.Unlock()
 }
 
-func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAddress) error {
+func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, idx ids.ObjectAddress) error {
 	e := s.engine()
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -70,12 +71,12 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 	refs := e.visibility.OlderSnapshotsLocked(s.txRef, xmin)
 	// Publish only after dropping validation ownership and freezing the cohort,
 	// under the same critical section used by the sole coordinator observation.
-	if err := e.admitIndexBuildWaitLocked(index, s.txRef, WaitOlderSnapshots); err != nil {
+	if err := e.admitIndexBuildWaitLocked(idx, s.txRef, index.WaitOlderSnapshots); err != nil {
 		e.mu.Unlock()
 		return err
 	}
 	e.mu.Unlock()
-	defer e.clearIndexBuildWait(index, s.txRef, WaitOlderSnapshots)
+	defer e.clearIndexBuildWait(idx, s.txRef, index.WaitOlderSnapshots)
 	for _, ref := range refs {
 		e.mu.Lock()
 		eligible := e.visibility.SnapshotOlderLocked(ref, xmin)

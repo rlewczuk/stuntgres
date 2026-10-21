@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 )
 
 type partitionConstraintReplay struct {
@@ -38,7 +39,7 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 		}
 	}
 	slices.SortFunc(tables, func(a, b *catalog.Relation) int {
-		return PartitionReplayNameCompare(view, a, b)
+		return index.PartitionReplayNameCompare(view, a, b)
 	})
 	if len(tables) == 0 {
 		return view, replay
@@ -58,7 +59,7 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 			indexes = append(indexes, view.MustRelation(c.Index))
 		}
 		slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
-			return PartitionReplayNameCompare(view, a, b)
+			return index.PartitionReplayNameCompare(view, a, b)
 		})
 		for _, index := range indexes {
 			for {
@@ -77,22 +78,22 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 			c := &next.Constraints.Unique[i]
 			c.Name = replay.temporary[c.Index]
 			old := view.MustRelation(c.Index)
-			index, definition := *old, *old.SQLIndex
-			index.ObjectName = c.Name
-			definition.Constraint = UniqueBacking(c)
-			index.SQLIndex = &definition
-			state.SetDescriptor(index.Address(), &index)
+			idx, definition := *old, *old.SQLIndex
+			idx.ObjectName = c.Name
+			definition.Constraint = index.UniqueBacking(c)
+			idx.SQLIndex = &definition
+			state.SetDescriptor(idx.Address(), &idx)
 		}
 		next.Constraints.Exclusion = slices.Clone(table.Constraints.Exclusion)
 		for i := range next.Constraints.Exclusion {
 			c := &next.Constraints.Exclusion[i]
 			c.Name = replay.temporary[c.Index]
 			old := view.MustRelation(c.Index)
-			index, definition := *old, *old.SQLIndex
-			index.ObjectName = c.Name
-			definition.Constraint = ExclusionBacking(c)
-			index.SQLIndex = &definition
-			state.SetDescriptor(index.Address(), &index)
+			idx, definition := *old, *old.SQLIndex
+			idx.ObjectName = c.Name
+			definition.Constraint = index.ExclusionBacking(c)
+			idx.SQLIndex = &definition
+			state.SetDescriptor(idx.Address(), &idx)
 		}
 		state.SetDescriptor(next.Address(), &next)
 	}
@@ -113,9 +114,9 @@ func (r *partitionConstraintReplay) tableRenames(view catalog.Read, table *catal
 	for _, c := range table.Constraints.Check {
 		used[c.Name] = true
 	}
-	for _, index := range PartitionIndexDeclarationOrder(view, table) {
-		if index.SQLIndex.Constraint != nil && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && !PartitionReplaySeparateConstraint(view, index) {
-			used[index.Name()] = true
+	for _, idx := range index.PartitionIndexDeclarationOrder(view, table) {
+		if idx.SQLIndex.Constraint != nil && idx.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && !index.PartitionReplaySeparateConstraint(view, idx) {
+			used[idx.Name()] = true
 		}
 	}
 	if table.Membership == nil || partitionDumpNeedsAttach(view, table) {
@@ -134,45 +135,45 @@ func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *
 	var renames []rename
 	var reserve func(*catalog.Relation, *catalog.Relation)
 	reserve = func(child, parentIndex *catalog.Relation) {
-		index := PartitionDumpIndexBacking(r.original, parentIndex.Address(), child.Address())
-		if index == nil || index.SQLIndex.Constraint == nil {
+		idx := index.PartitionDumpIndexBacking(r.original, parentIndex.Address(), child.Address())
+		if idx == nil || idx.SQLIndex.Constraint == nil {
 			return
 		}
-		if root := PartitionReplayVirtualUniqueRoot(r.original, index); root != nil && !PartitionReplayOnlyExclusion(root) {
+		if root := index.PartitionReplayVirtualUniqueRoot(r.original, idx); root != nil && !index.PartitionReplayOnlyExclusion(root) {
 			return
 		}
-		if partitionConstraintCreator(r.original, index) != event {
+		if partitionConstraintCreator(r.original, idx) != event {
 			return
 		}
-		used := r.occupied[index.Namespace()]
+		used := r.occupied[idx.Namespace()]
 		if used == nil {
 			used = make(map[string]bool)
-			r.occupied[index.Namespace()] = used
+			r.occupied[idx.Namespace()] = used
 		}
 		suffix, addition := "key", ""
-		if index.SQLIndex.IsExclusion() {
+		if idx.SQLIndex.IsExclusion() {
 			suffix = "excl"
 		}
-		if index.SQLIndex.Constraint.Primary {
+		if idx.SQLIndex.Constraint.Primary {
 			suffix = "pkey"
 		} else {
-			labels := make([]string, len(index.SQLIndex.Keys))
+			labels := make([]string, len(idx.SQLIndex.Keys))
 			for i := range labels {
-				labels[i] = index.Columns[i].Name
+				labels[i] = idx.Columns[i].Name
 			}
 			addition = strings.Join(labels, "_")
 		}
 		name := catalog.GeneratedConstraintName(child.Name(), addition, suffix, used)
 		used[name] = true
-		renames = append(renames, rename{index, name})
+		renames = append(renames, rename{idx, name})
 		if event.Phase == dump.TableAttachment && child.Partition != nil {
 			for _, address := range child.Partition.Children {
-				reserve(r.original.MustRelation(address), index)
+				reserve(r.original.MustRelation(address), idx)
 			}
 		}
 	}
 	parent := r.original.MustRelation(table.Membership.Parent)
-	for _, index := range PartitionIndexDeclarationOrder(r.original, parent) {
+	for _, index := range index.PartitionIndexDeclarationOrder(r.original, parent) {
 		reserve(table, index)
 	}
 	var sql strings.Builder
@@ -193,7 +194,7 @@ func (r *partitionConstraintReplay) finalRenameOrder() []*catalog.Relation {
 		indexes = append(indexes, r.original.MustRelation(address))
 	}
 	slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
-		return PartitionReplayNameCompare(r.original, a, b)
+		return index.PartitionReplayNameCompare(r.original, a, b)
 	})
 	return indexes
 }

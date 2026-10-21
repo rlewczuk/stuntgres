@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -84,7 +85,7 @@ func foreignKeyIndexOrder(ctx context.Context, index *catalog.Relation, comparis
 	return 0, nil
 }
 
-func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, rows foreignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (storage.RowVersion, storage.IndexEntry, error) {
+func findForeignKeyParent(ctx context.Context, idx *catalog.Relation, comparisons []foreignKeyComparison, rows foreignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (storage.RowVersion, storage.IndexEntry, error) {
 	// Statement-final overlays are not committed index entries. Their shadow
 	// identities hide replaced committed rows and earlier transaction versions.
 	overlay := rows
@@ -114,9 +115,9 @@ func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparis
 	}
 	var locator storage.IndexEntry
 	err := probeForeignKeyIndex(rows.root, func(entry storage.IndexEntry) (int, error) {
-		return foreignKeyIndexOrder(ctx, index, comparisons, entry, child, input)
+		return foreignKeyIndexOrder(ctx, idx, comparisons, entry, child, input)
 	}, func(entry storage.IndexEntry) (bool, error) {
-		parent, err := ConflictEntryVersion(rows.committed, entry)
+		parent, err := index.ConflictEntryVersion(rows.committed, entry)
 		if err != nil {
 			return false, err
 		}

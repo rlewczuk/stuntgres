@@ -4,13 +4,14 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
 
 // Validation is shared by prepare and commit. Only commit constructs install
 // heads, deletion maps and slot manifests; prepare transfers the private roots.
-func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materialize bool) error {
+func (e *Engine) prepareRowPublication(p *index.RowPublication, ref ids.TxRef, materialize bool) error {
 	inserts, replacements := 0, 0
 	for _, row := range p.Writes {
 		if row.Row == 0 || row.Version == 0 || row.Born != 0 || len(row.Values) != len(p.Relation.Columns) {

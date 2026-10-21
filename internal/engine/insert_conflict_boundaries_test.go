@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -77,7 +78,7 @@ func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	}
 	// The mark is deliberately unique-only. Real row/relation/completion ownership
 	// must survive even though a new unique-key reservation is discarded.
-	admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
+	admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
@@ -168,10 +169,10 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	}
 	manager.RestoreUnique(session.Advisory.Ticket, mark)
 	row := insertConflictUnitRow(t, f, 20)
-	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{Values: row}, indexWriteBatch{}, nil); err != nil || !admitted {
+	if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
+	if admitted, err := scope.admitInsertRow(ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
 	if got := advisoryUnitHold(session, key); got != want {

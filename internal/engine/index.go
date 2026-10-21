@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -56,7 +57,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return fail(err)
 			}
 		}
-		if err = ValidateIndexMethod(s); err != nil {
+		if err = index.ValidateIndexMethod(s); err != nil {
 			return fail(err)
 		}
 		if s.Concurrent.Character != 0 && s.Predicate != nil {
@@ -70,7 +71,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			if s.Method == "gist" {
 				method = catalog.GistMethod
 			}
-			if err := ValidateIndexReloptions(s.Options, method, false); err != nil {
+			if err := index.ValidateIndexReloptions(s.Options, method, false); err != nil {
 				return fail(err)
 			}
 		}
@@ -118,15 +119,15 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		definition.Unique, definition.NullsNotDistinct = s.Unique, s.NullsNotDistinct
 		if s.Unique && s.Concurrent.Character == 0 && !operationReplayOrZero(scope.op).tableDestination {
-			if err := ValidateUniqueProviders(parent, definition, s.Keys); err != nil {
+			if err := index.ValidateUniqueProviders(parent, definition, s.Keys); err != nil {
 				return fail(err)
 			}
 		}
-		if err := PartitionUniqueCoverage(parent, definition); err != nil {
+		if err := index.PartitionUniqueCoverage(parent, definition); err != nil {
 			return fail(err)
 		}
 		if len(s.Options) != 0 {
-			return fail(Capability("index storage parameters are unsupported", s.WithPos))
+			return fail(index.Capability("index storage parameters are unsupported", s.WithPos))
 		}
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {

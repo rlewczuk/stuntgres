@@ -177,7 +177,7 @@ func (s *StatementScope) Finish(err error) error {
 					t.NotificationActions = notificationActions
 					t.NotificationEvents = notificationEvents
 					if s.indexesOrZero().ExclusionStarted {
-						ownerExtensionOf(t).exclusionModes = s.indexesOrZero().exclusionModes
+						ownerExtensionOf(t).exclusionModes = s.indexesOrZero().ExclusionModes
 					}
 					e.reconcileSerializableWritesLocked(t)
 				}

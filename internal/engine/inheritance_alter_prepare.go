@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -18,7 +19,7 @@ type inheritancePreparedAction struct {
 	drop      *preparedDrop
 	identity  *preparedIdentityDrop
 	types     []catalog.Descriptor
-	using     *usingIndexPreparation
+	using     *index.UsingIndexPreparation
 	err       error
 	notices   []sqlstate.Error
 }
@@ -32,7 +33,7 @@ type inheritancePreparedNode struct {
 	afterDrop                                      *preparedDrop
 	reader                                         inheritanceDefinitionReader
 	phaseZeroOnly                                  bool
-	usingIndexes                                   []usingIndexAttachment
+	usingIndexes                                   []index.UsingIndexAttachment
 	usingNotNull                                   []inheritancePreparedAction
 	afterDropOld, usingCaptureOld                  *catalog.Relation
 	afterDropError, usingCaptureError, checksError error
@@ -151,7 +152,7 @@ phases:
 		if phase == 1 {
 			var err error
 			prepared.usingCaptureOld = next
-			prepared.usingIndexes, err = CaptureUsingIndexDefinitions(reader, next, actions)
+			prepared.usingIndexes, err = index.CaptureUsingIndexDefinitions(reader, next, actions)
 			if err != nil {
 				prepared.usingCaptureError = err
 				break phases
@@ -261,11 +262,11 @@ func (scope *StatementScope) inheritancePreparedNode() *inheritancePreparedNode 
 	return scope.inheritance.alter.prepared[scope.lockedRef.Address]
 }
 
-func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, index int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, addedColumn, bool, error) {
+func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, addedColumn, bool, error) {
 	if prepared == nil {
 		return nil, addedColumn{}, false, nil
 	}
-	step, exists := prepared.steps[index]
+	step, exists := prepared.steps[idx]
 	if !exists {
 		return nil, addedColumn{}, false, nil
 	}
@@ -292,7 +293,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		return next, step.added, true, err
 	}
 	if step.using != nil {
-		next, err := StagePreparedUsingIndex(scope.op, stage, old, step.using)
+		next, err := index.StagePreparedUsingIndex(scope.op, stage, old, step.using)
 		return next, step.added, true, err
 	}
 	return step.next, step.added, true, nil
