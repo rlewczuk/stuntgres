@@ -269,14 +269,57 @@ root. The checks in §8.3 pass.
   `auth.View` to `ownedSources`; new `TestObjectGrantPlanWarningsBeforeError`
   pins the plan seam (warnings returned with a later error, none emitted by
   the plan). No test moved or deleted.
-- [ ] 28b — `role` created and clean set moved
+- [x] 28b — `role` created and clean set moved (`a781528f1`, `eb6d750cc`,
+  `0521e3b83`, `2492afb3f`, then the docs commit). Re-measured at `3f8d7d950`: the set
+  reached only `sqlError` (package copy in `errors.go`) and the root DROP
+  diagnostic `dependencyObject` (through `planOwned`); the first commit cut
+  the latter (`PlanOwned` takes `describe func(ids.ObjectAddress) string`;
+  `executeOwned` passes the reference path and `dependencyObject`). Moved,
+  with their names in `role`:
+  - grants (`grant_plan.go`, `grant_objects.go`): `GrantRequest`, `ObjectGrantRequest`, `GrantPlan` (`Candidate`,
+    `Changed`), `ObjectGrantChange` (`Descriptor`), `ObjectGrantPlan`,
+    `GrantRoutineArgumentDisplay`; unexported `relationGrantChange`,
+    `columnGrantRequest`, `changeNonRelationGrant`;
+  - `DefaultPrivilegesPlan` (`default_privileges.go`);
+  - `OwnedSources`, `OwnedPlan` (exported fields), `PlanOwned`
+    (`owned.go`); `StageOwnedCleanup`, `OwnedCleanupAddsDeletionRoot`
+    (`owned_cleanup.go`); `StageOwnership` (`ownership.go`); `OwnerStage`,
+    `OwnedCleanupStage` (`stage.go`);
+  - `Diagnostic`, `LoginError`, `ConnectionLimitError`,
+    `EmitPasswordNotice` (`diagnostics.go`);
+  - `grantWarning` went to `authorization` as `GrantWarning`
+    (`grant_acl.go`), as the fdw 26c refine asks (rebased onto it before
+    merging; the move commit first put it in `role`).
+  Root files deleted: `role_grant_plan.go`, `default_privileges_plan.go`,
+  `owned_roles_plan.go`, `role_password.go`. `relationDiagnosticNameAt` and
+  `relationVisibleAt` went to `stored` in 22b; `roleStore` and
+  `preflightACLItemDump` stay in the root. `role` imports `access`,
+  `authorization`, `catalog`, `ddl`, `extension`, `ids`, `routine`,
+  `session`, `parser` and `sqlstate`. String literals are unchanged (the
+  only additions are `errors.go`'s). Tests: none moved or deleted; the
+  engine-fixture units that call the moved names were rewritten to them
+  (`ownership*_test.go`, `owned_roles_cleanup_test.go`, `role_grant_test.go`,
+  `object_acl_type_test.go`, `intagg_routine_authority_test.go`,
+  `jsonb_record_routine_authority_test.go`); `session_start.go`'s local
+  `role` became `roleDescriptor`. Verified with the 28a unit selection
+  (157 tests), the quick-mode
+  `^TestReference(ObjectGrant|Role)|DefaultPrivilege|Ownership|Owned|Reassign`
+  selection, `REFERENCE=1` over the 28a selection, and quickcheck;
+  racecheck and finalcheck skipped at user request.
 - [ ] 28c — Host refined (docs only)
 - [ ] 28d — Handler decisions moved
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (28b added none).
 
 ### Notes for later steps
 
+- 28b, for 28c/28d and other steps:
+  - `authorization.GrantWarning` is in place, so fdw 26d's first commit
+    is done.
+  - The root keeps `objectGrantTargets` and the `resolve` callback;
+    `GrantRoutineArgumentDisplay` is exported only for
+    `resolveGrantRoutine`, which 28c places.
+  - `ownedSources` is exported only because `ownership_test.go` calls it.
 - 28a deviations from the plan above, for 28b:
   - `ddl.Stage` has no base catalog, cascade revisions, removals or default
     ACL records, so `stageOwnership` takes `ownerStage` (`ddl.Stage` plus
@@ -307,7 +350,6 @@ Outstanding aliases: none yet.
   `fdw` (step 26d), not here.
 - `grantWarning` goes to `authorization` as `GrantWarning`, not to `role`
   (fdw 26c refine): the role, database and FDW grants share it, and `fdw`
-  cannot import `role`. If 26d has not landed when 28b runs, 28b moves it
-  to `authorization` instead of `role`.
+  cannot import `role`. Done in 28b.
 - `principal_remap.go` is Restore: its descriptor switch goes to `catalog`
   (5i) and the rest to `control` (step 30).
