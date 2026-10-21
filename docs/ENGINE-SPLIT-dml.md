@@ -693,6 +693,25 @@ Docs: README, this file, STATUS, ENGINE-SPLIT.md, the `exec` and
 Verify every sub-step with the targeted tests and the reference selections
 below (quick and `REFERENCE=1`) and quickcheck.
 
+### 29e — The DML preflights (linear item 132)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs 29d.6 (item 110f), view
+27e (item 115).
+
+- `preflightUpdate`, `preflightUpdateWithPlanning` (`update.go`),
+  `preflightMerge` (`merge.go`) and `preflightConflictUpdate` are clean and
+  call the query preflight that view 27e moved; they go to `dml` (29c
+  decision 9 kept them root only while query preflight was root).
+- Settle the 29c flag for the end-state review: `ForeignActionScope.KeyTargets`
+  and `AlterKeys` are DDL data in a `dml` record. Move them to a `table`
+  record if ALTER TABLE is their only writer; otherwise record why they
+  stay.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - **Locks.** Executors run after `Engine.mu` is released; the `latest*Row`
@@ -791,6 +810,7 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
   - [ ] 29d.4 — UPDATE and DELETE (110d)
   - [ ] 29d.5 — MERGE and foreign DML (110e)
   - [ ] 29d.6 — FK enforcement and actions; close step 29 (110f)
+- [ ] 29e — DML preflights moved (linear item 132)
 
 Outstanding aliases: none (29b added none).
 

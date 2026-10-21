@@ -799,6 +799,32 @@ statements for read-only execution (`AGENTS.md`) and stay with the
 dispatch. Re-run `frontier` on the set: OUT may name only `session`, lower
 packages and `sqlError`.
 
+### 13g — Settings and statement classification (linear item 129)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+- Clean: `sessionPresentation` (`transaction.go:332-366`) becomes a
+  `SettingsStore` method, `statementOperationStart` an `Operation` method,
+  `stableIsolation` (`serializable.go:8`) a `session.Isolation` method.
+- Small seams: `sessionSetting` (`setting_apply.go:17-31`) takes the
+  registry; the value-parse phase of `applySetting` and the SET argument
+  normalisation of `executeSetting` are cut out of their methods;
+  `settingAccess` (`setting_permission.go:14-33`) takes an `allowed`
+  callback. The `Engine.mu`, `owner.Mu` and `Session.Mu` windows stay.
+- Statement classification: `classifyCommandTag`, `queryCreationUtilityTag`
+  (`command_tag.go`), `modifyingTag`, `explicitUtility` and
+  `earlyIndexUtility` (`transaction_isolation.go`); first `fdw.CommandTag`
+  and `fdw.GrantKind` (pure parser helpers) move down to `session`, which
+  `fdw` imports. The dispatch allow-list error stays in the root caller.
+- The write-set merges (`write_set.go`, `prepareOwnWrites`) go to
+  `visibility`; correct its README.
+- Docs: the README layer number (L7) and the `index.Journal` name.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Stays in the engine
 
 `executeStatement` and the statement-kind dispatch, feature handlers until
@@ -917,6 +943,7 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
   (linear item 78) (`c639cc64d`, `8473b1789`, `4a6bea8d3`, then the docs commit) *(selected
   unit/`RACE=1` and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request)*
+- [ ] 13g — Settings and statement classification moved (linear item 129)
 
 Outstanding aliases: none. 13e removed the 46 aliases of
 `session_aliases.go` (24 type, 22 constant); the driver and `cmd/stuntgres`

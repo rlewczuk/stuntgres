@@ -364,6 +364,28 @@ Run `unalias` over `stored_aliases.go` (with `shadowrn` first for locals
 that would capture `stored.X`), then `keylit` and `gofmt` on changed files
 only. The root and every test name `stored.X` directly.
 
+### 22e — Type provider validation (linear item 119)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+All clean, also with the old god types counted:
+
+- `typeProvider` (`types.go:14`) with `validateTypeProviders`,
+  `validateDomainDefault` (`domain_default.go:92`) and
+  `validateDomainCheckDefinitions` (`domain_check.go:265`), next to
+  `stored.ProcedureProvider`. They need `analyze`, `stored`, `typedef`,
+  `extension` and `authorization`, which `stored` already imports.
+- `reownCatalogScalarTypes` (`domain_remap.go:14`), which 22c planned with
+  `ReownExpressions`.
+- `pruneQuoteCaptures` (`string_variadic_capture.go:12`).
+- Docs: the `typedef` README claim that `typeProvider` reaches the binder
+  is wrong; correct it.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - Rendering output stays byte-identical: `pg_get_viewdef`, `pg_get_expr`,
@@ -442,6 +464,7 @@ aliases remain; the checks in §8.3 pass.
   skipped at user request
 - [x] 22d — Aliases removed *(broad)* (item 70) (`b4cdcf403`, `ffd4a418d`, then
   the docs commit) · selected unit, quick-mode reference selections, quickcheck and a narrow `REFERENCE=1` selection passed; racecheck/finalcheck skipped at user request
+- [ ] 22e — Type provider validation moved (linear item 119)
 
 Outstanding aliases: none. 22d removed `internal/engine/stored_aliases.go`
 and its 15 type aliases.

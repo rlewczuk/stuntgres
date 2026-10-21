@@ -264,9 +264,12 @@ recheck. So do `executePartitionConstraintDropLocked`,
 `partitionIndexTransaction`, `stageDomainIndexGenerationsLocked`, SET
 CONSTRAINTS, `InspectIndex`, the `IndexProperty` snapshot read, and thin
 wrappers that build a `ddlHost` for callers outside the moved set
-(`stageUsingIndex`, `prepareUsingIndexMetadata`, `bindIndexKey`,
-`stagePartitionIndexChild`, ...) until table 24d and partition 25d move
-them. The write-time loops stay on `StatementScope` until `dml`: the unique
+(`stageUsingIndex`, `prepareUsingIndexMetadata`,
+`stagePartitionIndexChildren`, ...). Table 24d and partition 25d are done;
+the wrappers left with no production caller (`bindIndexKey`) or only test
+callers (`bindIndexAttributes`, `stagePartitionIndexAttach`,
+`stagePartitionIndexDrop`) go in index 23e (item 126), with the pure
+snapshot, remint, layout and maintenance-plan decisions. The write-time loops stay on `StatementScope` until `dml`: the unique
 probe and claim (`probeUniqueRow`, `claimUniqueRow`, `checkUniqueRow`,
 `bindUniqueWrite`, `existingUniqueOutput`, `revalidateIndexRows`), the
 exclusion probe and admission (`probeExclusion`, `probeExclusionRow`,

@@ -501,6 +501,24 @@ selections in quick and `REFERENCE=1` mode, and quickcheck. Check that the
 first-error order of CREATE ... PARTITION OF and ATTACH is unchanged on the
 reference cases.
 
+### 25e — Consumer boundary and hash repair (linear item 127)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+- `partitionConsumerBoundary` (`partition_locks.go:17-79`) waits on
+  nothing: it becomes a `partition` function with its four
+  `*ReplayAllowed` trust checks passed in as one callback (cut tested).
+- `partitionCaptureCatalog` and the ancestor walk (`:165-173`).
+- The routing and validation core of `repairRemappedHashPartitions`
+  (`partition_replacement.go:24-131`; it uses `InsertState.MissingPartition`,
+  moved in 29d.1); the install loop stays.
+- Correct the README, which lists the boundary under lock admission.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - **Routing.** The same partition is chosen for every row; "no partition of
@@ -697,6 +715,7 @@ too; the root keeps only the orchestration listed above. The checks in
     `stagePartitionIndexChildren` stays for the unique-replay executor;
     `partition_bind.go`, `partition_create_child.go` and
     `partition_hash_bounds.go` are gone.
+- [ ] 25e — Consumer boundary and hash repair moved (linear item 127)
 
 Outstanding aliases: none (25a, 25b and 25d added none).
 

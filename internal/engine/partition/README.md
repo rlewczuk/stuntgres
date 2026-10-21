@@ -93,7 +93,8 @@ diagnostic order and takes `Engine.mu` for the index children;
 `attachPartitionLocked` and `detachPartitionLocked` (`Engine.mu` windows,
 lock waits, the attach frontier and capture, stage replacement, validation
 and publication); `executePartitionExclusionAddLocked`'s windows; lock
-admission (`partition_locks.go`, `partitionConsumerBoundary`); the
+admission (`partition_locks.go`; `partitionConsumerBoundary` waits on
+nothing and moves here in 25e, item 127); the
 authorization captures and trust checks (`partitionConstraintReplayImport`,
 `partitionParentAuthorization`, `partitionAttachAuthorization`,
 `partitionDefaultReplayAllowed`); the `begin*Replay` and `*ReplayAllowed`

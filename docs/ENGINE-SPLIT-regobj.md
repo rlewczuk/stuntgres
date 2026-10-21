@@ -289,6 +289,26 @@ accessor by the time 21b starts, stop and ask; do not add one here.
    stay in the root.
 4. Remove the remaining aliases.
 
+### 21d — Object address inquiries (linear item 128)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+`object_address_lookup.go` (373 lines) and `identifyObjectValues`
+(`object_address.go:32`) are dirty only through `scopeOf`, the temporary
+namespace, `lookupNamespacesSnapshot` and
+`AuthorizationView.definitionLookup`. They run over the existing
+`regobj.InputCapture` and `regobj.Authority.Definitions`, plus a
+namespace-lookup and a notice function (cut tested). `comment_inquiry.go`
+and the non-collation body of `VisibilityInquiry`
+(`visibility_inquiry.go:47-88`) use the same capture. Measure
+`deparse_function.go` (it needs `index.DefinitionSQL`, so it may go to
+`index` instead) and record the decision.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - Output, input, dump spellings and diagnostics stay byte-identical:
@@ -484,6 +504,7 @@ no aliases remain; the checks in §8.3 pass.
     refresh tests; the reference selections under Targeted tests in quick
     mode and with `REFERENCE=1`; `make quickcheck` on the rebased branch.
     `make bench` not needed.
+- [ ] 21d — Object address inquiries moved (linear item 128)
 
 Outstanding aliases: none (21b and 21c added none).
 

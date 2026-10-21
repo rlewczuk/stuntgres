@@ -438,6 +438,63 @@ control-transaction and publication units and `^TestReferenceControl`
 with `RACE=1`, the byte-identity smoke after commits 1–4 and 6, and
 quickcheck.
 
+### 30d — The Dump Collect tables move to `control` (linear item 120)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs 22e (item 119).
+
+30c kept the Collect tables in the root because Dump needs no host; they
+are reach-clean and read only captured values:
+
+- `dump_collect.go` (`dumpCollectors`), `dump_collect_relation.go`
+  (`dumpRelationCollectors`), the clean part of `dump_capture.go`
+  (`dumpSource`, `dumpCollection`, `dumpPortable`,
+  `dumpBuiltinSchemaPreamble`) and `preflightACLItemDump`
+  (`aclitem_dump.go`).
+- `captureDumpLocked` keeps its `Engine.mu` window and fills a
+  `control.Source` value; the root passes it to `control.Dump`.
+- Their only outside dependency is `typeProvider`, which moves first (22e).
+- Byte-identical dump smoke (`.cswd/tmp/PG18-ENGINE-SPLIT-DUMP-PACKAGE/dumpsmoke`)
+  before and after.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
+### 30e — Definition OID remap (linear item 121)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs —.
+
+`remapDefinitionOIDsLocked` (`definition_identity.go:15`, 348 lines) and
+`remapViewRuleOIDs` (`catalog_expression_reown.go:19`) reach the engine only
+through `e.catalog.allocateOIDLocked` and one `e.catalog.read`. They take an
+allocator function and a `catalog.Read` and move to `control` (ddl 20c
+planned this for step 30). The callers keep holding `Engine.mu`. Correct
+the `catalog` README, which still says the remap stays in the root.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
+### 30f — TEMP preservation phases (linear item 122)
+
+Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
+§6 "Third round"), measured at `17e01ca8b`. Needs 30e (item 121).
+
+`preserveTemporaryLocked` (`temporary_preservation.go:67-630`) is the
+largest root function in the Restore path. Its phases over the current and
+next `catalog.State` are decisions: the temporary set and retained builtin
+types (`:75-255`), the OID collision mapping (`:258-295`, with the 30e
+allocator shape) and the descriptor remap. They move to `control` with the
+clean helpers of the file; the retain, check, import, repair and install
+calls stay root. Measure first; if a phase needs more than three engine
+reads, leave it and record why.
+
+Verify with `make build`, the targeted tests below plus the unit tests of
+the touched files, the quick and `REFERENCE=1` selections for the area, and
+quickcheck; no behavior, error text or error-order change, no aliases.
+
 ## Invariants
 
 - Dump output is byte-identical (event order, owner switches, statement
@@ -637,6 +694,9 @@ stage and the atomic replacement. The checks in §8.3 pass.
     `TestReferenceCompositeAlterDumpReplay`; `go list` shows only the root
     imports `control`; `make deps` clean. racecheck/finalcheck skipped at
     user request.
+- [ ] 30d — Dump Collect tables moved (linear item 120)
+- [ ] 30e — Definition OID remap moved (linear item 121)
+- [ ] 30f — TEMP preservation phases moved (linear item 122)
 
 Outstanding aliases: none (30a and 30c added none).
 

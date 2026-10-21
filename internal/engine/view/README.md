@@ -132,7 +132,10 @@ materialized source fence and its kind, `importMaterializedSnapshots`,
 privilege walkers (`CheckViewWrite`, `row_security_setting.go`), the drop
 diagnostics and `dropProvider` (it collects the live descriptors and stages
 the dependents), and the slot accessors on `CatalogStage` and
-`StatementScope`. See
+`StatementScope`. The third round moves the clean parts here: query
+preflight (27e), the privilege walkers over `access.View` (27f), the drop
+diagnostics and `dropProvider`'s read side behind a reader (27g), and the
+closure walks and materialized checks (27h). See
 [ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md) 27d.
 
 ## Invariants

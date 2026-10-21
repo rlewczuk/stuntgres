@@ -84,7 +84,11 @@ implements it:
   (`dumpCollectors`, `dumpRelationCollectors`) and `dumpCollection`, which
   embeds the `*Capture` beside the generation recipe plan and the locked
   `dumpSource`. The root hands the capture over: `Dump` sorts and completes
-  it in place, and the root never reads it after the call.
+  it in place, and the root never reads it after the call. The Collect
+  tables and `dumpCollection` are reach-clean; control 30d (item 120) moves
+  them here and leaves only `captureDumpLocked`'s window in the root.
+  `remapDefinitionOIDsLocked` and the TEMP preservation phases follow in
+  30e and 30f.
 - The restore stage (`restoreStage` in `principal_remap.go`) and the atomic
   publication (`replaceCatalog`): its lock order, the fence after unlock,
   the sequence-memory and serializable fences and the `foreignNamespaces`

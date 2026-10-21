@@ -2,7 +2,7 @@
 
 Builtin routine and operator inventories, their lookups and validation, the
 operator and CREATE FUNCTION DDL handlers, and the operator and SQL routine
-dump statements. The package sits at layer L10
+dump statements. The package sits at layer L9
 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access`, `authorization`, `catalog`, `ddl`, `dump`, `expr`,
 `functions`, `ids`, `parser`, `proc`, `session`, `sqltype`, `sqlstate` and the standard

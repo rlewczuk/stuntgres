@@ -195,10 +195,12 @@ DDL commands, `CatalogStage` and its publication coordination (storage row
 shapes, index candidates, domain validation, materialized replacement, role
 candidates), publication itself, the `catalogStore` allocators, seeding, the
 transaction catalog journal, and the validators that need engine services:
-relation, type, extension, procedure, operator and parameter validation,
+extension, procedure, operator and parameter validation (relation and type
+validation are clean and move to `table` 24e and `stored` 22e),
 the physical NOT NULL validators (their origin and primary-support checks
 and `SameRelationRowShape` are [`index`](../index/README.md) code), definition-OID
-assignment and remapping, the restore principal mapper, the
+assignment and remapping (the remap moves to `control` in 30e), the
+restore principal mapper, the
 `DefinitionReader` implementations
 (stored-SQL rendering, expression nodes, the operator inventory, settings
 definitions, extension implementations). Those register through the same
