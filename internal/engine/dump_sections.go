@@ -42,28 +42,28 @@ var dumpSections = [...]dumpSection{
 }
 
 func emitDumpRoutineDirective(_ context.Context, s *dumpScript, w *dumpWriter) error {
-	if len(s.sqlRoutines) == 0 {
+	if len(s.SQLRoutines) == 0 {
 		return nil
 	}
 	return w.emit(routine.RestoreDirective + "\n")
 }
 
 func emitDumpPreamble(_ context.Context, s *dumpScript, w *dumpWriter) error {
-	return emitDumpLines(w, s.preamble)
+	return emitDumpLines(w, s.Preamble)
 }
 
 func emitDumpSchemas(_ context.Context, s *dumpScript, w *dumpWriter) error {
-	sort.Slice(s.schemas, func(i, j int) bool { return s.schemas[i].name < s.schemas[j].name })
-	for _, schema := range s.schemas {
+	sort.Slice(s.Schemas, func(i, j int) bool { return s.Schemas[i].Name < s.Schemas[j].Name })
+	for _, schema := range s.Schemas {
 		prefix := "CREATE SCHEMA "
-		if schema.configured {
+		if schema.Configured {
 			prefix += "IF NOT EXISTS "
 		}
-		if err := w.emit(prefix + catalog.QuoteIdentifier(schema.name) + " AUTHORIZATION " + catalog.QuoteIdentifier(schema.owner) + ";\n"); err != nil {
+		if err := w.emit(prefix + catalog.QuoteIdentifier(schema.Name) + " AUTHORIZATION " + catalog.QuoteIdentifier(schema.Owner) + ";\n"); err != nil {
 			return err
 		}
-		if schema.configured && schema.owner != "postgres" {
-			if err := w.emit("ALTER SCHEMA " + catalog.QuoteIdentifier(schema.name) + " OWNER TO " + catalog.QuoteIdentifier(schema.owner) + ";\n"); err != nil {
+		if schema.Configured && schema.Owner != "postgres" {
+			if err := w.emit("ALTER SCHEMA " + catalog.QuoteIdentifier(schema.Name) + " OWNER TO " + catalog.QuoteIdentifier(schema.Owner) + ";\n"); err != nil {
 				return err
 			}
 		}
@@ -84,13 +84,13 @@ func emitDumpConversionSeeds(_ context.Context, s *dumpScript, w *dumpWriter) er
 }
 
 func emitDumpSchemaComments(_ context.Context, s *dumpScript, w *dumpWriter) error {
-	sort.Slice(s.schemaComments, func(i, j int) bool { return s.schemaComments[i].name < s.schemaComments[j].name })
-	for _, c := range s.schemaComments {
+	sort.Slice(s.SchemaComments, func(i, j int) bool { return s.SchemaComments[i].Name < s.SchemaComments[j].Name })
+	for _, c := range s.SchemaComments {
 		literal := "NULL"
-		if c.text != "" {
-			literal = dump.CommentLiteral(c.text)
+		if c.Text != "" {
+			literal = dump.CommentLiteral(c.Text)
 		}
-		if err := w.emit("COMMENT ON SCHEMA " + catalog.QuoteIdentifier(c.name) + " IS " + literal + ";\n"); err != nil {
+		if err := w.emit("COMMENT ON SCHEMA " + catalog.QuoteIdentifier(c.Name) + " IS " + literal + ";\n"); err != nil {
 			return err
 		}
 	}
@@ -120,14 +120,14 @@ func emitDumpSequenceCompletion(_ context.Context, s *dumpScript, w *dumpWriter)
 }
 
 func emitDumpMaterializedSnapshots(ctx context.Context, s *dumpScript, w *dumpWriter) error {
-	slices.SortFunc(s.materialized, func(a, b table.DumpRelation) int {
+	slices.SortFunc(s.Materialized, func(a, b table.DumpRelation) int {
 		if order := strings.Compare(a.Schema, b.Schema); order != 0 {
 			return order
 		}
 		return strings.Compare(a.Name, b.Name)
 	})
-	for i := range s.materialized {
-		if err := view.EmitMaterializedSnapshot(ctx, &s.materialized[i], s.originalCatalog, w.emit); err != nil {
+	for i := range s.Materialized {
+		if err := view.EmitMaterializedSnapshot(ctx, &s.Materialized[i], s.OriginalCatalog, w.emit); err != nil {
 			return err
 		}
 	}
@@ -156,11 +156,11 @@ func emitDumpRules(_ context.Context, s *dumpScript, w *dumpWriter) error {
 func emitDumpAttributeRanks(_ context.Context, s *dumpScript, w *dumpWriter) error {
 	rankAuthority := false
 	for _, event := range s.eventOrder {
-		index, exists := s.tableIndices[event.OID]
+		index, exists := s.TableIndices[event.OID]
 		if event.Phase != dump.Declaration || !exists {
 			continue
 		}
-		table := s.tables[index]
+		table := s.Tables[index]
 		inheritance := table.Descriptor.Inheritance
 		if inheritance == nil {
 			continue
@@ -175,7 +175,7 @@ func emitDumpAttributeRanks(_ context.Context, s *dumpScript, w *dumpWriter) err
 				}
 				rankAuthority = true
 			}
-			qualified := catalog.QuoteIdentifier(s.catalogView.Get(table.Descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name)
+			qualified := catalog.QuoteIdentifier(s.CatalogView.Get(table.Descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name)
 			if err := w.emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, dump.CommentLiteral(qualified), dump.CommentLiteral(column.Name))); err != nil {
 				return err
 			}

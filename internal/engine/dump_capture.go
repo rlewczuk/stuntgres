@@ -12,62 +12,9 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 )
-
-// dumpSchema is one ordinary namespace Dump creates.
-type dumpSchema struct {
-	name, owner string
-	configured  bool
-}
-
-// dumpView is one owned definition statement: a view, extension or index.
-type dumpView struct {
-	owner, sql string
-}
-
-// dumpComment is a schema comment that differs from its baseline.
-type dumpComment struct{ name, text string }
-
-// dumpCapture is everything Dump reads from the engine. captureDumpLocked
-// fills it under Engine.mu; after the unlock Dump reads only the capture.
-type dumpCapture struct {
-	// catalogView binds private key names until the terminal renames;
-	// originalCatalog keeps the captured names for later definitions and
-	// values.
-	catalogView, originalCatalog catalog.Read
-	originalRoles, domainRoles   authorization.Read
-	constraintReplay             *partition.ConstraintReplay
-	recipePlan                   map[ids.ObjectAddress]*table.DumpRelation
-	aclOutput                    regobj.ACLItemOutput
-
-	// preamble reconstructs bootstrap identity changes before ordinary
-	// namespaces are created.
-	preamble       []string
-	schemas        []dumpSchema
-	schemaComments []dumpComment
-	sequences      []sequence.Dump
-	domains        []*catalog.Type
-	collations     []*catalog.Collation
-	conversions    []*catalog.Conversion
-	operators      []*catalog.Operator
-	sqlRoutines    []*catalog.Procedure
-	tables         []table.DumpRelation
-	materialized   []table.DumpRelation
-	views          []dumpView
-	indexes        []dumpView
-	viewIndices    map[ids.OID]int
-	tableIndices   map[ids.OID]int
-	indexIndices   map[ids.OID]int
-	composites     map[ids.OID]*catalog.Relation
-	graph          dump.Graph
-	// Deferral removes only eligible definitions' edges. Inline consumers keep
-	// their prerequisites, including providers shared with deferred defaults.
-	inlinePredecessors map[ids.OID][]ids.OID
-	deferDefaults      bool
-}
 
 // dumpSource is the engine state the collectors read. It is valid only
 // while captureDumpLocked holds Engine.mu.
@@ -83,13 +30,14 @@ type dumpSource struct {
 // dumpCollection is one locked collection pass: the capture the collectors
 // fill and the engine state they read. It never outlives Engine.mu.
 type dumpCollection struct {
-	*dumpCapture
-	source dumpSource
+	*control.Capture
+	recipePlan map[ids.ObjectAddress]*table.DumpRelation
+	source     dumpSource
 }
 
 // captureDumpLocked reads the catalog, roles, storage and sequence state Dump
 // needs. The caller holds Engine.mu and releases it once on return.
-func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
+func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -127,22 +75,22 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 		return nil, err
 	}
 	c := &dumpCollection{
-		dumpCapture: &dumpCapture{
-			catalogView:      catalogView,
-			originalCatalog:  originalCatalog,
-			originalRoles:    originalRoles,
-			domainRoles:      domainRoles,
-			constraintReplay: constraintReplay,
-			recipePlan:       recipePlan,
-			aclOutput:        aclOutput,
-			preamble:         preamble,
-			tables:           make([]table.DumpRelation, 0),
-			viewIndices:      make(map[ids.OID]int),
-			tableIndices:     make(map[ids.OID]int),
-			indexIndices:     make(map[ids.OID]int),
-			composites:       make(map[ids.OID]*catalog.Relation),
-			graph:            make(dump.Graph),
+		Capture: &control.Capture{
+			CatalogView:      catalogView,
+			OriginalCatalog:  originalCatalog,
+			OriginalRoles:    originalRoles,
+			DomainRoles:      domainRoles,
+			ConstraintReplay: constraintReplay,
+			ACLOutput:        aclOutput,
+			Preamble:         preamble,
+			Tables:           make([]table.DumpRelation, 0),
+			ViewIndices:      make(map[ids.OID]int),
+			TableIndices:     make(map[ids.OID]int),
+			IndexIndices:     make(map[ids.OID]int),
+			Composites:       make(map[ids.OID]*catalog.Relation),
+			Graph:            make(dump.Graph),
 		},
+		recipePlan: recipePlan,
 		source: dumpSource{
 			state:     state,
 			relations: e.storage.Relations,
@@ -157,7 +105,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 			return nil, err
 		}
 	}
-	return c.dumpCapture, nil
+	return c.Capture, nil
 }
 
 // dumpPortable rejects catalogs Dump cannot serialize at all: SQL/MED

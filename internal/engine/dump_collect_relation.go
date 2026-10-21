@@ -61,7 +61,7 @@ func collectRelationDump(ctx context.Context, c *dumpCollection, a ids.ObjectAdd
 	if r.Security.ACL.Explicit || len(r.Security.ColumnACL) != 0 {
 		return fmt.Errorf("stuntgres: dump cannot serialize explicit relation or column ACL")
 	}
-	principal, err := c.domainRoles.Descriptor(r.Owner)
+	principal, err := c.DomainRoles.Descriptor(r.Owner)
 	if err != nil {
 		return err
 	}
@@ -81,8 +81,8 @@ func isDumpSequence(r *catalog.Relation) bool  { return r.RelationKind == catalo
 func isDumpTable(*catalog.Relation) bool       { return true }
 
 func collectCompositeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, r *catalog.Relation, _ relationDumpContext) error {
-	c.composites[r.Address().ObjectID] = r
-	c.graph[dump.Event{OID: r.Address().ObjectID}] = nil
+	c.Composites[r.Address().ObjectID] = r
+	c.Graph[dump.Event{OID: r.Address().ObjectID}] = nil
 	return nil
 }
 
@@ -90,27 +90,27 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	ns := place.namespace
 	// Key declarations and their table constraints must use the same
 	// captured private-name projection, including deferred local keys.
-	r = c.catalogView.MustRelation(r.Address())
-	virtual := index.PartitionReplayVirtualUniqueRoot(c.catalogView, r)
+	r = c.CatalogView.MustRelation(r.Address())
+	virtual := index.PartitionReplayVirtualUniqueRoot(c.CatalogView, r)
 	if virtual != nil && virtual.Address() != r.Address() {
 		return nil
 	}
-	if r.SQLIndex.Constraint != nil && !index.PartitionReplaySeparateConstraint(c.catalogView, r) {
+	if r.SQLIndex.Constraint != nil && !index.PartitionReplaySeparateConstraint(c.CatalogView, r) {
 		return nil
 	}
 	var sql string
 	var err error
 	if virtual != nil {
-		sql, err = partition.VirtualUniqueDefinitionSQL(c.catalogView, r)
+		sql, err = partition.VirtualUniqueDefinitionSQL(c.CatalogView, r)
 	} else {
-		sql, err = index.DefinitionSQL(ctx, c.catalogView, r, index.Presentation{Dump: true})
+		sql, err = index.DefinitionSQL(ctx, c.CatalogView, r, index.Presentation{Dump: true})
 	}
 	if err != nil {
 		return err
 	}
 	oid := r.Address().ObjectID
-	if index.PartitionReplayUsingIndex(c.catalogView, r) {
-		parent := c.catalogView.MustRelation(r.SQLIndex.Parent)
+	if index.PartitionReplayUsingIndex(c.CatalogView, r) {
+		parent := c.CatalogView.MustRelation(r.SQLIndex.Parent)
 		kind := "UNIQUE"
 		if r.SQLIndex.Constraint.Primary {
 			kind = "PRIMARY KEY"
@@ -118,24 +118,24 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 		sql += "ALTER TABLE " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(parent.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(r.Name()) + " " + kind + " USING INDEX " + catalog.QuoteIdentifier(r.Name()) + ";\n"
 	}
 	event := dump.Event{OID: oid}
-	c.graph[event] = []dump.Event{{OID: r.SQLIndex.Parent.ObjectID}}
+	c.Graph[event] = []dump.Event{{OID: r.SQLIndex.Parent.ObjectID}}
 	for _, key := range r.SQLIndex.Keys {
 		if key.Derived == nil {
 			continue
 		}
 		for _, dependency := range key.Derived.Dependencies {
-			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, dependency.Address, r.SQLIndex.Parent)
+			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, dependency.Address, r.SQLIndex.Parent)
 			if err != nil {
 				return err
 			}
 			source := dump.Event{OID: predecessor}
-			if predecessor != 0 && !slices.Contains(c.graph[event], source) {
-				c.graph[event] = append(c.graph[event], source)
+			if predecessor != 0 && !slices.Contains(c.Graph[event], source) {
+				c.Graph[event] = append(c.Graph[event], source)
 			}
 		}
 	}
-	c.indexIndices[oid] = len(c.indexes)
-	c.indexes = append(c.indexes, dumpView{place.owner, sql})
+	c.IndexIndices[oid] = len(c.Indexes)
+	c.Indexes = append(c.Indexes, control.OwnedStatement{place.owner, sql})
 	return nil
 }
 
@@ -150,7 +150,7 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		// canonical materialized renderer must qualify user types too.
 		presentation.Path = []ids.ObjectAddress{}
 	}
-	body, err := stored.ViewOf(r).SelectSQL(ctx, c.catalogView, presentation)
+	body, err := stored.ViewOf(r).SelectSQL(ctx, c.CatalogView, presentation)
 	if err != nil {
 		return err
 	}
@@ -179,14 +179,14 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		if stored == nil {
 			return fmt.Errorf("stuntgres: materialized view storage is missing")
 		}
-		c.materialized = append(c.materialized, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: stored.Versions, Ends: stored.Ends, Frontier: c.source.frontier, Descriptor: r})
+		c.Materialized = append(c.Materialized, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: stored.Versions, Ends: stored.Ends, Frontier: c.source.frontier, Descriptor: r})
 	}
 	// Capture every source occurrence and expression dependency from the
 	// same immutable catalog used to render the definition. Attribute
 	// references depend on their parent relation, not its column OID.
 	predecessors := make(map[ids.OID]bool)
 	addPredecessor := func(address ids.ObjectAddress) error {
-		predecessor, err := control.Resolver{}.Predecessor(c.originalCatalog, address, r.Address())
+		predecessor, err := control.Resolver{}.Predecessor(c.OriginalCatalog, address, r.Address())
 		if err != nil {
 			return err
 		}
@@ -216,18 +216,18 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		}
 	}
 	for _, literal := range stored.ViewOf(r).Literals() {
-		if err := regobj.ClassReplayReferences(c.originalCatalog, literal, addPredecessor); err != nil {
+		if err := regobj.ClassReplayReferences(c.OriginalCatalog, literal, addPredecessor); err != nil {
 			return err
 		}
 	}
 	oid := r.Address().ObjectID
 	event := dump.Event{OID: oid}
-	c.graph[event] = make([]dump.Event, 0, len(predecessors))
+	c.Graph[event] = make([]dump.Event, 0, len(predecessors))
 	for predecessor := range predecessors {
-		c.graph[event] = append(c.graph[event], dump.Event{OID: predecessor})
+		c.Graph[event] = append(c.Graph[event], dump.Event{OID: predecessor})
 	}
-	c.viewIndices[oid] = len(c.views)
-	c.views = append(c.views, dumpView{place.owner, sql})
+	c.ViewIndices[oid] = len(c.Views)
+	c.Views = append(c.Views, control.OwnedStatement{place.owner, sql})
 	return nil
 }
 
@@ -255,7 +255,7 @@ func collectSequenceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddre
 			}
 		}
 	}
-	c.sequences = append(c.sequences, entry)
+	c.Sequences = append(c.Sequences, entry)
 	return nil
 }
 
@@ -271,21 +271,21 @@ func collectTableDump(_ context.Context, c *dumpCollection, a ids.ObjectAddress,
 		return err
 	}
 	predecessors := edges.inline
-	c.graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
-	if len(edges.deferred) != 0 && !c.deferDefaults {
-		if c.inlinePredecessors == nil {
-			c.inlinePredecessors = make(map[ids.OID][]ids.OID)
+	c.Graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
+	if len(edges.deferred) != 0 && !c.DeferDefaults {
+		if c.InlinePredecessors == nil {
+			c.InlinePredecessors = make(map[ids.OID][]ids.OID)
 		}
-		c.inlinePredecessors[oid] = predecessors
+		c.InlinePredecessors[oid] = predecessors
 		combined := slices.Clone(predecessors)
 		for _, predecessor := range edges.deferred {
 			if !slices.Contains(combined, predecessor) {
 				combined = append(combined, predecessor)
 			}
 		}
-		c.graph[dump.Event{OID: oid}] = dump.DeclarationEvents(combined)
+		c.Graph[dump.Event{OID: oid}] = dump.DeclarationEvents(combined)
 	}
-	c.tableIndices[oid] = len(c.tables)
+	c.TableIndices[oid] = len(c.Tables)
 	linked := make(map[ids.ObjectAddress]sequence.Dump, len(r.ColumnMeta.Identities))
 	for _, identity := range r.ColumnMeta.Identities {
 		relation := c.source.state.MustRelation(identity.Sequence)
@@ -296,11 +296,11 @@ func collectTableDump(_ context.Context, c *dumpCollection, a ids.ObjectAddress,
 	if stored != nil {
 		versions, ends = stored.Versions, stored.Ends
 	}
-	c.tables = append(c.tables, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: versions, Ends: ends, Frontier: c.source.frontier, Comment: r.Comment, ColumnComments: r.ColumnMeta.Comments, NotNullConstraints: r.Constraints.NotNull, Defaults: r.ColumnMeta.Defaults, DeferredDefinitions: edges.deferredDefinitions, Descriptor: r, Identities: r.ColumnMeta.Identities, IdentitySequences: linked})
+	c.Tables = append(c.Tables, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: versions, Ends: ends, Frontier: c.source.frontier, Comment: r.Comment, ColumnComments: r.ColumnMeta.Comments, NotNullConstraints: r.Constraints.NotNull, Defaults: r.ColumnMeta.Defaults, DeferredDefinitions: edges.deferredDefinitions, Descriptor: r, Identities: r.ColumnMeta.Identities, IdentitySequences: linked})
 	if selected := c.recipePlan[r.Address()]; selected != nil {
-		c.tables[len(c.tables)-1].RecipePlaceholders = true
-		c.tables[len(c.tables)-1].RecipeComponent = selected.RecipeComponent
-		c.tables[len(c.tables)-1].DeferredChecks = selected.DeferredChecks
+		c.Tables[len(c.Tables)-1].RecipePlaceholders = true
+		c.Tables[len(c.Tables)-1].RecipeComponent = selected.RecipeComponent
+		c.Tables[len(c.Tables)-1].DeferredChecks = selected.DeferredChecks
 	}
 	return nil
 }
@@ -319,14 +319,14 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 	var predecessors []ids.OID
 	if r.Inheritance != nil {
 		for _, parent := range r.Inheritance.Parents {
-			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, parent, r.Address())
+			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, parent, r.Address())
 			if err != nil {
 				return tableDumpEdges{}, err
 			}
 			predecessors = append(predecessors, predecessor)
 		}
 	}
-	predecessors, err := partition.DumpPredecessors(control.Resolver{}, c.catalogView, r, predecessors)
+	predecessors, err := partition.DumpPredecessors(control.Resolver{}, c.CatalogView, r, predecessors)
 	if err != nil {
 		return tableDumpEdges{}, err
 	}
@@ -335,7 +335,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			continue
 		}
 		add := func(address ids.ObjectAddress) error {
-			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, address, r.Address())
+			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, address, r.Address())
 			if err != nil {
 				return err
 			}
@@ -344,7 +344,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			}
 			return nil
 		}
-		if err := regobj.ClassReplayReferences(c.catalogView, check.Expression, add); err != nil {
+		if err := regobj.ClassReplayReferences(c.CatalogView, check.Expression, add); err != nil {
 			return tableDumpEdges{}, err
 		}
 		for _, dependency := range check.Dependencies {
@@ -362,19 +362,19 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 				deferredDefinitions = make(map[int32]bool)
 			}
 			deferredDefinitions[attribute] = true
-			c.deferDefaults = c.deferDefaults || definition.Expression.ResultUsage().Type.ContainsRegclass()
+			c.DeferDefaults = c.DeferDefaults || definition.Expression.ResultUsage().Type.ContainsRegclass()
 		}
 		addPredecessor := func(address ids.ObjectAddress) error {
 			owner := r.Address()
 			if eligible {
 				owner = ids.ObjectAddress{}
 			}
-			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, address, owner)
+			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, address, owner)
 			if err != nil {
 				return err
 			}
 			if eligible {
-				if !c.deferDefaults && predecessor != 0 && !slices.Contains(deferredPredecessors, predecessor) {
+				if !c.DeferDefaults && predecessor != 0 && !slices.Contains(deferredPredecessors, predecessor) {
 					deferredPredecessors = append(deferredPredecessors, predecessor)
 				}
 			} else if predecessor != 0 && !slices.Contains(predecessors, predecessor) {
@@ -384,7 +384,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 		}
 		// Opaque literal payloads need replay ordering even when their BOOL/
 		// TEXT result is inline and intentionally has no relation DROP edge.
-		if err := regobj.ClassReplayReferences(c.catalogView, definition.Expression, addPredecessor); err != nil {
+		if err := regobj.ClassReplayReferences(c.CatalogView, definition.Expression, addPredecessor); err != nil {
 			return tableDumpEdges{}, err
 		}
 		for _, dependency := range definition.Dependencies {
@@ -398,7 +398,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			continue
 		}
 		for _, dependency := range definition.Dependencies {
-			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, dependency.Address, r.Address())
+			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, dependency.Address, r.Address())
 			if err != nil {
 				return tableDumpEdges{}, err
 			}

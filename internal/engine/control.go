@@ -80,7 +80,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
-	ctx = regobj.ACLItemOutputContext(ctx, capture.aclOutput)
+	ctx = regobj.ACLItemOutputContext(ctx, capture.ACLOutput)
 	script, err := buildDumpScript(ctx, capture)
 	if err != nil {
 		return err
