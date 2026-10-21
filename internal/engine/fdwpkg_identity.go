@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"encoding/binary"
 	"hash/maphash"
@@ -78,4 +79,21 @@ func foreignIdentityHash(seed maphash.Seed, identity catalog.ForeignRowIdentity)
 		}
 	}
 	return hash.Sum64()
+}
+
+func foreignIdentityEqual(a, b catalog.ForeignRowIdentity) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, cell := range a {
+		if x, ok := cell.([]byte); ok {
+			y, ok := b[i].([]byte)
+			if !ok || !bytes.Equal(x, y) {
+				return false
+			}
+		} else if cell != b[i] {
+			return false
+		}
+	}
+	return true
 }

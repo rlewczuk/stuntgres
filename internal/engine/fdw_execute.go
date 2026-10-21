@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bytes"
 	"context"
 	"database/sql/driver"
 	"errors"
@@ -220,7 +219,7 @@ type foreignMutationRow struct {
 	identity catalog.ForeignRowIdentity
 }
 
-func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope) ([]foreignMutationRow, error) {
+func foreignTargetRows(ctx context.Context, s *StatementScope, m *foreignModification) ([]foreignMutationRow, error) {
 	f := m.source
 	r := exec.CopyForeignRequest(m.request.ForeignRequest)
 	r.Identity = &m.request.Targets
@@ -271,25 +270,9 @@ func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope)
 	}
 	return rows, nil
 }
-func foreignIdentityEqual(a, b catalog.ForeignRowIdentity) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, cell := range a {
-		if x, ok := cell.([]byte); ok {
-			y, ok := b[i].([]byte)
-			if !ok || !bytes.Equal(x, y) {
-				return false
-			}
-		} else if cell != b[i] {
-			return false
-		}
-	}
-	return true
-}
 func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (Result, error) {
 	ctx := s.op.Context()
-	rows, err := m.targetRows(ctx, s)
+	rows, err := foreignTargetRows(ctx, s, m)
 	if err != nil {
 		return Result{}, err
 	}

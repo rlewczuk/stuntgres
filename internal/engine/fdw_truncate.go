@@ -7,11 +7,6 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-type foreignTruncateGroup struct {
-	source  *exec.ForeignQuerySource
-	request catalog.ForeignTruncateRequest
-}
-
 func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error) {
 	e := s.engine()
 	var groups []foreignTruncateGroup
