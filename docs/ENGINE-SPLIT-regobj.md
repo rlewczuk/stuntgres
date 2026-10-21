@@ -346,7 +346,26 @@ no aliases remain; the checks in §8.3 pass.
 
 ## Status
 
-- [ ] 21a — In place (item 64)
+- [x] 21a — In place (item 64) (`faabae6f1`, `fdea22a7e`, `bc4972dc4`,
+  `4c5e82e76`, `c8c5d6f0c`, `108381a52`, `3a26d7fbb`, `46a317e4d`, then the
+  docs commit) · selected unit and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request
+  - Re-measured at `351822746` (rebased onto `05ab40a48`): every 21a
+    declaration was where the inventory says; `pgIdentifier` had 46
+    production uses in 16 files (not 52) and no test uses. Catalog 5i had
+    not run, so 21a moved it
+    (`catalog.Identifier`, pinned by `TestIdentifierQuotesOnlyWhenNeeded`).
+  - New root files: `regclass_output.go` (was `sequence_output.go`),
+    `catalog_literal.go`, `namespace_visibility.go` (was
+    `visibility_metadata.go`), `statement_presentation.go`. The three
+    `scalarRenderer` recorders now sit after `scalarRenderer.record` in
+    `scalar_renderer.go` (stored 22a split it out of `default.go`).
+  - `frontier` over `set1.txt` plus `remapRegclassDatum` (output in
+    `.cswd/tmp/PG18-ENGINE-SPLIT-REGOBJ-IN-PLACE/frontier-21a.txt`): OUT is
+    `sqlError` and the rule payload edge (`rulesOf`, `ruleDefinition.Name`,
+    `ruleDefinition.OID`) only.
+  - No engine test moved or changed; `sequence_output_test.go` tests
+    sequence prepared behavior, not regclass output, so it keeps its name.
 - [ ] 21b — `regobj` created and clean set moved (item 65)
 - [ ] 21c — Input resolvers moved (item 66)
 
@@ -354,6 +373,9 @@ Outstanding aliases: none yet.
 
 ### Notes for later steps
 
+- 21b: `set1.txt` still lists `routineContainerLiteral`, which 21a deleted;
+  `frontier` ignores the missing key. Add `remapRegclassDatum` and drop the
+  dead name when building the move list.
 - Step 22 (`stored`) imports `regobj` for the type-declaration, literal,
   dump-spelling and remap helpers; the `stored` fixed point uses only
   21b items, not the 21c resolvers.

@@ -29,18 +29,11 @@ type pgRenderer struct {
 	nodeSQL            func(expr.Expr) (string, bool, error)
 }
 
-func pgIdentifier(name string) string {
-	if parser.IdentifierNeedsQuotes(name) {
-		return catalog.QuoteIdentifier(name)
-	}
-	return name
-}
-
 func (r pgRenderer) identifier(name string) string {
 	if r.output.QuoteAllIdentifiers {
 		return catalog.QuoteIdentifier(name)
 	}
-	return pgIdentifier(name)
+	return catalog.Identifier(name)
 }
 
 func (r pgRenderer) attribute(relation *catalog.Relation, attr int32) (string, error) {
@@ -449,7 +442,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		if !ok {
 			return "", fmt.Errorf("stuntgres: retired deparse field")
 		}
-		return "(" + text + ")." + pgIdentifier(n.Base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
+		return "(" + text + ")." + catalog.Identifier(n.Base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
 	case plan.ArrayExpr:
 		parts := make([]string, len(n.Elements))
 		for i, element := range n.Elements {
@@ -634,7 +627,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		if err != nil {
 			return "", err
 		}
-		name := pgIdentifier("unnest")
+		name := catalog.Identifier("unnest")
 		if n.Procedure != nil {
 			if err := extension.ValidateIntaggIdentity(r.view, n.Procedure, n.Ref, "int_array_enum"); err != nil {
 				return "", err
@@ -643,7 +636,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing intagg namespace")
 			}
-			name = pgIdentifier(namespace.Name()) + "." + pgIdentifier(n.Procedure.Name())
+			name = catalog.Identifier(namespace.Name()) + "." + catalog.Identifier(n.Procedure.Name())
 		}
 		return name + "(" + arg + ")", nil
 	case plan.ComparisonExpr:

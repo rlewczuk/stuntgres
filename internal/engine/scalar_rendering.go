@@ -114,7 +114,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 		}
 		op := spec.Name
 		if spec.Namespace != "" {
-			namespace := pgIdentifier(spec.Namespace)
+			namespace := catalog.Identifier(spec.Namespace)
 			if replay.QuoteNamespace {
 				namespace = catalog.QuoteIdentifier(spec.Namespace)
 			}
@@ -132,7 +132,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 func (r scalarRenderer) replayTemplate(pieces []expr.Piece, args []expr.RenderArg, parts []string, returning string) (string, error) {
 	return templateSQL(pieces, parts, returning, func(piece expr.Piece) (string, error) {
 		if piece.Identifier {
-			return pgIdentifier(piece.Text), nil
+			return catalog.Identifier(piece.Text), nil
 		}
 		literal, ok := args[piece.Arg].Expr.(plan.LiteralExpr)
 		if !ok {

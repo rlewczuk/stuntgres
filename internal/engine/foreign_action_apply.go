@@ -450,17 +450,17 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 		q.WriteString(strconv.Itoa(offset + i + 1))
 		if job.parent.Columns[parentSlot].Usage.Type != parentInput {
 			q.WriteString("::")
-			q.WriteString(pgIdentifier(parentInput.NamespaceName()))
+			q.WriteString(catalog.Identifier(parentInput.NamespaceName()))
 			q.WriteByte('.')
-			q.WriteString(pgIdentifier(parentInput.Name()))
+			q.WriteString(catalog.Identifier(parentInput.Name()))
 		}
 		q.WriteString(" OPERATOR(pg_catalog.=) ")
 		q.WriteString(catalog.QuoteIdentifier(job.child.Columns[childSlot].Name))
 		if job.child.Columns[childSlot].Usage.Type != childInput {
 			q.WriteString("::")
-			q.WriteString(pgIdentifier(childInput.NamespaceName()))
+			q.WriteString(catalog.Identifier(childInput.NamespaceName()))
 			q.WriteByte('.')
-			q.WriteString(pgIdentifier(childInput.Name()))
+			q.WriteString(catalog.Identifier(childInput.Name()))
 		}
 	}
 	return q.String()

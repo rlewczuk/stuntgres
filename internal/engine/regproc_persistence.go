@@ -68,13 +68,6 @@ func walkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader,
 	return nil
 }
 
-func (r scalarRenderer) recordRoutineReferences(view catalog.Read, value sqltype.Value) error {
-	return walkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
-		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
-		return nil
-	})
-}
-
 func remapRoutineDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return value, nil
@@ -113,10 +106,6 @@ func remapRoutineDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (
 type routineFragment struct {
 	text       string
 	expression bool
-}
-
-func routineContainerLiteral(ctx context.Context, view catalog.Read, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
-	return routineContainerLiteralAt(ctx, view, nil, value, usage, acl)
 }
 
 func routineContainerLiteralAt(ctx context.Context, view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {

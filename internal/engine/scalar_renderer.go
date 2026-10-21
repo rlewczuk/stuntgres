@@ -147,7 +147,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			address.SubID = n.Attribute
 			r.recordStoredReference(view, view.Owner().Domain.Ref(view.Epoch(), address))
 		}
-		return "(" + text + ")." + pgIdentifier(n.Base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
+		return "(" + text + ")." + catalog.Identifier(n.Base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
 	case plan.ArrayExpr:
 		return r.arraySQL(ctx, view, n)
 	case plan.SubscriptExpr:
@@ -522,7 +522,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		operator := n.Operator
 		if n.Namespace != "" {
-			operator = "OPERATOR(" + pgIdentifier(n.Namespace) + "." + operator + ")"
+			operator = "OPERATOR(" + catalog.Identifier(n.Namespace) + "." + operator + ")"
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
 	case plan.RowComparisonExpr:
@@ -703,4 +703,39 @@ func (r scalarRenderer) record(ref ids.ObjectRef) {
 		}
 	}
 	*r.dependencies = append(*r.dependencies, ref)
+}
+
+func (r scalarRenderer) recordRoutineReferences(view catalog.Read, value sqltype.Value) error {
+	return walkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
+		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		return nil
+	})
+}
+
+func (r scalarRenderer) recordCatalogAliasDependencies(view catalog.Read, value sqltype.Value) error {
+	record := func(address ids.ObjectAddress) error {
+		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		return nil
+	}
+	if err := catalog.WalkAliasDependenciesAt(view, r.definition, value, record); err != nil {
+		return err
+	}
+	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
+		return err
+	}
+	return walkRegTSReferencesAt(view, r.definition, value, record)
+}
+
+func (r scalarRenderer) recordCatalogAliasReferences(view catalog.Read, value sqltype.Value) error {
+	record := func(address ids.ObjectAddress) error {
+		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		return nil
+	}
+	if err := catalog.WalkAliasReferencesAt(view, r.definition, value, record); err != nil {
+		return err
+	}
+	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
+		return err
+	}
+	return walkRegTSReferencesAt(view, r.definition, value, record)
 }

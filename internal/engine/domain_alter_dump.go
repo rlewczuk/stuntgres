@@ -71,7 +71,7 @@ func domainInvalidDumpStatement(ctx context.Context, view catalog.Read, domain *
 		if err != nil {
 			return "", err
 		}
-		text.WriteString("ALTER DOMAIN " + qualified + " ADD CONSTRAINT " + pgIdentifier(check.Name) + " CHECK (" + expression + ") NOT VALID;\n")
+		text.WriteString("ALTER DOMAIN " + qualified + " ADD CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + expression + ") NOT VALID;\n")
 	}
 	return text.String(), nil
 }

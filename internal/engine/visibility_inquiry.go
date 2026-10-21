@@ -11,21 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func namedObjectVisible(view catalog.Read, path []ids.ObjectAddress, d catalog.Descriptor) bool {
-	return namedObjectVisibleAt(view, nil, path, d)
-}
-
-func namedObjectVisibleAt(view catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, d catalog.Descriptor) bool {
-	for _, namespace := range path {
-		key := catalog.DescriptorNameKey(d)
-		key.Namespace = namespace
-		if found := catalog.DefinitionLookupAt(view, reader, key); found != (ids.ObjectAddress{}) {
-			return found == d.Address()
-		}
-	}
-	return false
-}
-
 func (h *statementHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	var oid uint32

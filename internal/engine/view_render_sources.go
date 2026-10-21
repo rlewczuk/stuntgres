@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -456,7 +457,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 				name = "ONLY " + name
 			}
 			from := viewRenderFrom{text: name, root: root, slots: make(map[int]string)}
-			from.wholeSQL = pgIdentifier(d.Name())
+			from.wholeSQL = catalog.Identifier(d.Name())
 			if v.rowTargets != nil {
 				key := n.Name.Parts[len(n.Name.Parts)-1].Text
 				from.rowTarget, from.rowSource = key, true

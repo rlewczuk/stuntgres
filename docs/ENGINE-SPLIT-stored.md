@@ -75,7 +75,7 @@ top-level declarations with their methods: about 10.2k lines in 67 files,
 |---|---|
 | reg* spellings, dump outputs, remap and walker helpers, `catalogTypeDeclaration*`, `catalogLiteral*`, `catalogRegclassOutput`, `catalogRoutineOutput`, `catalogRegtypeOutput`, `aclItemContextFormatter`, `aclItemValidationOutput` (its `owner` field), `containsEmptyACL`, `regroleContextFormatter` | `regobj` (21b) |
 | `commentLiteral` (`dump_restore_scalar.go`, used by `cycleConstantSQL`) | `dump.CommentLiteral` (18b) |
-| `pgIdentifier` (`deparse_renderer.go`) | `catalog.Identifier` (5i, or 21a if 5i has not run) |
+| `pgIdentifier` (`deparse_renderer.go`) | `catalog.Identifier` (done in 21a) |
 | `sqlError` | the package's own `errors.go` |
 
 Package imports of the set (qualified references): `plan` 562, `analyze`
@@ -114,15 +114,14 @@ are used only by `expression_retag.go`; they move here, not to `exec`.
 | File | Moves | Stays |
 |---|---|---|
 | `view_definition.go` | `freezeQueryPresentation`, `frozenQueryDependencies` (22a made the freeze a function) | `Engine.freezeViewDefinitionLocked`, the wrapper that allocates a rule OID |
-| `deparse_renderer.go` | everything but `pgIdentifier` | `pgIdentifier` goes to `catalog` (21a) |
+| `deparse_renderer.go` | everything (`pgIdentifier` is `catalog.Identifier` since 21a) | — |
 | `view_dependencies.go` | `viewDefinition.Validate`, `validateViewLeaves`, `validateStoredSetNode` | dependency staging (step 27); the drop diagnostics go to a root `drop_diagnostics.go` (27a) |
 | `view.go` | `viewDefinition`, `viewLeaf`, `viewOptions`, `validateNamespaces`, `namespaceRoot` | CREATE VIEW handling (step 27) |
-| `scalar_function_sql.go` | `scalarRenderer.scalarFunctionSQL` | `literalSQL` goes to `regobj` (21a) |
+| `scalar_function_sql.go` | `scalarRenderer.scalarFunctionSQL` | `literalSQL` (in `catalog_literal.go` since 21a) goes to `regobj` (21b) |
 | `foreign_key_lifecycle.go` | `pgRenderer.foreignKeyConstraintSQL`, `foreignKeyConstraintSQLWithPrimary`, `foreignKeyActionSQL` | FK lifecycle (step 24) |
 | `query_graph.go` | nothing: analyze 12f (item 77) moves the whole file first; the set calls `analyze`'s exported names | — |
 | `view_write.go` | `viewWriteShape`, `viewDirectColumn`, `sameViewRelation` | view-write lowering (step 27) |
 | `unique.go` | `pgRenderer.uniqueConstraintSQL` | unique enforcement (step 23) |
-| `regtype_persistence.go`, `regproc_persistence.go` | the `scalarRenderer.record*` methods (21a puts them next to the renderer in `scalar_renderer.go`) | the reg* code (`regobj`) |
 | `policy.go`, `policy_payload.go` | `policyExpression`, `policyExpressionOf`, its `DependsOn` and `Validate` | policy DDL (step 27) |
 | `policy_dump.go` | `policyExpressionSQL` | the dump groups (22c) |
 | `roles.go` | `relationVisibleAt`, `relationDiagnosticNameAt` | role code (step 28) |
@@ -272,7 +271,8 @@ clean, stop and report the `reach` path instead of widening the cut.
   `catalog_expression_reown.go` holds `reownCatalogExpressions`,
   `remapCatalogExpressions` and `remapViewRuleOIDs`. The `record*` methods
   stay in `regtype_persistence.go`/`regproc_persistence.go`, because 21a has
-  not run.
+  not run. (21a later moved them into `scalar_renderer.go`, which is now a
+  whole file of the set with them.)
 - Name: `stored`, with the table in 22b step 2 as the final names.
 
 ### 22b — Create `stored` and move the set (broad)
@@ -442,7 +442,7 @@ Outstanding aliases: none yet.
   exported fields. `viewLeaf` fields (`ref`, `only`, `mark`, ...) are still
   read directly through `Sources()`; they need accessors or exports in 22b.
 - 21a (regobj): put the `scalarRenderer.record*` methods in
-  `scalar_renderer.go` (22a created it), not `default.go`.
+  `scalar_renderer.go` (22a created it), not `default.go` (done).
 - Index 23a: the reader interface is `indexCoverageReader`
   (`partition_index_attach.go`); `catalogCoverage` is the plain-catalog
   implementation.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -151,7 +152,7 @@ func (r pgRenderer) renderingName(name string, quote expr.Quote) string {
 	case expr.QuoteIdentifier:
 		return r.identifier(name)
 	case expr.QuoteWhenNeeded:
-		return pgIdentifier(name)
+		return catalog.Identifier(name)
 	default:
 		if r.output.QuoteAllIdentifiers && !strings.HasPrefix(name, "\"") {
 			return r.identifier(name)

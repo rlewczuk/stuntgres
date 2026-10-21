@@ -36,34 +36,6 @@ func (r dumpCatalogAliasOutput) FormatRegnamespace(id uint32) (string, error) {
 	return regObjectSpelling(r.view, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }
 
-func (r scalarRenderer) recordCatalogAliasDependencies(view catalog.Read, value sqltype.Value) error {
-	record := func(address ids.ObjectAddress) error {
-		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
-		return nil
-	}
-	if err := catalog.WalkAliasDependenciesAt(view, r.definition, value, record); err != nil {
-		return err
-	}
-	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
-		return err
-	}
-	return walkRegTSReferencesAt(view, r.definition, value, record)
-}
-
-func (r scalarRenderer) recordCatalogAliasReferences(view catalog.Read, value sqltype.Value) error {
-	record := func(address ids.ObjectAddress) error {
-		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
-		return nil
-	}
-	if err := catalog.WalkAliasReferencesAt(view, r.definition, value, record); err != nil {
-		return err
-	}
-	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
-		return err
-	}
-	return walkRegTSReferencesAt(view, r.definition, value, record)
-}
-
 func remapCatalogAliasDatum(value sqltype.Value, destination func(ids.ObjectAddress) ids.ObjectAddress) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsRegtype() && !value.Type().ContainsRegObject() {
 		return value, nil
