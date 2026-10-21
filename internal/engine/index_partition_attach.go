@@ -19,7 +19,7 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 	// Only explicit ATTACH INDEX can promote that index and its ancestors.
 	// Table edge changes preserve invalidity even when coverage becomes complete.
 	// Each pass resolves another level; the catalog validator rejects cycles.
-	for range provider.descriptorCount() {
+	for range provider.DescriptorCount() {
 		changed := false
 		for address := range provider.Descriptors() {
 			if provider.Removed(address) {
@@ -48,7 +48,7 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 			definition.Valid = valid
 			next.SQLIndex = &definition
 			next.ObjectRevision++
-			if err := provider.replacePartitionDescriptor(&next); err != nil {
+			if err := provider.ReplacePartitionDescriptor(&next); err != nil {
 				return err
 			}
 			changed = true
@@ -61,7 +61,7 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 }
 
 func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.ObjectAddress) bool {
-	for remaining := provider.descriptorCount(); start != (ids.ObjectAddress{}) && remaining > 0; remaining-- {
+	for remaining := provider.DescriptorCount(); start != (ids.ObjectAddress{}) && remaining > 0; remaining-- {
 		if start == target {
 			return true
 		}

@@ -76,7 +76,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 	}
 	compositeDefaultOrder := false
 	var postorder []int
-	mergedDescriptors := provider.descriptorCount() != provider.base.DescriptorCount()
+	mergedDescriptors := provider.DescriptorCount() != provider.base.DescriptorCount()
 	var visit func(ids.ObjectAddress, ids.ObjectAddress) error
 	visit = func(target, root ids.ObjectAddress) error {
 		if err := ctx.Err(); err != nil {
