@@ -6,106 +6,12 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
-
-func (e *Engine) stageForeignTableLocked(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
-	if s.Action == "drop" {
-		var roots []ids.ObjectAddress
-		for _, name := range s.Names {
-			ref, err := e.resolveRelationReference(auth, name, true)
-			if err != nil {
-				if s.IfExists && table.RenameMissing(err) {
-					schemaNotice(op, "00000", fmt.Sprintf(`foreign table "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
-					continue
-				}
-				return nil, nil, err
-			}
-			d := auth.Catalog.MustRelation(ref.Address)
-			if d.RelationKind != catalog.ForeignRelation {
-				return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.Name()))
-			}
-			if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-				return nil, nil, err
-			}
-			if err := stage.removeObjectLocked(ref, false); err != nil {
-				return nil, nil, err
-			}
-			roots = append(roots, d.Address())
-		}
-		return nil, roots, nil
-	}
-	ns, err := e.creationNamespace(auth, s.Name)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = auth.CheckCreate(ns); err != nil {
-		return nil, nil, ddl.CreationError(err, s.Name)
-	}
-	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
-	if stage.LookupName(key) != (ids.ObjectAddress{}) {
-		if s.IfNotExists {
-			op.ExistingRelationNotice(key.Name)
-			return nil, nil, nil
-		}
-		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
-	}
-	server, err := fdw.Find(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = auth.Check(access.Requirement{Object: fdw.ObjectRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
-		return nil, nil, err
-	}
-	if err = fdw.CheckTableDeclaration(s.Table); err != nil {
-		return nil, nil, err
-	}
-	if err = e.schemaTableLocked(op, auth, stage, fdw.TableSyntax(s.Table), ns.Address, auth.State.CurrentUser, input, nil); err != nil {
-		return nil, nil, err
-	}
-	d, ok := stage.Get(stage.LookupName(key)).(*catalog.Relation)
-	if !ok {
-		return nil, nil, fmt.Errorf("stuntgres: missing staged foreign relation")
-	}
-	d.RelationKind = catalog.ForeignRelation
-	d.Foreign = &catalog.ForeignTableDefinition{Server: server.Address(), Columns: make(map[int32][]catalog.ForeignOption)}
-	d.Foreign.Options, err = fdw.TransformOptions(nil, s.Options)
-	if err != nil {
-		return nil, nil, err
-	}
-	wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
-	if !ok {
-		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
-	}
-	stage.domainBases = append(stage.domainBases, server, wrapper)
-	job, err := stageForeignValidatorJob(stage, wrapper, catalog.ForeignTable, d.Foreign.Options)
-	if err != nil {
-		return nil, nil, err
-	}
-	jobs := []fdw.Validation{job}
-	for _, attribute := range d.Attributes {
-		column := d.Columns[d.IndexForAttribute(attribute)]
-		options, er := fdw.TransformOptions(nil, s.ColumnOptions[column.Name])
-		if er != nil {
-			return nil, nil, er
-		}
-		d.Foreign.Columns[attribute] = options
-		job, er := stageForeignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
-		if er != nil {
-			return nil, nil, er
-		}
-		jobs = append(jobs, job)
-	}
-	return jobs, nil, nil
-}
 
 func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
 	e.mu.Lock()
