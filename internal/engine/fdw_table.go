@@ -103,7 +103,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = auth.Check(access.Requirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: foreignRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
 		return nil, nil, err
 	}
 	if err = foreignTableDeclaration(s.Table); err != nil {
@@ -127,7 +127,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
 	}
 	stage.domainBases = append(stage.domainBases, server, wrapper)
-	job, err := foreignValidatorJob(stage, wrapper, catalog.ForeignTable, d.Foreign.Options)
+	job, err := stageForeignValidatorJob(stage, wrapper, catalog.ForeignTable, d.Foreign.Options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -139,7 +139,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 			return nil, nil, er
 		}
 		d.Foreign.Columns[attribute] = options
-		job, er := foreignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
+		job, er := stageForeignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
 		if er != nil {
 			return nil, nil, er
 		}
@@ -265,7 +265,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				} else {
 					next.Foreign.Columns[attribute] = options
 				}
-				job, er := foreignValidatorJob(stage, wrapper, kind, options)
+				job, er := stageForeignValidatorJob(stage, wrapper, kind, options)
 				if er != nil {
 					return Result{}, er
 				}
@@ -340,7 +340,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 						attribute := candidate.Attributes[candidate.Index[a.Column.Text]]
 						candidate.Foreign.Columns[attribute] = options
-						job, er := foreignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
+						job, er := stageForeignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
 						if er != nil {
 							return Result{}, er
 						}

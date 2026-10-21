@@ -104,7 +104,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
 	e.mu.Unlock()
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
-		ref := foreignRef(auth, d)
+		ref := foreignRef(auth.View, d)
 		for _, grantOptions := range []bool{false, true} {
 			rights, err := auth.Effective(ref, grantOptions)
 			if err != nil || rights != authorization.UsagePrivilege {
@@ -123,7 +123,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 		t.Fatal("missing real predefined reader")
 	}
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
-		ref := foreignRef(auth, d)
+		ref := foreignRef(auth.View, d)
 		want := authorization.Privileges(0)
 		if d == server {
 			want = authorization.UsagePrivilege

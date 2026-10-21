@@ -38,7 +38,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	mapping, err := foreignMappingFor(auth, server)
+	mapping, err := foreignMappingFor(auth.View, server)
 	if err != nil {
 		return nil, err
 	}
