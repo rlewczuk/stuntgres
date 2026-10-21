@@ -183,7 +183,7 @@ set; the top ones are `dumpRelation` fields (69 uses of `.descriptor`),
 | Hierarchy helpers `inheritanceChildren`, `inheritanceHasChildren`, `inheritanceParticipant` (`table_inheritance.go`), `cloneInheritance`, `inheritanceQueryLayout`, plus `hierarchyRelation` (`partition.go`), `samePartitionColumnUsage`, `sameRelationRowShape` (`relation_scope.go`) | `catalog` | 5i (72) |
 | Constraint naming `constraintNames`, `relationConstraintNameExists`, `generatedConstraintName` (`not_null_binding.go`; `nameCreateNotNull` stays here) | `catalog` | 5i (72) |
 | Physical NOT NULL validators `physicalNotNullOriginValid`, `physicalPrimarySupportValid`, `validatePhysicalNotNull`, `physicalPrimaryForAttribute`, `capturePhysicalPrimarySupport` | `catalog` (next to `catalog/physical_not_null.go`) | 5i (72) |
-| `generationHasTableOID`, `generationImmutable` (187 lines) | `plan` | 10e (73) |
+| `generationHasTableOID`, `generationImmutable` (187 lines) | `plan` (`plan.GenerationHasTableOID`, `plan.GenerationImmutable`) | 10e (73), done |
 | FK write-time enforcement (`checkForeignKeys`, `foreignKeyJob` scheduling in `foreign_key_writes.go`) and FK actions (`foreign_action_*.go`, `foreign_actions.go`) | `dml` | 29a/29b |
 | Inheritance DML expansion (`inheritance_dml.go`, `inheritance_dml_authority.go`) | `dml` | 29a/29b |
 | Inheritance query expansion: the scope methods and `inheritanceScope` (`inheritance_query_scope.go`) | root query admission (open question 1) | — |

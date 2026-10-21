@@ -223,10 +223,10 @@ without a hook gets the switch's previous generic behavior:
 
 Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
 (`joinExpressionSides`), planned volatility, generated admission
-(`generationImmutable`, `generationHasTableOID`, `validateGenerationPlan`),
+(`plan.GenerationImmutable`, `plan.GenerationHasTableOID`, `validateGenerationPlan`),
 conditional planning (`simplifyConditionalNode`, `conditionalConstantInputs`),
 retag (`mapBoundExpressionReader`), remap (`remapScalarExpression`), node-tree
-output (`appendBoundTree`), SQL deparse (`pgRenderer.sql`, interpreted in
+output (`plan.AppendBoundTree`), SQL deparse (`pgRenderer.sql`, interpreted in
 `deparse_rendering.go`), stored scalar SQL (`scalarRenderer.sql` and
 `scalarFunctionSQL`, interpreted in `scalar_rendering.go`), grouping identity
 (`sameGroupExpressionIn`), the grouping rewrite (`rewriteGroup`), aggregate

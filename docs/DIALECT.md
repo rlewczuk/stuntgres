@@ -2750,7 +2750,7 @@ constructors or invocation of identity-only I/O routines.
 The seeded information_schema.time_stamp domain retains the pinned18.6 metadata
 default `CURRENT_TIMESTAMP(2)` and SQLVALUEFUNCTION op4/type1184/typmod2/location-1
 inventory tree. Its cooked executable default and descendants use the existing
-transaction-time provider. User-domain defaults expose genuine native boundTree
+transaction-time provider. User-domain defaults expose genuine native `plan.BoundTree`
 structural output rather than PostgreSQL nodeToString layout or physical OIDs.
 Native Dump/Restore preserves own default declarations and copies inherited
 recipes through base-first creation, without adding a new inner conversion.

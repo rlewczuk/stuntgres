@@ -139,7 +139,8 @@ are used only by `expression_retag.go`; they move here, not to `exec`.
 
 ### Not in this step
 
-- `deparse_tree.go` (node-tree output) goes to `plan` (10e).
+- `deparse_tree.go` (node-tree output) moved to `plan` in 10e
+  (`plan/node_tree.go`: `BoundTree`, `AppendBoundTree`, `CatalogTree`).
 - Type declarations, literals and reg* code go to `regobj` (21).
 - `domainDumpStatement` and `dumpDomain` go to `dump`/`typedef` (18, 15e).
 - The rule payload and its rendering are 22c.
