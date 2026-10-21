@@ -393,24 +393,24 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	}
 	policies := provider.policyDependentLabels(expanded)
 	policies = append(policies, provider.ruleDependentLabels(expanded)...)
-	checks, err := provider.checkDependents(expanded, mode)
+	checks, err := checkDependents(provider, expanded, mode)
 	if err != nil {
 		return err
 	}
-	defaults, err := provider.defaultDependents(expanded, mode)
+	defaults, err := defaultDependents(provider, expanded, mode)
 	if err != nil {
 		return err
 	}
 	visibleForeign := slices.ContainsFunc(foreign, func(edge domainDependency) bool { return !edge.automatic })
 	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policies) == 0 && !visibleForeign {
-		return provider.foreignKeyDependents(foreign)
+		return foreignKeyDependents(provider, foreign)
 	}
 	if mode == parser.DropRestrict {
 		labels := supportedDependentLabelsWithPolicies(provider.base, targets, checks, edges, defaults, provider.path, policies, foreign...)
 		multipleDeletion := provider.scope != nil && provider.scope.inheritance.alter != nil
 		return supportedRestrictErrorLabels(provider.base, edges, provider.path, labels, multipleDeletion)
 	}
-	if err := provider.foreignKeyDependents(foreign); err != nil {
+	if err := foreignKeyDependents(provider, foreign); err != nil {
 		return err
 	}
 	if err := provider.policyDependents(expanded, mode); err != nil {

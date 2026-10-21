@@ -60,7 +60,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if !exact {
 		t.Fatal("parent admission did not queue exact SUE")
 	}
-	if e.catalog.state.Get(child.Address()) != nil || stage.likeSources[0] != parent {
+	if e.catalog.state.Get(child.Address()) != nil || stage.tableOrZero().likeSources[0] != parent {
 		t.Fatal("canceled admission published or changed parent capture")
 	}
 }

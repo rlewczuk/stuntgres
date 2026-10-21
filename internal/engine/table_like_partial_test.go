@@ -325,8 +325,8 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.likeSources) != 2 {
-		t.Fatal("private source/index not captured", stage.likeSources)
+	if len(stage.tableOrZero().likeSources) != 2 {
+		t.Fatal("private source/index not captured", stage.tableOrZero().likeSources)
 	}
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		t.Fatal(err)

@@ -167,7 +167,7 @@ The second planning round gave schema-level DDL no package of its own
 | `tablespaceLocation`, `tablespaceName` (`tablespace.go`) | `catalog` (done: `ValidateTablespaceLocation`, `ValidateTablespaceName`) | 5i |
 | Namespace-object dispatch (`stageSchemaLocked`'s other cases), `executeSchema` | root | — |
 | `schemaTableLocked`, `newTableDescriptorLocked` (`schema.go`) | `table` | 24a rename, 24d |
-| SET SCHEMA (`alter_schema.go`, `alterSchemaLocked`) | `table` | 24 |
+| SET SCHEMA (`relation_set_schema.go`, `alterSchemaLocked`) | `table` | 24 |
 | ALTER TABLE action preparation (`alter_tablespace.go`: `prepareAlterTableActions`, `alterTablePreparation`) | `table` | 24a |
 | RENAME (`rename.go`, `renameRelationLocked`) | `table` | 24 |
 | Search path (`schema_path.go`: `referencePath`, `creationNamespace`, `lookupNamespaces`) | root | — |

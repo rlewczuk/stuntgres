@@ -125,7 +125,7 @@ func emitDumpMaterializedSnapshots(ctx context.Context, s *dumpScript, w *dumpWr
 		return strings.Compare(a.name, b.name)
 	})
 	for i := range s.materialized {
-		if err := s.materialized[i].emitMaterializedSnapshot(ctx, s.originalCatalog, w.emit); err != nil {
+		if err := emitMaterializedSnapshot(ctx, &s.materialized[i], s.originalCatalog, w.emit); err != nil {
 			return err
 		}
 	}

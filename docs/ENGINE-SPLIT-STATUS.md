@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `7578fc125` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80 and 81). Steps 8–17 were
+Last verified against `master` at `e6f9c647b` (items 55, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81 and 86). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,7 +20,7 @@ after each lands.
 
 - **Seams:** 63 (ddl 20d), 66 (regobj 21c), 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
-- **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
+- **Upper features, in place:** 82 (index 23a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -49,6 +49,8 @@ only) is done, so ddl 20d (item 63) is ready. Item 79
 role 28b (item 104) for 103. Items 80 (routine 14e) and 81 (typedef 15e)
 are done; control 30b (item 112) and the end-state review (item 114) still
 wait for their other items.
+Item 86 (table 24a) is done; table 24b (item 87) still waits for 83,
+and DML 29a (item 107) for 82.
 
 ## Task tree
 
@@ -458,7 +460,8 @@ wait for their other items.
   - [ ] 23d — Handler decisions moved
 - [ ] **Step 24 — `table`**, with inheritance ([prompt](ENGINE-SPLIT-table.md);
   24a needs 5i, 24b needs 23b, 18b, B6)
-  - [ ] 24a — In place: renames, slots, cuts
+  - [x] 24a — In place: renames, slots, cuts (`56270ba2f`, `4dcdf411c`,
+    `b210c6777`, `260ed66c6`, `5b4ac930a`, `36249b2b4`, `e247d07c6`, docs)
   - [ ] 24b — `table` created and clean set moved *(broad)*
   - [ ] 24c — Host refined (docs only)
   - [ ] 24d — Handler decisions moved
@@ -1040,7 +1043,16 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     23c · needs 83, 61
 85. [ ] Index 23d: handler decisions moved — [index](ENGINE-SPLIT-index.md)
     23d · needs 84
-86. [ ] Table 24a: in place — [table](ENGINE-SPLIT-table.md) 24a · needs 72
+86. [x] Table 24a: in place — [table](ENGINE-SPLIT-table.md) 24a · needs 72
+    (`56270ba2f`, `4dcdf411c`, `b210c6777`, `260ed66c6`, `5b4ac930a`,
+    `36249b2b4`, `e247d07c6`, then the docs commit) · files renamed
+    (`alter_table.go`, `create_table.go`, `drop_table.go`,
+    `mutation_targets.go`, ...); `tableStage` LIKE slot; `preparedDrop`
+    statement token; `inheritanceAlterPlan`; FK diagnostics over
+    `access.View`, restored FK authority as `ddl.Authority`;
+    `dropDependencyReader`; `emitMaterializedSnapshot` a function; clean
+    +0.79k · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 87. [ ] Table 24b: `table` created, clean set moved (with inheritance) —
     [table](ENGINE-SPLIT-table.md) 24b · needs 86, 83, 56, 79 · **broad**
 88. [ ] Table 24c: host refined (docs only) — [table](ENGINE-SPLIT-table.md)

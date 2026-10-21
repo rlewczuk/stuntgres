@@ -322,7 +322,7 @@ type uniqueConflict struct {
 }
 
 func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error {
-	allowed, err := uniqueKeyDetailAllowed(c.auth, ref, c.index.SQLIndex.Keys)
+	allowed, err := uniqueKeyDetailAllowed(c.auth.View, c.auth, ref, c.index.SQLIndex.Keys)
 	if err != nil {
 		return err
 	}

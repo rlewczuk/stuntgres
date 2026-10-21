@@ -134,9 +134,9 @@ func bindForeignKeyComparison(view catalog.Read, child, parent, index *catalog.R
 	return comparisons, nil
 }
 
-func foreignKeyReferencesAllowed(auth AuthorizationView, parent *catalog.Relation, attributes []int32) error {
-	ref := auth.Ref(parent.Address())
-	rights, err := auth.Effective(ref, false)
+func foreignKeyReferencesAllowed(view access.View, env access.Environment, parent *catalog.Relation, attributes []int32) error {
+	ref := view.Ref(parent.Address())
+	rights, err := view.Effective(env, ref, false)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *catalog.Relatio
 	for _, attribute := range attributes {
 		column := ref
 		column.Address.SubID = attribute
-		rights, err = auth.Effective(column, false)
+		rights, err = view.Effective(env, column, false)
 		if err != nil {
 			return err
 		}
@@ -262,7 +262,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if err != nil {
 		return err
 	}
-	if err := foreignKeyReferencesAllowed(auth, parent, referenced); err != nil {
+	if err := foreignKeyReferencesAllowed(auth.View, auth, parent, referenced); err != nil {
 		return err
 	}
 	used := catalog.ConstraintNames(view, child.Namespace(), child)
@@ -384,9 +384,9 @@ func foreignKeyNullState(comparisons []foreignKeyComparison, row []sqltype.Value
 	return
 }
 
-func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, values []sqltype.Value, parentSide, partial bool, output sqltype.OutputEnvironment) error {
+func foreignKeyDiagnostic(ctx context.Context, view access.View, env access.Environment, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, values []sqltype.Value, parentSide, partial bool, output sqltype.OutputEnvironment) error {
 	d := sqlError("23503", fmt.Sprintf(`insert or update on table "%s" violates foreign key constraint "%s"`, child.Name(), f.Name)).(*sqlstate.Error)
-	d.Schema = auth.Catalog.Get(child.Namespace()).Name()
+	d.Schema = view.Catalog.Get(child.Namespace()).Name()
 	d.Table, d.Constraint = child.Name(), f.Name
 	if partial {
 		d.Detail = "MATCH FULL does not allow mixing of null and nonnull key values."
@@ -397,7 +397,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 		d.Message = fmt.Sprintf(`update or delete on table "%s" violates foreign key constraint "%s" on table "%s"`, parent.Name(), f.Name, child.Name())
 		violating, attributes, suffix = parent, f.Referenced, fmt.Sprintf(` is still referenced from table "%s".`, child.Name())
 	}
-	disposition, err := access.RowSecurityDecision(auth.Roles, violating, auth.State.CurrentUser, catalog.PolicySelect, false)
+	disposition, err := access.RowSecurityDecision(view.Roles, violating, view.State.CurrentUser, catalog.PolicySelect, false)
 	if err != nil {
 		return err
 	}
@@ -409,7 +409,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 	for i, a := range attributes {
 		keys[i].Attribute = a
 	}
-	allowed, err := uniqueKeyDetailAllowed(auth, auth.Ref(violating.Address()), keys)
+	allowed, err := uniqueKeyDetailAllowed(view, env, view.Ref(violating.Address()), keys)
 	if err != nil {
 		return err
 	}

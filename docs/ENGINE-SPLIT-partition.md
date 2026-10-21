@@ -193,7 +193,7 @@ The table prompt relies on these two rows: 23a moves
 `frontier` IN over the 28 files: 209 production and 205 test uses. By
 using area: Dump/Restore driver 29, table 24, DML 21, statement dispatch
 18, catalog orchestration 17, views 8, inheritance 8. The root dispatch
-(`execute.go`, `not_null.go`, `temporary_table.go`) calls the handlers;
+(`execute.go`, `alter_table.go`, `create_table.go`) calls the handlers;
 the DML files call the routing methods; `relationDefiningAuthorityCompatible`
 (`materialized_refresh.go`, a pure catalog comparison) is used by
 `partition_scope.go` and `relation_scope.go`.

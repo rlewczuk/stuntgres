@@ -60,9 +60,11 @@ type preparedDrop struct {
 	effects  []dropEffect
 	observed map[ids.ObjectAddress]catalog.Descriptor
 	slots    map[ids.ObjectAddress]dropEffectSlot
-	scope    *StatementScope
-	txRef    ids.TxRef
-	base     catalog.Read
+	// statement is the preparing statement's identity: compared with the
+	// consuming scope, never used to reach it.
+	statement any
+	txRef     ids.TxRef
+	base      catalog.Read
 	// Authentic read returned by admission; never replaces original base proofs.
 	discovery catalog.Read
 	input     catalog.DefinitionReader
@@ -261,7 +263,7 @@ func (p *dropProvider) applyForeignKeyDependents(edges []domainDependency) error
 		p.owner.mu.Lock()
 		defer p.owner.mu.Unlock()
 	}
-	return p.foreignKeyDependents(edges)
+	return foreignKeyDependents(p, edges)
 }
 
 func (p *dropProvider) missingColumnNotice(column, relation string) {
@@ -503,7 +505,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if _, present := auth.Catalog.Relation(ref.Address); !present {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if prior != nil && (prior.scope != scope || prior.txRef != scope.txRef || prior.ref != ref || prior.next == nil) {
+	if prior != nil && (prior.statement != any(scope) || prior.txRef != scope.txRef || prior.ref != ref || prior.next == nil) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	e.mu.Lock()
@@ -512,7 +514,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err != nil {
 		return nil, err
 	}
-	prepared := &preparedDrop{old: old, ref: ref, prior: prior, scope: scope, txRef: scope.txRef, base: auth.Catalog, discovery: auth.Catalog, input: auth.definition}
+	prepared := &preparedDrop{old: old, ref: ref, prior: prior, statement: scope, txRef: scope.txRef, base: auth.Catalog, discovery: auth.Catalog, input: auth.definition}
 	if reader, present := prepared.input.(interface {
 		discoveryReader() catalog.DefinitionReader
 	}); present {
@@ -539,7 +541,7 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
 func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog catalog.Read) error {
-	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.Owner().Domain || prepared.ref.Epoch != catalog.Epoch() {
+	if prepared == nil || prepared.statement != any(scope) || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.Owner().Domain || prepared.ref.Epoch != catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for address, descriptor := range prepared.observed {

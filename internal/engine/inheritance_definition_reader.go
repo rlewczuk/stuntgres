@@ -150,7 +150,7 @@ func (r inheritanceDefinitionReader) validate(view catalog.Read) error {
 	}
 	return nil
 }
-func (state *inheritanceAlterState) definitionRelation(view catalog.Read, address ids.ObjectAddress) *catalog.Relation {
+func (state *inheritanceAlterPlan) definitionRelation(view catalog.Read, address ids.ObjectAddress) *catalog.Relation {
 	if state.preparing {
 		descriptor, _ := state.definition.Descriptor(address)
 		relation, _ := descriptor.(*catalog.Relation)

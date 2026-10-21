@@ -142,8 +142,8 @@ staging of `identity.go` as the move set:
   ordinary prepared SQL (`prepared_rebind.go`) and regtype analysis
   (`regtype_analysis.go`): it is the shared effective namespace comparator.
   `relationDropOwner` is shared with `index_maintenance_locks.go`. Identity
-  and serial staging is reached only from table DDL (`schema.go`,
-  `partition_inherit.go`, `table_like.go`, `not_null.go`, `alter_type.go`,
+  and serial staging is reached only from table DDL (`create_table_stage.go`,
+  `partition_inherit.go`, `table_like.go`, `alter_table.go`, `alter_type.go`,
   `inheritance_alter_prepare.go`).
 - **A whole-handler host does not pay.** Moving the handlers whole would
   need a `sequence.Host` of about 25 methods, several of which release and

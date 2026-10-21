@@ -72,7 +72,7 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 | COPY execution | `Engine.bindCopyLocked`, `Engine.initCopyInputLocked`, `StatementScope.copyTableRows`, `copyInsertionState` | `copy.go` (471), `copy_insertion.go` (129); codecs and protocol below |
 | FK enforcement | `StatementScope.checkForeignKeys` (at Finish) | `foreign_key_writes.go` (435) |
 | FK actions | `settleForeignActions`, `planForeignAction`, `applyForeignAction` (scope) | `foreign_actions.go` (270), `foreign_action_admission.go` (272), `foreign_action_apply.go` (467) |
-| Inheritance targets | `captureMutationSource`, `mutationStorage` (scope), `validateInheritedMutationRow` | `inheritance_dml.go` (237), `inheritance_dml_authority.go` (50) |
+| Inheritance targets | `captureMutationSource`, `mutationStorage` (scope), `validateInheritedMutationRow` | `mutation_targets.go` (279; table 24a merged `inheritance_dml.go` and `inheritance_dml_authority.go`) |
 | Foreign DML | `Engine.executeForeignCommandLocked` | `fdw_execute.go` (505) |
 
 **Not dml, but filed with it:**
