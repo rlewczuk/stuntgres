@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `84420901a` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 97, 99, 103, 104, 107 and 111). Steps 8–17 were
+Last verified against `master` at `ab11d56ab` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 86, 90, 94, 95, 96, 97, 99, 103, 104, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -14,13 +14,15 @@ planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); only 70 is broad. They touch different
+as another broad item (§8); 70 and 87 are broad, so run only one of them
+at a time. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
 - **Stored-SQL package:** 70 (stored 22d, **broad**).
-- **Upper features, packages:** 83 (index 23b).
-- **Upper features, refined:** 105 (role 28c, docs only).
+- **Upper features, packages:** 87 (table 24b, **broad**).
+- **Upper features, refined:** 84 (index 23c, docs only), 105 (role 28c,
+  docs only).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -77,6 +79,9 @@ Item 69 (stored 22c) is done, so stored 22d (item 70, broad) is ready;
 view 27b (item 100) still waits for table 24b (item 87).
 Item 97 (fdw 26d) is done; fdw 26e (item 98) still waits for table 24d
 (item 89), and DML 29c (item 109) for 108, 85, 89, 93 and 102.
+Item 83 (index 23b) is done, so index 23c (item 84, docs only) and table
+24b (item 87, broad) are ready; DML 29b (item 108) still waits for 87, 91
+and 100, and control 30b (item 112) for 70, 87, 91 and 100.
 
 ## Task tree
 
@@ -486,7 +491,8 @@ Item 97 (fdw 26d) is done; fdw 26e (item 98) still waits for table 24d
   5i, 10e, 11e)
   - [x] 23a — In place: renames, wait and exclusion registries, cuts
     (`61d7f49b6`, `36cdc6168`, `98ee18fcf`, `dec8ce2ea`, `b29db018c`, `79bc16332`, `040604526`, docs)
-  - [ ] 23b — `index` created and clean set moved
+  - [x] 23b — `index` created and clean set moved (`5d34f151d`,
+    `b372d8d83`, `0f4efc1d7`, `ef8ed94f9`, docs)
   - [ ] 23c — Host refined (docs only)
   - [ ] 23d — Handler decisions moved
 - [ ] **Step 24 — `table`**, with inheritance ([prompt](ENGINE-SPLIT-table.md);
@@ -1109,8 +1115,14 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     and layout-transport cuts; clean +1.36k (`exclusionScan` and
     `uniqueConflict` kept for 23d) · selected unit and dual-mode proof and
     quickcheck passed; racecheck/finalcheck skipped at user request
-83. [ ] Index 23b: `index` created, clean set moved —
+83. [x] Index 23b: `index` created, clean set moved —
     [index](ENGINE-SPLIT-index.md) 23b · needs 82, 68, 72, 75, 73
+    (`5d34f151d`, `b372d8d83`, `0f4efc1d7`, `ef8ed94f9`, then the docs
+    commit) · 48 files (about 6.4k lines) in `index`, with the partition
+    replay chain, the unique NOT NULL support checks and the journal
+    helpers; no aliases; ran broad (about 210 files qualified) · selected
+    unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 84. [ ] Index 23c: host refined (docs only) — [index](ENGINE-SPLIT-index.md)
     23c · needs 83, 61
 85. [ ] Index 23d: handler decisions moved — [index](ENGINE-SPLIT-index.md)

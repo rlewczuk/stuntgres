@@ -151,11 +151,10 @@ removes; functions and constants are qualified directly.
   (`analysis_host.go`) and the `pgcatalog.Runtime` methods `ViewDefinition`,
   `ExpressionReferences`, `ViewReferences`, `IndexReferences`,
   `PartitionReferences` (`catalog_source_runtime.go`). `IndexDefinition`
-  renders through the index code (step 23).
+  renders through `index.DefinitionSQL`.
 - `statementHost.DeparseInquiry` and `deparseRelation`: 22c measured them
   and left them in the engine. Exclusion constraints and `pg_get_indexdef`
-  render through `indexDefinitionSQL` (index code, above `stored` after
-  step 23), and the view-name form resolves through
+  render through `index.DefinitionSQL` (above `stored`), and the view-name form resolves through
   `Engine.resolveRelationSnapshot`. The statement-scope `conversionDefault`
   cache stays too.
 

@@ -19,7 +19,7 @@ healthy. There is no new public SQL catalog or queue-observation API.
 Concurrent nonunique hash creation inherits the integrated hash method's typed
 equality/provider surface and logical bucket-root authority. Both methods share
 the same writer/snapshot lifecycle, readiness admission and per-index rebuild
-intent. Hash phases dispatch through the existing `buildIndexRoot` and hash
+intent. Hash phases dispatch through the existing `index.BuildIndexRoot` and hash
 merge implementation; there is no B-tree ordering substitute or second hash
 implementation. UNIQUE hash remains `0A000` before descriptor publication.
 Syntactic concurrent `WHERE`, including `WHERE TRUE`, retains native Execute-time
@@ -148,7 +148,7 @@ claims, savepoint rollback and disclosure rules remain in force.
 
 Row-key lock strengthening follows PostgreSQL's separate LIVE, simple-only
 unique-index bitmap, including non-ready and invalid indexes. Canonical
-`indexCatalogKey` classification admits parenthesized/top-COLLATE columns without
+`index.CatalogKey` classification admits parenthesized/top-COLLATE columns without
 rewriting their original trees. Any real expression excludes the whole mixed
 index from that bitmap; INCLUDE is excluded. This is distinct from the
 Ready-and-Live gate for uniqueness claims and maintenance.

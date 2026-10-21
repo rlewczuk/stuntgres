@@ -124,9 +124,11 @@ lock wait by that frame. Keep both names.
 Query lock admission, `LOCK TABLE` statement handling and relation scopes
 (they combine locks with the catalog), the `pg_locks` projection and engine
 adapters for advisory and blocking-inquiry SQL, predicate-lock (SSI) records,
-safe-snapshot blocking, the exclusion projection registry (`exclusionRegistry`), the session advisory
-delegate and its `EndReason`, unique-key hashing and comparison
-(`uniqueKeyValues`), and XID assignment. The advisory/blocking immutable nodes
+safe-snapshot blocking, the exclusion projection registry instance, the
+session advisory delegate and its `EndReason`, unique-key pins, and XID
+assignment. The registry type (`index.ExclusionRegistry`) and the unique
+key the pins lock (`index.UniqueKeyValues`, `index.UniqueKeyHash`) are
+[`index`](../index/README.md) code. The advisory/blocking immutable nodes
 and family bind/evaluation recipes live in `functions`, not in this manager;
 engine adapters retain resource construction, ticket choice and lock ordering.
 

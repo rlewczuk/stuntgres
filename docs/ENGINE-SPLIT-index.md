@@ -586,11 +586,11 @@ listed above. The checks in §8.3 pass.
 ## Status
 
 - [x] 23a — In place: renames, registries, cuts (linear item 82)
-- [ ] 23b — `index` created and clean set moved (linear item 83)
+- [x] 23b — `index` created and clean set moved (linear item 83)
 - [ ] 23c — Host refined (docs only; linear item 84)
 - [ ] 23d — Handler decisions moved (linear item 85)
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (23b added none).
 
 ### 23a record
 
@@ -680,9 +680,82 @@ Clean went from 4,289 to 5,646 declaration lines (196 to 243 declarations).
   `92ce8c794` snapshot (NOT NULL oracle drift). racecheck, finalcheck and
   bench skipped at user request (no startup change).
 
+### 23b record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-INDEX-PACKAGE`, started at
+`d12bb058f` (22b merged) and rebased onto `ab11d56ab` (stored 22c, fdw 26d,
+role 28b). No aliases. Each code commit is rebuilt by a script in
+`.cswd/tmp/PG18-ENGINE-SPLIT-INDEX-PACKAGE/` (`c1-moves.sh`, `c2.sh`,
+`c3.sh`, `fixdoc.py`).
+
+| Commit | Change | Files |
+|---|---|---:|
+| `5d34f151d` | Staging: the clean declarations of 36 mixed files to `idxmv_*.go` (`movedecl`); stored aliases in the moving files qualified as `stored.X` (`aliasqual`) | 68 |
+| `b372d8d83` | Export in place: interface methods on five root interfaces and their implementers (`ifacern`), then the inbound functions, fields and methods (`expspec`/`movex`, 330 rows) | 294 |
+| `0f4efc1d7` | Move: 48 files to `index`, `index/errors.go`, `movex -qual index` (170 rows), `index` locals renamed | 262 |
+| `ef8ed94f9` | Registry maps kept private (`CountLocked`) | 8 |
+
+- **Re-measure.** `reach` over the 23a files plus
+  `domain_alter_index_outputs.go`: 339 declarations, 243 clean (5,688 of
+  10,196 lines), within 1% of the 23a record; 22b changed no cleanness but
+  emptied OUT of the stored helpers. The `frontier` fixed point added 11
+  clean root declarations the set calls: `rowPublication` (planned), the
+  replay chain of the 23a notes (`partitionHashReplayTarget`,
+  `partitionPreservedReplayLocal`, `partitionPreservedReplayChild`,
+  `partitionIndexPreservedInvalid`, `partitionReplayNameCompare`,
+  `partitionDumpIndexBacking`), `physicalNotNullOriginValid`,
+  `physicalPrimarySupportValid`, `sameRelationRowShape` and
+  `relationDropOwner`. OUT was then `sqlError` and `insertError` only.
+  187 top-level declarations with their methods moved, about 6.4k lines
+  in 48 files.
+- **Broad.** The qualify pass touched about 210 files outside the set, over
+  the ~150 limit; the user approved running it as a broad item (no other
+  broad item was running).
+- **Names.** Types and functions lost a leading `index` (`Ordering`,
+  `Journal`, `JournalOf`, `SlotOf`, `Scope`, `Stage`, `Snapshot`,
+  `WaitRegistry`, `BuildWait`, `CoverageReader`, `EvolutionReader`,
+  `EvolutionTarget`, `DescriptorStage`, `DisclosureEnv`, `DefinitionSQL`,
+  `Metadata`, `CatalogKey`, ...); the rest are capitalized
+  (`ExclusionRegistry`, `RowPublication`, `UniqueKeyValues`,
+  `UniqueWriteBinding`, `IndexesMetadata`, `JournalIndexes`, ...). The
+  six unexported types an exported signature named were exported. The
+  README has the groups.
+- **Deviations.** `journalIndexes`/`journalIndexesOrZero` moved
+  (`index.JournalIndexes`, `index.JournalIndexesOrZero`) instead of
+  staying in the root: `RetainIndexBuild`, `PrepareAlterIndexRoots` and
+  `TransportEmptyIndexStorage` call them. They stay functions over
+  `*session.Journal`. The interface methods `removed`, `replacement`,
+  `replace`, `inputDescriptors` and `indexLayout` are shared with
+  `dropDependencyReader` and `definitionIndexLayoutReader`, so those two
+  root interfaces were exported with them (`Removed`, `Replace`, ...).
+  `index` also imports `ddl` (`ddl.Stage`), `settings` (option parsing)
+  and `typedef` (domain output reownership and collation remap), all
+  lower layers.
+- **Mechanics.** 180 root locals named `index` that would capture
+  `index.X` became `idx` (two passes: renaming an inner one exposed two
+  outer `index int`). `mergeRows` embeds `index.WriteBatch`, so its field
+  is `WriteBatch`. The registries' maps stay private (`CountLocked` for
+  tests): an exported projection map would allow a change without a
+  generation step.
+- **Tests.** `TestIndexPropertyColumnCapabilityMatrix` moved to
+  `index/property_test.go`; every other test builds an engine or uses root
+  helpers and stays, rewritten to `index.X`. Genuine fixture fixes:
+  `TestHashIndexMergeCancellation` and
+  `TestSerializablePublicationRealChangedPredecessorRetry` match frames by
+  name and now look for `.MergeHashIndexRoot` and `.MergeIndexRoot`. The
+  exclusion, concurrent-index and restore tests read the registries
+  through `CountLocked`/`OwnLocked`. No test was deleted.
+- **Checks.** `go vet` output identical to the base; string-literal
+  multiset unchanged apart from `index/errors.go` and imports; targeted
+  units and the 53 registry/concurrent/exclusion units with `RACE=1`
+  passed; quickcheck passed; the reference selection of this prompt passed
+  in quick mode and with `REFERENCE=1` (see the report for drift).
+  racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
 ### Notes for later steps
 
-- 23b layering: `index_partition_replay.go` still calls
+- 23b layering (done in 23b): `index_partition_replay.go` still calls
   `partitionPreservedReplayLocal` (with `partitionPreservedReplayChild`,
   `partitionReplayNameCompare`, `partitionIndexPreservedInvalid` and
   `partitionDumpIndexBacking`, `partition_invalid_dump.go`), and
@@ -692,9 +765,16 @@ Clean went from 4,289 to 5,646 declaration lines (196 to 243 declarations).
   predicates in the root.
 - 23d: `exclusionScan` and `uniqueConflict` still hold `AuthorizationView`
   (see the 23a record); give `WriteHost` the key-disclosure check.
-- 23b: `indexDisclosureEnv`, `indexEvolutionReader`/`Target`,
-  `indexDescriptorStage` and the registries have unexported methods; the
-  root types implementing them need exported ones once the interfaces move.
+- 23b (done): the interfaces are `index.DisclosureEnv`,
+  `index.EvolutionReader`/`EvolutionTarget`, `index.DescriptorStage` and
+  `index.CoverageReader`, with exported methods on the root implementers.
+- 23c/23d: the handlers still name the moved code with `index.` (about
+  210 files). The other steps' prompt files cite the root names of the
+  moved code; the name table in `internal/engine/index/README.md` maps
+  them. `reference/catalogs/README.md` and
+  `reference/locking_transactions/README.md` still name
+  `projectIndexMetadata` and `mergeIndexRoot` (`reference/` is read-only
+  for the split).
 
 - Step 24 (`table`) imports `index` for `columnTransformation`, the
   constraint-index staging and the replay-shape predicates; 23c decides

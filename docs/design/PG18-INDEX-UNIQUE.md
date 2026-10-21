@@ -59,7 +59,7 @@ retained immutable predicate pointer identity also fences reuse/afterwait checks
 TYPE validation consumes final evolved/rebound candidate definitions separately
 from current disclosure authority and merges projected own rows minus ends/deletes.
 Predicate-only TYPE duplicate membership fails at Execute; private baseline roots
-remain owned by the journal index slot (`indexJournal.uniqueRoots`) and
+remain owned by the journal index slot (`index.Journal.UniqueRoots`) and
 savepoint recovery.
 
 ## Diagnostics and authorization

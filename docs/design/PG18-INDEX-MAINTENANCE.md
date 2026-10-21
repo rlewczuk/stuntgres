@@ -37,11 +37,11 @@ ALTER COLUMN STATISTICS have their specific positioned0A000 boundaries. None
 is silently ignored or converted into a successful rebuild.
 
 After the intentional native read-only/writable-explicit gates, admission calls
-the pure validateReindexOptions once over the complete list before target/schema
+the pure index.ValidateReindexOptions once over the complete list before target/schema
 lookup, kind/ACL checks or waits. The first malformed option wins in input order;
 an earlier valid VERBOSE/CONCURRENTLY/TABLESPACE cannot mask a later bad control.
 Syntax-only Prepare does not perform this execution validation. The separate
-reindexControlError selects only valid capability exclusions at the established
+index.ReindexControlError selects only valid capability exclusions at the established
 target phase; valid controls still expose missing/kind/MAINTAIN target errors.
 Shared direct/held Exec/Query cross-products independently pin full records,
 Unicode positions, nil failed outputs and unchanged state. Genuine internal ACL
@@ -49,7 +49,7 @@ and held-parent-writer controls assert malformed diagnostics before denial/wait.
 
 ## Identity, privileges and acquisition
 
-One `indexMaintenanceGrant` retains resolved ObjectRefs, parent/index resources,
+One `index.MaintenanceGrant` retains resolved ObjectRefs, parent/index resources,
 grant-time descriptors, complete missing-object notices and TABLE index-set
 observations. No wait retries a replacement name. Whole DROP groups are
 preflighted for kind, owner/schema-owner authority and backing dependencies
@@ -107,7 +107,7 @@ independently; PostgreSQL alone exposes the additional conindid relationship.
 Native units assert the actual constraint Index link, including domain/nested
 domain and collated text backing maintenance and existing TYPE reconstruction.
 
-`sameIndexKeySemantics` is the sole build-decision equivalence rule. Parent,
+`index.SameIndexKeySemantics` is the sole build-decision equivalence rule. Parent,
 ordered stable attributes/direction/null placement, retained derived-provider
 identity, actual class/effective collation, ordered INCLUDE attributes/repetitions,
 column usages, uniqueness presence, unique attributes and null policy are
@@ -116,7 +116,7 @@ root on backing rename without suppressing TYPE/shape/derived rebind work.
 
 ## Real rebuild publication
 
-The stage index slot (`indexStage.rebuilds`) records selected index addresses
+The stage index slot (`index.Stage.Rebuilds`) records selected index addresses
 and their immutable observed descriptors. Parent observations and TABLE
 index-set counts are separate from the existing parent row-shape rebuild
 intents. A descriptor-unchanged stage is real work: no artificial descriptor
@@ -141,13 +141,13 @@ pointers, complete typed tuples and live version identities directly.
 
 ## One coherent metadata projection
 
-`projectIndexMetadata(context, catalog.Read, ObjectRef)` projects both internal
-`indexMetadata` and `indexesMetadata`; `indexCatalogMetadata` is the enumeration
+`index.ProjectIndexMetadata(context, catalog.Read, ObjectRef)` projects both internal
+`index.Metadata` and `index.IndexesMetadata`; `index.CatalogMetadata` is the enumeration
 owner for ACL-neutral structural consumers. It registers no SQL source,
 vector codec, node-tree list API or driver API. Every field and deparse operation
 uses one immutable capture, with no current-engine lookup or ACL filtering.
 The subsequent SQL pg_indexes source enumerates actual index descriptors and
-reuses indexDefinitionSQL without allocating discarded pg_index vectors.
+reuses index.DefinitionSQL without allocating discarded pg_index vectors.
 That source alone applies original-invoker schema USAGE and parent table-or-any-
 live-column SELECT policy against its same captured catalog; structural
 projections and pg_get_indexdef remain ACL-neutral.
@@ -167,22 +167,22 @@ even when execution simplifies it. Ordinary and analyzed standalone BOOL TRUE
 definitions have nil Predicate. Retained projections keep their captured meaning
 across later predicate replacement and root publication.
 
-`indexCatalogKey` follows PostgreSQL ComputeIndexAttrs: peel only top-level
+`index.CatalogKey` follows PostgreSQL ComputeIndexAttrs: peel only top-level
 `plan.CollationExpr` wrappers from the original analyzed definition; a column
 uses its stable parent attribute and has no indexprs entry, while another node
 is the original analyzed expression entry with indkey0. Casts and simplification
 are never peeled/evaluated. Native execution/original trees remain unchanged;
 key ResultUsage retains the actual full-key collation. This same classification
-is used by non-dump indexDefinitionSQL. Thus collated attributes survive earlier
+is used by non-dump index.DefinitionSQL. Thus collated attributes survive earlier
 unused-column removal and later name changes without being mislabeled as
 expression columns.
 
 pg_indexes-shaped names are current schema/table/index names, tablespace is nil,
-and indexdef uses the existing indexDefinitionSQL owner, without a semicolon.
+and indexdef uses the existing index.DefinitionSQL owner, without a semicolon.
 Non-dump expressions use existing pgRenderer, shared catalog-key classification
-and integration's pgIndexFunctionExpression grammar (including SQL-special
+and integration's index.PGIndexFunctionExpression grammar (including SQL-special
 function forms). Full, column-only and pretty callers share this owner; column
-ordinals include payload attributes. The existing reconstructIndexKey/whole-TYPE
+ordinals include payload attributes. The existing index.ReconstructIndexKey/whole-TYPE
 definition owner retains explicit nondefault/binary-compatible providers and
 suppresses default decorations. Full-key collation compares actual collation to
 the classified attribute/expression collation, not type default, and emits it once.
