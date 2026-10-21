@@ -14,10 +14,10 @@ import (
 
 func TestRuleConflictInstantiation(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	original := ruleUnitInsert(e, src, 1, 10).binding
+	original := ruleUnitInsert(e, src, 1, 10).Binding()
 	action := ruleUnitInsert(e, sink, 1, 10)
-	recipe := &analyze.InsertConflict{Targets: action.binding.Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
-	action.binding.Insert.Conflict = recipe
+	recipe := &analyze.InsertConflict{Targets: action.Binding().Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
+	action = action.With(func(p *RuleActionParts) { p.Binding.Insert.Conflict = recipe })
 	first, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +48,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 
 func TestRuleConflictAttributeRefresh(t *testing.T) {
 	e, auth, _, sink := ruleUnitCatalog(t)
-	b := ruleUnitInsert(e, sink, 1, 10).binding
+	b := ruleUnitInsert(e, sink, 1, 10).Binding()
 	ref := b.Ref
 	ref.Address.SubID = sink.Attributes[1]
 	target := plan.ColumnExpr{Info: ruleColumnInfo(sink.Columns[1]), Origin: ref, Scope: 1, Frame: 1, Slot: 1}
@@ -90,7 +90,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	for _, event := range []string{"UPDATE", "DELETE"} {
 		t.Run(event, func(t *testing.T) {
-			original := ruleUnitInsert(e, src, 1, 10).binding
+			original := ruleUnitInsert(e, src, 1, 10).Binding()
 			if event == "UPDATE" {
 				original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
 			}
@@ -105,7 +105,9 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			}
 			ref := original.Ref
 			ref.Address.SubID = src.Attributes[0]
-			action.binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
+			action = action.With(func(p *RuleActionParts) {
+				p.Binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
+			})
 			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
@@ -113,7 +115,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			if len(dependent.QuerySources) == 0 {
 				t.Fatal("OLD demand lost event-row authority")
 			}
-			if action.binding.Expressions[0][0].(plan.ColumnExpr).Scope != analyze.RulePseudoScope {
+			if action.Binding().Expressions[0][0].(plan.ColumnExpr).Scope != analyze.RulePseudoScope {
 				t.Fatal("composition mutated stored action")
 			}
 		})

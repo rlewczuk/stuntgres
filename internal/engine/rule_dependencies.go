@@ -44,7 +44,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 		}
 		return nil
 	}
-	if err := expr(r.condition); err != nil {
+	if err := expr(r.Condition()); err != nil {
 		return nil, err
 	}
 	var seen map[*plan.CTEDefinition]bool
@@ -164,8 +164,8 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 		}
 		return nil
 	}
-	for _, action := range r.actions {
-		if err := bindingRefs(action.binding); err != nil {
+	for _, action := range r.Actions() {
+		if err := bindingRefs(action.Binding()); err != nil {
 			return nil, err
 		}
 	}
@@ -173,7 +173,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 }
 
 func ruleDepends(catalog catalog.Read, r ruleDefinition, target ids.ObjectAddress) bool {
-	for _, a := range r.references {
+	for _, a := range r.References() {
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true
 		}

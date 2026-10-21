@@ -107,9 +107,9 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 	for d.RelationKind == catalog.ViewRelation {
 		match := false
 		for _, rule := range rulesOf(d) {
-			if rule.event == ruleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
+			if rule.Event() == ruleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
 				match = true
-				if rule.instead && rule.condition == nil {
+				if rule.Instead() && rule.Condition() == nil {
 					w.checks = nil
 				}
 			}
@@ -309,7 +309,7 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		ref = use
 	}
 	for _, rule := range rulesOf(d) {
-		if rule.event == ruleEvent(stmt) && rule.instead && rule.condition == nil && (len(consumed) == 0 || consumed[0] != ref) {
+		if rule.Event() == ruleEvent(stmt) && rule.Instead() && rule.Condition() == nil && (len(consumed) == 0 || consumed[0] != ref) {
 			w.checks = nil
 			break
 		}

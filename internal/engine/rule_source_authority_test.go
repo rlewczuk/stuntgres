@@ -52,7 +52,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					auth.PairedCatalog = auth.Catalog
 					auth.Roles = e.roles.read(e.catalog.owner(), auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
-					original := ruleUnitInsert(e, src, 1, 10).binding
+					original := ruleUnitInsert(e, src, 1, 10).Binding()
 					original.QuerySources = []exec.Leaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
 					if effective {
 						original.QuerySources[0].Principal = reader.Ref
@@ -73,11 +73,13 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 						ref.Address.SubID = src.Attributes[0]
 						value = plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}
 					}
-					action.binding.Expressions = nil
-					action.binding.CommandQuery = true
-					action.binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
-					action.binding.QuerySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
-					src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}})
+					action = action.With(func(p *RuleActionParts) {
+						p.Binding.Expressions = nil
+						p.Binding.CommandQuery = true
+						p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
+						p.Binding.QuerySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
+					})
+					src.Rules = rulesPayloadOf([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "r", Event: event, Actions: []ruleAction{action}})})
 					program := ruleProgram{count: -1, returning: -1}
 					e.mu.Lock()
 					_, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, syntax, original, nil, &program)
@@ -118,7 +120,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					} else if err != nil {
 						t.Fatal("caller revocation changed independent/effective authority", err)
 					}
-					if action.binding.QuerySources[0].Principal != (authorization.PrincipalRef{}) || original.QuerySources[0].Principal != inherited {
+					if action.Binding().QuerySources[0].Principal != (authorization.PrincipalRef{}) || original.QuerySources[0].Principal != inherited {
 						t.Fatal("expansion mutated original source or stored action authority")
 					}
 				})

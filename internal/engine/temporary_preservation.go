@@ -745,7 +745,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 			continue
 		}
 		for _, rule := range rulesOf(d) {
-			for _, address := range rule.references {
+			for _, address := range rule.References() {
 				address.SubID = 0
 				if stored.DependPinned(view, nil, address) {
 					continue

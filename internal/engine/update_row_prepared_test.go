@@ -52,10 +52,10 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			assertBorrowed()
 			input := catalogRef(t, e, e.CatalogRead(), "input")
 			stored := rulesOf(e.CatalogRead().MustRelation(input.Address))[0]
-			if len(stored.actions[0].binding.Prepared.SequenceConstants) == 0 {
+			if len(stored.Actions()[0].Binding().Prepared.SequenceConstants) == 0 {
 				t.Fatal("recipe lost its own sequence capture")
 			}
-			if tc.conditional && (stored.conditionBinding == nil || len(stored.conditionBinding.Prepared.SequenceConstants) == 0) {
+			if tc.conditional && (stored.ConditionBinding() == nil || len(stored.ConditionBinding().Prepared.SequenceConstants) == 0) {
 				t.Fatal("condition lost its recipe capture")
 			}
 			ownedAST, owned := sequencePreparedDescription(t, e, s, query("nextval('own_draw')"))

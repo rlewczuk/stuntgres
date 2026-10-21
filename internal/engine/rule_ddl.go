@@ -137,11 +137,11 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				}
 				next.Rules = rulesPayloadOf(append(rulesOf(&next), definition))
 			}
-			for _, action := range definition.actions {
-				sources = append(sources, action.binding.QuerySources...)
+			for _, action := range definition.Actions() {
+				sources = append(sources, action.Binding().QuerySources...)
 			}
-			if definition.conditionPresentation != nil {
-				for _, source := range definition.conditionPresentation.Sources() {
+			if definition.ConditionPresentation() != nil {
+				for _, source := range definition.ConditionPresentation().Sources() {
 					d := auth.Catalog.MustRelation(source.Ref.Address)
 					sources = append(sources, exec.Leaf{Ref: source.Ref, Relation: d})
 				}

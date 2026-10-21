@@ -52,7 +52,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					stored := rulesOf(before.MustRelation(srcRef.Address))[0]
 					conflict := func(r ruleDefinition) *analyze.InsertConflict {
 						t.Helper()
-						b := r.actions[0].binding
+						b := r.Actions()[0].Binding()
 						if cte {
 							if len(b.CTEs) != 1 || b.CTEs[0].Mutation == nil {
 								t.Fatal("analyzed action lost its modifying CTE")
@@ -75,11 +75,11 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						if !cte {
 							return
 						}
-						action := r.actions[0]
-						body := action.binding.CTEs[0]
-						presentation := action.modifierPresentations[body.Statement]
+						action := r.Actions()[0]
+						body := action.Binding().CTEs[0]
+						presentation := action.ModifierPresentations()[body.Statement]
 						project := cteMutationOf(body).Query.Root.(*plan.ProjectNode)
-						outer := action.binding.Query.Root.(*plan.ProjectNode)
+						outer := action.Binding().Query.Root.(*plan.ProjectNode)
 						if project.Frame == outer.Frame {
 							t.Fatal("modifier and consumer share a capture frame")
 						}
@@ -97,7 +97,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 							}
 						}
 						path := analyze.ViewLiteralPath{Query: outer.Frame, Clause: analyze.ViewTargetLiteral}
-						if action.presentation.Columns()[path].RuleSide != 2 {
+						if action.Presentation().Columns()[path].RuleSide != 2 {
 							t.Fatal("consumer lost its separate NEW recipe")
 						}
 					}

@@ -208,7 +208,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			return statement, query
 		}
 		_, supplied := bind("SELECT 0 AS v", false)
-		original := ruleUnitInsert(e, src, 1, 0).binding
+		original := ruleUnitInsert(e, src, 1, 0).Binding()
 		original.Expressions = nil
 		original.Targets = []int{1}
 		original.Query = supplied
@@ -224,7 +224,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			statement, query := bind("SELECT "+output+" AS out FROM (SELECT 1/NEW.v AS n) AS q", true)
 			template := query.Root.(*plan.ProjectNode)
 			childTemplate := template.Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
-			action := ruleAction{syntax: statement, binding: analyze.Binding{Query: query, CommandQuery: true}}
+			action := NewRuleAction(RuleActionParts{Syntax: statement, Binding: analyze.Binding{Query: query, CommandQuery: true}})
 			composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)

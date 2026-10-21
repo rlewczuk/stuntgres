@@ -92,7 +92,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 // conditions.
 func TestCatalogPayloadReaders(t *testing.T) {
 	refs := []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: 20002}}
-	rules := ruleList{{OID: 40001, Name: "a", event: "UPDATE", instead: true, references: refs}, {OID: 40002, Name: "b", event: "DELETE"}}
+	rules := ruleList{NewRule(RuleParts{OID: 40001, Name: "a", Event: "UPDATE", Instead: true, References: refs}), NewRule(RuleParts{OID: 40002, Name: "b", Event: "DELETE"})}
 	if rules.Len() != 2 || (ruleList{}).Len() != 0 {
 		t.Fatal("rule count")
 	}
