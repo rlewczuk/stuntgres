@@ -196,13 +196,13 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 				err = e.checkTransactionExclusions(scope)
 			}
 		}
-		if scope != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
+		if scope != nil && ownerHasForeign(t) {
 			scope.foreignUnlocked()
 		}
 		if cleanupErr := disposeSQLCursors(op.Context(), payloadOf(t.Session).cursors.endTransaction(ref)); err == nil {
 			err = cleanupErr
 		}
-		hasForeign := len(ownerExtensionOrZero(t).foreign.participants) != 0
+		hasForeign := ownerHasForeign(t)
 		if chain {
 			e.replacementMu.RLock()
 			chainFence = true

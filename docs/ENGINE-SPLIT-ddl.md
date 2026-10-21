@@ -307,7 +307,7 @@ over `tablespace.go` plus `Engine.stageSchemaLocked`, `schemaReserved` and
 - **Outside uses (IN).** `stageSchemaLocked`: 1 production caller
   (`executeSchema`) and 11 test calls in 8 engine test files.
   `executeCreateTablespace`: 1 (`execute.go`). `schemaNotice`: 7 uses in
-  `foreign_ddl.go` and `foreign_table.go`. `tablespacePhysicalUnsupported`:
+  `fdw_ddl.go` and `fdw_table.go`. `tablespacePhysicalUnsupported`:
   `tablespace_test.go`.
 - **Seed comments.** `comment_builtin.go` (82 lines,
   `namespaceCommentBaseline`, `builtinTypeComment`) has no engine edge; it is
@@ -573,7 +573,7 @@ Outstanding aliases: none yet.
 - 24 (or later): `relationDiagnosticKind` is a pure function over
   `catalog.Relation` with 11 root calls in 8 files; it can move to
   `catalog`.
-- 26: `schemaNotice` stays for `foreign_ddl.go` and `foreign_table.go`;
+- 26: `schemaNotice` stays for `fdw_ddl.go` and `fdw_table.go`;
   when their DDL moves, it becomes `ddl.Notice` and the root helper goes.
 - 23c–28c (Part B of the upper features): a feature host embeds `ddl.Host`;
   do not declare another `Authority` or `Stage`. Its root adapter embeds

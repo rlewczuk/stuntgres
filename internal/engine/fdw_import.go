@@ -11,14 +11,14 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func foreignMappingFor(auth AuthorizationView, server *catalog.ForeignObject) (*catalog.ForeignObject, error) {
-	for _, role := range []authorization.PrincipalRef{auth.State.CurrentUser, {}} {
+func foreignMappingFor(view access.View, server *catalog.ForeignObject) (*catalog.ForeignObject, error) {
+	for _, role := range []authorization.PrincipalRef{view.State.CurrentUser, {}} {
 		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: catalog.ForeignMappingName(server.Address(), role)}
-		if d, ok := auth.Catalog.Foreign(auth.Catalog.NameAddress(key)); ok {
+		if d, ok := view.Catalog.Foreign(view.Catalog.NameAddress(key)); ok {
 			return d, nil
 		}
 	}
-	role, err := auth.Roles.Descriptor(auth.State.CurrentUser)
+	role, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err = auth.Check(access.Requirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: foreignRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -74,7 +74,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, sqlError("HV00P", fmt.Sprintf(`foreign-data wrapper "%s" does not support IMPORT FOREIGN SCHEMA`, wrapper.Name()))
 	}
-	mapping, err := foreignMappingFor(auth, server)
+	mapping, err := foreignMappingFor(auth.View, server)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

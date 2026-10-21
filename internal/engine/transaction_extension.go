@@ -35,9 +35,12 @@ func ownerExtensionOrZero(t *session.TransactionOwner) ownerExtension {
 }
 
 // retireForeign moves the foreign participants to cleanup.
-func (x *ownerExtension) retireForeign() {
-	x.foreign.cleanup = append(x.foreign.cleanup, x.foreign.participants...)
-	x.foreign.participants = nil
+func (x *ownerExtension) retireForeign() { x.foreign.retire() }
+
+// ownerHasForeign reports whether t has enlisted foreign participants.
+func ownerHasForeign(t *session.TransactionOwner) bool {
+	foreign := ownerExtensionOrZero(t).foreign
+	return foreign.hasParticipants()
 }
 
 // detachCursors queues cursors for cleanup outside the owner lock.

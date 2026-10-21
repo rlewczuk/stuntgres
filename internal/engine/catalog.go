@@ -1474,7 +1474,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		sequences, err = sequence.CopyGenerators(replacement, source.storage.Sequences)
 	}
 	sourceRoles := source.roles.read(source.catalog.owner(), replacement, source.roles.published)
-	foreignNamespaces := source.foreignNamespaces
+	sourceForeign := source.foreign
 	source.mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
@@ -1534,7 +1534,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared); err != nil {
 		return ChangeSet{}, err
 	}
-	e.foreignNamespaces = foreignNamespaces
+	e.foreign.adoptNamespaces(sourceForeign)
 	installed = next.Epoch()
 	return ChangeSet{Replacement: true}, nil
 }

@@ -425,7 +425,7 @@ Notes for later steps (B0):
 - **Catalog:** `CatalogStage.creationACL`, `creationTypeACL`,
   `defaultPreflight` and `removeSchemaDefaults` touch only the embedded
   `catalog.Candidate`, so they can become `Candidate` methods.
-- **Misnamed files:** `identity_owner.go` (now `owner_handles.go`), `foreign_scan_owner.go`,
+- **Misnamed files:** `identity_owner.go` (now `owner_handles.go`), `foreign_scan_owner.go` (now `fdw_scan_owner.go`),
   `query_authority.go` and `inheritance_dml_authority.go` hold transaction,
   foreign-scan and statement plumbing, not authorization. Leave them out of
   `access`.

@@ -73,7 +73,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	if err != nil {
 		return Result{}, err
 	}
-	if err = m.begin(s.op.Context(), s); err != nil {
+	if err = m.begin(s.op.Context(), s.foreignWrites()); err != nil {
 		return Result{}, err
 	}
 	if err = exec.SelectQuerySources(s.op.Context(), inputs); err != nil {
@@ -156,7 +156,7 @@ func (s *StatementScope) foreignInsertResult(m *foreignModification, b analyze.B
 		output.Output = s.output
 	}
 	rowByRow := b.Returning != nil || b.ViewWrite != nil && len(viewWriteOf(b.ViewWrite).checks) != 0
-	count, err := m.insertRows(s.op.Context(), s, rows, rowByRow, func(row []sqltype.Value) error {
+	count, err := m.insertRows(s.op.Context(), s.foreignWrites(), rows, rowByRow, func(row []sqltype.Value) error {
 		if err := s.engine().checkViewRow(s, &b, row, evaluation); err != nil {
 			return err
 		}
@@ -382,7 +382,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 				if err := evaluateGenerations(ctx, b.Relation, row, evaluation); err != nil {
 					return Result{}, err
 				}
-				input, err := m.export(ctx, row, s)
+				input, err := m.export(ctx, row, s.foreignWrites())
 				if err != nil {
 					return Result{}, err
 				}
@@ -391,7 +391,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 					return Result{}, exec.ForeignCallbackError(err)
 				}
 			} else {
-				input, exportErr := m.export(ctx, candidate.row, s)
+				input, exportErr := m.export(ctx, candidate.row, s.foreignWrites())
 				if exportErr != nil {
 					return Result{}, exportErr
 				}
@@ -403,7 +403,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 			if !present {
 				continue
 			}
-			actual, err := m.returned(ctx, returned, s)
+			actual, err := m.returned(ctx, returned, s.foreignWrites())
 			if err != nil {
 				return Result{}, err
 			}
