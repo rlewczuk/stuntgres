@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"testing"
 
 	"stuntgres/internal/engine/access"
@@ -193,10 +194,10 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
 	path := []ids.ObjectAddress{public, catalogAddress}
-	if actual := ProcSpelling(view, path, second.Address().ObjectID); actual != "pg_catalog.unaccent" {
+	if actual := regobj.ProcSpelling(view, path, second.Address().ObjectID); actual != "pg_catalog.unaccent" {
 		t.Fatal("real namespace shadow output", actual)
 	}
-	if actual := ProcSpelling(view, path, first.Address().ObjectID); actual != "unaccent" {
+	if actual := regobj.ProcSpelling(view, path, first.Address().ObjectID); actual != "unaccent" {
 		t.Fatal("visible routine output", actual)
 	}
 	proc, _ := view.LookupType(sqltype.Regproc)
@@ -205,7 +206,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := &exec.FinalRows{}
-	if err = CaptureProcOutputValue(rows, view, path, value); err != nil {
+	if err = regobj.CaptureProcOutputValue(rows, view, path, value); err != nil {
 		t.Fatal(err)
 	}
 	stage = e.BeginCatalogStage(view)
@@ -213,7 +214,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if actual := ProcSpelling(e.CatalogRead(), path, second.Address().ObjectID); actual != "unaccent" {
+	if actual := regobj.ProcSpelling(e.CatalogRead(), path, second.Address().ObjectID); actual != "unaccent" {
 		t.Fatal("fresh routine output", actual)
 	}
 	if actual, err := rows.FormatRegproc(uint32(second.Address().ObjectID)); err != nil || actual != "pg_catalog.unaccent" {
@@ -228,7 +229,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := CaptureProcOutputValue(rows, view, path, procedureValue); err != nil {
+	if err := regobj.CaptureProcOutputValue(rows, view, path, procedureValue); err != nil {
 		t.Fatal(err)
 	}
 	heldDescription := &StatementDescription{regtypes: &regtypeAnalysis{constants: []analyze.RegtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}}
@@ -262,7 +263,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 			t.Fatal("fresh removed-referent diagnostic", err)
 		}
 	}
-	if actual := RoutineSpelling(e.CatalogRead(), path, second.Address().ObjectID, true, false); actual != "90001" {
+	if actual := regobj.RoutineSpelling(e.CatalogRead(), path, second.Address().ObjectID, true, false); actual != "90001" {
 		t.Fatal("fresh removed-referent output", actual)
 	}
 	if actual, err := rows.FormatRegproc(uint32(second.Address().ObjectID)); err != nil || actual != "pg_catalog.unaccent" {

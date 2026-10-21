@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -16,11 +17,11 @@ import (
 // defaults, live rows of persistent relations, stored expressions and bound
 // literals. The caller holds Engine.mu and passes the captured relation roots
 // and commit frontier.
-func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, frontier ids.CommitSeq, output capturedACLItemOutput) error {
+func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, frontier ids.CommitSeq, output regobj.ACLItemOutput) error {
 	var failure error
 	check := func(value sqltype.Value) {
 		if failure == nil {
-			failure = PreflightACLItemValue(ctx, output, value)
+			failure = regobj.PreflightACLItemValue(ctx, output, value)
 		}
 	}
 	expression := func(node expr.Expr) {

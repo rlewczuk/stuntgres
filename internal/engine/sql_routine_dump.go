@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 )
 
@@ -50,13 +51,13 @@ func sqlRoutineDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 		if i != 0 {
 			sql.WriteString(", ")
 		}
-		name, err := ColumnDeclaration(view, catalog.Column{Usage: input})
+		name, err := regobj.ColumnDeclaration(view, catalog.Column{Usage: input})
 		if err != nil {
 			return dump.Statement{}, err
 		}
 		sql.WriteString(name)
 	}
-	result, err := ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
+	result, err := regobj.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
 	if err != nil {
 		return dump.Statement{}, err
 	}

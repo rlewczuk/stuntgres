@@ -15,50 +15,6 @@ import (
 	"testing"
 )
 
-func TestVisibilityInquiryCollationSelection(t *testing.T) {
-	address := func(id ids.OID) ids.ObjectAddress {
-		return ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: id}
-	}
-	for _, tc := range []struct {
-		name       string
-		candidates []collationCandidate
-		want       ids.ObjectAddress
-	}{
-		{"exact-first", []collationCandidate{{address(1), 6}, {address(2), -1}, {address(3), 8}}, address(1)},
-		{"fallback-first", []collationCandidate{{address(2), -1}, {address(3), 8}, {address(1), 6}}, address(1)},
-		{"fallback-only", []collationCandidate{{address(2), -1}}, address(2)},
-		{"wrong-only", []collationCandidate{{address(3), 8}}, ids.ObjectAddress{}},
-		{"wrong-and-fallback", []collationCandidate{{address(3), 8}, {address(2), -1}}, address(2)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := SelectCollation(tc.candidates, 6); got != tc.want {
-				t.Fatal(got, tc.want)
-			}
-		})
-	}
-	// Exercise the actual namespace-first inquiry path with independently built
-	// name candidates, without admitting unsupported native collation DDL.
-	a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20001}
-	b := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	first := &catalog.Collation{OID: 1, ObjectName: "same", Encoding: -1}
-	second := &catalog.Collation{OID: 2, ObjectName: "same", Encoding: 6}
-	state := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{first.Address(): first, second.Address(): second}, map[ids.NameKey]ids.ObjectAddress{
-		{ClassID: ids.CollationClassID, Namespace: a, Name: "same"}: first.Address(),
-		{ClassID: ids.CollationClassID, Namespace: b, Name: "same"}: second.Address(),
-	})
-	view := catalog.NewRead(nil, state)
-	if !VisibleCollation(view, []ids.ObjectAddress{a, b}, first) || VisibleCollation(view, []ids.ObjectAddress{a, b}, second) {
-		t.Fatal("later exact beat earlier fallback")
-	}
-	first.Encoding = 8
-	if VisibleCollation(view, []ids.ObjectAddress{a, b}, first) || !VisibleCollation(view, []ids.ObjectAddress{a, b}, second) {
-		t.Fatal("wrong encoding shadowed later usable candidate")
-	}
-	if VisibleCollation(view, []ids.ObjectAddress{a}, first) {
-		t.Fatal("ineligible subject became visible")
-	}
-}
-
 func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)

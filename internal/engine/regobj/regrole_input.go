@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type capturedRegroleInput struct{ Roles authorization.Read }
+type RoleInput struct{ Roles authorization.Read }
 
-func (r capturedRegroleInput) ResolveRegrole(ctx context.Context, input string) (uint32, error) {
+func (r RoleInput) ResolveRegrole(ctx context.Context, input string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
@@ -43,7 +44,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if original.RowType == reminted.RowType {
 		t.Fatal("fixture did not remint row-type identity")
 	}
-	value, err = RemapAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
+	value, err = regobj.RemapAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
 		if address == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.RowType)}) {
 			return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(reminted.RowType)}
 		}

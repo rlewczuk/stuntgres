@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 )
 
 // A collection is one PostgreSQL dependency-recording pass. Whole-relation
@@ -91,13 +92,13 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 			})
 		}
 		if r.err == nil {
-			r.err = WalkOperatorReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+			r.err = regobj.WalkOperatorReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 		if r.err == nil {
-			r.err = WalkTextSearchReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+			r.err = regobj.WalkTextSearchReferencesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})

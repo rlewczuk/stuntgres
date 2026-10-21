@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -11,7 +11,7 @@ import (
 // A namespace's usable exact encoding beats its fallback. Callers visit
 // namespaces in path order, so an earlier fallback beats a later exact entry.
 // This helper also covers synthetic multi-encoding candidates.
-func SelectCollation(candidates []collationCandidate, encoding int32) ids.ObjectAddress {
+func SelectCollation(candidates []CollationCandidate, encoding int32) ids.ObjectAddress {
 	var fallback ids.ObjectAddress
 	for _, candidate := range candidates {
 		if candidate.Encoding == encoding {
@@ -24,7 +24,7 @@ func SelectCollation(candidates []collationCandidate, encoding int32) ids.Object
 	return fallback
 }
 
-type collationCandidate struct {
+type CollationCandidate struct {
 	Address  ids.ObjectAddress
 	Encoding int32
 }
@@ -38,7 +38,7 @@ func VisibleCollation(view catalog.Read, path []ids.ObjectAddress, d catalog.Des
 		if !ok {
 			continue
 		}
-		one := [1]collationCandidate{{a, candidate.Encoding}}
+		one := [1]CollationCandidate{{a, candidate.Encoding}}
 		if selected := SelectCollation(one[:], 6); selected != (ids.ObjectAddress{}) {
 			return selected == d.Address()
 		}

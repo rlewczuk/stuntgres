@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -248,7 +248,7 @@ func routineContainerFragments(ctx context.Context, view catalog.Read, value sql
 		}
 		return []routineFragment{{text: "(" + literal + ")::oid::text", expression: true}}, nil
 	}
-	text, err := value.Type().OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{View: view}, Regtype: dumpCatalogAliasOutput{View: view}, Regcollation: dumpCatalogAliasOutput{View: view}, Regnamespace: dumpCatalogAliasOutput{View: view}, Regrole: RoleContextFormatter(ctx), Operator: dumpOperatorOutput{}, RegTS: dumpRegTSOutput{View: view}, ACLItem: acl})
+	text, err := value.Type().OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{Regclass: ClassOutput{View: view}, Regtype: DumpAliasOutput{View: view}, Regcollation: DumpAliasOutput{View: view}, Regnamespace: DumpAliasOutput{View: view}, Regrole: RoleContextFormatter(ctx), Operator: DumpOperatorOutput{}, RegTS: DumpTextSearchOutput{View: view}, ACLItem: acl})
 	if err != nil {
 		return nil, err
 	}

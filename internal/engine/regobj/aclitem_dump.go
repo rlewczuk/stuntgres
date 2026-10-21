@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 // Validate only ACL leaves; the regular serializers retain every other lossless
 // boundary. This runs under the existing capture lock before any writer call.
-func PreflightACLItemValue(ctx context.Context, output capturedACLItemOutput, value sqltype.Value) error {
+func PreflightACLItemValue(ctx context.Context, output ACLItemOutput, value sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

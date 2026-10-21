@@ -6,13 +6,14 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.ObjectRef, error) {
 	typ, _ := auth.definitionType(sqltype.Oid)
-	if oid, numeric, err := ClassNumeric(text, typ); numeric {
+	if oid, numeric, err := regobj.ClassNumeric(text, typ); numeric {
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
@@ -26,7 +27,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 	if auth.session != nil {
 		database = auth.session.DatabaseName
 	}
-	name, err = ClassQualifiedName(name, text, database)
+	name, err = regobj.ClassQualifiedName(name, text, database)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
@@ -63,14 +64,14 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 		return 0, err
 	}
 	typ, _ := r.auth.definitionType(sqltype.Oid)
-	if oid, numeric, err := ClassNumeric(text, typ); numeric {
+	if oid, numeric, err := regobj.ClassNumeric(text, typ); numeric {
 		return oid, err
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return 0, sqlError("42602", "invalid name syntax")
 	}
-	name, err = ClassQualifiedName(name, text, r.database)
+	name, err = regobj.ClassQualifiedName(name, text, r.database)
 	if err != nil {
 		return 0, err
 	}

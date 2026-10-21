@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"strconv"
@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// regclassReplayReferences discovers only replay-order prerequisites. Opaque
+// ClassReplayReferences discovers only replay-order prerequisites. Opaque
 // array/domain datums must be rendered after their live names exist, but must
 // never acquire the DROP dependencies of a scalar regclass input constant.
 // Numeric coercion inputs are integer/OID literals and therefore untouched.

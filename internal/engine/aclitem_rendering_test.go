@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -20,7 +21,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	value := aclUnitValue(t, e, "acl_render_a=r*/acl_render_b")
 	view := e.CatalogRead()
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
-	captured := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	captured := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
 	text, err := (scalarRenderer{aclOutput: captured}).sql(context.Background(), view, literal)
 	if err != nil || text != "CAST('acl_render_a=r*/acl_render_b' AS ACLITEM)" {
 		t.Fatal("explicit construction authority", text, err)
@@ -70,7 +71,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	if _, err := validation.sql(context.Background(), view, literal); err != nil {
 		t.Fatal("stale structural validation", err)
 	}
-	ordinary := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	ordinary := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
 	text, err = (scalarRenderer{aclOutput: ordinary}).sql(context.Background(), view, literal)
 	if err != nil || !strings.Contains(text, "20000=r*/acl_render_b") {
 		t.Fatal("ordinary stale presentation", text, err)
@@ -106,7 +107,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 				kind = parser.NullValue
 			}
 			raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: kind}}}
-			return renderer.expressionSQLAt(ACLItemOutputContext(context.Background(), captured), view, raw, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
+			return renderer.expressionSQLAt(regobj.ACLItemOutputContext(context.Background(), captured), view, raw, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
 		}
 		for _, datum := range []sqltype.Value{value, sqltype.Null(value.Type()), arrayValue, sqltype.Null(array)} {
 			first, err := render(datum, datum.Type().Usage())

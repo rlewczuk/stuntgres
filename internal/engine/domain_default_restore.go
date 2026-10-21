@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -86,7 +87,7 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		}
 		return typedef.DomainReplayNode{Kind: "composite", Members: &members}, nil
 	}
-	literal, err := Literal(ctx, view, plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: v})
+	literal, err := regobj.Literal(ctx, view, plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: v})
 	if err != nil {
 		return n, err
 	}

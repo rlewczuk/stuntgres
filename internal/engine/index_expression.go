@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -59,7 +60,7 @@ func (e *Engine) bindIndexExpression(op *session.Operation, input sqltype.InputE
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
-	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.Catalog, definition); err != nil {
+	if _, err = (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.Catalog, definition); err != nil {
 		return nil, "", err
 	}
 	label := "expr"

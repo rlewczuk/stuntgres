@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
@@ -49,7 +50,7 @@ func identifyObjectValues(c *exec.Context, values [3]sqltype.Value, result *sqlt
 	if operation == functions.DescribeObject && class == 0 && object == 0 {
 		return sqltype.Null(result), nil
 	}
-	identity, err := IdentifyAddress(scope.inquiry.commentCatalog, scope.inquiry.commentRoles, scope.inquiry.deparsePath, address)
+	identity, err := regobj.IdentifyAddress(scope.inquiry.commentCatalog, scope.inquiry.commentRoles, scope.inquiry.deparsePath, address)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -72,11 +73,11 @@ func identifyObjectValues(c *exec.Context, values [3]sqltype.Value, result *sqlt
 				}
 			}
 		} else {
-			fields[1], err = ObjectAddressTextArray(result.CompositeMember(1).Usage.Type, identity.Names)
+			fields[1], err = regobj.ObjectAddressTextArray(result.CompositeMember(1).Usage.Type, identity.Names)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
-			fields[2], err = ObjectAddressTextArray(result.CompositeMember(2).Usage.Type, identity.Args)
+			fields[2], err = regobj.ObjectAddressTextArray(result.CompositeMember(2).Usage.Type, identity.Args)
 			if err != nil {
 				return sqltype.Value{}, err
 			}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -54,23 +55,23 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
-	class, err := ObjectInputClass(kind)
+	class, err := regobj.ObjectInputClass(kind)
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
 	typeName := kind == "type" || kind == "cast" || kind == "domain constraint" || class == 3576
 	if (typeName || class == 2613) && values[1].ArrayLen() != 1 {
-		return ids.ObjectAddress{}, ObjectListLength("name", 1, true)
+		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, true)
 	}
 	if class == 2613 && values[1].ArrayElement(0).IsNull() {
 		return ids.ObjectAddress{}, sqlError("22023", "large object OID may not be null")
 	}
-	names, err := ObjectInputArray(values[1])
+	names, err := regobj.ObjectInputArray(values[1])
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
 	if len(names) == 0 {
-		return ids.ObjectAddress{}, ObjectListLength("name", 1, false)
+		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, false)
 	}
 	view := scope.inquiry.commentCatalog
 	types := capturedRegtypeInput{auth: scope.inquiry.deparseAuth, path: scope.inquiry.deparsePath, database: scope.op.Session.DatabaseName, temporary: temporaryNamespace(scope.inquiry.deparseAuth), token: scope.op.Session.SessionToken, op: scope.op}
@@ -107,30 +108,30 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 		}
 	} else {
-		args, err = ObjectInputArray(values[2])
+		args, err = regobj.ObjectInputArray(values[2])
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
 	}
 	if (class == 1418 || class == 6237) && len(names) != 1 {
-		return ids.ObjectAddress{}, ObjectListLength("name", 1, true)
+		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, true)
 	}
 	if (kind == "cast" || kind == "domain constraint" || class == 1418 || class == 6237 || class == 6106 || class == 826 || class == 3576) && len(args) != 1 {
-		return ids.ObjectAddress{}, ObjectListLength("argument", 1, true)
+		return ids.ObjectAddress{}, regobj.ObjectListLength("argument", 1, true)
 	}
 	if (class == 2616 || class == 2753) && len(names) < 2 {
-		return ids.ObjectAddress{}, ObjectListLength("name", 2, false)
+		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 2, false)
 	}
 	if (class == 2602 || class == 2603) && len(names) < 3 {
-		return ids.ObjectAddress{}, ObjectListLength("name", 3, false)
+		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 3, false)
 	}
 	if (class == 2617 || class == 2602 || class == 2603) && len(args) != 2 {
-		return ids.ObjectAddress{}, ObjectListLength("argument", 2, true)
+		return ids.ObjectAddress{}, regobj.ObjectListLength("argument", 2, true)
 	}
 	switch class {
 	case 2612, 2601, 1262, 3466, 3079, 2328, 1417, 6243, 6104, 1260, 2615, 6100, 1213:
 		if len(names) != 1 {
-			return ids.ObjectAddress{}, ObjectListLength("name", 1, true)
+			return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, true)
 		}
 	}
 	if typeName {
@@ -200,9 +201,9 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				signature.WriteByte(',')
 			}
 			signature.WriteString(strconv.FormatUint(uint64(id), 10))
-			human[i] = TypeSpelling(view, scope.inquiry.deparsePath, id)
+			human[i] = regobj.TypeSpelling(view, scope.inquiry.deparsePath, id)
 		}
-		p, count := SelectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
+		p, count := regobj.SelectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
 		spelling := make([]string, len(names))
 		for i, name := range names {
 			spelling[i] = catalog.Identifier(name)
@@ -247,7 +248,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				return a, nil
 			}
 		}
-		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", TypeSpelling(view, scope.inquiry.deparsePath, ids.OID(typeID)), TypeSpelling(view, scope.inquiry.deparsePath, argIDs[0])))
+		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", regobj.TypeSpelling(view, scope.inquiry.deparsePath, ids.OID(typeID)), regobj.TypeSpelling(view, scope.inquiry.deparsePath, argIDs[0])))
 	case 2616, 2753:
 		method := uint32(0)
 		switch names[0] {
@@ -293,7 +294,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 					}
 				}
 			}
-			return missing("42704", fmt.Sprintf("constraint %q for domain %s does not exist", args[0], TypeSpelling(view, scope.inquiry.deparsePath, ids.OID(typeID))))
+			return missing("42704", fmt.Sprintf("constraint %q for domain %s does not exist", args[0], regobj.TypeSpelling(view, scope.inquiry.deparsePath, ids.OID(typeID))))
 		}
 	}
 	if class == 1259 || class == 2606 || class == 2604 || class == 2618 || class == 3256 || class == 2620 {
@@ -319,7 +320,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		relation := d.(*catalog.Relation)
 		if class == 1259 {
 			if !child {
-				actual := ObjectRelationKind(view, relation)
+				actual := regobj.ObjectRelationKind(view, relation)
 				if actual != kind {
 					return missing("42809", fmt.Sprintf("%q is not a%s %s", relation.Name(), map[string]string{"index": "n"}[kind], kind))
 				}
@@ -327,19 +328,19 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 			column := names[len(names)-1]
 			for _, sub := range relation.Attributes {
-				if ObjectAttributeName(view, relation, sub) == column {
+				if regobj.ObjectAttributeName(view, relation, sub) == column {
 					return ids.ObjectAddress{1259, relation.Address().ObjectID, sub}, nil
 				}
 			}
 			for sub := int32(-1); sub >= -6; sub-- {
-				if ObjectAttributeName(view, relation, sub) == column {
+				if regobj.ObjectAttributeName(view, relation, sub) == column {
 					return ids.ObjectAddress{1259, relation.Address().ObjectID, sub}, nil
 				}
 			}
 			return missing("42703", fmt.Sprintf("column %q of relation %q does not exist", column, strings.Join(relationNames, ".")))
 		}
 		name := names[len(names)-1]
-		id := OwnedAddressByName(relation, class, name)
+		id := regobj.OwnedAddressByName(relation, class, name)
 		if id != 0 {
 			a.ObjectID = id
 			return a, nil

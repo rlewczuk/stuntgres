@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	e := New()
 	aclUnitRoles(e, "unit_role", "Mixed.Role", `a"b`, "select", "10")
 	old := e.Roles()
-	input := capturedRegroleInput{Roles: old}
+	input := regobj.RoleInput{Roles: old}
 	for _, tc := range []struct {
 		text string
 		id   uint32
@@ -56,8 +57,8 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	}
 	rows := exec.NewFinalRows([]catalog.Column{{Name: "r", Usage: d.Usage()}}, 1)
 	defer rows.Close()
-	output := capturedRegroleOutput{Owner: e.catalog.owner(), Roles: old}
-	if err := CaptureRoleOutputValue(rows, output, array); err != nil {
+	output := regobj.RoleOutput{Owner: e.catalog.owner(), Roles: old}
+	if err := regobj.CaptureRoleOutputValue(rows, output, array); err != nil {
 		t.Fatal(err)
 	}
 	role, _ := old.Lookup("unit_role")
@@ -70,14 +71,14 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if id, err := input.ResolveRegrole(context.Background(), "unit_role"); err != nil || id != 20000 {
 		t.Fatal("old immutable input", id, err)
 	}
-	fresh := capturedRegroleInput{Roles: e.Roles()}
+	fresh := regobj.RoleInput{Roles: e.Roles()}
 	if id, err := fresh.ResolveRegrole(context.Background(), "unit_role"); err != nil || id != 30000 {
 		t.Fatal("fresh input", id, err)
 	}
 	if text, err := rows.FormatRegrole(20000); err != nil || text != "unit_role" {
 		t.Fatal("retained output", text, err)
 	}
-	current := capturedRegroleOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	current := regobj.RoleOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
 	for _, tc := range []struct {
 		id   uint32
 		text string
@@ -90,7 +91,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if text, err := current.FormatRegrole(30000); err != nil || text != `"unit_role"` {
 		t.Fatal("forced quoting", text, err)
 	}
-	foreign := capturedRegroleOutput{Owner: New().catalog.owner(), Roles: old}
+	foreign := regobj.RoleOutput{Owner: New().catalog.owner(), Roles: old}
 	if _, err := foreign.FormatRegrole(20000); err == nil {
 		t.Fatal("foreign output authority admitted")
 	}
@@ -152,7 +153,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		}
 		// Data serialization is legal even when the exact same datum is banned
 		// as a stored expression's scalar Const.
-		if _, err := Literal(context.Background(), view, literal); err != nil {
+		if _, err := regobj.Literal(context.Background(), view, literal); err != nil {
 			t.Fatal("row data codec rejected role identity", err)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 )
@@ -44,7 +45,7 @@ func bindCreateDefaults(b *analyze.Binder, columns []catalog.Column, declaration
 			continue
 		}
 		definition := catalog.ColumnDefault{Expression: node}
-		_, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: capturedACLItemOutput{Owner: b.Host.CatalogOwner(), Roles: b.Host.Roles(auth)}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.Ctx, view, node)
+		_, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: regobj.ACLItemOutput{Owner: b.Host.CatalogOwner(), Roles: b.Host.Roles(auth)}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.Ctx, view, node)
 		if err != nil {
 			return nil, err
 		}

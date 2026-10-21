@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
@@ -88,7 +89,7 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 						return err
 					}
 					definition := catalog.ColumnDefault{Expression: node}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, provenance: in.Source, capturedManifest: old.Dependencies, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, provenance: in.Source, capturedManifest: old.Dependencies, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, node); err != nil {
 						return err
 					}
 					// Validate the original published recipe first. Old callable
@@ -130,7 +131,7 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 						return err
 					}
 					definition := catalog.ColumnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: destination, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: destination, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
 						return err
 					}
 					if destination.ColumnMeta.Generations == nil {
@@ -182,7 +183,7 @@ func (e *Engine) stageLikeChecks(op *session.Operation, auth AuthorizationView, 
 			}
 			definition := catalog.CheckConstraint{Name: old.Name, NoInherit: old.NoInherit, Ordinal: ordinal, Expression: node}
 			var dependencies []ids.ObjectRef
-			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
+			if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {

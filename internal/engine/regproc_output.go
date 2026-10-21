@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 )
 
 func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
@@ -12,7 +13,7 @@ func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 	if text, ok := s.presentationOrZero().regproc[id]; ok {
 		return text, nil
 	}
-	text := ProcSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id))
+	text := regobj.ProcSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id))
 	if s.presentationOrZero().regproc == nil {
 		s.presentation().regproc = make(map[uint32]string)
 	}
@@ -26,7 +27,7 @@ func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
 	if text, ok := s.presentationOrZero().regprocedure[id]; ok {
 		return text, nil
 	}
-	text := RoutineSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id), true, false)
+	text := regobj.RoutineSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id), true, false)
 	if s.presentationOrZero().regprocedure == nil {
 		s.presentation().regprocedure = make(map[uint32]string)
 	}

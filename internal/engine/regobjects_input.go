@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 )
 
@@ -112,8 +113,8 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: parts[len(parts)-1].Text})
 		descriptor, _ := r.auth.definitionDescriptor(address)
 		if d, exists := descriptor.(*catalog.Collation); exists {
-			one := [1]collationCandidate{{address, d.Encoding}}
-			if SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {
+			one := [1]regobj.CollationCandidate{{Address: address, Encoding: d.Encoding}}
+			if regobj.SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {
 				return uint32(address.ObjectID), nil
 			}
 		}

@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -13,12 +13,12 @@ import (
 
 type aclItemOutputKey struct{}
 
-func ACLItemOutputContext(ctx context.Context, output capturedACLItemOutput) context.Context {
+func ACLItemOutputContext(ctx context.Context, output ACLItemOutput) context.Context {
 	return context.WithValue(ctx, aclItemOutputKey{}, output)
 }
 
 func ACLItemContextFormatter(ctx context.Context) sqltype.ACLItemFormatter {
-	output, ok := ctx.Value(aclItemOutputKey{}).(capturedACLItemOutput)
+	output, ok := ctx.Value(aclItemOutputKey{}).(ACLItemOutput)
 	if !ok {
 		return nil
 	}
@@ -26,13 +26,13 @@ func ACLItemContextFormatter(ctx context.Context) sqltype.ACLItemFormatter {
 }
 
 // Captured role roots are immutable; formatting never consults a live Engine.
-type capturedACLItemOutput struct {
+type ACLItemOutput struct {
 	Owner    *catalog.Owner
 	Roles    authorization.Read
 	Lossless bool
 }
 
-func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
+func (r ACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
 	if r.Owner == nil || authority != r.Owner.ACLAuthority || !r.Roles.BelongsTo(r.Owner.Principals) {
 		return "", fmt.Errorf("stuntgres: foreign ACL identity")
 	}
@@ -55,16 +55,16 @@ func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id
 // Validation checks immutable datum provenance without a role-liveness lookup:
 // dropped role IDs remain valid stored ACL data. Its text is discarded and is
 // never used for SQL replay, Dump, deparse or result presentation.
-type aclItemValidationOutput struct{ Owner *catalog.Owner }
+type ACLItemValidationOutput struct{ Owner *catalog.Owner }
 
-func (r aclItemValidationOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
+func (r ACLItemValidationOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
 	if r.Owner == nil || authority != r.Owner.ACLAuthority {
 		return "", fmt.Errorf("stuntgres: foreign ACL validation identity")
 	}
 	return strconv.FormatUint(uint64(id), 10), nil
 }
 
-func CaptureACLItemOutputValue(rows *exec.FinalRows, output capturedACLItemOutput, value sqltype.Value) error {
+func CaptureACLItemOutputValue(rows *exec.FinalRows, output ACLItemOutput, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsACLItem() {
 		return nil
 	}

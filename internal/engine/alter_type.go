@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -344,7 +345,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 		}
 		definition.Dependencies = nil
 		definition.CatalogSnapshot = false
-		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, expression)
+		_, err = (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, expression)
 		if err != nil {
 			return fail(err)
 		}

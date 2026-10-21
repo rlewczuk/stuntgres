@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
@@ -31,20 +32,20 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 	if err != nil || a != &e.roles.aclAuthority || g != 0 || r != 0 || p != 2 || o != 2 {
 		t.Fatal("zero identity datum", err)
 	}
-	output := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	output := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(c.Context, value, sqltype.OutputEnvironment{ACLItem: output})
 	if err != nil || text != "=r*/0" {
 		t.Fatal(text, err)
 	}
 	rows := &exec.FinalRows{}
-	if err := CaptureACLItemOutputValue(rows, output, value); err != nil {
+	if err := regobj.CaptureACLItemOutputValue(rows, output, value); err != nil {
 		t.Fatal(err)
 	}
 	text, err = d.OutputWithEnvironment(c.Context, value, rows.OutputEnvironment())
 	if err != nil || text != "=r*/0" {
 		t.Fatal("retained all-zero output", text, err)
 	}
-	if err := PreflightACLItemValue(c.Context, capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}, value); err == nil {
+	if err := regobj.PreflightACLItemValue(c.Context, regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}, value); err == nil {
 		t.Fatal("zero grantor dump accepted")
 	}
 	target := New()
@@ -107,7 +108,7 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 		t.Fatal("remapped recipe lost behavior", err)
 	}
 	empty, _ := sqltype.EmptyACLArrayValue(array)
-	text, err := Literal(context.Background(), view, plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: empty})
+	text, err := regobj.Literal(context.Background(), view, plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: empty})
 	if err != nil || text != `pg_catalog.acldefault('c'::"char",0::oid)` {
 		t.Fatal("lossless empty literal", text, err)
 	}
@@ -132,11 +133,11 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}
-	if err := PreflightACLItemValue(context.Background(), output, carrier); err != nil {
+	output := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}
+	if err := regobj.PreflightACLItemValue(context.Background(), output, carrier); err != nil {
 		t.Fatal("representable composite rejected", err)
 	}
-	if err := PreflightACLItemValue(context.Background(), output, nested); err == nil {
+	if err := regobj.PreflightACLItemValue(context.Background(), output, nested); err == nil {
 		t.Fatal("lossy nested array passed preflight")
 	}
 }

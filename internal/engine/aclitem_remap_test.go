@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -175,13 +176,13 @@ func TestACLItemStaleDump(t *testing.T) {
 	e := New()
 	aclUnitRoles(e, "acl_dump_a", "acl_dump_b")
 	value := aclUnitValue(t, e, "acl_dump_a=r*/acl_dump_b")
-	captured := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}
-	ctx := ACLItemOutputContext(context.Background(), captured)
+	captured := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}
+	ctx := regobj.ACLItemOutputContext(context.Background(), captured)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
-	if text, err := Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
+	if text, err := regobj.Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
 		t.Fatal(text, err)
 	}
-	if _, err := Literal(context.Background(), e.CatalogRead(), literal); err == nil {
+	if _, err := regobj.Literal(context.Background(), e.CatalogRead(), literal); err == nil {
 		t.Fatal("literal rendered without authority")
 	}
 	a, _ := e.Roles().Lookup("acl_dump_a")
@@ -190,15 +191,15 @@ func TestACLItemStaleDump(t *testing.T) {
 	retireFixtureRole(next, a.Ref)
 	e.roles.published = next
 	e.mu.Unlock()
-	ordinary := capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
+	ordinary := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
 	text, err := value.Type().OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: ordinary})
 	if err != nil || text != "20000=r*/acl_dump_b" {
 		t.Fatal("stale ordinary output", text, err)
 	}
-	if err := PreflightACLItemValue(context.Background(), capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}, value); err == nil {
+	if err := regobj.PreflightACLItemValue(context.Background(), regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles(), Lossless: true}, value); err == nil {
 		t.Fatal("stale dump leaf accepted")
 	}
-	if text, err := Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
+	if text, err := regobj.Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
 		t.Fatal("captured role snapshot consulted live roles", text, err)
 	}
 	if _, err := (pgRenderer{view: e.CatalogRead()}).literal(context.Background(), literal); err == nil {

@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"strconv"
@@ -116,16 +116,16 @@ func CaptureProcOutputValue(rows *exec.FinalRows, view catalog.Read, path []ids.
 }
 
 // Catalog renderers use captured authority, never a live Rows lookup.
-type catalogRoutineOutput struct {
+type RoutineOutput struct {
 	View      catalog.Read
 	Path      []ids.ObjectAddress
 	qualified bool
 }
 
-func (r catalogRoutineOutput) FormatRegproc(id uint32) (string, error) {
+func (r RoutineOutput) FormatRegproc(id uint32) (string, error) {
 	return RoutineSpelling(r.View, r.Path, ids.OID(id), false, r.qualified), nil
 }
 
-func (r catalogRoutineOutput) FormatRegprocedure(id uint32) (string, error) {
+func (r RoutineOutput) FormatRegprocedure(id uint32) (string, error) {
 	return RoutineSpelling(r.View, r.Path, ids.OID(id), true, r.qualified), nil
 }

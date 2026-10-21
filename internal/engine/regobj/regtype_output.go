@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"strconv"
@@ -110,11 +110,11 @@ func captureRegtypeOutputValue(rows *exec.FinalRows, view catalog.Read, path []i
 	return nil
 }
 
-type catalogRegtypeOutput struct {
+type TypeOutput struct {
 	View catalog.Read
 	Path []ids.ObjectAddress
 }
 
-func (r catalogRegtypeOutput) FormatRegtype(id uint32) (string, error) {
+func (r TypeOutput) FormatRegtype(id uint32) (string, error) {
 	return TypeSpelling(r.View, r.Path, ids.OID(id)), nil
 }

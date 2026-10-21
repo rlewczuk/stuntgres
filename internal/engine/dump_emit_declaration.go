@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -50,7 +51,7 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 		if err := w.emit(declaration.SQL); err != nil {
 			return err
 		}
-		qualified, err := TypeDeclaration(s.catalogView, domain.SQLType.Usage())
+		qualified, err := regobj.TypeDeclaration(s.catalogView, domain.SQLType.Usage())
 		if err != nil {
 			return err
 		}
@@ -220,7 +221,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if typed {
 				line.WriteString(" WITH OPTIONS")
 			} else {
-				declaration, err := ColumnDeclaration(s.catalogView, c)
+				declaration, err := regobj.ColumnDeclaration(s.catalogView, c)
 				if err != nil {
 					return "", err
 				}

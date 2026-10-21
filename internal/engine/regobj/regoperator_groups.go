@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"stuntgres/internal/engine/analyze"

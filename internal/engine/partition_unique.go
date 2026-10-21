@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -243,7 +244,7 @@ func stagePartitionDescriptor(stage *CatalogStage, d *catalog.Relation) error {
 
 func (e *Engine) stagePartitionIndexChild(op *session.Operation, stage *CatalogStage, table, parentIndex, child *catalog.Relation, allowIncompleteVirtual bool) (*catalog.Relation, error) {
 	view := e.stageRead(stage)
-	ctx := ACLItemOutputContext(op.Context(), capturedACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), view, e.operationRolesLocked(op))})
+	ctx := regobj.ACLItemOutputContext(op.Context(), regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), view, e.operationRolesLocked(op))})
 	if stage.Base.Get(parentIndex.Address()) != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -90,7 +91,7 @@ func TestJSONPathSharedSourceErrorAndPersistenceLiteral(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		text, err := ConstantLiteral(ctx, plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: v})
+		text, err := regobj.ConstantLiteral(ctx, plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: v})
 		if err != nil || text != tc.want {
 			t.Fatal(text, err)
 		}

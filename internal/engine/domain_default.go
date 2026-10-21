@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -45,7 +46,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 		}
 		d.DomainDefaultOwn = true
 		definition := catalog.ColumnDefault{Expression: node}
-		if _, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: capturedACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(ctx, auth.Catalog, node); err != nil {
+		if _, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
 		var path []ids.ObjectAddress

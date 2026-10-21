@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
@@ -78,9 +79,9 @@ func (h *statementHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, 
 	}
 	visible := false
 	if kind == functions.CollationVisibility {
-		visible = VisibleCollation(scope.inquiry.visibilityCatalog, path, d)
+		visible = regobj.VisibleCollation(scope.inquiry.visibilityCatalog, path, d)
 	} else {
-		visible = NamedObjectVisible(scope.inquiry.visibilityCatalog, path, d)
+		visible = regobj.NamedObjectVisible(scope.inquiry.visibilityCatalog, path, d)
 	}
 	return sqltype.Boolean(result, visible), nil
 }

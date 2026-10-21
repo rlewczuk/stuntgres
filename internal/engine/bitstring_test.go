@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 	if err != nil || bits != "00001111" {
 		t.Fatal(bits, err)
 	}
-	literal, err := ConstantLiteral(ctx, node.(plan.LiteralExpr))
+	literal, err := regobj.ConstantLiteral(ctx, node.(plan.LiteralExpr))
 	if err != nil || literal != "B'00001111'" {
 		t.Fatal(literal, err)
 	}

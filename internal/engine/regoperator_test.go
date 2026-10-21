@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -98,27 +99,27 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	groups := CollectOperatorGroups(view)
+	groups := regobj.CollectOperatorGroups(view)
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: 11}}
 	for alias, want := range map[sqltype.ID]string{sqltype.Regoper: `"Reg Op".#=#`, sqltype.Regoperator: `"Reg Op".#=#(integer,integer)`} {
-		if got := OperatorSpelling(view, path, groups, 91000, alias); got != want {
+		if got := regobj.OperatorSpelling(view, path, groups, 91000, alias); got != want {
 			t.Fatal(got, want)
 		}
 	}
-	if got := OperatorSpelling(view, path, groups, 91004, sqltype.Regoperator); got != `"Reg"" Op".#=#(integer,integer)` {
+	if got := regobj.OperatorSpelling(view, path, groups, 91004, sqltype.Regoperator); got != `"Reg"" Op".#=#(integer,integer)` {
 		t.Fatal(got)
 	}
-	candidates := VisibleOperators(groups, namespaces[1:], "#=#")
+	candidates := regobj.VisibleOperators(groups, namespaces[1:], "#=#")
 	if len(candidates) != 2 {
 		t.Fatal("different signatures must remain candidates", len(candidates))
 	}
-	if got := OperatorSpelling(view, namespaces[1:], groups, 91002, sqltype.Regoperator); got != "later.#=#(integer,integer)" {
+	if got := regobj.OperatorSpelling(view, namespaces[1:], groups, 91002, sqltype.Regoperator); got != "later.#=#(integer,integer)" {
 		t.Fatal(got)
 	}
-	if got := OperatorSpelling(view, namespaces[1:], groups, 91001, sqltype.Regoper); got != "earlier.#=#" {
+	if got := regobj.OperatorSpelling(view, namespaces[1:], groups, 91001, sqltype.Regoper); got != "earlier.#=#" {
 		t.Fatal(got)
 	}
-	if got := OperatorSpelling(view, namespaces[:1], groups, 91000, sqltype.Regoper); got != "#=#" {
+	if got := regobj.OperatorSpelling(view, namespaces[:1], groups, 91000, sqltype.Regoper); got != "#=#" {
 		t.Fatal(got)
 	}
 	rows := &exec.FinalRows{}
@@ -128,7 +129,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := CaptureOperatorOutputValue(rows, view, path, value); err != nil {
+		if err := regobj.CaptureOperatorOutputValue(rows, view, path, value); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -155,7 +156,7 @@ func TestRegOperatorPersistenceReferences(t *testing.T) {
 				t.Fatal(err)
 			}
 			var refs []ids.ObjectAddress
-			if err := WalkOperatorReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil {
+			if err := regobj.WalkOperatorReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if id == 551 {

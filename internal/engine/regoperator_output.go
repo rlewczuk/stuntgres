@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
@@ -18,9 +19,9 @@ func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, er
 		return text, nil
 	}
 	if s.presentationOrZero().operatorGroups == nil {
-		s.presentation().operatorGroups = CollectOperatorGroups(s.inquiry.commentCatalog)
+		s.presentation().operatorGroups = regobj.CollectOperatorGroups(s.inquiry.commentCatalog)
 	}
-	text := OperatorSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, s.presentationOrZero().operatorGroups, ids.OID(id), alias)
+	text := regobj.OperatorSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, s.presentationOrZero().operatorGroups, ids.OID(id), alias)
 	if s.presentationOrZero().operators == nil {
 		s.presentation().operators = make(map[exec.OperatorOutputKey]string)
 	}

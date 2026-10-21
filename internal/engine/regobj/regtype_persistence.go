@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -24,15 +24,15 @@ func regtypeReference(view catalog.Read, id uint32) string {
 	return TypeSpelling(view, nil, ids.OID(id))
 }
 
-type dumpCatalogAliasOutput struct{ View catalog.Read }
+type DumpAliasOutput struct{ View catalog.Read }
 
-func (r dumpCatalogAliasOutput) FormatRegtype(id uint32) (string, error) {
+func (r DumpAliasOutput) FormatRegtype(id uint32) (string, error) {
 	return regtypeReference(r.View, id), nil
 }
-func (r dumpCatalogAliasOutput) FormatRegcollation(id uint32) (string, error) {
+func (r DumpAliasOutput) FormatRegcollation(id uint32) (string, error) {
 	return ObjectSpelling(r.View, nil, ids.CollationClassID, ids.OID(id)), nil
 }
-func (r dumpCatalogAliasOutput) FormatRegnamespace(id uint32) (string, error) {
+func (r DumpAliasOutput) FormatRegnamespace(id uint32) (string, error) {
 	return ObjectSpelling(r.View, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }
 

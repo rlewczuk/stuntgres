@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -28,7 +29,7 @@ func (h ddlHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signatu
 	if err != nil {
 		return catalog.RoutineIdentity{}, 0, err
 	}
-	identity, count := SelectRoutine(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, &signature)
+	identity, count := regobj.SelectRoutine(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, &signature)
 	return identity, count, nil
 }
 

@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -6,12 +6,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type dumpRegTSOutput struct{ View catalog.Read }
+type DumpTextSearchOutput struct{ View catalog.Read }
 
-func (r dumpRegTSOutput) FormatRegconfig(id uint32) (string, error) {
+func (r DumpTextSearchOutput) FormatRegconfig(id uint32) (string, error) {
 	return TextSearchSpelling(r.View, nil, id, sqltype.Regconfig, true), nil
 }
-func (r dumpRegTSOutput) FormatRegdictionary(id uint32) (string, error) {
+func (r DumpTextSearchOutput) FormatRegdictionary(id uint32) (string, error) {
 	return TextSearchSpelling(r.View, nil, id, sqltype.Regdictionary, true), nil
 }
 

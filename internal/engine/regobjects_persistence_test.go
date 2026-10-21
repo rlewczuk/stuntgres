@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -33,7 +34,7 @@ func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	c, _ := sqltype.RegObjectValue(collation, 950)
 	n, _ := sqltype.RegObjectValue(namespace, 950)
 	for _, value := range []sqltype.Value{c, n} {
-		if err := CaptureObjectOutputValue(rows, view, r.path, value); err != nil {
+		if err := regobj.CaptureObjectOutputValue(rows, view, r.path, value); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -45,10 +46,10 @@ func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	}
 	fallback := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 80000}
 	exact := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 80001}
-	if got := SelectCollation([]collationCandidate{{fallback, -1}, {exact, 6}}, 6); got != exact {
+	if got := regobj.SelectCollation([]regobj.CollationCandidate{{Address: fallback, Encoding: -1}, {Address: exact, Encoding: 6}}, 6); got != exact {
 		t.Fatal("exact encoding preference", got)
 	}
-	if got := SelectCollation([]collationCandidate{{fallback, -1}, {exact, 8}}, 6); got != fallback {
+	if got := regobj.SelectCollation([]regobj.CollationCandidate{{Address: fallback, Encoding: -1}, {Address: exact, Encoding: 8}}, 6); got != fallback {
 		t.Fatal("encoding fallback", got)
 	}
 }
@@ -111,7 +112,7 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 		if err := catalog.WalkAliasDependencies(view, scalarWrapped, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
 			t.Fatal("domain Const mistaken for scalar alias Const", references, err)
 		}
-		remapped, err := RemapAliasDatum(wrapped, func(address ids.ObjectAddress) ids.ObjectAddress {
+		remapped, err := regobj.RemapAliasDatum(wrapped, func(address ids.ObjectAddress) ids.ObjectAddress {
 			if address.ClassID == fact.class && address.ObjectID == ids.OID(fact.oid) {
 				address.ObjectID++
 			}
@@ -130,7 +131,7 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 			t.Fatal("unknown OID acquired dependency", references, err)
 		}
 		wrongClass := ids.TypeClassID
-		unchanged, err := RemapAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
+		unchanged, err := regobj.RemapAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
 			if address.ClassID == wrongClass {
 				address.ObjectID++
 			}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -173,7 +174,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 			return err
 		}
 	}
-	scope.input.Regrole = capturedRegroleInput{Roles: scope.inquiry.commentRoles}
+	scope.input.Regrole = regobj.RoleInput{Roles: scope.inquiry.commentRoles}
 	input := captureRegObjectsOnPath(scope.inquiry.deparseAuth, scope.inquiry.collationPath)
 	scope.input.Regcollation, scope.input.Regnamespace = input, input
 	return nil

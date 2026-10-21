@@ -1,8 +1,8 @@
-package engine
+package regobj
 
 import "stuntgres/internal/sqltype"
 
-// containsEmptyACL reports whether a value holds an empty aclitem[] anywhere,
+// ContainsEmptyACL reports whether a value holds an empty aclitem[] anywhere,
 // including inside composites and arrays.
 func ContainsEmptyACL(value sqltype.Value) bool {
 	if value.Type() == nil || value.IsNull() || !value.Type().ContainsACLItem() {

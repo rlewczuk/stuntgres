@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -257,16 +258,16 @@ func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog ca
 		return err
 	}
 	for _, value := range rows.Values {
-		if err := CaptureRoleOutputValue(rows, capturedRegroleOutput{Owner: e.catalog.owner(), Roles: auth.Roles, QuoteAll: rows.Output.QuoteAllIdentifiers}, value); err != nil {
+		if err := regobj.CaptureRoleOutputValue(rows, regobj.RoleOutput{Owner: e.catalog.owner(), Roles: auth.Roles, QuoteAll: rows.Output.QuoteAllIdentifiers}, value); err != nil {
 			return err
 		}
-		if err := CaptureObjectOutputValue(rows, catalog, collationPath, value); err != nil {
+		if err := regobj.CaptureObjectOutputValue(rows, catalog, collationPath, value); err != nil {
 			return err
 		}
-		if err := CaptureACLItemOutputValue(rows, capturedACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, value); err != nil {
+		if err := regobj.CaptureACLItemOutputValue(rows, regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, value); err != nil {
 			return err
 		}
-		if err := CaptureClassOutputValue(rows, catalog, path, value); err != nil {
+		if err := regobj.CaptureClassOutputValue(rows, catalog, path, value); err != nil {
 			return err
 		}
 	}

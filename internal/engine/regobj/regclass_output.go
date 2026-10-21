@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"strconv"
@@ -68,7 +68,7 @@ func CaptureClassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path []
 	return nil
 }
 
-// regclassSpelling uses only the statement's captured catalog and relation path.
+// ClassSpelling uses only the statement's captured catalog and relation path.
 func ClassSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
 	return regclassSpellingAt(view, nil, path, id)
 }
@@ -97,12 +97,12 @@ func regclassIdentifier(name string) string {
 	return name
 }
 
-type catalogRegclassOutput struct {
+type ClassOutput struct {
 	View       catalog.Read
 	Path       []ids.ObjectAddress
 	definition catalog.DefinitionReader
 }
 
-func (r catalogRegclassOutput) FormatRegclass(id uint32) (string, error) {
+func (r ClassOutput) FormatRegclass(id uint32) (string, error) {
 	return regclassSpellingAt(r.View, r.definition, r.Path, ids.OID(id)), nil
 }

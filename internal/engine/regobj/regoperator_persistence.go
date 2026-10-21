@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"strconv"
@@ -11,12 +11,12 @@ import (
 )
 
 // Logical replay preserves all OID bits, including ambiguous names and absent IDs.
-type dumpOperatorOutput struct{}
+type DumpOperatorOutput struct{}
 
-func (dumpOperatorOutput) FormatRegoper(id uint32) (string, error) {
+func (DumpOperatorOutput) FormatRegoper(id uint32) (string, error) {
 	return strconv.FormatUint(uint64(id), 10), nil
 }
-func (dumpOperatorOutput) FormatRegoperator(id uint32) (string, error) {
+func (DumpOperatorOutput) FormatRegoperator(id uint32) (string, error) {
 	return strconv.FormatUint(uint64(id), 10), nil
 }
 func WalkOperatorReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {

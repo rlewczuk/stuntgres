@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type capturedACLItemInput struct {
+type ACLItemInput struct {
 	Roles     authorization.Read
 	Authority *sqltype.ACLAuthority
 	Op        *session.Operation
@@ -20,9 +20,9 @@ type capturedACLItemInput struct {
 	portal    string
 }
 
-func (r capturedACLItemInput) ACLItemAuthority() *sqltype.ACLAuthority { return r.Authority }
+func (r ACLItemInput) ACLItemAuthority() *sqltype.ACLAuthority { return r.Authority }
 
-func (r capturedACLItemInput) ResolveACLRole(ctx context.Context, name string) (uint32, error) {
+func (r ACLItemInput) ResolveACLRole(ctx context.Context, name string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -36,7 +36,7 @@ func (r capturedACLItemInput) ResolveACLRole(ctx context.Context, name string) (
 	return uint32(role.Ref.ID()), nil
 }
 
-func (r capturedACLItemInput) WarnACLGrantor(ctx context.Context) {
+func (r ACLItemInput) WarnACLGrantor(ctx context.Context) {
 	if r.Op == nil || ctx.Err() != nil {
 		return
 	}
@@ -47,7 +47,7 @@ func (r capturedACLItemInput) WarnACLGrantor(ctx context.Context) {
 	r.Op.EmitNotice(session.LevelWarning, warning)
 }
 
-func (r capturedACLItemInput) ACLItemParameter(slot int, empty bool) sqltype.ACLItemResolver {
+func (r ACLItemInput) ACLItemParameter(slot int, empty bool) sqltype.ACLItemResolver {
 	r.position = 0
 	r.portal = fmt.Sprintf("unnamed portal parameter $%d = '...'", slot)
 	if empty {
@@ -56,7 +56,7 @@ func (r capturedACLItemInput) ACLItemParameter(slot int, empty bool) sqltype.ACL
 	return r
 }
 
-func (r capturedACLItemInput) ACLItemLiteral(position int) sqltype.ACLItemResolver {
+func (r ACLItemInput) ACLItemLiteral(position int) sqltype.ACLItemResolver {
 	r.position = position
 	r.portal = ""
 	return r

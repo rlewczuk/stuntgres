@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 )
 
@@ -33,7 +34,7 @@ func (v *viewRenderer) subscriptsArraySQLAt(ctx context.Context, catalog catalog
 	if literal, ok := v.literals[literalPath]; ok && literal.ResultUsage() == usage {
 		return text, nil
 	}
-	declaration, err := TypeDeclaration(catalog, usage)
+	declaration, err := regobj.TypeDeclaration(catalog, usage)
 	if err != nil {
 		return "", err
 	}

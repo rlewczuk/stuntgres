@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type capturedRegroleOutput struct {
+type RoleOutput struct {
 	Owner    *catalog.Owner
 	Roles    authorization.Read
 	QuoteAll bool
 }
 
-func (r capturedRegroleOutput) FormatRegrole(id uint32) (string, error) {
+func (r RoleOutput) FormatRegrole(id uint32) (string, error) {
 	if id == 0 {
 		return "-", nil
 	}
@@ -37,13 +37,13 @@ func (r capturedRegroleOutput) FormatRegrole(id uint32) (string, error) {
 // Native serialization already carries the immutable cluster role root for ACL
 // output. Regrole uses that same root, but permits unknown numeric identities.
 func RoleContextFormatter(ctx context.Context) sqltype.RegroleFormatter {
-	if output, ok := ctx.Value(aclItemOutputKey{}).(capturedACLItemOutput); ok {
-		return capturedRegroleOutput{Owner: output.Owner, Roles: output.Roles}
+	if output, ok := ctx.Value(aclItemOutputKey{}).(ACLItemOutput); ok {
+		return RoleOutput{Owner: output.Owner, Roles: output.Roles}
 	}
 	return nil
 }
 
-func CaptureRoleOutputValue(rows *exec.FinalRows, output capturedRegroleOutput, value sqltype.Value) error {
+func CaptureRoleOutputValue(rows *exec.FinalRows, output RoleOutput, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegrole() {
 		return nil
 	}

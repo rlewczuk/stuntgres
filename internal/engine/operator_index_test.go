@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -45,7 +46,7 @@ func assertOperatorIndex(t *testing.T, state *catalog.State) {
 			seen[address] = true
 		}
 	}
-	groups := CollectOperatorGroups(catalog.NewRead(nil, state))
+	groups := regobj.CollectOperatorGroups(catalog.NewRead(nil, state))
 	seen := make(map[ids.ObjectAddress]bool)
 	for name, operators := range groups {
 		for _, operator := range operators {
@@ -157,7 +158,7 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 		if current.State().OperatorNames() != oldIndex {
 			t.Fatal("metadata-only replacement copied membership")
 		}
-		oldGroups, newGroups := CollectOperatorGroups(base), CollectOperatorGroups(current)
+		oldGroups, newGroups := regobj.CollectOperatorGroups(base), regobj.CollectOperatorGroups(current)
 		if oldGroups[first.Name()][0] != previous || newGroups[first.Name()][0] != &next || base.Get(first.Address()) != previous {
 			t.Fatal("shared membership froze metadata or changed predecessor")
 		}
@@ -248,7 +249,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	e.catalogChangeLocked(changes, moved.Address(), &refreshed)
 	metadata := e.privateCatalogLocked(changes)
 	e.mu.Unlock()
-	if metadata.State().OperatorNames() != current.State().OperatorNames() || CollectOperatorGroups(metadata)[d.Name()][0] != &refreshed {
+	if metadata.State().OperatorNames() != current.State().OperatorNames() || regobj.CollectOperatorGroups(metadata)[d.Name()][0] != &refreshed {
 		t.Fatal("private metadata replacement froze descriptor or copied membership")
 	}
 	stage = e.BeginCatalogStage(current)
@@ -343,7 +344,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	if next.Get(temp.Address()) != temp || next.Get(tempNamespace.Address()) != tempNamespace {
 		t.Fatal("replacement changed retained TEMP identities")
 	}
-	groups := CollectOperatorGroups(catalog.NewRead(nil, next))
+	groups := regobj.CollectOperatorGroups(catalog.NewRead(nil, next))
 	imported := groups[operator.Name()]
 	if len(imported) != 1 || imported[0].Address() == operator.Address() || imported[0].Namespace() == namespace.Address() || next.Get(imported[0].Namespace()).Name() != namespace.Name() {
 		t.Fatal("imported operator/namespace collision not remapped", imported)

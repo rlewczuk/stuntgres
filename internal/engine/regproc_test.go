@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -58,14 +59,14 @@ func TestRoutineReleaseInventory(t *testing.T) {
 	}{
 		{1242, "boolin", "2275"}, {1299, "now", ""}, {1397, "abs", "23"}, {1396, "abs", "20"}, {2108, "sum", "23"}, {1644, "RI_FKey_check_ins", ""}, {6399, "pg_get_aios", ""},
 	} {
-		got, ok := RoutineIdentityByOID(view, witness.id)
+		got, ok := regobj.RoutineIdentityByOID(view, witness.id)
 		if !ok || got.Name != witness.name || got.Signature != witness.signature {
 			t.Fatal("release witness", got, witness)
 		}
 	}
 	path := analyze.NamespaceSelection{Path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
 	for _, name := range []string{"abs", "lower"} {
-		if _, count := SelectRoutine(view, path, name, nil); count != 2 {
+		if _, count := regobj.SelectRoutine(view, path, name, nil); count != 2 {
 			t.Fatal("released overload ambiguity", name, count)
 		}
 	}
@@ -89,22 +90,22 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
 	path := []ids.ObjectAddress{public, catalogAddress}
-	if _, count := SelectRoutine(view, analyze.NamespaceSelection{Path: path}, "unaccent", nil); count != 2 {
+	if _, count := regobj.SelectRoutine(view, analyze.NamespaceSelection{Path: path}, "unaccent", nil); count != 2 {
 		t.Fatal("distinct later signature masked", count)
 	}
-	if got := ProcSpelling(view, path, first.Address().ObjectID); got != "public.unaccent" {
+	if got := regobj.ProcSpelling(view, path, first.Address().ObjectID); got != "public.unaccent" {
 		t.Fatal("ambiguous earlier name output", got)
 	}
-	if got := RoutineSpelling(view, path, second.Address().ObjectID, true, false); got != "unaccent(regdictionary,text)" {
+	if got := regobj.RoutineSpelling(view, path, second.Address().ObjectID, true, false); got != "unaccent(regdictionary,text)" {
 		t.Fatal("visible later exact signature", got)
 	}
-	selected, count := SelectRoutine(view, analyze.NamespaceSelection{Path: path}, "unaccent", &first.Signature)
+	selected, count := regobj.SelectRoutine(view, analyze.NamespaceSelection{Path: path}, "unaccent", &first.Signature)
 	if count != 1 || selected.ID != first.Address().ObjectID {
 		t.Fatal("exact signature selection", selected, count)
 	}
 	// Real conversion descriptors duplicate source-fixed identities by OID, not
 	// by adding overloads or changing lookup/execution authority.
-	if _, count := SelectRoutine(view, analyze.NamespaceSelection{Path: path}, "utf8_to_iso8859_1", nil); count != 1 {
+	if _, count := regobj.SelectRoutine(view, analyze.NamespaceSelection{Path: path}, "utf8_to_iso8859_1", nil); count != 1 {
 		t.Fatal("conversion identity dedup", count)
 	}
 }
@@ -121,11 +122,11 @@ func TestRoutineRecursiveRemapAndDump(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unchanged, err := RemapRoutineDatum(original, func(id ids.OID) ids.OID { return id })
+	unchanged, err := regobj.RemapRoutineDatum(original, func(id ids.OID) ids.OID { return id })
 	if err != nil || unchanged != original {
 		t.Fatal("unchanged immutable array copied", err)
 	}
-	remapped, err := RemapRoutineDatum(original, func(id ids.OID) ids.OID {
+	remapped, err := regobj.RemapRoutineDatum(original, func(id ids.OID) ids.OID {
 		if id == 90000 {
 			return 90001
 		}
@@ -141,12 +142,12 @@ func TestRoutineRecursiveRemapAndDump(t *testing.T) {
 	if id != 90001 || originalID != 90000 || fixedID != 1397 || unknownID != 4294967295 || !remapped.ArrayElement(3).IsNull() {
 		t.Fatal("remap identities/null/ownership")
 	}
-	text, err := Literal(context.Background(), view, plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: original})
+	text, err := regobj.Literal(context.Background(), view, plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: original})
 	if err != nil || !strings.Contains(text, "[-2:1]") || !strings.Contains(text, "pg_catalog.abs(integer)") || !strings.Contains(text, "::regprocedure::regproc") || !strings.Contains(text, "4294967295") {
 		t.Fatal("overload-safe recursive dump", text, err)
 	}
 	var refs []ids.ObjectAddress
-	if err := WalkRoutineReferences(view, original, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{{ClassID: ids.ProcedureClassID, ObjectID: 1397}}) {
+	if err := regobj.WalkRoutineReferences(view, original, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{{ClassID: ids.ProcedureClassID, ObjectID: 1397}}) {
 		t.Fatal("genuine builtin dependency or lookup-only isolation lost", refs, err)
 	}
 }
@@ -172,11 +173,11 @@ func TestRoutineDomainCompositeRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unchanged, err := RemapRoutineDatum(row, func(id ids.OID) ids.OID { return id })
+	unchanged, err := regobj.RemapRoutineDatum(row, func(id ids.OID) ids.OID { return id })
 	if err != nil || unchanged != row {
 		t.Fatal("unchanged composite copied", err)
 	}
-	remapped, err := RemapRoutineDatum(row, func(id ids.OID) ids.OID {
+	remapped, err := regobj.RemapRoutineDatum(row, func(id ids.OID) ids.OID {
 		if id == 90000 {
 			return 90001
 		}

@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -166,8 +166,8 @@ func LiteralWithACLAt(ctx context.Context, view catalog.Read, reader catalog.Def
 		}
 		literal := "NULL"
 		if !n.Value.IsNull() {
-			output := dumpCatalogAliasOutput{View: view}
-			text, err := u.Type.OutputWithEnvironment(ctx, n.Value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{View: view, definition: reader}, Regtype: output, Regcollation: output, Regnamespace: output, Regrole: RoleContextFormatter(ctx), Operator: dumpOperatorOutput{}, Regproc: catalogRoutineOutput{View: view, qualified: true}, RegTS: dumpRegTSOutput{View: view}, ACLItem: aclOutput})
+			output := DumpAliasOutput{View: view}
+			text, err := u.Type.OutputWithEnvironment(ctx, n.Value, sqltype.OutputEnvironment{Regclass: ClassOutput{View: view, definition: reader}, Regtype: output, Regcollation: output, Regnamespace: output, Regrole: RoleContextFormatter(ctx), Operator: DumpOperatorOutput{}, Regproc: RoutineOutput{View: view, qualified: true}, RegTS: DumpTextSearchOutput{View: view}, ACLItem: aclOutput})
 			if err != nil {
 				return "", err
 			}
@@ -205,7 +205,7 @@ func LiteralWithACLAt(ctx context.Context, view catalog.Read, reader catalog.Def
 		return "CAST('" + strings.ReplaceAll(regtypeReference(view, id), "'", "''") + "' AS REGTYPE)", nil
 	}
 	if sqltype.IsRegObjectAlias(u.Type.ID()) && !n.Value.IsNull() {
-		output := dumpCatalogAliasOutput{View: view}
+		output := DumpAliasOutput{View: view}
 		text, err := u.Type.OutputWithEnvironment(ctx, n.Value, sqltype.OutputEnvironment{Regcollation: output, Regnamespace: output})
 		if err != nil {
 			return "", err

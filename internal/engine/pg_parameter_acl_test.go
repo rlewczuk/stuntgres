@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -296,7 +297,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 		t.Fatal("immutable identity/root")
 	}
 	retained := &exec.FinalRows{}
-	if err := CaptureACLItemOutputValue(retained, capturedACLItemOutput{Owner: e.catalog.owner(), Roles: roles}, captured.Anonymous[0][2]); err != nil {
+	if err := regobj.CaptureACLItemOutputValue(retained, regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: roles}, captured.Anonymous[0][2]); err != nil {
 		t.Fatal(err)
 	}
 	request.Revoke, request.GrantOption = true, false

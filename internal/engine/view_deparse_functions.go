@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -59,7 +60,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 			members := make([]string, shape.CompositeLen())
 			for j := range members {
 				member := shape.CompositeMember(j)
-				declaration, err := TypeDeclaration(catalog, member.Usage)
+				declaration, err := regobj.TypeDeclaration(catalog, member.Usage)
 				if err != nil {
 					return viewRenderFrom{}, err
 				}

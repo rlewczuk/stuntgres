@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -22,8 +23,8 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 		a := auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: name})
 		descriptor, _ := auth.definitionDescriptor(a)
 		if d, ok := descriptor.(*catalog.Collation); ok {
-			one := [1]collationCandidate{{a, d.Encoding}}
-			if SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {
+			one := [1]regobj.CollationCandidate{{Address: a, Encoding: d.Encoding}}
+			if regobj.SelectCollation(one[:], 6) != (ids.ObjectAddress{}) {
 				return d, nil
 			}
 		}

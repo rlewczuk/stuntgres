@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type objectIdentity struct {
+type ObjectIdentity struct {
 	Kind, Schema, Name, Identity, Description string
 	Names, Args                               []string
 	Found                                     bool
@@ -151,12 +151,12 @@ func objectQualifiedType(view catalog.Read, id ids.OID) string {
 	return regtypeSpellingMode(view, nil, id, true)
 }
 
-func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress) (objectIdentity, error) {
+func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress) (ObjectIdentity, error) {
 	kind, known := objectAddressClassKind(a.ClassID)
 	if !known {
-		return objectIdentity{}, sqlError("XX000", fmt.Sprintf("unsupported object class: %d", a.ClassID))
+		return ObjectIdentity{}, sqlError("XX000", fmt.Sprintf("unsupported object class: %d", a.ClassID))
 	}
-	r := objectIdentity{Kind: kind}
+	r := ObjectIdentity{Kind: kind}
 	key := a
 	key.SubID = 0
 	d := view.Get(key)
@@ -290,7 +290,7 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 			r.Kind += " column"
 			attr := ObjectAttributeName(view, d, a.SubID)
 			if attr == "" {
-				return objectIdentity{Kind: r.Kind}, nil
+				return ObjectIdentity{Kind: r.Kind}, nil
 			}
 			r.Identity += "." + catalog.Identifier(attr)
 			r.Names = append(r.Names, attr)
@@ -332,7 +332,7 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 
 // Owned definitions retain their actual owning relation/type OIDs. They are not
 // descriptors and never get an invented namespace or simple-name field.
-func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r objectIdentity) objectIdentity {
+func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity) ObjectIdentity {
 	for _, descriptor := range view.Descriptors() {
 		if domain, ok := descriptor.(*catalog.Type); ok && a.ClassID == 2606 {
 			for _, check := range domain.DomainChecks {
