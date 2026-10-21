@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `10581f8cc` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
+Last verified against `master` at `10581f8cc` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 111, 112 and 113). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,7 +16,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **Upper features, decisions:** 93 (partition 25d), 98 (fdw 26e).
+- **Upper features, decisions:** 93 (partition 25d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -128,6 +128,9 @@ waits for 98 and 110, and table 24d.2 (item 89b) stays ready.
 Item 89b (table 24d.2) is done and closes step 24, so partition 25d (item
 93) and fdw 26e (item 98) are ready; DML 29c (item 109) still waits for 93,
 and the end-state review (item 114) for 98 and 110.
+Item 98 (fdw 26e) is done and closes step 26; the end-state review (item
+114) still waits for 110. `fdw` now imports `table` (a new L12 arrow), and
+the ALTER FOREIGN TABLE loop stays in the root by design.
 
 ## Task tree
 
@@ -570,7 +573,7 @@ and the end-state review (item 114) for 98 and 110.
     `f3e01d002`, `b7acfe47e`, `917899609`, docs)
   - [x] 25c — Host refined (docs only) (docs)
   - [ ] 25d — Handler decisions moved
-- [ ] **Step 26 — `fdw`** ([prompt](ENGINE-SPLIT-fdw.md); 26e needs 24d)
+- [x] **Step 26 — `fdw`** ([prompt](ENGINE-SPLIT-fdw.md); 26e needs 24d)
   - [x] 26a — In place: `fdw_` files, `foreignRegistry`, cuts
     (`6cb327eb1`, `c3a7cf7e1`, `1ba975174`, `0c991e6c8`, `d7405f486`, `a02ccecb1`, then the docs commit)
   - [x] 26b — `fdw` created and clean set moved
@@ -578,7 +581,8 @@ and the end-state review (item 114) for 98 and 110.
   - [x] 26c — Host refined (docs only; the docs commit)
   - [x] 26d — Wrapper, server, mapping, import and grant decisions moved
     (`743eb4d47`, `6fe2aeaa2`, `e942c6231`, then the docs commit)
-  - [ ] 26e — Foreign-table decisions moved
+  - [x] 26e — Foreign-table decisions moved (`10443e154`, `739267fa4`,
+    then the docs commit)
 - [x] **Step 27 — `view`** ([prompt](ENGINE-SPLIT-view.md); 27b needs 22c,
   24b)
   - [x] 27a — In place: `access.View` cuts, slots, renames, dead code
@@ -1351,8 +1355,17 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     the GRANT journal writes and publication; `GrantWarning` was moved by
     28b · selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
-98. [ ] FDW 26e: foreign-table decisions — [fdw](ENGINE-SPLIT-fdw.md) 26e ·
-    needs 97, 89a, 89b
+98. [x] FDW 26e: foreign-table decisions — [fdw](ENGINE-SPLIT-fdw.md) 26e ·
+    needs 97, 89a, 89b (`10443e154`, `739267fa4`, then the docs commit) ·
+    `fdw.Host` embeds `table.Host` and adds `ResolveRelation`; `StageTable`
+    (CREATE/DROP FOREIGN TABLE, IMPORT's tables) and the ALTER admission and
+    option decisions (`AlterTarget`, `AlterBases`, `AlterCandidate`,
+    `AlterColumn`, `AlterOptions`, `CheckAddedColumn`, `AddedColumnOptions`,
+    `UnsupportedAlter`) in `fdw`; `StageForeignTable`,
+    `stageForeignTableLocked` and `stageForeignValidatorJob` gone; the root
+    keeps the ALTER loop (DROP COLUMN waits on locks) and the shared ALTER
+    wrappers · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 99. [x] View 27a: in place — [view](ENGINE-SPLIT-view.md) 27a · needs —
     (`87bfbb497`, `16260a489`, `a0254a5c3`, `57c781f25`, `7472271b6`,
     `a5e32e52a`, `512cf3e1c`, `24b0bfde4`, then the docs commit) · dead

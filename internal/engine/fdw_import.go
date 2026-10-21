@@ -48,7 +48,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		}
 		var validations []fdw.Validation
 		if currentErr == nil {
-			validations, _, currentErr = e.stageForeignTableLocked(scope.op, scope.input, auth, stage, table)
+			validations, _, currentErr = fdw.StageTable(ddlHost{e: e, op: scope.op, stage: stage}, auth, table, scope.input)
 		}
 		e.mu.Unlock()
 		if currentErr != nil {

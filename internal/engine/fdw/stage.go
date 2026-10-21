@@ -25,8 +25,8 @@ type stageTarget struct {
 }
 
 // StageDDL stages CREATE, ALTER and DROP of a foreign-data wrapper,
-// server or user mapping, and routes CREATE and DROP FOREIGN TABLE to the
-// host. It returns the validator jobs, which the engine runs after releasing
+// server or user mapping, and routes CREATE and DROP FOREIGN TABLE to
+// StageTable. It returns the validator jobs, which the engine runs after releasing
 // Engine.mu and replacementMu, and the dropped roots, whose dependents the
 // engine stages. A nil, nil, nil result means there is nothing to publish.
 func StageDDL(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.InputEnvironment) ([]Validation, []ids.ObjectAddress, error) {
@@ -50,7 +50,7 @@ func StageDDL(h Host, auth ddl.Authority, s *parser.ForeignDDL, input sqltype.In
 		return nil, nil, d
 	}
 	if s.Kind == "table" {
-		return h.StageForeignTable(auth, s, input)
+		return StageTable(h, auth, s, input)
 	}
 	target := stageTarget{class: Class(s.Kind)}
 	if len(s.Name.Parts) != 0 {

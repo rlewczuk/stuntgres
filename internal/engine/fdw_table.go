@@ -6,106 +6,11 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/fdw"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
-
-func (e *Engine) stageForeignTableLocked(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
-	if s.Action == "drop" {
-		var roots []ids.ObjectAddress
-		for _, name := range s.Names {
-			ref, err := e.resolveRelationReference(auth, name, true)
-			if err != nil {
-				if s.IfExists && table.RenameMissing(err) {
-					schemaNotice(op, "00000", fmt.Sprintf(`foreign table "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
-					continue
-				}
-				return nil, nil, err
-			}
-			d := auth.Catalog.MustRelation(ref.Address)
-			if d.RelationKind != catalog.ForeignRelation {
-				return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.Name()))
-			}
-			if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-				return nil, nil, err
-			}
-			if err := stage.removeObjectLocked(ref, false); err != nil {
-				return nil, nil, err
-			}
-			roots = append(roots, d.Address())
-		}
-		return nil, roots, nil
-	}
-	ns, err := e.creationNamespace(auth, s.Name)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = auth.CheckCreate(ns); err != nil {
-		return nil, nil, ddl.CreationError(err, s.Name)
-	}
-	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
-	if stage.LookupName(key) != (ids.ObjectAddress{}) {
-		if s.IfNotExists {
-			op.ExistingRelationNotice(key.Name)
-			return nil, nil, nil
-		}
-		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
-	}
-	server, err := fdw.Find(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
-	if err != nil {
-		return nil, nil, err
-	}
-	if err = auth.Check(access.Requirement{Object: fdw.ObjectRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
-		return nil, nil, err
-	}
-	if err = fdw.CheckTableDeclaration(s.Table); err != nil {
-		return nil, nil, err
-	}
-	if err = e.schemaTableLocked(op, auth, stage, fdw.TableSyntax(s.Table), ns.Address, auth.State.CurrentUser, input, nil); err != nil {
-		return nil, nil, err
-	}
-	d, ok := stage.Get(stage.LookupName(key)).(*catalog.Relation)
-	if !ok {
-		return nil, nil, fmt.Errorf("stuntgres: missing staged foreign relation")
-	}
-	d.RelationKind = catalog.ForeignRelation
-	d.Foreign = &catalog.ForeignTableDefinition{Server: server.Address(), Columns: make(map[int32][]catalog.ForeignOption)}
-	d.Foreign.Options, err = fdw.TransformOptions(nil, s.Options)
-	if err != nil {
-		return nil, nil, err
-	}
-	wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
-	if !ok {
-		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
-	}
-	stage.domainBases = append(stage.domainBases, server, wrapper)
-	job, err := stageForeignValidatorJob(stage, wrapper, catalog.ForeignTable, d.Foreign.Options)
-	if err != nil {
-		return nil, nil, err
-	}
-	jobs := []fdw.Validation{job}
-	for _, attribute := range d.Attributes {
-		column := d.Columns[d.IndexForAttribute(attribute)]
-		options, er := fdw.TransformOptions(nil, s.ColumnOptions[column.Name])
-		if er != nil {
-			return nil, nil, er
-		}
-		d.Foreign.Columns[attribute] = options
-		job, er := stageForeignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
-		if er != nil {
-			return nil, nil, er
-		}
-		jobs = append(jobs, job)
-	}
-	return jobs, nil, nil
-}
 
 func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
 	e.mu.Lock()
@@ -114,28 +19,16 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	ref, err := e.resolveRelationReference(auth, s.Name, true)
+	h := ddlHost{e: e, op: scope.op}
+	old, ref, err := fdw.AlterTarget(h, auth, s, scope.lockedRef)
 	if err != nil {
 		e.mu.Unlock()
-		if s.IfExists && table.RenameMissing(err) {
-			schemaNotice(scope.op, "00000", fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(s.Name)))
-			scope.completed = true
-			return Result{}, nil
-		}
 		return Result{}, err
 	}
-	old := auth.Catalog.MustRelation(ref.Address)
-	if old.RelationKind != catalog.ForeignRelation {
+	if old == nil {
 		e.mu.Unlock()
-		return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, old.Name()))
-	}
-	if ref != scope.lockedRef {
-		e.mu.Unlock()
-		return Result{}, ids.ErrCatalogReplaced
-	}
-	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-		e.mu.Unlock()
-		return Result{}, err
+		scope.completed = true
+		return Result{}, nil
 	}
 	if s.Owner != nil {
 		target, identity := access.OwnershipRoleOperand(*s.Owner)
@@ -152,25 +45,16 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			return e.alterSchemaLocked(scope, scope.op, auth, inner, 0)
 		}
 	}
-	server, ok := auth.Catalog.Foreign(old.Foreign.Server)
-	if !ok {
-		e.mu.Unlock()
-		return Result{}, ids.ErrCatalogReplaced
-	}
-	wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
-	if !ok {
-		e.mu.Unlock()
-		return Result{}, ids.ErrCatalogReplaced
-	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
-	stage.domainBases = append(stage.domainBases, server, wrapper)
+	h.stage = stage
+	wrapper, err := fdw.AlterBases(h, auth, old)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	next := *old
-	foreign := *old.Foreign
-	foreign.Columns = maps.Clone(old.Foreign.Columns)
-	next.Foreign = &foreign
+	if err != nil {
+		return Result{}, err
+	}
+	next := fdw.AlterCandidate(old)
 	var jobs []fdw.Validation
 	var pendingChecks []table.AlterTypeCheck
 	var typeActions []parser.AlterTableAction
@@ -196,28 +80,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				return Result{}, err
 			}
 			if action.Options != nil {
-				kind := catalog.ForeignTable
-				options := next.Foreign.Options
-				var attribute int32
-				if action.Column.Text != "" {
-					slot, ok := next.Index[action.Column.Text]
-					if !ok {
-						return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, next.Name()))
-					}
-					attribute = next.Attributes[slot]
-					options = next.Foreign.Columns[attribute]
-					kind = catalog.ForeignAttribute
-				}
-				options, err = fdw.TransformOptions(options, action.Options)
-				if err != nil {
-					return Result{}, err
-				}
-				if attribute == 0 {
-					next.Foreign.Options = options
-				} else {
-					next.Foreign.Columns[attribute] = options
-				}
-				job, er := stageForeignValidatorJob(stage, wrapper, kind, options)
+				e.mu.Lock()
+				job, er := fdw.AlterOptions(h, &next, wrapper, action)
+				e.mu.Unlock()
 				if er != nil {
 					return Result{}, er
 				}
@@ -226,9 +91,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			}
 			if action.Default != nil {
 				a := action.Default
-				slot, ok := next.Index[a.Column.Text]
-				if !ok {
-					return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, next.Name()))
+				slot, er := fdw.AlterColumn(&next, a.Column.Text)
+				if er != nil {
+					return Result{}, er
 				}
 				next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
 				attribute := next.Attributes[slot]
@@ -265,8 +130,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			case parser.DropColumn:
 				candidate, err = scope.dropColumnCandidate(stage, &next, ref, a, nil)
 			case parser.AddColumn:
-				declaration := &parser.CreateTable{Elements: []parser.TableElement{{Column: a.Definition}}}
-				if err = fdw.CheckTableDeclaration(declaration); err != nil {
+				if err = fdw.CheckAddedColumn(a.Definition); err != nil {
 					return Result{}, err
 				}
 				var added table.AddedColumn
@@ -290,13 +154,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 					}
 					if err == nil {
-						options, er := fdw.TransformOptions(nil, action.ColumnOptions)
-						if er != nil {
-							return Result{}, er
-						}
-						attribute := candidate.Attributes[candidate.Index[a.Column.Text]]
-						candidate.Foreign.Columns[attribute] = options
-						job, er := stageForeignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
+						e.mu.Lock()
+						job, er := fdw.AddedColumnOptions(h, candidate, wrapper, a.Column.Text, action.ColumnOptions)
+						e.mu.Unlock()
 						if er != nil {
 							return Result{}, er
 						}
@@ -314,7 +174,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			case parser.SetExpression, parser.DropExpression:
 				candidate, _, err = e.generationCandidate(scope, scope.op, auth, &next, a)
 			default:
-				return Result{}, sqlError("0A000", "foreign table action requires unsupported local storage or write support")
+				return Result{}, fdw.UnsupportedAlter()
 			}
 			if err != nil {
 				return Result{}, err

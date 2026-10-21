@@ -12,11 +12,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// TestFDWHostStageForeignTable pins the fdw.Host seam: CREATE FOREIGN TABLE
-// stages the relation and returns one validator job for the table and one
-// per column; DROP stages the removal and returns the dropped root. Nothing
-// is published.
-func TestFDWHostStageForeignTable(t *testing.T) {
+// TestFDWStageTable pins fdw.StageTable over the statement's ddlHost:
+// CREATE FOREIGN TABLE stages the relation and returns one validator job for
+// the table and one per column; DROP stages the removal and returns the
+// dropped root. Nothing is published.
+func TestFDWStageTable(t *testing.T) {
 	e := New()
 	var seen []catalog.ForeignObjectKind
 	validator, err := fdw.ValidateValidator(fdw.ValidatorDefinition{
@@ -44,8 +44,7 @@ func TestFDWHostStageForeignTable(t *testing.T) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		stage.authorizeLocked(auth, op.Session)
-		var h fdw.Host = ddlHost{e: e, op: op, stage: stage}
-		jobs, roots, err := h.StageForeignTable(auth, statement(t, sql).(*parser.ForeignDDL), sqltype.InputEnvironment{})
+		jobs, roots, err := fdw.StageTable(ddlHost{e: e, op: op, stage: stage}, auth, statement(t, sql).(*parser.ForeignDDL), sqltype.InputEnvironment{})
 		return stage, jobs, roots, err
 	}
 
