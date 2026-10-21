@@ -5,27 +5,8 @@ import (
 	"sort"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/plan"
 )
-
-// structuralNull only recognizes transparent coercions of a literal NULL.
-// Other expressions remain definitions even when evaluation would return NULL.
-func structuralNull(node expr.Expr) bool {
-	for {
-		switch n := node.(type) {
-		case plan.LiteralExpr:
-			return n.Value.IsNull()
-		case plan.CollationExpr:
-			node = n.Child
-		case plan.CoercionExpr:
-			node = n.Child
-		default:
-			return false
-		}
-	}
-}
 
 func (e *Engine) assignDefinitionOIDsLocked(d *catalog.Relation) error {
 	for i := range d.Constraints.NotNull {

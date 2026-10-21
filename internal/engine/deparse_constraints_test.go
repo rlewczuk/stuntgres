@@ -225,7 +225,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	if _, err := (pgRenderer{view: view}).sql(context.Background(), trap, pgRenderParent{}); err == nil || calls != 0 {
 		t.Fatal(err, calls)
 	}
-	if structuralNull(trap) || calls != 0 {
+	if plan.StructuralNull(trap) || calls != 0 {
 		t.Fatal("NULL producer evaluated")
 	}
 	for _, input := range []string{"", "x", string([]byte{0xff, 0})} {

@@ -79,7 +79,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
 	_, err := mask.DomainDefault.Expression.Eval(&c)
 	domainUnitDiagnostic(t, err, "23502", "domain public.base_default does not allow null values")
-	if !structuralNull(mask.DomainDefault.Expression) {
+	if !plan.StructuralNull(mask.DomainDefault.Expression) {
 		t.Fatal("NULL mask recipe lost structural null")
 	}
 	numericMask := domainUnitType(t, view, "numeric_mask")
@@ -148,7 +148,7 @@ func TestDomainDefaultLogicalSelectionInternal(t *testing.T) {
 		if (origin.Definition.Expression != nil) != tc.recipe {
 			t.Fatal("logical absence conflated with domain recipe", tc.name)
 		}
-		if tc.null && (node == nil || !structuralNull(node)) {
+		if tc.null && (node == nil || !plan.StructuralNull(node)) {
 			t.Fatal("NULL mask erased")
 		}
 		if !tc.recipe && (node == nil || !node.Properties().RuntimeDomainConversion) {
