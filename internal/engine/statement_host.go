@@ -18,6 +18,7 @@ import (
 type statementHost StatementScope
 
 var _ exec.Host = (*statementHost)(nil)
+var _ foreignWriteRuntime = (*statementHost)(nil)
 
 // hostOf returns an untyped nil for a nil scope, never a typed nil.
 func hostOf(scope *StatementScope) exec.Host {
@@ -60,6 +61,15 @@ func (h *statementHost) ReleaseReplacementRead() { h.scope().foreignUnlocked() }
 func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
 	return h.scope().enlistForeign(ctx, wrapper, request, writing)
 }
+
+// TrackForeignModification records m so statement end finishes it.
+func (h *statementHost) TrackForeignModification(m *foreignModification) {
+	s := h.scope()
+	s.foreignTables().modifications = append(s.foreignTablesOrZero().modifications, m)
+}
+
+// foreignWrites is the statement's foreign write runtime.
+func (s *StatementScope) foreignWrites() foreignWriteRuntime { return (*statementHost)(s) }
 
 func (h *statementHost) FormatRegclass(id uint32) (string, error) {
 	return h.scope().FormatRegclass(id)

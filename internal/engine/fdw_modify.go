@@ -12,6 +12,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// foreignWriteRuntime is what the write protocol needs from the statement:
+// participant enlistment, modification tracking for statement end, and the
+// value environments. statementHost implements it.
+type foreignWriteRuntime interface {
+	EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
+	TrackForeignModification(m *foreignModification)
+	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
+}
+
 type foreignModification struct {
 	source         *exec.ForeignQuerySource
 	request        catalog.ForeignModifyRequest
@@ -100,14 +109,14 @@ func (s *StatementScope) planForeignModification(ctx context.Context, source *ex
 	}
 	return m, nil
 }
-func (m *foreignModification) begin(ctx context.Context, s *StatementScope) error {
-	tx, err := s.enlistForeign(ctx, m.source.Wrapper, m.request.ForeignRequest, true)
+func (m *foreignModification) begin(ctx context.Context, rt foreignWriteRuntime) error {
+	tx, err := rt.EnlistForeign(ctx, m.source.Wrapper, m.request.ForeignRequest, true)
 	if err != nil {
 		return err
 	}
 	m.request.Transaction = tx
 	m.entered = true
-	s.foreignTables().modifications = append(s.foreignTablesOrZero().modifications, m)
+	rt.TrackForeignModification(m)
 	if m.copy {
 		if beginner, ok := m.source.Wrapper.(catalog.ForeignInsertBeginner); ok {
 			m.state, err = beginner.BeginForeignInsert(ctx, catalog.ForeignInsertRequest{ForeignRequest: exec.CopyForeignRequest(m.request.ForeignRequest), Copy: true})
@@ -139,10 +148,11 @@ func (m *foreignModification) end(ctx context.Context) error {
 	m.state = nil
 	return m.endError
 }
-func (m *foreignModification) export(ctx context.Context, row []sqltype.Value, s *StatementScope) (catalog.ForeignRow, error) {
+func (m *foreignModification) export(ctx context.Context, row []sqltype.Value, rt foreignWriteRuntime) (catalog.ForeignRow, error) {
+	_, output := rt.Environments()
 	out := make(catalog.ForeignRow, len(row))
 	for i, value := range row {
-		cell, err := m.source.ExportValue(ctx, value, s.output)
+		cell, err := m.source.ExportValue(ctx, value, output)
 		if err != nil {
 			return nil, err
 		}
@@ -153,10 +163,11 @@ func (m *foreignModification) export(ctx context.Context, row []sqltype.Value, s
 	}
 	return out, nil
 }
-func (m *foreignModification) returned(ctx context.Context, row catalog.ForeignRow, s *StatementScope) ([]sqltype.Value, error) {
-	return m.source.ImportValues(ctx, row, nil, s.input, s.output, nil)
+func (m *foreignModification) returned(ctx context.Context, row catalog.ForeignRow, rt foreignWriteRuntime) ([]sqltype.Value, error) {
+	input, output := rt.Environments()
+	return m.source.ImportValues(ctx, row, nil, input, output, nil)
 }
-func (m *foreignModification) insertRows(ctx context.Context, s *StatementScope, rows [][]sqltype.Value, rowByRow bool, accept func([]sqltype.Value) error) (int64, error) {
+func (m *foreignModification) insertRows(ctx context.Context, rt foreignWriteRuntime, rows [][]sqltype.Value, rowByRow bool, accept func([]sqltype.Value) error) (int64, error) {
 	batch, hasBatch := m.source.Wrapper.(catalog.ForeignBatchInserter)
 	sizer, hasSize := m.source.Wrapper.(catalog.ForeignBatchSizer)
 	size := 1
@@ -177,7 +188,7 @@ func (m *foreignModification) insertRows(ctx context.Context, s *StatementScope,
 			if err := ctx.Err(); err != nil {
 				return 0, err
 			}
-			cells, err := m.export(ctx, input, s)
+			cells, err := m.export(ctx, input, rt)
 			if err != nil {
 				return 0, err
 			}
@@ -188,7 +199,7 @@ func (m *foreignModification) insertRows(ctx context.Context, s *StatementScope,
 			if !present {
 				continue
 			}
-			row, err := m.returned(ctx, result, s)
+			row, err := m.returned(ctx, result, rt)
 			if err != nil {
 				return 0, err
 			}
@@ -209,7 +220,7 @@ func (m *foreignModification) insertRows(ctx context.Context, s *StatementScope,
 		inputs := make([]catalog.ForeignRow, n)
 		for i := range inputs {
 			var err error
-			inputs[i], err = m.export(ctx, rows[offset+i], s)
+			inputs[i], err = m.export(ctx, rows[offset+i], rt)
 			if err != nil {
 				return 0, err
 			}
@@ -222,7 +233,7 @@ func (m *foreignModification) insertRows(ctx context.Context, s *StatementScope,
 			return 0, errors.New("stuntgres: foreign batch returned more rows than supplied")
 		}
 		for _, result := range results {
-			row, err := m.returned(ctx, result, s)
+			row, err := m.returned(ctx, result, rt)
 			if err != nil {
 				return 0, err
 			}
