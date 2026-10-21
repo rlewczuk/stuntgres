@@ -283,7 +283,7 @@ or releases it, and never waits.
 | Binding (the root builds the binders) | `BindPartitionKeys(auth, relation, spec)`, `BindPartitionBound(auth, parent, bound)` | `Engine.bindPartitionKeys`, `pendingPartitionDefinition.bindPartitionDatum` |
 | Evaluation | `Evaluation() exec.Context` | the contexts of `evaluateBounds` and the attach checks |
 | Fences | `RecordStorageRead(fence)` | appends to `CatalogStage.storageReads` |
-| Index children | `index.Host` (23c), through `index` functions | `stagePartitionIndexChildren`, `stagePartitionIndexAttach` |
+| Index children | `index.Host` (23c: embedded through `table.Host`), through the 23d.1 `index` functions `StagePartitionIndexChild`/`Children`, `StagePartitionIndexAttach`, `PartitionIndexValidity` (over `index.ValidityTarget`) and `StagePartitionIndexDrop`/`StagePartitionConstraintDrop` (over `index.DropStage`) | `stagePartitionIndexChildren`, `stagePartitionIndexAttach` |
 
 Questions to settle in 25c:
 

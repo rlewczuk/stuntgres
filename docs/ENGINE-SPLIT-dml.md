@@ -14,7 +14,7 @@ constraints, verification, documentation and report.
   - 29b (item 108): 29a, plus the Part A moves it imports or shares files
     with: `copyfmt` 19b (59), `index` 23b (83), `table` 24b (87),
     `partition` 25b (91), `fdw` 26b (95), `view` 27b (100).
-  - 29c (item 109): 29b, plus every upper feature's Part B: 23d (85), 24d
+  - 29c (item 109): 29b, plus every upper feature's Part B: 23d.2 (85b), 24d
     (89), 25d (93), 26d (97), 27d (102). Their write-side host interfaces
     are what 29c composes.
   - 29d (item 110): 29c.
@@ -383,3 +383,19 @@ Outstanding aliases: none yet.
 - `fdw_execute.go`'s foreign DML (`executeForeignCommandLocked`,
   `projectForeignReturning`) moves here in 29d; its callback protocol
   (`fdw_modify.go`) belongs to `fdw`.
+- Index 23c refine (decision 8): `index.WriteHost` is implemented on
+  `*statementHost` with coarse windows that take `Engine.mu` themselves
+  (`UniqueParent`, `BindingAuthority`, `CaptureUniqueProbe`,
+  `ExistingIndexRoot`, `CaptureExclusionScan`, `ExclusionScanCurrent`,
+  `PublishExclusion`, `DiscardExclusion`, `OwnExclusionKeys`,
+  `AdmitExclusion`) and the waits (`ClaimUniqueKey`, `WaitTransaction`);
+  no callbacks and no `*exec.Context` arguments. 23d.2 leaves the probe,
+  claim and exclusion loops (`probeUniqueRow`, `claimUniqueRow`,
+  `checkUniqueRow`, `bindUniqueWrite`, `existingUniqueOutput`,
+  `probeExclusion`, `probeExclusionRow`, ...) on `StatementScope` with
+  `uniqueConflict` and `exclusionScan` (which keep `AuthorizationView` to
+  avoid boxing per probe): they interleave ON CONFLICT arbiters, the write
+  overlay, own writes and foreign action owners, so they are `dml`'s.
+  29c embeds `index.WriteHost` in `dml.Host` and decides whether the
+  per-row interface calls cost anything measurable (23d.2 calls the
+  concrete methods).

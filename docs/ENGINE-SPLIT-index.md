@@ -17,15 +17,17 @@ constraints, verification, documentation and report.
     the 22a coverage cut); 72 (catalog 5i); 75 (exec 11e); 73 (plan 10e,
     for `generationHasTableOID`).
   - 23c (item 84): 83 and 61 (`ddl` 20b, one root staging adapter).
-  - 23d (item 85): 84.
-- **Effort:** high for 23a and 23b; xhigh for 23c; high for 23d.
+  - 23d.1 (item 85a): 84. 23d.2 (item 85b): 84 and 85a's seam commit
+    (it may run beside the rest of 85a on its own branch).
+- **Effort:** high for 23a and 23b; xhigh for 23c; high for 23d.1;
+  xhigh for 23d.2 (per-row DML path).
 - **Session size:** one sub-step per session. 23a is large: if it does not
   fit, finish steps 1–3 in one session and step 4 in the next, and leave
   the box unticked until both are done.
-- **Linear items:** 23a = 82, 23b = 83, 23c = 84, 23d = 85. Items that wait
-  for this step: 24b (87) needs 83, 24c (88) needs 84, 24d (89) needs 85,
-  29a (107) needs 82, 29b (108) needs 83, 29c (109) needs 85, 30b (112)
-  needs 83.
+- **Linear items:** 23a = 82, 23b = 83, 23c = 84, 23d.1 = 85a, 23d.2 =
+  85b. Items that wait for this step: 24b (87) needs 83, 24c (88) needs 84,
+  24d (89) needs 85a, 29a (107) needs 82, 29b (108) needs 83, 29c (109)
+  needs 85b, 30b (112) needs 83.
 - **Tools:** run from the worktree root; never pipe them into `head`.
   - `reach` (which declarations reach `Engine`, `StatementScope` or
     `CatalogStage`):
@@ -436,77 +438,390 @@ Commit sequence: export in place → move → qualify → docs.
 ### 23c — Refine the host (docs only; linear item 84)
 
 Measure the handlers of "Dirty, and why" again with `reach` and `frontier`,
-starting from this sketch, then write the final interfaces, the move set
-and the commit sequence into this file. Wait for approval.
+starting from the draft sketch (an `index.Host` for the DDL side, an
+`index.WriteHost` for the DML side), then write the final interfaces, the
+move set and the commit sequence into this file, and wait for approval. Four
+questions were open: (1) do the exclusion registry methods of `WriteHost`
+take `Engine.mu` themselves, or must the caller hold it; (2) how `table`
+reaches the constraint-index staging; (3) does SET CONSTRAINTS stay in the
+root; (4) where the `IndexProperty` capability body goes.
 
-**`index.Host`** — the DDL side. Every method runs with `Engine.mu` held,
-never takes or releases it, and never waits.
+**23c refine (approved; measured at `42a45f774`).** `frontier` over the 33
+root files that still hold index code (`index_*.go`, `unique*.go`,
+`exclusion_*.go`, `using_index*.go`, `domain_alter_indexes.go`; output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-INDEX-REFINE/frontier-index.txt`): 94
+declarations, about 150 engine edges. `executeCreateIndex` (`index.go`,
+205 lines) was read directly. Findings:
 
-| Group | Methods (draft) | Replaces |
-|---|---|---|
-| Shared DDL contract | the methods of `ddl.Host` (20a): authority views and recapture, CREATE checks, creation namespaces, dependency text, the stage, OID and revision allocation, notices, the context | the `AuthorizationView`, `CatalogStage` and `op` parameters of the stage handlers |
-| Index stage slot | `IndexStage() *index.Stage` | `CatalogStage.indexes()` |
-| Binding (the root builds the binders) | `BindIndexAttributes(auth, parent, stmt)`, `BindIndexExpression(auth, parent, raw)`, `BindIndexPredicate(auth, parent, raw)` | `Engine.bindIndexAttributes`, `bindIndexKey`, `validateSystemIndexKey`, `bindIndexExpression`, `indexExpressionBinder`, `bindIndexPredicate` |
-| Catalog lookups | `LookupIndexClass(auth, method, name, usage)` | `Engine.lookupIndexClass` |
-| Evaluation | `Evaluation() exec.Context` (statement presentation and cancellation) | the `exec.Context` literals the handlers build |
-| Storage reads | `RelationStorage(address)`, `IndexRoot(address)` | reads of `e.storage` |
-| Diagnostics | `TypeDiagnosticName(usage)` | `Engine.captureTypeDiagnosticName` |
-| Restore | `TrustedRestore() bool` | the trusted Restore index authority check |
+- **The shared DDL host covers most edges.** `allocateOIDLocked` and
+  `revisionLocked` are `Allocator`; `stage.Create`, `Replace`, `Get` and
+  `LookupName` are `Stage()`; `stage.Base` is `StageBase()`; `stageRead` is
+  `StageRead()`; `op.Context()` and `op.EmitNotice` are `Context` and
+  `EmitNotice`; `auth.CheckCreate` with the Restore 42501 exception is
+  `CheckCreateIn`; `lookupNamespaces(auth, name, OperatorLookup)` is
+  `SearchNamespaces(auth, name, ids.OperatorClassID)`, the same path and
+  error. Four methods already on `ddlHost` fit as they are:
+  `AddDomainBase` (`stage.domainBases` appends), `RemoveObject`
+  (`removeObjectLocked`), `TrustedRestoreDestination(auth, "index")`
+  (exactly CREATE INDEX's trusted Restore check and its text) and
+  `RelationDiagnostic` (the kind in the 42809 detail). `scalarRenderer` was
+  an alias of `stored.ScalarRenderer` (22d removed it), and `sqlError` has
+  the `index` copy.
+- **Not needed** (the draft had them): `Evaluation()`, `RelationStorage`,
+  `IndexRoot`, `TypeDiagnosticName` and `TrustedRestore()`. Only the
+  CONCURRENTLY phases and publication read storage, build evaluation
+  contexts or name types, and they stay in the root.
+- **Lock contracts the draft did not foresee.** `captureUsingIndexes` takes
+  `Engine.mu` twice around allocation and removal, and
+  `prepareUsingIndexMetadata` once around allocation; their callers hold
+  nothing, and nothing inside waits (`CatalogStage.Create`/`Replace` and
+  `stageDefinitionReader` take no lock). DROP INDEX staging
+  (`stagePartitionIndexDrop`) runs after `executeIndexMaintenance` releases
+  `Engine.mu`, and `CatalogStage.Remove` takes it. `stagePartitionIndexValidity`
+  runs both with and without the lock.
+- **Table-owned edges** inside the index staging: `captureLikeSource`
+  (`stageUniqueDefinitions`), `rebuildAlterNotNullsLocked` (the tail of
+  `rebuildAlterUniquesLocked`), `usingIndexNotNullCandidate`
+  (`prepareUsingIndexMetadata`) and `notNullCandidate`/`notNullDirect`
+  (`executePartitionConstraintDropLocked`).
+- **Write side.** On the write path every exclusion registry access but
+  three sits in a compound `Engine.mu` window: epoch and private catalog check, projection
+  begin, row identity allocation, the projection edit and install
+  (`publishExclusionCandidate`), or a coherent capture of authority, roots,
+  storage and the pending map (`captureExclusionScan`,
+  `exclusionScanCurrent`). The three standalone windows are
+  `discardExclusionCandidate`, the `OwnLocked` read and the admit
+  read-modify-write in `probeExclusionRow`. The unique probe, claim and
+  existing-output lookups interleave DML state on every row: ON CONFLICT
+  arbiters, the insert write overlay, own writes and deletes, and foreign
+  action owners.
+- **Outside uses (IN).** `executeCreateIndex` and `executeIndexMaintenance`:
+  one production caller each (`execute.go`). Constraint staging: table and
+  partition code (`create_table_stage.go`, `partition_create_child.go`,
+  `alter_constraint.go`, `alter_table.go`, `typed_mutation.go`,
+  `inheritance_alter_prepare.go`, `partition_exclusion.go`,
+  `partition_attach.go`, `partition_create.go`, `partition_unique_replay.go`).
+  Write side: DML (`insert_*`, `update*`, `delete*`, `merge*`, `copy*`,
+  `foreign_action_apply.go`, `transaction.go`). `partitionIndexPromotionPath`
+  (the free function) has no user.
 
-**`index.WriteHost`** — the DML side, implemented on `statementHost`.
+Decisions:
 
-| Group | Methods (draft) | Lock contract |
-|---|---|---|
-| Parents | `UniqueParent(ref)` | under `Engine.mu`, never waits |
-| Key pins | `PinUniqueKey(ctx, key)` | waits on the lock manager; caller holds nothing |
-| Exclusion registry | install, read, remove, scan and check projections | decide in 23c (see below) |
-| Rows | latest committed row, own writes, the statement snapshot | under `Engine.mu`, never waits |
-| Programs | `ReadmitPrograms()` after a wait | caller holds nothing |
+1. **`index.Host` lives on the shared `ddlHost`**, like `routine.DDLHost`,
+   `typedef.StageHost`, `ddl.SchemaHost` and `fdw.Host`; a new root
+   `index_host.go` holds `var _ index.Host = ddlHost{}`. Every method runs
+   with `Engine.mu` held, never takes or releases it, and never waits. It is
+   `ddl.Host` plus:
+   - already on `ddlHost`, declared again in `index`: `AddDomainBase(
+     catalog.Descriptor)`, `RemoveObject(ref ids.ObjectRef, namespace bool)
+     error`, `TrustedRestoreDestination(auth ddl.Authority, what string)
+     (bool, error)`, `RelationDiagnostic(auth ddl.Authority, relation
+     *catalog.Relation) (kind, name string)`;
+   - new: `IndexStage() *Stage` (today `CatalogStage.indexes()`);
+     `DescriptorStage() DescriptorStage` (the stage itself, for
+     `StagePartitionDescriptor`, `StageBackingIndexRename` and
+     `StagePreparedUsingIndex`; `ddl.Stage` lacks `RenameStagedDescriptor`
+     and `StageBase`); `ACLOutput(view catalog.Read) regobj.ACLItemOutput`
+     (the engine owner and `roles.read(owner, view,
+     operationRolesLocked(op))`; LIKE passes `StageBase()`, partition
+     children `StageRead()`); `DefinitionReader() catalog.DefinitionReader`
+     (`stageDefinitionReader{stage}`); `LookupCollation(raw
+     parser.ObjectName) (uint32, error)` (`Engine.lookupCollation(raw, op)`:
+     the operation's authority, not the statement's, and the same 0A000 and
+     42704 errors; `typedef.StageHost.FindCollation` is not equivalent);
+   - binding, where the root builds the binder (§3: `index` never builds
+     one): `BindIndexExpression(auth ddl.Authority, parent
+     *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input
+     sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error)`
+     and `BindIndexPredicate(auth ddl.Authority, parent *catalog.Relation,
+     raw parser.Expr, input sqltype.InputEnvironment)
+     (*catalog.IndexPredicate, error)`. Today's bodies stay whole behind
+     them (binder, preflight, volatility checks, dependency rendering),
+     because `RoutineAuthority` needs the `*AuthorizationView` that a
+     `ddl.Authority` value cannot give. `bindIndexAttributes`,
+     `bindIndexKey`, `validateSystemIndexKey` and the class lookup then move
+     into `index` over these, `LookupCollation` and `SearchNamespaces`. The
+     analyze host's `LookupIndexClass` and `IndexExpressionBinder` stay in
+     `analysis_host.go` and call the moved class lookup.
+2. **Lock windows.** `captureUsingIndexes` and `prepareUsingIndexMetadata`
+   become `index` functions over the host; their root wrappers hold
+   `Engine.mu` across the call. The ALTER TABLE caller already takes the
+   lock just before (`evolveStageIndexesLocked`), so its two windows merge;
+   the windows only widen and contain no wait. DROP INDEX staging keeps its
+   unlocked place: `index.StagePartitionIndexDrop(stage DropStage, idx
+   *catalog.Relation) error` over `DropStage` (`DescriptorStage` plus
+   `RemoveRelation(ids.ObjectAddress) error`, a root `CatalogStage` method
+   that builds the reference and calls `Remove`, which locks), with no host.
+   `stagePartitionConstraintDrop` follows it. The validity pass becomes
+   `index.PartitionIndexValidity(t ValidityTarget, promote
+   ids.ObjectAddress) error` with `PartitionIndexPromotionPath`;
+   `ValidityTarget` is `CoverageReader` plus `DescriptorCount() int` and
+   `ReplacePartitionDescriptor(*catalog.Relation) error`, which
+   `*dropProvider` exports. The root `stagePartitionIndexValidity` stays as
+   the one line that builds the provider.
+3. **CREATE INDEX.** The root keeps the argument and Restore CONCURRENTLY
+   checks, the retry loop, the lock, `refreshRelationGrantsLocked`,
+   `statementAuthorizationLocked`, `captureIdentityLocked`, the parent
+   lookup by `lockedRef`, `BeginCatalogStage`, `authorizeLocked` and the
+   stage output (now before the decisions; beginning a stage has no side
+   effects), the CONCURRENTLY `visibilityWriteLocked`, the unlock,
+   validation, publication, the `catalog.Conflict` branch (retry for an
+   unnamed index, the relocked IF NOT EXISTS recheck with its owner and
+   plain `CheckCreate` checks) and `executeConcurrentIndex`. Two functions
+   move:
+   - `index.PrepareCreate(h Host, auth ddl.Authority, parent
+     *catalog.Relation, s *parser.CreateIndex, input
+     sqltype.InputEnvironment) (CreatePlan, error)`: today's lines 38–145
+     in the same order (Restore authority, the 32-column limit, relation
+     kind, CREATE with the Restore exception, method, partial CONCURRENTLY,
+     reloptions, predicate, attributes, generated name, the existing name
+     (a `Skip` result for IF NOT EXISTS; the root emits
+     `ExistingRelationNotice` after unlocking, the 42P07 error otherwise),
+     operator class options, unique providers, partition coverage, storage
+     parameters, OID and revision, columns and descriptor). `CreatePlan`
+     holds `Relation`, `Key ids.NameKey`, `Namespace ids.ObjectRef` (for
+     the conflict recheck) and `Skip`.
+   - `index.StageCreate(h Host, parent, idx *catalog.Relation, only bool)
+     error`: `Create` and the partitioned branch (lines 156–163).
+     `definition.Valid` is set after `Create` through the shared
+     `SQLIndex` pointer today; keep that aliasing (or set it before
+     `Create`) so the staged descriptor sees it.
+   `generatedRelationName` (`identity.go`, pure; identity and LIKE index
+   naming use it too) goes to `ddl` as `ddl.GeneratedRelationName`; the
+   method-name mapping that `executeCreateIndex` and `bindIndexAttributes`
+   both spell out becomes `index.MethodOf(string) catalog.IndexMethod`.
+4. **ALTER/DROP INDEX and REINDEX.** `index.StageMaintenance(h Host, auth
+   ddl.Authority, grant *MaintenanceGrant, stmt parser.Statement) error`
+   moves today's lines 60–100 of `executeIndexMaintenance`: the stage's
+   parent and index-set observations, the domain bases, the REINDEX
+   rebuild intents and flag revisions ("index revision exhausted"), and
+   ATTACH PARTITION (`stagePartitionIndexAttach` →
+   `index.StagePartitionIndexAttach(h, parent, child)`, with
+   `PartitionIndexAttachCheck` taking a context instead of the operation).
+   The root keeps the lock, the epoch fence, authorization, the grant read
+   and `Check`, identity capture, the no-target and REINDEX notices,
+   RENAME (`renameRelationLocked`), the unlocked DROP path (decision 2,
+   then the dependency path recording and `stageExpressionDependents`,
+   which may wait), validation, `partitionIndexTransaction`, the overlay
+   and publication. The root discards the stage on every
+   `StageMaintenance` error; today the two REINDEX error paths skip
+   `DiscardCatalogStage`, which has no effect (it only marks a stage
+   nothing else holds). `CatalogStage.validateIndexMaintenance` becomes
+   `index.ValidateMaintenance(st *Stage, base catalog.Read, current
+   *catalog.State, replacedParent ids.ObjectAddress) error`; the root
+   method stays as the forwarder that passes the materialized replacement's
+   original address, or zero (a zero address never equals a parent).
+   `acquireIndexMaintenance` is lock admission and stays.
+5. **Constraint indexes** (question 2). `table.Host` embeds `index.Host`
+   (one `ddlHost` implements both), and `table` calls `index` functions
+   directly: `StageUniqueDefinitions(h, auth, d, declarations, altering)`
+   and `StageCreateUniques`, `StageExclusion(h, auth, input, parent, raw,
+   recurse)` and `StageCreateExclusions`, `RebuildAlterUniques(h, parent,
+   transformations)` and `RebuildAlterExclusions`, `CaptureUsingIndexes(h,
+   parent, actions, transformations)`, `PrepareUsingIndex(h, view, reader,
+   parent, captured)` and `StageUsingIndex` (`StagePreparedUsingIndex`
+   emits its rename NOTICE through the host instead of the operation),
+   and the partitioned
+   `StagePartitionIndexChild`/`Children`. The table-owned edges are
+   hoisted to the callers, which become table code in 24d:
+   - `captureLikeSource`: CREATE TABLE and PARTITION OF capture
+     `declarations[i].Source` before the call (ALTER never sets it);
+   - `rebuildAlterNotNullsLocked`: `alter_table.go` and
+     `typed_mutation.go` call it after `RebuildAlterUniques` returns, so
+     the order stays uniques, NOT NULL, exclusions;
+     `primary_key_lifecycle_test.go` follows;
+   - `usingIndexNotNullCandidate`: the callers prepare the parent first,
+     as `captured.NotNullPrepared` already models;
+   - `notNullCandidate`/`notNullDirect`:
+     `executePartitionConstraintDropLocked` stays in the root.
+   `incompatibleNotValid` (pure, also used by NOT NULL code) moves to
+   `index` as `IncompatibleNotValid`.
+6. **SET CONSTRAINTS stays in the root** (question 3). It is
+   transaction-level and writes the owner's exclusion modes; so do
+   `checkExclusionEvents`, `endLockOwner`, `removeExclusionOwner` and
+   `checkTransactionExclusions`.
+7. **`IndexProperty`** (question 4). `index.Property(def
+   *catalog.IndexDefinition, whole bool, ordinal int64, property string)
+   (value, known bool)` (`index` does not import `functions`); the root
+   `statementHost.IndexProperty` keeps the snapshot read and the ordinal
+   decode, so the error order stays.
+8. **`index.WriteHost`** (question 1). The `ExclusionRegistry` primitives
+   keep "the caller holds `Engine.mu`" and only the root calls them. Every
+   `WriteHost` method either takes `Engine.mu` itself for one coarse
+   window (it never runs under the lock) or waits with the caller holding
+   nothing. Methods take data, never a callback, and no `*exec.Context`
+   (an interface call would make that stack value escape):
+   - `UniqueParent(ref ids.ObjectRef) (*catalog.Relation, catalog.Read,
+     error)` — locks, never waits;
+   - `BindingAuthority(b *UniqueWriteBinding, view catalog.Read) (stale
+     bool, err error)` — locks for the private catalog recheck, write
+     authority and type names (`bindUniqueWrite`'s checked window), then
+     readmits programs unlocked; never waits;
+   - `ClaimUniqueKey(ref ids.ObjectRef, bound *UniqueBoundKey, key
+     []sqltype.Value) error` — waits; caller holds nothing. Today's
+     `acquireUnique`: the pin, the lock-manager acquire with the
+     operation's policy, the `replacementMu` release before a wait and
+     re-acquire for implicit statements, and program readmission after a
+     wait. It replaces the draft's separate `PinUniqueKey` and
+     `ReadmitPrograms`, which are never used apart;
+   - `WaitTransaction(owner *lock.Ticket, purpose lock.CompletionPurpose)
+     error` — waits; caller holds nothing (`waitCompletion`; it keeps not
+     re-taking `replacementMu`);
+   - `CaptureUniqueProbe(ref ids.ObjectRef, b *UniqueWriteBinding, idx
+     *catalog.Relation, heads bool) (UniqueProbe, error)` — locks: the
+     `probeUniqueRow` window (epoch, catalog state, revisions, authority,
+     namespace, the committed or private root, the head versions);
+   - `ExistingIndexRoot(idx *catalog.Relation) (*storage.IndexRoot,
+     error)` — locks: the `existingUniqueOutput` window;
+   - `CaptureExclusionScan(ref ids.ObjectRef, b *UniqueWriteBinding, idx
+     *catalog.Relation) (ExclusionScan, error)` and
+     `ExclusionScanCurrent(scan ExclusionScan, idx ids.ObjectAddress)
+     bool` — lock;
+   - `PublishExclusion(ref ids.ObjectRef, state *catalog.State, proposal
+     *WriteCandidate, edit ExclusionEdit) (storage.RowVersion, error)` —
+     locks for the whole compound window (check, begin, allocate, the pure
+     edit, install), so a publication reset cannot land between check and
+     install;
+   - `DiscardExclusion(proposal *WriteCandidate)`, `OwnExclusionKeys(idx
+     ids.ObjectAddress, version ids.VersionID) []sqltype.Value`,
+     `AdmitExclusion(idx ids.ObjectAddress, version ids.VersionID)` — lock,
+     standalone windows as today (the admit window has no epoch check
+     today; keep it, and say so in the 23d report).
+   `*statementHost` implements it (`var _ index.WriteHost =
+   (*statementHost)(nil)`). In 23d the root calls the concrete methods, so
+   the per-row path gets no interface dispatch; `dml.Host` embeds the
+   interface in 29c. `projectExclusionDeletionLocked` (inside
+   `stageDeletionLocked`'s larger window), savepoint restore and the
+   publication resets stay root callers of the primitives.
+   The pure write decisions move into `index`: `BuildUniqueWriteBinding(ref,
+   parent, view)` (the rebind body of `bindUniqueWrite`), `UniqueRootRange`
+   (the committed-root binary search of `probeUniqueRow`), the
+   existing-output lookup over a root (`existingUniqueOutput` after its
+   window), the exclusion visit over a captured scan (`probeExclusion`'s
+   own-entry, committed-root and pending passes and the deferrable
+   decision), the projection edits (publish, discard, deletion, admit and
+   the ALTER shape replacement), the ALTER shape entries
+   (`prepareExclusionShape`'s loop) and `Scope.RetainExistingOutput`. The
+   probe, claim and exclusion loops (with their retries, waits and the DML
+   state above) stay root `StatementScope` methods until `dml` (29d).
+   `uniqueConflict` and `exclusionScan` keep their `AuthorizationView` and
+   stay in the root with the probe loops: an `access.Environment` there
+   boxes the view once per probe and per ON CONFLICT hit. `index` takes
+   the scan's plain fields as `ExclusionScan` (no authority) and returns
+   the hit; the root builds the conflict and its disclosure-checked
+   diagnostic with `index.UniqueKeyDetailAllowed`. This settles the 23a
+   note.
+9. **Stays in the root**, beyond the list of 23d below:
+   `stageDomainIndexGenerationsLocked` (storage, journal and snapshot
+   orchestration; its decisions are already `ReownDomainIndexOutputs`,
+   `Snapshot.TransportRows` and `RootCandidate`, so it does not come to
+   `index`); `capturePartialMaskLocked` (query-time fencing);
+   `executePartitionConstraintDropLocked` (stage lifecycle and
+   publication; its constraint lookup may move later as a pure function);
+   `partitionIndexTransaction` (transaction classification); the slot
+   accessors. The dead free `partitionIndexPromotionPath` is deleted.
+10. **23d splits** into 23d.1 (DDL decisions, linear item 85a) and 23d.2
+   (write-time decisions, item 85b). They touch different files and risks:
+   23d.1 is catalog staging, 23d.2 the per-row DML path. Table 24d (89)
+   needs 85a; DML 29c (109) needs 85b. 85b may run beside 85a once 85a's
+   seam commit has landed.
 
-Questions to settle in 23c:
+### 23d — Move the handler decisions (linear items 85a and 85b)
 
-1. Do the exclusion registry methods of `WriteHost` take `Engine.mu`
-   themselves (short critical sections), or must the caller hold it?
-   Never pass a callback that runs under the lock.
-2. Constraint indexes of CREATE TABLE and ALTER TABLE
-   (`stageUniqueDefinitions`, `stageCreateUniques`, `stageExclusion`,
-   `stageCreateExclusions`, `stageUsingIndex`, `rebuildAlter*Locked`) are
-   called by `table` (step 24). Recommended: `table.Host` embeds
-   `index.Host`, and `table` calls `index` functions directly.
-3. SET CONSTRAINTS (`executeSetConstraints`) is transaction-level:
-   confirm it stays in the root.
-4. Where the `IndexProperty` capability body (`statementHost`, over the
-   clean `indexColumnCapability`) goes: `index` function plus a root
-   forwarder, or unchanged.
+Follow the 23c refine above. One sub-step per session.
 
-### 23d — Move the handler decisions (linear item 85)
+**23d.1 move set (item 85a).** Into `index`:
 
-Follow 23c. The decisions that move:
+- `host.go`: `Host`, `DropStage`, `ValidityTarget`.
+- `create.go`: `PrepareCreate`, `CreatePlan`, `StageCreate`, `MethodOf`.
+- `bind.go`: `BindAttributes`, `BindKey`, `validateSystemKey`,
+  `LookupClass` (from `index_clauses.go`); `RejectVirtualUses` (from
+  `generated_virtual.go`, if no other root user remains; otherwise a copy).
+- `maintenance.go`: `StageMaintenance`, `ValidateMaintenance`.
+- `unique_stage.go`: `StageUniqueDefinitions`, `StageCreateUniques`.
+- `exclusion_stage.go`: `StageExclusion`, `StageCreateExclusions`.
+- `alter_type.go`/`exclusion_type.go`: `RebuildAlterUniques`,
+  `RebuildAlterExclusions`.
+- `using_index.go`/`using_index_prepare.go`: `CaptureUsingIndexes`,
+  `PrepareUsingIndex`, `StageUsingIndex`, `IncompatibleNotValid`.
+- `partition_unique.go`, `partition_attach.go`, `partition_drop.go`:
+  `StagePartitionIndexChild`, `StagePartitionIndexChildren`,
+  `StagePartitionIndexAttach`, `PartitionIndexValidity`,
+  `PartitionIndexPromotionPath`, `StagePartitionIndexDrop`,
+  `StagePartitionConstraintDrop`.
+- `property.go`: `Property`.
 
-- CREATE INDEX: `executeCreateIndex`'s checks (column limit, relation
-  kind, predicate and CONCURRENTLY restrictions, options, capabilities),
-  name choice and descriptor construction;
-- DROP/ALTER INDEX and REINDEX: `executeIndexMaintenance` and
-  `CatalogStage.validateIndexMaintenance`;
-- constraint indexes, `USING INDEX` and the ALTER TYPE rebuilds (question
-  2 of 23c);
-- partitioned indexes: child propagation, ATTACH PARTITION of an index,
-  validity promotion, partition constraint drops;
-- write-time enforcement behind `WriteHost`: the unique probe and claim,
-  existing-output and candidate validation, and the exclusion probe and
-  projection decisions.
+Into `ddl`: `GeneratedRelationName`.
 
-**Stays in the root:** `executeConcurrentIndex` and its phases
-(`publishConcurrentIndexRoot`/`Valid`, `concurrentIndexAuthorityLocked`);
-the waits (`waitIndexWriters`, `waitCompletion`, `waitOlderIndexSnapshots`);
-`acquireIndexMaintenance` (lock admission); `capturePartialMaskLocked`,
+**23d.2 move set (item 85b).** Into `index`: `WriteHost`, `UniqueProbe`,
+`ExclusionScan`, `ExclusionEdit`; `BuildUniqueWriteBinding`,
+`UniqueRootRange`, the existing-output lookup, the exclusion visit, the
+projection edits and shape entries, `Scope.RetainExistingOutput`.
+
+**Stays in the root:** `executeCreateIndex` and `executeIndexMaintenance`
+as orchestration (decisions 3 and 4); `executeConcurrentIndex` and its
+phases (`publishConcurrentIndexRoot`/`Valid`,
+`concurrentIndexAuthorityLocked`); the waits (`waitIndexWriters`,
+`waitCompletion`, `waitOlderIndexSnapshots`) and the lock admission
+(`acquireIndexMaintenance`, `acquireUnique`, both behind `WriteHost` where
+decision 8 says); `capturePartialMaskLocked`, `captureIndexSnapshot` and
 `captureIndexSnapshotParents`; publication and Restore storage
-(`prepareIndexCatalog`, `prepareRemintedStorage`,
+(`prepareIndexCatalog`, `prepareIndexRoots`, `prepareRemintedStorage`,
 `prepareForeignIndexStorage`, `fenceEmptyIndexStorageLocked`,
+`captureIndexLayouts`, `transportIndexLayouts`, `evolveStageIndexesLocked`,
 `catalog_overlay_indexes.go`, the call sites in `catalog.go` and
 `transaction_publication.go`); `validatePrivateIndexExpressions` (Finish);
+`stageDomainIndexGenerationsLocked`; `executePartitionConstraintDropLocked`;
+`partitionIndexTransaction`; the probe, claim and exclusion loops on
+`StatementScope` with `uniqueConflict` and `exclusionScan` (decision 8);
 `endLockOwner`, `removeExclusionOwner`, `checkTransactionExclusions`;
-`executeSetConstraints`; `InspectIndex`; the registry instances.
+`executeSetConstraints` and `checkExclusionEvents`; `InspectIndex`;
+`disclosureEnv`; the registry instances and the slot accessors; the thin
+wrappers that build a `ddlHost` for callers outside the moved set
+(`stageCreateUniques`, `stageExclusion`, ... until 24d moves their
+callers).
+
+**Commit sequence (23d.1).**
+
+1. Pure helpers: `generatedRelationName` → `ddl.GeneratedRelationName`
+   (callers in `identity.go`, `table_like_index.go`, `index.go`);
+   `incompatibleNotValid` → `index.IncompatibleNotValid`;
+   `rejectVirtualIndexUses` into `index`; `index.MethodOf`; delete the
+   dead `partitionIndexPromotionPath`.
+2. Seam: `index.Host`, `DropStage`, `ValidityTarget`; root
+   `index_host.go` on `ddlHost` with the assertion and the new methods;
+   `CatalogStage.RemoveRelation`; `dropProvider.DescriptorCount` and
+   `ReplacePartitionDescriptor`. Unit test first, observed failing:
+   `BindIndexPredicate` through the host binds the same predicate as
+   `bindIndexPredicate`, and `LookupCollation` returns its 0A000 error.
+3. Port in place: root functions over `index.Host` (and `DropStage`,
+   `ValidityTarget`) for decisions 2–5 and 7, naming no `Engine`,
+   `CatalogStage`, `AuthorizationView` or `StatementScope`; the
+   table-owned edges hoisted; the lock windows of decision 2. Old
+   entry points become thin wrappers that build the `ddlHost`.
+4. Move them into `index` with `movex` and qualify; no aliases.
+5. Docs: the `index` README (`Host`, entry points, what stays), this
+   file's Status, the §8 row and the status page; `AGENTS.md` unchanged.
+
+**Commit sequence (23d.2).**
+
+1. Seam: `index.WriteHost` with `UniqueProbe`, `ExclusionScan` and
+   `ExclusionEdit`; the `*statementHost` methods carved out of today's
+   windows in place, the root callers calling them directly. Unit test
+   first, observed failing: `PublishExclusion` advances the registry
+   generation once and a scan captured before it is not current.
+2. Port in place: the pure write decisions as root functions over the
+   captured values.
+3. Move them into `index` with `movex`; no aliases.
+4. Docs, as in 23d.1.
+
+Proof for 23d: the engine units of "Targeted tests" (the exclusion,
+concurrent-index, `unique_lifetime` and `index_hash_cancellation` units
+also with `RACE=1`), the reference selections in quick and `REFERENCE=1`
+mode, and quickcheck. For 23d.2 also compare `go build -gcflags=-m
+./internal/engine` on `probeUniqueRow`, `publishExclusionCandidate` and
+`probeExclusion` before and after: no new escape on the per-row path;
+report any new direct call that replaced inline code there.
 
 ## Invariants
 
@@ -587,8 +902,24 @@ listed above. The checks in §8.3 pass.
 
 - [x] 23a — In place: renames, registries, cuts (linear item 82)
 - [x] 23b — `index` created and clean set moved (linear item 83)
-- [ ] 23c — Host refined (docs only; linear item 84)
-- [ ] 23d — Handler decisions moved (linear item 85)
+- [x] 23c — Host refined (docs only; linear item 84; the docs commit).
+  Measured at `42a45f774`: about 150 engine edges over the 33 root index
+  files, most covered by `ddl.Host` and four existing `ddlHost` methods.
+  `index.Host` on `ddlHost` adds `IndexStage`, `DescriptorStage`,
+  `ACLOutput`, `DefinitionReader`, `LookupCollation`,
+  `BindIndexExpression` and `BindIndexPredicate`; the draft's
+  `Evaluation`, storage reads, `TypeDiagnosticName` and `TrustedRestore`
+  are not needed. DROP staging and the validity pass take narrow stage
+  interfaces, no host. `table.Host` embeds `index.Host`; table-owned edges
+  are hoisted to the callers. `index.WriteHost` on `statementHost` has
+  coarse self-locking windows and waits, no callbacks; the registry
+  primitives stay caller-locked and root-only; the probe loops,
+  `uniqueConflict` and `exclusionScan` stay root until `dml`. SET
+  CONSTRAINTS stays; `IndexProperty`'s decision becomes `index.Property`.
+  23d split into 23d.1 (85a) and 23d.2 (85b); move sets and commit
+  sequences written.
+- [ ] 23d.1 — DDL decisions moved (linear item 85a)
+- [ ] 23d.2 — Write-time decisions moved (linear item 85b)
 
 Outstanding aliases: none (23b added none).
 
@@ -764,7 +1095,9 @@ role 28b). No aliases. Each code commit is rebuilt by a script in
   chain into `index` (it is clean catalog reading) or leave these
   predicates in the root.
 - 23d: `exclusionScan` and `uniqueConflict` still hold `AuthorizationView`
-  (see the 23a record); give `WriteHost` the key-disclosure check.
+  (see the 23a record). Settled in 23c (decision 8): they stay root with
+  the probe loops, `index` returns the hit, and the root keeps the
+  key-disclosure check; `dml` (29c) decides their final home.
 - 23b (done): the interfaces are `index.DisclosureEnv`,
   `index.EvolutionReader`/`EvolutionTarget`, `index.DescriptorStage` and
   `index.CoverageReader`, with exported methods on the root implementers.
@@ -777,12 +1110,18 @@ role 28b). No aliases. Each code commit is rebuilt by a script in
   for the split).
 
 - Step 24 (`table`) imports `index` for `columnTransformation`, the
-  constraint-index staging and the replay-shape predicates; 23c decides
-  whether `table.Host` embeds `index.Host`.
+  constraint-index staging and the replay-shape predicates. 23c settled
+  that `table.Host` embeds `index.Host` and calls the 23d.1 functions
+  directly; `captureLikeSource`, `rebuildAlterNotNullsLocked`,
+  `usingIndexNotNullCandidate` and `notNullCandidate`/`notNullDirect` are
+  table's and 23d.1 hoists them to their callers.
 - Step 25 (`partition`) imports `index` for the partitioned-index code
   (`index_partition_*.go`), the row history and `index.WriteBatch`.
-- Step 29 (`dml`): the `StatementScope` methods left in `unique_dml.go`
-  and `index_write_candidate.go` are DML's callers of the write-time
-  decisions; after 23d they call `index` behind `index.WriteHost`.
+- Step 29 (`dml`): the `StatementScope` methods left in `unique_dml.go`,
+  `index_write_candidate.go`, `index_insertion.go` and
+  `exclusion_admission.go` (the probe, claim and exclusion loops, with
+  `uniqueConflict` and `exclusionScan`) are DML's. After 23d.2 they call
+  the `index` decisions directly and the root windows as
+  `*statementHost` methods; `dml.Host` embeds `index.WriteHost` (29c).
   `insert_write_overlay.go` is ON CONFLICT state and belongs to `dml`.
 - `storage.RowByID` (23a) is also used by the DML update and merge code.
