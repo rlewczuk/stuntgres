@@ -23,7 +23,10 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	if err != nil {
 		return fail(err)
 	}
-	plan, err := planOwned(auth.View, auth, stmt)
+	plan, err := planOwned(auth.View, stmt, func(address ids.ObjectAddress) string {
+		path, _ := auth.ReferencePath()
+		return dependencyObject(auth.Catalog, address, path)
+	})
 	if err != nil {
 		return fail(err)
 	}

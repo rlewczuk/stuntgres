@@ -63,9 +63,9 @@ type ownedPlan struct {
 }
 
 // planOwned resolves and authorizes the roles of a REASSIGN OWNED or DROP
-// OWNED statement and selects its roots. env supplies the reference path of
-// the extension-member diagnostic.
-func planOwned(view access.View, env access.Environment, stmt parser.Statement) (ownedPlan, error) {
+// OWNED statement and selects its roots. describe names an object in the
+// extension-member diagnostic, as dependency diagnostics do.
+func planOwned(view access.View, stmt parser.Statement, describe func(ids.ObjectAddress) string) (ownedPlan, error) {
 	var specs []parser.RoleSpec
 	plan := ownedPlan{mode: parser.DropRestrict}
 	switch s := stmt.(type) {
@@ -132,7 +132,6 @@ func planOwned(view access.View, env access.Environment, stmt parser.Statement) 
 		if len(local) == 1 {
 			plan.primaryRoot = local[0]
 		}
-		path, _ := env.ReferencePath()
 		pending := make(map[ids.ObjectAddress]bool, len(roots))
 		for _, a := range roots {
 			pending[a] = true
@@ -147,7 +146,7 @@ func planOwned(view access.View, env access.Environment, stmt parser.Statement) 
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := view.Catalog.MustExtension(extension)
-				return ownedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(view.Catalog, a, path) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."}
+				return ownedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + describe(a) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."}
 			}
 		}
 		roots = extension.RemovalRoots(view.Catalog, roots)
