@@ -238,7 +238,7 @@ completion (`pgSequencesSource`, `openPGSequencesStage`); the capability
 adapter; descriptor registration during catalog seeding (`newEngine` calls
 `initializeCatalogSources()` at `engine.go:270`); the `information_schema`
 namespace and domain seeding (`engine.go:219`, `domain_check.go`);
-`foreign_scan.go` (user foreign tables, not system relations).
+`fdw_scan.go` (user foreign tables, not system relations).
 
 ## Invariants
 

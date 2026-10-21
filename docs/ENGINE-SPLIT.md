@@ -2085,7 +2085,7 @@ package-specific scope. This section holds the rules every session follows.
 | 23 | [`ENGINE-SPLIT-index.md`](ENGINE-SPLIT-index.md) | 23b: 22b, 5i, 10e, 11e; 23c: 20b | planned (23a–23d) |
 | 24 | [`ENGINE-SPLIT-table.md`](ENGINE-SPLIT-table.md) | 24a: 5i; 24b: 23b, 18b, B6; 24c: 23c; 24d: 23d | 24a done in place (renames, LIKE source slot, statement token, inheritance plan record, FK authority and drop dependency reader cuts; racecheck/finalcheck skipped at user request); 24b–24d planned |
 | 25 | [`ENGINE-SPLIT-partition.md`](ENGINE-SPLIT-partition.md) | 25b: 24b; 25c: 24c; 25d: 24d | planned (25a–25d) |
-| 26 | [`ENGINE-SPLIT-fdw.md`](ENGINE-SPLIT-fdw.md) | 26c: 20b; 26e: 24d | planned (26a–26e) |
+| 26 | [`ENGINE-SPLIT-fdw.md`](ENGINE-SPLIT-fdw.md) | 26c: 20b; 26e: 24d | 26a done in place (`fdw_` files, `foreignRegistry`, authority cuts, participant methods, scan request, write runtime; racecheck/finalcheck skipped at user request); 26b–26e planned |
 | 27 | [`ENGINE-SPLIT-view.md`](ENGINE-SPLIT-view.md) | 27b: 22c, 24b; 27c: 20b | planned (27a–27d) |
 | 28 | [`ENGINE-SPLIT-role.md`](ENGINE-SPLIT-role.md) | 28b: 21b, B6; 28c: 20b | planned (28a–28d) |
 | 29 | [`ENGINE-SPLIT-dml.md`](ENGINE-SPLIT-dml.md) | 29a: 23a, 24a; 29b: Part A of 19, 23–27; 29c: Part B of 23–27 | planned (29a–29d) |

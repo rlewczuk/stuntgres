@@ -397,8 +397,16 @@ pass.
 
 ## Status
 
-- [ ] 26a — In place (renames, registry record, authority cuts,
-  participants, scan request, write capability)
+- [x] 26a — In place (renames, registry record, authority cuts,
+  participants, scan request, write capability) (`6cb327eb1`, `c3a7cf7e1`, `1ba975174`, `0c991e6c8`, `d7405f486`, `a02ccecb1`, then the docs commit).
+  `reach` after 26a: 77 clean (48 before); every declaration in the 26b move
+  set is clean. Verified with `^(TestFDW|TestOwnerExtension)` (also
+  `RACE=1`), `^TestReferenceFDW` and `^TestReferenceDumpRoundTrip$` in quick
+  and `REFERENCE=1` mode, and quickcheck; racecheck/finalcheck skipped at
+  user request. Tests renamed: `foreign_test.go` → `fdw_test.go`,
+  `foreign_dependency_publication_test.go` →
+  `fdw_dependency_publication_test.go`; `fdw_modify_test.go` passes
+  `s.foreignWrites()`. No test moved or deleted.
 - [ ] 26b — `fdw` created and clean set moved; the driver imports `fdw`
 - [ ] 26c — Host refined (docs only)
 - [ ] 26d — WRAPPER, SERVER, USER MAPPING, IMPORT and GRANT decisions moved
@@ -407,6 +415,35 @@ pass.
 Outstanding aliases: none yet.
 
 ### Notes for later steps
+
+- 26a deviations from the plan above, for 26b:
+  - `foreignRegistry` has no lookups by handler or validator name: nothing
+    reads the definitions except re-install. Its methods are `install`,
+    `definitions` (Reset and the Restore stage call
+    `InstallForeignDefinitions(e.foreign.definitions())`), `addNamespace`,
+    `adoptNamespaces` (the Restore publication), `namespaceName`,
+    `namespaceEntries` (Dump) and `codecs` (scans). `dumpSource` holds the
+    registry value.
+  - `foreignValidatorJob` also recorded the validator procedure in
+    `stage.domainBases`, not only reading `stage.Base`. It now takes a
+    `catalog.Read` and returns the procedure; the root wrapper
+    `stageForeignValidatorJob` keeps the append. Only the pure function moves.
+  - `foreignWriteRuntime` reuses `statementHost`'s existing `exec.Host`
+    methods `EnlistForeign` and `Environments`; only
+    `TrackForeignModification` is new. `StatementScope.foreignWrites()` returns
+    the runtime.
+  - `foreignTransaction` also gained `participant`, `enlist`,
+    `hasParticipants`, `retire` and `takeCleanup`, so no root code reads its
+    fields (`ownerHasForeign` replaces the `len(...participants)` checks). The
+    root wrappers `commitForeign`, `foreignPending` and `foreignSavepoint` copy
+    `ownerExtensionOrZero(t).foreign`; they never allocate an extension.
+  - `foreignOwnershipEligibility`'s recipient check keeps the actor's
+    `access.Environment`: `access.View.Check` reads it only for type
+    diagnostics and temporary namespaces, never for a wrapper.
+- 26b: `foreignModification.targetRows` (`fdw_execute.go`) is still a
+  `*StatementScope`-dependent method on `foreignModification`. It stays for
+  `dml`, but a root method cannot be declared on an `fdw` type: make it a
+  function (or a `dml`-side helper) when `foreignModification` moves.
 
 - `dml` (29a/29b): foreign DML execution (`fdw_execute.go`,
   `fdw_truncate.go`'s scope methods, foreign COPY FROM in `copy.go`) moves

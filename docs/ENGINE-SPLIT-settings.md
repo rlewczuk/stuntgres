@@ -210,7 +210,7 @@ startup regression.
 
 Outstanding aliases: none. 8c deleted `internal/engine/settings_aliases.go`.
 `RegistrationError` was never an alias: it stays in the engine
-(`foreign_registry.go`).
+(`fdw_registry.go`).
 
 8c results:
 

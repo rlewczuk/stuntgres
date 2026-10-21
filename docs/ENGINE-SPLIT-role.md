@@ -252,7 +252,7 @@ Outstanding aliases: none yet.
 - `resolveGrantTablespace` (`tablespace_catalog.go`) and GRANT ON
   PARAMETER (`parameter_catalog.go`) are grant target resolution; take them
   in 28c if they fit the host, or leave them in the root.
-- `foreign_grant.go` (GRANT on foreign data wrappers and servers) belongs to
+- `fdw_grant.go` (GRANT on foreign data wrappers and servers) belongs to
   `fdw` (step 26d), not here.
 - `principal_remap.go` is Restore: its descriptor switch goes to `catalog`
   (5i) and the rest to `control` (step 30).
