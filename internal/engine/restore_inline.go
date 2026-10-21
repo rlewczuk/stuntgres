@@ -1,13 +1,11 @@
 package engine
 
 import (
-	"context"
 	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/dump"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -16,14 +14,6 @@ import (
 
 // The inline entries hold the Restore steps not yet split into named hook
 // table entries, in their original order.
-
-func (r *restoreRun) inlineBefore(op *session.Operation, stmt parser.Statement) (bool, error) {
-	if routine.ReplayDirective(r.source, stmt) {
-		operationReplay(op).sqlBodies = true
-		return true, nil
-	}
-	return false, nil
-}
 
 func (r *restoreRun) inlineBefore2(op *session.Operation, stmt parser.Statement) (bool, error) {
 	r.cur.priorAuthorization, r.cur.ownerForCreate, r.cur.ownerPair = r.lastAuthorization, r.createOwner, r.pairedOwner
@@ -355,13 +345,6 @@ func (r *restoreRun) inlineAfter(op *session.Operation, stmt parser.Statement, r
 			r.createOwner = r.cur.priorAuthorization
 		}
 		r.lastAuthorization = actor.Ref
-	}
-	return nil
-}
-
-func (r *restoreRun) inlineFinish(ctx context.Context, op *session.Operation) error {
-	if err := r.stage.validateRestoredSQLRoutines(ctx, op); err != nil {
-		return err
 	}
 	return nil
 }

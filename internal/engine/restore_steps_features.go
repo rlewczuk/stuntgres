@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -100,4 +101,19 @@ func finishRestoreExtensionOwners(r *restoreRun, ctx context.Context, op *sessio
 // decoded snapshots.
 func finishRestoreMaterializedSnapshots(r *restoreRun, ctx context.Context, op *session.Operation) error {
 	return r.stage.importMaterializedSnapshots(ctx, op, r.snapshots)
+}
+
+// beforeRestoreRoutineDirective consumes the directive that defers SQL
+// routine body validation to finish.
+func beforeRestoreRoutineDirective(r *restoreRun, op *session.Operation, stmt parser.Statement) (bool, error) {
+	if !routine.ReplayDirective(r.source, stmt) {
+		return false, nil
+	}
+	operationReplay(op).sqlBodies = true
+	return true, nil
+}
+
+// finishRestoreSQLRoutines validates the deferred SQL routine bodies.
+func finishRestoreSQLRoutines(r *restoreRun, ctx context.Context, op *session.Operation) error {
+	return r.stage.validateRestoredSQLRoutines(ctx, op)
 }

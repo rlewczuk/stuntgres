@@ -130,7 +130,7 @@ var restoreHooks = []restoreHook{
 	{name: "view: materialized snapshot records", decode: decodeRestoreMaterializedSnapshot},
 
 	// Before admission.
-	{name: "inline before", before: (*restoreRun).inlineBefore},
+	{name: "routine: SQL body replay directive", before: beforeRestoreRoutineDirective},
 	{name: "table: physical NOT NULL boundary", before: beforeRestorePhysicalBoundary},
 	{name: "table: physical NOT NULL constructor", before: beforeRestorePhysicalConstructor},
 	{name: "table: deferred physical primary owner", before: beforeRestoreDeferredPhysicalOwner},
@@ -172,5 +172,5 @@ var restoreHooks = []restoreHook{
 	{name: "table: foreign keys", finish: finishRestoreForeignKeys},
 	{name: "extension: owners", finish: finishRestoreExtensionOwners},
 	{name: "view: materialized snapshots", finish: finishRestoreMaterializedSnapshots},
-	{name: "inline finish", finish: (*restoreRun).inlineFinish},
+	{name: "routine: SQL bodies", finish: finishRestoreSQLRoutines},
 }
