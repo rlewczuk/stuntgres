@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -84,12 +85,12 @@ func prepareRestorePartitionUnique(r *restoreRun, op *session.Operation, stmt pa
 
 // afterRestoreDomainOwner pairs a domain created under an owner directive
 // with the ALTER DOMAIN OWNER that follows it.
-func afterRestoreDomainOwner(r *restoreRun, op *session.Operation, stmt parser.Statement, result Result) error {
-	if _, domain := stmt.(*parser.CreateDomain); !domain || r.cur.ownerForCreate == (authorization.PrincipalRef{}) || result.created == (ids.ObjectRef{}) {
+func afterRestoreDomainOwner(r *restoreRun, op *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
+	if _, domain := stmt.(*parser.CreateDomain); !domain || r.cur.ownerForCreate == (authorization.PrincipalRef{}) || outcome.Created == (ids.ObjectRef{}) {
 		return nil
 	}
 	var err error
-	r.pairedDomainOwner, err = r.stage.captureRestoredDomainOwner(op, result.created, r.cur.ownerForCreate)
+	r.pairedDomainOwner, err = r.stage.captureRestoredDomainOwner(op, outcome.Created, r.cur.ownerForCreate)
 	return err
 }
 

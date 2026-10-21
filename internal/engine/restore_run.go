@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
@@ -137,7 +138,7 @@ func (h *restoreHost) Statement(index int) {
 }
 
 // Execute runs one admitted statement on the stage.
-func (h *restoreHost) Execute(op *session.Operation, stmt parser.Statement) (Result, error) {
+func (h *restoreHost) Execute(op *session.Operation, stmt parser.Statement) (control.Outcome, error) {
 	return h.run.execute(op, stmt)
 }
 
@@ -149,7 +150,7 @@ func (h *restoreHost) Publish(ctx context.Context, op *session.Operation) error 
 
 // execute runs one admitted statement on the stage, then clears the
 // per-statement replay flags, closes any rows and detaches the notices.
-func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (Result, error) {
+func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (control.Outcome, error) {
 	var err error
 	var result Result
 	if insertion, ok := stmt.(*parser.Insert); ok {
@@ -174,5 +175,5 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (Resu
 	}
 	operationReplay(op).commentAuthority = false
 	op.DetachNotices()
-	return result, err
+	return control.Outcome{Created: result.created}, err
 }

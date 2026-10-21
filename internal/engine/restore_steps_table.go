@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -117,7 +118,7 @@ func prepareRestoreNotNullPair(r *restoreRun, op *session.Operation, stmt parser
 
 // afterRestorePhysicalConstructor captures the physical NOT NULL repairs
 // the constructor's statement started.
-func afterRestorePhysicalConstructor(r *restoreRun, op *session.Operation, _ parser.Statement, _ Result) error {
+func afterRestorePhysicalConstructor(r *restoreRun, op *session.Operation, _ parser.Statement, _ control.Outcome) error {
 	if r.cur.physicalConstructor == nil {
 		return nil
 	}
@@ -128,7 +129,7 @@ func afterRestorePhysicalConstructor(r *restoreRun, op *session.Operation, _ par
 
 // afterRestorePhysicalForeignKeyProvider captures the unique constraint a
 // following physical self-referencing foreign key may use.
-func afterRestorePhysicalForeignKeyProvider(r *restoreRun, op *session.Operation, stmt parser.Statement, _ Result) error {
+func afterRestorePhysicalForeignKeyProvider(r *restoreRun, op *session.Operation, stmt parser.Statement, _ control.Outcome) error {
 	alteration, ok := stmt.(*parser.AlterTable)
 	if !ok || len(alteration.Actions) != 1 || r.pairedPhysical != nil || (alteration.Actions[0].Action != parser.AddUnique && alteration.Actions[0].Action != parser.AddUsingIndex) {
 		return nil
@@ -145,7 +146,7 @@ func afterRestorePhysicalForeignKeyProvider(r *restoreRun, op *session.Operation
 }
 
 // afterRestorePhysicalImportIndex records the index a CREATE INDEX made.
-func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt parser.Statement, _ Result) error {
+func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt parser.Statement, _ control.Outcome) error {
 	creation, ok := stmt.(*parser.CreateIndex)
 	if !ok {
 		return nil
@@ -158,20 +159,20 @@ func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt p
 
 // afterRestoreNotNullOrigins records the NOT NULL constraints a CREATE TABLE
 // made, for pairing with later repairs.
-func afterRestoreNotNullOrigins(r *restoreRun, _ *session.Operation, stmt parser.Statement, result Result) error {
-	if creation, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
-		r.stage.captureRestoredNotNulls(result.created, creation, r.notNullOrigins)
+func afterRestoreNotNullOrigins(r *restoreRun, _ *session.Operation, stmt parser.Statement, outcome control.Outcome) error {
+	if creation, ok := stmt.(*parser.CreateTable); ok && outcome.Created != (ids.ObjectRef{}) {
+		r.stage.captureRestoredNotNulls(outcome.Created, creation, r.notNullOrigins)
 	}
 	return nil
 }
 
 // afterRestoreForeignKeys resolves the foreign keys admission stripped from
 // a CREATE TABLE; finish binds them.
-func afterRestoreForeignKeys(r *restoreRun, _ *session.Operation, _ parser.Statement, result Result) error {
-	if result.created == (ids.ObjectRef{}) || len(r.cur.pending.Definitions) == 0 {
+func afterRestoreForeignKeys(r *restoreRun, _ *session.Operation, _ parser.Statement, outcome control.Outcome) error {
+	if outcome.Created == (ids.ObjectRef{}) || len(r.cur.pending.Definitions) == 0 {
 		return nil
 	}
-	r.cur.pending.Child = result.created
+	r.cur.pending.Child = outcome.Created
 	if err := r.stage.resolveRestoredForeignKeyTargets(&r.cur.pending); err != nil {
 		return err
 	}
@@ -180,7 +181,7 @@ func afterRestoreForeignKeys(r *restoreRun, _ *session.Operation, _ parser.State
 }
 
 // afterRestoreDefault validates a deferred DEFAULT alteration.
-func afterRestoreDefault(r *restoreRun, op *session.Operation, stmt parser.Statement, _ Result) error {
+func afterRestoreDefault(r *restoreRun, op *session.Operation, stmt parser.Statement, _ control.Outcome) error {
 	if alteration, ok := stmt.(*parser.AlterTableDefault); ok {
 		return r.stage.validateRestoredDefault(op, alteration)
 	}
