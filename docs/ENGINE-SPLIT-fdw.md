@@ -407,7 +407,42 @@ pass.
   `foreign_dependency_publication_test.go` →
   `fdw_dependency_publication_test.go`; `fdw_modify_test.go` passes
   `s.foreignWrites()`. No test moved or deleted.
-- [ ] 26b — `fdw` created and clean set moved; the driver imports `fdw`
+- [x] 26b — `fdw` created and clean set moved; the driver imports `fdw`
+  (`6bce27045`, `f2df07054`, `fe35300c3`, `5e3147354`, then the docs commit). 14 files (about 1.4k lines with
+  tests) in `internal/engine/fdw`; movex qualified 34 engine files; no
+  aliases. Names settled (§7 decision 12): `WrapperDefinition`,
+  `ValidatorDefinition`, `ImportRequest`, `ColumnDefinition`,
+  `TableDefinition`, `SchemaImporter`, `ValidateWrapper`,
+  `ValidateValidator`, `FunctionName`, `Registry`, `TransformOptions`,
+  `IdentitySet`, `IdentityComparable`, `Modification`, `WriteRuntime`,
+  `ModifyAdmission`, `OperationSupported`, `TruncateGroup`,
+  `Transaction`, `Participant`, `ParticipantKey`, `Rollback`,
+  `MarkName`, `CapabilityError`, `Find`, `Class`, `IsCatalogClass`,
+  `Label`, `CommandTag`, `ObjectRef`, `GrantKind`, `MappedRole`,
+  `MappingAuthority`, `MappingDiagnostic`, `OwnershipEligibility`,
+  `MappingFor`, `Validation`, `ValidatorJob`, `RunValidations`,
+  `HandlerFor`, `ImportExpression`, `ImportedOptions`, `ImportError`,
+  `CheckTableDeclaration`, `TableSyntax`, `AlterAdmission`,
+  `ScanRequest`, `RequiredAttributes`. Deviations: `fdw` keeps a private
+  `registrationError` with the `RegistrationError` prefix (the settings
+  precedent; `RegistrationError` stays in the engine);
+  `foreignIdentityEqual` moved with the identity set (private
+  `identityEqual`), since the set needs it; `targetRows` became the
+  engine function `foreignTargetRows`; the driver change shares the move
+  commit so every commit builds. Tests moved: `fdw_identity_test.go`
+  and `TestFDWModifyIdentity` (`fdw/identity_test.go`),
+  `TestFDWOptionsTransform` (`fdw/options_test.go`), the validation
+  cases of `TestFDWRegistry` as `TestFDWValidateDefinitions`
+  (`fdw/registry_test.go`). Rewritten: the engine tests that poked
+  `foreignTransaction` fields (`fdw_transaction_test.go`,
+  `fdw_hold_test.go`, `fdw_chain_test.go`, `fdw_modify_test.go`,
+  `transaction_extension_test.go`) use `Enlist`, `Participant`,
+  `HasParticipants`, `retireForeign`/`TakeCleanup` and
+  `ownerHasForeign`, with the same assertions. No test deleted.
+  Verified with `^(TestFDW|TestOwnerExtension)` (also `RACE=1`),
+  `^TestReferenceFDW` and `^TestReferenceDumpRoundTrip$` in quick and
+  `REFERENCE=1` mode, and quickcheck; racecheck/finalcheck skipped at
+  user request; bench not run (no startup or hot-path change).
 - [ ] 26c — Host refined (docs only)
 - [ ] 26d — WRAPPER, SERVER, USER MAPPING, IMPORT and GRANT decisions moved
 - [ ] 26e — Foreign-table decisions moved (after 24d)
@@ -440,10 +475,16 @@ Outstanding aliases: none yet.
   - `foreignOwnershipEligibility`'s recipient check keeps the actor's
     `access.Environment`: `access.View.Check` reads it only for type
     diagnostics and temporary namespaces, never for a wrapper.
-- 26b: `foreignModification.targetRows` (`fdw_execute.go`) is still a
-  `*StatementScope`-dependent method on `foreignModification`. It stays for
-  `dml`, but a root method cannot be declared on an `fdw` type: make it a
-  function (or a `dml`-side helper) when `foreignModification` moves.
+- 26c: the handler decisions use the moved helpers (`fdw.Find`,
+  `fdw.MappingAuthority`, `fdw.ValidatorJob`, ...). `stageForeignValidatorJob`
+  stays the engine wrapper that records the validator in
+  `stage.domainBases`. `fdw.Registry` has no handler or validator lookups;
+  the sketched `Registry()` host method is needed only if 26d decisions
+  read the definitions.
+- 29b: `foreignTargetRows` (`fdw_execute.go`) is the engine function that
+  replaced `foreignModification.targetRows`; it moves to `dml` with the
+  rest of foreign DML execution and reads `fdw.Modification.Source` and
+  `Request`.
 
 - `dml` (29a/29b): foreign DML execution (`fdw_execute.go`,
   `fdw_truncate.go`'s scope methods, foreign COPY FROM in `copy.go`) moves
