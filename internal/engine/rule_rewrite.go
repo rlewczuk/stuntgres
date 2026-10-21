@@ -733,12 +733,18 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 	return b, nil
 }
 
-func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
+// ruleRewriter expands rules over one catalog owner. Expansion reads live
+// storage through the rule authority, so the caller holds Engine.mu.
+type ruleRewriter struct {
+	owner *catalog.Owner
+}
+
+func (rw ruleRewriter) expandLocked(auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
 	event := ruleEvent(stmt)
 	firstCommand := len(program.commands)
 	b = physicalBinding(b)
 	if event == "" || b.Relation == nil {
-		return e.appendRuleCommand(program, auth, stmt, b), nil
+		return appendRuleCommand(program, auth, stmt, b), nil
 	}
 	current, ok := auth.Access().Catalog.Relation(b.Ref.Address)
 	if !ok || b.Ref.Epoch != auth.Access().Catalog.Epoch() {
@@ -751,7 +757,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, st
 	}
 	if insert, ok := stmt.(*parser.Insert); ok && b.Rule.Template {
 		b.Insert.Defaults = nil
-		analyze.BindInsertDefaults(e.catalog.owner(), &b, auth.Access().Catalog, insert.Override)
+		analyze.BindInsertDefaults(rw.owner, &b, auth.Access().Catalog, insert.Override)
 	}
 	if current.RelationKind != catalog.ViewRelation {
 		b.Storage = auth.StorageLocked(b.Ref.Address)
@@ -766,13 +772,13 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, st
 	}
 	if current.RelationKind == catalog.ViewRelation && !matched {
 		b.ViewWrite = nil
-		if err := bindViewWrite(e.catalog.owner(), auth.Access().Catalog, &b, stmt); err != nil {
+		if err := bindViewWrite(rw.owner, auth.Access().Catalog, &b, stmt); err != nil {
 			return -1, err
 		}
-		return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
+		return rw.expandLocked(auth, stmt, b, ancestry, program)
 	}
 	if len(rules) == 0 {
-		return e.appendRuleCommand(program, auth, stmt, b), nil
+		return appendRuleCommand(program, auth, stmt, b), nil
 	}
 	key := ruleAncestry{b.Ref, event}
 	if slices.Contains(ancestry, key) {
@@ -808,7 +814,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, st
 	if event == "INSERT" && original {
 		var err error
 		start := len(program.commands)
-		count, err = e.expandRuleResidualLocked(scope, auth, stmt, residual, ancestry, program)
+		count, err = rw.expandResidualLocked(auth, stmt, residual, ancestry, program)
 		if err != nil {
 			return -1, err
 		}
@@ -825,7 +831,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, st
 			whole := address
 			whole.SubID = 0
 			if descriptor, ok := auth.Access().Catalog.Find(whole); ok {
-				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.Access().Catalog.Epoch(), address), Revision: descriptor.Revision()})
+				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: rw.owner.Domain.Ref(auth.Access().Catalog.Epoch(), address), Revision: descriptor.Revision()})
 			}
 		}
 		for _, action := range r.actions {
@@ -847,7 +853,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, st
 				}
 			}
 			start := len(program.commands)
-			index, err := e.expandRulesLocked(scope, actionAuth, action.syntax, composed, ancestry, program)
+			index, err := rw.expandLocked(actionAuth, action.syntax, composed, ancestry, program)
 			if err != nil {
 				return -1, err
 			}
@@ -869,7 +875,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, st
 	if event != "INSERT" && original {
 		var err error
 		start := len(program.commands)
-		count, err = e.expandRuleResidualLocked(scope, auth, stmt, residual, ancestry, program)
+		count, err = rw.expandResidualLocked(auth, stmt, residual, ancestry, program)
 		if err != nil {
 			return -1, err
 		}
@@ -886,7 +892,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, st
 	return count, nil
 }
 
-func (e *Engine) appendRuleCommand(program *ruleProgram, auth ruleAuthority, stmt parser.Statement, b analyze.Binding) int {
+func appendRuleCommand(program *ruleProgram, auth ruleAuthority, stmt parser.Statement, b analyze.Binding) int {
 	index := len(program.commands)
 	program.commands = append(program.commands, ruleCommand{syntax: stmt, binding: b, auth: auth})
 	return index
@@ -1018,20 +1024,20 @@ func ruleReturningProjection(catalog catalog.Read, original, provider *analyze.R
 	return &copy, nil
 }
 
-func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
+func (rw ruleRewriter) expandResidualLocked(auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
 	if b.Relation.RelationKind != catalog.ViewRelation {
-		return e.appendRuleCommand(program, auth, stmt, b), nil
+		return appendRuleCommand(program, auth, stmt, b), nil
 	}
 	prior := viewWriteOf(b.ViewWrite)
 	b.ViewWrite = nil
-	if err := bindViewWrite(e.catalog.owner(), auth.Access().Catalog, &b, stmt, b.Ref); err != nil {
+	if err := bindViewWrite(rw.owner, auth.Access().Catalog, &b, stmt, b.Ref); err != nil {
 		return -1, err
 	}
 	if b.ViewWrite != nil && prior != nil {
 		viewWriteOf(b.ViewWrite).layers = append(slices.Clone(prior.layers), viewWriteOf(b.ViewWrite).layers...)
 		viewWriteOf(b.ViewWrite).logical = prior.logical
 	}
-	return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
+	return rw.expandLocked(auth, stmt, b, ancestry, program)
 }
 
 func refreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalog.Relation) (analyze.Binding, error) {

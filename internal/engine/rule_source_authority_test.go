@@ -80,7 +80,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}})
 					program := ruleProgram{count: -1, returning: -1}
 					e.mu.Lock()
-					_, err = e.expandRulesLocked(nil, auth, syntax, original, nil, &program)
+					_, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, syntax, original, nil, &program)
 					e.mu.Unlock()
 					if err != nil {
 						t.Fatal(err)

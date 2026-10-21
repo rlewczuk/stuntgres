@@ -51,7 +51,7 @@ func bindingRuleRelation(b analyze.Binding) *catalog.Relation {
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
 	program := ruleProgram{count: -1, returning: -1}
-	count, err := e.expandRulesLocked(scope, auth, stmt, b, nil, &program)
+	count, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, stmt, b, nil, &program)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

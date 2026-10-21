@@ -62,7 +62,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth ruleAuthori
 		original.Parameters = b.Parameters
 		original.CTEs = b.CTEs
 		program := ruleProgram{count: -1, returning: -1}
-		if _, err := e.expandRulesLocked(scope, auth, definition.Statement, original, nil, &program); err != nil {
+		if _, err := (ruleRewriter{e.catalog.owner()}).expandLocked(auth, definition.Statement, original, nil, &program); err != nil {
 			return err
 		}
 		if err := ruleCTEProgramError(program); err != nil {
