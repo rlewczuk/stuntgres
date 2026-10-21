@@ -30,7 +30,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			n := node.(plan.InstalledUUIDOsspExpr)
-			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) || !analyze.ClosedUUIDDefault(n) {
+			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) || !analyze.ClosedUUIDDefault(n) {
 				t.Fatal("constant shape/identity", n)
 			}
 			if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {

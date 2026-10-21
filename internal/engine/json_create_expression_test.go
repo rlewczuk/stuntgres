@@ -36,7 +36,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if exec.PlannedVolatility(node) != expr.Stable || generationImmutable(node) || conditionalConstantInputs(node) {
+	if exec.PlannedVolatility(node) != expr.Stable || plan.GenerationImmutable(node) || conditionalConstantInputs(node) {
 		t.Fatal("STABLE creation treated as immutable")
 	}
 	visited := 0

@@ -100,7 +100,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if !analyze.SameGroupExpression(original, original) || analyze.SameGroupExpression(original, next) {
 		t.Fatal("wrong expression equivalence")
 	}
-	if !generationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
+	if !plan.GenerationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
 		t.Fatal("immutable carrier properties")
 	}
 	folded, did, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, next)

@@ -234,7 +234,7 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	}
 	var slots []int
 	var storage [13]expr.Expr
-	for _, child := range exec.SubscriptChildren(target.Node, &storage) {
+	for _, child := range plan.SubscriptChildren(target.Node, &storage) {
 		if col, ok := child.(plan.ColumnExpr); ok {
 			slots = append(slots, col.Slot)
 		}

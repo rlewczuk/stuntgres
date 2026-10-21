@@ -119,7 +119,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 				if _, err := (pgRenderer{view: view, relation: relation}).sql(context.Background(), n, pgRenderParent{}); err == nil {
 					t.Fatal("PostgreSQL renderer accepted malformed inquiry")
 				}
-				if _, err := (boundTree{expression: n}).StructuralOutput(context.Background()); err == nil {
+				if _, err := (plan.BoundTree{Expression: n}).StructuralOutput(context.Background()); err == nil {
 					t.Fatal("structural serializer accepted malformed inquiry")
 				}
 			}

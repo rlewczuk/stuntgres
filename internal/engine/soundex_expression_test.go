@@ -36,7 +36,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.catalog.state.Get(n.Ref.Address) || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.catalog.state.Get(n.Ref.Address) || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -205,7 +205,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 			if exec.PlannedVolatility(modified) != property.Volatility {
 				t.Fatal("child volatility lost", property)
 			}
-			if property.Volatility != expr.Immutable && generationImmutable(modified) {
+			if property.Volatility != expr.Immutable && plan.GenerationImmutable(modified) {
 				t.Fatal("nonimmutable child admitted", property)
 			}
 			retagged, _, err := retagBoundTypes(e.CatalogRead(), modified, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })

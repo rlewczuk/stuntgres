@@ -110,7 +110,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 			t.Fatal(got, err)
 		}
 		treeType, _ := target.CatalogRead().LookupType(sqltype.PgNodeTree)
-		tree, err := catalogTree(treeType, remapped)
+		tree, err := plan.CatalogTree(treeType, remapped)
 		if err != nil {
 			t.Fatal(err)
 		}

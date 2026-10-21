@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `b5cdd1efe` (items 55, 58, 60, 64, 67, 71 and 74). Steps 8–17 were
+Last verified against `master` at `5730323ee` (items 55, 58, 60, 64, 67, 71, 73 and 74). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -20,8 +20,8 @@ after each lands.
 
 - **Seams:** 56 (dump 18b), 59 (copyfmt 19b), 61 (ddl 20b),
   65 (regobj 21b).
-- **Follow-ups in existing packages:** 72 (catalog 5i), 73 (plan 10e),
-  75 (exec 11e), 77 (analyze 12f), 78 (session 13f), 79 (access B6).
+- **Follow-ups in existing packages:** 72 (catalog 5i), 75 (exec 11e),
+  77 (analyze 12f), 78 (session 13f), 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
 
@@ -30,7 +30,8 @@ planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (dump 18a), 58 (copyfmt 19a), 60 (ddl 20a), 64 (regobj 21a) and 67
 (stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Item 74
 (catalog 5j) is done, so regobj 21b (item 65) is ready; stored 22c
-(item 69) still waits for 22b (item 68).
+(item 69) still waits for 22b (item 68). Item 73 (plan 10e) is done;
+index 23b (item 83) still waits for 82, 68, 72 and 75.
 
 ## Task tree
 
@@ -479,8 +480,9 @@ planning round: steps 18–30 and the follow-ups have prompt files. Items 55
   - [x] 5j — Payload accessors replace five host and runtime methods
     ([catalog](ENGINE-SPLIT-catalog.md)) (`946137fa2`, `f4e53eef6`, then the
     docs commit)
-  - [ ] 10e — Node-tree output and generation helpers moved
-    ([plan](ENGINE-SPLIT-plan.md))
+  - [x] 10e — Node-tree output and generation helpers moved
+    ([plan](ENGINE-SPLIT-plan.md); `fd104099c`, `8ec047f40`, `9b8cf388f`,
+    docs)
   - [ ] 11e — Expression-preparation seam; routine admission moved
     ([exec](ENGINE-SPLIT-exec.md))
   - [ ] 11f — Preflight moved ([exec](ENGINE-SPLIT-exec.md))
@@ -885,8 +887,13 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     passed; racecheck/finalcheck skipped at user request
 72. [ ] Catalog 5i: pure helpers moved down —
     [catalog](ENGINE-SPLIT-catalog.md) 5i · needs —
-73. [ ] Plan 10e: node-tree output and generation helpers —
-    [plan](ENGINE-SPLIT-plan.md) 10e · needs —
+73. [x] Plan 10e: node-tree output and generation helpers —
+    [plan](ENGINE-SPLIT-plan.md) 10e · needs — (`fd104099c`, `8ec047f40`,
+    `9b8cf388f`, then the docs commit) · `plan.BoundTree`,
+    `AppendBoundTree`, `CatalogTree`, `GenerationImmutable`,
+    `GenerationHasTableOID`; `SubscriptChildren` moved down from `exec` ·
+    selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 74. [x] Catalog 5j: payload accessors — [catalog](ENGINE-SPLIT-catalog.md) 5j ·
     needs — (`946137fa2`, `f4e53eef6`, then the docs commit) · rule, view
     and policy payload readers; five host/runtime methods and

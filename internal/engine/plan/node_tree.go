@@ -1,4 +1,4 @@
-package engine
+package plan
 
 import (
 	"context"
@@ -6,21 +6,22 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-type boundTree struct{ expression expr.Expr }
+// BoundTree is the pg_node_tree carrier of a bound expression.
+type BoundTree struct{ Expression expr.Expr }
 
 // StructuralOutput is native structural data, not PostgreSQL nodeToString.
 // Captured immutable nodes do not depend on their owner's continued existence.
-func (t boundTree) StructuralOutput(ctx context.Context) (string, error) {
+func (t BoundTree) StructuralOutput(ctx context.Context) (string, error) {
 	var out strings.Builder
-	err := appendBoundTree(ctx, &out, t.expression)
+	err := AppendBoundTree(ctx, &out, t.Expression)
 	return out.String(), err
 }
 
-func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) error {
+// AppendBoundTree writes the structural output of node to out.
+func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -34,7 +35,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			return nil
 		}
 		out.WriteByte(' ')
-		return appendBoundTree(ctx, out, n)
+		return AppendBoundTree(ctx, out, n)
 	}
 	pair := func(a, b expr.Expr) error {
 		if err := child(a); err != nil {
@@ -52,9 +53,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	}
 	var err error
 	switch n := node.(type) {
-	case plan.TableOIDExpr:
+	case TableOIDExpr:
 		fmt.Fprintf(out, "TableOID owner %d", n.Owner.Address.ObjectID)
-	case plan.LiteralExpr:
+	case LiteralExpr:
 		out.WriteString("Const")
 		if n.Value.IsNull() {
 			out.WriteString(" null")
@@ -69,28 +70,28 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			out.WriteString(" value ")
 			out.WriteString(strconv.Quote(text))
 		}
-	case plan.DomainValueExpr:
+	case DomainValueExpr:
 		fmt.Fprint(out, "DomainValue")
-	case plan.ColumnExpr:
+	case ColumnExpr:
 		fmt.Fprintf(out, "Var attnum %d", n.Origin.Address.SubID)
-	case plan.RowExpr:
+	case RowExpr:
 		fmt.Fprint(out, "Row")
 		for _, field := range n.Fields {
 			if err = child(field); err != nil {
 				break
 			}
 		}
-	case plan.FieldExpr:
+	case FieldExpr:
 		fmt.Fprintf(out, "Field attnum %d", n.Attribute)
 		err = child(n.Base)
-	case plan.ArrayExpr:
+	case ArrayExpr:
 		fmt.Fprint(out, "Array")
 		for _, element := range n.Elements {
 			if err = child(element); err != nil {
 				break
 			}
 		}
-	case plan.SubscriptExpr:
+	case SubscriptExpr:
 		fmt.Fprintf(out, "Subscript slice %t", n.Slice)
 		if err = child(n.Base); err != nil {
 			return err
@@ -108,32 +109,32 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 				}
 			}
 		}
-	case plan.CollationExpr:
+	case CollationExpr:
 		fmt.Fprintf(out, "Collate oid %d", n.Usage.Collation.ID)
 		err = child(n.Child)
-	case plan.CoercionExpr:
+	case CoercionExpr:
 		fmt.Fprintf(out, "Coerce mode %d", n.Mode)
 		err = child(n.Child)
-	case plan.SelectedOperatorExpr:
+	case SelectedOperatorExpr:
 		fmt.Fprintf(out, "Operator oid %d", n.Ref.Address.ObjectID)
 		err = child(n.Provider)
-	case plan.ArithmeticExpr:
+	case ArithmeticExpr:
 		fmt.Fprintf(out, "Arithmetic %d namespace %q", n.Operator, n.Namespace)
 		err = pair(n.Left, n.Right)
-	case plan.BitwiseExpr:
+	case BitwiseExpr:
 		fmt.Fprintf(out, "Bitwise %d namespace %q", n.Operator, n.Namespace)
 		err = pair(n.Left, n.Right)
-	case plan.LikeExpr:
+	case LikeExpr:
 		fmt.Fprintf(out, "Like %s namespace %q", n.Operator, n.Namespace)
 		err = pair(n.Left, n.Right)
-	case plan.RowComparisonExpr:
+	case RowComparisonExpr:
 		fmt.Fprintf(out, "RowCompare %s", n.Operator)
 		for _, comparison := range n.Comparisons {
 			if err = pair(comparison.Left, comparison.Right); err != nil {
 				break
 			}
 		}
-	case plan.ScalarArrayComparisonExpr:
+	case ScalarArrayComparisonExpr:
 		fmt.Fprintf(out, "ScalarArrayCompare %s namespace %q all %t", n.Operator, n.Namespace, n.All)
 		err = child(n.Left)
 		if err == nil && n.Array != nil {
@@ -142,28 +143,28 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		if err == nil {
 			err = args(n.Items)
 		}
-	case plan.ComparisonExpr:
+	case ComparisonExpr:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.Operator, n.Namespace)
 		err = pair(n.Left, n.Right)
-	case plan.LogicalExpr:
+	case LogicalExpr:
 		fmt.Fprintf(out, "Bool %d", n.Op)
 		err = pair(n.Left, n.Right)
-	case plan.NullTestExpr:
+	case NullTestExpr:
 		fmt.Fprintf(out, "NullTest not %t", n.Not)
 		if n.Whole {
 			out.WriteString(" whole true")
 		}
 		err = child(n.Child)
-	case plan.TruthTestExpr:
+	case TruthTestExpr:
 		fmt.Fprintf(out, "TruthTest %d not %t", n.Truth, n.Not)
 		err = child(n.Child)
-	case plan.DistinctExpr:
+	case DistinctExpr:
 		fmt.Fprintf(out, "Distinct not %t", n.Not)
 		err = pair(n.Left, n.Right)
-	case plan.ConditionalExpr:
+	case ConditionalExpr:
 		fmt.Fprintf(out, "Conditional %d", n.Kind)
 		err = args(n.Args)
-	case plan.CaseExpr:
+	case CaseExpr:
 		if n.Test == nil {
 			out.WriteString("Case searched")
 		} else {
@@ -179,30 +180,30 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		if err == nil {
 			err = child(n.Otherwise)
 		}
-	case plan.ExtensionPathsExpr:
+	case ExtensionPathsExpr:
 		if failure := n.Validate(); failure != nil {
 			return failure
 		}
 		out.WriteString("ExtensionPaths")
 		err = child(n.Arg)
-	case plan.InstalledSoundexExpr:
+	case InstalledSoundexExpr:
 		fmt.Fprintf(out, "InstalledSoundex %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case plan.InstalledMetaphoneExpr:
+	case InstalledMetaphoneExpr:
 		fmt.Fprintf(out, "InstalledMetaphone %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case plan.InstalledLevenshteinExpr:
+	case InstalledLevenshteinExpr:
 		fmt.Fprintf(out, "InstalledLevenshtein %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case plan.InstalledUUIDOsspExpr:
+	case InstalledUUIDOsspExpr:
 		fmt.Fprintf(out, "InstalledUUIDOssp %d", n.Ref.Address.ObjectID)
-	case plan.InstalledCryptoExpr:
+	case InstalledCryptoExpr:
 		fmt.Fprintf(out, "InstalledCrypto %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case plan.SQLRoutineExpr:
+	case SQLRoutineExpr:
 		fmt.Fprintf(out, "SQLRoutine %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case plan.InstalledTextExpr:
+	case InstalledTextExpr:
 		fmt.Fprintf(out, "InstalledFunction %d", n.Ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})
 	case expr.Renderable:
@@ -227,6 +228,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	return nil
 }
 
-func catalogTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
-	return sqltype.Tree(typ, boundTree{expression})
+// CatalogTree stores expression as a pg_node_tree value of typ.
+func CatalogTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
+	return sqltype.Tree(typ, BoundTree{expression})
 }

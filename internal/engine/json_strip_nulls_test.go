@@ -64,7 +64,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if volatile.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Immutable || generationImmutable(volatile) {
+	if volatile.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Immutable || plan.GenerationImmutable(volatile) {
 		t.Fatal("volatile Boolean child lost", volatile.Properties(), exec.PlannedVolatility(volatile))
 	}
 }

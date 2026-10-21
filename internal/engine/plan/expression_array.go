@@ -235,6 +235,27 @@ type SubscriptExpr struct {
 	Slice      bool
 }
 
+// SubscriptChildren lists the base and the present bounds, in evaluation
+// order, in caller storage (one base plus six dimensions of two bounds).
+func SubscriptChildren(n SubscriptExpr, storage *[13]expr.Expr) []expr.Expr {
+	count := 0
+	if n.Base != nil {
+		storage[count] = n.Base
+		count++
+	}
+	for _, s := range n.Subscripts {
+		if s.Lower != nil {
+			storage[count] = s.Lower
+			count++
+		}
+		if s.Upper != nil {
+			storage[count] = s.Upper
+			count++
+		}
+	}
+	return storage[:count]
+}
+
 func (n SubscriptExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if _, err := BeginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err

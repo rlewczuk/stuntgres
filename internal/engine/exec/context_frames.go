@@ -12,25 +12,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func SubscriptChildren(n plan.SubscriptExpr, storage *[13]expr.Expr) []expr.Expr {
-	count := 0
-	if n.Base != nil {
-		storage[count] = n.Base
-		count++
-	}
-	for _, s := range n.Subscripts {
-		if s.Lower != nil {
-			storage[count] = s.Lower
-			count++
-		}
-		if s.Upper != nil {
-			storage[count] = s.Upper
-			count++
-		}
-	}
-	return storage[:count]
-}
-
 func (c *Context) EvalTableOID(n plan.TableOIDExpr) (sqltype.Value, error) {
 	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err

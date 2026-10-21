@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -69,7 +70,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			u := node.ResultUsage()
 			wantTree := fmt.Sprintf("{type %d typmod %d collation %d derivation %d node Identity kind %d ordinaryCall %t}", u.Type.ID(), u.Typmod, u.Collation.ID, u.Collation.Derivation, tc.kind, tc.call)
 			treeType, _ := e.CatalogRead().LookupType(sqltype.PgNodeTree)
-			tree, err := catalogTree(treeType, node)
+			tree, err := plan.CatalogTree(treeType, node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +101,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			if err != nil || got != tc.golden {
 				t.Fatal(got, err)
 			}
-			copiedTree, err := (boundTree{expression: copy}).StructuralOutput(context.Background())
+			copiedTree, err := (plan.BoundTree{Expression: copy}).StructuralOutput(context.Background())
 			if err != nil || copiedTree != wantTree {
 				t.Fatal(copiedTree, err)
 			}

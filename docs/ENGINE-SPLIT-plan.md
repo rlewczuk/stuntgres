@@ -229,7 +229,7 @@ are rewritten to the new names.
 `EvalContext` and the `Eval*` bodies; `openQueryNode` and the node openers;
 `queryState`, `querySource`, `indexedStage`, `finalRows`; `RowCursor` and
 `RowResult` (public facade); the central switches that list node types
-(`deparse_renderer.go`, `deparse_tree.go`, `view_remap.go`,
+(`deparse_renderer.go`, `deparse_tree.go` until 10e, `view_remap.go`,
 `expression_retag.go`, `conditional_plan.go`, `query_expression_walk.go`,
 `query_join_legality.go`, `aggregate_bind.go`, `default.go`), which name the
 `plan.` types after the move; the Tier C nodes until their Tier C parts.
@@ -286,9 +286,53 @@ names `*EvalContext`. `EvalContext` is three documented groups. The checks in
 - [x] 10d — Aliases removed, plus the three 10c follow-ups (`fb6c19185`,
   `367313c0d`, `3860f511e`, `9ba165e93`, `3f66996a4`, `50e07094a`, then the
   docs commit) *(racecheck/finalcheck skipped at user request)*
-- [ ] 10e — Node-tree output and generation helpers moved (linear item 73)
+- [x] 10e — Node-tree output and generation helpers moved (linear item 73)
+  (`fd104099c`, `8ec047f40`, `9b8cf388f`, then the docs commit)
+  *(racecheck/finalcheck skipped at user request)*
 
 Outstanding aliases: none. 10d deleted `plan_aliases.go` (90 aliases).
+
+### 10e result
+
+Measured at `b5cdd1efe` (the integration tip at the start), rebased onto
+`5730323ee` (after catalog 5j). No aliases.
+
+- `fd104099c`: `exec.SubscriptChildren` moved to `plan/expression_array.go`
+  unchanged, as `plan.SubscriptChildren`. **Deviation from the plan:** the
+  prompt said the generation helpers use no root declaration, which is true,
+  but both call `exec.SubscriptChildren`, and `plan` must not import `exec`.
+  The function only reads `plan.SubscriptExpr`, so it moved down first. Its
+  other callers (`exec/context_runtimes.go`, `validateGenerationPlan`,
+  `query_join_legality.go`, one test) name it in `plan`.
+- `8ec047f40`: `deparse_tree.go` became `plan/node_tree.go`: `BoundTree`
+  (field `Expression`, read by `pg_get_expr` in `deparse_function.go`),
+  `AppendBoundTree` and `CatalogTree`. Callers: `catalog_source_runtime.go`
+  (`ExpressionTree`), `deparse_function.go`, the `pgcatalog/pg_type.go`
+  comment and 15 engine test files.
+- `9b8cf388f`: `generationImmutable` and `generationHasTableOID` became
+  `plan.GenerationImmutable` and `plan.GenerationHasTableOID`
+  (`plan/generation.go`). Callers: `generated.go`, `catalog.go`,
+  `generated_replacement.go`, `index_snapshot_repair.go`,
+  `partition_retained_checks.go` and 47 engine test files.
+- `plan` imports are unchanged; no engine subpackage imports the engine.
+  The string-literal multiset of `internal/engine` is unchanged apart from
+  the added import paths, so output and error text are identical. `go vet`
+  findings are identical to master (2,765).
+- Tests: none moved or deleted (they build nodes through engine binder
+  fixtures). Adapted mechanically: the 62 engine test files that name the
+  moved functions; `blocking_pids_expression_test.go` keys its
+  `plan.BoundTree` literal.
+- Verification: `go build`, test compilation of every package and the tests
+  of every changed test file after every commit (64 after the node-tree
+  commit, 234 after the generation commit). `make quickcheck` passed and `make deps` lists only module
+  paths. The step-10 generated, view, Dump and deparse reference selection
+  (`^TestReference(GeneratedStored|GeneratedVirtual|ViewNative|DumpRound|DeparseConstraints)`,
+  74 test functions in four packages) passed in quick mode (inside
+  quickcheck) and with `REFERENCE=1` against PostgreSQL 18.6. Startup
+  bench (interleaved binaries vs `b5cdd1efe`, host load about 35): 5,014–5,033
+  allocs/op on both; minimum 946 µs/op before and 872 µs/op after, medians
+  within the load noise. The moves change no startup or evaluation code.
+  Racecheck and finalcheck skipped at user request.
 
 ### 10a result
 

@@ -89,7 +89,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
 	}
-	if !generationImmutable(node) {
+	if !plan.GenerationImmutable(node) {
 		return catalog.ColumnGeneration{}, sqlError("42P17", "generation expression is not immutable")
 	}
 	if node.ResultUsage() != column.Usage {
@@ -129,102 +129,6 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 	definition := catalog.ColumnGeneration{Kind: kind, Expression: analyzed, Planned: node}
 	_, err = (scalarRenderer{definition: op.Definition, aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, owner: d, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, analyzed)
 	return definition, err
-}
-
-// Walk surviving providers, not conservative properties retained on CASE wrappers.
-func generationImmutable(node expr.Expr) bool {
-	if node == nil {
-		return true
-	}
-	one := generationImmutable
-	both := func(a, b expr.Expr) bool { return one(a) && one(b) }
-	args := func(nodes []expr.Expr) bool {
-		for _, child := range nodes {
-			if !one(child) {
-				return false
-			}
-		}
-		return true
-	}
-	switch n := node.(type) {
-	case plan.RowExpr:
-		return args(n.Fields)
-	case plan.FieldExpr:
-		return one(n.Base)
-	case plan.ArrayExpr:
-		return args(n.Elements)
-	case plan.SubscriptExpr:
-		var storage [13]expr.Expr
-		return args(exec.SubscriptChildren(n, &storage))
-	case plan.LiteralExpr, plan.ColumnExpr, plan.TableOIDExpr:
-		return true
-	case plan.CollationExpr:
-		return one(n.Child)
-	case plan.CoercionExpr:
-		return one(n.Child) && (n.Mode == sqltype.Assignment || !n.Plan.SessionDependent())
-	case plan.SelectedOperatorExpr:
-		return one(n.Provider)
-	case plan.ArithmeticExpr:
-		return !n.Provider.SessionDependent() && both(n.Left, n.Right)
-	case plan.BitwiseExpr:
-		return both(n.Left, n.Right)
-	case plan.RowComparisonExpr:
-		for _, pair := range n.Comparisons {
-			if pair.Predicate.SessionDependent() || !both(pair.Left, pair.Right) {
-				return false
-			}
-		}
-		return true
-	case plan.ScalarArrayComparisonExpr:
-		return !n.Predicate.SessionDependent() && one(n.Left) && (n.Array == nil || one(n.Array)) && args(n.Items)
-	case plan.ComparisonExpr:
-		return !n.Predicate.SessionDependent() && both(n.Left, n.Right)
-	case plan.LogicalExpr:
-		return both(n.Left, n.Right)
-	case plan.DistinctExpr:
-		return !n.Equality.SessionDependent() && both(n.Left, n.Right)
-	case plan.NullTestExpr:
-		return one(n.Child)
-	case plan.TruthTestExpr:
-		return one(n.Child)
-	case plan.LikeExpr:
-		return both(n.Left, n.Right)
-	case plan.ConditionalExpr:
-		return !n.Comparison.SessionDependent() && args(n.Args)
-	case plan.CaseExpr:
-		if !both(n.Test, n.Otherwise) {
-			return false
-		}
-		for _, arm := range n.Arms {
-			if !both(arm.Condition, arm.Result) || n.Test != nil && (arm.TestPlan.SessionDependent() || arm.Equality.SessionDependent()) {
-				return false
-			}
-		}
-		return true
-	case plan.UnnestExpr:
-		return false
-	case plan.ExtensionPathsExpr:
-		return false
-	case plan.InstalledSoundexExpr:
-		return args(n.Args)
-	case plan.InstalledMetaphoneExpr:
-		return args(n.Args)
-	case plan.InstalledLevenshteinExpr:
-		return args(n.Args)
-	case plan.InstalledUUIDOsspExpr:
-		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable
-	case plan.InstalledCryptoExpr:
-		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
-	case plan.InstalledTextExpr:
-		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args([]expr.Expr{n.Arg})
-	case expr.Composite:
-		// Last, so the explicit engine wrappers above keep precedence. A
-		// provider is admitted by its own volatility and its children.
-		if intrinsic, ok := n.(expr.Intrinsic); ok {
-			return intrinsic.IntrinsicVolatility() == expr.Immutable && args(n.Children())
-		}
-	}
-	return node.Properties().Volatility == expr.Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
 }
 
 func generationRecipeExpression(definition catalog.ColumnGeneration) expr.Expr {
@@ -325,96 +229,6 @@ func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype
 	return ctx.Err()
 }
 
-func generationHasTableOID(node expr.Expr) bool {
-	if node == nil {
-		return false
-	}
-	one := generationHasTableOID
-	both := func(a, b expr.Expr) bool { return one(a) || one(b) }
-	args := func(nodes []expr.Expr) bool {
-		for _, child := range nodes {
-			if one(child) {
-				return true
-			}
-		}
-		return false
-	}
-	switch n := node.(type) {
-	case plan.RowExpr:
-		return args(n.Fields)
-	case plan.FieldExpr:
-		return one(n.Base)
-	case plan.ArrayExpr:
-		return args(n.Elements)
-	case plan.SubscriptExpr:
-		var storage [13]expr.Expr
-		return args(exec.SubscriptChildren(n, &storage))
-	case plan.TableOIDExpr:
-		return true
-	case plan.CollationExpr:
-		return one(n.Child)
-	case plan.CoercionExpr:
-		return one(n.Child)
-	case plan.SelectedOperatorExpr:
-		return one(n.Provider)
-	case plan.ArithmeticExpr:
-		return both(n.Left, n.Right)
-	case plan.BitwiseExpr:
-		return both(n.Left, n.Right)
-	case plan.RowComparisonExpr:
-		for _, pair := range n.Comparisons {
-			if both(pair.Left, pair.Right) {
-				return true
-			}
-		}
-		return false
-	case plan.ScalarArrayComparisonExpr:
-		return one(n.Left) || n.Array != nil && one(n.Array) || args(n.Items)
-	case plan.ComparisonExpr:
-		return both(n.Left, n.Right)
-	case plan.LogicalExpr:
-		return both(n.Left, n.Right)
-	case plan.DistinctExpr:
-		return both(n.Left, n.Right)
-	case plan.NullTestExpr:
-		return one(n.Child)
-	case plan.TruthTestExpr:
-		return one(n.Child)
-	case plan.LikeExpr:
-		return both(n.Left, n.Right)
-	case plan.ConditionalExpr:
-		return args(n.Args)
-	case plan.CaseExpr:
-		if both(n.Test, n.Otherwise) {
-			return true
-		}
-		for _, arm := range n.Arms {
-			if both(arm.Condition, arm.Result) {
-				return true
-			}
-		}
-		return false
-	case plan.ExtensionPathsExpr:
-		return generationHasTableOID(n.Arg)
-	case plan.InstalledSoundexExpr:
-		return args(n.Args)
-	case plan.InstalledMetaphoneExpr:
-		return args(n.Args)
-	case plan.InstalledLevenshteinExpr:
-		return args(n.Args)
-	case plan.InstalledUUIDOsspExpr:
-		return false
-	case plan.InstalledCryptoExpr:
-		return args(n.Args)
-	case plan.InstalledTextExpr:
-		return args([]expr.Expr{n.Arg})
-	case expr.Composite:
-		return args(n.Children())
-	default:
-		return false
-	}
-}
-
 // Replacement candidates own detached vectors; the source and retained TEMP
 // roots are never modified. Only owner-dependent stored cells are recomputed.
 func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval exec.Context, changed map[ids.ObjectAddress]map[int32]bool) error {
@@ -429,7 +243,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 		filtered := *descriptor
 		filtered.ColumnMeta.Generations = nil
 		for attribute, definition := range descriptor.ColumnMeta.Generations {
-			if definition.Kind != catalog.GenerationStored || !generationHasTableOID(definition.Planned) {
+			if definition.Kind != catalog.GenerationStored || !plan.GenerationHasTableOID(definition.Planned) {
 				continue
 			}
 			if filtered.ColumnMeta.Generations == nil {
@@ -669,7 +483,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(exec.SubscriptChildren(n, &storage))
+		return args(plan.SubscriptChildren(n, &storage))
 	case plan.ColumnExpr:
 		if _, generated := d.ColumnMeta.Generations[n.Origin.Address.SubID]; generated || n.Virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")

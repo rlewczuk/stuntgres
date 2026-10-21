@@ -134,7 +134,7 @@ func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, 
 // not Type/Domain/Procedure/Collation address renumbering, change that recipe's
 // retained-row inputs. Compare literals before any identity normalization.
 func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, ownerChanged bool) (bool, error) {
-	if ownerChanged && generationHasTableOID(before) {
+	if ownerChanged && plan.GenerationHasTableOID(before) {
 		return true, ctx.Err()
 	}
 	var local [16]sqltype.Value

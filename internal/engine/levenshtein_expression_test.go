@@ -41,7 +41,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Integer()
-	if err != nil || readErr != nil || integer != 10 || n.Ref.Address != ext.Members[4] || value.Type() != n.ResultUsage().Type || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+	if err != nil || readErr != nil || integer != 10 || n.Ref.Address != ext.Members[4] || value.Type() != n.ResultUsage().Type || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
 		t.Fatal(value, n.Ref, err, readErr)
 	}
 	if err := validateInstalledLevenshtein(n, e.CatalogRead()); err != nil {

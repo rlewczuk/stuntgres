@@ -22,7 +22,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 		e := node.(functions.DatetimeJustify)
-		if e.ResultUsage().Type.ID() != sqltype.Interval || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != expr.Immutable || exec.PlannedVolatility(e) != expr.Immutable || !generationImmutable(e) {
+		if e.ResultUsage().Type.ID() != sqltype.Interval || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != expr.Immutable || exec.PlannedVolatility(e) != expr.Immutable || !plan.GenerationImmutable(e) {
 			t.Fatal(e.Properties(), e.ResultUsage())
 		}
 		if !b.SameGroupExpression(e, e) || previous != nil && b.SameGroupExpression(previous, e) {

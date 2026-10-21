@@ -49,7 +49,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	if n.Timestamp != other.Type(sqltype.Timestamptz) || n.ResultUsage().Type != other.Type(sqltype.UUID) || n.Args[0].ResultUsage().Type != other.Type(sqltype.Interval) || n.Properties() != stored.Properties() {
 		t.Fatal("retag lost descriptor/dependence")
 	}
-	if generationImmutable(bound) {
+	if plan.GenerationImmutable(bound) {
 		t.Fatal("UUID admitted to immutable consumer")
 	}
 	if analyze.ClosedUUIDDefault(functions.Random{Info: expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}) {
@@ -90,7 +90,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 					t.Fatal("strict NULL simplification", preflight, decisive, changed, err)
 				}
 				literal, ok := planned.(plan.LiteralExpr)
-				if !ok || !literal.Value.IsNull() || literal.ResultUsage() != analyzed.ResultUsage() || !generationImmutable(planned) || exec.PlannedVolatility(planned) != expr.Immutable {
+				if !ok || !literal.Value.IsNull() || literal.ResultUsage() != analyzed.ResultUsage() || !plan.GenerationImmutable(planned) || exec.PlannedVolatility(planned) != expr.Immutable {
 					t.Fatal("strict NULL physical tree", planned)
 				}
 				value, err := planned.Eval(evaluation)
@@ -113,7 +113,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := planned.(functions.UUIDGeneration); !ok || exec.PlannedVolatility(planned) != expr.Volatile || generationImmutable(planned) {
+		if _, ok := planned.(functions.UUIDGeneration); !ok || exec.PlannedVolatility(planned) != expr.Volatile || plan.GenerationImmutable(planned) {
 			t.Fatal("real provider admitted as immutable", planned)
 		}
 	}

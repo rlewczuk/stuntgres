@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -98,7 +99,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if stable {
 			want = expr.Stable
 		}
-		if e.Properties().Volatility != want || exec.PlannedVolatility(e) != want || generationImmutable(e) == stable {
+		if e.Properties().Volatility != want || exec.PlannedVolatility(e) != want || plan.GenerationImmutable(e) == stable {
 			t.Fatal(name, e.Properties(), exec.PlannedVolatility(e))
 		}
 		if !b.SameGroupExpression(e, e) {
@@ -127,7 +128,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exec.PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
+	if exec.PlannedVolatility(node) != expr.Stable || plan.GenerationImmutable(node) {
 		t.Fatal("explicit UTC incorrectly immutable")
 	}
 

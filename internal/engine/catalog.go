@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
@@ -277,7 +278,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 		_, hasDefault := r.ColumnMeta.Defaults[attribute]
 		_, hasIdentity := r.ColumnMeta.Identities[attribute]
-		if definition.OID == 0 || slot < 0 || definition.Expression == nil || definition.Expression.ResultUsage() != r.Columns[slot].Usage || definition.Planned == nil || definition.Planned.ResultUsage() != r.Columns[slot].Usage || hasDefault || hasIdentity || !generationImmutable(definition.Planned) {
+		if definition.OID == 0 || slot < 0 || definition.Expression == nil || definition.Expression.ResultUsage() != r.Columns[slot].Usage || definition.Planned == nil || definition.Planned.ResultUsage() != r.Columns[slot].Usage || hasDefault || hasIdentity || !plan.GenerationImmutable(definition.Planned) {
 			return fmt.Errorf("stuntgres: invalid column generation destination")
 		}
 		if definition.Kind != catalog.GenerationStored && definition.Kind != catalog.GenerationVirtual {

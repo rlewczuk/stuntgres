@@ -58,6 +58,17 @@ It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
   remapping; `MapSubscript` (`expression_subscript_map.go`); `NullLiteral`
   (`literal_null.go`); `SQLJSONSource` (`expression_sqljson_source.go`)
   strips a JSON FORMAT input coercion.
+- **Node-tree output** (`node_tree.go`): `BoundTree` is the
+  `pg_node_tree` carrier (`sqltype.StructuralTree`) of a bound expression;
+  `AppendBoundTree` writes its native structural text (not PostgreSQL
+  `nodeToString`) and `CatalogTree` stores it as a catalog value.
+  `pg_get_expr` and the catalog producers read it through these names.
+- **Generation admission** (`generation.go`): `GenerationImmutable` (a
+  generation expression admits only immutable surviving providers) and
+  `GenerationHasTableOID` (it reads the owner's `tableoid`), used by
+  generated columns, index snapshot repair and partition checks.
+  `SubscriptChildren` (`expression_array.go`) lists a subscript's base and
+  bounds in caller storage for these and the other walkers.
 
 ## Node runtime
 
@@ -110,7 +121,7 @@ the `Eval*` bodies, `OpenNode` and the node openers (including
 `OpenFunctionCall`), the runtime records, `RowCursor` and `RowResult`. The
 engine keeps the binder that constructs the nodes; the central switches
 that list node types (deparse, remap, retag, conditional planning, join
-legality, aggregate binding, defaults); the installed-node validators
+legality, aggregate binding, defaults, `validateGenerationPlan`); the installed-node validators
 (`validateInstalled*`; `ValidInstalledText` and `ClosedPgcryptoDefault` are in
 `analyze`) and `bindExtensionPaths`. The engine names the types here directly; no aliases
 remain.
@@ -122,6 +133,12 @@ engine. Prologue seam (engine-owned):
 
 ```sh
 make check RUN='^TestNodeRuntimePrologue$'
+```
+
+Node-tree output and generation admission (engine-owned, 10e):
+
+```sh
+make check RUN='^Test(Generated|ArrayGenerated|DeparseConstraints|ExprCollationFrontiers|TemporaryTableIndexComposition)'
 ```
 
 Public evaluation proof is the reference selection used for step 10, in

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -56,7 +57,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			if source == "timestamptz" {
 				volatility = expr.Stable
 			}
-			if e.ResultUsage().Type.ID() != result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != volatility || exec.PlannedVolatility(e) != volatility || generationImmutable(e) != (volatility == expr.Immutable) || !b.SameGroupExpression(e, e) {
+			if e.ResultUsage().Type.ID() != result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != volatility || exec.PlannedVolatility(e) != volatility || plan.GenerationImmutable(e) != (volatility == expr.Immutable) || !b.SameGroupExpression(e, e) {
 				t.Fatal(source, api, e.Properties())
 			}
 			replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -153,7 +154,7 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 				t.Fatal(err)
 			}
 			e := node.(functions.DatetimeExtract)
-			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || generationImmutable(e) {
+			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || plan.GenerationImmutable(e) {
 				t.Fatal(e.Properties(), e.DateWrapperContext)
 			}
 			_, err = e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: input, Host: hostOf(scope)}})

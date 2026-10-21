@@ -107,11 +107,11 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	leaf := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	volatile := functions.Random{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
-	if generationImmutable(volatile) {
+	if plan.GenerationImmutable(volatile) {
 		t.Fatal("volatile accepted")
 	}
 	pruned := plan.CaseExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, Otherwise: leaf}
-	if !generationImmutable(pruned) || !generationHasTableOID(pruned) {
+	if !plan.GenerationImmutable(pruned) || !plan.GenerationHasTableOID(pruned) {
 		t.Fatal("surviving provider walk uses inherited volatility")
 	}
 	remapped, err := remapBoundExpression(pruned, func(old ids.ObjectRef) ids.ObjectRef { old.Address.ObjectID = 26000; return old }, nil)

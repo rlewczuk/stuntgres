@@ -1835,7 +1835,10 @@ exist. Each item is a new sub-step in that package's prompt file.
   (done, linear item 74).
 - **Plan 10e.** The node-tree output (`deparse_tree.go`: `boundTree`,
   `appendBoundTree`, `catalogTree`) and the generation helpers
-  (`generationHasTableOID`, `generationImmutable`).
+  (`generationHasTableOID`, `generationImmutable`). Done: `plan.BoundTree`,
+  `plan.AppendBoundTree`, `plan.CatalogTree`, `plan.GenerationHasTableOID`
+  and `plan.GenerationImmutable`, with `exec.SubscriptChildren` moved down
+  to `plan` first.
 - **Exec 11e — expression-preparation seam.** `exec.Preparation` gains
   coercion preflight with a policy and expression execution admission, so
   index, table and partition evaluation code no longer needs the scope;
@@ -2024,7 +2027,7 @@ package-specific scope. This section holds the rules every session follows.
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B5, names cleanup; B5 moved the binding walkers into `analyze`, racecheck/finalcheck skipped at user request) |
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
-| 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10d): `plan` created, IR, node types and installed extension nodes moved, aliases removed (racecheck/finalcheck skipped by user) |
+| 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10e): `plan` created, IR, node types and installed extension nodes moved, aliases removed; 10e moved node-tree output and the generation helpers (racecheck/finalcheck skipped by user) |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c; 12d: 12c, 11c | done (12a–12e): `binding` split per statement kind, binder fields grouped, host seam, `analyze` created, areas prepared in place and the binder moved (12d.1–12d.6), aliases removed; the driver imports `analyze` for `ParameterInfo` (racecheck/finalcheck skipped at user request) |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c refined (state moves, the scope and orchestration stay; decisions 7, 10 and 11 settled); 13d.1 done (`session` created, journal moved with aliases), 13d.2 done (statement lease), 13d.3 done (engine edges: `session.Host`, `engineOf`, owner root functions) 13d.4 done (root payloads: session payload, owner extension, savepoint and operation slots; notification polling on `Engine`) 13d.5 done (file splits: 15 moving-only files; 192 members the root reads exported) and 13d.6 done (session state moved into `session` with type and constant aliases; `Host.NewOperation`); 13e done (aliases removed; the driver and `cmd/stuntgres` import `session`, decision 11 applied) (racecheck/finalcheck skipped at user request) |

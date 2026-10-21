@@ -248,7 +248,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	node.Variadic = false
 	node.Args = []expr.Expr{node.Args[0], column}
 	node.Property.RowDependent = true
-	if generationImmutable(node) || analyze.FirstQueryBoundFrameVariable(node, b.FrameID()).Character != 99 {
+	if plan.GenerationImmutable(node) || analyze.FirstQueryBoundFrameVariable(node, b.FrameID()).Character != 99 {
 		t.Fatal("stable/variable descendants must remain visible")
 	}
 	rebound, err := b.RewriteGroup(node, []expr.Expr{column})

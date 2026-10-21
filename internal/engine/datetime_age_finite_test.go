@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 			t.Fatal(tc, err)
 		}
 		e := node.(functions.DatetimeAgeFinite)
-		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
+		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || plan.GenerationImmutable(e) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, e.Properties())
 		}
 		if !b.SameGroupExpression(e, e) {

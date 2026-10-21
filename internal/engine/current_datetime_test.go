@@ -31,7 +31,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			t.Fatal(raw, err)
 		}
 		node, ok := bound.(functions.CurrentDateTime)
-		if !ok || node.Properties() != (expr.Properties{Volatility: expr.Stable}) || node.ResultUsage().Type.ID() != functions.CurrentDateTimeType(kind) || exec.PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
+		if !ok || node.Properties() != (expr.Properties{Volatility: expr.Stable}) || node.ResultUsage().Type.ID() != functions.CurrentDateTimeType(kind) || exec.PlannedVolatility(node) != expr.Stable || plan.GenerationImmutable(node) {
 			t.Fatal(raw, node)
 		}
 		spec, err := node.Render()
@@ -47,7 +47,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if err != nil || replay != sql {
 			t.Fatal(replay, sql, err)
 		}
-		tree, err := (boundTree{expression: node}).StructuralOutput(ctx)
+		tree, err := (plan.BoundTree{Expression: node}).StructuralOutput(ctx)
 		if err != nil || !strings.Contains(tree, "CurrentDateTime") || strings.Contains(tree, "Const") {
 			t.Fatal(tree, err)
 		}

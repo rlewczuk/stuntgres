@@ -78,7 +78,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		{Info: b.Info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Items: []expr.Expr{left, late}, Predicate: predicate, Operator: "="},
 		{Info: b.Info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Array: plan.ArrayExpr{Info: b.Info(b.Type(oid.AssociatedArray()).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Elements: []expr.Expr{left, late}}, Predicate: predicate, Operator: "="},
 	} {
-		if !generationHasTableOID(node) || !generationImmutable(node) {
+		if !plan.GenerationHasTableOID(node) || !plan.GenerationImmutable(node) {
 			t.Fatal("late RHS owner-dependent generation lost", node)
 		}
 		seen := false

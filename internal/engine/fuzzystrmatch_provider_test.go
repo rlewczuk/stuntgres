@@ -209,7 +209,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	value, err := n.Eval(ctx)
 	text, _ := n.Usage.Type.Output(ctx.Context, value)
-	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
 		t.Fatal("immutable complete evaluation", text, err)
 	}
 	if n.Ref.Address != ext.Members[0] || n.Dictionary != nil || n.Template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
@@ -281,7 +281,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	calls := 0
 	n.Arg = daitchCountingArgument{Info: expr.Info{Usage: n.Arg.ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
 	v, err := n.Eval(ctx)
-	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || exec.PlannedVolatility(n) != expr.Volatile || plan.GenerationImmutable(n) {
 		t.Fatal("strict single eval/child volatility", calls, v, err)
 	}
 	ctxCanceled, cancel := context.WithCancel(ctx.Context)
@@ -292,7 +292,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	unaccent, _, _ := extensionUnitInstalled(t)
 	b := newTestExpressionBinder(t, ctx.Context, unaccent, sqltype.InputEnvironment{}, nil)
 	u, err := b.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
-	if err != nil || exec.PlannedVolatility(u) != expr.Stable || generationImmutable(u) {
+	if err != nil || exec.PlannedVolatility(u) != expr.Stable || plan.GenerationImmutable(u) {
 		t.Fatal("unaccent remains stable", u, err)
 	}
 }

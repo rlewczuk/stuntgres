@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -23,7 +24,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		}
 		if d, ok := next.Relation(target); ok {
 			for _, g := range d.ColumnMeta.Generations {
-				needed = needed || generationHasTableOID(g.Planned)
+				needed = needed || plan.GenerationHasTableOID(g.Planned)
 			}
 		}
 	}

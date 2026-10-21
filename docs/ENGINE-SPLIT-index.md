@@ -247,7 +247,7 @@ schema-level DDL 23, DML 18 distinct declarations.
 | `pgRenderer`, `pgRenderParent`, `deparseAttribute`, `scalarRenderer`, `remapBoundExpression`, `collationDisplayName`, `relationDiagnosticNameAt` | root presentation code | `stored` (22b) |
 | `remapOperatorDatum`, `remapRoutineDatum`, `remapRegTSDatum`, `remapCatalogAliasDatum`, `remapRegclassDatum` | reg* files, `domain_remap.go` | `regobj` (21a/21b) |
 | `sameRelationRowShape`, `physicalNotNullOriginValid`, `physicalPrimarySupportValid` | `relation_scope.go`, `physical_not_null.go` | `catalog` (5i) |
-| `generationHasTableOID` | `generated.go` | `plan` (10e) |
+| `generationHasTableOID` | `plan.GenerationHasTableOID` (`plan/generation.go`) | done in 10e |
 | `preflightCoercionsWithPolicy`, `validateExpressionJoinExecution`, `routineAdmissionProgram` | preflight, `query_join_legality.go`, `routine_program.go` | `exec` (11e) |
 | `columnTransformation` | `alter_type.go` | `index` (23a step 2) |
 | `partitionRowHistory`, `partitionNeedsRowHistory` | `partition_retained_checks.go` | `index` (23a step 2) |
@@ -352,7 +352,8 @@ schema-level DDL 23, DML 18 distinct declarations.
 5. **Open questions** (record the answers in the Status record):
    - Settled during planning: `indexHasTableOID` and
      `indexSnapshot.trackedGenerations` use `generationHasTableOID`, which
-     10e moves to `plan`, so item 83 needs item 73.
+     10e moved to `plan` (`plan.GenerationHasTableOID`), so item 83 needs
+     item 73 (done).
    - `rowPublication` is built by root publication and read by index
      merging (`mergeIndexRoot`, `mergeHashIndexRoot`, `publicationSlot`,
      `prepareIndexPublication`). Confirm nothing else reads it before 23b
