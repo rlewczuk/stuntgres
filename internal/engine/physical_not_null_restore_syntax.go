@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/parser"
 )
 
@@ -19,17 +20,17 @@ type physicalNotNullRepair struct {
 
 func physicalNotNullCleanupSQL(relation, column, primary string, keys []string) string {
 	attribute := func(name string) string {
-		return "(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = " + commentLiteral(relation) + "::regclass AND attname = " + commentLiteral(name) + ")"
+		return "(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = " + dump.CommentLiteral(relation) + "::regclass AND attname = " + dump.CommentLiteral(name) + ")"
 	}
 	keySQL := make([]string, len(keys))
 	for i, name := range keys {
 		keySQL[i] = attribute(name)
 	}
-	guard := "NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = " + commentLiteral(relation) + "::regclass AND contype = 'p')"
+	guard := "NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = " + dump.CommentLiteral(relation) + "::regclass AND contype = 'p')"
 	if primary != "" {
-		guard = "EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = " + commentLiteral(relation) + "::regclass AND conname = " + commentLiteral(primary) + " AND contype = 'p' AND conkey = ARRAY[" + strings.Join(keySQL, ", ") + "])"
+		guard = "EXISTS (SELECT 1 FROM pg_catalog.pg_constraint WHERE conrelid = " + dump.CommentLiteral(relation) + "::regclass AND conname = " + dump.CommentLiteral(primary) + " AND contype = 'p' AND conkey = ARRAY[" + strings.Join(keySQL, ", ") + "])"
 	}
-	return fmt.Sprintf("WITH target AS (SELECT nn.oid FROM pg_catalog.pg_constraint AS nn WHERE nn.conrelid = %s::regclass AND nn.contype = 'n' AND nn.conkey = ARRAY[%s] AND nn.conislocal = true AND nn.coninhcount = 0 AND nn.conparentid = 0 AND nn.convalidated = true AND nn.connoinherit = false AND %s AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend WHERE refclassid = 'pg_catalog.pg_constraint'::regclass AND refobjid = nn.oid)), removed_dependencies AS (DELETE FROM pg_catalog.pg_depend WHERE classid = 'pg_catalog.pg_constraint'::regclass AND objid IN (SELECT oid FROM target) RETURNING objid) DELETE FROM pg_catalog.pg_constraint WHERE oid IN (SELECT oid FROM target)", commentLiteral(relation), attribute(column), guard)
+	return fmt.Sprintf("WITH target AS (SELECT nn.oid FROM pg_catalog.pg_constraint AS nn WHERE nn.conrelid = %s::regclass AND nn.contype = 'n' AND nn.conkey = ARRAY[%s] AND nn.conislocal = true AND nn.coninhcount = 0 AND nn.conparentid = 0 AND nn.convalidated = true AND nn.connoinherit = false AND %s AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend WHERE refclassid = 'pg_catalog.pg_constraint'::regclass AND refobjid = nn.oid)), removed_dependencies AS (DELETE FROM pg_catalog.pg_depend WHERE classid = 'pg_catalog.pg_constraint'::regclass AND objid IN (SELECT oid FROM target) RETURNING objid) DELETE FROM pg_catalog.pg_constraint WHERE oid IN (SELECT oid FROM target)", dump.CommentLiteral(relation), attribute(column), guard)
 }
 
 func physicalColumn(raw parser.Expr, parts ...string) bool {

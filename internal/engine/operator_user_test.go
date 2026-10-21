@@ -588,10 +588,10 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 	prefix := catalog.QuoteIdentifier("public") + "."
-	if strings.Contains(declaration.sql, "CREATE OPERATOR "+prefix+"#~~# ") ||
-		!strings.Contains(declaration.sql, "CREATE OPERATOR "+prefix+"#~!# ") ||
-		!strings.Contains(declaration.sql, "DROP OPERATOR "+prefix+"#~!# ") {
-		t.Fatal("orphan generator must skip occupied exact signature", declaration.sql)
+	if strings.Contains(declaration.SQL, "CREATE OPERATOR "+prefix+"#~~# ") ||
+		!strings.Contains(declaration.SQL, "CREATE OPERATOR "+prefix+"#~!# ") ||
+		!strings.Contains(declaration.SQL, "DROP OPERATOR "+prefix+"#~!# ") {
+		t.Fatal("orphan generator must skip occupied exact signature", declaration.SQL)
 	}
 	if existing := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: shell.Namespace(), Name: "#~~#", Signature: "23,23"}); existing == (ids.ObjectAddress{}) {
 		t.Fatal("dump lost the occupied definition")

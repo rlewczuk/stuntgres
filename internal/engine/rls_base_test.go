@@ -233,8 +233,8 @@ func TestRLSBaseControls(t *testing.T) {
 		if len(groups) != 1 {
 			t.Fatal("protected policy-less table not serialized", groups)
 		}
-		if strings.Contains(groups[0].sql, "ENABLE") != state.enabled || strings.Contains(groups[0].sql, "FORCE") != state.forced {
-			t.Fatal("serialized flags", groups[0].sql)
+		if strings.Contains(groups[0].SQL, "ENABLE") != state.enabled || strings.Contains(groups[0].SQL, "FORCE") != state.forced {
+			t.Fatal("serialized flags", groups[0].SQL)
 		}
 		if next.Security.RLSEnabled != state.enabled || next.Security.RLSForced != state.forced {
 			t.Fatal("Dump mutated descriptor")

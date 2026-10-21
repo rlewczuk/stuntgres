@@ -2,17 +2,11 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 )
-
-// Explicit escape strings are independent of the destination string setting.
-func commentLiteral(text string) string {
-	return "E'" + strings.ReplaceAll(strings.ReplaceAll(text, "\\", "\\\\"), "'", "''") + "'"
-}
 
 // Stored CREATE expressions retain their binder's admission rules. INSERT
 // expressions retain the existing Restore whitelist. Both modes reject every

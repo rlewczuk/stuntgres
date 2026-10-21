@@ -202,7 +202,7 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 			if slot < 0 {
 				return fmt.Errorf("stuntgres: missing historical constraint key")
 			}
-			keyQueries = append(keyQueries, "(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = "+commentLiteral(qualified)+"::regclass AND attname = "+commentLiteral(t.columns[slot].Name)+")")
+			keyQueries = append(keyQueries, "(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = "+dump.CommentLiteral(qualified)+"::regclass AND attname = "+dump.CommentLiteral(t.columns[slot].Name)+")")
 		}
 		kind := "n"
 		if check {
@@ -214,14 +214,14 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 				return fmt.Errorf("stuntgres: missing retired constraint parent")
 			}
 			parentName := catalog.QuoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name())
-			rows = append(rows, "("+commentLiteral(parentName)+"::regclass, "+commentLiteral(history.Column)+", "+strconv.FormatInt(int64(history.Attribute), 10)+", "+commentLiteral(kind)+", "+commentLiteral(history.Name)+", "+commentLiteral(strconv.FormatUint(history.Archive, 10)+":"+strconv.FormatUint(history.Lifetime, 10))+", "+commentLiteral(strconv.FormatUint(uint64(history.Constraint), 10))+")")
+			rows = append(rows, "("+dump.CommentLiteral(parentName)+"::regclass, "+dump.CommentLiteral(history.Column)+", "+strconv.FormatInt(int64(history.Attribute), 10)+", "+dump.CommentLiteral(kind)+", "+dump.CommentLiteral(history.Name)+", "+dump.CommentLiteral(strconv.FormatUint(history.Archive, 10)+":"+strconv.FormatUint(history.Lifetime, 10))+", "+dump.CommentLiteral(strconv.FormatUint(uint64(history.Constraint), 10))+")")
 			if !slices.Contains(parents, parentName) {
 				parents = append(parents, parentName)
 			}
 		}
-		sql := "UPDATE pg_catalog.pg_constraint SET conislocal = " + strconv.FormatBool(p.Local) + ", coninhcount = " + strconv.Itoa(len(p.Origins)) + " + (SELECT count(DISTINCT (retired.column1, retired.column6, retired.column7)) FROM (VALUES " + strings.Join(rows, ", ") + ") AS retired) WHERE conrelid = " + commentLiteral(qualified) + "::regclass AND conname = " + commentLiteral(name) + " AND contype = " + commentLiteral(kind) + " AND conkey = ARRAY[" + strings.Join(keyQueries, ", ") + "] AND conislocal = " + strconv.FormatBool(beforeLocal) + " AND coninhcount = " + strconv.Itoa(len(p.Origins))
+		sql := "UPDATE pg_catalog.pg_constraint SET conislocal = " + strconv.FormatBool(p.Local) + ", coninhcount = " + strconv.Itoa(len(p.Origins)) + " + (SELECT count(DISTINCT (retired.column1, retired.column6, retired.column7)) FROM (VALUES " + strings.Join(rows, ", ") + ") AS retired) WHERE conrelid = " + dump.CommentLiteral(qualified) + "::regclass AND conname = " + dump.CommentLiteral(name) + " AND contype = " + dump.CommentLiteral(kind) + " AND conkey = ARRAY[" + strings.Join(keyQueries, ", ") + "] AND conislocal = " + strconv.FormatBool(beforeLocal) + " AND coninhcount = " + strconv.Itoa(len(p.Origins))
 		for _, parent := range parents {
-			sql += " AND EXISTS (SELECT 1 FROM pg_catalog.pg_inherits WHERE inhrelid = " + commentLiteral(qualified) + "::regclass AND inhparent = " + commentLiteral(parent) + "::regclass)"
+			sql += " AND EXISTS (SELECT 1 FROM pg_catalog.pg_inherits WHERE inhrelid = " + dump.CommentLiteral(qualified) + "::regclass AND inhparent = " + dump.CommentLiteral(parent) + "::regclass)"
 		}
 		return emit(sql + ";\n")
 	}

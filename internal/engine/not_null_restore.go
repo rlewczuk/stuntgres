@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -40,8 +41,8 @@ func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner fu
 		if err := setOwner("postgres"); err != nil {
 			return err
 		}
-		literal := commentLiteral(qualified)
-		repair := "UPDATE pg_catalog.pg_constraint SET connoinherit = true WHERE conrelid = " + literal + "::regclass AND conname = " + commentLiteral(constraint.Name) + " AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = " + literal + "::regclass AND attname = " + commentLiteral(column) + ")];\n"
+		literal := dump.CommentLiteral(qualified)
+		repair := "UPDATE pg_catalog.pg_constraint SET connoinherit = true WHERE conrelid = " + literal + "::regclass AND conname = " + dump.CommentLiteral(constraint.Name) + " AND conkey = ARRAY[(SELECT attnum FROM pg_catalog.pg_attribute WHERE attrelid = " + literal + "::regclass AND attname = " + dump.CommentLiteral(column) + ")];\n"
 		if err := emit(repair); err != nil {
 			return err
 		}

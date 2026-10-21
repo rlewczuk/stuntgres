@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -142,7 +143,7 @@ func cycleConstantSQL(catalog catalog.Read, raw parser.Expr, source sqltype.Usag
 		if err != nil {
 			return "", err
 		}
-		return typ + " " + commentLiteral(constant.Text), nil
+		return typ + " " + dump.CommentLiteral(constant.Text), nil
 	case parser.LiteralExpr:
 		switch value := constant.Value; value.Kind {
 		case parser.NullValue:
@@ -157,7 +158,7 @@ func cycleConstantSQL(catalog catalog.Read, raw parser.Expr, source sqltype.Usag
 		case parser.NumericValue:
 			return value.Text, nil
 		case parser.StringValue:
-			return commentLiteral(value.Text), nil
+			return dump.CommentLiteral(value.Text), nil
 		case parser.BitStringValue:
 			return value.Text[:1] + "'" + value.Text[1:] + "'", nil
 		}

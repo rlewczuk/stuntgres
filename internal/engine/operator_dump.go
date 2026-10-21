@@ -46,12 +46,12 @@ func operatorRoutineSQLName(view catalog.Read, id ids.OID) (string, error) {
 	}
 	return catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(identity.Name), nil
 }
-func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator) (dumpDomain, error) {
+func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator) (dump.Statement, error) {
 	if err := ctx.Err(); err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	if err := (routine.OperatorProvider{}).Validate(view, d); err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	if d.Function == 0 {
 		return orphanOperatorShellDump(ctx, view, roles, d)
@@ -73,7 +73,7 @@ func operatorDumpDeferredLink(view catalog.Read, source *catalog.Operator, kind 
 	return reciprocal == source.Address().ObjectID
 }
 
-func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator, keepForwardLinks bool) (dumpDomain, error) {
+func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator, keepForwardLinks bool) (dump.Statement, error) {
 	options := make([]string, 0, 10)
 	for i, id := range [...]ids.OID{d.Left, d.Right} {
 		if id == 0 {
@@ -82,7 +82,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 		t, _ := view.LookupType(sqltype.ID(id))
 		text, err := catalogTypeDeclaration(view, t.Usage())
 		if err != nil {
-			return dumpDomain{}, err
+			return dump.Statement{}, err
 		}
 		key := "RIGHTARG"
 		if i == 0 {
@@ -92,7 +92,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 	}
 	function, err := operatorRoutineSQLName(view, d.Function)
 	if err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	options = append(options, "FUNCTION = "+function)
 	for i, id := range [...]ids.OID{d.Commutator, d.Negator} {
@@ -101,7 +101,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 		}
 		peer, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 		if !ok {
-			return dumpDomain{}, fmt.Errorf("stuntgres: missing operator link")
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing operator link")
 		}
 		if !keepForwardLinks && operatorDumpDeferredLink(view, d, i, id) {
 			continue
@@ -118,7 +118,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 		}
 		name, err := operatorRoutineSQLName(view, id)
 		if err != nil {
-			return dumpDomain{}, err
+			return dump.Statement{}, err
 		}
 		key := "RESTRICT"
 		if i == 1 {
@@ -143,17 +143,17 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 	for _, owned := range owners {
 		owner, err := roles.Descriptor(owned.Owner)
 		if err != nil {
-			return dumpDomain{}, err
+			return dump.Statement{}, err
 		}
 		signature, err := operatorSQLSignature(view, owned)
 		if err != nil {
-			return dumpDomain{}, err
+			return dump.Statement{}, err
 		}
 		text += "ALTER OPERATOR " + signature + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n"
 	}
 	// Create as bootstrap so independently owned forward shells can be completed
 	// and definitions whose owners lack schema CREATE still replay faithfully.
-	return dumpDomain{owner: "postgres", sql: text}, nil
+	return dump.Statement{Owner: "postgres", SQL: text}, nil
 }
 
 // Select a deterministic extant forward reference for an unfilled shell.
@@ -167,7 +167,7 @@ func operatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog
 	}
 	return selected
 }
-func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles authorization.Read, shell *catalog.Operator) (dumpDomain, error) {
+func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles authorization.Read, shell *catalog.Operator) (dump.Statement, error) {
 	var implementation *catalog.Procedure
 	negator := false
 	for key, declaration := range routine.OperatorRoutines() {
@@ -183,7 +183,7 @@ func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles autho
 		}
 	}
 	if implementation == nil {
-		return dumpDomain{}, fmt.Errorf("stuntgres: cannot serialize orphan operator shell %s: no compatible real implementation provider", operatorSQLName(view, shell))
+		return dump.Statement{}, fmt.Errorf("stuntgres: cannot serialize orphan operator shell %s: no compatible real implementation provider", operatorSQLName(view, shell))
 	}
 	name := "#~#"
 	alphabet := "~!@#^&|`?"
@@ -225,15 +225,15 @@ func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles autho
 	generator.Restriction, generator.Join = 0, 0
 	declaration, err := operatorDumpDefined(ctx, view, roles, &generator, true)
 	if err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
 	// Emitted DDL creates a collision-free temporary operator using the genuine
 	// selected routine, generates the original shell, then retires the helper.
 	signature, err := operatorSQLSignature(view, &generator)
 	if err != nil {
-		return dumpDomain{}, err
+		return dump.Statement{}, err
 	}
-	declaration.sql += "DROP OPERATOR " + signature + ";\n"
+	declaration.SQL += "DROP OPERATOR " + signature + ";\n"
 	return declaration, nil
 }
 

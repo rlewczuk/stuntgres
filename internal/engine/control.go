@@ -562,7 +562,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				installed := make([]string, len(viewOf(r).options))
 				for i, option := range viewOf(r).options {
 					name, value, _ := strings.Cut(option, "=")
-					installed[i] = catalog.QuoteIdentifier(name) + "=" + commentLiteral(value)
+					installed[i] = catalog.QuoteIdentifier(name) + "=" + dump.CommentLiteral(value)
 				}
 				options = " WITH (" + strings.Join(installed, ", ") + ")"
 			}
@@ -1053,7 +1053,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for _, c := range schemaComments {
 		literal := "NULL"
 		if c.text != "" {
-			literal = commentLiteral(c.text)
+			literal = dump.CommentLiteral(c.text)
 		}
 		if err := emit("COMMENT ON SCHEMA " + catalog.QuoteIdentifier(c.name) + " IS " + literal + ";\n"); err != nil {
 			return err
@@ -1066,15 +1066,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	currentOwner := ""
-	for _, declarations := range [2][]dumpDomain{collationStatements, conversionStatements} {
+	for _, declarations := range [2][]dump.Statement{collationStatements, conversionStatements} {
 		for _, declaration := range declarations {
-			if declaration.owner != currentOwner {
-				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
+			if declaration.Owner != currentOwner {
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.Owner, "'", "''") + "';\n"); err != nil {
 					return err
 				}
-				currentOwner = declaration.owner
+				currentOwner = declaration.Owner
 			}
-			if err := emit(declaration.sql); err != nil {
+			if err := emit(declaration.SQL); err != nil {
 				return err
 			}
 		}
@@ -1191,36 +1191,36 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if declaration, exists := declarations[oid]; exists {
-			if domain := domainNodes[oid]; domain != nil && domain.SQLType.IsDomain() && declaration.owner != "postgres" {
+			if domain := domainNodes[oid]; domain != nil && domain.SQLType.IsDomain() && declaration.Owner != "postgres" {
 				// Owner metadata does not imply schema CREATE/USAGE. Preserve
 				// its captured identity, construct as bootstrap, then transfer only
 				// the exact fresh domain through the ordinary owner executor.
-				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.Owner, "'", "''") + "';\n"); err != nil {
 					return err
 				}
-				currentOwner = declaration.owner
+				currentOwner = declaration.Owner
 				if err := setOwner("postgres"); err != nil {
 					return err
 				}
-				if err := emit(declaration.sql); err != nil {
+				if err := emit(declaration.SQL); err != nil {
 					return err
 				}
 				qualified, err := catalogTypeDeclaration(catalogView, domain.SQLType.Usage())
 				if err != nil {
 					return err
 				}
-				if err := emit("ALTER DOMAIN " + qualified + " OWNER TO " + catalog.Identifier(declaration.owner) + ";\n"); err != nil {
+				if err := emit("ALTER DOMAIN " + qualified + " OWNER TO " + catalog.Identifier(declaration.Owner) + ";\n"); err != nil {
 					return err
 				}
 				continue
 			}
-			if declaration.owner != currentOwner {
-				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
+			if declaration.Owner != currentOwner {
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.Owner, "'", "''") + "';\n"); err != nil {
 					return err
 				}
-				currentOwner = declaration.owner
+				currentOwner = declaration.Owner
 			}
-			if err := emit(declaration.sql); err != nil {
+			if err := emit(declaration.SQL); err != nil {
 				return err
 			}
 			continue
@@ -1562,13 +1562,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		if t.comment != "" {
-			if err := emit("COMMENT ON TABLE " + qualified + " IS " + commentLiteral(t.comment) + ";\n"); err != nil {
+			if err := emit("COMMENT ON TABLE " + qualified + " IS " + dump.CommentLiteral(t.comment) + ";\n"); err != nil {
 				return err
 			}
 		}
 		for i, c := range t.columns {
 			if text := t.columnComments[t.attributes[i]]; text != "" {
-				if err := emit("COMMENT ON COLUMN " + qualified + "." + catalog.QuoteIdentifier(c.Name) + " IS " + commentLiteral(text) + ";\n"); err != nil {
+				if err := emit("COMMENT ON COLUMN " + qualified + "." + catalog.QuoteIdentifier(c.Name) + " IS " + dump.CommentLiteral(text) + ";\n"); err != nil {
 					return err
 				}
 			}
@@ -1591,37 +1591,37 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	for _, group := range policyGroups {
-		if group.owner != currentOwner {
-			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.owner, "'", "''") + "';\n"); err != nil {
+		if group.Owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.Owner, "'", "''") + "';\n"); err != nil {
 				return err
 			}
-			currentOwner = group.owner
+			currentOwner = group.Owner
 		}
-		if err := emit(group.sql); err != nil {
+		if err := emit(group.SQL); err != nil {
 			return err
 		}
 	}
 	for _, group := range securityGroups {
-		if group.owner != currentOwner {
-			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.owner, "'", "''") + "';\n"); err != nil {
+		if group.Owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.Owner, "'", "''") + "';\n"); err != nil {
 				return err
 			}
-			currentOwner = group.owner
+			currentOwner = group.Owner
 		}
-		if err := emit(group.sql); err != nil {
+		if err := emit(group.SQL); err != nil {
 			return err
 		}
 	}
 	// User rules are post-data: importing ordinary INSERT rows must not rewrite
 	// fixture data before every relation and original stored row exists.
 	for _, group := range ruleGroups {
-		if group.owner != currentOwner {
-			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.owner, "'", "''") + "';\n"); err != nil {
+		if group.Owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.Owner, "'", "''") + "';\n"); err != nil {
 				return err
 			}
-			currentOwner = group.owner
+			currentOwner = group.Owner
 		}
-		if err := emit(group.sql); err != nil {
+		if err := emit(group.SQL); err != nil {
 			return err
 		}
 	}
@@ -1650,7 +1650,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				rankAuthority = true
 			}
 			qualified := catalog.QuoteIdentifier(catalogView.Get(table.descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.name)
-			if err := emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, commentLiteral(qualified), commentLiteral(column.Name))); err != nil {
+			if err := emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, dump.CommentLiteral(qualified), dump.CommentLiteral(column.Name))); err != nil {
 				return err
 			}
 		}

@@ -8,10 +8,9 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 )
-
-type dumpPolicyGroup struct{ owner, table, sql string }
 
 func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *policyExpression) (string, error) {
 	r := newViewRenderer(expression.presentation)
@@ -36,8 +35,8 @@ func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *pol
 	return r.expressionSQL(ctx, view, expression.syntax, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 }
 
-func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dumpPolicyGroup, error) {
-	var groups []dumpPolicyGroup
+func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dump.Group, error) {
+	var groups []dump.Group
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(d.Security.Policies) == 0 {
@@ -111,8 +110,8 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 			}
 			sql.WriteString(";\n")
 		}
-		groups = append(groups, dumpPolicyGroup{owner: owner.Name, table: table, sql: sql.String()})
+		groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: sql.String()})
 	}
-	slices.SortFunc(groups, func(a, b dumpPolicyGroup) int { return strings.Compare(a.table, b.table) })
+	slices.SortFunc(groups, func(a, b dump.Group) int { return strings.Compare(a.Table, b.Table) })
 	return groups, nil
 }
