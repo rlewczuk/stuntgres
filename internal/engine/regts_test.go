@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/control"
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
@@ -240,7 +241,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 		t.Fatal("immutable literal remap", id, original)
 	}
 	d := view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
-	predecessor, err := dumpPredecessor(view, d.Address(), ids.ObjectAddress{})
+	predecessor, err := control.Resolver{}.Predecessor(view, d.Address(), ids.ObjectAddress{})
 	if err != nil || predecessor != d.Extension.ObjectID {
 		t.Fatal("extension predecessor", predecessor, err)
 	}

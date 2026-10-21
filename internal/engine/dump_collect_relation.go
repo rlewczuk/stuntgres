@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -123,7 +124,7 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 			continue
 		}
 		for _, dependency := range key.Derived.Dependencies {
-			predecessor, err := dumpPredecessor(c.catalogView, dependency.Address, r.SQLIndex.Parent)
+			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, dependency.Address, r.SQLIndex.Parent)
 			if err != nil {
 				return err
 			}
@@ -185,7 +186,7 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 	// references depend on their parent relation, not its column OID.
 	predecessors := make(map[ids.OID]bool)
 	addPredecessor := func(address ids.ObjectAddress) error {
-		predecessor, err := dumpPredecessor(c.originalCatalog, address, r.Address())
+		predecessor, err := control.Resolver{}.Predecessor(c.originalCatalog, address, r.Address())
 		if err != nil {
 			return err
 		}
@@ -318,14 +319,14 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 	var predecessors []ids.OID
 	if r.Inheritance != nil {
 		for _, parent := range r.Inheritance.Parents {
-			predecessor, err := dumpPredecessor(c.catalogView, parent, r.Address())
+			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, parent, r.Address())
 			if err != nil {
 				return tableDumpEdges{}, err
 			}
 			predecessors = append(predecessors, predecessor)
 		}
 	}
-	predecessors, err := partition.DumpPredecessors(dumpResolver{}, c.catalogView, r, predecessors)
+	predecessors, err := partition.DumpPredecessors(control.Resolver{}, c.catalogView, r, predecessors)
 	if err != nil {
 		return tableDumpEdges{}, err
 	}
@@ -334,7 +335,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			continue
 		}
 		add := func(address ids.ObjectAddress) error {
-			predecessor, err := dumpPredecessor(c.catalogView, address, r.Address())
+			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, address, r.Address())
 			if err != nil {
 				return err
 			}
@@ -368,7 +369,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			if eligible {
 				owner = ids.ObjectAddress{}
 			}
-			predecessor, err := dumpPredecessor(c.catalogView, address, owner)
+			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, address, owner)
 			if err != nil {
 				return err
 			}
@@ -397,7 +398,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			continue
 		}
 		for _, dependency := range definition.Dependencies {
-			predecessor, err := dumpPredecessor(c.catalogView, dependency.Address, r.Address())
+			predecessor, err := control.Resolver{}.Predecessor(c.catalogView, dependency.Address, r.Address())
 			if err != nil {
 				return tableDumpEdges{}, err
 			}

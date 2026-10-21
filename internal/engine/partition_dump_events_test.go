@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strconv"
+	"stuntgres/internal/engine/control"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -74,8 +75,8 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, f.view)
-			if err := partition.DumpEvents(context.Background(), dumpResolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
+			_, replay := partition.ConstraintDumpCatalog(control.Resolver{}, f.view)
+			if err := partition.DumpEvents(context.Background(), control.Resolver{}, f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
 			order, err := dump.Order(context.Background(), graph, map[ids.OID]ids.OID{good.Address().ObjectID: 1})

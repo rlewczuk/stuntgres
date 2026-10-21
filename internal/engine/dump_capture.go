@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
@@ -110,7 +111,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	}
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
-	catalogView, constraintReplay := partition.ConstraintDumpCatalog(dumpResolver{}, catalogView)
+	catalogView, constraintReplay := partition.ConstraintDumpCatalog(control.Resolver{}, catalogView)
 	domainRoles := e.roles.read(e.catalog.owner(), catalogView, e.roles.published)
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err

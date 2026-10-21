@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/control"
 	"testing"
 	"time"
 
@@ -443,7 +444,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if target.catalog.state.Get(imported.Address()) != nil || target.catalog.state.Get(importedIndex.Address()) != nil || target.storage.IndexRoots[importedIndex.Address()] != nil || target.storage.Relations[retained] != retainedStore || target.catalog.state.Get(temporary.Address()) != temporary || e.catalog.state.Get(d.Address()) != d {
 		t.Fatal("remapped x retirement did not preserve unrelated captured authority")
 	}
-	predecessor, err := dumpPredecessor(e.CatalogRead(), ext.Address(), d.Address())
+	predecessor, err := control.Resolver{}.Predecessor(e.CatalogRead(), ext.Address(), d.Address())
 	if err != nil || predecessor != ext.Address().ObjectID {
 		t.Fatal("missing provider dump predecessor", predecessor, err)
 	}

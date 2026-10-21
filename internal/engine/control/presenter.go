@@ -1,0 +1,39 @@
+package control
+
+import (
+	"context"
+
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/sqltype"
+)
+
+// Presenter is Dump's dump.Presenter. Each method forwards to a pure
+// presentation helper that reads only its arguments.
+type Presenter struct{}
+
+var _ dump.Presenter = Presenter{}
+
+func (Presenter) TypeDeclaration(view catalog.Read, reader catalog.DefinitionReader, u sqltype.Usage) (string, error) {
+	return regobj.TypeDeclarationAt(view, reader, u)
+}
+
+func (Presenter) ColumnDeclaration(view catalog.Read, column catalog.Column) (string, error) {
+	return regobj.ColumnDeclaration(view, column)
+}
+
+func (Presenter) RoutineIdentity(view catalog.Read, oid ids.OID) (catalog.RoutineIdentity, bool) {
+	return regobj.RoutineIdentityByOID(view, oid)
+}
+
+func (Presenter) DomainDefault(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
+	return (stored.ScalarRenderer{CurrentRowShape: true}).SQL(ctx, view, node)
+}
+
+func (Presenter) DomainCheck(ctx context.Context, view catalog.Read, value sqltype.Usage, node expr.Expr) (string, error) {
+	return (stored.ScalarRenderer{DomainValue: &value}).SQL(ctx, view, node)
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/control"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -217,7 +218,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 func TestTypedEmptyAndBuiltinSourceDumpPredecessor(t *testing.T) {
 	for _, empty := range []bool{false, true} {
 		e, source, table := typedUnitCatalog(t, empty)
-		predecessors, err := dumpColumnPredecessors(e.CatalogRead(), table, nil)
+		predecessors, err := control.ColumnPredecessors(e.CatalogRead(), table, nil)
 		if err != nil || !reflect.DeepEqual(predecessors, []ids.OID{source.Address().ObjectID}) {
 			t.Fatal("typed source absent from mixed topology", empty, predecessors, err)
 		}

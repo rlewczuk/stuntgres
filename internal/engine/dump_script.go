@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"slices"
+	"stuntgres/internal/engine/control"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
@@ -74,7 +75,7 @@ func (s *dumpScript) addDeclarationEdges() error {
 		s.domainNodes[id] = d
 		s.graph[dump.Event{OID: id}] = nil
 		if d.SQLType.IsDomain() {
-			predecessor, err := dumpPredecessor(s.catalogView, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, d.Address())
+			predecessor, err := control.Resolver{}.Predecessor(s.catalogView, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, d.Address())
 			if err != nil {
 				return err
 			}
@@ -83,7 +84,7 @@ func (s *dumpScript) addDeclarationEdges() error {
 			}
 			if d.DomainDefault != nil {
 				for _, dependency := range d.DomainDefault.Dependencies {
-					predecessor, err := dumpPredecessor(s.catalogView, dependency.Address, d.Address())
+					predecessor, err := control.Resolver{}.Predecessor(s.catalogView, dependency.Address, d.Address())
 					if err != nil {
 						return err
 					}
@@ -98,7 +99,7 @@ func (s *dumpScript) addDeclarationEdges() error {
 					continue
 				}
 				for _, dependency := range check.Dependencies {
-					predecessor, err := dumpPredecessor(s.catalogView, dependency.Ref.Address, d.Address())
+					predecessor, err := control.Resolver{}.Predecessor(s.catalogView, dependency.Ref.Address, d.Address())
 					if err != nil {
 						return err
 					}
@@ -111,13 +112,13 @@ func (s *dumpScript) addDeclarationEdges() error {
 			}
 		}
 	}
-	if err := routine.OperatorDumpDependencies(dumpResolver{}, s.catalogView, s.operators, s.graph); err != nil {
+	if err := routine.OperatorDumpDependencies(control.Resolver{}, s.catalogView, s.operators, s.graph); err != nil {
 		return err
 	}
 	// Reconstruct final links, not allocation history: asymmetric links remain
 	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
 	routine.OperatorDumpEvents(s.catalogView, s.operators, s.graph)
-	if err := routine.SQLRoutineDumpEvents(dumpResolver{}, s.catalogView, s.sqlRoutines, s.graph); err != nil {
+	if err := routine.SQLRoutineDumpEvents(control.Resolver{}, s.catalogView, s.sqlRoutines, s.graph); err != nil {
 		return err
 	}
 	for event, predecessors := range s.graph {
@@ -126,13 +127,13 @@ func (s *dumpScript) addDeclarationEdges() error {
 		if !ok {
 			continue
 		}
-		columns, err := dumpColumnPredecessors(s.catalogView, relation, dump.DeclarationIDs(predecessors))
+		columns, err := control.ColumnPredecessors(s.catalogView, relation, dump.DeclarationIDs(predecessors))
 		if err != nil {
 			return err
 		}
 		s.graph[event] = dump.DeclarationEvents(columns)
 		if inline, ok := s.inlinePredecessors[id]; ok {
-			inline, err = dumpColumnPredecessors(s.catalogView, relation, inline)
+			inline, err = control.ColumnPredecessors(s.catalogView, relation, inline)
 			if err != nil {
 				return err
 			}
@@ -178,7 +179,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 			priorities[address.ObjectID] = priority
 		}
 	}
-	if err := table.PhysicalNotNullDumpDependencies(dumpResolver{}, s.originalCatalog, s.graph); err != nil {
+	if err := table.PhysicalNotNullDumpDependencies(control.Resolver{}, s.originalCatalog, s.graph); err != nil {
 		return nil, err
 	}
 	routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
@@ -187,7 +188,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		for oid, predecessors := range s.inlinePredecessors {
 			s.graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
 		}
-		if err := table.PhysicalNotNullDumpDependencies(dumpResolver{}, s.originalCatalog, s.graph); err != nil {
+		if err := table.PhysicalNotNullDumpDependencies(control.Resolver{}, s.originalCatalog, s.graph); err != nil {
 			return nil, err
 		}
 		routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
@@ -203,11 +204,11 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		}
 	}
 	viewOrder := dump.DeclarationIDs(declarationOrder)
-	if err := partition.DumpEvents(ctx, dumpResolver{}, s.originalCatalog, s.graph, dump.DeclarationEvents(viewOrder), s.tables, s.indexIndices, s.constraintReplay, s.deferDefaults); err != nil {
+	if err := partition.DumpEvents(ctx, control.Resolver{}, s.originalCatalog, s.graph, dump.DeclarationEvents(viewOrder), s.tables, s.indexIndices, s.constraintReplay, s.deferDefaults); err != nil {
 		return nil, err
 	}
 	s.invalidReplay = partition.InvalidDumpEvents(s.originalCatalog, s.graph, s.indexIndices)
-	if err := regobj.DomainInvalidDumpEvents(ctx, dumpResolver{}, s.catalogView, s.graph, s.domainNodes); err != nil {
+	if err := regobj.DomainInvalidDumpEvents(ctx, control.Resolver{}, s.catalogView, s.graph, s.domainNodes); err != nil {
 		return nil, err
 	}
 	routine.NormalizeOperatorDumpPredecessors(s.catalogView, s.graph)
@@ -221,16 +222,16 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 // declarations and the operators' deferred link statements.
 func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID) error {
 	var err error
-	if s.declarations, err = typedef.MixedDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, viewOrder, s.domainNodes, s.composites); err != nil {
+	if s.declarations, err = typedef.MixedDumpStatements(ctx, control.Presenter{}, s.catalogView, s.domainRoles, viewOrder, s.domainNodes, s.composites); err != nil {
 		return err
 	}
 	for _, d := range s.sqlRoutines {
-		declaration, err := routine.SQLRoutineDumpStatement(dumpPresenter{}, s.catalogView, s.domainRoles, d)
+		declaration, err := routine.SQLRoutineDumpStatement(control.Presenter{}, s.catalogView, s.domainRoles, d)
 		if err != nil {
 			return err
 		}
 		s.declarations[d.Address().ObjectID] = declaration
 	}
-	s.operatorLinks, err = routine.OperatorDumpStatements(ctx, dumpPresenter{}, s.catalogView, s.domainRoles, s.operators, s.declarations)
+	s.operatorLinks, err = routine.OperatorDumpStatements(ctx, control.Presenter{}, s.catalogView, s.domainRoles, s.operators, s.declarations)
 	return err
 }

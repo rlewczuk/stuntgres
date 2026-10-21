@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strconv"
+	"stuntgres/internal/engine/control"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -191,7 +192,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	if index.PartitionReplayUsingIndex(view, local) || index.PartitionReplayVirtualUniqueRoot(view, child) != local {
 		t.Fatal("virtual definition assigned a physical origin")
 	}
-	provider, err := dumpPredecessor(view, child.Address(), ids.ObjectAddress{})
+	provider, err := control.Resolver{}.Predecessor(view, child.Address(), ids.ObjectAddress{})
 	if err != nil || provider != local.Address().ObjectID {
 		t.Fatal("subordinate provider is not the real ADD", provider, err)
 	}
@@ -233,8 +234,8 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, view)
-	if err = partition.DumpEvents(context.Background(), dumpResolver{}, view, graph, declarations, tables, indices, replay, false); err != nil {
+	_, replay := partition.ConstraintDumpCatalog(control.Resolver{}, view)
+	if err = partition.DumpEvents(context.Background(), control.Resolver{}, view, graph, declarations, tables, indices, replay, false); err != nil {
 		t.Fatal(err)
 	}
 	partition.InvalidDumpEvents(view, graph, indices)

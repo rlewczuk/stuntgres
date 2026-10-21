@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -254,7 +255,7 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 	copy := *d
 	copy.DomainChecks = []catalog.DomainCheckConstraint{check}
 	graph := dump.Graph{{OID: d.Address().ObjectID}: nil, {OID: provider.Address().ObjectID}: {{OID: d.Address().ObjectID}}, {OID: 50002, Phase: dump.Rows}: {{OID: 50002}}, {OID: 50002}: nil, {OID: 50002, Phase: dump.TableCompletion}: {{OID: 50002, Phase: dump.Rows}}}
-	if err := regobj.DomainInvalidDumpEvents(context.Background(), dumpResolver{}, view, graph, map[ids.OID]*catalog.Type{d.Address().ObjectID: &copy}); err != nil {
+	if err := regobj.DomainInvalidDumpEvents(context.Background(), control.Resolver{}, view, graph, map[ids.OID]*catalog.Type{d.Address().ObjectID: &copy}); err != nil {
 		t.Fatal(err)
 	}
 	late := dump.Event{OID: d.Address().ObjectID, Phase: dump.DomainChecks}

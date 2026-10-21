@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -21,23 +22,23 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	idx := &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespace, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: parentAddress, Ready: true, Valid: true, Live: true}}
 	view.State().SetDescriptor(parentAddress, parent)
 	view.State().SetDescriptor(indexAddress, idx)
-	got, err := dumpPredecessor(view, indexAddress, consumer)
+	got, err := control.Resolver{}.Predecessor(view, indexAddress, consumer)
 	if err != nil || got != indexAddress.ObjectID {
 		t.Fatal("ordinary index lost exact predecessor", got, err)
 	}
 	constraint := catalog.UniqueConstraint{OID: 100020, Index: indexAddress}
 	idx.SQLIndex.Unique, idx.SQLIndex.Constraint = true, index.UniqueBacking(&constraint)
 	parent.Constraints.Unique = []catalog.UniqueConstraint{constraint}
-	got, err = dumpPredecessor(view, indexAddress, consumer)
+	got, err = control.Resolver{}.Predecessor(view, indexAddress, consumer)
 	if err != nil || got != parentAddress.ObjectID {
 		t.Fatal("inline unique predecessor", got, err)
 	}
-	got, err = dumpPredecessor(view, indexAddress, parentAddress)
+	got, err = control.Resolver{}.Predecessor(view, indexAddress, parentAddress)
 	if err != nil || got != 0 {
 		t.Fatal("inline self predecessor", got, err)
 	}
 	parent.Constraints.Unique = nil
-	if _, err := dumpPredecessor(view, indexAddress, consumer); err == nil {
+	if _, err := (control.Resolver{}).Predecessor(view, indexAddress, consumer); err == nil {
 		t.Fatal("orphan unique dependency accepted")
 	}
 }

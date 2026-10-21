@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/control"
 	"testing"
 )
 
@@ -16,7 +17,7 @@ func TestDumpPresenterDomainExpressions(t *testing.T) {
 	if !d.DomainDefaultOwn || d.DomainDefault == nil || len(d.DomainChecks) != 1 {
 		t.Fatalf("fixture domain: default=%v checks=%d", d.DomainDefault, len(d.DomainChecks))
 	}
-	var p dumpPresenter
+	var p control.Presenter
 	ctx := context.Background()
 	if text, err := p.DomainDefault(ctx, view, d.DomainDefault.Expression); err != nil || text != "7" {
 		t.Fatalf("DomainDefault = %q, %v", text, err)

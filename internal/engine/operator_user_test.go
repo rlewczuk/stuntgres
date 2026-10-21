@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/control"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -585,7 +586,7 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	auth.Recapture(e.CatalogRead())
-	declaration, err := routine.OperatorDumpDeclaration(context.Background(), dumpPresenter{}, auth.Catalog, auth.Roles, shell)
+	declaration, err := routine.OperatorDumpDeclaration(context.Background(), control.Presenter{}, auth.Catalog, auth.Roles, shell)
 	if err != nil {
 		t.Fatal(err)
 	}
