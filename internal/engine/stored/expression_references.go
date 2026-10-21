@@ -206,3 +206,39 @@ func QueryDependRefs(ctx context.Context, catalog catalog.Read, reader catalog.D
 	}
 	return r.Finish()
 }
+
+// IndexDependRefs records an index definition's pg_depend references: its
+// key expressions and key collations.
+func IndexDependRefs(ctx context.Context, view catalog.Read, definition *catalog.IndexDefinition) ([]ids.ObjectAddress, error) {
+	refs := DependRefs{Context: ctx, Catalog: view}
+	for _, key := range definition.Keys {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if key.Derived != nil {
+			refs.Expression(key.Derived.Definition)
+		}
+		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
+	}
+	return refs.Finish()
+}
+
+// PartitionDependRefs records a partitioned relation's pg_depend references:
+// key columns, key expressions, key types and collations.
+func PartitionDependRefs(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
+	refs := DependRefs{Context: ctx, Catalog: view}
+	for _, key := range relation.Partition.Keys {
+		if key.Attribute != 0 {
+			address := relation.Address()
+			address.SubID = key.Attribute
+			refs.Add(address)
+		}
+		if key.Derived != nil {
+			refs.Expression(key.Derived.Definition)
+		}
+		refs.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(key.Usage.Type.ID())})
+		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
+		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)})
+	}
+	return refs.Finish()
+}

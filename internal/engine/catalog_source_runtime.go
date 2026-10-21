@@ -157,43 +157,13 @@ func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key
 	return 0, false
 }
 func (r engineCatalogRuntime) IndexReferences(ctx context.Context, view catalog.Read, definition *catalog.IndexDefinition) ([]ids.ObjectAddress, error) {
-	refs := pgDependRefs{Context: ctx, Catalog: view}
-	for _, key := range definition.Keys {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		if key.Derived != nil {
-			refs.Expression(key.Derived.Definition)
-		}
-		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
-	}
-	return refs.Finish()
+	return stored.IndexDependRefs(ctx, view, definition)
 }
 func (r engineCatalogRuntime) PartitionReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
-	refs := pgDependRefs{Context: ctx, Catalog: view}
-	for _, key := range relation.Partition.Keys {
-		if key.Attribute != 0 {
-			address := relation.Address()
-			address.SubID = key.Attribute
-			refs.Add(address)
-		}
-		if key.Derived != nil {
-			refs.Expression(key.Derived.Definition)
-		}
-		refs.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(key.Usage.Type.ID())})
-		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
-		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)})
-	}
-	return refs.Finish()
+	return stored.PartitionDependRefs(ctx, view, relation)
 }
 func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
-	presentation := r.presentation
-	presentation.Columns = relation.Columns
-	renderer := stored.NewQueryRenderer(stored.ViewOf(relation))
-	renderer.Presentation = presentation
-	renderer.CurrentNames = true
-	definition, err := renderer.SelectQuerySQL(ctx, view, stored.ViewOf(relation).Syntax(), stored.ViewOf(relation).Queries()[stored.ViewOf(relation).Syntax()])
-	return definition, err
+	return stored.ViewDefinitionSQL(ctx, view, relation, r.presentation)
 }
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	return indexDefinitionSQL(ctx, view, relation, indexPresentation{})

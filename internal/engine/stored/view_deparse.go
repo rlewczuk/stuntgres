@@ -40,6 +40,17 @@ func (v *View) SelectSQL(ctx context.Context, catalog catalog.Read, presentation
 	return renderer.SelectQuerySQL(ctx, catalog, v.syntax, v.queries[v.syntax])
 }
 
+// ViewDefinitionSQL renders relation's stored query as pg_get_viewdef does:
+// with the relation's current column names and current source names.
+func ViewDefinitionSQL(ctx context.Context, view catalog.Read, relation *catalog.Relation, presentation Presentation) (string, error) {
+	definition := ViewOf(relation)
+	presentation.Columns = relation.Columns
+	renderer := NewQueryRenderer(definition)
+	renderer.Presentation = presentation
+	renderer.CurrentNames = true
+	return renderer.SelectQuerySQL(ctx, view, definition.syntax, definition.queries[definition.syntax])
+}
+
 func (renderer *QueryRenderer) SelectQuerySQL(ctx context.Context, view catalog.Read, s *parser.Select, project *plan.ProjectNode) (string, error) {
 	var columns []catalog.Column
 	if s == renderer.View.syntax {
