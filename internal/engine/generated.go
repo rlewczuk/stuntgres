@@ -168,12 +168,12 @@ func prepareGenerationProgram(c *exec.Context, d *catalog.Relation, selected []i
 		recipe.RoutineChecks = nil
 		recipe.RoutineReferences = definition.Dependencies
 		recipe.RoutineConsumer = consumer
-		node, changed, err := preflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
+		node, changed, err := exec.PreflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
 		c.PreparedDomainChecks = recipe.PreparedDomainChecks
 		if err != nil {
 			return nil, err
 		}
-		if err := validateExpressionJoinExecution(&recipe, node, recipe.Catalog); err != nil {
+		if err := exec.AdmitExpression(&recipe, node, recipe.Catalog); err != nil {
 			return nil, err
 		}
 		if changed {

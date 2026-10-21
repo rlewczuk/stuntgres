@@ -97,11 +97,11 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			}
 			defaultEvaluation := evaluation
 			applyDefaultOrigin(bindingDefaultOrigin(&b, plan.targets[i]), &defaultEvaluation)
-			folded, _, err := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
+			folded, _, err := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {
 				return nil, err
 			}
-			if err := validateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); err != nil {
+			if err := exec.AdmitExpression(&defaultEvaluation, folded, auth.Catalog); err != nil {
 				return nil, err
 			}
 			plan.defaults[i] = folded

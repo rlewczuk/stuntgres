@@ -67,12 +67,12 @@ func admitColumnVirtualGeneration(c *exec.Context, e plan.ColumnExpr, view catal
 	exec.SelectVirtualGenerationRecipe(&recipe, e.VirtualOwner, definition)
 	recipe.Scope, recipe.Frame = 1, 1
 	recipe.Row, recipe.Outer = nil, nil
-	node, _, err := preflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
+	node, _, err := exec.PreflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
 	c.PreparedDomainChecks = recipe.PreparedDomainChecks
 	if err != nil {
 		return err
 	}
-	return validateExpressionJoinExecution(&recipe, node, view)
+	return exec.AdmitExpression(&recipe, node, view)
 }
 
 // CHECK recipes belong to the completed destination, not a copied source.

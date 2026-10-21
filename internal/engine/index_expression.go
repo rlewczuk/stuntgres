@@ -44,7 +44,7 @@ func (e *Engine) bindIndexExpression(op *session.Operation, input sqltype.InputE
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.Dependencies
 	evaluation.RoutineRecipe = true
-	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
+	execution, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, "", err
 	}

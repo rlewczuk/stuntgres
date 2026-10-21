@@ -469,12 +469,12 @@ func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *exec.Conte
 			checkEvaluation.RoutineChecks = d.Constraints.Check[i].Dependencies
 			checkEvaluation.RoutineReferences = nil
 			checkEvaluation.RoutineConsumer = d
-			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, d.Constraints.Check[i].Expression, true)
+			node, changed, err := exec.PreflightCoercionsWithPolicy(&checkEvaluation, d.Constraints.Check[i].Expression, true)
 			eval.PreparedDomainChecks = checkEvaluation.PreparedDomainChecks
 			if err != nil {
 				return nil, err
 			}
-			if err := validateExpressionJoinExecution(&checkEvaluation, node, checkEvaluation.Catalog); err != nil {
+			if err := exec.AdmitExpression(&checkEvaluation, node, checkEvaluation.Catalog); err != nil {
 				return nil, err
 			}
 			if changed {

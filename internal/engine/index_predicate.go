@@ -35,13 +35,13 @@ func indexRecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRe
 func prepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *routineAdmissionProgram, executable bool) (expr.Expr, error) {
 	local := indexRecipeEvaluation(evaluation, dependencies, parent)
 	local.RoutineProgram = admission
-	prepared, _, err := preflightCoercionsWithPolicy(&local, expression, true)
+	prepared, _, err := exec.PreflightCoercionsWithPolicy(&local, expression, true)
 	evaluation.PreparedDomainChecks = local.PreparedDomainChecks
 	if err != nil {
 		return nil, err
 	}
 	if executable {
-		err = validateExpressionJoinExecution(&local, prepared, local.Catalog)
+		err = exec.AdmitExpression(&local, prepared, local.Catalog)
 	}
 	return prepared, err
 }
@@ -104,7 +104,7 @@ func (p *indexExecutionPreparation) prepareKeys(evaluation *exec.Context, parent
 		}
 		local := indexRecipeEvaluation(evaluation, key.Derived.Dependencies, parent)
 		local.RoutineProgram = &p.admission
-		if err := validateExpressionJoinExecution(&local, p.keyProgram(i, ordering, hash), local.Catalog); err != nil {
+		if err := exec.AdmitExpression(&local, p.keyProgram(i, ordering, hash), local.Catalog); err != nil {
 			return err
 		}
 	}
@@ -133,7 +133,7 @@ func (e *Engine) bindIndexPredicate(op *session.Operation, input sqltype.InputEn
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.Dependencies
 	evaluation.RoutineRecipe = true
-	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
+	execution, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, err
 	}
