@@ -205,7 +205,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		p, count := selectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
 		spelling := make([]string, len(names))
 		for i, name := range names {
-			spelling[i] = pgIdentifier(name)
+			spelling[i] = catalog.Identifier(name)
 		}
 		sig := strings.Join(spelling, ".") + "(" + strings.Join(human, ", ") + ")"
 		if count == 0 {

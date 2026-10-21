@@ -81,7 +81,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 		if err != nil {
 			return dumpDomain{}, err
 		}
-		checks.WriteString(" CONSTRAINT " + pgIdentifier(check.Name) + " CHECK (" + text + ")")
+		checks.WriteString(" CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + text + ")")
 	}
 	return dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
 }

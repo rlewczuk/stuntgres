@@ -30,6 +30,25 @@ func TestDependencyIdentifierQuotesLikeQuoteIdentifier(t *testing.T) {
 	}
 }
 
+func TestIdentifierQuotesOnlyWhenNeeded(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"plain", "plain"},
+		{"_x1", "_x1"},
+		{"abort", "abort"}, // unreserved keyword
+		{"select", `"select"`},
+		{"int", `"int"`},
+		{"Mixed", `"Mixed"`},
+		{"1st", `"1st"`},
+		{"has space", `"has space"`},
+		{"", `""`},
+		{`a"b`, `"a""b"`},
+	} {
+		if got := Identifier(tc.in); got != tc.want {
+			t.Errorf("Identifier(%q) = %s, want %s", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestTypeDiagnosticNameAtQualifiesHiddenTypes(t *testing.T) {
 	s1 := &Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 900}, ObjectName: "s1"}
 	odd := &Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 901}, ObjectName: "Odd"}

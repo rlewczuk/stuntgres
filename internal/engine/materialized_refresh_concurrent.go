@@ -48,7 +48,7 @@ func materializedConcurrentAdmission(view catalog.Read, parent *catalog.Relation
 		}
 	}
 	namespace := view.MustNamespace(parent.Namespace())
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, pgIdentifier(namespace.Name()), pgIdentifier(parent.Name())), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, catalog.Identifier(namespace.Name()), catalog.Identifier(parent.Name())), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
 }
 
 func materializedEligibleIndexes(view catalog.Read, parent *catalog.Relation) []*catalog.Relation {

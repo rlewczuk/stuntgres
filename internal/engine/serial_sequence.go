@@ -71,7 +71,7 @@ func evalSerialSequence(c *exec.Context, values [3]sqltype.Value, result *sqltyp
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing owned sequence namespace")
 		}
-		return sqltype.String(result, pgIdentifier(namespace.Name())+"."+pgIdentifier(sequence.Name())), nil
+		return sqltype.String(result, catalog.Identifier(namespace.Name())+"."+catalog.Identifier(sequence.Name())), nil
 	}
 	return sqltype.Null(result), nil
 }

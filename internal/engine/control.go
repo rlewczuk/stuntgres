@@ -1208,7 +1208,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if err != nil {
 					return err
 				}
-				if err := emit("ALTER DOMAIN " + qualified + " OWNER TO " + pgIdentifier(declaration.owner) + ";\n"); err != nil {
+				if err := emit("ALTER DOMAIN " + qualified + " OWNER TO " + catalog.Identifier(declaration.owner) + ";\n"); err != nil {
 					return err
 				}
 				continue

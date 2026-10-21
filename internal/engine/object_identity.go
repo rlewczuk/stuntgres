@@ -168,7 +168,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		r.found = true
 		r.kind = routine.ObjectRoutineKind(p.ID)
 		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
-		r.schema = pgIdentifier(ns)
+		r.schema = catalog.Identifier(ns)
 		r.names = []string{ns, p.Name}
 		if p.Signature != "" {
 			for arg := range strings.SplitSeq(string(p.Signature), ",") {
@@ -176,7 +176,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 				r.args = append(r.args, objectQualifiedType(view, ids.OID(id)))
 			}
 		}
-		r.identity = pgIdentifier(ns) + "." + pgIdentifier(p.Name) + "(" + strings.Join(r.args, ",") + ")"
+		r.identity = catalog.Identifier(ns) + "." + catalog.Identifier(p.Name) + "(" + strings.Join(r.args, ",") + ")"
 		r.description = "function " + routineSpelling(view, path, p.ID, true, false)
 		return r, nil
 	}
@@ -186,7 +186,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 			return r, nil
 		}
 		r.found = true
-		r.name = pgIdentifier(role.Name)
+		r.name = catalog.Identifier(role.Name)
 		r.identity = r.name
 		r.names = []string{role.Name}
 		r.description = "role " + r.name
@@ -249,7 +249,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		}
 		r.found = true
 		r.schema = "pg_catalog"
-		r.name = pgIdentifier(name)
+		r.name = catalog.Identifier(name)
 		r.names = []string{am, "pg_catalog", name}
 		r.identity = "pg_catalog." + r.name + " USING " + am
 		r.description = kind + " " + r.name + " for access method " + am
@@ -264,13 +264,13 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 	r.found = true
 	actual, canonical := objectNamespace(view, d.Namespace())
 	if actual != "" {
-		r.schema = pgIdentifier(actual)
+		r.schema = catalog.Identifier(actual)
 	}
-	r.name = pgIdentifier(d.Name())
+	r.name = catalog.Identifier(d.Name())
 	r.identity = r.name
 	r.names = []string{d.Name()}
 	if actual != "" {
-		r.identity = pgIdentifier(canonical) + "." + r.name
+		r.identity = catalog.Identifier(canonical) + "." + r.name
 		r.names = []string{canonical, d.Name()}
 	}
 	display := r.identity
@@ -280,7 +280,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 	switch d := d.(type) {
 	case *catalog.Namespace:
 		_, canonical = objectNamespace(view, d.Address())
-		r.identity = pgIdentifier(canonical)
+		r.identity = catalog.Identifier(canonical)
 		r.names = []string{canonical}
 		display = r.name
 	case *catalog.Relation:
@@ -292,7 +292,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 			if attr == "" {
 				return objectIdentity{kind: r.kind}, nil
 			}
-			r.identity += "." + pgIdentifier(attr)
+			r.identity += "." + catalog.Identifier(attr)
 			r.names = append(r.names, attr)
 			r.description = "column " + attr + " of " + objectRelationKind(view, d) + " " + display
 			return r, nil
@@ -312,10 +312,10 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 			right = objectQualifiedType(view, d.Right)
 			r.args = append(r.args, right)
 		}
-		r.identity = pgIdentifier(canonical) + "." + d.Name() + "(" + left + "," + right + ")"
+		r.identity = catalog.Identifier(canonical) + "." + d.Name() + "(" + left + "," + right + ")"
 		display = d.Name()
 		if !namedObjectVisible(view, path, d) {
-			display = pgIdentifier(canonical) + "." + display
+			display = catalog.Identifier(canonical) + "." + display
 		}
 		humanLeft, humanRight := "NONE", "NONE"
 		if d.Left != 0 {
@@ -342,9 +342,9 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 				r.found = true
 				r.kind = "domain constraint"
 				ns, _ := objectNamespace(view, domain.Namespace())
-				r.schema = pgIdentifier(ns)
+				r.schema = catalog.Identifier(ns)
 				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()))
-				r.identity = pgIdentifier(check.Name) + " on " + typeName
+				r.identity = catalog.Identifier(check.Name) + " on " + typeName
 				r.names = []string{typeName}
 				r.args = []string{check.Name}
 				r.description = "constraint " + check.Name
@@ -361,25 +361,25 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 		}
 		r.found = true
 		actual, canonical := objectNamespace(view, d.Namespace())
-		relation := pgIdentifier(canonical) + "." + pgIdentifier(d.Name())
+		relation := catalog.Identifier(canonical) + "." + catalog.Identifier(d.Name())
 		r.names = []string{canonical, d.Name(), name}
 		description := objectRelationKind(view, d) + " " + regclassSpelling(view, path, d.Address().ObjectID)
 		switch a.ClassID {
 		case 2606:
 			r.kind = "table constraint"
-			r.schema = pgIdentifier(actual)
-			r.identity = pgIdentifier(name) + " on " + relation
+			r.schema = catalog.Identifier(actual)
+			r.identity = catalog.Identifier(name) + " on " + relation
 			r.description = "constraint " + name + " on " + description
 		case 2604:
 			attr := objectAttributeName(view, d, sub)
 			r.names[2] = attr
-			r.identity = "for " + relation + "." + pgIdentifier(attr)
+			r.identity = "for " + relation + "." + catalog.Identifier(attr)
 			r.description = "default value for column " + attr + " of " + description
 		case 2618:
-			r.identity = pgIdentifier(name) + " on " + relation
+			r.identity = catalog.Identifier(name) + " on " + relation
 			r.description = "rule " + name + " on " + description
 		case 3256:
-			r.identity = pgIdentifier(name) + " on " + relation
+			r.identity = catalog.Identifier(name) + " on " + relation
 			r.description = "policy " + name + " on " + description
 		}
 		return r

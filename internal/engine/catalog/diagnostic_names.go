@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 )
 
 // Diagnostic name helpers shared by the engine and access.
@@ -75,6 +76,15 @@ func TypeDiagnosticNameAt(view Read, d *Type, path []ids.ObjectAddress) string {
 		}
 	}
 	return DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
+}
+
+// Identifier quotes name only when the supported grammar would not read it
+// back unquoted (parser.IdentifierNeedsQuotes).
+func Identifier(name string) string {
+	if parser.IdentifierNeedsQuotes(name) {
+		return QuoteIdentifier(name)
+	}
+	return name
 }
 
 // QuoteIdentifier always double-quotes s, doubling embedded quotes.

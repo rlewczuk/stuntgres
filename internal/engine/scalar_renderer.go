@@ -147,7 +147,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			address.SubID = n.Attribute
 			r.recordStoredReference(view, view.Owner().Domain.Ref(view.Epoch(), address))
 		}
-		return "(" + text + ")." + pgIdentifier(n.Base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
+		return "(" + text + ")." + catalog.Identifier(n.Base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
 	case plan.ArrayExpr:
 		return r.arraySQL(ctx, view, n)
 	case plan.SubscriptExpr:
@@ -522,7 +522,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		operator := n.Operator
 		if n.Namespace != "" {
-			operator = "OPERATOR(" + pgIdentifier(n.Namespace) + "." + operator + ")"
+			operator = "OPERATOR(" + catalog.Identifier(n.Namespace) + "." + operator + ")"
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
 	case plan.RowComparisonExpr:

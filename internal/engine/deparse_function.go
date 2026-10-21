@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
@@ -168,7 +169,7 @@ func deparseAttribute(relation *catalog.Relation, attr int32) (string, error) {
 	}
 	for i, live := range relation.Attributes {
 		if live == attr {
-			return pgIdentifier(relation.Columns[i].Name), nil
+			return catalog.Identifier(relation.Columns[i].Name), nil
 		}
 	}
 	return "", sqlError("XX000", fmt.Sprintf("invalid attnum %d for relation %q", attr, relation.Name()))

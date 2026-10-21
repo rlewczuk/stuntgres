@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -248,7 +249,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 			}
 			label = text
 		} else {
-			label = pgIdentifier(label)
+			label = catalog.Identifier(label)
 		}
 		names.WriteString(label)
 		if err := writeDiagnosticValue(ctx, &values, key[i].Value, output); err != nil {
