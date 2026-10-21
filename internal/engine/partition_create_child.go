@@ -103,7 +103,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			}
 		}
 	}
-	if err = e.stageCreateIdentities(auth, stage, d, syntax); err != nil {
+	if err = StageCreateIdentities(ddlHost{e: e, op: op, stage: stage}, auth, d, syntax); err != nil {
 		return nil, err
 	}
 	auth.Catalog = e.stageRead(stage)
@@ -188,7 +188,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	h := ddlHost{e: e, op: op, stage: stage}
 	for _, declaration := range uniques {
 		if declaration.Source != nil {
-			stage.captureLikeSource(declaration.Source)
+			stage.table().CaptureLikeSource(declaration.Source)
 		}
 	}
 	if err = index.StageCreateUniques(h, d, uniques); err != nil {

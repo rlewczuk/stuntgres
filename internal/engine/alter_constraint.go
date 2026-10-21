@@ -167,7 +167,7 @@ func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStag
 		return nil, err
 	}
 	e.mu.Lock()
-	err := e.stageForeignKey(auth, stage, &next, *raw, target, supporting)
+	err := StageForeignKey(ddlHost{e: e, stage: stage}, auth, &next, *raw, target, supporting)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, table.AlterCookingError(err)

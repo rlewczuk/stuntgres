@@ -33,7 +33,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
 		column := &parser.Column{Name: action.Column.Text, Constraints: []parser.ColumnConstraint{{Identity: action.Identity}}}
 		e.mu.Lock()
-		err := e.stageCreateIdentities(auth, stage, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
+		err := StageCreateIdentities(ddlHost{e: e, stage: stage}, auth, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
 		e.mu.Unlock()
 		if err != nil {
 			return old, err

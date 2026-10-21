@@ -48,7 +48,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.UpdateDescriptor(child)
-	stage.captureLikeSource(parent)
+	stage.table().CaptureLikeSource(parent)
 	completed := make(chan error, 1)
 	go func() { completed <- scope.acquireDefinitionProviders(stage) }()
 	lockPending(t, e, 1)
@@ -69,7 +69,7 @@ func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	base := inheritanceUnitView(e, parent)
 	stage := e.BeginCatalogStage(base)
-	stage.captureLikeSource(parent)
+	stage.table().CaptureLikeSource(parent)
 	if err := stage.validateLikeSources(base); err != nil {
 		t.Fatal(err)
 	}

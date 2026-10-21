@@ -73,7 +73,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
 			if err == nil {
-				err = e.stageLikeColumns(op, auth, stage, &foreign, []analyze.LikeInput{{Source: source, Options: analyze.LikeDefaults}})
+				err = StageLikeColumns(ddlHost{e: e, op: op, stage: stage}, auth, &foreign, []analyze.LikeInput{{Source: source, Options: analyze.LikeDefaults}})
 			}
 			e.mu.Unlock()
 			sequenceOwnerDiagnostic(t, err, "0A000", "temporary sequence DEFAULT is unsupported", "")

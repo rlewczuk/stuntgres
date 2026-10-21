@@ -1,6 +1,7 @@
 package table
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
@@ -25,6 +26,7 @@ import (
 type Host interface {
 	index.Host
 	ddl.TypeStaging
+	Resolver
 
 	// StageRowType stages the composite row type of relation.
 	StageRowType(relation *catalog.Relation) error
@@ -50,9 +52,6 @@ type Host interface {
 	// temporary namespace before publication, when namespace is the
 	// session's own non-TOAST temporary namespace; otherwise auth unchanged.
 	StagedTemporary(auth ddl.Authority, namespace *catalog.Namespace) ddl.Authority
-	// ResolveReference resolves an analyzed relation name, with a positioned
-	// 42P01 or 42501.
-	ResolveReference(auth ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error)
 	// ResolveRestoredRelation resolves a relation name of a Restore repair.
 	ResolveRestoredRelation(auth ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error)
 
@@ -68,6 +67,15 @@ type Host interface {
 	// BindChecks binds raw CHECK constraints into relation; inherited holds
 	// the parents' checks to merge with.
 	BindChecks(auth ddl.Authority, relation *catalog.Relation, raw []*parser.CheckConstraint, input sqltype.InputEnvironment, inherited map[string]catalog.CheckConstraint) error
+}
+
+// Resolver is what resolving relation names needs: the authority's view
+// and the analyzed-name resolution, with a positioned 42P01 or 42501. It
+// reads no stage, so DROP TABLE resolves its targets before it begins one.
+// Its methods run with Engine.mu held and never wait.
+type Resolver interface {
+	AccessView(auth ddl.Authority) access.View
+	ResolveReference(auth ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error)
 }
 
 // AlterHost is what the ALTER TABLE decisions need beyond Host: the

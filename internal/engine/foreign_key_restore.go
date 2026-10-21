@@ -101,7 +101,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 				e.mu.Unlock()
 				return ids.ErrCatalogReplaced
 			}
-			if err := e.stageForeignKey(ddlAuthorityOf(declaration.Auth), stage, child, definition.Raw, target, definition.Supporting); err != nil {
+			if err := StageForeignKey(ddlHost{e: e, op: op, stage: stage}, declaration.Auth, child, definition.Raw, target, definition.Supporting); err != nil {
 				e.mu.Unlock()
 				return err
 			}
