@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -105,7 +106,7 @@ func inheritanceColumnGuard(relation *catalog.Relation, name, operation string, 
 // Check prohibited inherited actions before admitting any member of a list;
 // no earlier action may evaluate defaults or stage a partial shape change.
 func inheritanceAlterActionsGuard(view catalog.Read, relation *catalog.Relation, actions []parser.AlterTableAction) error {
-	if rowSecurityActions(actions) {
+	if access.RowSecurityActions(actions) {
 		return nil
 	}
 	if !catalog.InheritanceParticipant(view, relation) {

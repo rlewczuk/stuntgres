@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 // Empty protected inputs still own their immutable visibility catalog. Do not
@@ -26,79 +25,6 @@ func captureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*exec.S
 		return nil, fmt.Errorf("stuntgres: invalid visibility target")
 	}
 	return &exec.Source{View: pin, Ref: ref, RlsDenied: true}, nil
-}
-
-func rowSecurityAction(action parser.AlterTableActionKind) bool {
-	return action >= parser.EnableRowSecurity && action <= parser.NoForceRowSecurity
-}
-
-func rowSecurityActions(actions []parser.AlterTableAction) bool {
-	if len(actions) == 0 {
-		return false
-	}
-	for _, action := range actions {
-		if !rowSecurityAction(action.Action) {
-			return false
-		}
-	}
-	return true
-}
-
-func rowSecurityFlags(old *catalog.Relation, actions []parser.AlterTableAction) *catalog.Relation {
-	enabled, forced := old.Security.RLSEnabled, old.Security.RLSForced
-	for _, action := range actions {
-		switch action.Action {
-		case parser.EnableRowSecurity:
-			enabled = true
-		case parser.DisableRowSecurity:
-			enabled = false
-		case parser.ForceRowSecurity:
-			forced = true
-		case parser.NoForceRowSecurity:
-			forced = false
-		}
-	}
-	if enabled == old.Security.RLSEnabled && forced == old.Security.RLSForced {
-		return old
-	}
-	next := *old
-	next.Security.RLSEnabled, next.Security.RLSForced = enabled, forced
-	return &next
-}
-
-func rowSecurityActionLabel(action parser.AlterTableActionKind) string {
-	switch action {
-	case parser.EnableRowSecurity:
-		return "ENABLE ROW SECURITY"
-	case parser.DisableRowSecurity:
-		return "DISABLE ROW SECURITY"
-	case parser.ForceRowSecurity:
-		return "FORCE ROW SECURITY"
-	default:
-		return "NO FORCE ROW SECURITY"
-	}
-}
-
-func rowSecurityKind(d *catalog.Relation, action parser.AlterTableActionKind) error {
-	if d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.PartitionedRelation {
-		return nil
-	}
-	kind := ""
-	switch d.RelationKind {
-	case catalog.ViewRelation:
-		kind = "views"
-	case catalog.MaterializedViewRelation:
-		kind = "materialized views"
-	case catalog.SequenceRelation:
-		kind = "sequences"
-	case catalog.IndexRelation:
-		kind = "indexes"
-	case catalog.CompositeRelation:
-		kind = "composite types"
-	default:
-		return analyze.TableKindError(d, rowSecurityActionLabel(action))
-	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, rowSecurityActionLabel(action), d.Name()), Detail: "This operation is not supported for " + kind + "."}
 }
 
 // The caller holds Engine.mu; this never captures row data or mutates identity.

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -36,7 +37,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 			message = "partitioned indexes are unsupported"
 		}
 	case *parser.AlterTable:
-		if rowSecurityActions(s.Actions) || tablespaceOnlyActions(s.Actions) {
+		if access.RowSecurityActions(s.Actions) || tablespaceOnlyActions(s.Actions) {
 			return nil
 		}
 		if partitionExclusionAddActions(s) {

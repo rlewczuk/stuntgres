@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -105,7 +106,7 @@ func alterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 	case parser.SetExpression, parser.DropExpression:
 		label = "ALTER COLUMN"
 	case parser.EnableRowSecurity, parser.DisableRowSecurity, parser.ForceRowSecurity, parser.NoForceRowSecurity:
-		return rowSecurityKind(original, action)
+		return access.RowSecurityKind(original, action, analyze.TableKindError)
 	default:
 		return fmt.Errorf("stuntgres: invalid ALTER action")
 	}
