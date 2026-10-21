@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `bd79e7663` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 94, 95, 96, 97, 99, 100, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
+Last verified against `master` at `116432550` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,8 +16,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **Upper features, refined:** 92 (partition 25c, docs only), 101 (view
-  27c, docs only).
+- **Upper features, refined:** 101 (view 27c, docs only).
 - **DML and Dump/Restore:** 108 (DML 29b), 112 (control 30b, docs only).
 - **Upper features, decisions:** 85b (index 23d.2), 89a (table 24d.1).
 
@@ -105,6 +104,8 @@ ready; DML 29b (item 108) and control 30b (item 112) still wait for view
 27b (item 100).
 Item 100 (view 27b, broad) is done, so view 27c (item 101, docs only),
 DML 29b (item 108) and control 30b (item 112) are ready.
+Item 92 (partition 25c, docs only) is done; partition 25d (item 93)
+still waits for table 24d.1 and 24d.2 (items 89a and 89b).
 
 ## Task tree
 
@@ -543,7 +544,7 @@ DML 29b (item 108) and control 30b (item 112) are ready.
     (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit)
   - [x] 25b — `partition` created and clean set moved (`5ed4b040c`,
     `f3e01d002`, `b7acfe47e`, `917899609`, docs)
-  - [ ] 25c — Host refined (docs only)
+  - [x] 25c — Host refined (docs only) (docs)
   - [ ] 25d — Handler decisions moved
 - [ ] **Step 26 — `fdw`** ([prompt](ENGINE-SPLIT-fdw.md); 26e needs 24d)
   - [x] 26a — In place: `fdw_` files, `foreignRegistry`, cuts
@@ -1246,8 +1247,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     `partitionInsertState` stays (dirty); no aliases · selected unit and
     dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
     user request
-92. [ ] Partition 25c: host refined (docs only) —
-    [partition](ENGINE-SPLIT-partition.md) 25c · needs 91, 88
+92. [x] Partition 25c: host refined (docs only) —
+    [partition](ENGINE-SPLIT-partition.md) 25c · needs 91, 88 (the docs
+    commit) · `partition.Host` on `ddlHost` = `table.Host` +
+    `BindKeyExpression`; self-locking `BoundBinder` for bound datums; only
+    the CREATE side runs under `Engine.mu`, so `finish`, ATTACH and DETACH
+    decisions move as host-less functions; attach frontier and capture,
+    fences, trust checks and Restore executors stay root, the row checks
+    and replay cores move; 25d move set and commit sequence written, one
+    sub-step · docs only, no checks needed
 93. [ ] Partition 25d: handler decisions moved —
     [partition](ENGINE-SPLIT-partition.md) 25d · needs 92, 89a, 89b
 94. [x] FDW 26a: in place — [fdw](ENGINE-SPLIT-fdw.md) 26a · needs —
