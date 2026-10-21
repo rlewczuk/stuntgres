@@ -139,7 +139,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			persisted, err := (scalarRenderer{}).SQL(ctx, e.CatalogRead(), node)
+			persisted, err := (stored.ScalarRenderer{}).SQL(ctx, e.CatalogRead(), node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -152,7 +152,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 				t.Fatal(persisted, err)
 			}
 			for _, current := range []expr.Expr{node, rebound} {
-				rendered, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, current, pgRenderParent{})
+				rendered, err := (stored.Deparser{View: e.CatalogRead()}).SQL(ctx, current, stored.DeparseParent{})
 				if err != nil || rendered != tc.want {
 					t.Fatal("ANY provenance/replay deparse", rendered, tc.want, err)
 				}

@@ -64,7 +64,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			if !reflect.DeepEqual(copied.Expression, old.Expression) || copied.OID == 0 || copied.OID == old.OID || !slices.Equal(copied.Dependencies, manifest) || len(destination.ColumnMeta.Identities) != 0 {
 				t.Fatal("cooked default identity/provider drift", copied)
 			}
-			if _, err := (scalarRenderer{Provenance: destination, CapturedManifest: copied.Dependencies}).SQL(context.Background(), e.stageRead(stage), copied.Expression); err != nil {
+			if _, err := (stored.ScalarRenderer{Provenance: destination, CapturedManifest: copied.Dependencies}).SQL(context.Background(), e.stageRead(stage), copied.Expression); err != nil {
 				t.Fatal(err)
 			}
 			foreign := *destination
@@ -223,13 +223,13 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		t.Fatal("zero token admitted stale temporary sequence")
 	}
 	var rendered []ids.ObjectRef
-	if _, err := (scalarRenderer{Provenance: destination, CapturedManifest: copied.Dependencies, Dependencies: &rendered}).SQL(context.Background(), view, copied.Expression); err != nil || !slices.Equal(rendered, manifest) {
+	if _, err := (stored.ScalarRenderer{Provenance: destination, CapturedManifest: copied.Dependencies, Dependencies: &rendered}).SQL(context.Background(), view, copied.Expression); err != nil || !slices.Equal(rendered, manifest) {
 		t.Fatal("DEFAULT renderer reminted retained refs", rendered, err)
 	}
 	// The copied DEFAULT owner must retain its closed-row policy, not borrow a row owner.
 	integer, _ := view.LookupType(sqltype.Int8)
 	row := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 1}), Scope: 1, Frame: 1, Slot: 0}
-	if _, err := (scalarRenderer{Provenance: destination}).SQL(context.Background(), view, row); err == nil {
+	if _, err := (stored.ScalarRenderer{Provenance: destination}).SQL(context.Background(), view, row); err == nil {
 		t.Fatal("DEFAULT provenance widened row policy")
 	}
 	// Admission must prove the original SubID before whole-object lock dedup.

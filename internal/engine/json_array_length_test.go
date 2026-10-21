@@ -109,7 +109,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 				t.Fatal(err)
 			}
 			arg := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
-			renderer := pgRenderer{View: view}
+			renderer := stored.Deparser{View: view}
 			got, err := renderer.Literal(context.Background(), arg)
 			if err != nil || got != tc.literal {
 				t.Fatalf("literal=%q err=%v want=%q", got, err, tc.literal)
@@ -120,7 +120,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 				t.Fatal(err)
 			}
 			expr := functions.Binary{Info: expr.Info{Usage: usage}, Plan: plan, Args: []expr.Expr{arg}}
-			got, err = renderer.SQL(context.Background(), expr, pgRenderParent{})
+			got, err = renderer.SQL(context.Background(), expr, stored.DeparseParent{})
 			want := tc.name + "(" + tc.literal + ")"
 			if err != nil || got != want {
 				t.Fatalf("call=%q err=%v want=%q", got, err, want)

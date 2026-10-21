@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			if !node.MissingOrdering || node.Comparison != (sqltype.Comparison{}) {
 				t.Fatal("missing ordering acquired executable comparator", node)
 			}
-			if _, err := (scalarRenderer{}).SQL(ctx, engine.CatalogRead(), node); err != nil {
+			if _, err := (stored.ScalarRenderer{}).SQL(ctx, engine.CatalogRead(), node); err != nil {
 				t.Fatal("unavailable capability lost stored identity", err)
 			}
 			calls := 0
@@ -74,7 +75,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 		}
 		node := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		for _, pretty := range []bool{false, true} {
-			renderer := pgRenderer{View: view, Pretty: pretty}
+			renderer := stored.Deparser{View: view, Pretty: pretty}
 			got, err := renderer.Literal(ctx, node)
 			if err != nil || got != "'"+tc.max+"'::"+tc.name {
 				t.Fatal(got, err)
@@ -96,7 +97,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := (pgRenderer{View: view}).SQL(ctx, node, pgRenderParent{})
+	got, err := (stored.Deparser{View: view}).SQL(ctx, node, stored.DeparseParent{})
 	if err != nil || got != "('4294967297'::xid8)::xid" {
 		t.Fatal("actual conversion tree lost", got, err)
 	}

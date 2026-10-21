@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -143,7 +144,7 @@ func collectOperatorDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddre
 func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
 	t := d.(*catalog.Procedure)
 	if t.SQL != nil {
-		if err := (procedureProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.catalogView, t); err != nil {
 			return err
 		}
 		c.sqlRoutines = append(c.sqlRoutines, t)
@@ -152,7 +153,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 	// Native foreign and conversion capabilities belong to the bootstrap
 	// principal (10).
 	if t.Foreign != nil {
-		if err := (procedureProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.catalogView, t); err != nil {
 			return err
 		}
 		if t.ACL.Explicit || t.Owner != c.source.bootstrap {
@@ -161,7 +162,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		return nil
 	}
 	if t.Builtin != nil {
-		if err := (procedureProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.catalogView, t); err != nil {
 			return err
 		}
 		if t.Owner != c.source.bootstrap || t.ACL.Explicit {
@@ -170,7 +171,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		return nil
 	}
 	if t.Conversion.Name() != "" {
-		if err := (procedureProvider{}).Validate(c.catalogView, t); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(c.catalogView, t); err != nil {
 			return err
 		}
 		if t.Owner != c.source.bootstrap || t.ACL.Explicit {

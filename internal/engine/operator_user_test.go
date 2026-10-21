@@ -478,8 +478,8 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertManifest(retagged, destination.Address())
-	renderer := pgRenderer{View: view}
-	sql, err := renderer.SQL(context.Background(), retagged, pgRenderParent{})
+	renderer := stored.Deparser{View: view}
+	sql, err := renderer.SQL(context.Background(), retagged, stored.DeparseParent{})
 	if err != nil || !strings.Contains(sql, `OPERATOR("public".#/#)`) {
 		t.Fatal("selected name lost during remap/deparse", sql, err)
 	}

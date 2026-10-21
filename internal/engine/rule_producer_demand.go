@@ -6,11 +6,12 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 // Demand is derived from typed NEW references before substitution. The ordinary
 // stored projection planner also retains volatile outputs and clause caches.
-func ruleProducerOutputUses(original analyze.Binding, rule ruleDefinition, action analyze.Binding) []int {
+func ruleProducerOutputUses(original analyze.Binding, rule stored.Rule, action analyze.Binding) []int {
 	uses := []int{}
 	inspect := func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {

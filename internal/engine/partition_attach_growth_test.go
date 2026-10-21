@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -228,7 +229,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			if mode != "default_unproven" {
 				check := catalog.CheckConstraint{OID: 46113, Name: "frontier_proof", Expression: proof}
 				var dependencies []ids.ObjectRef
-				if _, err := (scalarRenderer{Owner: target, Dependencies: &dependencies}).SQL(context.Background(), view, proof); err != nil {
+				if _, err := (stored.ScalarRenderer{Owner: target, Dependencies: &dependencies}).SQL(context.Background(), view, proof); err != nil {
 					t.Fatal(err)
 				}
 				for _, dependency := range dependencies {

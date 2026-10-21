@@ -35,7 +35,7 @@ func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine,
 	return e, s, alterConstraintDescriptor(t, e, "src"), alterConstraintDescriptor(t, e, "sink")
 }
 
-func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier bool) (ruleDefinition, *analyze.InsertConflict) {
+func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier bool) (stored.Rule, *analyze.InsertConflict) {
 	t.Helper()
 	for _, r := range stored.RulesOf(event) {
 		if r.Name != "r" {
@@ -56,7 +56,7 @@ func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier b
 		return r, b.Insert.Conflict
 	}
 	t.Fatal("analyzed rule missing")
-	return ruleDefinition{}, nil
+	return stored.Rule{}, nil
 }
 
 func TestRuleNamedConstraintDependencies(t *testing.T) {

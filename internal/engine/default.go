@@ -46,7 +46,7 @@ func bindCreateDefaults(b *analyze.Binder, columns []catalog.Column, declaration
 			continue
 		}
 		definition := catalog.ColumnDefault{Expression: node}
-		_, err = (scalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: b.Host.CatalogOwner(), Roles: b.Host.Roles(auth)}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(b.Ctx, view, node)
+		_, err = (stored.ScalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: b.Host.CatalogOwner(), Roles: b.Host.Roles(auth)}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(b.Ctx, view, node)
 		if err != nil {
 			return nil, err
 		}

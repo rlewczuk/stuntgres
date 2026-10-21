@@ -114,7 +114,7 @@ their lower-case names.
 - `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
   prepared-statement regtype analysis cell is statement state, not SQL text.
 - `preflightACLItemDump` (Dump/Restore, step 30), `aclitem_remap.go` and
-  `principal_remap.go` (Restore, step 30). `scalarRenderer` and its
+  `principal_remap.go` (Restore, step 30). The scalar renderer and its
   `record*` methods are `stored.ScalarRenderer` since 22b.
 
 ## Testing

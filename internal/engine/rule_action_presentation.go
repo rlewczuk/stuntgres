@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, action parser.Statement, b analyze.Binding) (*viewDefinition, error) {
+func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, action parser.Statement, b analyze.Binding) (*stored.View, error) {
 	if query, ok := action.(*parser.Select); ok {
 		return stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
 	}
@@ -67,8 +67,8 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 	return presentation.With(func(p *stored.ViewParts) { p.Frames[1] = metadata.Query.Root.(*plan.ProjectNode) }), nil
 }
 
-func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b analyze.Binding) (map[parser.Statement]*viewDefinition, error) {
-	var presentations map[parser.Statement]*viewDefinition
+func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b analyze.Binding) (map[parser.Statement]*stored.View, error) {
+	var presentations map[parser.Statement]*stored.View
 	var collect func(analyze.Binding) error
 	collect = func(body analyze.Binding) error {
 		for _, definition := range body.CTEs {
@@ -96,7 +96,7 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 				return err
 			}
 			if presentations == nil {
-				presentations = make(map[parser.Statement]*viewDefinition)
+				presentations = make(map[parser.Statement]*stored.View)
 			}
 			presentations[definition.Statement] = presentation
 			if err := collect(*mutation); err != nil {

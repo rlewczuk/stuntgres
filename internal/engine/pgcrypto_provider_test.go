@@ -284,7 +284,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if exec.PlannedVolatility(actual) != expr.Volatile || !analyze.ClosedPgcryptoDefault(actual) {
 			t.Fatal("lost reconstructed volatility")
 		}
-		rendered, err := (scalarRenderer{}).SQL(context.Background(), e.CatalogRead(), actual)
+		rendered, err := (stored.ScalarRenderer{}).SQL(context.Background(), e.CatalogRead(), actual)
 		if err != nil || !strings.Contains(rendered, v.name) || !strings.Contains(rendered, "public") {
 			t.Fatal(rendered, err)
 		}

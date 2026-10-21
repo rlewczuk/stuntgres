@@ -66,7 +66,7 @@ func viewComputedWriteError(d *catalog.Relation, operation string, slot int) err
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("cannot %s column %q of view %q", verb, d.Columns[slot].Name, d.Name()), Detail: "View columns that are not columns of their base relation are not updatable."}
 }
 
-func stableViewSlot(source *catalog.Relation, leaf viewLeaf, frozen int) (int, error) {
+func stableViewSlot(source *catalog.Relation, leaf stored.ViewLeaf, frozen int) (int, error) {
 	if frozen < 0 || frozen >= len(leaf.Attributes) {
 		return 0, fmt.Errorf("stuntgres: invalid view write source slot")
 	}

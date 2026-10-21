@@ -110,7 +110,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	if err := stored.ValidateInstalledLevenshtein(retagged.(plan.InstalledLevenshteinExpr), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	stored, err := (scalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), retagged)
+	stored, err := (stored.ScalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), retagged)
 	if err != nil || !strings.Contains(stored, "levenshtein_less_equal") || !strings.Contains(stored, "sitting") || !strings.Contains(stored, "20") {
 		t.Fatal(stored, err)
 	}

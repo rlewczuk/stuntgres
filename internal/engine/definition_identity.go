@@ -205,7 +205,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 				continue
 			}
 			if len(stored.RulesOf(&d)) != 0 && &stored.RulesOf(&d)[0] == &stored.RulesOf(old)[0] {
-				d.Rules = stored.RulesPayload(append([]ruleDefinition(nil), stored.RulesOf(old)...))
+				d.Rules = stored.RulesPayload(append([]stored.Rule(nil), stored.RulesOf(old)...))
 			}
 			stored.RulesOf(&d)[i].OID = id
 			changed = true

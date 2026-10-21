@@ -87,7 +87,7 @@ func TestJSONRecordRemap(t *testing.T) {
 	if err != nil || !analyze.SameGroupExpression(original, copy) {
 		t.Fatal(copy, err)
 	}
-	text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
+	text, err := (stored.Deparser{View: view}).SQL(context.Background(), original, stored.DeparseParent{})
 	if err != nil || !strings.Contains(text, "json_to_record(") || !strings.Contains(text, "::json") {
 		t.Fatal(text, err)
 	}

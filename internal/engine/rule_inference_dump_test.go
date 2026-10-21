@@ -47,7 +47,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 				matchingRef := catalogRef(t, e, view, "matching")
 				ordinaryRef := catalogRef(t, e, view, "ordinary")
 				persisted := stored.RulesOf(view.MustRelation(srcRef.Address))[0]
-				assertSourceOwnership := func(r ruleDefinition) {
+				assertSourceOwnership := func(r stored.Rule) {
 					t.Helper()
 					if !cte {
 						return
@@ -77,7 +77,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					}
 				}
 				assertSourceOwnership(persisted)
-				conflict := func(r ruleDefinition) *analyze.InsertConflict {
+				conflict := func(r stored.Rule) *analyze.InsertConflict {
 					t.Helper()
 					b := r.Actions()[0].Binding()
 					if cte {

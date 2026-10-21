@@ -252,7 +252,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if children != 1 || !analyze.SameGroupExpression(n, n) {
 		t.Fatal("walker/group identity", children)
 	}
-	stored, err := (scalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), n)
+	stored, err := (stored.ScalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), n)
 	if err != nil || !strings.Contains(stored, "daitch_mokotoff") {
 		t.Fatal("stored renderer", stored, err)
 	}
@@ -371,10 +371,10 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if err != nil || text != "{160000,460000}" {
 		t.Fatal("remapped output", text, err)
 	}
-	if _, err := (scalarRenderer{}).SQL(context.Background(), target.CatalogRead(), old); err == nil {
+	if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), target.CatalogRead(), old); err == nil {
 		t.Fatal("foreign stored expression admitted")
 	}
-	if _, err := (scalarRenderer{}).SQL(context.Background(), target.CatalogRead(), n); err != nil {
+	if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), target.CatalogRead(), n); err != nil {
 		t.Fatal("remapped stored expression", err)
 	}
 }

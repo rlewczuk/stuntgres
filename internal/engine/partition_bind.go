@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -81,7 +82,7 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 				}
 			}
 			key.Derived = &catalog.DerivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}
-			text, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &key.Derived.Dependencies}).SQL(op.Context(), auth.Catalog, node)
+			text, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &key.Derived.Dependencies}).SQL(op.Context(), auth.Catalog, node)
 			if err != nil {
 				return nil, err
 			}

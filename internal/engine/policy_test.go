@@ -25,7 +25,7 @@ func policyUnitFixture(t *testing.T) (*Engine, *session.Operation, func(), *cata
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
 	return e, op, done, d.(*catalog.Relation)
 }
-func policyUnitBind(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation, condition string) (*policyExpression, error) {
+func policyUnitBind(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
 	t.Helper()
 	raw := statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
 	e.mu.Lock()

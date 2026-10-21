@@ -157,7 +157,7 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *session.Opera
 	var err error
 	definition.Expression, err = binder.BindDefault(expression, old.Columns[slot])
 	if err == nil {
-		_, err = (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, definition.Expression)
+		_, err = (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, definition.Expression)
 	}
 	if err != nil {
 		var diagnostic *sqlstate.Error

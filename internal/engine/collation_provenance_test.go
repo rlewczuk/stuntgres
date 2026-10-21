@@ -114,7 +114,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	}
 	// Render genuine retained trees through the complete serializer. Compare
 	// complete ObjectRefs, including epochs, rather than addresses or one helper.
-	assertManifest := func(name string, renderer scalarRenderer, expression expr.Expr, want []ids.ObjectRef) {
+	assertManifest := func(name string, renderer stored.ScalarRenderer, expression expr.Expr, want []ids.ObjectRef) {
 		t.Helper()
 		var got []ids.ObjectRef
 		renderer.Dependencies = &got
@@ -136,17 +136,17 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		}
 	}
 	for _, definition := range consumer.ColumnMeta.Defaults {
-		assertManifest("DEFAULT", scalarRenderer{Provenance: consumer, CapturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
+		assertManifest("DEFAULT", stored.ScalarRenderer{Provenance: consumer, CapturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
 	}
 	for _, definition := range consumer.ColumnMeta.Generations {
-		assertManifest("generated", scalarRenderer{Owner: consumer, CapturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
+		assertManifest("generated", stored.ScalarRenderer{Owner: consumer, CapturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
 	}
 	for _, definition := range consumer.Constraints.Check {
 		want := make([]ids.ObjectRef, len(definition.Dependencies))
 		for i, dependency := range definition.Dependencies {
 			want[i] = dependency.Ref
 		}
-		assertManifest("CHECK", scalarRenderer{Owner: consumer, CapturedChecks: definition.Dependencies}, definition.Expression, want)
+		assertManifest("CHECK", stored.ScalarRenderer{Owner: consumer, CapturedChecks: definition.Dependencies}, definition.Expression, want)
 	}
 	// All ordinary validators must accept the retained closed expression trees.
 	sessionSQL(t, owner, `INSERT INTO retained_provider_local DEFAULT VALUES`)

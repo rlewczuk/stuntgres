@@ -51,7 +51,7 @@ emission sequence) and `Engine.Restore` until step 30. `dumpPredecessor`
 helpers, so it stays in the root behind the `dumpResolver` adapter.
 `dumpPresenter` (`dump_presenter.go`) forwards type, column and routine
 presentation to `regobj` and the domain expressions to the root's
-stored-SQL renderer (`scalarRenderer`, until `stored`, step 22). The
+`stored.ScalarRenderer` (`stored`, step 22). The
 root passes both adapters to the feature dump functions; `routine` (14e)
 and `typedef` (15e) call them. The table dump record `dumpRelation` moves
 with `table` (step 24).
@@ -100,8 +100,8 @@ step 30 (`control`) declares them. Because the entry signatures name root
 types, the root entry stays a thin wrapper over the package's decision:
 `collectOperatorDump` calls `routine.OperatorDumped`, and
 `emitDumpOperatorLinks` writes the text `routine.OperatorDumpStatements`
-rendered. `collectProcedureDump` stays in the root until the root
-`procedureProvider` moves (`stored`, 22b).
+rendered. `collectProcedureDump` stays in the root; it validates through
+`stored.ProcedureProvider` (moved in 22b).
 
 ## Testing
 

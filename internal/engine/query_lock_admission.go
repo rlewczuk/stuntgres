@@ -80,7 +80,7 @@ func viewHasStoredRowMarks(d *catalog.Relation, view catalog.Read) bool {
 	}
 	return visit(d)
 }
-func viewRowLockLegality(d *viewDefinition, mode lock.Mode) error {
+func viewRowLockLegality(d *stored.View, mode lock.Mode) error {
 	if analyze.QueryHasSetOutput(d.Query().Root) {
 		return nil // A stored set view is an opaque physical-lineage boundary.
 	}
@@ -208,7 +208,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 	return nil
 }
 
-func viewLeafRowMark(view *viewDefinition, occurrence int, inherited plan.RowMark) plan.RowMark {
+func viewLeafRowMark(view *stored.View, occurrence int, inherited plan.RowMark) plan.RowMark {
 	mark := view.Sources()[occurrence].Mark
 	if inherited.Mode != 0 && analyze.QueryRowMarkReachesSource(view.Query().Root, occurrence) {
 		mark = exec.MergeQueryRowMark(inherited, mark)

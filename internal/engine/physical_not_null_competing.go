@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -88,7 +89,7 @@ func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, ow
 		if !deferred {
 			continue
 		}
-		text, err := (pgRenderer{View: view}).UniqueConstraintSQL(table, constraint)
+		text, err := (stored.Deparser{View: view}).UniqueConstraintSQL(table, constraint)
 		if err != nil {
 			return err
 		}

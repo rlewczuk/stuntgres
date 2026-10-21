@@ -47,7 +47,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	baseRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address())
 	mvRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
-		p.Sources = []viewLeaf{{Ref: baseRef, Reads: []int32{1}, Attributes: []int32{1}}}
+		p.Sources = []stored.ViewLeaf{{Ref: baseRef, Reads: []int32{1}, Attributes: []int32{1}}}
 	})
 	mvSources := []exec.Leaf{{Ref: mvRef, Relation: d, Uses: []int{0}}}
 	if err := analyze.CheckQuerySources(auth, mvSources); err != nil {

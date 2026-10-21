@@ -71,7 +71,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if err := stored.ValidateInstalledUUIDOssp(retagged.(plan.InstalledUUIDOsspExpr), view); err != nil {
 		t.Fatal(err)
 	}
-	rendered, err := (scalarRenderer{}).SQL(context.Background(), view, retagged)
+	rendered, err := (stored.ScalarRenderer{}).SQL(context.Background(), view, retagged)
 	if err != nil || !strings.Contains(rendered, "uuid_generate_v4") || !strings.Contains(rendered, "public") || strings.Contains(rendered, "pg_catalog") {
 		t.Fatal("installed renderer", rendered, err)
 	}

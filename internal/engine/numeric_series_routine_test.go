@@ -143,7 +143,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			// Rendering/rebinding must preserve the short declaration, not emit a
 			// private synthesized step that changes the original callable identity.
-			text, err := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), node, pgRenderParent{})
+			text, err := (stored.Deparser{View: e.CatalogRead()}).SQL(context.Background(), node, stored.DeparseParent{})
 			if err != nil {
 				t.Fatal("render original carrier", err)
 			}

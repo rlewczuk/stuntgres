@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -81,11 +82,11 @@ func TestForeignActionsDefinition(t *testing.T) {
 	if !slices.Equal(current.Constraints.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.Constraints.ForeignKeys[0]) {
 		t.Fatal("slot/name rewrite retargeted action", original, current.Constraints.ForeignKeys[0])
 	}
-	text, err := (pgRenderer{View: next, Relation: current, Path: []ids.ObjectAddress{current.Namespace()}}).ForeignKeyConstraintSQL(current, current.Constraints.ForeignKeys[0])
+	text, err := (stored.Deparser{View: next, Relation: current, Path: []ids.ObjectAddress{current.Namespace()}}).ForeignKeyConstraintSQL(current, current.Constraints.ForeignKeys[0])
 	if err != nil || text != "FOREIGN KEY (a, author) REFERENCES p(a, b) ON UPDATE CASCADE ON DELETE SET NULL (author)" {
 		t.Fatal(text, err)
 	}
-	oldText, err := (pgRenderer{View: view, Relation: child, Path: []ids.ObjectAddress{child.Namespace()}}).ForeignKeyConstraintSQL(child, original)
+	oldText, err := (stored.Deparser{View: view, Relation: child, Path: []ids.ObjectAddress{child.Namespace()}}).ForeignKeyConstraintSQL(child, original)
 	if err != nil || oldText != "FOREIGN KEY (a, b) REFERENCES p(a, b) ON UPDATE CASCADE ON DELETE SET NULL (b)" {
 		t.Fatal("retained deparse changed", oldText, err)
 	}

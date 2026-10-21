@@ -23,7 +23,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	view := e.CatalogRead()
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	captured := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
-	text, err := (scalarRenderer{ACLOutput: captured}).SQL(context.Background(), view, literal)
+	text, err := (stored.ScalarRenderer{ACLOutput: captured}).SQL(context.Background(), view, literal)
 	if err != nil || text != "CAST('acl_render_a=r*/acl_render_b' AS ACLITEM)" {
 		t.Fatal("explicit construction authority", text, err)
 	}
@@ -44,7 +44,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	comparison := plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: literal, Right: literal, Predicate: predicate, Operator: "="}
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45000}, Attributes: []int32{1}}
 	var refs []ids.ObjectRef
-	if _, err := (scalarRenderer{ACLOutput: captured, Owner: relation, Dependencies: &refs}).SQL(context.Background(), view, comparison); err != nil {
+	if _, err := (stored.ScalarRenderer{ACLOutput: captured, Owner: relation, Dependencies: &refs}).SQL(context.Background(), view, comparison); err != nil {
 		t.Fatal(err)
 	}
 	check := catalog.CheckConstraint{OID: 45001, Name: "acl_render_check", Expression: comparison}
@@ -68,12 +68,12 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	if err := validateChecks(view, relation, make(map[string]bool)); err != nil {
 		t.Fatal("DROP invalidated stored CHECK datum", err)
 	}
-	validation := scalarRenderer{Validation: true}
+	validation := stored.ScalarRenderer{Validation: true}
 	if _, err := validation.SQL(context.Background(), view, literal); err != nil {
 		t.Fatal("stale structural validation", err)
 	}
 	ordinary := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.Roles()}
-	text, err = (scalarRenderer{ACLOutput: ordinary}).SQL(context.Background(), view, literal)
+	text, err = (stored.ScalarRenderer{ACLOutput: ordinary}).SQL(context.Background(), view, literal)
 	if err != nil || !strings.Contains(text, "20000=r*/acl_render_b") {
 		t.Fatal("ordinary stale presentation", text, err)
 	}
@@ -98,7 +98,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		}
 		render := func(value sqltype.Value, target sqltype.Usage) (string, error) {
 			leafPath := analyze.ViewLiteralPath{Node: 1}
-			renderer := viewRenderer{View: stored.NewView(stored.ViewParts{
+			renderer := stored.QueryRenderer{View: stored.NewView(stored.ViewParts{
 				Literals:   map[analyze.ViewLiteralPath]plan.LiteralExpr{leafPath: {Info: expr.Info{Usage: value.Type().Usage()}, Value: value}},
 				CastUsages: map[analyze.ViewLiteralPath]sqltype.Usage{{}: target},
 			})}
@@ -108,7 +108,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 				kind = parser.NullValue
 			}
 			raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: kind}}}
-			return renderer.ExpressionSQLAt(regobj.ACLItemOutputContext(context.Background(), captured), view, raw, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
+			return renderer.ExpressionSQLAt(regobj.ACLItemOutputContext(context.Background(), captured), view, raw, analyze.ViewLiteralPath{}, &ordinal, stored.DeparseParent{})
 		}
 		for _, datum := range []sqltype.Value{value, sqltype.Null(value.Type()), arrayValue, sqltype.Null(array)} {
 			first, err := render(datum, datum.Type().Usage())
@@ -127,7 +127,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		if err != nil || strings.Count(text, "CAST(") != 2 {
 			t.Fatal("different-usage source cast stripped", text, err)
 		}
-		if _, err := (pgRenderer{View: view}).Literal(context.Background(), literal); err == nil {
+		if _, err := (stored.Deparser{View: view}).Literal(context.Background(), literal); err == nil {
 			t.Fatal("pg presentation accepted missing captured authority")
 		}
 	})

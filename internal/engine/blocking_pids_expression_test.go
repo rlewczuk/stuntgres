@@ -35,13 +35,13 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if err := b.CaptureViewLiterals(raw, n, analyze.ViewTargetLiteral, 0); err != nil {
 			t.Fatal("literal recipe pairing", err)
 		}
-		if got, err := (scalarRenderer{Owner: owner}).SQL(ctx, catalog, n); err != nil || !strings.Contains(got, "pg_catalog."+name+"(") {
+		if got, err := (stored.ScalarRenderer{Owner: owner}).SQL(ctx, catalog, n); err != nil || !strings.Contains(got, "pg_catalog."+name+"(") {
 			t.Fatal("stored recipe", got, err)
 		}
 		if _, err := stored.DefaultSQL(ctx, catalog, n); err == nil {
 			t.Fatal("volatile ownerless default rendering widened")
 		}
-		if got, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, n, pgRenderParent{}); err != nil || !strings.Contains(got, name+"(") {
+		if got, err := (stored.Deparser{View: e.CatalogRead()}).SQL(ctx, n, stored.DeparseParent{}); err != nil || !strings.Contains(got, name+"(") {
 			t.Fatal("typed deparse", got, err)
 		}
 		if got, err := (plan.BoundTree{Expression: n}).StructuralOutput(ctx); err != nil || !strings.Contains(got, "BlockingInquiry") {

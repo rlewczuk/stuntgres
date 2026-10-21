@@ -39,7 +39,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 			bad := old.ColumnMeta.Defaults[1]
 			bad.Expression = node
 			d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad}
-			if _, err := (scalarRenderer{}).SQL(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored default properties" {
+			if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored default properties" {
 				t.Fatal("parameter invariant not reached", err)
 			}
 		},
@@ -49,7 +49,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 			bad := old.ColumnMeta.Defaults[1]
 			bad.Expression = node
 			d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad}
-			if _, err := (scalarRenderer{}).SQL(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored literal" {
+			if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored literal" {
 				t.Fatal("literal type invariant not reached", err)
 			}
 		},

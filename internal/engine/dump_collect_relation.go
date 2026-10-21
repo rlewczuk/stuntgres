@@ -141,7 +141,7 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 	// Materialized definitions preserve their analyzed presentation
 	// without synthetic source aliases. Their explicit empty visibility
 	// path below qualifies user types for portable, executable dump SQL.
-	presentation := viewPresentation{Columns: r.Columns, Deparse: r.RelationKind == catalog.MaterializedViewRelation}
+	presentation := stored.Presentation{Columns: r.Columns, Deparse: r.RelationKind == catalog.MaterializedViewRelation}
 	if presentation.Deparse {
 		// A nil path is diagnostic naming's unqualified mode. Dump's
 		// canonical materialized renderer must qualify user types too.

@@ -16,7 +16,7 @@ import (
 )
 
 func ruleIndex(d *catalog.Relation, name string) int {
-	return slices.IndexFunc(stored.RulesOf(d), func(r ruleDefinition) bool { return r.Name == name })
+	return slices.IndexFunc(stored.RulesOf(d), func(r stored.Rule) bool { return r.Name == name })
 }
 func ruleMissing(name string, d *catalog.Relation) error {
 	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.Name()))
@@ -92,7 +92,7 @@ func ruleReturning(s parser.Statement) *parser.Returning {
 	return nil
 }
 
-func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule) (ruleDefinition, error) {
+func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule) (stored.Rule, error) {
 	p := stored.RuleParts{Name: s.Name.Text, Event: strings.ToUpper(s.Event), Instead: s.Instead}
 	ns := &analyze.RuleNamespace{Relation: d, Ref: ref, Event: p.Event}
 	if s.Condition != nil {

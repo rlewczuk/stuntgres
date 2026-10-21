@@ -133,7 +133,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 		}
 		if !stored.OmitColumnDefault(auth.Catalog, node, usage) {
 			persisted := catalog.ColumnDefault{Expression: node}
-			if _, err := (scalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &persisted.Dependencies, CommentSnapshot: &persisted.CatalogSnapshot, CatalogAliasReferences: &persisted.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, node); err != nil {
+			if _, err := (stored.ScalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &persisted.Dependencies, CommentSnapshot: &persisted.CatalogSnapshot, CatalogAliasReferences: &persisted.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, node); err != nil {
 				return fail(alterCookingError(err))
 			}
 			if next.ColumnMeta.Defaults == nil {

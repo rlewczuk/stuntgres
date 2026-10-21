@@ -186,7 +186,7 @@ func TestQuerySearchRemap(t *testing.T) {
 			}
 			return typ
 		})
-		m := viewQueryRemapper{Catalog: destination.CatalogRead(), Type: mapper}
+		m := stored.ViewQueryRemapper{Catalog: destination.CatalogRead(), Type: mapper}
 		copy, err := m.CTE(d)
 		if err != nil {
 			t.Fatal(err)

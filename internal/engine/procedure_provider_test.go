@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -18,7 +19,7 @@ func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 	}
 	run(t, e, "CREATE FUNCTION procedure_provider_unit(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$")
 	view := e.CatalogRead()
-	if _, ok := view.Owner().Provider(ids.ProcedureClassID).(procedureProvider); !ok {
+	if _, ok := view.Owner().Provider(ids.ProcedureClassID).(stored.ProcedureProvider); !ok {
 		t.Fatalf("registered procedure provider: %T", view.Owner().Provider(ids.ProcedureClassID))
 	}
 	members := extension.CatalogProvider{ids.ProcedureClassID}
@@ -29,7 +30,7 @@ func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if err := (procedureProvider{}).Validate(view, proc); err != nil {
+		if err := (stored.ProcedureProvider{}).Validate(view, proc); err != nil {
 			t.Fatalf("procedure %s: %v", proc.Name(), err)
 		}
 		memberErr := members.Validate(view, proc)
@@ -58,12 +59,12 @@ func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 	}
 	stripped := *member
 	stripped.Implementation = nil
-	if (procedureProvider{}).Validate(view, &stripped) == nil {
+	if (stored.ProcedureProvider{}).Validate(view, &stripped) == nil {
 		t.Fatal("member without its implementation accepted")
 	}
 	claimed := *builtin
 	claimed.Implementation = extension.StockPgcrypto
-	if (procedureProvider{}).Validate(view, &claimed) == nil {
+	if (stored.ProcedureProvider{}).Validate(view, &claimed) == nil {
 		t.Fatal("builtin with an extension implementation accepted")
 	}
 }

@@ -101,7 +101,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			continue
 		}
 		for _, policy := range relation.Security.Policies {
-			for _, condition := range []*policyExpression{stored.PolicyOf(policy.Using), stored.PolicyOf(policy.Check)} {
+			for _, condition := range []*stored.Policy{stored.PolicyOf(policy.Using), stored.PolicyOf(policy.Check)} {
 				if condition == nil {
 					continue
 				}
@@ -180,7 +180,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				retainExpression(definition.Expression)
 			}
 			for _, policy := range relation.Security.Policies {
-				for _, condition := range []*policyExpression{stored.PolicyOf(policy.Using), stored.PolicyOf(policy.Check)} {
+				for _, condition := range []*stored.Policy{stored.PolicyOf(policy.Using), stored.PolicyOf(policy.Check)} {
 					if condition != nil {
 						analyze.WalkQueryArgumentExpression(condition.Expression(), func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 					}

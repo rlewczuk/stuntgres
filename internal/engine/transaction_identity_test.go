@@ -268,7 +268,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if count != len(raw.Args) {
 			t.Fatal("closed traversal", tc.name, count)
 		}
-		recipe, err := (scalarRenderer{}).ScalarFunctionSQL(ctx, e.CatalogRead(), n)
+		recipe, err := (stored.ScalarRenderer{}).ScalarFunctionSQL(ctx, e.CatalogRead(), n)
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+tc.name+"(") {
 			t.Fatal("symbolic recipe", recipe, err)
 		}

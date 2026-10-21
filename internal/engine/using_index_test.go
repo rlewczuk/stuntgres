@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -545,7 +546,7 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 	if oldIndex.Columns[2].Name != "secret" {
 		t.Fatal("rename changed physical backing label")
 	}
-	if text, err := (pgRenderer{View: e.CatalogRead()}).UniqueConstraintSQL(renamed, &renamed.Constraints.Unique[0]); err != nil || text != "PRIMARY KEY (a, b) INCLUDE (current_secret)" {
+	if text, err := (stored.Deparser{View: e.CatalogRead()}).UniqueConstraintSQL(renamed, &renamed.Constraints.Unique[0]); err != nil || text != "PRIMARY KEY (a, b) INCLUDE (current_secret)" {
 		t.Fatal(text, err)
 	}
 	usingIndexUnitExecute(t, e, s, &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "current_secret"}, TypeName: parser.TypeName{Name: "varchar"}}}})

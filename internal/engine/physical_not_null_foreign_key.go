@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -36,7 +37,7 @@ func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, own
 			continue
 		}
 		primary := catalog.PhysicalPrimaryForAttribute(table, foreign.Referenced[0])
-		text, err := (pgRenderer{View: view}).ForeignKeyConstraintSQLWithPrimary(table, foreign, slices.Equal(foreign.Referenced, primary.Attributes))
+		text, err := (stored.Deparser{View: view}).ForeignKeyConstraintSQLWithPrimary(table, foreign, slices.Equal(foreign.Referenced, primary.Attributes))
 		if err != nil {
 			return err
 		}

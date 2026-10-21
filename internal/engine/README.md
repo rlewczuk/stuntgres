@@ -503,7 +503,7 @@ Reset/replacement or cancellation, retaining exact winner consumers/data.
 Public SQL/control proof stays in `reference/catalogs/extension_version_*`.
 
 Provider records, member validation, owner metadata and remap live in
-[`extension`](extension/README.md); `procedureProvider` owns the procedure
+[`extension`](extension/README.md); `stored.ProcedureProvider` owns the procedure
 class and delegates installed members to `extension.CatalogProvider`. The
 providers stage themselves (`extension.Installer`) through `extensionHost`
 (`extension_host.go`), the root `extension.Stage` over the engine, the

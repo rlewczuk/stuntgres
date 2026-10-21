@@ -255,7 +255,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("foreign parameter retag acquired original authority")
 					}
 				} else {
-					text, err := (pgRenderer{View: evaluation.Catalog}).SQL(context.Background(), node, pgRenderParent{})
+					text, err := (stored.Deparser{View: evaluation.Catalog}).SQL(context.Background(), node, stored.DeparseParent{})
 					if err != nil {
 						t.Fatal("literal enum rendering", err)
 					}

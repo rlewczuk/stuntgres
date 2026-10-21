@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -84,7 +85,7 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if names.SchemaName != "public" || names.TableName != "t" || names.IndexName != "pk" || names.IndexDef != "CREATE UNIQUE INDEX pk ON public.t USING btree (a, b)" {
 		t.Fatal(names)
 	}
-	if rendered, err := (pgRenderer{View: view}).UniqueConstraintSQL(parent, &parent.Constraints.Unique[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
+	if rendered, err := (stored.Deparser{View: view}).UniqueConstraintSQL(parent, &parent.Constraints.Unique[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
 		t.Fatal(rendered, err)
 	}
 	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})

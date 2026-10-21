@@ -88,7 +88,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				if bindErr == nil {
 					b, bindErr = describe(op.Context(), e.analysisHost(nil), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
 				}
-				var definition *viewDefinition
+				var definition *stored.View
 				if bindErr == nil {
 					definition, bindErr = e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 0, catalog.ViewRelation, false)
 				}

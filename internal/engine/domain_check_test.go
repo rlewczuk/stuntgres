@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -176,7 +177,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	if eval.DomainValue != sentinel || eval.DomainValueActive {
 		t.Fatal("canceled conversion changed frame")
 	}
-	if _, err := (scalarRenderer{}).SQL(context.Background(), view, leaf); err == nil {
+	if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), view, leaf); err == nil {
 		t.Fatal("VALUE rendered without domain authority")
 	}
 }

@@ -127,7 +127,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 		return catalog.ColumnGeneration{}, err
 	}
 	definition := catalog.ColumnGeneration{Kind: kind, Expression: analyzed, Planned: node}
-	_, err = (scalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, analyzed)
+	_, err = (stored.ScalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, analyzed)
 	return definition, err
 }
 
@@ -266,7 +266,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 				if !ok || ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid generation procedure")
 				}
-				if err := (procedureProvider{}).Validate(view, procedure); err != nil {
+				if err := (stored.ProcedureProvider{}).Validate(view, procedure); err != nil {
 					return err
 				}
 			}

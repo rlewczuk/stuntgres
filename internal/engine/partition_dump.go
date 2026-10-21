@@ -54,10 +54,10 @@ func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecess
 					}
 					var buffer [1]ids.ObjectRef
 					references := buffer[:0]
-					if err := (scalarRenderer{Dependencies: &references}).RecordCatalogAliasReferences(view, datum.Value); err != nil {
+					if err := (stored.ScalarRenderer{Dependencies: &references}).RecordCatalogAliasReferences(view, datum.Value); err != nil {
 						return nil, err
 					}
-					if err := (scalarRenderer{Dependencies: &references}).RecordRoutineReferences(view, datum.Value); err != nil {
+					if err := (stored.ScalarRenderer{Dependencies: &references}).RecordRoutineReferences(view, datum.Value); err != nil {
 						return nil, err
 					}
 					for _, ref := range references {
@@ -98,7 +98,7 @@ func partitionKeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.R
 			text.WriteString(", ")
 		}
 		if key.Derived != nil {
-			expression, err := (scalarRenderer{Owner: d}).SQL(ctx, catalogView, key.Derived.Definition)
+			expression, err := (stored.ScalarRenderer{Owner: d}).SQL(ctx, catalogView, key.Derived.Definition)
 			if err != nil {
 				return "", err
 			}
@@ -243,7 +243,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		}
 	}
 	for _, constraint := range orderedChecks(d) {
-		expression, err := (scalarRenderer{Owner: d, CheckReplayPrecision: true}).SQL(ctx, catalogView, constraint.Expression)
+		expression, err := (stored.ScalarRenderer{Owner: d, CheckReplayPrecision: true}).SQL(ctx, catalogView, constraint.Expression)
 		if err != nil {
 			return "", err
 		}
@@ -252,7 +252,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 			if ancestor.Name != constraint.Name {
 				continue
 			}
-			parentSQL, err := (scalarRenderer{Owner: parent, CheckReplayPrecision: true}).SQL(ctx, catalogView, ancestor.Expression)
+			parentSQL, err := (stored.ScalarRenderer{Owner: parent, CheckReplayPrecision: true}).SQL(ctx, catalogView, ancestor.Expression)
 			if err != nil {
 				return "", err
 			}
@@ -275,7 +275,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		if index.PartitionReplaySeparateConstraint(catalogView, idx) {
 			continue
 		}
-		definition, err := (pgRenderer{View: catalogView}).UniqueConstraintSQL(d, &constraint)
+		definition, err := (stored.Deparser{View: catalogView}).UniqueConstraintSQL(d, &constraint)
 		if err != nil {
 			return "", err
 		}

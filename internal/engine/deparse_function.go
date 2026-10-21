@@ -31,7 +31,7 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 			return sqltype.Value{}, err
 		}
 	}
-	renderer := pgRenderer{View: view, Pretty: pretty, Path: scope.inquiry.deparsePath,
+	renderer := stored.Deparser{View: view, Pretty: pretty, Path: scope.inquiry.deparsePath,
 		Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
 	idx := 1
 	if signature != functions.DeparseExpr && signature != functions.DeparseExprPretty {
@@ -54,7 +54,7 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 						continue
 					}
 					found = true
-					rendered, err := renderer.SQL(c.Context, def.Expression, pgRenderParent{})
+					rendered, err := renderer.SQL(c.Context, def.Expression, stored.DeparseParent{})
 					if err != nil {
 						return sqltype.Value{}, err
 					}
@@ -92,7 +92,7 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 				}
 				found = true
 				renderer.Relation = relation
-				rendered, err := renderer.SQL(c.Context, def.Expression, pgRenderParent{})
+				rendered, err := renderer.SQL(c.Context, def.Expression, stored.DeparseParent{})
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -159,7 +159,7 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 			}
 		}
 		renderer.Relation = relation
-		text, err = renderer.SQL(c.Context, tree.Expression, pgRenderParent{})
+		text, err = renderer.SQL(c.Context, tree.Expression, stored.DeparseParent{})
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -227,7 +227,7 @@ func deparseRelation(c *exec.Context, signature functions.DeparseSignature, valu
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = stored.ViewOf(relation).SelectSQL(c.Context, catalog, viewPresentation{Deparse: true, Pretty: pretty, Wrap: wrap, Path: scope.inquiry.deparsePath, Columns: relation.Columns, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings})
+		text, err = stored.ViewOf(relation).SelectSQL(c.Context, catalog, stored.Presentation{Deparse: true, Pretty: pretty, Wrap: wrap, Path: scope.inquiry.deparsePath, Columns: relation.Columns, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings})
 		text += ";"
 	}
 	if err != nil {

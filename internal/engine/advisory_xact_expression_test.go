@@ -69,7 +69,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					}
 					// Only stored literal consumers have a catalog deparse
 					// contract; runtime parameters are not stored recipes.
-					text, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, node, pgRenderParent{})
+					text, err := (stored.Deparser{View: e.CatalogRead()}).SQL(ctx, node, stored.DeparseParent{})
 					if err != nil {
 						t.Fatal(err)
 					}

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -46,7 +47,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 		}
 		d.DomainDefaultOwn = true
 		definition := catalog.ColumnDefault{Expression: node}
-		if _, err = (scalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(ctx, auth.Catalog, node); err != nil {
+		if _, err = (stored.ScalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
 		var path []ids.ObjectAddress
@@ -56,7 +57,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 				return err
 			}
 		}
-		text, err := (pgRenderer{View: auth.Catalog, Path: path, Output: output, NonstandardStrings: op != nil && op.NonstandardStrings}).SQL(ctx, node, pgRenderParent{})
+		text, err := (stored.Deparser{View: auth.Catalog, Path: path, Output: output, NonstandardStrings: op != nil && op.NonstandardStrings}).SQL(ctx, node, stored.DeparseParent{})
 		if err != nil {
 			return err
 		}
@@ -127,7 +128,7 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 
 	var refs []ids.ObjectRef
 	snapshot, aliases := false, false
-	_, err := (scalarRenderer{Validation: true, CapturedManifest: definition.Dependencies, Dependencies: &refs, CommentSnapshot: &snapshot, CatalogAliasReferences: &aliases}).SQL(context.Background(), view, definition.Expression)
+	_, err := (stored.ScalarRenderer{Validation: true, CapturedManifest: definition.Dependencies, Dependencies: &refs, CommentSnapshot: &snapshot, CatalogAliasReferences: &aliases}).SQL(context.Background(), view, definition.Expression)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/stored"
 )
 
 // Consumes Engine.mu. These cases select capture policy, never producers: all
@@ -91,7 +92,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			runtime.auth, in.Roles = auth, auth.Roles
 		}
 		if oid == 12006 {
-			runtime.presentation = viewPresentation{Deparse: true, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
+			runtime.presentation = stored.Presentation{Deparse: true, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
 		}
 	}
 	in.Runtime = runtime

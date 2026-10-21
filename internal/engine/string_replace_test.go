@@ -136,7 +136,7 @@ func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 }
 
 func TestStringPrefixPrettyLogicalGrouping(t *testing.T) {
-	for _, parent := range []pgRenderParent{
+	for _, parent := range []stored.DeparseParent{
 		{},
 		{Precedence: 1, Operator: "OR"},
 		{Precedence: 2, Operator: "AND", Right: true},
@@ -146,10 +146,10 @@ func TestStringPrefixPrettyLogicalGrouping(t *testing.T) {
 			t.Fatal("prefix operator grouped under Boolean parent", parent)
 		}
 	}
-	if !stored.OperatorGrouped("^@", true, pgRenderParent{Precedence: 5, Operator: "^@", Right: true}) {
+	if !stored.OperatorGrouped("^@", true, stored.DeparseParent{Precedence: 5, Operator: "^@", Right: true}) {
 		t.Fatal("nested prefix operand lost required grouping")
 	}
-	if !stored.OperatorGrouped("-", false, pgRenderParent{Precedence: 3, Operator: "NOT"}) {
+	if !stored.OperatorGrouped("-", false, stored.DeparseParent{Precedence: 3, Operator: "NOT"}) {
 		t.Fatal("unary scalar operator lost existing grouping")
 	}
 }

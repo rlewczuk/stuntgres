@@ -40,11 +40,11 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			t.Fatal(err)
 		}
 		sql := spec.Replay.Text
-		rendered, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, node, pgRenderParent{})
+		rendered, err := (stored.Deparser{View: e.CatalogRead()}).SQL(ctx, node, stored.DeparseParent{})
 		if err != nil || rendered != strings.ToUpper(sql) {
 			t.Fatal(rendered, sql, err)
 		}
-		replay, err := (scalarRenderer{}).SQL(ctx, e.CatalogRead(), node)
+		replay, err := (stored.ScalarRenderer{}).SQL(ctx, e.CatalogRead(), node)
 		if err != nil || replay != sql {
 			t.Fatal(replay, sql, err)
 		}

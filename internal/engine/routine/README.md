@@ -125,7 +125,7 @@ inquiry admission (`routine_inquiry.go`), `dropProvider.clearOperatorLinks`,
 `procedureReturnsSet` (it needs the intagg extension provider, step 16;
 `exec` reaches it through `Preparation.ReturnsSet`), and the Dump
 orchestration: the Collect and Emit table entries (`collectOperatorDump`,
-`collectProcedureDump`, which needs the root `procedureProvider`, and
+`collectProcedureDump`, which validates through `stored.ProcedureProvider`, and
 `emitDumpOperatorLinks`), the `dumpPresenter` and `dumpResolver` adapters
 and the calls in `dump_script.go`.
 

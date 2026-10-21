@@ -51,7 +51,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						t.Fatal("fixture lacks two distinct real named constraint providers")
 					}
 					persisted := stored.RulesOf(before.MustRelation(srcRef.Address))[0]
-					conflict := func(r ruleDefinition) *analyze.InsertConflict {
+					conflict := func(r stored.Rule) *analyze.InsertConflict {
 						t.Helper()
 						b := r.Actions()[0].Binding()
 						if cte {
@@ -71,7 +71,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					if original.Constraint != intendedAddress || original.NamedIndex != intended.Index {
 						t.Fatal("creation did not bind the actual named constraint and physical id provider")
 					}
-					assertSources := func(r ruleDefinition) {
+					assertSources := func(r stored.Rule) {
 						t.Helper()
 						if !cte {
 							return

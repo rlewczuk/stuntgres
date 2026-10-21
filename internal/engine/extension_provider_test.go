@@ -189,7 +189,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || exec.PlannedVolatility(retagged) != expr.Stable {
 		t.Fatal("retagged provider consumer", text, err)
 	}
-	rendered, err := (scalarRenderer{}).SQL(context.Background(), e.CatalogRead(), node)
+	rendered, err := (stored.ScalarRenderer{}).SQL(context.Background(), e.CatalogRead(), node)
 	if err != nil || !strings.Contains(rendered, "unaccent") {
 		t.Fatal("stored renderer", rendered, err)
 	}

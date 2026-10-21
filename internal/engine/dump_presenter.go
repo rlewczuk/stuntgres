@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -30,9 +31,9 @@ func (dumpPresenter) RoutineIdentity(view catalog.Read, oid ids.OID) (catalog.Ro
 }
 
 func (dumpPresenter) DomainDefault(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
-	return (scalarRenderer{CurrentRowShape: true}).SQL(ctx, view, node)
+	return (stored.ScalarRenderer{CurrentRowShape: true}).SQL(ctx, view, node)
 }
 
 func (dumpPresenter) DomainCheck(ctx context.Context, view catalog.Read, value sqltype.Usage, node expr.Expr) (string, error) {
-	return (scalarRenderer{DomainValue: &value}).SQL(ctx, view, node)
+	return (stored.ScalarRenderer{DomainValue: &value}).SQL(ctx, view, node)
 }

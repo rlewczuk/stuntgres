@@ -84,7 +84,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, deparse := range []bool{false, true} {
-		renderer := viewRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID(), Presentation: viewPresentation{Deparse: deparse, Pretty: true}}
+		renderer := stored.QueryRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID(), Presentation: stored.Presentation{Deparse: deparse, Pretty: true}}
 		sql, err := renderer.ExpressionSQL(context.Background(), b.BindingCatalog(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 		if err != nil {
 			t.Fatal(err)
@@ -123,8 +123,8 @@ func TestStringIdentReconstruction(t *testing.T) {
 		// scalar SQL and the frozen view AST. Execute both pretty modes with
 		// each node's actual catalog owner to protect reversed-role labels.
 		for _, pretty := range []bool{false, true} {
-			renderer := pgRenderer{View: owner.BindingCatalog(), Pretty: pretty}
-			rendered, err := renderer.SQL(context.Background(), node, pgRenderParent{})
+			renderer := stored.Deparser{View: owner.BindingCatalog(), Pretty: pretty}
+			rendered, err := renderer.SQL(context.Background(), node, stored.DeparseParent{})
 			if err != nil {
 				t.Fatal("bound presentation", i, pretty, err)
 			}

@@ -113,8 +113,8 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{outer, positions}, Frame: b.FrameID(), Syntax: syntax}
 	original := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: project}, Syntax: syntax, Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages, Collations: b.Capture.Collations})
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
-	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
-		r := viewRenderer{View: definition, Frame: b.FrameID(), Presentation: viewPresentation{Deparse: true, Pretty: true, Path: path}}
+	render := func(view catalog.Read, definition *stored.View, target int, expression parser.Expr, want string) {
+		r := stored.QueryRenderer{View: definition, Frame: b.FrameID(), Presentation: stored.Presentation{Deparse: true, Pretty: true, Path: path}}
 		got, err := r.ExpressionSQL(ctx, view, expression, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: target})
 		if err != nil || got != want {
 			t.Fatalf("rendered %q want %q: %v", got, want, err)

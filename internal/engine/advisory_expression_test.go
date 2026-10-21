@@ -58,7 +58,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if err = b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil || len(b.Capture.Literals) != len(node.Args) {
 					t.Fatal("view literal children", len(b.Capture.Literals), err)
 				}
-				text, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, node, pgRenderParent{})
+				text, err := (stored.Deparser{View: e.CatalogRead()}).SQL(ctx, node, stored.DeparseParent{})
 				if err != nil || !strings.Contains(text, name+"(") {
 					t.Fatal("symbolic SQL", text, err)
 				}
@@ -238,7 +238,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(functions.Advisory)
-		text, err := (scalarRenderer{Owner: owner}).SQL(ctx, view, node)
+		text, err := (stored.ScalarRenderer{Owner: owner}).SQL(ctx, view, node)
 		if err != nil || !strings.Contains(text, "pg_catalog.pg_try_advisory_lock(") {
 			t.Fatal("stored CHECK/view symbolic rendering", text, err)
 		}
@@ -253,7 +253,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if damaged.ValidStored() {
 			t.Fatal("inconsistent compiled action admitted")
 		}
-		if _, err = (scalarRenderer{Owner: owner}).SQL(ctx, view, damaged); err == nil {
+		if _, err = (stored.ScalarRenderer{Owner: owner}).SQL(ctx, view, damaged); err == nil {
 			t.Fatal("malformed stored producer rendered")
 		}
 	})

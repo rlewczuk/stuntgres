@@ -181,8 +181,8 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	args := append([]expr.Expr(nil), node.Args...)
 	stringPlan := node.Plan
 	for _, pretty := range []bool{false, true} {
-		renderer := pgRenderer{View: e.CatalogRead(), Relation: relation, Pretty: pretty}
-		got, err := renderer.SQL(context.Background(), node, pgRenderParent{})
+		renderer := stored.Deparser{View: e.CatalogRead(), Relation: relation, Pretty: pretty}
+		got, err := renderer.SQL(context.Background(), node, stored.DeparseParent{})
 		want := "btrim((v)::text, (s)::text)"
 		if pretty {
 			want = "btrim(v::text, s::text)"
@@ -246,13 +246,13 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	if err != nil || folded.(functions.Binary).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("preflight lost syntax", folded, err)
 	}
-	got, err := (scalarRenderer{Owner: relation}).SQL(context.Background(), e.CatalogRead(), node)
+	got, err := (stored.ScalarRenderer{Owner: relation}).SQL(context.Background(), e.CatalogRead(), node)
 	if err != nil || got != `TRIM(LEADING "s" FROM "v")` {
 		t.Fatal("canonical replay lost special binary TRIM", got, err)
 	}
 	invalid := node
 	invalid.Syntax = parser.FunctionSyntax(255)
-	if _, err := (scalarRenderer{Owner: relation}).SQL(context.Background(), e.CatalogRead(), invalid); err == nil {
+	if _, err := (stored.ScalarRenderer{Owner: relation}).SQL(context.Background(), e.CatalogRead(), invalid); err == nil {
 		t.Fatal("stored binary node accepted unrelated special syntax")
 	}
 }

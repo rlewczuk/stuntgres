@@ -164,7 +164,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil || value.IsNull() || value.Type().ID() != sqltype.Void {
 		t.Fatal("reminted zero delay", value, err)
 	}
-	if _, err := (scalarRenderer{}).SQL(context.Background(), e.CatalogRead(), copy); err == nil {
+	if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), e.CatalogRead(), copy); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
 	bad := n

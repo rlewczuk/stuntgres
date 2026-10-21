@@ -121,7 +121,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 			return nil, err
 		}
 	}
-	for _, p := range []catalog.Provider{extension.CatalogProvider{ids.ExtensionClassID}, procedureProvider{}, extension.CatalogProvider{ids.TSTemplateClassID}, extension.CatalogProvider{ids.TSDictionaryClassID}} {
+	for _, p := range []catalog.Provider{extension.CatalogProvider{ids.ExtensionClassID}, stored.ProcedureProvider{}, extension.CatalogProvider{ids.TSTemplateClassID}, extension.CatalogProvider{ids.TSDictionaryClassID}} {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
 		}

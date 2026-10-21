@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -188,7 +189,7 @@ func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view catalo
 	prefix := "ALTER TABLE ONLY " + catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name) + " ALTER COLUMN "
 	for i, column := range t.columns {
 		if definition, exists := t.descriptor.ColumnMeta.Generations[t.attributes[i]]; exists {
-			text, err := (scalarRenderer{Owner: t.descriptor}).SQL(ctx, view, definition.Expression)
+			text, err := (stored.ScalarRenderer{Owner: t.descriptor}).SQL(ctx, view, definition.Expression)
 			if err != nil {
 				return err
 			}
@@ -205,7 +206,7 @@ func (t *dumpRelation) emitInheritedChecks(ctx context.Context, view catalog.Rea
 		if !t.deferredChecks[check.Name] || !dumpCheckDeclaration(view, t.descriptor, check) {
 			continue
 		}
-		text, err := (scalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, view, check.Expression)
+		text, err := (stored.ScalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, view, check.Expression)
 		if err != nil {
 			return err
 		}

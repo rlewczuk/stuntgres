@@ -226,7 +226,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			template := query.Root.(*plan.ProjectNode)
 			childTemplate := template.Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
 			action := stored.NewRuleAction(stored.RuleActionParts{Syntax: statement, Binding: analyze.Binding{Query: query, CommandQuery: true}})
-			composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
+			composed, err := composeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}

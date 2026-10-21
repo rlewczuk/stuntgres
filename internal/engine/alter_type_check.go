@@ -55,7 +55,7 @@ func captureAlterTypeChecks(op *session.Operation, view catalog.Read, original, 
 				continue
 			}
 			var literals []plan.LiteralExpr
-			canonical, err := (scalarRenderer{Definition: op.Definition, Owner: survivor, CheckLiterals: &literals}).SQL(op.Context(), view, check.Expression)
+			canonical, err := (stored.ScalarRenderer{Definition: op.Definition, Owner: survivor, CheckLiterals: &literals}).SQL(op.Context(), view, check.Expression)
 			if err != nil {
 				return nil, err
 			}
@@ -107,7 +107,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 		definition.OID = 0 // Affected TYPE definitions get a new logical identity.
 		definition.Expression, definition.Dependencies, definition.CommentSnapshot, definition.VisibilitySnapshot = node, nil, false, false
 		var dependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: &replacement, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
+		if _, err := (stored.ScalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: &replacement, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
 			return nil, nil, err
 		}
 		for _, dependency := range dependencies {

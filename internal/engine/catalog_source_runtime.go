@@ -30,7 +30,7 @@ type engineCatalogRuntime struct {
 	input        sqltype.InputEnvironment
 	database     string
 	temporary    ids.SessionToken
-	presentation viewPresentation
+	presentation stored.Presentation
 	sequenceBase *catalog.State
 	sequenceOwn  *session.Journal
 }

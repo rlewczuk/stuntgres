@@ -106,7 +106,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 		t.Fatal("empty group", value, err)
 	}
 	root := &plan.AggregateNode{Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{call}}
-	refs := pgDependRefs{Context: ctx, Catalog: e.CatalogRead()}
+	refs := stored.DependRefs{Context: ctx, Catalog: e.CatalogRead()}
 	refs.Query(root)
 	if refs.Err != nil {
 		t.Fatal(refs.Err)
@@ -267,7 +267,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	if n.Ref != ref(enum.Ref) || n.Procedure != next.Get(n.Ref.Address) {
 		t.Fatal("enum remap authority", n.Ref)
 	}
-	text, err := (pgRenderer{View: view}).SQL(context.Background(), n, pgRenderParent{})
+	text, err := (stored.Deparser{View: view}).SQL(context.Background(), n, stored.DeparseParent{})
 	if err != nil || !strings.Contains(text, "int_array_enum") || strings.Contains(text, "unnest") {
 		t.Fatal("wrapper renderer", text, err)
 	}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -95,7 +96,7 @@ func (table *dumpRelation) emitInheritedForeignKeys(view catalog.Read, emit func
 			continue
 		}
 		target := view.MustRelation(foreign.Target)
-		text, err := (pgRenderer{View: view}).ForeignKeyConstraintSQLWithPrimary(table.descriptor, *foreign, inheritedForeignKeyPrimary(target, foreign))
+		text, err := (stored.Deparser{View: view}).ForeignKeyConstraintSQLWithPrimary(table.descriptor, *foreign, inheritedForeignKeyPrimary(target, foreign))
 		if err != nil {
 			return err
 		}

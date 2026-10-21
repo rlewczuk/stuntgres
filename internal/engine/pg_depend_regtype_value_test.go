@@ -67,7 +67,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 			}
 			pgDependUnitRefs(t, refs, tc.want)
 			var captured []ids.ObjectRef
-			if err := (scalarRenderer{Dependencies: &captured}).RecordCatalogAliasDependencies(view, tc.value); err != nil {
+			if err := (stored.ScalarRenderer{Dependencies: &captured}).RecordCatalogAliasDependencies(view, tc.value); err != nil {
 				t.Fatal(err)
 			}
 			var addresses []ids.ObjectAddress
@@ -131,7 +131,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	pgDependUnitRefs(t, refs, want)
 	var captured []ids.ObjectRef
-	if err := (scalarRenderer{Dependencies: &captured}).RecordCatalogAliasDependencies(view, payload); err != nil {
+	if err := (stored.ScalarRenderer{Dependencies: &captured}).RecordCatalogAliasDependencies(view, payload); err != nil {
 		t.Fatal(err)
 	}
 	var addresses []ids.ObjectAddress

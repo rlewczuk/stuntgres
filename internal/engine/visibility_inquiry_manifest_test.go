@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -74,7 +75,7 @@ func TestVisibilityInquiryStoredNullManifest(t *testing.T) {
 				t.Errorf("stored visibility manifest = %t, want %t", check.VisibilitySnapshot, tc.visibility)
 			}
 			var visibility bool
-			if _, err := (scalarRenderer{Owner: relation, VisibilitySnapshot: &visibility}).SQL(context.Background(), view, check.Expression); err != nil {
+			if _, err := (stored.ScalarRenderer{Owner: relation, VisibilitySnapshot: &visibility}).SQL(context.Background(), view, check.Expression); err != nil {
 				t.Fatal("render stored CHECK", err)
 			}
 			if visibility != tc.visibility {

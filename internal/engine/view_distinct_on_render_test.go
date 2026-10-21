@@ -25,7 +25,7 @@ func TestViewDistinctOnFrameOwnedSourceRendering(t *testing.T) {
 			if added {
 				run(t, e, "ALTER TABLE only_key ADD COLUMN later INT")
 			}
-			text, err := definition.SelectSQL(context.Background(), e.CatalogRead(), viewPresentation{})
+			text, err := definition.SelectSQL(context.Background(), e.CatalogRead(), stored.Presentation{})
 			if err != nil {
 				t.Fatal(key, added, err)
 			}

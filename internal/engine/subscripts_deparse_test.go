@@ -48,9 +48,9 @@ func TestSubscriptsDeparse(t *testing.T) {
 			definition.Literals()[analyze.ViewLiteralPath{Node: tc.casts + 1}] = arrayLiteral
 			definition.Literals()[analyze.ViewLiteralPath{Node: tc.casts + 2}] = integerLiteral
 			call := nullCountRaw("generate_subscripts", raw, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}})
-			renderer := &viewRenderer{View: definition}
+			renderer := &stored.QueryRenderer{View: definition}
 			ordinal := 0
-			text, err := renderer.ExpressionSQLAt(context.Background(), view, call, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
+			text, err := renderer.ExpressionSQLAt(context.Background(), view, call, analyze.ViewLiteralPath{}, &ordinal, stored.DeparseParent{})
 			if err != nil || text != tc.want || ordinal != tc.casts+3 || strings.Count(text, "CAST(") != tc.casts {
 				t.Fatal("typed leaf/source cast ownership or ordinal changed", text, tc.want, ordinal, err)
 			}

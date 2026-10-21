@@ -34,7 +34,7 @@ library, and never the engine, `analyze`, `routine` or `plan`. See
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider`
   validates the extension, text search template and dictionary classes and
   installed member procedures; `ValidateProviderHeader` is the identity check
-  it shares with the engine's `procedureProvider`; a descriptor's owning
+  it shares with `stored.ProcedureProvider`; a descriptor's owning
   extension is `catalog.ExtensionMembership` (moved down in catalog 5i).
   `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the
@@ -109,8 +109,7 @@ argument count, `Engine.mu`, authorization capture, publication
 (`publishExtensionStage`), DROP's removal pipeline and its multi-target
 2BP01 text and cascade notice, and the owner import's authority check,
 clone, expression reown and publish; the fence wrapper
-`extensionAuthorityFence`; `procedureProvider` (builtin, SQL, foreign and conversion routine
-validation, a `routine` candidate); `namespaceChildren` and
+`extensionAuthorityFence`; `namespaceChildren` and
 `database_grant.go` (`procedureInNamespaces` is `analyze.ProcedureInNamespaces`); the installed expression
 wrappers and the `pg_extension_update_paths` node, which move with `plan`;
 the intagg binder and view recipe methods.

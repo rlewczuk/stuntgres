@@ -89,7 +89,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 		if view.Get(consumer.Address()) != consumer {
 			t.Fatal("TEMP consumer not retained exactly")
 		}
-		refs := pgDependRefs{Context: context.Background(), Catalog: view}
+		refs := stored.DependRefs{Context: context.Background(), Catalog: view}
 		refs.Query(stored.ViewOf(consumer).Query().Root)
 		if refs.Err != nil {
 			t.Fatal("retained query dependency collection", refs.Err)
