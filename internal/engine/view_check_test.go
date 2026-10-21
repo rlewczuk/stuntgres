@@ -313,7 +313,7 @@ func TestViewCheckControlRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if copy == viewOf(f.view) || copy.checkOption != mode || copy.sources[0].ref.Epoch != f.baseRef.Epoch+1 || viewOf(f.view).sources[0].ref != f.baseRef {
+		if copy == viewOf(f.view) || copy.checkOption != mode || copy.Sources()[0].ref.Epoch != f.baseRef.Epoch+1 || viewOf(f.view).Sources()[0].ref != f.baseRef {
 			t.Fatal("mode/remint/mutation", mode, copy)
 		}
 	}

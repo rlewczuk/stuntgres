@@ -52,7 +52,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 			RegtypeConstants:  b.Prepared.RegtypeConstants,
 		},
 	}
-	frozen, err := e.freezeQueryPresentationLocked(auth, nil, capture, false, false, 0, "", false)
+	frozen, err := freezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}

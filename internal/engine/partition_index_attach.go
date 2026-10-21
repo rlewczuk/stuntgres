@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"iter"
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -11,22 +12,45 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionIndexCoverageComplete(view catalog.Read, index *catalog.Relation) bool {
-	return (&dropProvider{base: view}).partitionIndexCoverageComplete(index)
+// indexCoverageReader is what partitioned-index coverage reads.
+type indexCoverageReader interface {
+	liveDescriptor(ids.ObjectAddress) catalog.Descriptor
+	descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	removed(ids.ObjectAddress) bool
 }
 
-func (provider *dropProvider) partitionIndexCoverageComplete(index *catalog.Relation) bool {
-	table, ok := provider.liveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
+// catalogCoverage reads coverage from a published or candidate catalog with no
+// staged or prepared removals.
+type catalogCoverage struct{ view catalog.Read }
+
+func (c catalogCoverage) liveDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+	return c.view.Get(address)
+}
+
+func (c catalogCoverage) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	return c.view.Descriptors()
+}
+
+func (catalogCoverage) removed(ids.ObjectAddress) bool { return false }
+
+func partitionIndexCoverageComplete(view catalog.Read, index *catalog.Relation) bool {
+	return indexCoverageComplete(catalogCoverage{view}, index)
+}
+
+// indexCoverageComplete reports whether every partition of the index's parent
+// has a valid attached child index.
+func indexCoverageComplete(r indexCoverageReader, index *catalog.Relation) bool {
+	table, ok := r.liveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
 	if !ok || table.Partition == nil {
 		return index.SQLIndex.Valid
 	}
 	for _, child := range table.Partition.Children {
 		found := false
-		for address := range provider.descriptors() {
-			if provider.removed(address) {
+		for address := range r.descriptors() {
+			if r.removed(address) {
 				continue
 			}
-			candidate, ok := provider.liveDescriptor(address).(*catalog.Relation)
+			candidate, ok := r.liveDescriptor(address).(*catalog.Relation)
 			if ok && candidate.SQLIndex != nil && candidate.SQLIndex.PartitionParent == index.Address() && candidate.SQLIndex.Parent == child && candidate.SQLIndex.Valid {
 				found = true
 				break
@@ -62,7 +86,7 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 			if !ok || table.Partition == nil {
 				continue
 			}
-			valid := provider.partitionIndexCoverageComplete(index)
+			valid := indexCoverageComplete(provider, index)
 			if valid && !index.SQLIndex.Valid && !provider.partitionIndexPromotionPath(promote, index.Address()) {
 				continue
 			}

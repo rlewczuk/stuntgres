@@ -28,13 +28,15 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 			return nil, err
 		}
 	}
-	return e.freezeQueryPresentationLocked(auth, syntax, b, barrier, invoker, rule, temporaryMessage, temporaryConsumer)
+	return freezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), syntax, b, barrier, invoker, rule, temporaryMessage, temporaryConsumer)
 }
 
 // Policies share analyzed expression/query presentation without inheriting a
 // view's temporary-source restriction. An empty message permits those sources.
-func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *parser.Select, b analyze.Binding, barrier, invoker bool, rule ids.OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
-	dependencies, err := frozenQueryDependencies(auth.Catalog, b)
+// The session token is the consumer's TEMP owner, or zero without a session;
+// rule is passed as is, never allocated.
+func freezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax *parser.Select, b analyze.Binding, barrier, invoker bool, rule ids.OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
+	dependencies, err := frozenQueryDependencies(view, b)
 	if err != nil {
 		return nil, err
 	}
@@ -51,33 +53,33 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition.namespaces = b.Capture.Namespaces
 	definition.sequenceRefs = make(map[int]ids.ObjectRef, len(b.Prepared.SequenceConstants))
 	for _, constant := range b.Prepared.SequenceConstants {
-		if constant.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.Temporary != auth.session.SessionToken) {
+		if constant.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || constant.Temporary != session) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 		definition.sequenceRefs[constant.Offset] = constant.Ref
-		if _, exists := auth.Catalog.Find(constant.Ref.Address); exists {
+		if _, exists := view.Find(constant.Ref.Address); exists {
 			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: constant.Ref, Revision: constant.Stamp})
 		}
 	}
 	for _, constant := range b.Prepared.RegtypeConstants {
 		if constant.Value.Type() != nil {
 			var references []ids.ObjectRef
-			if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasDependencies(auth.Catalog, constant.Value); err != nil {
+			if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasDependencies(view, constant.Value); err != nil {
 				return nil, err
 			}
-			if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(auth.Catalog, constant.Value); err != nil {
+			if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(view, constant.Value); err != nil {
 				return nil, err
 			}
 			for _, ref := range references {
-				definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: auth.Catalog.Get(ref.Address).Revision()})
+				definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: view.Get(ref.Address).Revision()})
 			}
 		}
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constant.ID)}
 		if constant.Operator != 0 {
 			address.ClassID = ids.OperatorClassID
 		}
-		if d, exists := auth.Catalog.Find(address); exists {
-			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), Revision: d.Revision()})
+		if d, exists := view.Find(address); exists {
+			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: view.Owner().Domain.Ref(view.Epoch(), address), Revision: d.Revision()})
 		}
 	}
 	definition.sources = make([]viewLeaf, len(b.QuerySources))
@@ -89,17 +91,17 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		for _, slot := range source.Uses {
 			leaf.reads = append(leaf.reads, source.Relation.Attributes[slot])
 		}
-		if ns := auth.Catalog.MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.Temporary != auth.session.SessionToken) {
+		if ns := view.MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || ns.Temporary != session) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 	}
 	if temporaryConsumer {
-		definition.temporary = auth.session.SessionToken
+		definition.temporary = session
 		definition.references = make(map[ids.ObjectRef]catalog.Descriptor, len(definition.sources)+len(definition.dependencies))
 		capture := func(ref ids.ObjectRef) {
 			address := ref.Address
 			address.SubID = 0
-			definition.references[ref] = auth.Catalog.Get(address)
+			definition.references[ref] = view.Get(address)
 		}
 		for _, leaf := range definition.sources {
 			capture(leaf.ref)

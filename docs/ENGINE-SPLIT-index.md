@@ -294,8 +294,8 @@ schema-level DDL 23, DML 18 distinct declarations.
    - `rowByID` (`update_versions.go`, pure over `storage.RowVersion`)
      moves to `storage` as `storage.RowByID`; qualify its callers.
    - If `remapLikeExpression` is still in `table_like.go`, move it next to
-     `remapScalarExpression` (`expression_remap.go` after 22a, else
-     `view_remap.go`), so it moves with `stored`.
+     `remapScalarExpression` (`expression_remap.go`), so it moves with
+     `stored`.
 3. **Registries (pattern 1).** Two root structs without a mutex; their
    mutating methods carry the `Locked` suffix (caller holds `Engine.mu`):
    - `indexWaitRegistry` replaces `Engine.indexBuildWaits`: `admitLocked`,
@@ -332,10 +332,9 @@ schema-level DDL 23, DML 18 distinct declarations.
      `e.captureTypeDiagnosticName`; pass a catalog-read function and a
      type-name function. Its `auth` parameter follows cut a.
    - c. **`evolveIndex`, `evolveIndexes`, `indexEvolutionInput`** become
-     functions over the reader interface that 22a introduces for
-     `partitionIndexCoverageComplete` (extend it if they need more reads).
-     If 22a has not landed, introduce the interface here and tell the 22a
-     session.
+     functions over `indexCoverageReader`, the reader interface 22a
+     introduced (`partition_index_attach.go`; extend it if they need more
+     reads).
    - d. **Stage helpers take a narrow stage interface.**
      `stageBackingIndexRename`, `stagePreparedUsingIndex` and
      `stagePartitionDescriptor` use only `Replace`, `Get`,

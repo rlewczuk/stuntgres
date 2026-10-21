@@ -277,8 +277,8 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		remapped := mapped.sources[0]
-		if remapped.ref != ref || remapped.only != only || frozen.sources[0].ref != old || mapped.query.Root.(*plan.SourceNode).Ref != ref {
+		remapped := mapped.Sources()[0]
+		if remapped.ref != ref || remapped.only != only || frozen.Sources()[0].ref != old || mapped.query.Root.(*plan.SourceNode).Ref != ref {
 			t.Fatal("replacement lost source mode or mutated frozen authority")
 		}
 		var got []ids.ObjectAddress

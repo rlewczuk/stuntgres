@@ -63,7 +63,7 @@ func TestViewReplaceCreationNamespaceAuthority(t *testing.T) {
 				}
 				if qualified {
 					current := e.CatalogRead().MustRelation(target.Address)
-					if current.Owner != oldTarget.Owner || viewOf(current).rule != viewOf(oldTarget).rule {
+					if current.Owner != oldTarget.Owner || viewOf(current).RuleOID() != viewOf(oldTarget).RuleOID() {
 						t.Fatal("qualified replacement lost identity or owner")
 					}
 					if got := tuples(run(t, e, "SELECT id FROM public.w")); !reflect.DeepEqual(got, [][]driver.Value{{int64(11)}}) {

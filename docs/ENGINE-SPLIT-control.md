@@ -65,8 +65,8 @@ private restore stage, and install the replacement catalog atomically.
 | Switch #2: Dump phase emission | `control.go:1095`–`1190` | 18c Emit table |
 | Switch #3: Restore statement allow-list and per-statement hooks | `control.go:1836`–`2071`, plus the hook calls around it | 30a hook table |
 | `remapPreparedCatalog` (descriptor-kind switch over owners and ACLs) | `principal_remap.go:16` | `catalog` 5i (`RemapPrincipals`); mapper construction stays in the root |
-| `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `view_catalog_remap.go:14` | `stored` 22c (`ReownExpressions`) |
-| `remapViewRuleOIDs` | `view_remap.go:984` | stays in the root: it allocates OIDs (the `stored` prompt) |
+| `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `catalog_expression_reown.go:15` | `stored` 22c (`ReownExpressions`) |
+| `remapViewRuleOIDs` | `catalog_expression_reown.go:312` | stays in the root: it allocates OIDs (the `stored` prompt) |
 | `dumpPredecessor` (descriptor-kind dependency resolver) | `dump_graph.go:16` (was `view_dump.go`) | root `dump.Resolver` (18b); 30b decides whether it moves with the drivers |
 
 `reownCatalogScalarTypes` (`domain_remap.go:14`) is a fifth walk of the

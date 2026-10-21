@@ -152,20 +152,21 @@ Step 3 is done when central switches list no function nodes and the Tier A
 and Tier B glue files have left the engine. One switch and some glue
 remain:
 
-1. **The aggregate provider remap.** `view_remap.go` (about lines 705–840)
-   remaps stored aggregate calls with a type switch over about 29 provider
-   types, from `functions.IntegralSum` to `functions.RangeAggregateProvider`.
+1. **The aggregate provider remap.** `expression_remap.go` (was
+   `view_remap.go`; about lines 705–840) remaps stored aggregate calls with
+   a type switch over about 29 provider types, from `functions.IntegralSum`
+   to `functions.RangeAggregateProvider`.
    Give the aggregate providers a remap hook in `functions` (for example a
    method taking a small `functions.ProviderRemap` value with the usage and
    type mappers and the comparison binders the cases call today) and
    replace the switch with one call. Keep the error texts and the order of
-   the binder calls. Do this before 22b moves `view_remap.go` into
+   the binder calls. Do this before 22b moves `expression_remap.go` into
    `stored` (linear item 68 needs this item).
 2. **Switches over constants stay.** The other `case functions.` matches
    in the root and in `analyze` switch over operation constants or
    argument intents (`comment_inquiry.go`, `session_identity.go`,
-   `default.go`, `composite_render.go`, `analyze/expression.go` and
-   others). They are binder vocabulary, not node operations. List them in
+   `scalar_renderer.go`, `view_deparse_composite.go`,
+   `analyze/expression.go` and others). They are binder vocabulary, not node operations. List them in
    the Status record, one line per file.
 3. **Glue that stays, and why.** The `statementHost` capability bodies
    (`advisory_runtime.go`, `blocking_runtime.go`, `acl_runtime.go`,

@@ -442,11 +442,11 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(remapped.literals) != len(want) || !reflect.DeepEqual(remapped.columns, definition.columns) {
+	if len(remapped.Literals()) != len(want) || !reflect.DeepEqual(remapped.columns, definition.columns) {
 		t.Fatal("remap changed occurrence identity")
 	}
-	for path, original := range definition.literals {
-		next := remapped.literals[path]
+	for path, original := range definition.Literals() {
+		next := remapped.Literals()[path]
 		if next.Usage.Type != fresh[original.Usage.Type.ID()] || next.Usage.Type == original.Usage.Type {
 			t.Fatal("retag lost fresh descriptor", path)
 		}

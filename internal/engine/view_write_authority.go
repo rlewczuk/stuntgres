@@ -36,7 +36,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 		}
 		authority := v
 		authority.State.CurrentUser = current.Owner
-		if viewOf(current).invoker {
+		if viewOf(current).Invoker() {
 			authority.State.CurrentUser = invoker
 		}
 		source, ok := v.Catalog.Relation(layer.sourceRef.Address)
@@ -50,7 +50,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 		} else if err := authority.CheckColumns(layer.sourceRef, source, mask, layer.targets); err != nil {
 			return err
 		}
-		for occurrence, leaf := range viewOf(current).sources {
+		for occurrence, leaf := range viewOf(current).Sources() {
 			// Only the rewritten main target inherits outer command reads.
 			// Independent subquery occurrences keep their own SELECT record,
 			// including another occurrence of the same physical relation.

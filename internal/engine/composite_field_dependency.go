@@ -202,7 +202,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 		return false, nil
 	}
 	column := false
-	for _, dependency := range view.dependencies {
+	for _, dependency := range view.Dependencies() {
 		ref := dependency.Ref
 		if ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID <= 0 || ref.Domain() != provider.base.Owner().Domain || ref.Epoch != provider.base.Epoch() {
 			continue

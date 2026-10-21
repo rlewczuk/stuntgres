@@ -1546,18 +1546,18 @@ Prompt file: [ENGINE-SPLIT-regobj.md](ENGINE-SPLIT-regobj.md).
 
 ### Step 22 — `engine/stored`: stored-SQL definitions and their presentation
 
-`stored` holds the frozen definitions as well as their rendering, so it is
-the proposed name; `deparse` is the alternative (§7 decision 12).
+`stored` holds the frozen definitions as well as their rendering, so 22a
+chose it over `deparse` (§7 decision 12).
 
 **Moves (22b, about 10.2k lines; broad).** The closed presentation set of
 §2.7: `pgRenderer` (`deparse_renderer.go`, `deparse_rendering.go`),
-`scalarRenderer` (declared in `default.go`, methods in ten files),
+`scalarRenderer` (`scalar_renderer.go`, methods in ten files),
 `viewPresentation` and `viewRenderer` (`view_deparse.go`,
 `view_render_sources.go`, and the renderer methods filed under query, typedef,
 routine and function glue), the stored view payload (`viewDefinition`,
 `viewLeaf`, `viewOf`) and the policy payload (`policyExpression`), retag
 (`expression_retag.go`) with the volatility and property wrappers it alone
-uses, the generic expression remap (from `view_remap.go`), frozen-presentation
+uses, the generic expression remap (`expression_remap.go`), frozen-presentation
 remap, `expression_references.go`, `pgDependRefs` and the installed-node
 validators. 22c adds the rule payload and its rendering, the rule tree mapper
 and binding map, and the payload remaps (`rule_remap.go`, `policy_remap.go`,
@@ -1567,18 +1567,19 @@ needs `ruleAction`, so they cannot wait for `view`) and the remap protocol:
 value, so its non-Restore callers (type generations, owned roles, extension
 owner import) use the same function. 22d removes the aliases (broad).
 
-**In place (22a).** The `partitionIndexCoverageComplete` cut (pattern 6):
-it reads through a small reader interface instead of `&dropProvider{}`,
-which makes about 32 declarations (about 2.2k lines of dump, index and
-partition code, and `relationProvider.Validate`) clean. `freezeQueryPresentationLocked` and
-`freezeViewDefinitionLocked` get their rule OID passed in, which makes them
-clean. `viewDefinition` gets accessors for its readers outside the view
-code (sources, dependencies, invoker, rule, references, literals).
-Renames: `scalarRenderer` out of `default.go` into `scalar_renderer.go`;
-the generic part of `view_remap.go` into `expression_remap.go`;
-`view_catalog_remap.go` to `catalog_expression_reown.go`;
-`query_cte_view.go`, `query_values_view.go` and `string_view_sources.go`
-to `view_deparse_*.go`.
+**In place (22a, done).** The `partitionIndexCoverageComplete` cut
+(pattern 6): it reads through `indexCoverageReader` instead of
+`&dropProvider{}`, which made 32 declarations (about 2.2k lines of dump,
+index and partition code, and `relationProvider.Validate`) clean.
+`freezeQueryPresentation` became a function of its captured inputs (rule OID
+passed in); `Engine.freezeViewDefinitionLocked` stays as the wrapper that
+allocates. `viewDefinition` got read accessors for its readers outside the
+set (`Sources`, `Dependencies`, `Invoker`, `RuleOID`, `References`,
+`Literals`). Renames: `scalarRenderer` out of `default.go` into
+`scalar_renderer.go`; `view_remap.go` to `expression_remap.go`, with its two
+`Engine` methods in `catalog_expression_reown.go` (was
+`view_catalog_remap.go`); `query_cte_view.go`, `query_values_view.go`,
+`string_view_sources.go` and `composite_render.go` to `view_deparse_*.go`.
 
 **Stays in the root.** The host bodies that call into it:
 `analyze.Host`'s retag and stored-view methods, `exec.Host`'s
@@ -1812,7 +1813,7 @@ Measuring the root also found work that belongs to packages that already
 exist. Each item is a new sub-step in that package's prompt file.
 
 - **Functions F6 — close step 3.** The last function-node cases of a root
-  central switch (three, in `view_remap.go`) go through the node protocol;
+  central switch (three, in `expression_remap.go`) go through the node protocol;
   the function cases left in `analyze` are audited (binder construction is
   fine; operation switches are not); then F2 and step 3 are ticked.
 - **Catalog 5i — pure helpers move down.** The physical NOT NULL
@@ -1968,8 +1969,8 @@ exist. Each item is a new sub-step in that package's prompt file.
     Step 26 applies the same rule to the public FDW definition types: the
     driver imports `fdw` directly.
 12. **Names of the step 18–30 packages.** Proposed: `dump`, `copyfmt` (not
-    `copy`, which shadows the builtin), `ddl`, `regobj`, `stored` (the
-    alternative is `deparse`; `stored` also holds the frozen payloads),
+    `copy`, which shadows the builtin), `ddl`, `regobj`, `stored` (settled
+    in 22a over `deparse`: it also holds the frozen payloads),
     `index`, `table`, `partition`, `fdw`, `view`, `role`, `dml`, `control`.
     Each step confirms its name in its first sub-step.
 13. **Upper features.** Settled by the second planning round (rule 6): the
@@ -2030,7 +2031,7 @@ package-specific scope. This section holds the rules every session follows.
 | 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | 19a done (cursors split in place: `copyLineReader` and `copyBinaryReader` hold the codec; racecheck/finalcheck skipped at user request); 19b planned |
 | 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | planned (20a–20d) |
 | 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | planned (21a–21c) |
-| 22 | [`ENGINE-SPLIT-stored.md`](ENGINE-SPLIT-stored.md) | 22b: 21b, F6, 18b, 12f; 22c: 5j | planned (22a–22d) |
+| 22 | [`ENGINE-SPLIT-stored.md`](ENGINE-SPLIT-stored.md) | 22b: 21b, F6, 18b, 12f; 22c: 5j | 22a done in place (coverage and freeze cuts, `viewDefinition` read accessors, renames, name `stored` settled; racecheck/finalcheck skipped at user request); 22b–22d planned |
 | 23 | [`ENGINE-SPLIT-index.md`](ENGINE-SPLIT-index.md) | 23b: 22b, 5i, 10e, 11e; 23c: 20b | planned (23a–23d) |
 | 24 | [`ENGINE-SPLIT-table.md`](ENGINE-SPLIT-table.md) | 24a: 5i; 24b: 23b, 18b, B6; 24c: 23c; 24d: 23d | planned (24a–24d) |
 | 25 | [`ENGINE-SPLIT-partition.md`](ENGINE-SPLIT-partition.md) | 25b: 24b; 25c: 24c; 25d: 24d | planned (25a–25d) |

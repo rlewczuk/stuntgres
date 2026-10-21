@@ -223,7 +223,7 @@ Added when the postponed packages were planned (measured at `c154e14fb`):
   `ViewReferences`, `IndexReferences`, `PartitionReferences`) stay: `stored`
   (step 22) sits above `pgcatalog`, so their root bodies become forwarders
   to it.
-- `string_view_sources.go` is `viewRenderer` code and moves with `stored`;
+- `view_deparse_functions.go` (was `string_view_sources.go`) is `viewRenderer` code and moves with `stored`;
   `catalog_source_runtime.go`, `catalog_source_capture.go`,
   `catalog_sources.go`, `pg_locks_capture.go` and `pg_sequences.go` stay
   in the root (see "Stays in the engine").

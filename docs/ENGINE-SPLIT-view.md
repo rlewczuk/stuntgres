@@ -137,7 +137,7 @@ They are not part of this step. What is left for `view`:
   `mapRuleAssignmentTargets`, the rule and policy payloads and dumps, and
   the payload remap: `rule_remap.go` (`remapRules`, `remapRuleBinding*`,
   `remapRuleConstraintIdentities`), `policy_remap.go` (`remapPolicies`)
-  and `catalogExpressionTypesChanged` (`view_remap.go`). The remap goes
+  and `catalogExpressionTypesChanged` (`expression_remap.go`). The remap goes
   with the catalog-wide reowner (`reownCatalogExpressions`, 22c), which
   calls it outside Restore too.
 - To `dump` (step 18): the dump-graph records of `dump_graph.go`
@@ -206,7 +206,7 @@ Genuinely dirty (they stay in the root, or their decisions move in 27d):
 | `materializedSourceFence.currentLocked`, `Engine.materializedSourceFenceCurrent` | `materialized_refresh_concurrent.go` | journal fence |
 | `dropProvider.viewClosure`, `viewDependents`, `ruleDependents`, `policyDependents`, `viewDependencyClosure`, `stageViewDependentsLocked` | `view_dependencies.go`, `rule_dependencies.go`, `policy_dependencies.go` | DROP pipeline |
 | `Engine.checkTemporaryRuleSourcesReplacementLocked` | `rule_remap.go` | TEMP preservation |
-| `Engine.reownCatalogExpressions`, `remapCatalogExpressions`, `remapViewRuleOIDs` | `view_catalog_remap.go`, `view_remap.go` | the reowner (22c) and Restore remap (step 30) |
+| `Engine.reownCatalogExpressions`, `remapCatalogExpressions`, `remapViewRuleOIDs` | `catalog_expression_reown.go` | the reowner (22c) and Restore remap (step 30) |
 
 ### Dispatch sites
 

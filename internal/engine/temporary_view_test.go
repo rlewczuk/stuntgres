@@ -175,7 +175,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	next := catalog.CloneState(before.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
-	ref := viewOf(view).sources[0].ref
+	ref := viewOf(view).Sources()[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact retained source rejected")
 	}
@@ -220,7 +220,7 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	next := catalog.CloneState(before.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
-	ref := viewOf(view).sources[0].ref
+	ref := viewOf(view).Sources()[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact captured catalog provider rejected")
 	}

@@ -210,10 +210,10 @@ func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt 
 		if reason != "" {
 			return viewWriteError(d, operation, reason)
 		}
-		if sourceNode.Occurrence < 0 || sourceNode.Occurrence >= len(viewOf(d).sources) {
+		if sourceNode.Occurrence < 0 || sourceNode.Occurrence >= len(viewOf(d).Sources()) {
 			return ids.ErrCatalogReplaced
 		}
-		leaf := viewOf(d).sources[sourceNode.Occurrence]
+		leaf := viewOf(d).Sources()[sourceNode.Occurrence]
 		source, ok := auth.Catalog.Relation(leaf.ref.Address)
 		if !ok {
 			return ids.ErrCatalogReplaced
@@ -272,7 +272,7 @@ func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt 
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
 			return rewriteViewExpression(auth.Catalog, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
 				if q, ok := n.(functions.StringVariadic); ok && quoteOriginOf(q).Owner == (ids.ObjectRef{}) {
-					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision})
+					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: viewOf(d).RuleOID(), Revision: viewOf(d).quoteRevision})
 					q.RoutineRecipeReference = d
 					var args []expr.Expr
 					// A changed leaf exits the shared mapper before its children.

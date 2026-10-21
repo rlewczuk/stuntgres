@@ -164,7 +164,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			b.QuerySources[i].FrozenAttributes = slices.Clone(b.QuerySources[i].Relation.Attributes)
 		}
 		r.conditionBinding = &b
-		r.conditionPresentation, err = e.freezeQueryPresentationLocked(auth, query, b, false, false, 0, "", false)
+		r.conditionPresentation, err = freezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), query, b, false, false, 0, "", false)
 		if err != nil {
 			return r, err
 		}

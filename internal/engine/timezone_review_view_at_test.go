@@ -124,12 +124,12 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 				break
 			}
 		} else {
-			bad.literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(definition.literals))
-			for path, literal := range definition.literals {
+			bad.literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(definition.Literals()))
+			for path, literal := range definition.Literals() {
 				bad.literals[path] = literal
 			}
-			for path := range bad.literals {
-				delete(bad.literals, path)
+			for path := range bad.Literals() {
+				delete(bad.Literals(), path)
 				break
 			}
 		}

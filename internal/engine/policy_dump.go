@@ -83,7 +83,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 				if clause.expr == nil {
 					continue
 				}
-				for _, leaf := range clause.expr.presentation.sources {
+				for _, leaf := range clause.expr.presentation.Sources() {
 					relation, ok := view.Relation(leaf.ref.Address)
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
@@ -92,7 +92,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
-				for _, dependency := range clause.expr.presentation.dependencies {
+				for _, dependency := range clause.expr.presentation.Dependencies() {
 					address := dependency.Ref.Address
 					address.SubID = 0
 					provider := view.Get(address)

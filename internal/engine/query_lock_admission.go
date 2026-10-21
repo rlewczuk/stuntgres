@@ -54,7 +54,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, 
 		if diagnostic == 0 {
 			diagnostic = queryRootRowMode(viewOf(d).query.Root)
 		}
-		for i, leaf := range viewOf(d).sources {
+		for i, leaf := range viewOf(d).Sources() {
 			child, ok := view.Relation(leaf.ref.Address)
 			if !ok || !storedViewReferenceValid(view, d, leaf.ref) {
 				return 0, ids.ErrCatalogReplaced
@@ -85,7 +85,7 @@ func viewHasStoredRowMarks(d *catalog.Relation, view catalog.Read) bool {
 		if queryRootRowMode(viewOf(d).query.Root) != 0 {
 			return true
 		}
-		for _, leaf := range viewOf(d).sources {
+		for _, leaf := range viewOf(d).Sources() {
 			if leaf.mark.Mode != 0 {
 				return true
 			}
@@ -239,7 +239,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 			if err := viewRowLockLegality(viewOf(d), analyze.RowLockDiagnostic(inherited)); err != nil {
 				return err
 			}
-			for i, leaf := range viewOf(d).sources {
+			for i, leaf := range viewOf(d).Sources() {
 				child, ok := view.Relation(leaf.ref.Address)
 				if !ok || !storedViewReferenceValid(view, d, leaf.ref) {
 					return ids.ErrCatalogReplaced
@@ -296,11 +296,11 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 		return err
 	}
 	principal := d.Owner
-	if viewOf(d).invoker {
+	if viewOf(d).Invoker() {
 		principal = invoker
 	}
 	v.State.CurrentUser = principal
-	for i, leaf := range viewOf(d).sources {
+	for i, leaf := range viewOf(d).Sources() {
 		mark := viewLeafRowMark(viewOf(d), i, inherited)
 		child, ok := v.Catalog.Relation(leaf.ref.Address)
 		if !ok || !storedViewReferenceValid(v.Catalog, d, leaf.ref) {
@@ -356,7 +356,7 @@ func queryRowMarkReachesSource(node plan.Node, occurrence int) bool {
 }
 
 func viewLeafRowMark(view *viewDefinition, occurrence int, inherited plan.RowMark) plan.RowMark {
-	mark := view.sources[occurrence].mark
+	mark := view.Sources()[occurrence].mark
 	if inherited.Mode != 0 && queryRowMarkReachesSource(view.query.Root, occurrence) {
 		mark = exec.MergeQueryRowMark(inherited, mark)
 	}

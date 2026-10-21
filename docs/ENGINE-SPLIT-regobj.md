@@ -179,8 +179,8 @@ One commit per item; `make build` and the targeted units after each.
    type, and `scalarRenderer` goes to `stored` (step 22). Move
    `scalarRenderer.recordRoutineReferences` (`regproc_persistence.go`),
    `recordCatalogAliasDependencies` and `recordCatalogAliasReferences`
-   (`regtype_persistence.go`) next to the renderer (in `default.go` for
-   now; step 22a renames it). Do not change them.
+   (`regtype_persistence.go`) next to the renderer in `scalar_renderer.go`
+   (22a split it out of `default.go`). Do not change them.
 3. **`pgIdentifier` goes to `catalog`.** It is pure: it quotes a name when
    `parser.IdentifierNeedsQuotes` says so. Add it to
    `catalog/diagnostic_names.go` next to `QuoteIdentifier` as

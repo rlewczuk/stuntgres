@@ -81,7 +81,7 @@ func pruneQuoteCaptures(g *exec.QuoteCaptureCandidate, view catalog.Read) {
 		if origin.Attribute != 0 {
 			return d.ColumnMeta.Defaults[origin.Attribute].OID == origin.Definition
 		}
-		return d.View != nil && viewOf(d).rule == origin.Definition && viewOf(d).quoteRevision == origin.Revision
+		return d.View != nil && viewOf(d).RuleOID() == origin.Definition && viewOf(d).quoteRevision == origin.Revision
 	}
 	for i, entry := range g.Entries {
 		if valid(entry.Origin) {
