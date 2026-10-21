@@ -227,6 +227,10 @@ tool, including `engine.RowCursor`/`RowResult`: the driver (`rows.go`,
 
 ### 11e — Expression-preparation seam and routine admission (linear item 75)
 
+Done; see "11e result" in Status (deviations: four layering cuts the plan
+missed, and `admitQueryGroupings` stays in the root). The plan below is
+kept as the record.
+
 Added when the postponed packages were planned (measured at `c154e14fb`).
 Index, table and partition evaluation code (key programs, CHECK rows,
 generated columns, partition recipes; steps 23–25) is dirty only because it
@@ -241,7 +245,7 @@ with a policy, `validateExpressionJoinExecution`, `admitRoutineCall`,
    files: the seam must also cover `preflightCoercionsWithPolicy`, which
    reaches `prepareDomainConversion` and `selectExpressionRecipe`.
    `missingPreparation` gets the matching failing stubs and
-   `enginePreparation` (`domain_check.go`) implements them.
+   `enginePreparation` (`exec_preparation.go`) implements them.
 2. The routine admission files (`routine_admission.go`,
    `routine_body_admission.go`, `routine_program.go`) are dirty only
    through `routineAdmissionAuthority`, which returns an
@@ -264,7 +268,10 @@ the view, the environment and the statement context.
 
 After 11e the expression preflight files are dirty only through routine
 admission: `expression_preflight.go`, `preflight_composite.go`,
-`conditional_plan.go` and `conditional_fold.go`. Re-measure, then move them
+`conditional_plan.go` and `conditional_fold.go`. (11e moved routine
+admission into `exec`, so re-measure: what remains is the preflight family
+itself plus `prepareDomainConversion`, `specializeRuleParameterExpression`
+and the other helpers the 11e measurement listed.) Re-measure, then move them
 into `exec` and update the `analyze` and `exec` READMEs, which list
 preflight as engine-owned. `query_preflight.go` and `query_set_preflight.go`
 name `analyze` symbols, so they cannot move to `exec` as they are: measure
@@ -272,7 +279,11 @@ whether they fit `analyze` (it imports `exec`) or stay, and record why.
 `preflightReturning` (`returning_preflight.go`) stays with `dml`.
 `strict_parameter_null.go` goes with them only if `procedureReturnsSet`
 no longer needs the intagg extension provider; otherwise it stays and the
-Status record says why.
+Status record says why. (11e: `strictScalarRoutine` and
+`strictRoutineArguments` are in `exec` and reach `procedureReturnsSet`
+through `Preparation.ReturnsSet`; the file now holds only
+`foldStrictParameterNull` and `executionKnownNullArgument`, preflight code
+that can move with the family.)
 
 ## Stays in the engine
 
@@ -341,8 +352,10 @@ names no `exec.Context` internals: DML executors open their inputs through
 - [x] 11d — Aliases removed (`4d4e0942e`, `4acc2dac9`, `17fc012f5`,
   `7d6ffd65a`, then the docs commit) *(racecheck/finalcheck skipped at user
   request)*
-- [ ] 11e — Expression-preparation seam; routine admission moved
-  (linear item 75)
+- [x] 11e — Expression-preparation seam; routine admission moved
+  (linear item 75) (`cee6f2c90`, `ce43a2044`, `674032f28`, `239a13dc5`,
+  `61f0e8305`, then the docs commit) *(racecheck/finalcheck skipped at
+  user request)*
 - [ ] 11f — Preflight moved (linear item 76)
 
 Outstanding aliases: none. The engine, the root driver and `cmd/stuntgres`
@@ -711,3 +724,96 @@ Notes for later steps:
 - Step 12d/12e and step 13 inherit engine code that names `exec.Context`,
   `exec.Source` and `exec.Authority` directly; moving that code only needs
   the `exec` import, not an alias step.
+
+### 11e result
+
+Measured and built at `b5cdd1efe`, rebased onto `919735684` (items 72 and
+74 landed meanwhile). Tools and scripts:
+`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-PREPARATION-SEAM/` (`c2.sh`, `c3.py`,
+`c5.sh` with `c5.spec` and `c5-post.py`, `wrapargs.py`), over the 12d.3
+`mvpkg.sh`/`movedecl`/`movex`/`impfix` pipeline and the 12d.4 `frontier`.
+
+- **Seam** (`cee6f2c90`): `exec.Preparation` gains
+  `PreflightCoercionsWithPolicy` and `AdmitExpression` (failing stubs,
+  package forwarders of the same names); `enginePreparation` implements
+  them with `preflightCoercionsWithPolicy` and
+  `validateExpressionJoinExecution`. The table, index and partition
+  callers (`check.go`, `generated.go`, `generated_virtual.go`,
+  `alter_type.go`, `alter_add_column.go`, `foreign_action_apply.go`,
+  `index_predicate.go`, `index_expression.go`, `partition_bind.go`) use the
+  forwarders; other areas keep the root functions until 11f. `reach` with
+  these two cut matched cutting all six named helpers: 19 declarations
+  become clean, and two whole files (`generated_virtual.go`,
+  `index_hash.go`). `scopeOf` in `partition_routine.go` and `generated.go`
+  is not a preparation concern (25a's `partitionRecipeHost`).
+- **Clean helpers** (`ce43a2044`): `exec.FailingRowDetail` and
+  `WriteDiagnosticValue` (`row_detail.go`; `value.go` deleted),
+  `exec.CaptureSource`/`CapturePrefix` (`source_capture.go`) and
+  `exec.CursorSimpleScan`, `CursorOccurrenceVersion`,
+  `CursorOccurrencePhysicalRow` (`cursor_scan.go`). Their frontier OUT was
+  empty.
+- **Routine helpers down** (`674032f28`): the plan assumed `exec` could
+  call `routine`, but `routine` (L9) sits above `exec` (L7).
+  `routine/descriptor.go` and `WalkRoutineBody`, `BodyCastMatches`,
+  `PolymorphicBodyArgument` import only `catalog`, `expr`, `functions`,
+  `ids`, `authorization` and `sqltype`, so they moved to
+  `exec/routine_descriptor.go`; `routine` keeps the builtin body edges and
+  `EmbeddedCastOID`. `analyze`, the root and tests call `exec` directly.
+- **In-place cuts** (`239a13dc5`): `exec.RoutineAccess` embeds the
+  `access.View` and carries its `access.Environment` (`Live` when the
+  environment is set); `exec` now imports `access`. The
+  `AdmissionAuthority` slot answers `AdmissionAccess`, and `exec.Host`
+  gains `RoutineAdmission` (the `finished` and missing-authority errors
+  keep their text). Procedure EXECUTE checks never read the environment
+  (`Check` reads it for types, `Effective` for namespaces), so
+  readmission's actor switch is unchanged. `readmitPreparedPrograms`
+  converts the view only when it has programs (no new allocation on the
+  common prepared path). `ViewPayload.Dependencies` replaces `viewOf` in
+  `selectExpressionRecipe`; `Preparation.ReturnsSet` and
+  `StoredReferenceValid` reach `procedureReturnsSet` (intagg provider,
+  `extension` is L9) and `storedReferenceEpochValid` (root closure, headed
+  for `stored`). `admitQueryGroupings` needs `analyze.PrivateTreeGrouping`
+  (an import cycle) and moved next to its caller in
+  `query_join_legality.go`. Frontier OUT of the set was then only the two
+  hooked helpers, `routineProgramOf` and `sqlError`.
+- **Move** (`61f0e8305`): `exec/routine_admission.go`,
+  `routine_body_admission.go` and `routine_program.go` hold the three root
+  files, `selectExpressionRecipe`, `strictScalarRoutine`,
+  `strictRoutineArguments` and the program's `initializePhase`/`include`.
+  `routineAdmissionProgram` is `exec.RoutineProgram` (`Calls []RoutineCall`;
+  `Record`, `Readmit`, `InitializePhase`, `Include`), and
+  `EvalAdmission.RoutineProgram` holds it directly, so the
+  `AdmissionProgram` marker, `programSlot`, `routineProgramOf` and the
+  unused `authoritySlot` are gone. Exported only what the root uses (24
+  spec rows). String literals unchanged apart from import paths.
+- **Tests.** None moved or deleted. Engine tests were requalified
+  (`exec.AdmitRoutineCall` 102 uses, ...), and 13 calls that passed an
+  `AuthorizationView` to admission helpers now pass `routineAccessOf(...)`.
+  `exec/preparation_test.go` gained the four new routes (written first and
+  observed failing).
+- **Verification.** `make build`, the targeted selections (preparation
+  seam, routine authority and body-lifetime units, prepared readmission,
+  domain programme phases, CURRENT OF, generated columns, CHECK) after
+  every commit, with `RACE=1` for the admission and cursor selections;
+  allocation tests unchanged; `make quickcheck` passed. `REFERENCE=1`
+  passed for generated-column ALTERs (virtual, stored, authorization),
+  CHECK core and controls, expression and partial indexes, range partition
+  definition/consumers/boundaries, routine core and stored, and DELETE and
+  UPDATE CURRENT OF. `make bench`: 816–916 µs/op and 5,014 allocs/op (one
+  5,020 warm-up run), as in 11d; under the 1 ms target. `make deps`: module
+  paths only. `exec` imports only `access` in addition (L4, downward). No
+  reference fixture names a renamed frame. AGENTS.md: 99 lines,
+  untouched. racecheck/finalcheck skipped at user request.
+
+Notes for later steps:
+
+- 11f: `strict_parameter_null.go` now holds only fold code; the preflight
+  family reaches admission through `exec.EvaluatePlanningExpression`,
+  `exec.SelectExpressionRecipe` and `exec.AdmitCaseEquality`.
+- 23b–25b: the index, table and partition evaluation code reaches
+  preparation through `exec.PreflightCoercionsWithPolicy`,
+  `exec.AdmitExpression` and `exec.RoutineProgram`; `readmitPrograms`
+  takes `exec.RoutineAccess`.
+- `admitQueryGroupings` can join `exec` once `analyze.PrivateTreeGrouping`
+  (six `sqltype`-only lines) moves below `exec`, or go to `analyze` with
+  12f.

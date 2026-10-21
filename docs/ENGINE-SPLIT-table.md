@@ -129,7 +129,9 @@ are functions that reach a god struct:
   every evaluation path through routine admission (`validateCheckRow`,
   `evaluateGenerations`, `prepareGenerationProgram`,
   `alterRowValidator.validate` → `validateExpressionJoinExecution` →
-  `admitRoutineCall` → `admitRecipeRoutineDescriptor`);
+  `admitRoutineCall` → `admitRecipeRoutineDescriptor`; item 75 cut this
+  path: these callers use `exec.PreflightCoercionsWithPolicy` and
+  `exec.AdmitExpression`, and admission reads `exec.RoutineAccess`);
 - through `dropProvider` (holds the scope and stage): `ordinaryColumnDrop`,
   `dropProvider.checkDependents`, `defaultDependents`,
   `foreignKeyColumnDependencies`, `foreignKeyDependents`;

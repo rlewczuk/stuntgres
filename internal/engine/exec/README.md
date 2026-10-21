@@ -7,8 +7,9 @@ state only through one host interface and one installed preparation value,
 both implemented by the root engine. The package sits at layer L7 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`,
-`lock`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate` and
-the standard library, and never the engine, `analyze` or `session`. See
+`lock`, `access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`,
+`sqlstate` and the standard library, and never the engine, `analyze`,
+`session` or a feature package (`routine`, `extension`, ...). See
 [ENGINE-SPLIT-exec.md](../../../docs/ENGINE-SPLIT-exec.md) (step 11).
 
 ## What it owns
@@ -42,10 +43,33 @@ the standard library, and never the engine, `analyze` or `session`. See
   `functions` runtimes, `sqltype.DomainCheckEvaluator` and the
   `pgcatalog` ACL inquiry. The `Eval*` bodies and frame reads live here;
   capability methods forward to the host.
+- **Routine call admission** (`routine_admission.go`,
+  `routine_body_admission.go`, `routine_program.go`): EXECUTE admission of
+  the routines an expression invokes at planning time (`AdmitRoutineCall`,
+  `AdmitRoutineReference`, `EvaluatePlanningExpression`), SQL-body edges
+  (`AdmitOverlapsPair`, `BodyRoutineDescriptor`), grafted recipe selection
+  (`SelectExpressionRecipe`) and the consumed-call footprint
+  `RoutineProgram` (`RoutineCall` records; `Record`, `Readmit`,
+  `InitializePhase`, `Include`). Admission reads `RoutineAccess`
+  (`routine_access.go`): the captured `access.View` and its
+  `access.Environment`, from the borrowed `AdmissionAuthority` slot or the
+  host's `RoutineAdmission`.
+- **Routine descriptors** (`routine_descriptor.go`): carrier extraction
+  (`ExpressionRoutineDescriptor`, `ExpressionRecipeDescriptor`),
+  revalidation (`ValidateRoutineDescriptor`,
+  `ValidateStoredRoutineDescriptor`, `SameRoutineDeclaration`) and the
+  instance-selected SQL-body walk (`WalkRoutineBody`,
+  `PolymorphicBodyArgument`, `BodyCastMatches`). `analyze` and the engine
+  use them as well.
+- **Statement helpers the DML executors share**: constraint-violation
+  DETAIL rows (`row_detail.go`: `FailingRowDetail`,
+  `WriteDiagnosticValue`), single-relation source capture
+  (`source_capture.go`: `CaptureSource`, `CapturePrefix`) and the CURRENT OF
+  scan helpers (`cursor_scan.go`).
 - **Seams**: `Host` and `PresentationFormatters` (`host.go`),
   `DetachedPresentation` (`detached_presentation.go`), `Preparation` and
-  `InstallPreparation` (`preparation.go`), and the opaque admission slots
-  `AdmissionAuthority` and `AdmissionProgram` (`context_admission.go`).
+  `InstallPreparation` (`preparation.go`), and the admission slots
+  `AdmissionAuthority` (`context_admission.go`) and `RoutineProgram`.
 
 ## The host
 
@@ -58,6 +82,7 @@ implements it on `statementHost`, a defined type over `StatementScope`.
 | Presentation | the nine `sqltype` formatters | Read the statement's comment/deparse snapshot. With no host, output uses `DetachedPresentation`, which owns the missing-snapshot messages. |
 | Row locks | `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks` | `AcquireQueryRow` may block in the lock manager; it releases the replacement read lock across the wait (retaking it for implicit statements), then takes `Engine.mu`. `LatestQueryRow` takes `Engine.mu` and records the physical row event after releasing it. |
 | Foreign owner | `ReleaseReplacementRead`, `TouchForeignScan`, `EnlistForeign` | Release the replacement read lock before external I/O; enlist the statement's foreign transaction participant. |
+| Admission | `RoutineAdmission` | Reads the statement's routine authority and dependency manifest (statement-owned fields, no lock); fails once the statement has finished. |
 | Sequences | `CompletePGSequence` | Acquires the sequence lock, then reads the generator under `Engine.mu`. |
 | Capabilities | the function, expression and plan runtime bodies | Take `Engine.mu`, read session state or have side effects (advisory locks, XID assignment, sequence calls, notices). |
 
@@ -74,8 +99,14 @@ statement scope (generated columns, index expressions and predicates,
 partition admission, temporary commit, concurrent refresh), so they cannot
 hang off a nil-able host. `Preparation` is one stateless package value:
 `PreflightCoercions` (the join opener re-runs it on its predicate),
-`CheckDomain`, `DomainCatalog` (the catalog a domain check reads) and
-`ValidInstalledText` (the installed text call's provider check). The engine
+`PreflightCoercionsWithPolicy` and `AdmitExpression` (the coercion preflight
+with the decisive-defaults policy and planning-time execution admission;
+index, table and partition evaluation code calls them through the package
+forwarders of the same names), `CheckDomain`, `DomainCatalog` (the catalog a
+domain check reads), `ReturnsSet` (set-returning, including the installed
+intagg enumerator), `StoredReferenceValid` (the stored-reference epoch
+bridge of a TEMP owner) and `ValidInstalledText` (the installed text call's
+provider check). The engine
 installs its implementation from `init` with `InstallPreparation`; until
 then every method panics with `exec: preparation not installed`.
 
@@ -91,10 +122,17 @@ then every method panics with `exec: preparation not installed`.
 - **Cancellation** is checked at the same points as before the move;
   cursors release pins and sources on every exit, and `Close` is
   idempotent.
-- **Admission slots are opaque.** `EvalAdmission` copies the borrowed
-  authority and routine program pointers with the context; only engine
-  helpers type-assert them. A prepared domain programme's phases are an
-  opaque slot as well; the runtime reads only its expressions.
+- **Admission slots are borrowed.** `EvalAdmission` copies the borrowed
+  authority and routine program pointers with the context, never the
+  pointees. The runtime reads the authority only through `AdmissionAccess`;
+  only engine helpers type-assert it. A prepared domain programme's phases
+  are an opaque slot; the runtime reads only its expressions.
+- **The admission environment is never read for procedures.**
+  `RoutineAccess.Env` supplies the TEMP namespace and type paths, which
+  procedure EXECUTE checks do not consult, so `Readmit` switches only
+  `View.State.CurrentUser`. `Env` borrows the engine's view and is never
+  retained past admission; it is nil for an authority without a live
+  engine (`Live`).
 - **No per-row allocations** from the seams: the host and preparation are
   interface values stored once.
 
@@ -108,9 +146,9 @@ methods in the `query_*_bind.go` files; the join legality checks; the DML
 executors, which open their inputs with `exec.OpenNode`; data-modifying CTE
 execution (`completeCTEMutation`); CREATE TABLE AS; SQL cursors and protocol
 portals; rule execution; `statementHost` with the capability bodies,
-`enginePreparation`, and the engine-side helpers that take a `*Context`
-(`routineAdmissionAuthority`, `selectExpressionRecipe`, the domain-check
-preparation, `deparseRelation`, `identifyObjectValues`,
+`enginePreparation`, query grouping admission (`admitQueryGroupings`, which
+needs `analyze`), and the engine-side helpers that take a `*Context` (the
+domain-check preparation, `deparseRelation`, `identifyObjectValues`,
 `expressionPrincipal`, `evalSerialSequence`, `validateSelectedDomainRows`,
 `analyze.ValidInstalledText`, ...).
 
@@ -124,6 +162,15 @@ sort cancellation):
 
 ```sh
 make check RUN='^(TestMissingPreparationFailsLoudly|TestInstallPreparation|TestSortOrderedAggregateCancellation)$'
+```
+
+Routine call admission is pinned by engine units that build their
+contexts through an `Engine` (grep `internal/engine/*_test.go` for
+`exec.AdmitRoutineCall`, `exec.RoutineProgram` and `routineAccessOf`), for
+example:
+
+```sh
+make check RUN='^Test.*(OriginalAuthority|RoutineAuthority|BodyLifetime|PreparedSQLActual|InvokerAndRIOwnerPhases|CheckReviewScalar|JSONBPath|UserOperatorRoutine|StrictParameterNull|StrictDemand).*$'
 ```
 
 Two reference fixtures wait for native stack frames by name, so keep them:

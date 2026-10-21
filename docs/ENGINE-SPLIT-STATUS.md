@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `8b959063d` (items 55, 56, 58, 60, 64, 67, 71, 72, 73 and 74). Steps 8–17 were
+Last verified against `master` at `919735684` (items 55, 56, 58, 60, 64, 67, 71, 72, 73, 74 and 75). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -21,7 +21,7 @@ after each lands.
 - **Seams:** 57 (dump 18c), 59 (copyfmt 19b), 61 (ddl 20b),
   65 (regobj 21b).
 - **Dump statements onto `dump`:** 80 (routine 14e), 81 (typedef 15e).
-- **Follow-ups in existing packages:** 75 (exec 11e),
+- **Follow-ups in existing packages:** 76 (exec 11f),
   77 (analyze 12f), 78 (session 13f), 79 (access B6).
 - **Upper features, in place:** 82 (index 23a), 86 (table 24a), 90 (partition 25a),
   94 (fdw 26a), 99 (view 27a), 103 (role 28a).
@@ -32,10 +32,12 @@ planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Item 74
 (catalog 5j) is done, so regobj 21b (item 65) is ready; stored 22c
 (item 69) still waits for 22b (item 68). Item 73 (plan 10e) is done;
-index 23b (item 83) still waits for 82, 68 and 75. Item 56 (dump
+index 23b (item 83) still waits for 82 and 68. Item 56 (dump
 18b) is done, so dump 18c (item 57), routine 14e (item 80) and typedef 15e
 (item 81) are ready; stored 22b (item 68) still waits for 65 and 77.
 Item 72 (catalog 5i) is done, so table 24a (item 86) is ready.
+Item 75 (exec 11e) is done, so exec 11f (item 76) is ready; index 23b
+(item 83) still waits for 82 and 68.
 
 ## Task tree
 
@@ -491,8 +493,10 @@ Item 72 (catalog 5i) is done, so table 24a (item 86) is ready.
   - [x] 10e — Node-tree output and generation helpers moved
     ([plan](ENGINE-SPLIT-plan.md); `fd104099c`, `8ec047f40`, `9b8cf388f`,
     docs)
-  - [ ] 11e — Expression-preparation seam; routine admission moved
-    ([exec](ENGINE-SPLIT-exec.md))
+  - [x] 11e — Expression-preparation seam; routine admission moved
+    ([exec](ENGINE-SPLIT-exec.md); `cee6f2c90`, `ce43a2044`, `674032f28`,
+    `239a13dc5`, `61f0e8305`, docs) *(racecheck/finalcheck skipped at user
+    request)*
   - [ ] 11f — Preflight moved ([exec](ENGINE-SPLIT-exec.md))
   - [ ] 12f — Query legality helpers moved ([analyze](ENGINE-SPLIT-analyze.md))
   - [ ] 13f — Notification records, isolation text and owner handles moved
@@ -919,8 +923,16 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     and policy payload readers; five host/runtime methods and
     `pgcatalog.RuleFact` removed; no aliases · selected unit and dual-mode
     proof and quickcheck passed; racecheck/finalcheck skipped at user request
-75. [ ] Exec 11e: expression-preparation seam, routine admission —
-    [exec](ENGINE-SPLIT-exec.md) 11e · needs —
+75. [x] Exec 11e: expression-preparation seam, routine admission —
+    [exec](ENGINE-SPLIT-exec.md) 11e · needs — (`cee6f2c90`, `ce43a2044`,
+    `674032f28`, `239a13dc5`, `61f0e8305`, then the docs commit) ·
+    `Preparation.PreflightCoercionsWithPolicy`/`AdmitExpression` serve the
+    index, table and partition callers; routine call admission, the routine
+    descriptor helpers, DETAIL/capture/cursor-scan helpers in `exec`;
+    `exec.RoutineAccess`, `Host.RoutineAdmission`, `ReturnsSet` and
+    `StoredReferenceValid` hooks, `ViewPayload.Dependencies` ·
+    selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 76. [ ] Exec 11f: preflight — [exec](ENGINE-SPLIT-exec.md) 11f · needs 75
 77. [ ] Analyze 12f: query legality helpers —
     [analyze](ENGINE-SPLIT-analyze.md) 12f · needs —
