@@ -9,7 +9,7 @@ constraints, verification, documentation and report.
   (`fdw` is an upper feature); §4.1 patterns 1, 2, 3 and 4; the §4 tests
   rule; §7 decision 11 (the driver imports the package directly).
 - **Needs:** 26a: nothing. 26b: 26a. 26c: 26b and 20b (the shared `ddl`
-  host). 26d: 26c. 26e: 26d and 24d (`table`'s handler decisions, because
+  host). 26d: 26c. 26e: 26d, 24d.1 and 24d.2 (`table`'s handler decisions, because
   CREATE/ALTER FOREIGN TABLE reuses the CREATE and ALTER TABLE code). Read
   the catalog notes ("`foreignNamespaces` is replaced in the same Restore
   publication as `state`") and the session notes on the FDW participants
@@ -17,7 +17,8 @@ constraints, verification, documentation and report.
 - **Effort:** high for 26a and 26b; xhigh for 26c; high for 26d and 26e.
 - **Session size:** one sub-step per session.
 - **Linear items:** 26a = item 94, 26b = item 95, 26c = item 96, 26d =
-  item 97, 26e = item 98. Related: 20b = 61, 24d = 89, 29b = 108.
+  item 97, 26e = item 98. Related: 20b = 61, 24d.1 = 89a, 24d.2 = 89b,
+  29b = 108.
 - **Tools:** run from the worktree root.
   - `reach`: `.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach -dir .
     -files '<regexp on file base names>'` prints each declaration as
@@ -332,8 +333,8 @@ Decisions:
    `fdw_host.go` holds `var _ fdw.Host = ddlHost{}`. It is `ddl.Host` plus:
    - `AddDomainBase(catalog.Descriptor)` and `RemoveObject(ref
      ids.ObjectRef, namespace bool) error`: already on `ddlHost`, same
-     signatures, declared again in `fdw` (24c owns the general removal
-     interface);
+     signatures, declared again in `fdw` (table 24c decided there is no
+     general removal interface);
    - `StageForeignTable(auth ddl.Authority, s *parser.ForeignDDL, input
      sqltype.InputEnvironment) ([]Validation, []ids.ObjectAddress, error)`
      (question 3): CREATE and DROP FOREIGN TABLE through
@@ -463,7 +464,12 @@ CREATE/ALTER FOREIGN TABLE (`stageForeignTableLocked`,
 those decisions (24d), the foreign-table option and admission decisions
 move to `fdw` and call `table`'s functions; the root keeps the
 orchestration. Re-measure first; write a short refine note into this file
-if the move set differs from 24d's result.
+if the move set differs from 24d's result. Table 24c: until 26e,
+`StageForeignTable` forwards to `table.StageCreateTable`; ALTER FOREIGN
+TABLE's candidate calls (`alterTypeCandidate`, `addColumnCandidate`,
+`generationCandidate`, `rebindAlterTypeChecks`, `cookAlterDefaultLocked`,
+`bindColumnChecks(altering)`) become calls of the 24d.2 functions over an
+`alterHost`, and 26e drops the forwarders.
 
 ## Invariants
 

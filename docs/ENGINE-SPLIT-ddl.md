@@ -173,7 +173,7 @@ The second planning round gave schema-level DDL no package of its own
 | Search path (`schema_path.go`: `referencePath`, `creationNamespace`, `lookupNamespaces`) | root | — |
 | COMMENT (`comment.go`, `comment_inquiry.go`) | root | — |
 | Seed comments (`comment_builtin.go`: `builtinTypeComment`, `namespaceCommentBaseline`) | `catalog` (`BuiltinTypeComment`, `NamespaceCommentBaseline`; 20c decided) | 20d |
-| DROP pipeline (`drop_provider.go`, `dropProvider`, 37 methods) | root; a `ddl` removal interface when a feature needs it | 24c |
+| DROP pipeline (`drop_provider.go`, `dropProvider`, 37 methods) | root; no `ddl` removal interface (24c: no feature needs one; `table.DropDependencyReader` is passed in) | 24c |
 | Object identity (`object_identity.go`, clean part of `object_address_lookup.go`) | `regobj` | 21b |
 | `object_address.go`, `lookupObjectAddress` | root | — |
 | Definition identity, clean part (done: `catalog.DefinitionOIDUsed`, `ReserveDefinitionOIDs`, `ValidateDefinitionOIDs`; `structuralNull` is `plan.StructuralNull`) | `catalog`, `plan` | 5i |
@@ -329,8 +329,9 @@ Decisions:
      bool) error`: today's `stageSchemaDomainsLocked` (the drop-provider
      closure; it stays in the root).
    - `RemoveObject(ref ids.ObjectRef, namespace bool) error`:
-     `CatalogStage.removeObjectLocked`. The general removal interface
-     (dependents, cascade notices, prepared drops) is 24c's.
+     `CatalogStage.removeObjectLocked`. Table 24c decided against a
+     general removal interface (dependents, cascade notices, prepared
+     drops stay root orchestration).
    - `AddCascadeNotice(string)`: appends to `stage.schemaCascadeNames`.
    - `RelationDiagnostic(Authority, *catalog.Relation) (kind, name string)`:
      `relationDiagnosticKind` and `relationDiagnosticName`.
@@ -611,8 +612,14 @@ Outstanding aliases: none.
   `ddlHost` (Go promotes the shared methods) or `ddlHost` implements the new
   interface directly, in a `<feature>_host.go` file with its assertion; the
   refine of each step chooses. Never copy a shared method body.
-- 24c designs the general removal interface (dependents, cascade notices,
-  prepared drops over `dropProvider`); 20d adds only `RemoveObject`.
+- Table 24c settled the general removal interface: there is none in
+  `ddl`. Dependents and cascade notices stay root orchestration, prepared
+  drops stay root, and the table decisions take the table-local
+  `table.DropDependencyReader` as an argument; `RemoveObject` stays the
+  only removal method on a `ddl`-level host.
+- Table 24d.2 moves `alterTablespaceKind` and `checkAlterTablespaceCreate`
+  (`alter_tablespace.go`) into `ddl` next to `TablespaceRef`, after
+  `relationDiagnosticKind` becomes `catalog.RelationDiagnosticKind` (24d.1).
 - 5i moved `tablespaceLocation`, `tablespaceName` and `namespaceChildren`
   into `catalog` (`ValidateTablespaceLocation`, `ValidateTablespaceName`,
   `NamespaceChildren`); 20d calls them there.

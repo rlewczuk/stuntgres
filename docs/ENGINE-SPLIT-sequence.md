@@ -554,8 +554,14 @@ set referenced only `sqlError` and `commentLiteral` in the engine.
   complete). The identity and serial staging on `CatalogStage`
   (`stageCreateIdentities`, `stageIdentitySequence`, `identity_alter.go`,
   `stageCreateSerials`) and the identity DROP flow
-  (`identity_drop_definition.go`) are table DDL and move with `table`
-  (24d, linear item 89). `relationDiagnosticKind` goes with `table` too.
+  (`identity_drop_definition.go`) are table DDL and move with `table`.
+  Table 24c refined this: CREATE identity and serial staging moves in 24d.1
+  (item 89a) over `table.Host.SequenceStage`/`SequenceColumns`; ALTER
+  option, refresh and type staging stays root behind
+  `AlterHost.StageIdentitySequenceOptions`; the DROP IDENTITY decision
+  moves in 24d.2 (89b), prepared identity drops stay root.
+  `relationDiagnosticKind` is not table code: it becomes
+  `catalog.RelationDiagnosticKind` (24d.1).
   Regclass output (`sequence_output.go`) is reg* code: `regobj` 21a renames
   it `regclass_output.go` and 21b moves it. The orchestration in
   `sequence.go` and `sequence_comment.go` stays in the root.

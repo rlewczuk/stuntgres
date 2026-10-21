@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `bdba4968a` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 90, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
+Last verified against `master` at `0ab96a3a8` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 86, 87, 88, 90, 94, 95, 96, 97, 99, 103, 104, 105, 106, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,8 +18,7 @@ as another broad item (§8); 100 is the only broad item ready.
 
 - **Upper features, packages:** 91 (partition 25b), 100 (view 27b,
   **broad**).
-- **Upper features, refined:** 88 (table 24c, docs only).
-- **Upper features, decisions:** 85b (index 23d.2).
+- **Upper features, decisions:** 85b (index 23d.2), 89a (table 24d.1).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -94,6 +93,12 @@ partition 25b (item 91) and view 27b (item 100, broad) are ready; DML
 29b (item 108) and control 30b (item 112) still wait for 91 and 100.
 Item 85a (index 23d.1) is done, so index 23d.2 (item 85b) is ready; table
 24d (item 89) still waits for 24c (item 88).
+Item 88 (table 24c, docs only, with a fix of a 24b regression) is done
+and split 24d into 24d.1 (item 89a, CREATE), 24d.2 (89b, ALTER and
+inheritance) and 24d.3 (89c, Restore and dump cores): 89a is ready
+(85a is done), 89b and 89c need 89a; partition 25c (item 92) still waits
+for 91, and partition 25d (93), fdw 26e (98) and DML 29c (109) now need
+89a and 89b.
 
 ## Task tree
 
@@ -520,8 +525,12 @@ Item 85a (index 23d.1) is done, so index 23d.2 (item 85b) is ready; table
     `b210c6777`, `260ed66c6`, `5b4ac930a`, `36249b2b4`, `e247d07c6`, docs)
   - [x] 24b — `table` created and clean set moved *(broad)* (`7e9873c11`,
     `b05bbcdf9`, `8797fe715`, `a0ef76b6c`, `e0eb9d15d`, `30ed6f576`, docs)
-  - [ ] 24c — Host refined (docs only)
-  - [ ] 24d — Handler decisions moved
+  - [x] 24c — Host refined (docs only) (`e6176d3c3` regression fix, docs)
+  - [ ] 24d.1 — CREATE decisions moved (CREATE TABLE, LIKE, identity and
+    serial, FK staging, DROP/SET SCHEMA cores)
+  - [ ] 24d.2 — ALTER and inheritance decisions moved (candidates,
+    rebuilds, recursion decisions, removal reader)
+  - [ ] 24d.3 — Restore and dump cores moved
 - [ ] **Step 25 — `partition`** ([prompt](ENGINE-SPLIT-partition.md); 25b
   needs 24b)
   - [x] 25a — In place: proof inputs, storage-read fences, renames
@@ -1188,10 +1197,30 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     prepared-holder cuts; no aliases; ran broad (about 240 files) · selected
     unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
     skipped at user request
-88. [ ] Table 24c: host refined (docs only) — [table](ENGINE-SPLIT-table.md)
-    24c · needs 87, 84
-89. [ ] Table 24d: handler decisions moved — [table](ENGINE-SPLIT-table.md)
-    24d · needs 88, 85a
+88. [x] Table 24c: host refined (docs only) — [table](ENGINE-SPLIT-table.md)
+    24c · needs 87, 84 (`e6176d3c3`, then the docs commit) · `table.Host`
+    on `ddlHost` = `ddl.Host` + `index.Host` + `ddl.TypeStaging` +
+    `StageRowType`, `ResolveType`, `ResolveColumnCollation` (existing) and
+    `TableStage`, `SequenceStage`, `SequenceColumns`, `NameBinding`,
+    `StageChanged`, `StagedTemporary`, `ResolveReference`,
+    `ResolveRestoredRelation`, `DescribeCreateTable`, `BindColumnDefaults`,
+    `BindGenerations`, `BindChecks`; `table.AlterHost` on a scope-bound
+    `alterHost` adds `Input`, the snapshot captures, `CookDefault`,
+    `BindGeneration`, `RebindCheck`, `BindAlterTypeUsing`,
+    `TypeChangeDependents`, `StageIdentitySequenceOptions`; no
+    `ddl.Removal` (`DropDependencyReader` stays table-local, passed in);
+    prepare side and prepared drops stay root; Restore cores move, hooks
+    stay; `relationDiagnosticKind` to `catalog`; 24d split into 89a/89b/89c
+    with move sets and commit sequences · `e6176d3c3` fixes a 24b
+    regression (the inheritance drop-discovery reader assertion never
+    matched): unit, `RACE=1`, dual-mode selection and quickcheck passed;
+    racecheck/finalcheck skipped at user request
+89a. [ ] Table 24d.1: CREATE decisions moved —
+    [table](ENGINE-SPLIT-table.md) 24d · needs 88, 85a
+89b. [ ] Table 24d.2: ALTER and inheritance decisions moved —
+    [table](ENGINE-SPLIT-table.md) 24d · needs 89a
+89c. [ ] Table 24d.3: Restore and dump cores moved —
+    [table](ENGINE-SPLIT-table.md) 24d · needs 89a
 90. [x] Partition 25a: in place — [partition](ENGINE-SPLIT-partition.md) 25a ·
     needs — (`22bba0e50`, `47d732220`, `bbe3e3cc1`, then the docs commit) ·
     `partitionProof` takes the context and input environment;
@@ -1204,7 +1233,7 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 92. [ ] Partition 25c: host refined (docs only) —
     [partition](ENGINE-SPLIT-partition.md) 25c · needs 91, 88
 93. [ ] Partition 25d: handler decisions moved —
-    [partition](ENGINE-SPLIT-partition.md) 25d · needs 92, 89
+    [partition](ENGINE-SPLIT-partition.md) 25d · needs 92, 89a, 89b
 94. [x] FDW 26a: in place — [fdw](ENGINE-SPLIT-fdw.md) 26a · needs —
     (`6cb327eb1`, `c3a7cf7e1`, `1ba975174`, `0c991e6c8`, `d7405f486`, `a02ccecb1`, then the docs commit) · `fdw_` file prefix, `foreignRegistry`
     record, authority helpers over `access.View`, `foreignTransaction`
@@ -1233,7 +1262,7 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
     28b · selected unit and dual-mode proof and quickcheck passed;
     racecheck/finalcheck skipped at user request
 98. [ ] FDW 26e: foreign-table decisions — [fdw](ENGINE-SPLIT-fdw.md) 26e ·
-    needs 97, 89
+    needs 97, 89a, 89b
 99. [x] View 27a: in place — [view](ENGINE-SPLIT-view.md) 27a · needs —
     (`87bfbb497`, `16260a489`, `a0254a5c3`, `57c781f25`, `7472271b6`,
     `a5e32e52a`, `512cf3e1c`, `24b0bfde4`, then the docs commit) · dead
@@ -1300,7 +1329,7 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 108. [ ] DML 29b: `dml` created, clean set moved — [dml](ENGINE-SPLIT-dml.md)
      29b · needs 107, 59, 83, 87, 91, 95, 100
 109. [ ] DML 29c: host refined (docs only) — [dml](ENGINE-SPLIT-dml.md) 29c ·
-     needs 108, 85b, 89, 93, 97, 102
+     needs 108, 85b, 89a, 89b, 93, 97, 102
 110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109
 111. [x] Control 30a: Restore hook table, in place —
      [control](ENGINE-SPLIT-control.md) 30a · needs 57 (`dc839f171`,
@@ -1324,7 +1353,7 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      ENGINE-SPLIT.md §2 and §3, record what stays in the root and why, and
      decide whether a third round is needed —
      [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 63, 66, 73, 76, 77, 78,
-     80, 81, 98, 106, 110, 113
+     80, 81, 89c, 98, 106, 110, 113
 
 ## Updating this file
 

@@ -415,7 +415,10 @@ Outstanding aliases: none (30a added none).
   in their packages by then.
 - The hook bodies stay root `Engine` methods until their owners' Part B
   (24d table, 25d partition, 15e typedef, 27d view); the table reaches
-  them, so 30c does not wait for those.
+  them, so 30c does not wait for those. Table 24c: the table hook bodies
+  stay root wrappers for good (authority, the trust check, `Engine.mu` and
+  the stage lifecycle); 24d.3 (item 89c) moves only their cores into
+  `table`.
 - `restore_replay.go` (`restoreReplay`, the `Operation` replay slot) is
   read by feature handlers (`tableDestination`, `partitionAttach`, ...);
   if it moves, it moves to the lowest package those handlers import.
