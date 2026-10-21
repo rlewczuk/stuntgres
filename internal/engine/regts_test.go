@@ -241,7 +241,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 	if err != nil || predecessor != d.Extension.ObjectID {
 		t.Fatal("extension predecessor", predecessor, err)
 	}
-	order, err := viewDumpOrder(ctx, map[dumpEventKey][]dumpEventKey{{oid: 1}: {{oid: predecessor}}, {oid: predecessor}: nil}, nil)
+	order, err := dumpOrder(ctx, map[dumpEventKey][]dumpEventKey{{oid: 1}: {{oid: predecessor}}, {oid: predecessor}: nil}, nil)
 	if err != nil || len(order) != 2 || order[0].oid != predecessor {
 		t.Fatal("extension-before-consumer order", order, err)
 	}

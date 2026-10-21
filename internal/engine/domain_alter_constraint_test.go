@@ -259,11 +259,11 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 	if !slices.Contains(graph[late], dumpEventKey{oid: provider.Address().ObjectID}) || !slices.Contains(graph[late], dumpEventKey{oid: 50002, phase: dumpTableCompletion}) || len(graph[dumpEventKey{oid: d.Address().ObjectID}]) != 0 {
 		t.Fatal("post-data providers leaked into CREATE", graph)
 	}
-	if _, err := viewDumpOrder(context.Background(), graph, nil); err != nil {
+	if _, err := dumpOrder(context.Background(), graph, nil); err != nil {
 		t.Fatal("invented CREATE cycle", err)
 	}
 	graph[dumpEventKey{oid: provider.Address().ObjectID}] = append(graph[dumpEventKey{oid: provider.Address().ObjectID}], late)
-	if _, err := viewDumpOrder(context.Background(), graph, nil); err == nil {
+	if _, err := dumpOrder(context.Background(), graph, nil); err == nil {
 		t.Fatal("genuine unresolved cycle accepted")
 	}
 }

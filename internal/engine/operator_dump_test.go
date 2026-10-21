@@ -41,7 +41,7 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 		graph[consumer] = []dumpEventKey{{oid: c}, {oid: b}, {oid: c}}
 		operatorDumpEvents(view, operators, graph)
 		normalizeOperatorDumpPredecessors(view, graph)
-		order, err := viewDumpOrder(context.Background(), graph, nil)
+		order, err := dumpOrder(context.Background(), graph, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 		t.Fatal(err)
 	}
 	normalizeOperatorDumpPredecessors(view, graph)
-	order, err := viewDumpOrder(context.Background(), graph, nil)
+	order, err := dumpOrder(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

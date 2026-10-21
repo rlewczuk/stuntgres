@@ -68,7 +68,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 				graph[dumpEventKey{oid: index.Address().ObjectID}] = []dumpEventKey{{oid: index.SQLIndex.Parent.ObjectID}}
 				indices[index.Address().ObjectID] = len(indices)
 			}
-			declarations, err := viewDumpOrder(context.Background(), graph, nil)
+			declarations, err := dumpOrder(context.Background(), graph, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -76,7 +76,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
-			order, err := viewDumpOrder(context.Background(), graph, map[ids.OID]ids.OID{good.Address().ObjectID: 1})
+			order, err := dumpOrder(context.Background(), graph, map[ids.OID]ids.OID{good.Address().ObjectID: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,17 +116,17 @@ func TestPartitionAttachDumpPhaseScheduler(t *testing.T) {
 	data := dumpEventKey{oid: 20, phase: dumpRows}
 	check := dumpEventKey{oid: 20, phase: dumpInvalidConstraints}
 	graph := map[dumpEventKey][]dumpEventKey{definition: {membership}, membership: nil, data: {definition}, check: {data}}
-	order, err := viewDumpOrder(context.Background(), graph, map[ids.OID]ids.OID{90: 1})
+	order, err := dumpOrder(context.Background(), graph, map[ids.OID]ids.OID{90: 1})
 	if err != nil || !slices.Equal(order, []dumpEventKey{membership, definition, data, check}) {
 		t.Fatal("source priority bypassed a membership/name/data/origin predecessor", order, err)
 	}
 	addDumpDependency(graph, membership, check)
-	if _, err := viewDumpOrder(context.Background(), graph, nil); err == nil {
+	if _, err := dumpOrder(context.Background(), graph, nil); err == nil {
 		t.Fatal("cyclic phase dependencies accepted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := viewDumpOrder(ctx, graph, nil); !errors.Is(err, context.Canceled) {
+	if _, err := dumpOrder(ctx, graph, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled phase scheduler", err)
 	}
 }
