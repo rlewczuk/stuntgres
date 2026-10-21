@@ -6,20 +6,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// CopyBoundary is the database/sql capability error; it does no object lookup.
-func CopyBoundary(s *parser.Copy) error {
-	switch s.Endpoint {
-	case parser.CopyFile:
-		return sqlError("0A000", "COPY server files are unsupported")
-	case parser.CopyProgram:
-		return sqlError("0A000", "COPY PROGRAM is unsupported")
-	}
-	if s.From {
-		return sqlError("0A000", "COPY FROM STDIN requires stuntgres.CopyFrom")
-	}
-	return sqlError("0A000", "COPY TO STDOUT requires stuntgres.CopyTo")
-}
-
 type copyForce struct {
 	specified, all bool
 	columns        []parser.Identifier

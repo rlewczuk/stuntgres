@@ -1,6 +1,9 @@
 package engine
 
-import "io"
+import (
+	"io"
+	"stuntgres/internal/parser"
+)
 
 // A frontend grants stream capability only for its active canonical execution.
 // Embedded Execute supplies nil and retains its explicit COPY boundary.
@@ -40,4 +43,18 @@ func (s *StatementScope) startProtocolCopy(hooks CopyProtocolHooks, from bool, o
 		return 0, hooks.Start(CopyProtocolMetadata{From: from, Format: format, ColumnFormats: formats})
 	})
 	return err
+}
+
+// CopyBoundary is the database/sql capability error; it does no object lookup.
+func CopyBoundary(s *parser.Copy) error {
+	switch s.Endpoint {
+	case parser.CopyFile:
+		return sqlError("0A000", "COPY server files are unsupported")
+	case parser.CopyProgram:
+		return sqlError("0A000", "COPY PROGRAM is unsupported")
+	}
+	if s.From {
+		return sqlError("0A000", "COPY FROM STDIN requires stuntgres.CopyFrom")
+	}
+	return sqlError("0A000", "COPY TO STDOUT requires stuntgres.CopyTo")
 }

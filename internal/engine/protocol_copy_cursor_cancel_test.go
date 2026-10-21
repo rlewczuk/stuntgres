@@ -104,16 +104,18 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 					Relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
 					Targets:  []int{0},
 				},
-				options:  copyOptions{delimiter: '\t', null: "\\N"},
-				reader:   bufio.NewReader(strings.NewReader(tc.input)),
+				in: copyLineReader{
+					options: copyOptions{delimiter: '\t', null: "\\N"},
+					reader:  bufio.NewReader(strings.NewReader(tc.input)),
+					targets: []copyTarget{{name: "v"}},
+				},
 				defaults: make([]bool, 1), omitted: make([]bool, 1),
 			}
 			cursor = text
 			if binaryInput {
 				cursor = &copyBinaryCursor{
 					scope: scope, binding: text.binding,
-					header:   true,
-					reader:   bufio.NewReader(strings.NewReader(tc.input)),
+					in:       copyBinaryReader{header: true, reader: bufio.NewReader(strings.NewReader(tc.input))},
 					defaults: make([]bool, 1), omitted: make([]bool, 1),
 				}
 			}

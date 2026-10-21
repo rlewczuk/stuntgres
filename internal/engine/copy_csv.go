@@ -10,43 +10,42 @@ import (
 
 // A record spans arbitrary transport chunks. The raw record is kept for marker
 // classification and diagnostics; no backslash decoding or legacy terminator.
-func (c *copyCursor) readCSVLine() (present bool, err error) {
-	if c.ended {
+func (r *copyLineReader) readCSVLine() (present bool, err error) {
+	if r.ended {
 		return false, nil
 	}
-	c.line = c.line[:0]
-	c.lineValid = false
-	c.column = ""
-	c.number++
+	r.line = r.line[:0]
+	r.lineValid = false
+	r.number++
 	quoted, lastEscape := false, false
-	distinctEscape := c.options.escape != c.options.quote
+	distinctEscape := r.options.escape != r.options.quote
 	for {
-		b, readErr := c.reader.ReadByte()
+		b, readErr := r.reader.ReadByte()
 		if readErr != nil {
 			if readErr != io.EOF {
 				return false, readErr
 			}
-			c.ended = true
-			present = len(c.line) > 0
+			r.ended = true
+			present = len(r.line) > 0
 			break
 		}
 		// Framing follows raw-byte parity, not decoder pair consumption.
 		// Equal QUOTE/ESCAPE disables special escape handling: every quote
 		// toggles before separator detection, including accepted CR/LF quotes.
-		if quoted && distinctEscape && b == c.options.escape {
+		if quoted && distinctEscape && b == r.options.escape {
 			lastEscape = !lastEscape
 		}
-		if b == c.options.quote && !lastEscape {
+		if b == r.options.quote && !lastEscape {
 			quoted = !quoted
 		}
-		if !distinctEscape || b != c.options.escape {
+		if !distinctEscape || b != r.options.escape {
 			lastEscape = false
 		}
 		if quoted {
 			// PostgreSQL's released history increments quoted LF only after LF is
 			// established; otherwise CR counts (including the initial unknown style).
-			if b == '\n' && c.eol == 'n' || b == '\r' && c.eol != 'n' {
-				c.number++
+			if b == '\n' && r.eol == 'n' || b == '\r' && r.eol != 'n' {
+				r.number++
 			}
 		} else if b == '\r' || b == '\n' {
 			style := byte('n')
@@ -54,91 +53,90 @@ func (c *copyCursor) readCSVLine() (present bool, err error) {
 				style = 'r'
 				// Established CR ends the record immediately. A following LF
 				// belongs to the next record (after this row's type conversion).
-				if c.eol == 0 || c.eol == 'c' {
-					peek, peekErr := c.reader.Peek(1)
+				if r.eol == 0 || r.eol == 'c' {
+					peek, peekErr := r.reader.Peek(1)
 					if peekErr == nil && peek[0] == '\n' {
-						c.reader.ReadByte()
+						r.reader.ReadByte()
 						style = 'c'
 					} else if peekErr != nil && peekErr != io.EOF {
 						return false, peekErr
 					}
 				}
 			}
-			if c.eol != 0 && c.eol != style {
+			if r.eol != 0 && r.eol != style {
 				if b == '\r' {
-					return false, c.lineError("unquoted carriage return found in data", "Use quoted CSV field to represent carriage return.")
+					return false, r.lineError("unquoted carriage return found in data", "Use quoted CSV field to represent carriage return.")
 				}
-				return false, c.lineError("unquoted newline found in data", "Use quoted CSV field to represent newline.")
+				return false, r.lineError("unquoted newline found in data", "Use quoted CSV field to represent newline.")
 			}
-			c.eol = style
+			r.eol = style
 			present = true
 			break
 		}
-		c.line = append(c.line, b)
+		r.line = append(r.line, b)
 	}
-	if err = sqltype.ValidateTextInput(string(c.line)); err != nil {
+	if err = sqltype.ValidateTextInput(string(r.line)); err != nil {
 		return false, err
 	}
-	c.lineValid = true
+	r.lineValid = true
 	return present, nil
 }
 
-func (c *copyCursor) splitCSV(defaultMarkers bool) error {
-	c.fields = c.fields[:0]
-	c.decoded = c.decoded[:0]
+func (r *copyLineReader) splitCSV(defaultMarkers bool) error {
+	r.fields = r.fields[:0]
+	r.decoded = r.decoded[:0]
 	start, begin := 0, 0
 	quoted, sawQuote := false, false
-	for i := 0; i <= len(c.line); i++ {
-		if i < len(c.line) {
-			b := c.line[i]
+	for i := 0; i <= len(r.line); i++ {
+		if i < len(r.line) {
+			b := r.line[i]
 			if quoted {
-				if b == c.options.escape && i+1 < len(c.line) && (c.line[i+1] == c.options.escape || c.line[i+1] == c.options.quote) {
+				if b == r.options.escape && i+1 < len(r.line) && (r.line[i+1] == r.options.escape || r.line[i+1] == r.options.quote) {
 					i++
-					c.decoded = append(c.decoded, c.line[i])
+					r.decoded = append(r.decoded, r.line[i])
 					continue
 				}
-				if b == c.options.quote {
+				if b == r.options.quote {
 					quoted = false
 					continue
 				}
-				c.decoded = append(c.decoded, b)
+				r.decoded = append(r.decoded, b)
 				continue
 			}
-			if b == c.options.quote {
+			if b == r.options.quote {
 				quoted = true
 				sawQuote = true
 				continue
 			}
-			if b != c.options.delimiter {
-				c.decoded = append(c.decoded, b)
+			if b != r.options.delimiter {
+				r.decoded = append(r.decoded, b)
 				continue
 			}
 		}
 		if quoted {
-			return c.lineError("unterminated CSV quoted field", "")
+			return r.lineError("unterminated CSV quoted field", "")
 		}
-		raw := c.line[start:i]
-		isNull := !sawQuote && string(raw) == c.options.null
-		isDefault := defaultMarkers && c.options.hasDefault && string(raw) == c.options.def
-		if isDefault && len(c.fields) < len(c.binding.Targets) {
-			target := c.binding.Targets[len(c.fields)]
-			if len(c.binding.Insert.Defaults) == 0 || c.binding.Insert.Defaults[target] == nil {
-				d := c.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
-				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.Relation.Columns[target].Name)
+		raw := r.line[start:i]
+		isNull := !sawQuote && string(raw) == r.options.null
+		isDefault := defaultMarkers && r.options.hasDefault && string(raw) == r.options.def
+		if isDefault && len(r.fields) < len(r.targets) {
+			if target := r.targets[len(r.fields)]; !target.hasDefault {
+				d := r.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
+				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", target.name)
 				return d
 			}
 		}
-		c.fields = append(c.fields, copyField{start: begin, end: len(c.decoded), quoted: sawQuote, isNull: isNull, isDefault: isDefault})
+		r.fields = append(r.fields, copyField{start: begin, end: len(r.decoded), quoted: sawQuote, isNull: isNull, isDefault: isDefault})
 		start = i + 1
-		begin = len(c.decoded)
+		begin = len(r.decoded)
 		sawQuote = false
 	}
-	for i := range c.fields {
-		field := &c.fields[i]
-		field.decoded = c.decoded[field.start:field.end]
+	for i := range r.fields {
+		field := &r.fields[i]
+		field.decoded = r.decoded[field.start:field.end]
 	}
-	if len(c.binding.Targets) == 0 && len(c.line) == 0 {
-		c.fields = c.fields[:0]
+	if len(r.targets) == 0 && len(r.line) == 0 {
+		r.fields = r.fields[:0]
 	}
 	return nil
 }
