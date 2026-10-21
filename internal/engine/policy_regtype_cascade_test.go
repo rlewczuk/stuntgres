@@ -49,8 +49,8 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if _, removed := stage.Removal(old.Address()); removed {
 						t.Fatal("policy owner became a retirement target")
 					}
-					if want := []string{"drop cascades to policy p on table t"}; !reflect.DeepEqual(stage.viewCascadeNames, want) {
-						t.Fatal("wrong captured notices", stage.viewCascadeNames)
+					if want := []string{"drop cascades to policy p on table t"}; !reflect.DeepEqual(stage.dropCascadeNames, want) {
+						t.Fatal("wrong captured notices", stage.dropCascadeNames)
 					}
 					view := e.stageRead(stage)
 					// Validation must still reject the unpruned old condition; the

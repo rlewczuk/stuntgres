@@ -354,7 +354,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		return Result{}, err
 	}
 	scope.completed = true
-	emitViewCascade(scope.op, append(stage.schemaCascadeNames, stage.viewCascadeNames...))
+	emitViewCascade(scope.op, append(stage.schemaCascadeNames, stage.dropCascadeNames...))
 	for _, notice := range notices {
 		scope.op.EmitNotice(session.LevelNotice, notice)
 	}

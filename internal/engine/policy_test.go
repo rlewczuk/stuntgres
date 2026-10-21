@@ -296,8 +296,8 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if !ok || len(survivor.Security.Policies) != 0 || len(attached.Security.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}
-			if strings.Join(stage.viewCascadeNames, "\n") != "drop cascades to "+strings.ReplaceAll(want, "\n", "\ndrop cascades to ") {
-				t.Fatal("cascade lost mixed closure notices", stage.viewCascadeNames)
+			if strings.Join(stage.dropCascadeNames, "\n") != "drop cascades to "+strings.ReplaceAll(want, "\n", "\ndrop cascades to ") {
+				t.Fatal("cascade lost mixed closure notices", stage.dropCascadeNames)
 			}
 		})
 	}

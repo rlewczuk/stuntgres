@@ -364,7 +364,7 @@ type CatalogStage struct {
 	// separate role installation. Every other catalog caller leaves it nil.
 	roleCandidate      *access.RoleRecord
 	schemaCascadeNames []string
-	viewCascadeNames   []string
+	dropCascadeNames   []string
 	dependencyPath     []ids.ObjectAddress
 	domainTargets      []ids.ObjectAddress
 	domainBases        []catalog.Descriptor

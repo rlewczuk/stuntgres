@@ -276,7 +276,7 @@ func (p *dropProvider) missingColumnNotice(column, relation string) {
 
 func (p *dropProvider) cascadeNotice(notice string) {
 	if p.stage != nil {
-		p.stage.viewCascadeNames = append(p.stage.viewCascadeNames, notice)
+		p.stage.dropCascadeNames = append(p.stage.dropCascadeNames, notice)
 		return
 	}
 	p.prepared.recordEffect(dropEffect{notice: notice})
@@ -284,14 +284,14 @@ func (p *dropProvider) cascadeNotice(notice string) {
 
 func (p *dropProvider) noticePosition() int {
 	if p.stage != nil {
-		return len(p.stage.viewCascadeNames)
+		return len(p.stage.dropCascadeNames)
 	}
 	return len(p.prepared.effects)
 }
 
 func (p *dropProvider) rewindNotices(position int) {
 	if p.stage != nil {
-		p.stage.viewCascadeNames = p.stage.viewCascadeNames[:position]
+		p.stage.dropCascadeNames = p.stage.dropCascadeNames[:position]
 		return
 	}
 	// The position indexes effects, not notices. Keep preceding notices and
@@ -612,7 +612,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 				return nil, err
 			}
 		case effect.notice != "":
-			stage.viewCascadeNames = append(stage.viewCascadeNames, effect.notice)
+			stage.dropCascadeNames = append(stage.dropCascadeNames, effect.notice)
 		case effect.missing != nil:
 			scope.op.EmitNotice(session.LevelNotice, *effect.missing)
 		case effect.rowType != (ids.ObjectAddress{}):

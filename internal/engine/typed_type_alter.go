@@ -240,7 +240,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
-		emitViewCascade(op, stage.viewCascadeNames)
+		emitViewCascade(op, stage.dropCascadeNames)
 		scope.completed = true
 	}
 	return Result{}, err

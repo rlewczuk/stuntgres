@@ -926,7 +926,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	scope.catalog = changes
 	if scope.inheritance.alter == nil {
-		emitViewCascade(op, stage.viewCascadeNames)
+		emitViewCascade(op, stage.dropCascadeNames)
 	}
 	return Result{}, nil
 }

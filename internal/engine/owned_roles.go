@@ -259,11 +259,11 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		scope.replacementRead = false
 	}
 	result, err := e.publishOwnership(scope, stage)
-	if err == nil && !reassign && mode == parser.DropCascade && len(stage.viewCascadeNames) > 0 {
-		message, detail := stage.viewCascadeNames[0], ""
-		if len(stage.viewCascadeNames) > 1 {
-			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.viewCascadeNames))
-			detail = strings.Join(stage.viewCascadeNames, "\n")
+	if err == nil && !reassign && mode == parser.DropCascade && len(stage.dropCascadeNames) > 0 {
+		message, detail := stage.dropCascadeNames[0], ""
+		if len(stage.dropCascadeNames) > 1 {
+			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.dropCascadeNames))
+			detail = strings.Join(stage.dropCascadeNames, "\n")
 		}
 		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 	}

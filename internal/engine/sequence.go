@@ -456,7 +456,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for address := range checkStage.Removals() {
 		e.catalogChangeLocked(changes, address, nil)
 	}
-	cascade := checkStage.viewCascadeNames
+	cascade := checkStage.dropCascadeNames
 	for _, ref := range refs {
 		d, ok := auth.Catalog.Relation(ref.Address)
 		if !ok {
