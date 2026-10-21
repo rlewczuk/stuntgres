@@ -6,19 +6,11 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
-
-func remapLikeExpression(in *analyze.LikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
-	if in.RowRef == nil {
-		in.RowRef, in.Slots = in.RowMapper(destination, authority)
-	}
-	return remapScalarExpression(node, nil, in.RowRef, in.Slots, nil)
-}
 
 func (s *CatalogStage) captureLikeSource(source catalog.Descriptor) {
 	if table := s.table(); !slices.Contains(table.likeSources, source) {

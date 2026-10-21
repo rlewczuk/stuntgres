@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -70,7 +71,7 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalog.State) map[ids.O
 // This is part of the existing admitted restore-repair statement, before its
 // Finish. Only genuinely changed inputs or owner-dependent expressions produce
 // new entries; all other snapshots retain their original produced data.
-func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *exec.Context, relations map[ids.ObjectAddress]*storage.Relation, changed map[ids.ObjectAddress]map[int32]bool, moved map[ids.ObjectAddress]bool, auth AuthorizationView) error {
+func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *exec.Context, relations map[ids.ObjectAddress]*storage.Relation, changed map[ids.ObjectAddress]map[int32]bool, moved map[ids.ObjectAddress]bool, view access.View, env access.Environment) error {
 	if snapshot == nil {
 		return nil
 	}
@@ -104,7 +105,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *exec.Cont
 			return err
 		}
 		schema := evaluation.Catalog.Get(parent.Namespace()).Name()
-		if err := validateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &auth, true); err != nil {
+		if err := validateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &view, env, true); err != nil {
 			return err
 		}
 		// Transport needs pre-remint row/version identities. Candidate storage

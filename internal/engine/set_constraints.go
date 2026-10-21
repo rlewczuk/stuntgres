@@ -3,10 +3,10 @@ package engine
 import (
 	"fmt"
 	"maps"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -68,13 +68,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 	s.indexes().exclusionModes.events = remaining
 	return nil
 }
-func (e *Engine) checkTransactionExclusions(s *StatementScope) error {
-	if err := s.checkExclusionEvents(true, nil); err != nil {
-		return err
-	}
-	ownerExtensionOf(s.owner).exclusionModes = s.indexesOrZero().exclusionModes
-	return nil
-}
+
 func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -197,23 +191,4 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		s.indexes().exclusionModes = candidate
 	}
 	return Result{}, nil
-}
-
-// endLockOwner retires dirty exclusion visibility, then releases the ticket's
-// lock ownership, including its completion resource. Neither Engine.mu nor
-// the manager mutex is held by the caller.
-func (e *Engine) endLockOwner(ticket *lock.Ticket) {
-	if ticket != nil && ticket.Ref().Domain() != nil {
-		e.removeExclusionOwner(ticket)
-	}
-	e.locks.End(ticket)
-}
-
-func (e *Engine) removeExclusionOwner(ticket *lock.Ticket) {
-	e.mu.Lock()
-	if _, exists := e.exclusionPending[ticket]; exists {
-		delete(e.exclusionPending, ticket)
-		e.exclusionGeneration++
-	}
-	e.mu.Unlock()
 }

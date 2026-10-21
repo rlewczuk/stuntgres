@@ -50,8 +50,8 @@ admission and waits, attach scans, the storage-read fences and publication.
 
 The 31 `partition*.go` files hold 7,169 lines, 2,003 of them clean. Three
 of them (`partition_index_attach.go`, `partition_index_drop.go`,
-`partition_unique.go`; 1,090 lines) are partitioned-index code and go to
-`index` in 23a. The other 28 files hold 6,079 lines: 1,613 clean today and
+`partition_unique.go`; 1,090 lines) are partitioned-index code; 23a renamed
+them `index_partition_*.go` and they move to `index` in 23b. The other 28 files hold 6,079 lines: 1,613 clean today and
 about 3,140 once the 22a coverage cut, the 11e preparation seam, the index
 23a cuts and the 25a cuts below are applied (simulated with `reach -cut`;
 line counts per declaration, approximate).
@@ -108,7 +108,7 @@ predicates, `partitionConstraintReplay` renames, ...).
   `partitionConstraintReplay` with its renames,
   `partitionConstraintDumpCatalog`, `partitionIndexDumpAttachmentSQL`, the
   virtual-unique replay records (`partitionConstraintCreator`,
-  `partitionReplayOnlyExclusion`, `partitionReplayTopologyReady`,
+  `partitionReplayTopologyReady`,
   `partitionVirtualUniqueDefinitionSQL`,
   `partitionVirtualUniqueMembershipReady`, `partitionExclusionDefaultBefore`);
   the Restore replay records `partitionUniqueReplay`,
@@ -121,7 +121,7 @@ predicates, `partitionConstraintReplay` renames, ...).
 | Declarations | File | Goes to |
 |---|---|---|
 | `partitionRowHistory` (with `nextRow`), `partitionNeedsRowHistory` | `partition_retained_checks.go` | `index` (23a; index snapshots read them) |
-| `partitionReplayUsingIndex`, `partitionReplayVirtualUniqueRoot`, `partitionReplaySeparateConstraint` | `partition_invalid_dump.go`, `partition_unique_dump.go` | `index` (23a; table NOT NULL dump code and `dumpPredecessor` use them, and `table` sits below `partition`) |
+| `partitionReplayUsingIndex`, `partitionReplayVirtualUniqueRoot`, `partitionReplaySeparateConstraint`, `partitionReplayOnlyExclusion` | `partition_invalid_dump.go`, `partition_unique_dump.go` | `index` (23a moved them to `index_partition_replay.go`; table NOT NULL dump code and `dumpPredecessor` use them, and `table` sits below `partition`) |
 | `partitionHashReplayTarget` | `partition_dump.go` | `table` (24b; only `table_dump.go` uses it, and it needs nothing from the root) |
 | `addDumpDependency`, `dumpEventDependsOn` | `partition_dump_events.go` | `dump` (18b; graph operations on dump events, used by 14 table, inheritance and type dump sites) |
 | `remapPartitionDescriptor` | `partition_remap.go` | `stored` (22c; the catalog-wide reowner calls it, and `stored` sits below `partition`) |

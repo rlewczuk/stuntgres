@@ -329,7 +329,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = validateUniqueEntries(context.Background(), d, first, entries, "public", sqltype.OutputEnvironment{}, nil, false, ordering)
+			err = validateUniqueEntries(context.Background(), d, first, entries, "public", sqltype.OutputEnvironment{}, nil, nil, false, ordering)
 			violation := phase == "unmatched_null" || phase == "all_keys" || phase == "not_distinct_null_key"
 			if violation {
 				materializedConcurrentUnitError(t, err, "23505", `duplicate key value violates unique constraint "unit_u"`)

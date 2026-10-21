@@ -25,7 +25,8 @@ and never the engine.
 - **Relation storage** (`relation.go`): `Relation` (the version vector, the
   end root, the generation, the index-build origin and the lineage tokens),
   `RowVersion`, `RowEnd` and `DeletionRoot`. `IndexIdentity` names the
-  storage an index root was built from.
+  storage an index root was built from. `RowByID` finds a row by its stable
+  `RowID`, trying a captured position first.
 - **Lineage tokens** (`lineage.go`): `TruncateLineage` and
   `MaterializedLineage`. A token is a nonzero-size allocation compared by
   pointer; it retains no storage or rows. `SameTruncateLineage` is nil-safe.

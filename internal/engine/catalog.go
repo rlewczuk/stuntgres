@@ -1454,8 +1454,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		next.SetEpoch(e.catalog.state.Epoch() + 1)
 		e.catalog.state = next
 		e.storage.ReplaceRelationsLocked(relations)
-		e.exclusionPending = nil
-		e.exclusionGeneration++
+		e.exclusions.resetLocked()
 		e.storage.ReplaceSequencesLocked(sequences)
 		e.clearPersistentSequenceMemoryLocked()
 		e.catalog.nextRevision = nextRevision
@@ -1557,8 +1556,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
 	e.storage.ReplaceRelationsLocked(relations)
-	e.exclusionPending = nil
-	e.exclusionGeneration++
+	e.exclusions.resetLocked()
 	e.storage.ReplaceSequencesLocked(sequences)
 	e.clearPersistentSequenceMemoryLocked()
 	e.catalog.nextRevision = nextRevision

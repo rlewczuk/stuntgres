@@ -74,6 +74,24 @@ and approximate.
 | Partitioned indexes | `partition_index_attach.go`, `partition_index_drop.go`, `partition_unique.go` | 1,090 | 390 | 581 |
 | **Total** | 47 files | 10,475 | 3,090 | about 5,300 |
 
+**Re-measured at `c02c9d97e` (23a, step 1).** Declaration lines total
+9,893 (file lines 10,502, within 10% of the table). Clean lines were 4,289,
+not 3,090: the 22a coverage cut and the 11e preparation seam had landed, so
+34 more declarations were clean before 23a started. The columns below are
+total / clean declaration lines before 23a and after it (23a's file names;
+the new `index_*` files count with their sub-area).
+
+| Sub-area | Before 23a | After 23a |
+|---|---:|---:|
+| Build, keys, programs | 2,041 / 1,312 | 2,041 / 1,469 |
+| CONCURRENTLY and waits | 324 / 44 | 359 / 84 |
+| Publication, transport, snapshots, ALTER TYPE rebuild | 2,286 / 1,036 | 2,438 / 1,709 |
+| Write-time maintenance | 1,219 / 350 | 1,223 / 350 |
+| Unique and exclusion enforcement | 1,620 / 412 | 1,682 / 609 |
+| DDL, maintenance, presentation | 1,330 / 614 | 1,304 / 764 |
+| Partitioned indexes | 1,073 / 521 | 1,107 / 661 |
+| **Total** | 9,893 / 4,289 | 10,154 / 5,646 |
+
 Index files filed elsewhere: `domain_alter_index_outputs.go` (87 lines,
 `reownDomainIndexOutputs` clean) comes here in 23b (the typedef notes send
 it here). `domain_alter_indexes.go` (`stageDomainIndexGenerationsLocked`)
@@ -567,14 +585,116 @@ listed above. The checks in §8.3 pass.
 
 ## Status
 
-- [ ] 23a — In place: renames, registries, cuts (linear item 82)
+- [x] 23a — In place: renames, registries, cuts (linear item 82)
 - [ ] 23b — `index` created and clean set moved (linear item 83)
 - [ ] 23c — Host refined (docs only; linear item 84)
 - [ ] 23d — Handler decisions moved (linear item 85)
 
 Outstanding aliases: none yet.
 
+### 23a record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-INDEX-IN-PLACE`, rebased on
+`92ce8c794`. No aliases. Measured at `c02c9d97e` with `reach` over the 47
+inventory files under their 23a names (gains are clean declaration lines):
+
+| Commit | Change | Gain |
+|---|---|---:|
+| `61d7f49b6` | Renames and moves (step 2) | +77 (moves into the set) |
+| `36cdc6168` | Registries (step 3) | +105 (new registry methods) |
+| `98ee18fcf` | Cut a: validators over `access.View` and an environment | +613 |
+| `dec8ce2ea` | Cut b: `prepareIndexPublication` a function | +193 |
+| `b29db018c` | Cut c: index evolution functions | +107 |
+| `79bc16332` | Cut d: `indexDescriptorStage` | +106 |
+| `040604526` | Cut e: layout capture and transport split | +173 |
+
+Clean went from 4,289 to 5,646 declaration lines (196 to 243 declarations).
+
+- **Moves.** As step 2 lists, plus `partitionReplayOnlyExclusion` (the
+  replay predicates call it; the partition prompt is updated).
+  `partitionRowHistory.nextRow` moved with its type. `delete.go` renamed a
+  local `storage` to `store` so `storage.RowByID` resolves.
+- **Registries.** `indexWaitRegistry` (`index_wait.go`; `admitLocked`,
+  `clearLocked`, `endOwnerLocked`, `clearAllLocked`, `lookupLocked`) and
+  `exclusionRegistry` (`exclusion_registry.go`; `installLocked`,
+  `projectionLocked` (the clone), `ownLocked` (the shared read savepoint
+  capture and the nondeferrable key read take today), `removeLocked`,
+  `restoreLocked`, `resetLocked`, `scanLocked`, `currentLocked`). Fields
+  `Engine.indexWaits` and `Engine.exclusions`. All six generation
+  increments keep their place. Exclusion, concurrent-index, savepoint
+  exclusion, `unique_lifetime` and `index_hash_cancellation` units passed
+  with `RACE=1`.
+- **Cut a.** A nil environment means trusted publication: a nil view
+  becomes `(nil, nil)`, the engine-less "trusted replacement" view
+  `prepareIndexPublication` built becomes `(&view, nil)`, a live view
+  `(&view, env)`. No caller built an engine-less view for another reason.
+  Per-pair validators take `*access.View` (no struct copy per pair).
+  `disclosureEnv` maps an `*AuthorizationView`; `indexDisclosureEnv`
+  (`index_disclosure.go`) adds `exec.AdmissionAuthority` and
+  `TypeDiagnosticNames(access.View)`, which `*AuthorizationView`
+  implements, so ALTER TYPE builds and publication name types exactly as
+  before without a closure. `relationDropOwner` also takes view and
+  environment, so `indexMaintenanceGrant.check` is clean. Table 24a had
+  already converted `uniqueKeyDetailAllowed` the same way. Where the
+  environment is the caller's view rather than its recaptured or
+  runtime-owner copy, nothing changes: `View.Effective` consults the
+  environment only for namespace descriptors, and key disclosure asks only
+  about the parent relation and its columns.
+- **Kept dirty (user decision).** `exclusionScan` and `uniqueConflict` keep
+  their `AuthorizationView`: an environment there boxes the view, one heap
+  allocation per exclusion probe and per ON CONFLICT hit. 23d settles them
+  behind `index.WriteHost`.
+- **Cut b.** Deviation: the root adapter `Engine.prepareIndexRoots` reads
+  the catalog and recaptures the view before the call, instead of passing
+  a read function, because the recapture needs the view first.
+  `RoutineAuthority` is still the recaptured `*AuthorizationView`
+  (`routineAuthorityView` type-asserts it). Same heap moves as before.
+- **Cut c.** Deviation: not over `indexCoverageReader`. The selector
+  `indexEvolutionInput` reads `indexEvolutionReader` (`removed`,
+  `replacement`), which `*CatalogStage` implements and the provider's stage
+  branches delegate to; `applyIndexEvolution` (the old
+  `dropProvider.evolveIndex`) and `evolveIndexes` write
+  `indexEvolutionTarget` (`*dropProvider`; new `evolutionBase` and
+  `removeIndex`). `evolveStageIndexesLocked` builds a provider only for an
+  affected index, so the zero-allocation tests for untouched parents pass.
+- **Cut d.** `indexDescriptorStage` = `ddl.Stage` +
+  `RenameStagedDescriptor` + `StageBase` (new `*CatalogStage` method).
+- **Cut e.** `captureIndexLayouts` (root, takes `Engine.mu`) and
+  `transportCapturedIndexLayouts` (pure) over `indexLayoutCapture`;
+  `transportIndexLayouts` composes them. `transportEmptyIndexStorage`
+  records candidates through a callback (`CatalogStage.recordIndexCandidate`
+  for TRUNCATE).
+- **Open questions.** `rowPublication` is built by
+  `transaction_publication.go`, filled by `prepareRowPublication`, and read
+  only by `mergeIndexRoot`, `mergeHashIndexRoot`, `publicationSlot` and
+  `prepareIndexPublication`; 23b can move it. The 10e question was settled
+  in planning.
+- **Tests.** No test moved or was deleted. Root unit tests follow the new
+  signatures and fields (`e.exclusions.pending`, `e.indexWaits.waits`,
+  `e.prepareIndexRoots`, view and environment arguments).
+- **Checks.** Targeted units per commit (registry units also with
+  `RACE=1`); quickcheck passed at the final tip; the prompt's reference
+  selection passed in quick mode and with `REFERENCE=1`, except three
+  `/postgres` leaves of `TestReferenceAlterAddConstraintDiagnostics` (55000
+  "cannot create not-null constraint"), which fail the same way on a clean
+  `92ce8c794` snapshot (NOT NULL oracle drift). racecheck, finalcheck and
+  bench skipped at user request (no startup change).
+
 ### Notes for later steps
+
+- 23b layering: `index_partition_replay.go` still calls
+  `partitionPreservedReplayLocal` (with `partitionPreservedReplayChild`,
+  `partitionReplayNameCompare`, `partitionIndexPreservedInvalid` and
+  `partitionDumpIndexBacking`, `partition_invalid_dump.go`), and
+  `partitionNeedsRowHistory` calls `partitionHashReplayTarget`, which the
+  table prompt sends to `table` (24b), above `index`. 23b must move that
+  chain into `index` (it is clean catalog reading) or leave these
+  predicates in the root.
+- 23d: `exclusionScan` and `uniqueConflict` still hold `AuthorizationView`
+  (see the 23a record); give `WriteHost` the key-disclosure check.
+- 23b: `indexDisclosureEnv`, `indexEvolutionReader`/`Target`,
+  `indexDescriptorStage` and the registries have unexported methods; the
+  root types implementing them need exported ones once the interfaces move.
 
 - Step 24 (`table`) imports `index` for `columnTransformation`, the
   constraint-index staging and the replay-shape predicates; 23c decides

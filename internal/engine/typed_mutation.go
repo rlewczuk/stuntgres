@@ -232,7 +232,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	if rewrite || len(mutation.transforms) != 0 {
 		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		builds, err := validateAlterIndexBuilds(&indexEvaluation, auth, e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil, rewrite)
+		builds, err := validateAlterIndexBuilds(&indexEvaluation, auth.View, disclosureEnv(&auth), e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil, rewrite)
 		if err != nil {
 			return err
 		}

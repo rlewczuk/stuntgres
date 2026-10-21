@@ -164,14 +164,14 @@ func (e *Engine) stageUsingIndex(op *session.Operation, stage *CatalogStage, par
 	return stagePreparedUsingIndex(op, stage, parent, prepared)
 }
 
-func stagePreparedUsingIndex(op *session.Operation, stage *CatalogStage, parent *catalog.Relation, prepared *usingIndexPreparation) (*catalog.Relation, error) {
+func stagePreparedUsingIndex(op *session.Operation, stage indexDescriptorStage, parent *catalog.Relation, prepared *usingIndexPreparation) (*catalog.Relation, error) {
 	if prepared == nil || prepared.parent != parent {
 		return nil, ids.ErrCatalogReplaced
 	}
 	index, clone := prepared.index, prepared.replacement
 	current := stage.Get(index.Address())
 	if current == nil {
-		current = stage.Base.Get(index.Address())
+		current = stage.StageBase().Get(index.Address())
 	}
 	if current != index {
 		return nil, ids.ErrCatalogReplaced
@@ -182,7 +182,7 @@ func stagePreparedUsingIndex(op *session.Operation, stage *CatalogStage, parent 
 	if prepared.err != nil {
 		return nil, prepared.err
 	}
-	if stage.Base.Get(index.Address()) == nil {
+	if stage.StageBase().Get(index.Address()) == nil {
 		// Preserve the existing TYPE remint's original removal/name observation.
 		key := catalog.DescriptorNameKey(clone)
 		stage.RenameStagedDescriptor(catalog.DescriptorNameKey(index), clone, key)

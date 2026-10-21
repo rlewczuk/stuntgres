@@ -3,8 +3,11 @@ package engine
 import (
 	"fmt"
 	"slices"
+
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -179,7 +182,7 @@ func indexAttributeAffected(definition *catalog.IndexDefinition, attribute int32
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterIndexBuilds(evaluation *exec.Context, auth AuthorizationView, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
+func validateAlterIndexBuilds(evaluation *exec.Context, view access.View, env indexDisclosureEnv, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
 	ctx := evaluation.Context
 	if parent.Partition != nil {
 		return nil, nil
@@ -220,15 +223,14 @@ func validateAlterIndexBuilds(evaluation *exec.Context, auth AuthorizationView, 
 	if err != nil {
 		return nil, err
 	}
-	auth.Catalog = candidate
-	auth.Recapture(auth.Catalog)
+	view.Recapture(candidate)
 	evaluation.Catalog, evaluation.Output = candidate, output
 	named := false
 	for _, index := range indexes {
 		var capture *indexBuildCapture
 		if index.SQLIndex.HasRuntimeDomainConversion() && !named {
 			var err error
-			evaluation.Input.TypeDiagnosticName, err = auth.engine.captureTypeDiagnosticName(auth)
+			evaluation.Input.TypeDiagnosticName, err = env.TypeDiagnosticNames(view)
 			if err != nil {
 				return nil, err
 			}
@@ -242,7 +244,7 @@ func validateAlterIndexBuilds(evaluation *exec.Context, auth AuthorizationView, 
 			return nil, err
 		}
 		if index.SQLIndex.Valid || index.SQLIndex.Constraint != nil {
-			if err := validateUniqueRoot(ctx, parent, index, root, schema, output, &auth, true); err != nil {
+			if err := validateUniqueRoot(ctx, parent, index, root, schema, output, &view, env, true); err != nil {
 				return nil, err
 			}
 		}
@@ -313,4 +315,11 @@ func prepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, 
 		retainIndexBuild(changes, index, baseline, root)
 	}
 	return evaluation.Context.Err()
+}
+
+type columnTransformation struct {
+	attribute    int32
+	expression   expr.Expr
+	dependencies []catalog.ExpressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
+	rewrite      bool
 }

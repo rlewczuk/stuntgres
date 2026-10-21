@@ -139,7 +139,7 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 		return storage.RowVersion{}, false, nil
 	}
 	for _, rows := range [][]storage.RowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], stored.Versions} {
-		row, _, found := rowByID(rows, candidate.Row, -1)
+		row, _, found := storage.RowByID(rows, candidate.Row, -1)
 		if !found {
 			continue
 		}

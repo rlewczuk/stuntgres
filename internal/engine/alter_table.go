@@ -731,7 +731,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return Result{}, err
 	}
 	indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: e.stageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	indexBuilds, err := validateAlterIndexBuilds(&indexEvaluation, disclosure, e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes, rewrite)
+	indexBuilds, err := validateAlterIndexBuilds(&indexEvaluation, disclosure.View, disclosureEnv(&disclosure), e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes, rewrite)
 	if err != nil {
 		return Result{}, err
 	}

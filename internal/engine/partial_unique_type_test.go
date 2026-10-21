@@ -42,7 +42,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				writes = []storage.RowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
-			roots, err := validateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.auth, f.auth.Catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.Attributes[3], rewrite: true}}, nil, nil, true)
+			roots, err := validateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.auth.View, disclosureEnv(&f.auth), f.auth.Catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.Attributes[3], rewrite: true}}, nil, nil, true)
 			if overlay == "none" || overlay == "member_successor" {
 				if roots != nil {
 					t.Fatal("failed TYPE returned baseline")

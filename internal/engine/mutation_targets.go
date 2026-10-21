@@ -271,7 +271,7 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 		if row.Born == 0 {
 			captured = data.Own[ref.Address]
 		}
-		if _, _, found := rowByID(captured, row.Row, -1); !found {
+		if _, _, found := storage.RowByID(captured, row.Row, -1); !found {
 			return errors.New("stuntgres: replacement is outside its candidate view")
 		}
 	}

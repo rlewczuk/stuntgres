@@ -11,19 +11,6 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-// A captured physical position is only a hint; arbitration is by stable RowID.
-func rowByID(rows []storage.RowVersion, id ids.RowID, hint int) (storage.RowVersion, int, bool) {
-	if hint >= 0 && hint < len(rows) && rows[hint].Row == id {
-		return rows[hint], hint, true
-	}
-	for i, row := range rows {
-		if row.Row == id {
-			return row, i, true
-		}
-	}
-	return storage.RowVersion{}, 0, false
-}
-
 // A replacement merge never changes a prefix retained by an earlier view.
 // Insert-only commands retain the existing amortized append path.
 func mergePrivateRows(old, stage []storage.RowVersion, replacing bool) []storage.RowVersion {

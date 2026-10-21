@@ -164,7 +164,7 @@ func retiredAuthorityEqual(a, b *restoredHistoryAuthority) bool {
 }
 func retiredResourceCounts(e *Engine) [7]int {
 	e.mu.Lock()
-	counts := [7]int{len(e.visibility.Entries), len(e.indexBuildWaits), len(e.exclusionPending)}
+	counts := [7]int{len(e.visibility.Entries), len(e.indexWaits.waits), len(e.exclusions.pending)}
 	e.mu.Unlock()
 	lockState := e.locks.Inspect()
 	counts[3] = len(lockState.Owners)

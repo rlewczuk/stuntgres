@@ -32,7 +32,7 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		return false, false, false, false, false, fmt.Errorf("stuntgres: relation %s.%s is not an index", catalog.QuoteIdentifier(schema), catalog.QuoteIdentifier(name))
 	}
 	ready, valid, live := index.SQLIndex.PublicationState()
-	wait, admitted := e.indexBuildWaits[address]
+	wait, admitted := e.indexWaits.lookupLocked(address)
 	admitted = admitted && wait.owner.Domain() == e.catalog.Domain && wait.owner.Epoch() == e.catalog.state.Epoch() && live && !valid
 	older := admitted && ready && wait.kind == indexWaitOlderSnapshots
 	writers := admitted && wait.kind == indexWaitWriters

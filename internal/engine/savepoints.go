@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -22,7 +21,7 @@ func captureSavepoint(t *session.TransactionOwner, name string) session.Savepoin
 	}
 	e := engineOf(t.Session)
 	e.mu.Lock()
-	projection := e.exclusionPending[t.Ticket]
+	projection := e.exclusions.ownLocked(t.Ticket)
 	e.mu.Unlock()
 	t.Session.Mu.Lock()
 	identity := t.Session.Authorization.State
@@ -43,15 +42,7 @@ func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, s
 	e.mu.Lock()
 	exclusion := exclusionMarkOrZero(mark.Exclusion)
 	ownerExtensionOf(t).exclusionModes = exclusion.modes
-	if exclusion.projection == nil {
-		delete(e.exclusionPending, t.Ticket)
-	} else {
-		if e.exclusionPending == nil {
-			e.exclusionPending = make(map[*lock.Ticket]*exclusionProjection)
-		}
-		e.exclusionPending[t.Ticket] = exclusion.projection
-	}
-	e.exclusionGeneration++
+	e.exclusions.restoreLocked(t.Ticket, exclusion.projection)
 	e.reconcileSerializableWritesLocked(t)
 	e.mu.Unlock()
 }
@@ -185,12 +176,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.Session.Settings.CurrentDeferrable = t.Deferrable
 			exclusion := exclusionMarkOrZero(mark.Exclusion)
 			ownerExtensionOf(t).exclusionModes = exclusion.modes
-			if exclusion.projection == nil {
-				delete(e.exclusionPending, t.Ticket)
-			} else {
-				e.exclusionPending[t.Ticket] = exclusion.projection
-			}
-			e.exclusionGeneration++
+			e.exclusions.restoreLocked(t.Ticket, exclusion.projection)
 			e.reconcileSerializableWritesLocked(t)
 			e.enrollSerializableLocked(t.Ref, t.Isolation)
 			t.TruncateSavepoints(index + 1)

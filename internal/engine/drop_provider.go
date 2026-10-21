@@ -89,7 +89,7 @@ func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *Statemen
 
 func (p *dropProvider) replacement(address ids.ObjectAddress) catalog.Descriptor {
 	if p.stage != nil {
-		return p.stage.Get(address)
+		return p.stage.replacement(address)
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
 		if slot := prepared.slots[address]; slot.descriptor != 0 {
@@ -122,8 +122,7 @@ func (p *dropProvider) descriptor(address ids.ObjectAddress) catalog.Descriptor 
 
 func (p *dropProvider) removed(address ids.ObjectAddress) bool {
 	if p.stage != nil {
-		_, removed := p.stage.Removal(address)
-		return removed
+		return p.stage.removed(address)
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
 		if prepared.slots[address].removed {
@@ -391,7 +390,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 		p.observe(old.Address())
 		if old.RelationKind != catalog.CompositeRelation && old.RelationKind != catalog.ForeignRelation {
 			p.owner.mu.Lock()
-			err := p.evolveIndexes(old.Address(), nil)
+			err := evolveIndexes(p, old.Address(), nil)
 			p.owner.mu.Unlock()
 			if err != nil {
 				return err
@@ -715,6 +714,14 @@ func (p *dropProvider) liveDescriptor(address ids.ObjectAddress) catalog.Descrip
 		return nil
 	}
 	return p.projectedDescriptor(address)
+}
+
+// evolutionBase is the catalog the pass started from.
+func (p *dropProvider) evolutionBase() catalog.Read { return p.base }
+
+// removeIndex removes the index at address from the pass.
+func (p *dropProvider) removeIndex(address ids.ObjectAddress) error {
+	return p.removeObjectLocked(p.owner.catalog.Domain.Ref(p.base.Epoch(), address), false)
 }
 
 func (p *dropProvider) terminalCleanup() bool {

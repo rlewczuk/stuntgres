@@ -126,19 +126,19 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 		return false, errors.New("stuntgres: deletion is outside its candidate view")
 	}
 	rows := s.ownWrites[candidate.Ref.Address]
-	storage := e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address)
-	if storage == nil {
+	store := e.privateStorageLocked(s.owner.Catalog, candidate.Ref.Address)
+	if store == nil {
 		return false, errors.New("stuntgres: relation storage is missing")
 	}
 	if !candidate.Own {
-		rows = storage.Versions
+		rows = store.Versions
 	}
-	original, slot, found := rowByID(rows, candidate.Row, candidate.Ordinal)
+	original, slot, found := storage.RowByID(rows, candidate.Row, candidate.Ordinal)
 	relation, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(candidate.Ref.Address)
 	if !found || !ok || len(original.Values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
-	if !visibility.LiveVersion(original, e.visibility.CommitSeq(), storage.Ends, s.ownDeletes[candidate.Ref.Address]) {
+	if !visibility.LiveVersion(original, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[candidate.Ref.Address]) {
 		return false, nil
 	}
 	candidate.Version, candidate.Ordinal = original.Version, slot
@@ -350,7 +350,7 @@ func (s *StatementScope) latestDeleteRow(candidate visibility.DeleteCandidate) (
 	if candidate.Own {
 		rows = s.ownWrites[candidate.Ref.Address]
 	}
-	row, _, found := rowByID(rows, candidate.Row, candidate.Ordinal)
+	row, _, found := storage.RowByID(rows, candidate.Row, candidate.Ordinal)
 	if !found {
 		return storage.RowVersion{}, false, errors.New("stuntgres: invalid deletion predecessor")
 	}

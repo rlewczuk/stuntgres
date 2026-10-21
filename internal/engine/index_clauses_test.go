@@ -78,7 +78,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 	successor.Base = 1
 	successor.Version = 4
 	successor.Values = []sqltype.Value{integer(1), integer(2), sqltype.String(types[sqltype.Text], "changed")}
-	merged, err := mergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index, root.Entries, &rowPublication{writes: []storage.RowVersion{successor}}, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	merged, err := mergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, index, root.Entries, &rowPublication{writes: []storage.RowVersion{successor}}, false, true, false, "", sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 		if len(root.Entries) != 2 || len(root.Entries[0].Keys) != 1 {
 			t.Fatal(root)
 		}
-		err = validateUniqueRoot(ctx, parent, index, root, "public", sqltype.OutputEnvironment{}, nil, false)
+		err = validateUniqueRoot(ctx, parent, index, root, "public", sqltype.OutputEnvironment{}, nil, nil, false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Detail != "Key (a)=(1) already exists." {
 			t.Fatal("INCLUDE weakened actual unique root", err)
@@ -374,7 +374,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	// This is a deliberately reduced but valid key-construction catalogue:
 	// namespace descriptors are needed for UNIQUE diagnostics, not nonunique
 	// ordering/provider/shape validation or replacement materialization.
-	roots, err := e.prepareIndexPublication(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, snapshot, snapshot, relations, nil, nil, nil, nil, false, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, snapshot, snapshot, relations, nil, nil, nil, nil, false, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only replacement required unrelated namespace metadata or materialized roots", roots, err)
 	}
@@ -385,7 +385,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	broken.SQLIndex = &definition
 	invalid := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, index.Address(): &broken}, nil)
 	for _, materialize := range []bool{false, true} {
-		if _, err := e.prepareIndexPublication(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, snapshot, invalid, relations, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil, nil, nil); err == nil {
+		if _, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, snapshot, invalid, relations, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil, nil, nil); err == nil {
 			t.Fatal("phase switch weakened actual index definition validation", materialize)
 		}
 	}

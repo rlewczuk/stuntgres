@@ -448,7 +448,7 @@ Outstanding aliases: none yet.
 - 21a (regobj): put the `scalarRenderer.record*` methods in
   `scalar_renderer.go` (22a created it), not `default.go` (done).
 - Index 23a: the reader interface is `indexCoverageReader`
-  (`partition_index_attach.go`); `catalogCoverage` is the plain-catalog
+  (`index_partition_attach.go` since 23a); `catalogCoverage` is the plain-catalog
   implementation.
 
 - Step 27 (`view`) loses `rule_tree_mapper.go`, `rule_binding_map.go`,

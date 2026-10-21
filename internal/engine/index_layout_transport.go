@@ -76,33 +76,46 @@ func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, change
 	if len(stage.indexesOrZero().layouts) == 0 {
 		return writes, false, nil
 	}
-	type capture struct {
-		lineage indexLayoutLineage
-		root    *storage.IndexRoot
+	captures, err := captureIndexLayouts(evaluation, stage, changes, parent, sourceStore, targetStore)
+	if err != nil {
+		return nil, false, err
 	}
-	var captures []capture
+	return transportCapturedIndexLayouts(evaluation, changes, captures, sourceStore, targetStore, sourceWrites, writes)
+}
+
+// indexLayoutCapture is one layout lineage of a parent and the index root it
+// transports, captured under Engine.mu.
+type indexLayoutCapture struct {
+	lineage indexLayoutLineage
+	root    *storage.IndexRoot
+}
+
+// captureIndexLayouts takes Engine.mu to check the stage's epoch and capture
+// the lineages of parent with their committed or private source roots.
+func captureIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes *session.Journal, parent *catalog.Relation, sourceStore, targetStore *storage.Relation) ([]indexLayoutCapture, error) {
+	var captures []indexLayoutCapture
 	e := stage.owner
 	e.mu.Lock()
 	if e.catalog.state.Epoch() != stage.Base.Epoch() {
 		e.mu.Unlock()
-		return nil, false, ids.ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	for address, lineage := range stage.indexesOrZero().layouts {
 		if lineage.source == nil || lineage.target == nil || lineage.sourceParent == nil || lineage.targetParent == nil {
 			e.mu.Unlock()
-			return nil, false, ids.ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if lineage.targetParent.Address() != parent.Address() {
 			continue
 		}
 		if lineage.target.SQLIndex.Parent != parent.Address() || !indexLayoutInputsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) || !indexLayoutInputsUnchanged(lineage.target, lineage.targetParent, parent) {
 			e.mu.Unlock()
-			return nil, false, ids.ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		target, ok := evaluation.Catalog.Relation(address)
 		if !ok || !sameIndexKeySemantics(target, lineage.target) {
 			e.mu.Unlock()
-			return nil, false, ids.ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		root := e.storage.IndexRoots[address]
 		if private := journalIndexesOrZero(changes).uniqueRoots[address]; private != nil {
@@ -117,7 +130,7 @@ func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, change
 			}
 			if !pinned || candidate.root != private || (!candidate.matchesIndex(lineage.source, sourceStore) && !candidate.matchesIndex(lineage.target, targetStore)) {
 				e.mu.Unlock()
-				return nil, false, ids.ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			root = private
 		} else {
@@ -131,16 +144,22 @@ func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, change
 			}
 			if !ok || !sameIndexKeySemantics(source, lineage.source) || sourceStore == nil || current != sourceStore.IndexIdentity() || current.Generation != sourceStore.Generation || current.Ends != sourceStore.Ends || len(current.Versions) != len(sourceStore.Versions) {
 				e.mu.Unlock()
-				return nil, false, ids.ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 		}
 		if root == nil {
 			e.mu.Unlock()
-			return nil, false, fmt.Errorf("stuntgres: layout projection is missing its source index root")
+			return nil, fmt.Errorf("stuntgres: layout projection is missing its source index root")
 		}
-		captures = append(captures, capture{lineage: lineage, root: root})
+		captures = append(captures, indexLayoutCapture{lineage: lineage, root: root})
 	}
 	e.mu.Unlock()
+	return captures, nil
+}
+
+// transportCapturedIndexLayouts moves the captured roots and private row
+// outputs to the target layout. It runs without Engine.mu.
+func transportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Journal, captures []indexLayoutCapture, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
 	if len(captures) == 0 {
 		return writes, false, nil
 	}
@@ -282,8 +301,9 @@ func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *
 
 // A real whole-storage deletion has no SQL index inputs. Rebind its empty
 // physical artifacts to the new incarnation rather than retaining old pins or
-// evaluating declarations during publication.
-func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *session.Journal, stage *CatalogStage, address ids.ObjectAddress, store *storage.Relation) error {
+// evaluating declarations during publication. record, when set, receives each
+// retained candidate for the catalog stage.
+func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *session.Journal, record func(ids.ObjectAddress, indexRootCandidate), address ids.ObjectAddress, store *storage.Relation) error {
 	parent, ok := snapshot.Relation(address)
 	if !ok || store == nil || len(store.Versions) != 0 {
 		return ids.ErrCatalogReplaced
@@ -314,11 +334,8 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			root = newLogicalIndexRoot(index.SQLIndex, nil)
 		}
 		retainIndexBuild(changes, index, store, root)
-		if stage != nil {
-			if stage.indexesOrZero().candidates == nil {
-				stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
-			}
-			stage.indexes().candidates[index.Address()] = journalIndexesOrZero(changes).candidates[index.Address()]
+		if record != nil {
+			record(index.Address(), journalIndexesOrZero(changes).candidates[index.Address()])
 		}
 	}
 	return ctx.Err()
