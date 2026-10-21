@@ -84,7 +84,7 @@ holds `*Engine`, so code that takes it is dirty even when it only reads its
 - `roleStore` and its methods (77): root (role publication).
 - Pure ownership helpers (`ownershipRoot`, `ownedRoots`,
   `ownershipRelationLocks`, `ownedMembershipCandidate`, `ownedPolicies`;
-  about 140): `access` (B6).
+  about 140): `access` (B6, done: `access.OwnershipRoot` and the others).
 - Grant records: `columnGrantRequest`, `objectGrantChange`, `grantWarning`
   (33): `role`.
 - Role diagnostics: `roleDiagnostic`, `roleConnectionLimitError`,

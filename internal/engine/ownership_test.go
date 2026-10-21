@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -145,16 +146,16 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	for _, d := range base.Descriptors() {
 		switch d.Kind() {
 		case ids.DatabaseObject:
-			if !ownershipRoot(base, d) {
+			if !access.OwnershipRoot(base, d, routine.OperatorSeeded) {
 				t.Fatal("represented database missing from ownership roots", d)
 			}
 		case ids.NamespaceObject:
 			expected := d.Address().ObjectID == ids.PublicNamespaceOID
-			if ownershipRoot(base, d) != expected {
+			if access.OwnershipRoot(base, d, routine.OperatorSeeded) != expected {
 				t.Fatal("public exception or protected catalog namespace misclassified", d)
 			}
 		case ids.RelationObject, ids.TypeObject, ids.CollationObject:
-			if ownershipRoot(base, d) {
+			if access.OwnershipRoot(base, d, routine.OperatorSeeded) {
 				t.Fatal("immutable builtin executable ownership root", d)
 			}
 		}

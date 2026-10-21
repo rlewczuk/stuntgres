@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -131,7 +132,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 			if provider.removed(a) {
 				continue
 			}
-			if target.ClassID == ids.NamespaceClassID && descriptor.Namespace() == target && ownershipRoot(provider.base, descriptor) {
+			if target.ClassID == ids.NamespaceClassID && descriptor.Namespace() == target && access.OwnershipRoot(provider.base, descriptor, routine.OperatorSeeded) {
 				edge := domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)}
 				edge.relation, _ = descriptor.(*catalog.Relation)
 				direct = append(direct, edge)

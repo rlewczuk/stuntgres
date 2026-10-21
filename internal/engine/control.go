@@ -6,6 +6,7 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/regobj"
@@ -359,7 +360,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if physicalConstructor != nil {
 				break
 			}
-			if rowSecurityActions(s.Actions) {
+			if access.RowSecurityActions(s.Actions) {
 				break
 			}
 			if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {

@@ -149,7 +149,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	}
 	exhausted := *d
 	exhausted.ObjectRevision = ids.DefinitionRevision(^uint64(0))
-	exhaustedNext := rowSecurityFlags(&exhausted, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}})
+	exhaustedNext := access.RowSecurityFlags(&exhausted, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}})
 	exhaustedScope := &StatementScope{op: op, owner: &session.TransactionOwner{}}
 	e.mu.Lock()
 	if _, err := e.stageRowSecurityFlagsLocked(exhaustedScope, op, auth, &exhausted, exhaustedNext); err == nil || err.Error() != "stuntgres: definition revision exhausted" {
@@ -171,14 +171,14 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	old := *d
 	old.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "retained", Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Ref: d.Owner}}, Using: policyPayloadOf(expression), Check: policyPayloadOf(expression)}}
 	actions := []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}, {Action: parser.DisableRowSecurity}}
-	next := rowSecurityFlags(&old, actions)
+	next := access.RowSecurityFlags(&old, actions)
 	if next == &old || next.Security.RLSEnabled || !next.Security.RLSForced || old.Security.RLSEnabled || old.Security.RLSForced {
 		t.Fatal("independent flags/old snapshot")
 	}
 	if &next.Security.Policies[0] != &old.Security.Policies[0] || policyExpressionOf(next.Security.Policies[0].Using) != expression || policyExpressionOf(next.Security.Policies[0].Check) != expression || next.Security.Policies[0].OID != oid {
 		t.Fatal("flag action copied or changed immutable policy payload")
 	}
-	if rowSecurityFlags(next, []parser.AlterTableAction{{Action: parser.DisableRowSecurity}, {Action: parser.ForceRowSecurity}}) != next {
+	if access.RowSecurityFlags(next, []parser.AlterTableAction{{Action: parser.DisableRowSecurity}, {Action: parser.ForceRowSecurity}}) != next {
 		t.Fatal("no-op copied descriptor")
 	}
 	next.ObjectRevision++
@@ -246,7 +246,7 @@ func TestRLSBaseCancellationAndLocks(t *testing.T) {
 	e, _, done, d := policyUnitFixture(t)
 	defer done()
 	base := e.CatalogRead()
-	next := rowSecurityFlags(d, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}})
+	next := access.RowSecurityFlags(d, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}})
 	next.ObjectRevision++
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)

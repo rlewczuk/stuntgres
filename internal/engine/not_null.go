@@ -135,7 +135,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		command.Actions = work
 		s = &command
 	}
-	if scope.inheritance.alter == nil && !rowSecurityActions(s.Actions) && catalog.InheritanceParticipant(auth.Catalog, old) {
+	if scope.inheritance.alter == nil && !access.RowSecurityActions(s.Actions) && catalog.InheritanceParticipant(auth.Catalog, old) {
 		return e.alterInheritanceLocked(scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.inheritance.alter == nil || !scope.inheritance.alter.descendant {
@@ -146,11 +146,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if err := verifyAlterPrimaryPrerequisites(old, s.Actions); err != nil {
 		return fail(err)
 	}
-	if rowSecurityActions(s.Actions) {
+	if access.RowSecurityActions(s.Actions) {
 		if err := validateAlterTablespaceMove(destination); err != nil {
 			return fail(err)
 		}
-		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, rowSecurityFlags(old, s.Actions))
+		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, access.RowSecurityFlags(old, s.Actions))
 	}
 	changes := scope.owner.Catalog.Clone()
 	if scope.inheritance.alter != nil {
@@ -452,7 +452,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		}
 	}
 	changedValues := len(transformations) != 0 || len(storedReplacements) != 0
-	next = rowSecurityFlags(next, s.Actions)
+	next = access.RowSecurityFlags(next, s.Actions)
 	next, err = scope.finishInheritanceAlterCandidate(old, next)
 	if err != nil {
 		return Result{}, err
