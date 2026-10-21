@@ -286,7 +286,7 @@ func mergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			if deletion.Own {
 				continue
 			}
-			row, _, found := rowByID(p.root, id, deletion.Ordinal)
+			row, _, found := storage.RowByID(p.root, id, deletion.Ordinal)
 			if !found || row.Version != deletion.Version {
 				return nil, fmt.Errorf("stuntgres: invalid hash deletion predecessor")
 			}

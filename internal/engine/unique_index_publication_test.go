@@ -243,7 +243,7 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.Object
 	want := make([]storage.IndexEntry, len(rows))
 	nextPosition := len(f.stores[f.parent.Address()].Versions)
 	for i, row := range rows {
-		_, position, found := rowByID(f.stores[f.parent.Address()].Versions, row.Row, -1)
+		_, position, found := storage.RowByID(f.stores[f.parent.Address()].Versions, row.Row, -1)
 		if !found {
 			position = nextPosition
 			nextPosition++

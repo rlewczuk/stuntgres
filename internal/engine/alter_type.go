@@ -19,13 +19,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type columnTransformation struct {
-	attribute    int32
-	expression   expr.Expr
-	dependencies []catalog.ExpressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
-	rewrite      bool
-}
-
 type alterTypePreparation struct {
 	usage              sqltype.Usage
 	transformation     columnTransformation

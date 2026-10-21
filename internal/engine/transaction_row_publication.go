@@ -64,7 +64,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 					predecessor = p.root[slot]
 				}
 			} else {
-				predecessor, slot, found = rowByID(p.root, row.Row, -1)
+				predecessor, slot, found = storage.RowByID(p.root, row.Row, -1)
 			}
 			if !found || predecessor.Version != row.Base || !visibility.LiveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: stale update predecessor")
@@ -99,7 +99,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			if candidate.Own {
 				predecessors = p.writes
 			}
-			predecessor, _, found := rowByID(predecessors, id, candidate.Ordinal)
+			predecessor, _, found := storage.RowByID(predecessors, id, candidate.Ordinal)
 			if !found || predecessor.Version != candidate.Version || candidate.Own && predecessor.Base != candidate.Base || len(predecessor.Values) != len(p.relation.Columns) {
 				return errors.New("stuntgres: invalid deletion predecessor")
 			}

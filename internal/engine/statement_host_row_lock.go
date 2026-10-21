@@ -88,7 +88,7 @@ func (h *statementHost) LatestQueryRow(leaf exec.Leaf, candidate storage.RowVers
 	if candidate.Born == 0 {
 		rows = s.ownWrites[leaf.Ref.Address]
 	}
-	current, _, found := rowByID(rows, candidate.Row, hint)
+	current, _, found := storage.RowByID(rows, candidate.Row, hint)
 	if !found {
 		return storage.RowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
 	}

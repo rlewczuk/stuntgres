@@ -4,15 +4,14 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/extension"
-	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/regobj"
-
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -1037,4 +1036,11 @@ func remapQuoteOwner(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef) expr
 	}
 	origin.Owner = ref(origin.Owner)
 	return annotated.WithAnnotation(origin)
+}
+
+func remapLikeExpression(in *analyze.LikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
+	if in.RowRef == nil {
+		in.RowRef, in.Slots = in.RowMapper(destination, authority)
+	}
+	return remapScalarExpression(node, nil, in.RowRef, in.Slots, nil)
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -42,32 +43,6 @@ func captureUsingIndexDefinitions(reader catalog.DefinitionReader, parent *catal
 		}
 	}
 	return captured, nil
-}
-
-// This is the incumbent USING INDEX NN constructor, shared by admission and
-// ordinary staging. Only actual eligible KEY attributes participate; INCLUDE
-// attributes and the physical index/constraint are never propagated.
-func usingIndexNotNullCandidate(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
-	if !captured.syntax.Primary {
-		return parent, nil
-	}
-	previous := op.Definition
-	op.Definition = reader
-	defer func() { op.Definition = previous }()
-	next := parent
-	for _, attribute := range captured.attributes {
-		slot := next.IndexForAttribute(attribute)
-		if slot < 0 {
-			return nil, ids.ErrCatalogReplaced
-		}
-		action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: next.Columns[slot].Name}}
-		var err error
-		next, err = notNullCandidate(op, view, next, action, notNullDirect)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return next, nil
 }
 
 type usingIndexPreparation struct {

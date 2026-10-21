@@ -83,11 +83,6 @@ func partitionPreservedReplayLocal(view catalog.Read, index *catalog.Relation) b
 	return false
 }
 
-func partitionReplayUsingIndex(view catalog.Read, index *catalog.Relation) bool {
-	table := view.MustRelation(index.SQLIndex.Parent)
-	return usingIndexDump(index) && partitionReplayVirtualUniqueRoot(view, index) == nil || table.Partition == nil && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Kind == catalog.UniqueBackingKind && partitionPreservedReplayLocal(view, index)
-}
-
 // An index subtree, not all table-local providers/rows, is required before the
 // reattachment. Deferred local origins and their data consumers follow it.
 func partitionReplayIndexReady(view catalog.Read, graph dump.Graph, event dump.Event, index *catalog.Relation) {

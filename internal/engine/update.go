@@ -152,7 +152,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 	if candidate.Born == 0 {
 		current = s.ownWrites[ref.Address]
 	}
-	row, _, found := rowByID(current, candidate.Row, hint)
+	row, _, found := storage.RowByID(current, candidate.Row, hint)
 	if !found {
 		return storage.RowVersion{}, false, errors.New("stuntgres: invalid update predecessor")
 	}

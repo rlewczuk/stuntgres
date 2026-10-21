@@ -529,10 +529,10 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	current, hint := store.Versions, candidate.slot
-	if own, _, found := rowByID(s.ownWrites[ref.Address], candidate.Row, -1); found {
+	if own, _, found := storage.RowByID(s.ownWrites[ref.Address], candidate.Row, -1); found {
 		return own, visibility.LiveVersion(own, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
 	}
-	row, _, found := rowByID(current, candidate.Row, hint)
+	row, _, found := storage.RowByID(current, candidate.Row, hint)
 	if !found {
 		return storage.RowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
 	}

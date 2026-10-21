@@ -57,3 +57,17 @@ type RowEnd struct {
 
 // DeletionRoot holds the committed end markers of a relation, by row.
 type DeletionRoot struct{ Rows map[ids.RowID]RowEnd }
+
+// RowByID finds the row with id in rows, trying hint first. A captured
+// physical position is only a hint; arbitration is by stable RowID.
+func RowByID(rows []RowVersion, id ids.RowID, hint int) (RowVersion, int, bool) {
+	if hint >= 0 && hint < len(rows) && rows[hint].Row == id {
+		return rows[hint], hint, true
+	}
+	for i, row := range rows {
+		if row.Row == id {
+			return row, i, true
+		}
+	}
+	return RowVersion{}, 0, false
+}

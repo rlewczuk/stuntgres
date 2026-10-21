@@ -130,7 +130,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *session.Session, *prepared
 		parent = address
 	}
 	_, update := preparedBoundaryUpdate(t, entry, parent)
-	predecessor, _, found := rowByID(e.storage.Relations[parent].Versions, update.Row, -1)
+	predecessor, _, found := storage.RowByID(e.storage.Relations[parent].Versions, update.Row, -1)
 	if !found || predecessor.Version != update.Base || update.Born != 0 {
 		t.Fatal("fixture did not retain the genuine live UPDATE base/version")
 	}
@@ -694,7 +694,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 		deletion: entry.deletes[parent], generation: store.Generation, singleSlot: -1,
 	}
 	updatePosition, update := preparedBoundaryUpdate(t, entry, parent)
-	predecessor, predecessorSlot, found := rowByID(publication.root, update.Row, -1)
+	predecessor, predecessorSlot, found := storage.RowByID(publication.root, update.Row, -1)
 	if !found || predecessor.Version != update.Base || !visibility.LiveVersion(predecessor, entry.frontier, publication.ends, nil) {
 		t.Fatal("structural fixture omitted a live genuine UPDATE predecessor")
 	}

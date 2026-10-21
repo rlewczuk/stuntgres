@@ -80,7 +80,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				t.Helper()
 				p := rowPublication{address: f.parent.Address(), relation: f.parent, store: f.store, root: f.store.Versions, ends: f.store.Ends, writes: writes, singleSlot: -1}
 				if deleted != 0 {
-					old, position, ok := rowByID(p.root, deleted, -1)
+					old, position, ok := storage.RowByID(p.root, deleted, -1)
 					if !ok {
 						t.Fatal("missing deletion", deleted)
 					}

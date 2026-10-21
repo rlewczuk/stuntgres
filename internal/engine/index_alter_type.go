@@ -3,8 +3,10 @@ package engine
 import (
 	"fmt"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -313,4 +315,11 @@ func prepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, 
 		retainIndexBuild(changes, index, baseline, root)
 	}
 	return evaluation.Context.Err()
+}
+
+type columnTransformation struct {
+	attribute    int32
+	expression   expr.Expr
+	dependencies []catalog.ExpressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
+	rewrite      bool
 }

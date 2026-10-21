@@ -237,7 +237,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	var row storage.RowVersion
 	var found bool
 	if candidate.committed {
-		row, _, found = rowByID(store.Versions, candidate.row.Row, candidate.position)
+		row, _, found = storage.RowByID(store.Versions, candidate.row.Row, candidate.position)
 	} else {
 		if slot, ok := s.insertConflict.affectedRows[candidate.row.Row]; ok {
 			row, found = s.stage.rows[ref.Address][slot], true
