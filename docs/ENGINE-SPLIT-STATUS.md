@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `d10cc959d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 99, 103 and 107). Steps 8–17 were
+Last verified against `master` at `879848377` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 99, 103, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -18,7 +18,6 @@ as another broad item (§8); only 68 is broad. They touch different
 files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
-- **Seams:** 111 (control 30a).
 - **Stored-SQL package:** 68 (stored 22b, **broad**).
 - **Upper features, packages:** 104 (role 28b).
 - **Upper features, refined:** 96 (fdw 26c, docs only).
@@ -66,6 +65,8 @@ Item 107 (DML 29a) is done; DML 29b (item 108) still waits for 83, 87, 91
 and 100.
 Item 103 (role 28a) is done, so role 28b (item 104) is ready; role 28c
 (item 105) then needs 104 and 61.
+Item 111 (control 30a) is done; control 30b (item 112) still waits for
+70, 83, 87, 91 and 100.
 
 ## Task tree
 
@@ -524,7 +525,10 @@ Item 103 (role 28a) is done, so role 28b (item 104) is ready; role 28c
   - [ ] 29d — Executors moved
 - [ ] **Step 30 — `control`** ([prompt](ENGINE-SPLIT-control.md); 30a needs
   18c; 30b needs the Part A moves and 14e, 15e)
-  - [ ] 30a — Restore hook table replaces the statement switch, in place
+  - [x] 30a — Restore hook table replaces the statement switch, in place
+    (`dc839f171`, `192993651`, `fbcdc7fc9`, `22ef19659`, `6dc277b11`,
+    `2eb9396e7`, `ba1fc1495`, `c22c9b9fb`, `80cc70d38`, `050e10e07`,
+    `26ecb355d`, then the docs commit)
   - [ ] 30b — Host refined (docs only)
   - [ ] 30c — `control` created and drivers moved
 - [x] **Second-round follow-ups in existing packages** (each in its step's
@@ -1179,8 +1183,16 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
 109. [ ] DML 29c: host refined (docs only) — [dml](ENGINE-SPLIT-dml.md) 29c ·
      needs 108, 85, 89, 93, 97, 102
 110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109
-111. [ ] Control 30a: Restore hook table, in place —
-     [control](ENGINE-SPLIT-control.md) 30a · needs 57
+111. [x] Control 30a: Restore hook table, in place —
+     [control](ENGINE-SPLIT-control.md) 30a · needs 57 (`dc839f171`,
+     `192993651`, `fbcdc7fc9`, `22ef19659`, `6dc277b11`, `2eb9396e7`,
+     `ba1fc1495`, `c22c9b9fb`, `80cc70d38`, `050e10e07`, `26ecb355d`, then
+     the docs commit) · `restoreRun` run state and the ordered
+     `restoreHooks` table (66 entries: decode, before, admit, prepare,
+     after, finish); switch #3 is one admit entry per statement kind;
+     `control.go` 731 → 225 lines · byte-identical dump smoke, selected
+     unit, `RACE=1` Control and dual-mode proof and quickcheck passed;
+     racecheck/finalcheck skipped at user request
 112. [ ] Control 30b: host refined (docs only) —
      [control](ENGINE-SPLIT-control.md) 30b · needs 111, 70, 83, 87, 91, 95,
      100, 65, 80, 81

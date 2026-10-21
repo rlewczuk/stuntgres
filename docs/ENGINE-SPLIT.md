@@ -2091,7 +2091,7 @@ package-specific scope. This section holds the rules every session follows.
 | 27 | [`ENGINE-SPLIT-view.md`](ENGINE-SPLIT-view.md) | 27b: 22c, 24b; 27c: 20b | 27a done in place (dead code, drop diagnostics split, `dropCascadeNames`, view-write lowering and rule expansion off `Engine`, opaque rule authority, access helpers over `access.View`, RLS and rule-action value groups; racecheck/finalcheck skipped at user request); 27b–27d planned |
 | 28 | [`ENGINE-SPLIT-role.md`](ENGINE-SPLIT-role.md) | 28b: 21b, B6; 28c: 20b | 28a done in place (renames, `access.View` cuts, ownership stage interfaces, grant, default-privilege and owned plans split; racecheck/finalcheck skipped at user request); 28b–28d planned |
 | 29 | [`ENGINE-SPLIT-dml.md`](ENGINE-SPLIT-dml.md) | 29a: 23a, 24a; 29b: Part A of 19, 23–27; 29c: Part B of 23–27 | 29a done in place (`executeInsertLocked` in `insert.go`, misplaced helpers to their owners' files, executors as functions over the scope, `statementMutation` value groups; racecheck/finalcheck skipped at user request); 29b–29d planned |
-| 30 | [`ENGINE-SPLIT-control.md`](ENGINE-SPLIT-control.md) | 30a: 18c; 30b: 22d, 21b, 14e, 15e, Part A of 23–27 | planned (30a–30c) |
+| 30 | [`ENGINE-SPLIT-control.md`](ENGINE-SPLIT-control.md) | 30a: 18c; 30b: 22d, 21b, 14e, 15e, Part A of 23–27 | 30a done in place (`restoreRun` run state; ordered `restoreHooks` table with decode, before, admit, prepare, after and finish entries; switch #3 is one admit entry per statement kind; racecheck/finalcheck skipped at user request); 30b–30c planned |
 
 The follow-ups of §6 (F6, 5i, 5j, 10e, 11e, 11f, 12f, 13f, B6, 14e, 15e)
 are sub-steps of the existing prompt files above.

@@ -63,7 +63,7 @@ private restore stage, and install the replacement catalog atomically.
 |---|---|---|
 | Switch #1: Dump descriptor kinds | was `control.go:265`–`800` | done in 18c: `dumpCollectors` and `dumpRelationCollectors` (`dump_collect.go`, `dump_collect_relation.go`) |
 | Switch #2: Dump phase emission | was `control.go:1095`–`1190` | done in 18c: `dumpPhaseEmitters` (`dump_emit.go`) and `dumpSections` (`dump_sections.go`) |
-| Switch #3: Restore statement allow-list and per-statement hooks | `control.go:276`–`512` (since 18c), plus the hook calls around it | 30a hook table |
+| Switch #3: Restore statement allow-list and per-statement hooks | was `control.go:276`–`512` (since 18c), plus the hook calls around it | done in 30a: `restoreHooks` (`restore_hooks.go`), admit entries in `restore_admit.go` |
 | `remapPreparedCatalog` (descriptor-kind switch over owners and ACLs) | `principal_remap.go:16` | `catalog` 5i (done: `catalog.RemapPrincipals`); mapper construction stays in the root |
 | `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `catalog_expression_reown.go:15` | `stored` 22c (`ReownExpressions`) |
 | `remapViewRuleOIDs` | `catalog_expression_reown.go:312` | stays in the root: it allocates OIDs (the `stored` prompt) |
@@ -323,13 +323,92 @@ stage and the atomic replacement. The checks in §8.3 pass.
 
 ## Status
 
-- [ ] 30a — Restore hook table in place
+- [x] 30a — Restore hook table in place (`dc839f171`, `192993651`, `fbcdc7fc9`, `22ef19659`, `6dc277b11`, `2eb9396e7`, `ba1fc1495`, `c22c9b9fb`, `80cc70d38`, `050e10e07`, `26ecb355d`, then the docs commit). Re-measured at `e6f9c647b`: Restore matched the step list
+  above. `Engine.Restore` is now the driver (about 100 lines of
+  `control.go`, which fell from 731 to 225 lines): read, parse with the
+  decode entries, pair domain replays, start the stage session, walk the
+  phases, `replaceCatalog`.
+  - **Run state** (`restore_run.go`): `restoreRun` holds the stage, the
+    script, the decoded records, every capture carried between statements
+    and `cur restoreStatement` (index, physical constructor, physical
+    index base, CREATE TABLE foreign keys, owner directive snapshot),
+    reset before each statement. `startCaptures` allocates the maps after
+    the session starts, as before (the history authority reads the target
+    catalog's archive high water there).
+  - **Hook table** (`restore_hooks.go`): `restoreHook` and the ordered
+    `restoreHooks`, 66 entries: 3 decode, 8 before, 29 admit, 8 prepare,
+    13 after, 5 finish. Each entry has one phase and the table is grouped
+    by phase; entry names start with the owning group (`table:`,
+    `inheritance:`, `partition:`, `typedef:`, `extension:`, `view:`,
+    `routine:`) or name the statement kind (admit) or the driver step
+    (owner directives, replay flags). Walkers take the table as a
+    parameter.
+  - **Corrections to the sketch above**, each needed to keep today's
+    behavior: `decode` takes the run and the comment position (domain
+    replay records keep their end offset); `before` returns `consumed`
+    (the routine replay directive and the inherited and physical self
+    foreign key captures skip the statement); `admit` answers
+    `restoreNotHandled`, `restoreAdmitted` or `restoreConsumed` (UPDATE
+    and DELETE repairs do not execute); a new `prepare` phase holds the
+    steps between admission and execution (recipe data closure, NOT NULL
+    and generation pairing, replay flags, the partition CHECK, USING INDEX
+    and UNIQUE leases and the captured-unique rejection). Execution, the
+    domain-replay INSERT dispatch, the post-execute resets, rows close and
+    `DetachNotices` stay in the driver (`restoreRun.execute`).
+  - **Entries** (bodies unchanged in their feature files):
+    `restore_admit.go` (allow-list; `restoreAdmitKind`,
+    `restoreAdmitChecked`, `restoreAdmitReplayed` adapters; the unhandled
+    kind text is `restoreRejection`), `restore_steps_table.go`,
+    `restore_steps_inheritance.go`, `restore_steps_features.go`
+    (decoders, partition, typedef, extension, view, routine),
+    `restore_owner_directive.go`, and in `restore_replay.go`
+    `prepareRestoreReplayFlags` with `restoreTableDestination` (the 16
+    trusted-destination kinds as one switch).
+  - **Bug caught during the work:** the commit-2 extraction turned the
+    INSERT target loop's inner `continue` (skip a non-subscript step)
+    into "consume the statement". No existing test noticed; it was fixed
+    in that commit before integration and
+    `TestRestoreAdmitsInsertTargetIndirection` pins it.
+  - Tests added: `restore_hooks_test.go` (walker semantics on synthetic
+    tables, and the INSERT regression). None moved or deleted.
+  - Verification: targeted engine units (the prompt's restore, replay,
+    remap and controls files plus every `*_test.go` naming `Restore(`,
+    `Dump(`, `ReplaceCatalog` or `restoreStage`), the byte-identity smoke
+    (the 18c `dumpsmoke`, baseline re-taken on each new master) and
+    quick-mode `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)`
+    and `^TestReferenceControl` after every commit and after the rebase
+    onto `879848377`; `RACE=1` for `^TestReferenceControl` with the
+    control-transaction, publication and hook units; quickcheck;
+    `REFERENCE=1` for `^TestReferenceControl`, `TestReferenceDumpRoundTrip`,
+    `TestReferenceTypeCoreDumpRoundTrip`,
+    `TestReferenceCollationSeedNativeReplay` and
+    `TestReferenceCompositeAlterDumpReplay`; racecheck/finalcheck skipped
+    at user request. An independent review compared the final table and
+    every intermediate commit with the original loop and found no
+    behavior difference.
 - [ ] 30b — Host refined (docs only)
 - [ ] 30c — `control` created and the drivers moved
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (30a added none).
 
 ### Notes for later steps
+
+- 30b's moving set after 30a: the `Restore` driver and `restoreRun.execute`
+  (`control.go`), `restore_hooks.go`, `restore_run.go`, `restore_admit.go`,
+  `restore_steps_*.go`, `restore_owner_directive.go` and the replay-flag
+  entry in `restore_replay.go`.
+- `restoreRun` fields hold root records (`restoredForeignKeys`,
+  `restoredNotNull`, `restoredPhysicalNotNull`,
+  `physicalNotNullConstructor`, `restoredPhysicalForeignKeyProvider`,
+  `restoredGenerationRecipe`, `restoredHistoryAuthority`,
+  `partitionReplayTeardown`, `restoredInheritedOwner`,
+  `materializedSnapshot`), and every entry calls an `Engine` method on
+  `r.stage`. 30b question 1 therefore depends on those records reaching
+  their packages or becoming opaque to `control`.
+- `after` entries take the root `Result` but read only `created`; the
+  sketch's narrow `Outcome` can replace it. Entries communicate only
+  through `restoreRun`, so table order is part of the contract (see the
+  `restoreHooks` comment).
 
 - Item 112 (30b) needs items 80 (routine 14e) and 81 (typedef 15e): the
   moved drivers call the routine and type dump statements, which must live
