@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -86,7 +87,7 @@ func (e *Engine) resolveGrantRoutine(op *session.Operation, v AuthorizationView,
 		if !target.SignatureSpecified {
 			return ids.ObjectRef{}, sqlError("42883", fmt.Sprintf(`could not find a %s named "%s"`, noun, display))
 		}
-		display += "(" + grantRoutineArgumentDisplay(v, inputTypes[:inputCount]) + ")"
+		display += "(" + grantRoutineArgumentDisplay(v.View, v, inputTypes[:inputCount]) + ")"
 		return ids.ObjectRef{}, sqlError("42883", noun+" "+display+" does not exist")
 	}
 	if count > 1 {
@@ -104,21 +105,23 @@ func (e *Engine) resolveGrantRoutine(op *session.Operation, v AuthorizationView,
 		return ids.ObjectRef{}, sqlError("0A000", "routine privileges are unsupported for unimplemented routines in embedded mode")
 	}
 	if !routine.GrantRoutineKindMatches(kind, p.RoutineKind) {
-		return ids.ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(v, inputTypes[:inputCount])+") is not a "+noun)
+		return ids.ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(v.View, v, inputTypes[:inputCount])+") is not a "+noun)
 	}
 	return e.catalog.Domain.Ref(v.Catalog.Epoch(), address), nil
 }
 
-func grantRoutineArgumentDisplay(v AuthorizationView, inputs []ids.OID) string {
-	path, _ := v.engine.referencePath(v)
+// grantRoutineArgumentDisplay renders the argument types of a missing or
+// mismatched GRANT routine target, qualifying user types the path hides.
+func grantRoutineArgumentDisplay(view access.View, env access.Environment, inputs []ids.OID) string {
+	path, _ := env.ReferencePath()
 	var display strings.Builder
 	for i, id := range inputs {
 		if i != 0 {
 			display.WriteString(", ")
 		}
-		typ := v.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
+		typ := view.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 		if typ.SQLType.IsUserDefined() {
-			display.WriteString(catalog.TypeDiagnosticNameAt(v.Catalog, typ, path))
+			display.WriteString(catalog.TypeDiagnosticNameAt(view.Catalog, typ, path))
 		} else {
 			display.WriteString(typ.SQLType.DiagnosticName())
 		}

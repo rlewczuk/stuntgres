@@ -227,15 +227,15 @@ func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 	auth.RoleRecord = graph
 	retained := e.roles.published
 	for _, reassign := range []bool{false, true} {
-		refs, protected, err := ownedSources(auth, []parser.RoleSpec{{Name: "postgres"}, {Name: "renamed_initial"}, {Name: "renamed_initial"}}, reassign)
+		refs, protected, err := ownedSources(auth.View, []parser.RoleSpec{{Name: "postgres"}, {Name: "renamed_initial"}, {Name: "renamed_initial"}}, reassign)
 		if err != nil || len(refs) != 2 || !refs[ordinary] || !refs[initial] || protected != initial {
 			t.Fatal("canonical initial source or deduplicated union", refs, protected, err)
 		}
-		refs, protected, err = ownedSources(auth, []parser.RoleSpec{{Name: "postgres"}}, reassign)
+		refs, protected, err = ownedSources(auth.View, []parser.RoleSpec{{Name: "postgres"}}, reassign)
 		if err != nil || len(refs) != 1 || protected != (authorization.PrincipalRef{}) {
 			t.Fatal("ordinary familiar-name superuser was protected", refs, protected, err)
 		}
-		if _, _, err = ownedSources(auth, []parser.RoleSpec{{Name: "renamed_initial"}, {Name: "missing_source"}}, reassign); err == nil {
+		if _, _, err = ownedSources(auth.View, []parser.RoleSpec{{Name: "renamed_initial"}, {Name: "missing_source"}}, reassign); err == nil {
 			t.Fatal("initial protection masked late operand resolution")
 		}
 	}

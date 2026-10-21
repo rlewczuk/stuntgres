@@ -16,19 +16,19 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool) (map[authorization.PrincipalRef]bool, authorization.PrincipalRef, error) {
+func ownedSources(view access.View, specs []parser.RoleSpec, reassign bool) (map[authorization.PrincipalRef]bool, authorization.PrincipalRef, error) {
 	refs := make(map[authorization.PrincipalRef]bool, len(specs))
 	protected := authorization.PrincipalRef{}
 	for _, spec := range specs {
-		ref, err := authorization.MembershipRole(auth.Roles, auth.State, spec)
+		ref, err := authorization.MembershipRole(view.Roles, view.State, spec)
 		if err != nil {
 			return nil, authorization.PrincipalRef{}, err
 		}
-		role, err := auth.Roles.Descriptor(ref)
+		role, err := view.Roles.Descriptor(ref)
 		if err != nil {
 			return nil, authorization.PrincipalRef{}, err
 		}
-		allowed, err := auth.Roles.InheritsRole(auth.State.CurrentUser, ref)
+		allowed, err := view.Roles.InheritsRole(view.State.CurrentUser, ref)
 		if err != nil {
 			return nil, authorization.PrincipalRef{}, err
 		}
@@ -41,7 +41,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 			}
 			return nil, authorization.PrincipalRef{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: message, Detail: detail}
 		}
-		if (role.Predefined() || ref == auth.Owner.Principals.Principal(authorization.BootstrapPrincipalID)) && protected == (authorization.PrincipalRef{}) {
+		if (role.Predefined() || ref == view.Owner.Principals.Principal(authorization.BootstrapPrincipalID)) && protected == (authorization.PrincipalRef{}) {
 			protected = ref
 		}
 		refs[ref] = true
@@ -69,7 +69,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		specs = s.Sources
 		mode = s.Mode
 	}
-	sources, protected, err := ownedSources(auth, specs, reassign)
+	sources, protected, err := ownedSources(auth.View, specs, reassign)
 	if err != nil {
 		return fail(err)
 	}

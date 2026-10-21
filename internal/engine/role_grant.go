@@ -16,9 +16,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func grantWarning(op *session.Operation, relation, column string, requested, available authorization.Privileges, all, revoke bool) {
+// grantWarning is the WARNING GRANT and REVOKE raise when they grant or
+// revoke fewer privileges than requested; false when there is none.
+func grantWarning(relation, column string, requested, available authorization.Privileges, all, revoke bool) (sqlstate.Error, bool) {
 	if available == requested || available != 0 && all {
-		return
+		return sqlstate.Error{}, false
 	}
 	message, code := "no privileges were granted", "01007"
 	if available != 0 {
@@ -36,7 +38,7 @@ func grantWarning(op *session.Operation, relation, column string, requested, ava
 	} else {
 		message += fmt.Sprintf(` for column "%s" of relation "%s"`, column, relation)
 	}
-	op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
+	return sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message}, true
 }
 
 func (e *Engine) objectGrantTargets(op *session.Operation, v AuthorizationView, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
@@ -227,7 +229,10 @@ func (e *Engine) objectGrantLocked(op *session.Operation, v AuthorizationView, s
 			if prior := changed[address].descriptor; prior != nil {
 				d = prior
 			}
-			next, err := changeNonRelationGrant(op, v, d, s, grantees, principals, actor.Superuser, tableMask, tableAll)
+			next, warning, err := changeNonRelationGrant(op.Context(), v.View, d, s, grantees, principals, actor.Superuser, tableMask, tableAll)
+			if warning != nil {
+				op.EmitNotice(session.LevelWarning, *warning)
+			}
 			if err != nil {
 				return Result{}, err
 			}
@@ -298,7 +303,9 @@ func (e *Engine) objectGrantLocked(op *session.Operation, v AuthorizationView, s
 					return Result{}, sqlError("42501", "permission denied for "+noun+" "+relation.Name())
 				}
 			}
-			grantWarning(op, relation.Name(), "", targetMask, available, tableAll, s.Revoke)
+			if warning, ok := grantWarning(relation.Name(), "", targetMask, available, tableAll, s.Revoke); ok {
+				op.EmitNotice(session.LevelWarning, warning)
+			}
 			if available != 0 {
 				materialized := originalTable
 				if !materialized.Explicit {
@@ -374,7 +381,9 @@ func (e *Engine) objectGrantLocked(op *session.Operation, v AuthorizationView, s
 					return Result{}, sqlError("42501", fmt.Sprintf(`permission denied for column "%s" of relation "%s"`, column.name, relation.Name()))
 				}
 			}
-			grantWarning(op, relation.Name(), column.name, column.mask, available, column.mask == authorization.ColumnGrantPrivileges, s.Revoke)
+			if warning, ok := grantWarning(relation.Name(), column.name, column.mask, available, column.mask == authorization.ColumnGrantPrivileges, s.Revoke); ok {
+				op.EmitNotice(session.LevelWarning, warning)
+			}
 			// System attributes participate in release diagnostics, not native storage.
 			if column.sub <= 0 {
 				continue
