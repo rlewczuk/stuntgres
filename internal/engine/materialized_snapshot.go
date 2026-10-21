@@ -35,7 +35,9 @@ func materializedViewReadError(d *catalog.Relation) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`materialized view "%s" has not been populated`, d.Name()), Hint: "Use the REFRESH MATERIALIZED VIEW command."}
 }
 
-func (t *dumpRelation) emitMaterializedSnapshot(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
+// emitMaterializedSnapshot writes the materialized view t's snapshot record:
+// its population flag and the rows its table dump emits.
+func emitMaterializedSnapshot(ctx context.Context, t *dumpRelation, catalog catalog.Read, emit func(string) error) error {
 	var rows strings.Builder
 	if err := t.emitRows(ctx, catalog, func(line string) error { rows.WriteString(line); return nil }); err != nil {
 		return err
