@@ -29,7 +29,7 @@ func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots
 	// an inheritance edge actually requires fencing the closure.
 	participates := false
 	for _, root := range roots {
-		if table, ok := view.Relation(root); ok && root.SubID == 0 && inheritanceParticipant(view, table) {
+		if table, ok := view.Relation(root); ok && root.SubID == 0 && catalog.InheritanceParticipant(view, table) {
 			participates = true
 			break
 		}
@@ -52,7 +52,7 @@ func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots
 				return
 			}
 			tables = append(tables, address)
-			for _, child := range inheritanceChildren(view, address) {
+			for _, child := range catalog.InheritanceChildren(view, address) {
 				visit(child.Address())
 			}
 		}

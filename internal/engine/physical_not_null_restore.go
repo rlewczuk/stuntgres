@@ -107,7 +107,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *p
 		return nil, err
 	}
 	old, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || inheritanceHasChildren(auth.Catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
+	if !ok || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || catalog.InheritanceHasChildren(auth.Catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	seen := make(map[int32]bool, len(repairs))
@@ -248,7 +248,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 		return err
 	}
 	old := pair.current
-	if ref != pair.ref || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.Catalog, old.Address()) {
+	if ref != pair.ref || old.Partition != nil || old.Membership != nil || catalog.InheritanceHasChildren(auth.Catalog, old.Address()) {
 		e.mu.Unlock()
 		return reject()
 	}
@@ -286,7 +286,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 	next.ObjectRevision++
 	next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
 	if old.Inheritance != nil {
-		next.Inheritance = cloneInheritance(old.Inheritance)
+		next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 	}
 	removeDetachedNotNullMetadata(&next, old.Constraints.NotNull[index])
 	cause := &catalog.PhysicalNotNullCause{Kind: catalog.PhysicalNotNullImportFlag, Ref: ref, Origin: ref, Attribute: fact.attribute, RemovedNN: fact.oid, Usage: fact.usage}

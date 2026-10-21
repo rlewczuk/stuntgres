@@ -63,7 +63,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *sessio
 			next.ColumnMeta.Defaults[attribute] = definition
 		}
 		if next.Inheritance != nil {
-			next.Inheritance = cloneInheritance(old.Inheritance)
+			next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 			provenance := next.Inheritance.Columns[attribute]
 			provenance.ExplicitDefault = true
 			next.Inheritance.Columns[attribute] = provenance

@@ -580,7 +580,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 				seen[edge.address] = true
 			}
 		}
-		if edge.relation != nil && edge.address == edge.relation.Address() && hierarchyRelation(edge.relation) {
+		if edge.relation != nil && edge.address == edge.relation.Address() && catalog.HierarchyRelation(edge.relation) {
 			hierarchyTargets = append(hierarchyTargets, edge.address)
 		}
 	}
@@ -605,7 +605,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		}
 	}
 	for _, edge := range edges {
-		if scope != nil && edge.relation != nil && edge.address == edge.relation.Address() && hierarchyRelation(edge.relation) {
+		if scope != nil && edge.relation != nil && edge.address == edge.relation.Address() && catalog.HierarchyRelation(edge.relation) {
 			if err := scope.acquirePartitionDropLocks(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), edge.address)); err != nil {
 				return err
 			}

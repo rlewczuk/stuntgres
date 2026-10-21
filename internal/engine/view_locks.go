@@ -173,7 +173,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 	for _, ref := range refs {
 		e.mu.Lock()
 		d, _ := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-		unsupported := d != nil && hierarchyRelation(d) && modes[ref] != 0
+		unsupported := d != nil && catalog.HierarchyRelation(d) && modes[ref] != 0
 		e.mu.Unlock()
 		if unsupported {
 			return sqlError("0A000", "row locking partition hierarchies is unsupported")

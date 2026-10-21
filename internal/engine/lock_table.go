@@ -50,7 +50,7 @@ func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Rel
 		alternatives |= authorization.SelectPrivilege
 	}
 	if rights&alternatives != 0 {
-		if hierarchyRelation(d) {
+		if catalog.HierarchyRelation(d) {
 			return sqlError("0A000", "locking partition hierarchies is unsupported")
 		}
 		return nil

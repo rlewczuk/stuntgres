@@ -147,7 +147,7 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			}
 			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
-				next.Inheritance = cloneInheritance(old.Inheritance)
+				next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 				provenance := next.Inheritance.NotNull[constraint.Attribute]
 				provenance.Local = true
 				next.Inheritance.NotNull[constraint.Attribute] = provenance
@@ -166,13 +166,13 @@ func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			}
 			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
-				next.Inheritance = cloneInheritance(old.Inheritance)
+				next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 				provenance := next.Inheritance.NotNull[constraint.Attribute]
 				provenance.Local = true
 				next.Inheritance.NotNull[constraint.Attribute] = provenance
 				return &next, nil
 			}
-			if constraint.NotValid && a.NoInherit && !constraint.NoInherit && len(inheritanceChildren(view, old.Address())) != 0 {
+			if constraint.NotValid && a.NoInherit && !constraint.NoInherit && len(catalog.InheritanceChildren(view, old.Address())) != 0 {
 				return nil, sqlError("42P16", "constraint must be validated on child tables too")
 			}
 		}

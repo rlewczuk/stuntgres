@@ -89,7 +89,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		}
 		queryCreatePublish(t, e, remove)
 		stage, next := queryCreateStage(t, e, "c", 1)
-		next.Inheritance = cloneInheritance(c.Inheritance)
+		next.Inheritance = catalog.CloneInheritance(c.Inheritance)
 		queryCreatePublish(t, e, stage)
 		if next.Address() == old.Address || e.storage.Relations[next.Address()] == e.storage.Relations[old.Address] {
 			t.Fatal("replacement did not mint a fresh physical identity")

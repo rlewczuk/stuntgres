@@ -75,7 +75,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 	if kind == 0 {
 		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.Name())))
 	}
-	if (kind == 'n' || kind == 'c') && inheritanceParticipant(auth.Catalog, parent) {
+	if (kind == 'n' || kind == 'c') && catalog.InheritanceParticipant(auth.Catalog, parent) {
 		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)

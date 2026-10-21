@@ -145,7 +145,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	if len(event) != 1 || len(event[0].retiredNotNull) != 1 || len(event[0].retiredChecks) != 1 {
 		t.Fatal("actual DROP callback failed to capture removed facts", event)
 	}
-	graph := cloneInheritance(c.Inheritance)
+	graph := catalog.CloneInheritance(c.Inheritance)
 	inheritRetiredColumnConstraints(state, c, graph, c.Attributes[c.Index["a"]])
 	if len(graph.NotNull[1].Retired) != 1 || len(graph.Checks["ck"].Retired) != 1 {
 		t.Fatal("recorded DROP failed to issue historical support")
@@ -157,7 +157,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 		{action: action, attribute: 1, retiredNotNull: []catalog.NotNullConstraint{{OID: p.Constraints.NotNull[0].OID + 100000, Name: "nn", Attribute: 1}}},
 	} {
 		state.events[p.Address()] = []inheritanceAlterEvent{bad}
-		g := cloneInheritance(c.Inheritance)
+		g := catalog.CloneInheritance(c.Inheritance)
 		inheritRetiredColumnConstraints(state, c, g, 1)
 		if len(g.NotNull[1].Retired) != 0 || len(g.Checks["ck"].Retired) != 0 {
 			t.Fatal("noncontributing event issued history", bad)
@@ -191,7 +191,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	}
 	// Retirement must not relax exact current provider OID/key validation.
 	forged := *current
-	forged.Inheritance = cloneInheritance(current.Inheritance)
+	forged.Inheritance = catalog.CloneInheritance(current.Inheritance)
 	live := forged.Inheritance.NotNull[1]
 	live.Origins = slices.Clone(live.Origins)
 	live.Origins[0].Constraint++

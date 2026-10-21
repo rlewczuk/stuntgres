@@ -83,7 +83,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	e := New()
 	p := inheritanceQueryUnitColumns(e, 22000, "a", "b")
 	c := inheritanceQueryUnitColumns(e, 22001, "extra", "b", "a")
-	layout, err := inheritanceQueryLayout(p, c)
+	layout, err := catalog.InheritanceQueryLayout(p, c)
 	if err != nil {
 		t.Fatal(err)
 	}

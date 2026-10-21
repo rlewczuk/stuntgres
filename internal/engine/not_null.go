@@ -71,7 +71,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		for i := range command.Actions {
 			if command.Actions[i].Action == parser.SetNotNull {
 				a := &command.Actions[i]
-				a.NoInherit = len(inheritanceChildren(auth.Catalog, old.Address())) != 0
+				a.NoInherit = len(catalog.InheritanceChildren(auth.Catalog, old.Address())) != 0
 				if slot, ok := old.Index[a.Column.Text]; ok {
 					for _, c := range old.Constraints.NotNull {
 						if c.Attribute == old.Attributes[slot] && c.NoInherit {
@@ -86,10 +86,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if partitionUniqueReplayAllowed(op, auth, s, old) {
 		return e.executePartitionUniqueReplayLocked(scope, op, auth, s, old)
 	}
-	if hierarchyRelation(old) && partitionExclusionAddActions(s) {
+	if catalog.HierarchyRelation(old) && partitionExclusionAddActions(s) {
 		return e.executePartitionExclusionAddLocked(scope, op, auth, s, old)
 	}
-	if hierarchyRelation(old) && partitionConstraintDropActions(old, s.Actions) {
+	if catalog.HierarchyRelation(old) && partitionConstraintDropActions(old, s.Actions) {
 		return e.executePartitionConstraintDropLocked(scope, auth, old, s)
 	}
 	if len(s.Actions) == 0 {
@@ -135,7 +135,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		command.Actions = work
 		s = &command
 	}
-	if scope.inheritance.alter == nil && !rowSecurityActions(s.Actions) && inheritanceParticipant(auth.Catalog, old) {
+	if scope.inheritance.alter == nil && !rowSecurityActions(s.Actions) && catalog.InheritanceParticipant(auth.Catalog, old) {
 		return e.alterInheritanceLocked(scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.inheritance.alter == nil || !scope.inheritance.alter.descendant {

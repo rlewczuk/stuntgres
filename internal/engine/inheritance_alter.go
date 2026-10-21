@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
@@ -34,18 +33,6 @@ type inheritanceAlterState struct {
 	types      []alterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
 }
 
-func cloneInheritance(graph *catalog.TableInheritance) *catalog.TableInheritance {
-	if graph == nil {
-		return nil
-	}
-	next := *graph
-	next.Parents = slices.Clone(graph.Parents)
-	next.Columns = maps.Clone(graph.Columns)
-	next.Checks = maps.Clone(graph.Checks)
-	next.NotNull = maps.Clone(graph.NotNull)
-	return &next
-}
-
 // Unlike the OF-type entry, ordinary propagation includes its named root.
 func inheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog.Relation {
 	selected := map[ids.ObjectAddress]*catalog.Relation{}
@@ -55,7 +42,7 @@ func inheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog
 			return
 		}
 		selected[d.Address()] = d
-		for _, child := range inheritanceChildren(view, d.Address()) {
+		for _, child := range catalog.InheritanceChildren(view, d.Address()) {
 			collect(child)
 		}
 	}
@@ -198,7 +185,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	children := inheritanceChildren(auth.Catalog, root.Address())
+	children := catalog.InheritanceChildren(auth.Catalog, root.Address())
 	if raw.Only {
 		for _, a := range raw.Actions {
 			if a.Action == parser.AddUnique && a.Unique.Primary && len(children) != 0 {
@@ -284,11 +271,11 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 		ref := original.lockedRef
 		ref.Address = old.Address()
 		state.descendant = index != 0
-		state.graph = cloneInheritance(old.Inheritance)
+		state.graph = catalog.CloneInheritance(old.Inheritance)
 		planned := actions
 		if cached := state.prepared[old.Address()]; cached != nil {
 			planned = cached.actions
-			state.graph = cloneInheritance(cached.graph)
+			state.graph = catalog.CloneInheritance(cached.graph)
 		} else if state.descendant {
 			var err error
 			planned, state.graph, err = e.inheritedAlterActions(state, old)
@@ -366,7 +353,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 }
 
 func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalog.Relation) ([]parser.AlterTableAction, *catalog.TableInheritance, error) {
-	graph := cloneInheritance(old.Inheritance)
+	graph := catalog.CloneInheritance(old.Inheritance)
 	view := state.definition.base
 	if state.stage != nil {
 		view = e.stageRead(state.stage)
@@ -541,7 +528,7 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.
 	}
 	graph := state.graph
 	if !state.descendant && next.Inheritance != nil {
-		graph = cloneInheritance(next.Inheritance)
+		graph = catalog.CloneInheritance(next.Inheritance)
 	}
 	view := scope.engine().stageRead(state.stage)
 	for i, attribute := range next.Attributes {

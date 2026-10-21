@@ -151,8 +151,8 @@ func TestInheritanceGraphDiamondChildren(t *testing.T) {
 	right.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{base.Address()}}
 	leaf.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{left.Address(), right.Address(), base.Address()}}
 	v := inheritanceUnitView(e, base, left, right, leaf)
-	got := inheritanceChildren(v, base.Address())
-	if len(got) != 3 || got[0] != left || got[1] != right || got[2] != leaf || len(inheritanceChildren(v, leaf.Address())) != 0 {
+	got := catalog.InheritanceChildren(v, base.Address())
+	if len(got) != 3 || got[0] != left || got[1] != right || got[2] != leaf || len(catalog.InheritanceChildren(v, leaf.Address())) != 0 {
 		t.Fatal(got)
 	}
 }

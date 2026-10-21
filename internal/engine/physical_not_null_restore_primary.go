@@ -79,7 +79,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *session.Operation, raw *pars
 		return nil, err
 	}
 	old := pair.current
-	if ref != pair.ref || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.Catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
+	if ref != pair.ref || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || catalog.InheritanceHasChildren(auth.Catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	for _, column := range definition.Columns {

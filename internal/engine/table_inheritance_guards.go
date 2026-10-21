@@ -14,7 +14,7 @@ import (
 // Direct UPDATE/DELETE targets use real command-local descendant admission.
 func inheritanceTargetGuard(view catalog.Read, relation *catalog.Relation) error {
 	if relation.View == nil {
-		if relation.RelationKind == catalog.TableRelation && inheritanceHasChildren(view, relation.Address()) {
+		if relation.RelationKind == catalog.TableRelation && catalog.InheritanceHasChildren(view, relation.Address()) {
 			return sqlError("0A000", "recursive table inheritance is unsupported")
 		}
 		return nil
@@ -104,11 +104,11 @@ func inheritanceColumnGuard(relation *catalog.Relation, name, operation string, 
 
 // Check prohibited inherited actions before admitting any member of a list;
 // no earlier action may evaluate defaults or stage a partial shape change.
-func inheritanceAlterActionsGuard(catalog catalog.Read, relation *catalog.Relation, actions []parser.AlterTableAction) error {
+func inheritanceAlterActionsGuard(view catalog.Read, relation *catalog.Relation, actions []parser.AlterTableAction) error {
 	if rowSecurityActions(actions) {
 		return nil
 	}
-	if !inheritanceParticipant(catalog, relation) {
+	if !catalog.InheritanceParticipant(view, relation) {
 		return nil
 	}
 	for _, action := range actions {

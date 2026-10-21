@@ -12,7 +12,7 @@ import (
 )
 
 func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, statement parser.Statement, d *catalog.Relation) error {
-	if !hierarchyRelation(d) {
+	if !catalog.HierarchyRelation(d) {
 		return nil
 	}
 	message := ""
@@ -78,7 +78,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 // These newly admitted mutation forms finish ordinary analysis and ACL checks,
 // but must not demand defaults, capture virtual storage or publish routed effects.
 func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) error {
-	if d == nil || !hierarchyRelation(d) {
+	if d == nil || !catalog.HierarchyRelation(d) {
 		return nil
 	}
 	switch syntax := statement.(type) {
@@ -174,7 +174,7 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partitionAppendCompatible(old, d) {
 		return ids.ErrCatalogReplaced
 	}
-	if hierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
+	if catalog.HierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
 		if s.partitionRelations == nil {
 			s.partitionRelations = make(map[ids.ObjectAddress]*catalog.Relation)
 		}

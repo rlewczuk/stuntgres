@@ -141,7 +141,7 @@ func (e *Engine) remapRetiredConstraints(next *catalog.State, previous map[ids.O
 		if !ok {
 			return fmt.Errorf("stuntgres: missing retired constraint owner")
 		}
-		graph := cloneInheritance(table.Inheritance)
+		graph := catalog.CloneInheritance(table.Inheritance)
 		remap := func(p catalog.InheritedConstraint, oldOID, newOID ids.OID) (catalog.InheritedConstraint, error) {
 			p.Retired = slices.Clone(p.Retired)
 			for i := range p.Retired {
@@ -250,7 +250,7 @@ func retireRebuiltCheckHistory(old, next *catalog.Relation) error {
 			return err
 		}
 		if graph == nil {
-			graph = cloneInheritance(next.Inheritance)
+			graph = catalog.CloneInheritance(next.Inheritance)
 		}
 		graph.Checks[c.Name] = replacement
 	}
@@ -291,7 +291,7 @@ func retireRebuiltNotNullHistory(old, next *catalog.Relation) error {
 			return err
 		}
 		if graph == nil {
-			graph = cloneInheritance(next.Inheritance)
+			graph = catalog.CloneInheritance(next.Inheritance)
 		}
 		graph.NotNull[fact.Attribute] = replacement
 	}
@@ -332,7 +332,7 @@ func releaseRetiredTypeConstraints(old *catalog.Relation, actions []parser.Alter
 			return
 		}
 		copy := *old
-		copy.Inheritance = cloneInheritance(old.Inheritance)
+		copy.Inheritance = catalog.CloneInheritance(old.Inheritance)
 		next = &copy
 	}
 	for _, fact := range old.Constraints.NotNull {

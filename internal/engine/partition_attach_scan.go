@@ -126,7 +126,7 @@ func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, paren
 	for _, job := range jobs {
 		constraints := make([]partitionAttachRowConstraint, 0, 2)
 		add := func(p *catalog.Relation, m *catalog.PartitionMembership) error {
-			layout, err := inheritanceQueryLayout(p, job.leaf)
+			layout, err := catalog.InheritanceQueryLayout(p, job.leaf)
 			if err != nil {
 				return err
 			}

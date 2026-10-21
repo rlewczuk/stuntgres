@@ -173,7 +173,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if !ok {
 		return fmt.Errorf("stuntgres: missing foreign-key parent")
 	}
-	if hierarchyRelation(child) || hierarchyRelation(parent) {
+	if catalog.HierarchyRelation(child) || catalog.HierarchyRelation(parent) {
 		return sqlError("0A000", "foreign keys involving partition hierarchies are unsupported")
 	}
 	if parent.RelationKind != catalog.TableRelation {

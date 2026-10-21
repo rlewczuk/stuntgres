@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func partitionAttachKindError(d *catalog.Relation) error {
@@ -50,7 +49,7 @@ func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relati
 	if child.Inheritance != nil && len(child.Inheritance.Parents) != 0 {
 		return sqlError("42809", "cannot attach inheritance child as partition")
 	}
-	if inheritanceHasChildren(view, child.Address()) {
+	if catalog.InheritanceHasChildren(view, child.Address()) {
 		return sqlError("42809", "cannot attach inheritance parent as partition")
 	}
 	parentNamespace := view.MustNamespace(parent.Namespace())
@@ -76,10 +75,6 @@ func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relati
 		}
 	}
 	return nil
-}
-
-func samePartitionColumnUsage(a, b sqltype.Usage) bool {
-	return a.Type == b.Type && a.Typmod == b.Typmod && a.Collation.ID == b.Collation.ID
 }
 
 func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, child *catalog.Relation) (*catalog.Relation, error) {

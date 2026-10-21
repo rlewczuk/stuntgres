@@ -519,7 +519,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		err = s.observePartitionRelationLocked(e, ref)
 		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
 			d, exists := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-			partitionDrop = exists && hierarchyRelation(d) && partitionConstraintDropActions(d, action.Actions)
+			partitionDrop = exists && catalog.HierarchyRelation(d) && partitionConstraintDropActions(d, action.Actions)
 		}
 	}
 	e.mu.Unlock()

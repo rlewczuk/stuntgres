@@ -24,7 +24,7 @@ func capturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View
 	source := &exec.Source{Ref: ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0)}
 	err := partitionPhysicalDescendants(catalogView, parent, func(leaf *catalog.Relation) error {
 		childRef := ref.Domain().Ref(ref.Epoch, leaf.Address())
-		layout, err := inheritanceQueryLayout(parent, leaf)
+		layout, err := catalog.InheritanceQueryLayout(parent, leaf)
 		if err != nil {
 			return err
 		}

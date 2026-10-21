@@ -29,7 +29,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 	next.Constraints.Check = slices.Clone(parent.Constraints.Check)
 	// The ordinary binder writes locality into this graph. A candidate must not
 	// mutate captured descriptors, including when a later descendant vetoes it.
-	next.Inheritance = cloneInheritance(parent.Inheritance)
+	next.Inheritance = catalog.CloneInheritance(parent.Inheritance)
 	ordinal := 0
 	for _, c := range parent.Constraints.Check {
 		if c.Ordinal >= ordinal {
@@ -80,7 +80,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 		}
 	}
 	if scope.inheritance.alter != nil && !scope.inheritance.alter.descendant && next.Inheritance != nil && len(inherited) != 0 {
-		graph := cloneInheritance(next.Inheritance)
+		graph := catalog.CloneInheritance(next.Inheritance)
 		for name := range inherited {
 			provenance := graph.Checks[name]
 			provenance.Local = true

@@ -21,7 +21,7 @@ func typedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAdd
 			return
 		}
 		result[table.Address()] = table
-		for _, child := range inheritanceChildren(view, table.Address()) {
+		for _, child := range catalog.InheritanceChildren(view, table.Address()) {
 			visit(child)
 		}
 	}
@@ -87,7 +87,7 @@ func typedPropagationOrder(view catalog.Read, source ids.ObjectAddress) []*catal
 			return
 		}
 		selected[table.Address()] = table
-		for _, child := range inheritanceChildren(view, table.Address()) {
+		for _, child := range catalog.InheritanceChildren(view, table.Address()) {
 			selectTable(child)
 		}
 	}
