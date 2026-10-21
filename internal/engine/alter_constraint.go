@@ -15,6 +15,8 @@ import (
 // Definition cooking is independent of stage ownership. Admission retains this
 // exact result; the sole physical pipeline installs it and scans rows once.
 func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (table.PreparedAddedChecks, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	prepared := table.PreparedAddedChecks{Old: parent, Next: parent, Raw: raw}
 	if len(raw) == 0 {
 		return prepared, nil
@@ -55,7 +57,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 			}
 		}
 	}
-	if err := e.bindColumnChecks(op, auth, raw, &next, scope.input, true, inherited); err != nil {
+	if err := (alterHost{ddlHost{e: e, op: op}, scope}).BindAddedChecks(auth, &next, raw, inherited); err != nil {
 		return prepared, err
 	}
 	if err := scope.inheritancePlan().OnlyCreatedConstraint(parent, &next); err != nil {
@@ -122,6 +124,8 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, 
 }
 
 func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if raw.Primary {
 		for _, c := range parent.Constraints.Unique {
 			if c.Primary {
@@ -151,9 +155,7 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 		}
 	}
 	next := *parent
-	e.mu.Lock()
 	err = index.StageUniqueDefinitions(ddlHost{e: e, op: op, stage: stage}, &next, []analyze.UniqueConstraint{{UniqueConstraint: definition}}, true)
-	e.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -161,14 +163,14 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 }
 
 func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	next := *parent
 	next.Constraints.ForeignKeys = slices.Clone(parent.Constraints.ForeignKeys)
 	if err := stage.Replace(&next); err != nil {
 		return nil, err
 	}
-	e.mu.Lock()
 	err := table.StageForeignKey(ddlHost{e: e, stage: stage}, auth, &next, *raw, target, supporting)
-	e.mu.Unlock()
 	if err != nil {
 		return nil, table.AlterCookingError(err)
 	}

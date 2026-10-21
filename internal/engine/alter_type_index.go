@@ -96,6 +96,8 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 }
 
 func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []table.AlterTypeIndex) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	for _, pending := range queue {
 		copy := *pending.Index
 		definition := *copy.SQLIndex
@@ -110,18 +112,14 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			return err
 		}
 		if pending.Predicate {
-			e.mu.Lock()
 			predicate, err := e.bindIndexPredicate(scope.op, scope.input, auth, parent, syntax[0].(*parser.CreateIndex).Predicate)
-			e.mu.Unlock()
 			if err != nil {
 				return err
 			}
 			definition.Predicate = predicate
 		}
 		for _, slot := range pending.Keys {
-			e.mu.Lock()
 			derived, _, err := e.bindIndexExpression(scope.op, scope.input, auth, parent, syntax[0].(*parser.CreateIndex).Keys[slot].Expression, nil)
-			e.mu.Unlock()
 			if err != nil {
 				return err
 			}

@@ -22,6 +22,9 @@ import (
 
 func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, table.AddedColumn, error) {
 	scope.routineAuth = auth
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	h := alterHost{ddlHost{e: e, op: op}, scope}
 	fail := func(err error) (*catalog.Relation, table.AddedColumn, error) { return nil, table.AddedColumn{}, err }
 	column := action.Definition
 	if column == nil {
@@ -49,9 +52,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 	if sequence.SerialTypeName(column.TypeName) != "" {
 		return fail(insertError("0A000", "ADD COLUMN serial declarations are unsupported", column.Pos))
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+	if auth.Catalog.Epoch() != h.LiveEpoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	var usage sqltype.Usage
@@ -95,17 +96,12 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 	added.Expression = node
 	added.Dependencies, added.Consumer = origin.Definition.Dependencies, origin.Consumer
 	if sqltype.ContainsDomainConstraints(usage.Type) && scope.input.TypeDiagnosticName == nil {
-		var err error
-		scope.input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
-		if err != nil {
+		if err := h.CaptureTypeDiagnosticName(auth); err != nil {
 			return fail(err)
 		}
 	}
 	if declaration.DefaultExpr != nil {
-		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-		binder.Query.Auth = &auth
-		binder.Consumer.DefaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
-		node, err := binder.BindDefault(declaration.DefaultExpr, definition)
+		node, err := h.BindDefault(auth, old, definition, declaration.DefaultExpr)
 		if err != nil {
 			return fail(table.AlterCookingError(err))
 		}

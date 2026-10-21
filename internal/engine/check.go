@@ -21,6 +21,7 @@ func (e *Engine) bindCreateChecks(op *session.Operation, auth AuthorizationView,
 	return e.bindColumnChecks(op, auth, table.CreateCheckSyntax(syntax), d, input, false, inherited)
 }
 
+// With altering (ALTER TABLE ADD CONSTRAINT) the caller holds Engine.mu.
 func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *catalog.Relation, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error {
 	if len(raw) == 0 {
 		return nil
@@ -67,17 +68,10 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 		binder.Query.Auth = &auth
 		binder.Query.Namespace = &ns
 		binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
-		if altering {
-			e.mu.Lock()
-			if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
-				e.mu.Unlock()
-				return ids.ErrCatalogReplaced
-			}
+		if altering && auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+			return ids.ErrCatalogReplaced
 		}
 		node, err := binder.BindBoolean(c.Expression, analyze.ProjectionContext, "CHECK")
-		if altering {
-			e.mu.Unlock()
-		}
 		if err != nil {
 			if altering {
 				err = table.AlterCookingError(err)

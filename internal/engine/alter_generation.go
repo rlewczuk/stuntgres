@@ -13,6 +13,8 @@ import (
 // The relation admission owner has already checked ownership and acquired AX.
 // Only detached generation maps enter the shared ALTER candidate pipeline.
 func (e *Engine) generationCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	name := action.Column.Text
 	if catalog.IsSystemColumn(name) {
 		return nil, 0, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, name))
@@ -53,8 +55,7 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *session.Operatio
 	if action.Generation == nil {
 		return nil, 0, fmt.Errorf("stuntgres: missing replacement generation expression")
 	}
-	namespace := e.generationNamespace(auth, &next)
-	replacement, err := e.bindGeneration(op, auth, &next, slot, action.Generation.Expression, scope.input, &namespace)
+	replacement, err := (alterHost{ddlHost{e: e, op: op}, scope}).BindGeneration(auth, &next, slot, action.Generation.Expression)
 	if err != nil {
 		// ALTER utility cooking has no semantic caret, including unsimplified
 		// virtual security checks. CREATE and lexer syntax positions are unchanged.

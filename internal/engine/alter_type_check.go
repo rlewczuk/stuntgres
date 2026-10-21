@@ -2,9 +2,7 @@ package engine
 
 import (
 	"slices"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -19,14 +17,11 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 	if len(queue) == 0 {
 		return next, nil, nil
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	h := alterHost{ddlHost{e: e, op: op}, scope}
 	replacement := *next
 	replacement.Constraints.Check = slices.Clone(next.Constraints.Check)
-	columns := make([]analyze.QueryColumn, len(next.Columns))
-	for i, column := range next.Columns {
-		columns[i] = analyze.QueryColumn{Descriptor: column, Slot: i, Leaf: 0, Physical: i}
-	}
-	qualifier := analyze.QueryQualifier{Name: next.Name(), Original: next.Name(), Schema: auth.Catalog.Get(next.Namespace()).Name(), Ref: ref, Columns: columns}
-	namespace := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: next.Columns}
 	var ordered []catalog.CheckConstraint
 	for _, pending := range queue {
 		// Parse in CHECK context so selected calls remain functions, rather than
@@ -36,18 +31,10 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 		if err != nil {
 			return nil, nil, table.AlterTypeCheckReparseError(err)
 		}
-		e.mu.Lock()
-		if ref.Epoch != e.catalog.state.Epoch() {
-			e.mu.Unlock()
+		if ref.Epoch != h.LiveEpoch() {
 			return nil, nil, ids.ErrCatalogReplaced
 		}
-		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-		binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Query.Auth = true, true, &auth
-		binder.Stored.CheckLiterals = pending.Literals
-		binder.Query.Namespace = &namespace
-		binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: &replacement}}
-		node, err := binder.BindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, analyze.ProjectionContext, "CHECK")
-		e.mu.Unlock()
+		node, err := h.RebindCheck(auth, &replacement, ref, syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, pending.Literals)
 		if err != nil {
 			return nil, nil, table.AlterTypeCheckReparseError(err)
 		}

@@ -16,7 +16,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -64,23 +63,12 @@ func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref 
 	return &analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: original.Columns}
 }
 
-func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *analyze.QueryNamespace) (expr.Expr, []catalog.ExpressionDependency, error) {
+func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage) (expr.Expr, []catalog.ExpressionDependency, error) {
 	if action.Using == nil {
 		source := original.Index[action.Column.Text]
 		return plan.ColumnExpr{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: source}.WithGeneration(original, source, 0), nil, nil
 	}
-	if namespace == nil {
-		namespace = alterTypeNamespace(auth, original, ref)
-	}
-	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-	binder.Target.Relation, binder.Target.Ref, binder.Params.NoParameters, binder.Query.Auth = original, ref, true, &auth
-	binder.Query.Namespace = namespace
-	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: original}}
-	node, err := binder.Bind(action.Using, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: usage.Type.Usage()})
-	if err == nil && (binder.Prepared.RegclassConcat || binder.Consumer.CatalogSnapshot) {
-		err = e.captureCommentSnapshotLocked(scope)
-	}
-	return node, binder.Dependencies, err
+	return (alterHost{ddlHost{e: e, op: scope.op}, scope}).BindAlterTypeUsing(auth, original, ref, action.Using, usage)
 }
 
 // Complete phase-one TYPE work against the immutable original row. The caller
@@ -134,14 +122,14 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *session.Operati
 	}
 	if original.RelationKind == catalog.ForeignRelation {
 		if a.Using != nil {
-			if _, _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil); err != nil {
+			if _, _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage); err != nil {
 				return fail(err)
 			}
 			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, original.Name())))
 		}
 		return prepared, nil
 	}
-	node, dependencies, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil)
+	node, dependencies, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage)
 	if err != nil {
 		return fail(err)
 	}
@@ -205,6 +193,8 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 
 // Candidate-only mutation consumes the completed phase-one result.
 func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	fail := func(err error) (*catalog.Relation, index.ColumnTransformation, error) {
 		return nil, index.ColumnTransformation{}, err
 	}
@@ -231,51 +221,13 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 	if current.Type.ID() != oldUsage.Type.ID() || current.Typmod != oldUsage.Typmod {
 		return fail(sqlError("0A000", fmt.Sprintf(`cannot alter type of column "%s" twice`, a.Column.Text)))
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	if ref.Epoch != e.catalog.state.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	target := ref.Address
 	target.SubID = original.Attributes[source]
-	if err := view.PolicyTypeChangeError(auth.Catalog, target); err != nil {
+	if err := (alterHost{ddlHost{e: e, op: op, stage: stage}, scope}).TypeChangeDependents(auth, target, a.Column.Text); err != nil {
 		return fail(err)
-	}
-	if path, pathErr := e.lookupPath(auth, analyze.RelationLookup); pathErr != nil {
-		return fail(pathErr)
-	} else if dependents := ruleDependentLabels(auth.Catalog, []ids.ObjectAddress{target}, path); len(dependents) != 0 {
-		d := sqlError("0A000", "cannot alter type of a column used by a view or rule").(*sqlstate.Error)
-		d.Detail = fmt.Sprintf(`%s depends on column "%s"`, dependents[0].label, a.Column.Text)
-		return fail(d)
-	}
-	if edges := viewDependencyClosure(auth.Catalog, []ids.ObjectAddress{target}, stage); len(edges) != 0 {
-		view := edges[0].View
-		name := view.Name()
-		if parser.IdentifierNeedsQuotes(name) {
-			name = catalog.QuoteIdentifier(name)
-		}
-		namespace := auth.Catalog.Get(view.Namespace()).Name()
-		path, err := e.lookupPath(auth, analyze.RelationLookup)
-		if err != nil {
-			return fail(err)
-		}
-		visible := false
-		for _, schema := range path {
-			found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: view.Name()})
-			if len(found) != 0 {
-				visible = len(found) == 1 && found[0] == view.Address()
-				break
-			}
-		}
-		if !visible {
-			if parser.IdentifierNeedsQuotes(namespace) {
-				namespace = catalog.QuoteIdentifier(namespace)
-			}
-			name = namespace + "." + name
-		}
-		d := sqlError("0A000", "cannot alter type of a column used by a view or rule").(*sqlstate.Error)
-		d.Detail = fmt.Sprintf(`rule _RETURN on view %s depends on column "%s"`, name, a.Column.Text)
-		return fail(d)
 	}
 	usage := prepared.Usage
 	if original.RelationKind == catalog.CompositeRelation {

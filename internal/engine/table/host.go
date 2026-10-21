@@ -79,15 +79,18 @@ type Resolver interface {
 
 // AlterHost is what the ALTER TABLE decisions need beyond Host: the
 // statement's live input environment, the snapshot captures that mutate it,
-// and the bindings of one ALTER action. It is bound to one statement scope.
-// Table 24d.2 implements it; every method runs with Engine.mu held, never
-// takes or releases it, and never waits.
+// and the bindings of one ALTER action. It is bound to one statement scope;
+// its stage may be nil until the ALTER loop begins one. Every method runs with
+// Engine.mu held, never takes or releases it, and never waits.
 type AlterHost interface {
 	Host
 
 	// Input is the statement's live input environment. Captures mutate it, so
 	// callers read it again before every binding call.
 	Input() sqltype.InputEnvironment
+	// LiveEpoch is the epoch of the engine's current catalog, which a
+	// captured authority or reference is checked against.
+	LiveEpoch() ids.CatalogEpoch
 	// CaptureTypeDiagnosticName records the type diagnostic names of auth.
 	CaptureTypeDiagnosticName(auth ddl.Authority) error
 	// CaptureCommentSnapshot records the comment snapshot.
@@ -96,21 +99,24 @@ type AlterHost interface {
 	// and its visibility snapshot when visibility is set.
 	CaptureCheckSnapshots(relation *catalog.Relation, visibility bool) error
 
-	// CookDefault binds and renders one DEFAULT of relation's slot;
-	// withDefinition renders it with the operation's definition reader.
-	CookDefault(auth ddl.Authority, relation *catalog.Relation, slot int, raw parser.Expr, withDefinition bool) (expr.Expr, catalog.ColumnDefault, error)
+	// BindDefault binds one DEFAULT expression for column of relation.
+	BindDefault(auth ddl.Authority, relation *catalog.Relation, column catalog.Column, raw parser.Expr) (expr.Expr, error)
 	// BindGeneration binds one generation expression of relation's slot.
 	BindGeneration(auth ddl.Authority, relation *catalog.Relation, slot int, raw parser.Expr) (catalog.ColumnGeneration, error)
+	// BindAddedChecks binds the CHECKs of ADD CONSTRAINT into relation;
+	// inherited holds the parents' checks to merge with. Errors carry no
+	// position.
+	BindAddedChecks(auth ddl.Authority, relation *catalog.Relation, raw []*parser.CheckConstraint, inherited map[string]catalog.CheckConstraint) error
 	// RebindCheck binds a CHECK expression of relation again.
 	RebindCheck(auth ddl.Authority, relation *catalog.Relation, ref ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr) (expr.Expr, error)
 	// BindAlterTypeUsing binds the USING expression of ALTER COLUMN TYPE.
-	BindAlterTypeUsing(auth ddl.Authority, original *catalog.Relation, ref ids.ObjectRef, column string, using parser.Expr, usage sqltype.Usage) (expr.Expr, []catalog.ExpressionDependency, error)
+	BindAlterTypeUsing(auth ddl.Authority, original *catalog.Relation, ref ids.ObjectRef, using parser.Expr, usage sqltype.Usage) (expr.Expr, []catalog.ExpressionDependency, error)
 	// OperationDefinition reads definitions as the operation sees them.
 	OperationDefinition() catalog.DefinitionReader
 
-	// TypeChangeDependents rejects ALTER COLUMN TYPE on a column that a
-	// policy, rule or view depends on.
-	TypeChangeDependents(auth ddl.Authority, target ids.ObjectAddress) error
+	// TypeChangeDependents rejects ALTER COLUMN TYPE on column, at target,
+	// when a policy, rule or view depends on it.
+	TypeChangeDependents(auth ddl.Authority, target ids.ObjectAddress, column string) error
 	// StageIdentitySequenceOptions stages the sequence options of an
 	// identity column; the caller holds the sequence's grant.
 	StageIdentitySequenceOptions(relation *catalog.Relation, attribute int32, sequence ids.ObjectAddress, raw []parser.SequenceOption) error
