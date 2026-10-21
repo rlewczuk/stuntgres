@@ -1336,8 +1336,8 @@ Calls can be nested or zipped with other target SRFs, with typed NULL padding.
 Held statements retain inferred widths but open fresh invocations each time.
 Views retain symbolic calls; native Dump/Reset/Restore preserves those views and
 literal persisted query results, not generator state. Numeric overloads now use
-the same lanes with exact decimal arithmetic (see below). Temporal overloads
-remain execution exclusions, as does INSERT VALUES expansion. FROM source support is described below. See
+the same lanes with exact decimal arithmetic (see below). Plain timestamp
+series also executes; timestamptz and INSERT VALUES expansion remain exclusions. FROM source support is described below. See
 [query contracts](docs/QUERIES.md#integer-target-series) and
 [selected proof and feature smoke](reference/numeric/README.md#integer-target-series-selected-proof).
 
@@ -1355,6 +1355,20 @@ Direct, held, target/FROM, zip/ordinality/lateral and native persistent-state
 consumers reuse existing ownership and statement atomicity.
 See [numeric series contracts](docs/QUERIES.md#numeric-series) and
 [selected proof and smoke](reference/numeric/README.md#numeric-series-selected-proof).
+
+### Timestamp series — change note
+
+`generate_series(timestamp,timestamp,interval)` advances civil timestamps by
+months (clamping month ends), then days, then microseconds. Month stepping is
+iterative: January31 → February28 → March28. No timezone or DST rotation applies.
+NULL arguments produce typed empty results; zero/net-zero and infinite steps
+raise `22023`. Finite mixed-sign steps use PostgreSQL's 30-day-month sign and
+may reverse or stall. Infinite timestamp endpoints are legal; use bounded demand
+or cancellation for nonterminating calls. Successor overflow raises `22008`
+before emitting the current row, including an equal endpoint under LIMIT1.
+Existing target/FROM, held statement, ACL, view and native replay lanes are reused.
+See [timestamp series proof](reference/numeric/README.md#timestamp-series-selected-proof).
+
 
 Change note: scalar REGOPER and REGOPERATOR retain unsigned operator OIDs through
 direct/held values, distinct metadata and native logical Dump/Restore. Name-only

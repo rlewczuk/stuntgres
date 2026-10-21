@@ -262,9 +262,14 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select("SELECT generate_series(0.1::numeric,1.1::numeric) AS v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"0.1"}, {"1.1"}}))
 		})
-		// Temporal series remains lookup-only. Preserve the independent
-		// unsupported-target and late-target atomicity witnesses below.
-		lookupOnly := "pg_catalog.generate_series(timestamp without time zone,timestamp without time zone,interval)"
+		timestamp := "pg_catalog.generate_series(timestamp without time zone,timestamp without time zone,interval)"
+		defer objectGrantRoutineCleanup(t, p, c, []string{timestamp})
+		run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+timestamp+" TO og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Select("SELECT generate_series(TIMESTAMP '2020-01-01',TIMESTAMP '2020-01-02',INTERVAL '1 day')::text AS v ORDER BY v", []string{"v"}, []string{"TEXT"}, [][]any{{"2020-01-01 00:00:00"}, {"2020-01-02 00:00:00"}}))
+		})
+		// Timestamptz remains lookup-only. Retain unsupported-target atomicity.
+		lookupOnly := "pg_catalog.generate_series(timestamp with time zone,timestamp with time zone,interval)"
 		if b.PG {
 			defer objectGrantRoutineCleanup(t, p, c, []string{lookupOnly})
 			run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+lookupOnly+" TO og_object_reader", 0))

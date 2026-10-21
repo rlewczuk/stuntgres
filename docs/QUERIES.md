@@ -260,9 +260,9 @@ stored views preserve symbolic arguments and width, never live cursors.
 Dump/Restore replays eligible views and literal stored data under its existing
 whitelist; it does not enable INSERT query sources or CTAS during Restore.
 
-Temporal signatures are considered for truthful overload resolution but are not
-native executable providers. INSERT VALUES expansion remains an explicit native
-capability exclusion; FROM providers use the shared source lane below.
+Plain timestamp series executes as described below; timestamptz signatures
+participate in truthful overload resolution but remain non-executable.
+INSERT VALUES remains excluded; FROM providers use the shared source lane below.
 Public coverage and commands live in [reference/numeric](../reference/numeric/README.md#integer-target-series-selected-proof).
 
 ## Numeric series
@@ -289,8 +289,31 @@ ordinary numeric addition retains its normal overflow checks.
 Held executions open fresh state, and existing final publication and mutation
 staging preserve cancellation/failure atomicity. Symbolic view arguments and
 materialized literal data survive native Dump/Reset/Restore; live cursors never
-do. Temporal, INSERT VALUES and Restore query-source exclusions are unchanged.
+do. Timestamptz, INSERT VALUES and Restore query-source exclusions are unchanged.
 See [selected numeric proof and smoke](../reference/numeric/README.md#numeric-series-selected-proof).
+
+## Timestamp series
+
+Exactly `generate_series(timestamp,timestamp,interval)` returns TIMESTAMP,
+including empty results. Each successor applies months with destination-month
+day clamping, then days, then microseconds to the preceding row. January31,
+February28, March28 is therefore an iterative monthly sequence. Plain civil
+timestamps are unaffected by session timezone or daylight-saving transitions.
+
+Bounds are inclusive for either sign; direction mismatch and any NULL input
+produce no rows. Step sign uses widened `(months*30+days)*86400000000+microseconds`.
+Nonzero mixed-sign steps are accepted even when calendar progress reverses or
+stalls; no progress guard exists. Zero/net-zero steps raise22023
+`step size cannot equal zero`; infinite steps raise22023 `step size cannot be infinite`.
+Infinite timestamp endpoints remain legal and can repeat indefinitely.
+
+The successor is computed before the current row is emitted. Any required
+addition overflow raises22008 `timestamp out of range`, including equal endpoints
+and LIMIT1. Invocation state is private and constant-space; existing eager native
+publication and mutation staging prevent partial results on failure/cancellation.
+Views and native Dump/Restore retain symbolic calls and typed persisted data,
+never cursors; Restore's query-source whitelist is unchanged.
+See [selected proof and smoke](../reference/numeric/README.md#timestamp-series-selected-proof).
 
 ## Array target subscripts
 
@@ -335,7 +358,7 @@ See [selected proof](../reference/numeric/README.md#array-target-subscripts-sele
 
 ## Function sources
 
-Existing integer/bigint/numeric `generate_series` and `generate_subscripts` calls use the
+Existing integer/bigint/numeric/plain-timestamp `generate_series` and `generate_subscripts` calls use the
 same typed source stage as supported string, JSON, `jsonb_path_query` and regexp
 calls. Output aliases preserve positional names and types, including empty metadata.
 Comma sources form Cartesian products; `ROWS FROM` zips to the longest member

@@ -18,10 +18,19 @@ func (e SeriesExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, er
 		return nil, fmt.Errorf("stuntgres: invalid series shape")
 	}
 	id := info.Usage.Type.ID()
-	if id != sqltype.Int4 && id != sqltype.Int8 && id != sqltype.Numeric {
+	if id != sqltype.Int4 && id != sqltype.Int8 && id != sqltype.Numeric && id != sqltype.Timestamp {
 		return nil, fmt.Errorf("stuntgres: invalid series result")
 	}
-	for _, child := range children {
+	if id == sqltype.Timestamp && len(children) != 3 {
+		return nil, fmt.Errorf("stuntgres: invalid timestamp series arity")
+	}
+	for i, child := range children {
+		if id == sqltype.Timestamp && i == 2 {
+			if child.ResultUsage().Type == nil || child.ResultUsage().Type.ID() != sqltype.Interval {
+				return nil, fmt.Errorf("stuntgres: invalid timestamp series step")
+			}
+			continue
+		}
 		if child.ResultUsage().Type != info.Usage.Type {
 			return nil, fmt.Errorf("stuntgres: invalid series argument generation")
 		}

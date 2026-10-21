@@ -2,6 +2,18 @@
 
 ## Testing
 
+Timestamp `generate_series(timestamp,timestamp,interval)` is a genuine executable
+routine938. RoutineSchemaKinds proves deny→grant→execute→revoke→deny after
+removing PUBLIC execute. NativeBoundaries retains standalone and late-target
+atomicity using the still-excluded timestamptz overload. Run both migrated
+definitions in both modes (external900-second deadline per command):
+
+```sh
+make check RUN='^TestReferenceObjectGrant(RoutineSchemaKinds|NativeBoundaries)$'
+make check REFERENCE=1 RUN='^TestReferenceObjectGrant(RoutineSchemaKinds|NativeBoundaries)$'
+```
+
+
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root. Role, membership and row-security proofs remain in

@@ -248,6 +248,7 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{923, ids.PGCatalogNamespaceOID, "network_gt", "869,869"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{924, ids.PGCatalogNamespaceOID, "network_ge", "869,869"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{925, ids.PGCatalogNamespaceOID, "network_ne", "869,869"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{938, ids.PGCatalogNamespaceOID, "generate_series", "1114,1114,1186"}, catalog.FunctionRoutine, 1114, true, expr.Immutable, 's', true, 0, 0, functions.SeriesRoutineProvider},
 	{catalog.RoutineIdentity{940, ids.PGCatalogNamespaceOID, "mod", "21,21"}, catalog.FunctionRoutine, 21, true, expr.Immutable, 's', false, 0, 0, functions.MathRoutineProvider},
 	{catalog.RoutineIdentity{941, ids.PGCatalogNamespaceOID, "mod", "23,23"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.MathRoutineProvider},
 	{catalog.RoutineIdentity{942, ids.PGCatalogNamespaceOID, "int28mi", "21,20"}, catalog.FunctionRoutine, 20, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

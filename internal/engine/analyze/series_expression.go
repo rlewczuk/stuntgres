@@ -211,7 +211,7 @@ func (b *Binder) bindSeries(raw parser.FunctionExpr, visible bool) (expr.Expr, e
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
 	}
-	if s.result != sqltype.Int4 && s.result != sqltype.Int8 && s.result != sqltype.Numeric {
+	if s.result != sqltype.Int4 && s.result != sqltype.Int8 && s.result != sqltype.Numeric && s.result != sqltype.Timestamp {
 		return nil, expr.ErrorAt("0A000", "generate_series with temporal arguments is unsupported", raw.Pos)
 	}
 	switch b.Clause.AggregateClause {

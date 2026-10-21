@@ -1912,13 +1912,17 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   array operators/functions.
   MONEY/INET/CIDR scalar-list comparisons do not enable their currently
   unsupported array elements or declarations.
-- Integer/bigint/numeric `generate_series` executes through SELECT-target expansion
+- Integer/bigint/numeric/plain-timestamp `generate_series` executes through SELECT-target expansion
   and FROM function sources, including views, CTAS and INSERT SELECT.
   Numeric steps are exact; start/step (not stop) determine display scale.
   Results remain unconstrained NUMERIC. NULL is empty; nonnull zero/nonfinite
   inputs have PostgreSQL diagnostics. Unreturned successors can exceed packed
-  numeric limits without failing. Temporal overloads inform genuine resolution
-  but are not executable providers. INSERT VALUES expansion remains excluded.
+  numeric limits without failing. Plain timestamp uses iterative month/day/time
+  interval arithmetic, not timezone/DST stepping. NULL is empty; zero/net-zero
+  and infinite steps fail22023. Infinite endpoints are legal; successor overflow
+  fails22008 before emission even at an equal endpoint under LIMIT1. Mixed-sign
+  steps may stall/reverse and have no progress guard. Timestamptz signatures
+  inform resolution but are not executable. INSERT VALUES expansion remains excluded.
   FROM aliases, ROWS FROM zip/padding, bigint ordinality and implicit/explicit
   lateral references to preceding sources use the existing function-source lane.
   Window PARTITION/ORDER keys are legal; window frames and scalar restricted

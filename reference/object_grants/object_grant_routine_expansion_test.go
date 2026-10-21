@@ -116,7 +116,7 @@ func TestReferenceObjectGrantRoutineSchemaExpansion(t *testing.T) {
 
 func TestReferenceObjectGrantRoutineSchemaKinds(t *testing.T) {
 	objectGrantScenario(t, []string{"og_kind_scope", "og_kind_other"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
-		defer objectGrantRoutineCleanup(t, p, c, []string{"pg_catalog.sum(integer)", "pg_catalog.row_number()"})
+		defer objectGrantRoutineCleanup(t, p, c, []string{"pg_catalog.sum(integer)", "pg_catalog.row_number()", "pg_catalog.generate_series(timestamp without time zone,timestamp without time zone,interval)"})
 		defer func() {
 			for _, query := range []string{"RESET SESSION AUTHORIZATION", "REVOKE EXECUTE ON ALL ROUTINES IN SCHEMA pg_catalog FROM og_object_reader,og_object_other CASCADE"} {
 				if _, err := c.ExecContext(p.Ctx, query); err != nil {
@@ -154,12 +154,20 @@ func TestReferenceObjectGrantRoutineSchemaKinds(t *testing.T) {
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select("SELECT generate_series(0.1::numeric,1.1::numeric) AS v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"0.1"}, {"1.1"}}))
 		})
-		lookup := "GRANT EXECUTE ON FUNCTION pg_catalog.generate_series(timestamp without time zone,timestamp without time zone,interval) TO og_object_reader"
-		if b.PG {
-			run(fixture.Exec(lookup, 0))
-		} else {
-			fixture.RoleGrantError(run, lookup, "0A000", "routine privileges are unsupported for unimplemented routines in embedded mode")
-		}
+		timestamp := "pg_catalog.generate_series(timestamp without time zone,timestamp without time zone,interval)"
+		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+timestamp+" FROM PUBLIC,og_object_reader", 0))
+		call := "SELECT generate_series(TIMESTAMP '2020-02-28',TIMESTAMP '2020-03-01',INTERVAL '1 day')::text AS v ORDER BY v"
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, call, "function", "generate_series")
+		})
+		run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+timestamp+" TO og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Select(call, []string{"v"}, []string{"TEXT"}, [][]any{{"2020-02-28 00:00:00"}, {"2020-02-29 00:00:00"}, {"2020-03-01 00:00:00"}}))
+		})
+		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+timestamp+" FROM og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, call, "function", "generate_series")
+		})
 		// Existing expansion is not a future-object default. This is a genuine
 		// newly installed native provider, not a native function-creator shim.
 		run(fixture.Exec("CREATE EXTENSION pgcrypto SCHEMA og_kind_scope", 0))

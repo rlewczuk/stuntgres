@@ -2,6 +2,36 @@
 
 ## Testing
 
+### Timestamp series selected proof
+
+Untagged `timestamp_series_*_test.go` defines independent civil rows, iterative
+month clamping, microseconds, strict NULLs, widened mixed-sign behavior, infinity
+endpoints, complete diagnostics, held parameters, metadata, composition,
+atomicity, active cancellation and symbolic/data native replay. Oracle-first
+core and migrated boundary/ACL observations use pinned PostgreSQL18.6.
+Every changed definition needs both modes after its last change. Run each
+command with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceTimestampSeries(Values|Binding|Metadata|Diagnostics|Composition|Atomicity)$'
+make check REFERENCE=1 RUN='^TestReferenceTimestampSeries(Values|Binding|Metadata|Diagnostics|Composition|Atomicity)$'
+make check RUN='^TestReferenceTimestampSeries(Lifecycle|Controls|Infinity)$'
+make check REFERENCE=1 RUN='^TestReferenceTimestampSeries(Lifecycle|Controls|Infinity)$'
+make check RUN='^TestTimestampSeries(Cursor|Sign|Overflow|Lifecycle|Hooks|RoutineAuthority)$'
+make check RACE=1 RUN='^TestReferenceTimestampSeries(Lifecycle|Atomicity|Controls|Binding)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceTimestampSeries(Lifecycle|Atomicity|Controls|Binding)$'
+make check RUN='^TestReferenceTimestampSeriesFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceTimestampSeriesFeatureSmoke$'
+```
+
+FeatureSmoke invokes the cohesive permanent witnesses with fresh fixtures:
+exact leap/month rows, held failure/recovery, NULL metadata, endpoint overflow,
+zip/ordinality/lateral, failed mutation preservation and real Dump/Reset/Restore,
+fresh-driver and PostgreSQL emitted-SQL replay. Expected output is quiet package
+success, with exact independently asserted outcomes, not a custom success label.
+No check is claimed passing here; root records actual verification evidence.
+
+
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.

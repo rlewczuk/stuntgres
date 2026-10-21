@@ -23,6 +23,27 @@ func (e SeriesExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	if len(e.Args) != 2 && len(e.Args) != 3 {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid series arguments")
 	}
+	if e.Usage.Type.ID() == sqltype.Timestamp {
+		if len(e.Args) != 3 {
+			return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid timestamp series arguments")
+		}
+		var values [3]sqltype.Value
+		for i, arg := range e.Args {
+			value, err := arg.Eval(ctx)
+			if err != nil {
+				return expr.SourceCursor{}, err
+			}
+			values[i] = value
+		}
+		cursor, err := sqltype.OpenTimestampSeries(ctx.FunctionContext(), values[0], values[1], values[2])
+		if err != nil {
+			return expr.SourceCursor{}, err
+		}
+		return expr.NewSourceCursor(expr.SourceCursor{
+			Type: e.Usage.Type, State: &cursor,
+			Advance: nextTimestampSeriesSource, Release: closeTimestampSeriesSource,
+		}), nil
+	}
 	if e.Usage.Type.ID() == sqltype.Numeric {
 		var values [3]sqltype.Value
 		for i, arg := range e.Args {
@@ -78,6 +99,14 @@ func nextNumericSeriesSource(ctx context.Context, s *expr.SourceCursor) (sqltype
 
 func closeNumericSeriesSource(state any) {
 	state.(*sqltype.NumericSeriesCursor).Close()
+}
+
+func nextTimestampSeriesSource(ctx context.Context, s *expr.SourceCursor) (sqltype.Value, bool, error) {
+	return s.State.(*sqltype.TimestampSeriesCursor).Next(ctx)
+}
+
+func closeTimestampSeriesSource(state any) {
+	state.(*sqltype.TimestampSeriesCursor).Close()
 }
 
 // Series and subscripts share checked arithmetic, not a provider discriminator.
