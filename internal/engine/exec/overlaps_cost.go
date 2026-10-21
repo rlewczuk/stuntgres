@@ -1,7 +1,6 @@
-package analyze
+package exec
 
 import (
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -18,7 +17,7 @@ func OverlapsInlineSafe(e functions.DatetimeOverlaps) bool {
 			continue
 		}
 		start := e.Args[pair*2]
-		if exec.PlannedVolatility(start) == expr.Volatile {
+		if PlannedVolatility(start) == expr.Volatile {
 			return false
 		}
 		safe, cost := true, 0

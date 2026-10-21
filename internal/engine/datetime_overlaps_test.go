@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -154,29 +153,29 @@ func TestDatetimeOverlapsInlineSafetyAndContext(t *testing.T) {
 	}
 	start := plan.ColumnExpr{Info: expr.InfoOf(e.Args[0])}
 	e.Args[0] = start
-	if !analyze.OverlapsInlineSafe(e) {
+	if !exec.OverlapsInlineSafe(e) {
 		t.Fatal("cheap variable cannot inline")
 	}
 	for i := range 11 {
 		e.Args[0] = plan.ArithmeticExpr{Info: expr.InfoOf(start), Left: e.Args[0], Right: plan.LiteralExpr{Info: expr.InfoOf(e.Args[1])}}
-		if analyze.OverlapsInlineSafe(e) != (i < 10) {
+		if exec.OverlapsInlineSafe(e) != (i < 10) {
 			t.Fatal("function-cost threshold", i)
 		}
 	}
 	e.Args[0] = plan.SubqueryExpr{Info: expr.InfoOf(start)}
-	if analyze.OverlapsInlineSafe(e) {
+	if exec.OverlapsInlineSafe(e) {
 		t.Fatal("duplicated subquery inlined")
 	}
 	order := []int{}
 	volatile := mathObservedArgument{Info: expr.Info{Usage: start.ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, order: &order}
 	e.Args[0] = volatile
-	if analyze.OverlapsInlineSafe(e) {
+	if exec.OverlapsInlineSafe(e) {
 		t.Fatal("duplicated volatile start inlined")
 	}
 	volatile.Usage = e.Plan.ArgumentType(1).Usage()
 	e.Args[0] = start
 	e.Args[1] = volatile
-	if !analyze.OverlapsInlineSafe(e) {
+	if !exec.OverlapsInlineSafe(e) {
 		t.Fatal("single-use volatile duration prevented inline")
 	}
 }
@@ -382,7 +381,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	for count := 1; count <= 11; count++ {
 		start = plan.ConditionalExpr{Info: info, Kind: parser.NullIf, Args: []expr.Expr{start, sentinel}, Comparison: comparison}
 		e.Args[0] = start
-		if cost := analyze.OverlapsTreeCost(start); cost != count || analyze.OverlapsInlineSafe(e) != (count <= 10) {
+		if cost := exec.OverlapsTreeCost(start); cost != count || exec.OverlapsInlineSafe(e) != (count <= 10) {
 			t.Fatal("NULLIF operator cost", count, cost)
 		}
 		if count < 10 {
@@ -402,7 +401,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 			t.Fatal("NULLIF boundary evaluation", count, err)
 		}
 	}
-	if analyze.OverlapsNodeCost(plan.ConditionalExpr{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{sentinel, sentinel}}) != 0 || analyze.OverlapsNodeCost(plan.CaseExpr{}) != 0 {
+	if exec.OverlapsNodeCost(plan.ConditionalExpr{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{sentinel, sentinel}}) != 0 || exec.OverlapsNodeCost(plan.CaseExpr{}) != 0 {
 		t.Fatal("zero-overhead control cost changed")
 	}
 }

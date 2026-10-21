@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -13,7 +12,7 @@ import (
 func simplifyOverlapsRoute(c *exec.Context, e functions.DatetimeOverlaps) (functions.DatetimeOverlaps, bool, error) {
 	old := e.WrapperContext
 	oldFolded := e.Folded
-	e.WrapperContext = !analyze.OverlapsInlineSafe(e)
+	e.WrapperContext = !exec.OverlapsInlineSafe(e)
 	all := true
 	for _, arg := range e.Args {
 		if _, ok := arg.(plan.LiteralExpr); !ok {

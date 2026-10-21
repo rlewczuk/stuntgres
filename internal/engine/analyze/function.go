@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -82,7 +83,7 @@ func (b *Binder) BindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error
 		}
 		// Inline safety walks engine nodes; the node protocol replaces it (F2).
 		e := node.(functions.DatetimeOverlaps)
-		e.WrapperContext = !OverlapsInlineSafe(e)
+		e.WrapperContext = !exec.OverlapsInlineSafe(e)
 		return e, nil
 	case "pg_size_bytes", "pg_size_pretty":
 		return b.bindSize(raw, visible)
