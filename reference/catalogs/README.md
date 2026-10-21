@@ -6,6 +6,55 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_transform selected proof
+
+The seven `TestReferencePGTransform` definitions independently specify complete
+empty qualified/unqualified inventories and exact OID/OID/OID/REGPROC/REGPROC
+metadata, retained descriptors, class/attribute/row-array links, the four declared
+catalog foreign keys, pg_tables inclusion and pg_views exclusion. No implemented
+transform provider exists; unaccent and ordinary SQL routines do not create one.
+Empty joins witness usable SQL paths, not populated transform identity fidelity.
+
+Prepared coverage uses direct, fresh-prepared and the same physically held
+statements for exact OID/type-language probes, NULL and maximum OID arguments,
+unrelated DDL and native precancellation. Complete diagnostics cover missing
+columns (including multibyte character positions), ordinary-role zero-row mutation
+guards and execution-time authority after SET ROLE. Native superuser immutability
+and row-lock boundaries are explicitly distinct from PostgreSQL behavior.
+Lifecycle coverage retains a stored view, sentinel7, held read and old empty
+metadata across actual native Dump/Reset/Restore.
+
+The oracle-first definitions were observed against the pinned PostgreSQL18.6
+fixture before native implementation. pq reports interface{} ScanType for all
+five columns; native OID uses int64 and REGPROC uses string. Row/array checks use
+reciprocal links rather than assuming PostgreSQL's allocated rowtype numbers.
+Runtime proof after implementation is root-owned, not implied by this contract.
+
+Run each changed reference definition in both modes before review:
+
+```sh
+make check RUN='^TestReferencePGTransform(Inventory|Shape|CatalogLinks|Prepared|Diagnostics|Permissions|Lifecycle)$'
+make check RUN='^TestReferencePGTransform(Inventory|Shape|CatalogLinks|Prepared|Diagnostics|Permissions|Lifecycle)$' REFERENCE=1
+make check RUN='^TestReferencePGTableViewsBuiltins$'
+make check RUN='^TestReferencePGTableViewsBuiltins$' REFERENCE=1
+make check RUN='^TestPGTransform(Capture|Ownership)$'
+make check RUN='^Test(PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity)$'
+```
+
+Root's standalone public-API smoke source lives outside the repository in the
+OMP session, resolved to `PG_TRANSFORM_SMOKE`. From the repository root:
+
+```sh
+go run "$PG_TRANSFORM_SMOKE"
+```
+
+Expected exit0: exact five-column typed empty inventory; a real held pair probe
+with ordinary and NULL arguments; exact missing-column error; stored view and
+sentinel7; actual Dump/Reset/Restore preserving catalog, view, sentinel and saved
+metadata. This is an independent consumer exercise, not a permanent aggregate
+test that reruns other definitions. Root records literal argv and observations
+alongside selected dual-mode proof and whole-project checks.
+
 ### pg_ts_config selected proof
 
 The seven `TestReferencePGTSConfig` scenarios independently specify the empty

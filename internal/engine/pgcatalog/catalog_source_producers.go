@@ -47,6 +47,7 @@ var producers = [...]Registration{
 	{3456, capturePGCollation},
 	{3501, capturePGEnum},
 	{3541, capturePGRange},
+	{TransformOID, capturePGTransform},
 	{3600, captureExtensionCatalog},
 	{TSConfigOID, capturePGTSConfig},
 	{3764, captureExtensionCatalog},

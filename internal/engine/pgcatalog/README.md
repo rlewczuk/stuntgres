@@ -122,7 +122,27 @@ engine-seeded catalog.
   (`stored.*DependRefs`), and `Pinned` (`stored.DependPinned`, which also
   reads unpublished definition state).
 
+## Transform metadata
+
+`pg_transform.go` owns the relation3576 producer. No implemented transforms
+exist: casts/codecs, SQL routines and extension availability are not providers.
+It checks cancellation before shape, then the five catalog-owned carriers
+OID/OID/OID/REGPROC/REGPROC, and returns a nonnil empty anonymous source.
+`Specs` owns its nonnullable columns; ordinary registration reuses the existing
+row/array descriptors. Index-presence and pg_tables inclusion remain separate
+metadata predicates. No new runtime interface or provider registry is needed.
+
 ## Testing
+
+Transform producer invariants and initialized ownership are covered by engine
+units; public SQL/API coverage stays in reference/catalogs:
+
+```sh
+make check RUN='^TestPGTransform(Capture|Ownership)$'
+make check RUN='^TestReferencePGTransform(Inventory|Shape|CatalogLinks|Prepared|Diagnostics|Permissions|Lifecycle)$'
+make check RUN='^TestReferencePGTransform(Inventory|Shape|CatalogLinks|Prepared|Diagnostics|Permissions|Lifecycle)$' REFERENCE=1
+```
+
 
 `info_user_mappings.go` emits only real mapping identities from the captured
 catalog and paired roles. Server inherited-owner OR effective-USAGE authority

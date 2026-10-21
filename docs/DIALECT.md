@@ -2778,6 +2778,43 @@ universally immutable. Held native results retain their row/types across
 Reset/Restore, while held statements read the replacement catalog.
 See [selected proof and smoke](../reference/catalogs/README.md#pg_language-selected-proof).
 
+## pg_transform transform metadata
+
+`pg_catalog.pg_transform` is ordinary catalog relation3576, namespace11,
+bootstrap owner10. Its five nonnullable columns are `oid OID`, `trftype OID`,
+`trflang OID`, `trffromsql REGPROC`, `trftosql REGPROC`, in that order, with
+typmod−1, no collation or dimensions. The direction columns retain REGPROC24,
+not OID26, TEXT or REGPROCEDURE. Native empty results expose int64 carriers for
+OID and string carriers for REGPROC, with known nonnullability.
+
+The complete implemented transform inventory is **empty**, including after
+unaccent installation and ordinary SQL routine creation. Casts/codecs, routines,
+extension types and internal-language availability are not transforms.
+No transform provider or CREATE/DROP TRANSFORM, procedural-language runtime,
+handler or external ABI support is introduced. PostgreSQL defines a transform
+by its exact type/language pair; zero function identity means default conversion,
+not NULL. There are no native rows on which to exercise populated directions.
+Existing FK metadata declares trftype→pg_type.oid, trflang→pg_language.oid and
+optional trffromsql/trftosql→pg_proc.oid; empty joins do not prove populated
+identity fidelity.
+
+The relation appears as an indexed ordinary table in pg_class and pg_tables,
+not pg_views; no physical index rows are fabricated. Existing native row10103
+and array10102 have reciprocal catalog-owned links, refreshed by Reset/Restore.
+These row/array numbers are native allocated identities, not release-fixed OIDs.
+PUBLIC reads work directly, through fresh/held statements and stored views.
+Saved empty-result descriptors survive catalog replacement.
+
+Missing-column diagnostics are `42703` / `column "missing" does not exist`.
+Ordinary-role INSERT/UPDATE/DELETE report `42501` /
+`permission denied for table pg_transform`; TRUNCATE reports `42501` /
+`permission denied: "pg_transform" is a system catalog`. Current authority is
+checked even for zero-row predicates and held statements. Native superuser writes
+remain `0A000` / `catalog source mutation is unsupported`; this is not a claim
+that PostgreSQL superusers cannot modify catalogs. Native row locking reports
+`0A000` / `row locking is not supported for virtual catalog relations`.
+See [selected proof](../reference/catalogs/README.md#pg_transform-selected-proof).
+
 ## pg_ts_config configuration metadata
 
 `pg_catalog.pg_ts_config` is relation3602, namespace11, bootstrap owner10.

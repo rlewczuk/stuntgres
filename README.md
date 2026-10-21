@@ -548,6 +548,19 @@ procedural execution and external handlers remain unavailable.
 See [native limits](docs/DIALECT.md#pg_language-supported-language-metadata) and
 [selected proof and feature smoke](reference/catalogs/README.md#pg_language-selected-proof).
 
+## Transform catalog — change note
+
+`pg_catalog.pg_transform` exposes the five released columns in order:
+`oid OID`, `trftype OID`, `trflang OID`, `trffromsql REGPROC`, and
+`trftosql REGPROC`. The complete native inventory is empty: casts, codecs,
+SQL routines and installed extensions do not implement procedural-language
+transforms. PUBLIC reads, direct/prepared queries, catalog discovery and native
+Dump/Reset/Restore retain the exact typed metadata without fabricating rows.
+Ordinary-role writes report PostgreSQL permission errors; native superuser
+catalog writes remain unsupported. No transform or language DDL is enabled.
+See [native limits](docs/DIALECT.md#pg_transform-transform-metadata) and
+[selected proof](reference/catalogs/README.md#pg_transform-selected-proof).
+
 ## Text-search configuration metadata — change note
 
 `pg_catalog.pg_ts_config` exposes the five released columns in order:

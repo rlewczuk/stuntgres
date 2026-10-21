@@ -63,6 +63,23 @@ producer ownership. Engine code names the moved types directly
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
+### Transform catalog
+
+`TestPGTransformCapture` checks the real registered producer and capture Ref,
+nonnil empty inventory, malformed widths, foreign-owned OID/REGPROC carriers
+and cancellation precedence. `TestPGTransformOwnership` checks exact relation,
+attribute and PUBLIC SELECT facts, native row10103/array10102 ownership and
+fresh versus retained descriptors across Reset.
+
+```sh
+make check RUN='^TestPGTransform(Capture|Ownership)$'
+make check RUN='^Test(PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity)$'
+```
+
+Public dual-mode coverage and standalone smoke instructions live in
+[catalog reference tests](../../reference/catalogs/README.md#pg_transform-selected-proof).
+
+
 ### Text-search configuration catalog
 
 `TestPGTSConfigCapture` exercises the registered empty producer, invalid widths,
