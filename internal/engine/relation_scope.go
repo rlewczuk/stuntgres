@@ -21,7 +21,7 @@ import (
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
 		if foreign.Kind == "table" && foreign.Action == "alter" {
-			stmt = foreignAlterAdmission(foreign)
+			stmt = ForeignAlterAdmission(foreign)
 		} else {
 			return nil
 		}

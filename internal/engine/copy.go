@@ -270,10 +270,10 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	if foreign != nil {
 		// Terminal input/FinishInput acceptance precedes all provider mutation.
-		if err := foreign.begin(s.op.Context(), s.foreignWrites()); err != nil {
+		if err := foreign.Begin(s.op.Context(), s.foreignWrites()); err != nil {
 			return 0, err
 		}
-		n, err := foreign.insertRows(s.op.Context(), s.foreignWrites(), rows.values, false, nil)
+		n, err := foreign.InsertRows(s.op.Context(), s.foreignWrites(), rows.values, false, nil)
 		if err != nil {
 			return 0, cursor.diagnostic(err)
 		}

@@ -53,17 +53,17 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		}
 		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 	}
-	server, err := findForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
+	server, err := FindForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = auth.Check(access.Requirement{Object: foreignRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ForeignRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
 		return nil, nil, err
 	}
-	if err = foreignTableDeclaration(s.Table); err != nil {
+	if err = ForeignTableDeclaration(s.Table); err != nil {
 		return nil, nil, err
 	}
-	if err = e.schemaTableLocked(scope.op, auth, stage, foreignTableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
+	if err = e.schemaTableLocked(scope.op, auth, stage, ForeignTableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
 		return nil, nil, err
 	}
 	d, ok := stage.Get(stage.LookupName(key)).(*catalog.Relation)
@@ -72,7 +72,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	}
 	d.RelationKind = catalog.ForeignRelation
 	d.Foreign = &catalog.ForeignTableDefinition{Server: server.Address(), Columns: make(map[int32][]catalog.ForeignOption)}
-	d.Foreign.Options, err = transformForeignOptions(nil, s.Options)
+	d.Foreign.Options, err = TransformForeignOptions(nil, s.Options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -88,7 +88,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	jobs := []foreignValidation{job}
 	for _, attribute := range d.Attributes {
 		column := d.Columns[d.IndexForAttribute(attribute)]
-		options, er := transformForeignOptions(nil, s.ColumnOptions[column.Name])
+		options, er := TransformForeignOptions(nil, s.ColumnOptions[column.Name])
 		if er != nil {
 			return nil, nil, er
 		}
@@ -203,7 +203,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					options = next.Foreign.Columns[attribute]
 					kind = catalog.ForeignAttribute
 				}
-				options, err = transformForeignOptions(options, action.Options)
+				options, err = TransformForeignOptions(options, action.Options)
 				if err != nil {
 					return Result{}, err
 				}
@@ -259,7 +259,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				candidate, err = scope.dropColumnCandidate(stage, &next, ref, a, nil)
 			case parser.AddColumn:
 				declaration := &parser.CreateTable{Elements: []parser.TableElement{{Column: a.Definition}}}
-				if err = foreignTableDeclaration(declaration); err != nil {
+				if err = ForeignTableDeclaration(declaration); err != nil {
 					return Result{}, err
 				}
 				var added addedColumn
@@ -281,7 +281,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 					}
 					if err == nil {
-						options, er := transformForeignOptions(nil, action.ColumnOptions)
+						options, er := TransformForeignOptions(nil, action.ColumnOptions)
 						if er != nil {
 							return Result{}, er
 						}
@@ -345,7 +345,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		e.replacementMu.RUnlock()
 		scope.replacementRead = false
 	}
-	if err = runForeignValidations(scope.op.Context(), jobs); err != nil {
+	if err = RunForeignValidations(scope.op.Context(), jobs); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)

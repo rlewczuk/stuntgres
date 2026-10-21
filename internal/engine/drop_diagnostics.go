@@ -40,7 +40,7 @@ func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.Ob
 			server := view.Get(d.Server)
 			return "user mapping for " + user + " on server " + catalog.DependencyIdentifier(server.Name())
 		}
-		return foreignLabel(d.Address().ClassID) + " " + catalog.DependencyIdentifier(d.Name())
+		return ForeignLabel(d.Address().ClassID) + " " + catalog.DependencyIdentifier(d.Name())
 	}
 	if d, ok := view.Extension(base); ok {
 		return "extension " + catalog.DependencyIdentifier(d.Name())

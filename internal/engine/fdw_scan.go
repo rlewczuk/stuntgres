@@ -22,11 +22,11 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	handler, request, err := foreignScanRequest(auth.View, invoker, relation, uses)
+	handler, request, err := ForeignScanRequest(auth.View, invoker, relation, uses)
 	if err != nil {
 		return nil, err
 	}
-	importer, exporter, ok := e.foreign.codecs()
+	importer, exporter, ok := e.foreign.Codecs()
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
 	}

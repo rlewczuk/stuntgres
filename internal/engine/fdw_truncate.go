@@ -23,27 +23,27 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 		f := source.Foreign
 		index := -1
 		for i, g := range groups {
-			if g.source.Request.ServerOID == f.Request.ServerOID {
+			if g.Source.Request.ServerOID == f.Request.ServerOID {
 				index = i
 				break
 			}
 		}
 		if index < 0 {
 			index = len(groups)
-			groups = append(groups, foreignTruncateGroup{source: f, request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().foreignCascade, RestartIdentity: s.truncateOrZero().restart}})
+			groups = append(groups, foreignTruncateGroup{Source: f, Request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().foreignCascade, RestartIdentity: s.truncateOrZero().restart}})
 		}
-		groups[index].request.Tables = append(groups[index].request.Tables, exec.CopyForeignRequest(f.Request))
+		groups[index].Request.Tables = append(groups[index].Request.Tables, exec.CopyForeignRequest(f.Request))
 	}
 	// Admit every participant before any selected server is truncated.
 	for i := range groups {
 		g := &groups[i]
-		tx, err := s.enlistForeign(s.op.Context(), g.source.Wrapper, g.source.Request, true)
+		tx, err := s.enlistForeign(s.op.Context(), g.Source.Wrapper, g.Source.Request, true)
 		if err != nil {
 			return nil, err
 		}
-		g.request.Transaction = tx
-		for j := range g.request.Tables {
-			g.request.Tables[j].Transaction = tx
+		g.Request.Transaction = tx
+		for j := range g.Request.Tables {
+			g.Request.Tables[j].Transaction = tx
 		}
 	}
 	return groups, nil
@@ -51,7 +51,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 func (s *StatementScope) executeForeignTruncate(groups []foreignTruncateGroup) error {
 	s.foreignUnlocked()
 	for _, g := range groups {
-		if err := g.source.Wrapper.(catalog.ForeignTruncater).ExecForeignTruncate(s.op.Context(), g.request); err != nil {
+		if err := g.Source.Wrapper.(catalog.ForeignTruncater).ExecForeignTruncate(s.op.Context(), g.Request); err != nil {
 			return exec.ForeignCallbackError(err)
 		}
 	}

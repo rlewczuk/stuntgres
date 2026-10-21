@@ -18,59 +18,59 @@ type foreignTransaction struct {
 	cleanup      []*foreignParticipant
 }
 
-type foreignParticipantKey struct{ handler, server, mapping, role uint32 }
+type foreignParticipantKey struct{ Handler, Server, Mapping, Role uint32 }
 
 type foreignParticipant struct {
-	key          foreignParticipantKey
-	tx           catalog.ForeignTransaction
-	capabilities catalog.ForeignTransactionCapabilities
-	closed       bool // Commit has been attempted, or Rollback has disposed the handle.
+	Key          foreignParticipantKey
+	Tx           catalog.ForeignTransaction
+	Capabilities catalog.ForeignTransactionCapabilities
+	Closed       bool // Commit has been attempted, or Rollback has disposed the handle.
 }
 
-func foreignCapabilityError() error {
+func ForeignCapabilityError() error {
 	return sqlError("0A000", "foreign writes require statement and transaction rollback support")
 }
 
-func rollbackForeign(ctx context.Context, participants []*foreignParticipant) error {
+func RollbackForeign(ctx context.Context, participants []*foreignParticipant) error {
 	var first error
 	for _, p := range participants {
-		if p.closed {
+		if p.Closed {
 			continue
 		}
-		p.closed = true
-		if err := p.tx.Rollback(context.WithoutCancel(ctx)); first == nil {
+		p.Closed = true
+		if err := p.Tx.Rollback(context.WithoutCancel(ctx)); first == nil {
 			first = exec.ForeignCallbackError(err)
 		}
 	}
 	return first
 }
 
-func foreignMarkName(id uint64) string { return fmt.Sprintf("stuntgres_sql_%d", id) }
+func ForeignMarkName(id uint64) string { return fmt.Sprintf("stuntgres_sql_%d", id) }
 
 // participant returns the enlisted participant for key, or nil.
-func (f *foreignTransaction) participant(key foreignParticipantKey) *foreignParticipant {
+func (f *foreignTransaction) Participant(key foreignParticipantKey) *foreignParticipant {
 	for _, p := range f.participants {
-		if p.key == key {
+		if p.Key == key {
 			return p
 		}
 	}
 	return nil
 }
 
-func (f *foreignTransaction) enlist(p *foreignParticipant) {
+func (f *foreignTransaction) Enlist(p *foreignParticipant) {
 	f.participants = append(f.participants, p)
 }
 
-func (f *foreignTransaction) hasParticipants() bool { return len(f.participants) != 0 }
+func (f *foreignTransaction) HasParticipants() bool { return len(f.participants) != 0 }
 
 // retire moves the participants to cleanup.
-func (f *foreignTransaction) retire() {
+func (f *foreignTransaction) Retire() {
 	f.cleanup = append(f.cleanup, f.participants...)
 	f.participants = nil
 }
 
 // takeCleanup returns and clears the retired participants.
-func (f *foreignTransaction) takeCleanup() []*foreignParticipant {
+func (f *foreignTransaction) TakeCleanup() []*foreignParticipant {
 	cleanup := f.cleanup
 	f.cleanup = nil
 	return cleanup
@@ -78,23 +78,23 @@ func (f *foreignTransaction) takeCleanup() []*foreignParticipant {
 
 // commit commits every open participant once. A failed Commit has an unknown
 // outcome: it is never retried or compensated, and the rest roll back.
-func (f *foreignTransaction) commit(ctx context.Context) error {
+func (f *foreignTransaction) Commit(ctx context.Context) error {
 	for _, p := range f.participants {
-		if p.closed {
+		if p.Closed {
 			continue
 		}
-		p.closed = true
-		if err := p.tx.Commit(ctx); err != nil {
-			_ = rollbackForeign(ctx, f.participants)
+		p.Closed = true
+		if err := p.Tx.Commit(ctx); err != nil {
+			_ = RollbackForeign(ctx, f.participants)
 			return exec.ForeignCallbackError(err)
 		}
 	}
 	return nil
 }
 
-func (f *foreignTransaction) pending() bool {
+func (f *foreignTransaction) Pending() bool {
 	for _, p := range f.participants {
-		if !p.closed {
+		if !p.Closed {
 			return true
 		}
 	}
@@ -103,28 +103,28 @@ func (f *foreignTransaction) pending() bool {
 
 // savepoint sets (kind 0), rolls back to (1) or releases (2) mark id in every
 // participant; a failure rolls every participant back.
-func (f *foreignTransaction) savepoint(ctx context.Context, kind int, id uint64) error {
+func (f *foreignTransaction) Savepoint(ctx context.Context, kind int, id uint64) error {
 	for _, p := range f.participants {
-		if p.closed {
+		if p.Closed {
 			return errors.New("stuntgres: foreign transaction is already disposed")
 		}
-		if !p.capabilities.Savepoints {
+		if !p.Capabilities.Savepoints {
 			return sqlError("0A000", "foreign transaction does not support savepoints")
 		}
 	}
 	for _, p := range f.participants {
-		sp := p.tx.(catalog.ForeignTransactionSavepoints)
+		sp := p.Tx.(catalog.ForeignTransactionSavepoints)
 		var err error
 		switch kind {
 		case 0:
-			err = sp.Savepoint(ctx, foreignMarkName(id))
+			err = sp.Savepoint(ctx, ForeignMarkName(id))
 		case 1:
-			err = sp.RollbackTo(context.WithoutCancel(ctx), foreignMarkName(id))
+			err = sp.RollbackTo(context.WithoutCancel(ctx), ForeignMarkName(id))
 		case 2:
-			err = sp.Release(ctx, foreignMarkName(id))
+			err = sp.Release(ctx, ForeignMarkName(id))
 		}
 		if err != nil {
-			_ = rollbackForeign(ctx, f.participants)
+			_ = RollbackForeign(ctx, f.participants)
 			return exec.ForeignCallbackError(err)
 		}
 	}

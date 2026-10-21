@@ -71,7 +71,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
 	e.mu.Unlock()
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
-		ref := foreignRef(auth.View, d)
+		ref := ForeignRef(auth.View, d)
 		for _, grantOptions := range []bool{false, true} {
 			rights, err := auth.Effective(ref, grantOptions)
 			if err != nil || rights != authorization.UsagePrivilege {
@@ -90,7 +90,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 		t.Fatal("missing real predefined reader")
 	}
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
-		ref := foreignRef(auth.View, d)
+		ref := ForeignRef(auth.View, d)
 		want := authorization.Privileges(0)
 		if d == server {
 			want = authorization.UsagePrivilege
@@ -202,7 +202,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
 	oldAddress := e.catalog.state.NameAddress(key)
 	wrapper := &catalog.ForeignObject{ObjectName: "wrapper", Handler: oldAddress}
-	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
+	if token, err := ForeignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
 		t.Fatal(token, err)
 	}
 	replacement := catalog.CloneState(e.catalog.state)
@@ -211,7 +211,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	copy.ObjectAddress.ObjectID = 40010
 	replacement.SetDescriptor(copy.Address(), &copy)
 	replacement.BindName(key, copy.Address())
-	_, err := foreignHandlerFor(e.catalog.read(replacement), wrapper)
+	_, err := ForeignHandlerFor(e.catalog.read(replacement), wrapper)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
@@ -221,7 +221,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	procedure := *uncallable.MustProcedure(oldAddress)
 	procedure.Foreign = nil
 	uncallable.SetDescriptor(oldAddress, &procedure)
-	_, err = foreignHandlerFor(e.catalog.read(uncallable), wrapper)
+	_, err = ForeignHandlerFor(e.catalog.read(uncallable), wrapper)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("a stored procedure name masqueraded as an executable handler", err)
 	}
@@ -432,13 +432,13 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 
 func testFDWForeignMetadataPolicy(t *testing.T) {
 	plain := &parser.CreateTable{}
-	if foreignTableSyntax(plain) != plain {
+	if ForeignTableSyntax(plain) != plain {
 		t.Fatal("plain foreign syntax was unnecessarily copied")
 	}
 	column := &parser.Column{Name: "keep"}
 	like := &parser.TableLike{Options: []parser.LikeOption{{Name: "all", Including: true}}}
 	syntax := &parser.CreateTable{Elements: []parser.TableElement{{Like: like}, {Column: column}}}
-	got := foreignTableSyntax(syntax)
+	got := ForeignTableSyntax(syntax)
 	want := analyze.LikeMask(analyze.LikeAll) &^ (analyze.LikeIndexes | analyze.LikeIdentity | analyze.LikeStorage | analyze.LikeCompression)
 	if got == syntax || got.Elements[0].Like == like || analyze.TableLikeOptions(got.Elements[0].Like.Options) != want || analyze.TableLikeOptions(like.Options) != analyze.LikeAll || got.Elements[1].Column != column {
 		t.Fatal("foreign LIKE changed syntax or copied physical properties")
@@ -448,12 +448,12 @@ func testFDWForeignMetadataPolicy(t *testing.T) {
 		uses []int
 		want []int32
 	}{{[]int{2}, []int32{1}}, {nil, []int32{1, 4}}, {[]int{2, 1, 0}, []int32{1, 4}}, {[]int{}, []int32{}}} {
-		attributes, err := foreignRequiredAttributes(relation, tc.uses)
+		attributes, err := ForeignRequiredAttributes(relation, tc.uses)
 		if err != nil || !slices.Equal(attributes, tc.want) {
 			t.Fatal("virtual source demand", attributes, tc.want, err)
 		}
 	}
-	if _, err := foreignRequiredAttributes(relation, []int{3}); err == nil {
+	if _, err := ForeignRequiredAttributes(relation, []int{3}); err == nil {
 		t.Fatal("invalid required slot admitted")
 	}
 }

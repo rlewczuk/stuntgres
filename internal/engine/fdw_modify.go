@@ -11,10 +11,10 @@ import (
 
 func (s *StatementScope) planForeignModification(ctx context.Context, source *exec.ForeignQuerySource, operation catalog.ForeignModifyOperation, copying bool) (*foreignModification, error) {
 	s.foreignUnlocked()
-	if err := foreignOperationSupported(source.Wrapper, operation, source.Request.Table); err != nil {
+	if err := ForeignOperationSupported(source.Wrapper, operation, source.Request.Table); err != nil {
 		return nil, err
 	}
-	m := &foreignModification{source: source, request: catalog.ForeignModifyRequest{ForeignRequest: exec.CopyForeignRequest(source.Request), Operation: operation}, copy: copying}
+	m := &foreignModification{Source: source, Request: catalog.ForeignModifyRequest{ForeignRequest: exec.CopyForeignRequest(source.Request), Operation: operation}, Copy: copying}
 	if operation != catalog.ForeignInsert {
 		provider, ok := source.Wrapper.(catalog.ForeignUpdateTargetProvider)
 		if !ok {
@@ -28,17 +28,17 @@ func (s *StatementScope) planForeignModification(ctx context.Context, source *ex
 			return nil, errors.New("stuntgres: foreign row identity has no attributes")
 		}
 		targets.Names = slices.Clone(targets.Names)
-		m.request.Targets = targets
+		m.Request.Targets = targets
 	}
 	if !copying {
 		if planner, ok := source.Wrapper.(catalog.ForeignModifyPlanner); ok {
-			targets := m.request.Targets
+			targets := m.Request.Targets
 			targets.Names = slices.Clone(targets.Names)
 			plan, err := planner.PlanForeignModify(ctx, exec.CopyForeignRequest(source.Request), operation, targets)
 			if err != nil {
 				return nil, exec.ForeignCallbackError(err)
 			}
-			m.request.Plan = plan
+			m.Request.Plan = plan
 		}
 	}
 	return m, nil

@@ -908,7 +908,7 @@ func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]storage.RowVersio
 func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope *StatementScope) error {
 	t.Mu.Lock()
 	x := ownerExtensionOf(t)
-	cursors, participants := x.cursorCleanup, x.foreign.takeCleanup()
+	cursors, participants := x.cursorCleanup, x.foreign.TakeCleanup()
 	x.cursorCleanup = nil
 	t.Mu.Unlock()
 	wire := scope != nil && (scope.protocolOrZero().command || scope.protocolOrZero().simple)
@@ -918,7 +918,7 @@ func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope 
 	} else {
 		err = disposeSQLCursors(ctx, cursors)
 	}
-	if failure := rollbackForeign(ctx, participants); err == nil {
+	if failure := RollbackForeign(ctx, participants); err == nil {
 		err = failure
 	}
 	if payloadOf(t.Session).preparedSQL == nil {

@@ -72,13 +72,13 @@ func fdwIdentityMembership(t *testing.T) {
 		const count = 8192
 		for i := range count {
 			identity := catalog.ForeignRowIdentity{int64(i), []byte{byte(i), byte(i >> 8)}, true}
-			if !set.add(identity) {
+			if !set.Add(identity) {
 				t.Fatal("distinct typed identity suppressed", i)
 			}
 		}
 		for i := range count {
 			identity := catalog.ForeignRowIdentity{int64(i), []byte{byte(i), byte(i >> 8)}, true}
-			if set.add(identity) {
+			if set.Add(identity) {
 				t.Fatal("equal typed identity hash diverged", i)
 			}
 		}
@@ -87,11 +87,11 @@ func fdwIdentityMembership(t *testing.T) {
 		}
 		original := []byte("borrowed")
 		owned := exec.CopyForeignCells(catalog.ForeignRowIdentity{original})
-		if !set.add(owned) {
+		if !set.Add(owned) {
 			t.Fatal("owned identity was not distinct")
 		}
 		original[0] = 'X'
-		if set.add(catalog.ForeignRowIdentity{[]byte("borrowed")}) {
+		if set.Add(catalog.ForeignRowIdentity{[]byte("borrowed")}) {
 			t.Fatal("membership lost already-owned bytes")
 		}
 	})
@@ -143,7 +143,7 @@ func fdwIdentityDriverExtensions(t *testing.T) {
 		if !driver.IsValue(value) {
 			t.Fatal("extension witness is not driver-valid", value)
 		}
-		if foreignIdentityComparable(value) {
+		if ForeignIdentityComparable(value) {
 			t.Fatal("runtime-unhashable identity admitted", value)
 		}
 	}
@@ -162,14 +162,14 @@ func fdwIdentityDriverExtensions(t *testing.T) {
 		{pointer, true}, {pointer, false}, {otherPointer, true},
 		{pointerWithSlice, true}, {pointerWithSlice, false},
 	} {
-		if !driver.IsValue(tc.cell) || !foreignIdentityComparable(tc.cell) {
+		if !driver.IsValue(tc.cell) || !ForeignIdentityComparable(tc.cell) {
 			t.Fatal("comparable driver extension rejected", tc.cell)
 		}
 		identity := catalog.ForeignRowIdentity{tc.cell}
 		if !foreignIdentityEqual(identity, identity) || foreignIdentityHash(seed, identity) != foreignIdentityHash(seed, identity) {
 			t.Fatal("comparable extension lost exact equality/hash", tc.cell)
 		}
-		if set.add(identity) != tc.fresh {
+		if set.Add(identity) != tc.fresh {
 			t.Fatal("comparable extension identity was normalized", tc.cell, tc.fresh)
 		}
 	}

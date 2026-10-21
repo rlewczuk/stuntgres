@@ -15,7 +15,7 @@ import (
 // foreignScanRequest resolves relation's server, wrapper, handler and user
 // mapping, and builds the scan request. A non-zero invoker replaces the
 // view's current user. It reads only the captured view and calls no wrapper.
-func foreignScanRequest(view access.View, invoker authorization.PrincipalRef, relation *catalog.Relation, uses []int) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
+func ForeignScanRequest(view access.View, invoker authorization.PrincipalRef, relation *catalog.Relation, uses []int) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
 	if invoker != (authorization.PrincipalRef{}) {
 		view.State.CurrentUser = invoker
 	}
@@ -27,11 +27,11 @@ func foreignScanRequest(view access.View, invoker authorization.PrincipalRef, re
 	if !ok {
 		return nil, catalog.ForeignRequest{}, ids.ErrCatalogReplaced
 	}
-	handler, err := foreignHandlerFor(view.Catalog, wrapper)
+	handler, err := ForeignHandlerFor(view.Catalog, wrapper)
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}
-	mapping, err := foreignMappingFor(view, server)
+	mapping, err := ForeignMappingFor(view, server)
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}
@@ -46,7 +46,7 @@ func foreignScanRequest(view access.View, invoker authorization.PrincipalRef, re
 	for i, column := range relation.Columns {
 		request.Columns = append(request.Columns, catalog.ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
 	}
-	request.RequiredAttributes, err = foreignRequiredAttributes(relation, uses)
+	request.RequiredAttributes, err = ForeignRequiredAttributes(relation, uses)
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}
@@ -55,7 +55,7 @@ func foreignScanRequest(view access.View, invoker authorization.PrincipalRef, re
 
 // Logical virtual-column ACL uses remain unchanged. Only their existing bound
 // expression's base inputs belong in the external row layout.
-func foreignRequiredAttributes(relation *catalog.Relation, uses []int) ([]int32, error) {
+func ForeignRequiredAttributes(relation *catalog.Relation, uses []int) ([]int32, error) {
 	count := len(uses)
 	if uses == nil {
 		count = len(relation.Columns)

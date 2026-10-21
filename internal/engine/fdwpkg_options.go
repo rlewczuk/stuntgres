@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func transformForeignOptions(old []catalog.ForeignOption, changes []parser.ForeignOption) ([]catalog.ForeignOption, error) {
+func TransformForeignOptions(old []catalog.ForeignOption, changes []parser.ForeignOption) ([]catalog.ForeignOption, error) {
 	options := append([]catalog.ForeignOption{}, old...)
 	for _, change := range changes {
 		name := change.Name.Text

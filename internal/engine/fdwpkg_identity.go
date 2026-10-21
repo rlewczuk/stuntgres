@@ -25,7 +25,7 @@ type foreignIdentityEntry struct {
 	next     int
 }
 
-func (s *foreignIdentitySet) add(identity catalog.ForeignRowIdentity) bool {
+func (s *foreignIdentitySet) Add(identity catalog.ForeignRowIdentity) bool {
 	if s.heads == nil {
 		s.seed = maphash.MakeSeed()
 		s.heads = make(map[uint64]int)
@@ -49,7 +49,7 @@ func (s *foreignIdentitySet) addHashed(identity catalog.ForeignRowIdentity, hash
 
 // Called after driver.IsValue. Decimal extension values may contain dynamic
 // noncomparable fields; inspect the actual value, not only its static type.
-func foreignIdentityComparable(cell driver.Value) bool {
+func ForeignIdentityComparable(cell driver.Value) bool {
 	switch cell.(type) {
 	case nil, []byte, bool, float64, int64, string, time.Time:
 		return true

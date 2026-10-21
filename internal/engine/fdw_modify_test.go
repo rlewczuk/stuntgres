@@ -103,8 +103,8 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			op := transactionOperation(t, session)
 			defer op.Done()
 			s := newStatementScope(op, session.Transactions, statementOperationStart(op))
-			m := &foreignModification{source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
-			count, err := m.insertRows(context.Background(), s.foreignWrites(), make([][]sqltype.Value, 5), false, nil)
+			m := &foreignModification{Source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
+			count, err := m.InsertRows(context.Background(), s.foreignWrites(), make([][]sqltype.Value, 5), false, nil)
 			if (err != nil) != tc.bad || count != tc.count {
 				t.Fatalf("count=%d err=%v", count, err)
 			}
@@ -127,13 +127,13 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			}
 		})
 	}
-	if foreignOperationSupported(fdwUnitScanWrapper{}, catalog.ForeignInsert, "f") == nil {
+	if ForeignOperationSupported(fdwUnitScanWrapper{}, catalog.ForeignInsert, "f") == nil {
 		t.Fatal("scan-only INSERT accepted")
 	}
-	if foreignOperationSupported(fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{}}, catalog.ForeignUpdate, "f") == nil {
+	if ForeignOperationSupported(fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{}}, catalog.ForeignUpdate, "f") == nil {
 		t.Fatal("INSERT implied UPDATE")
 	}
-	if foreignOperationSupported(fdwUnitBatchOnly{ForeignBatchInserter: &fdwUnitBatch{size: 2}}, catalog.ForeignInsert, "f") == nil {
+	if ForeignOperationSupported(fdwUnitBatchOnly{ForeignBatchInserter: &fdwUnitBatch{size: 2}}, catalog.ForeignInsert, "f") == nil {
 		t.Fatal("batch-only provider implied INSERT")
 	}
 }
@@ -221,7 +221,7 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = m.begin(op.Context(), s.foreignWrites())
+		err = m.Begin(op.Context(), s.foreignWrites())
 		if partial && !errors.Is(err, failure) {
 			t.Fatal(err)
 		}
@@ -229,7 +229,7 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		if !errors.Is(err, failure) || p.begins != 1 || p.ends != 1 {
 			t.Fatal(err, p.begins, p.ends)
 		}
-		if err := m.end(context.Background()); !errors.Is(err, p.endError) {
+		if err := m.End(context.Background()); !errors.Is(err, p.endError) {
 			t.Fatal(err)
 		}
 		_ = s.Finish(failure)

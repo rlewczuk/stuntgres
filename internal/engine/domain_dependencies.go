@@ -575,7 +575,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		if !slices.Contains(targets, edge.target) {
 			targets = append(targets, edge.target)
 		}
-		if foreignCatalogClass(edge.address.ClassID) || edge.address.ClassID == ids.OperatorClassID || edge.address.ClassID == ids.TypeClassID || edge.address.ClassID == ids.ExtensionClassID || edge.address.ClassID == ids.ProcedureClassID || edge.address.ClassID == ids.TSTemplateClassID || edge.address.ClassID == ids.TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.Address() {
+		if ForeignCatalogClass(edge.address.ClassID) || edge.address.ClassID == ids.OperatorClassID || edge.address.ClassID == ids.TypeClassID || edge.address.ClassID == ids.ExtensionClassID || edge.address.ClassID == ids.ProcedureClassID || edge.address.ClassID == ids.TSTemplateClassID || edge.address.ClassID == ids.TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.Address() {
 			targets = append(targets, edge.address)
 			if edge.address.ClassID == ids.RelationClassID && edge.address.SubID == 0 {
 				seen[edge.address] = true
@@ -727,7 +727,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		}
 	}
 	for _, target := range targets {
-		if foreignCatalogClass(target.ClassID) || target.ClassID == ids.OperatorClassID || target.ClassID == ids.TypeClassID || target.ClassID == ids.CollationClassID || target.ClassID == ids.ConversionClassID || target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ProcedureClassID || target.ClassID == ids.TSTemplateClassID || target.ClassID == ids.TSDictionaryClassID {
+		if ForeignCatalogClass(target.ClassID) || target.ClassID == ids.OperatorClassID || target.ClassID == ids.TypeClassID || target.ClassID == ids.CollationClassID || target.ClassID == ids.ConversionClassID || target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ProcedureClassID || target.ClassID == ids.TSTemplateClassID || target.ClassID == ids.TSDictionaryClassID {
 			if err = provider.remove(e.catalog.Domain.Ref(provider.base.Epoch(), target)); err != nil {
 				break
 			}

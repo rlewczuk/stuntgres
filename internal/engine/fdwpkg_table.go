@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func foreignTableDeclaration(s *parser.CreateTable) error {
+func ForeignTableDeclaration(s *parser.CreateTable) error {
 	if len(s.Parents) != 0 || s.PartitionOf != nil || s.PartitionBy != nil {
 		return sqlError("0A000", "foreign table hierarchies are unsupported in embedded mode")
 	}
@@ -30,7 +30,7 @@ func foreignTableDeclaration(s *parser.CreateTable) error {
 // PostgreSQL accepts these LIKE options for foreign destinations but does not
 // copy their physical/identity properties. Apply that policy before the common
 // binder or stage can create an index, sequence or physical column metadata.
-func foreignTableSyntax(table *parser.CreateTable) *parser.CreateTable {
+func ForeignTableSyntax(table *parser.CreateTable) *parser.CreateTable {
 	next := table
 	for i, element := range table.Elements {
 		if element.Like == nil {
@@ -53,14 +53,14 @@ func foreignTableSyntax(table *parser.CreateTable) *parser.CreateTable {
 	return next
 }
 
-func foreignAlterAdmission(s *parser.ForeignDDL) parser.Statement {
+func ForeignAlterAdmission(s *parser.ForeignDDL) parser.Statement {
 	if s.Inner != nil {
 		return s.Inner
 	}
 	return &parser.AlterTable{Name: s.Name, IfExists: s.IfExists, Pos: s.Pos}
 }
 
-func foreignImportError(err error, name string) error {
+func ForeignImportError(err error, name string) error {
 	if d, ok := err.(*sqlstate.Error); ok {
 		copy := *d
 		if copy.Context != "" {

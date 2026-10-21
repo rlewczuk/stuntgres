@@ -18,7 +18,7 @@ func RegistrationError(message string) error { return errors.New("stuntgres: " +
 // its Driver. It never invokes application code. Later catalog publication uses
 // immutable procedure tokens, not a mutable name-to-callback fallback.
 func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefinition, validators []ForeignValidatorDefinition, importer exec.ForeignValueImporter, exporter exec.ForeignValueExporter) error {
-	e.foreign.install(wrappers, validators, importer, exporter)
+	e.foreign.Install(wrappers, validators, importer, exporter)
 	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	install := func(name catalog.ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
 		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
@@ -31,7 +31,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 			ns := &catalog.Namespace{ObjectAddress: namespace, ObjectName: name.Schema, ObjectRevision: 1, Owner: owner}
 			e.catalog.state.SetDescriptor(namespace, ns)
 			e.catalog.state.BindName(catalog.DescriptorNameKey(ns), namespace)
-			e.foreign.addNamespace(namespace, name.Schema)
+			e.foreign.AddNamespace(namespace, name.Schema)
 		}
 		key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: name.Name, Signature: string(signature)}
 		if e.catalog.state.NameAddress(key) != (ids.ObjectAddress{}) {

@@ -29,7 +29,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 		}
 		return nil, sqlError("42883", "function "+catalog.ObjectNameText(*name)+"("+args+") does not exist")
 	}
-	if err := auth.Check(access.Requirement{Object: foreignRef(auth.View, p), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err := auth.Check(access.Requirement{Object: ForeignRef(auth.View, p), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
 	}
 	result := ids.OID(3115)
@@ -45,7 +45,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 // stageForeignValidatorJob builds the job against the stage base and records
 // its validator procedure among the stage's observed dependencies.
 func stageForeignValidatorJob(stage *CatalogStage, wrapper *catalog.ForeignObject, kind catalog.ForeignObjectKind, options []catalog.ForeignOption) (foreignValidation, error) {
-	job, validator, err := foreignValidatorJob(stage.Base, wrapper, kind, options)
+	job, validator, err := ForeignValidatorJob(stage.Base, wrapper, kind, options)
 	if validator != nil {
 		stage.domainBases = append(stage.domainBases, validator)
 	}
@@ -86,7 +86,7 @@ func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, 
 		e.replacementMu.RUnlock()
 		scope.replacementRead = false
 	}
-	if err := runForeignValidations(op.Context(), jobs); err != nil {
+	if err := RunForeignValidations(op.Context(), jobs); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
@@ -120,7 +120,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	if s.Kind == "table" {
 		return e.stageForeignTableLocked(scope, auth, stage, s)
 	}
-	class := foreignClass(s.Kind)
+	class := ForeignClass(s.Kind)
 	var old, server, wrapper *catalog.ForeignObject
 	var role authorization.PrincipalRef
 	name := ""
@@ -131,7 +131,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		name = s.Name.Parts[0].Text
 	}
 	if s.Kind == "mapping" {
-		role, err = foreignMappedRole(auth.View, s.Role)
+		role, err = ForeignMappedRole(auth.View, s.Role)
 		if err != nil {
 			if s.Action == "drop" && s.IfExists {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
@@ -141,7 +141,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 			return nil, nil, err
 		}
-		server, err = findForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
+		server, err = FindForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
 		if err != nil {
 			if s.Action == "drop" && s.IfExists {
 				schemaNotice(op, "00000", fmt.Sprintf(`server "%s" does not exist, skipping`, s.Server.Text))
@@ -149,7 +149,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 			return nil, nil, err
 		}
-		if err = foreignMappingAuthority(auth.View, auth, server, role); err != nil {
+		if err = ForeignMappingAuthority(auth.View, auth, server, role); err != nil {
 			return nil, nil, err
 		}
 		name = catalog.ForeignMappingName(server.Address(), role)
@@ -166,10 +166,10 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			if len(n.Parts) != 1 {
 				return nil, nil, sqlError("42601", "SQL/MED global names cannot be qualified")
 			}
-			d, er := findForeign(auth.Catalog, class, n.Parts[0].Text)
+			d, er := FindForeign(auth.Catalog, class, n.Parts[0].Text)
 			if er != nil {
 				if class == ids.ForeignMappingClassID {
-					message := foreignMappingDiagnostic(auth.View, role, server, false)
+					message := ForeignMappingDiagnostic(auth.View, role, server, false)
 					if s.IfExists {
 						schemaNotice(op, "00000", message+", skipping")
 						continue
@@ -177,28 +177,28 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 					return nil, nil, sqlError("42704", message)
 				}
 				if s.IfExists {
-					schemaNotice(op, "00000", fmt.Sprintf(`%s "%s" does not exist, skipping`, foreignLabel(class), n.Parts[0].Text))
+					schemaNotice(op, "00000", fmt.Sprintf(`%s "%s" does not exist, skipping`, ForeignLabel(class), n.Parts[0].Text))
 					continue
 				}
 				return nil, nil, er
 			}
 			if class != ids.ForeignMappingClassID {
-				if er = auth.Check(access.Requirement{Object: foreignRef(auth.View, d), OwnerOnly: true}); er != nil {
+				if er = auth.Check(access.Requirement{Object: ForeignRef(auth.View, d), OwnerOnly: true}); er != nil {
 					return nil, nil, er
 				}
 			}
-			if er = stage.removeObjectLocked(foreignRef(auth.View, d), false); er != nil {
+			if er = stage.removeObjectLocked(ForeignRef(auth.View, d), false); er != nil {
 				return nil, nil, er
 			}
 			roots = append(roots, d.Address())
 		}
 		return nil, roots, nil
 	}
-	old, _ = findForeign(auth.Catalog, class, name)
+	old, _ = FindForeign(auth.Catalog, class, name)
 	if s.Action == "create" && old != nil {
-		message := fmt.Sprintf(`%s "%s" already exists`, foreignLabel(class), name)
+		message := fmt.Sprintf(`%s "%s" already exists`, ForeignLabel(class), name)
 		if class == ids.ForeignMappingClassID {
-			message = foreignMappingDiagnostic(auth.View, role, server, true)
+			message = ForeignMappingDiagnostic(auth.View, role, server, true)
 		}
 		if s.IfNotExists {
 			schemaNotice(op, "42710", message+", skipping")
@@ -208,15 +208,15 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	}
 	if s.Action == "alter" && old == nil {
 		if class == ids.ForeignMappingClassID {
-			return nil, nil, sqlError("42704", foreignMappingDiagnostic(auth.View, role, server, false))
+			return nil, nil, sqlError("42704", ForeignMappingDiagnostic(auth.View, role, server, false))
 		}
-		_, err = findForeign(auth.Catalog, class, name)
+		_, err = FindForeign(auth.Catalog, class, name)
 		return nil, nil, err
 	}
 	var next catalog.ForeignObject
 	if old != nil {
 		if class != ids.ForeignMappingClassID && s.Owner == nil {
-			if err = auth.Check(access.Requirement{Object: foreignRef(auth.View, old), OwnerOnly: true}); err != nil {
+			if err = auth.Check(access.Requirement{Object: ForeignRef(auth.View, old), OwnerOnly: true}); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -259,11 +259,11 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		wrapper = &next
 	case ids.ForeignServerClassID:
 		if old == nil {
-			wrapper, err = findForeign(auth.Catalog, ids.ForeignWrapperClassID, s.Server.Text)
+			wrapper, err = FindForeign(auth.Catalog, ids.ForeignWrapperClassID, s.Server.Text)
 			if err != nil {
 				return nil, nil, err
 			}
-			if err = auth.Check(access.Requirement{Object: foreignRef(auth.View, wrapper), Privileges: authorization.UsagePrivilege}); err != nil {
+			if err = auth.Check(access.Requirement{Object: ForeignRef(auth.View, wrapper), Privileges: authorization.UsagePrivilege}); err != nil {
 				return nil, nil, err
 			}
 			next.Wrapper = wrapper.Address()
@@ -291,7 +291,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper descriptor")
 	}
 	if old == nil || s.Options != nil {
-		next.Options, err = transformForeignOptions(next.Options, s.Options)
+		next.Options, err = TransformForeignOptions(next.Options, s.Options)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -301,7 +301,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	}
 	if s.Owner != nil {
 		target := successor
-		if er := foreignOwnershipEligibility(auth.View, auth, old, target); er != nil {
+		if er := ForeignOwnershipEligibility(auth.View, auth, old, target); er != nil {
 			return nil, nil, er
 		}
 		if target == old.Owner {
@@ -311,7 +311,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		next.Owner = target
 	}
 	if a := stage.LookupName(catalog.DescriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.Address()) {
-		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, foreignLabel(class), next.Name()))
+		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, ForeignLabel(class), next.Name()))
 	}
 	stage.domainBases = append(stage.domainBases, wrapper)
 	var jobs []foreignValidation

@@ -172,7 +172,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			switch d.(type) {
 			case *catalog.ForeignObject:
 				foreign := d.(*catalog.ForeignObject)
-				err = foreignOwnershipEligibility(auth.View, auth, foreign, target)
+				err = ForeignOwnershipEligibility(auth.View, auth, foreign, target)
 				if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
 					stage.domainBases = append(stage.domainBases, auth.Catalog.Get(foreign.Wrapper))
 				}

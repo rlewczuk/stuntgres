@@ -37,7 +37,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relatio
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
-		handler, err := foreignHandlerFor(auth.Catalog, wrapper)
+		handler, err := ForeignHandlerFor(auth.Catalog, wrapper)
 		if err != nil {
 			return err
 		}

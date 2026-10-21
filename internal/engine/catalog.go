@@ -1533,7 +1533,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared); err != nil {
 		return ChangeSet{}, err
 	}
-	e.foreign.adoptNamespaces(sourceForeign)
+	e.foreign.AdoptNamespaces(sourceForeign)
 	installed = next.Epoch()
 	return ChangeSet{Replacement: true}, nil
 }

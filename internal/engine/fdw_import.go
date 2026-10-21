@@ -18,12 +18,12 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	server, err := findForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
+	server, err := FindForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err = auth.Check(access.Requirement{Object: foreignRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ForeignRef(auth.View, server), Privileges: authorization.UsagePrivilege}); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -40,7 +40,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	handler, err := foreignHandlerFor(auth.Catalog, wrapper)
+	handler, err := ForeignHandlerFor(auth.Catalog, wrapper)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -50,12 +50,12 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, sqlError("HV00P", fmt.Sprintf(`foreign-data wrapper "%s" does not support IMPORT FOREIGN SCHEMA`, wrapper.Name()))
 	}
-	mapping, err := foreignMappingFor(auth.View, server)
+	mapping, err := ForeignMappingFor(auth.View, server)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	options, err := transformForeignOptions(nil, s.Options)
+	options, err := TransformForeignOptions(nil, s.Options)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -105,7 +105,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		}
 		table, err := foreignImportedTable(scope, definition, s)
 		if err != nil {
-			return Result{}, foreignImportError(err, definition.Name)
+			return Result{}, ForeignImportError(err, definition.Name)
 		}
 		e.mu.Lock()
 		_, currentErr := e.authorizationLocked(scope.op)
@@ -118,14 +118,14 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		}
 		e.mu.Unlock()
 		if currentErr != nil {
-			return Result{}, foreignImportError(currentErr, definition.Name)
+			return Result{}, ForeignImportError(currentErr, definition.Name)
 		}
 		for i := range validations {
-			validations[i].importTable = definition.Name
+			validations[i].ImportTable = definition.Name
 		}
 		jobs = append(jobs, validations...)
 	}
-	if err = runForeignValidations(scope.op.Context(), jobs); err != nil {
+	if err = RunForeignValidations(scope.op.Context(), jobs); err != nil {
 		return Result{}, err
 	}
 	if err = scope.acquireDefinitionProviders(stage); err != nil {
@@ -140,15 +140,15 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 }
 
 func foreignImportedTable(scope *StatementScope, definition ForeignTableDefinition, s *parser.ForeignDDL) (*parser.ForeignDDL, error) {
-	name, err := foreignFunctionName(catalog.ForeignFunctionName{Schema: s.LocalSchema.Text, Name: definition.Name})
+	name, err := ForeignFunctionName(catalog.ForeignFunctionName{Schema: s.LocalSchema.Text, Name: definition.Name})
 	if err != nil {
 		return nil, err
 	}
 	qualified := parser.ObjectName{Parts: []parser.Identifier{{Text: name.Schema}, {Text: name.Name}}}
 	table := &parser.CreateTable{Name: qualified, Persistence: "logged"}
-	result := &parser.ForeignDDL{Action: "create", Kind: "table", Name: qualified, Table: table, Server: s.Server, Options: importedOptions(definition.Options), ColumnOptions: make(map[string][]parser.ForeignOption)}
+	result := &parser.ForeignDDL{Action: "create", Kind: "table", Name: qualified, Table: table, Server: s.Server, Options: ImportedOptions(definition.Options), ColumnOptions: make(map[string][]parser.ForeignOption)}
 	for _, column := range definition.Columns {
-		if _, err := foreignFunctionName(catalog.ForeignFunctionName{Name: column.Name}); err != nil {
+		if _, err := ForeignFunctionName(catalog.ForeignFunctionName{Name: column.Name}); err != nil {
 			return nil, err
 		}
 		typ, err := parser.ParseTypeName(scope.op.Context(), column.Type, nil)
@@ -160,24 +160,24 @@ func foreignImportedTable(scope *StatementScope, definition ForeignTableDefiniti
 			c.Constraints = append(c.Constraints, parser.ColumnConstraint{NotNull: true})
 		}
 		if column.Default != "" {
-			expression, err := foreignImportExpression(column.Default)
+			expression, err := ForeignImportExpression(column.Default)
 			if err != nil {
 				return nil, err
 			}
 			c.Constraints = append(c.Constraints, parser.ColumnConstraint{Default: expression})
 		}
 		if column.Check != "" {
-			expression, err := foreignImportExpression(column.Check)
+			expression, err := ForeignImportExpression(column.Check)
 			if err != nil {
 				return nil, err
 			}
 			c.Constraints = append(c.Constraints, parser.ColumnConstraint{Check: &parser.CheckConstraint{Expression: expression}})
 		}
 		table.Elements = append(table.Elements, parser.TableElement{Column: c})
-		result.ColumnOptions[column.Name] = importedOptions(column.Options)
+		result.ColumnOptions[column.Name] = ImportedOptions(column.Options)
 	}
 	for _, check := range definition.Checks {
-		expression, err := foreignImportExpression(check)
+		expression, err := ForeignImportExpression(check)
 		if err != nil {
 			return nil, err
 		}

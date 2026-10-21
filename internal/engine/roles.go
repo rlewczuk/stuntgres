@@ -213,7 +213,7 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 		kind = "text search dictionary "
 	}
 	if foreign, ok := d.(*catalog.ForeignObject); ok {
-		kind = foreignLabel(foreign.Address().ClassID) + " "
+		kind = ForeignLabel(foreign.Address().ClassID) + " "
 		if foreign.Address().ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
 			mapped, _ := auth.Roles.Descriptor(foreign.MappedRole)

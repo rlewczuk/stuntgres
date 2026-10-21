@@ -69,7 +69,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if len(name.Parts) != 1 {
 			return Result{}, sqlError("42601", "SQL/MED global names cannot be qualified")
 		}
-		d, er := findForeign(auth.Catalog, class, name.Parts[0].Text)
+		d, er := FindForeign(auth.Catalog, class, name.Parts[0].Text)
 		if er != nil {
 			return Result{}, er
 		}

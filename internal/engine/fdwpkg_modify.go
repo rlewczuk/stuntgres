@@ -22,15 +22,15 @@ type foreignWriteRuntime interface {
 }
 
 type foreignModification struct {
-	source         *exec.ForeignQuerySource
-	request        catalog.ForeignModifyRequest
-	state          any
-	copy           bool
+	Source         *exec.ForeignQuerySource
+	Request        catalog.ForeignModifyRequest
+	State          any
+	Copy           bool
 	entered, ended bool
 	endError       error
 }
 
-func foreignOperationSupported(wrapper catalog.ForeignDataWrapper, op catalog.ForeignModifyOperation, table string) error {
+func ForeignOperationSupported(wrapper catalog.ForeignDataWrapper, op catalog.ForeignModifyOperation, table string) error {
 	var ok bool
 	var verb string
 	switch op {
@@ -52,7 +52,7 @@ func foreignOperationSupported(wrapper catalog.ForeignDataWrapper, op catalog.Fo
 
 // Metadata-only admission also runs for prepared CTE auxiliaries, before any
 // auxiliary executor can open a source or enter a provider transaction.
-func foreignModifyAdmission(view catalog.Read, relation *catalog.Relation, operation catalog.ForeignModifyOperation) error {
+func ForeignModifyAdmission(view catalog.Read, relation *catalog.Relation, operation catalog.ForeignModifyOperation) error {
 	server, ok := view.Foreign(relation.Foreign.Server)
 	if !ok {
 		return ids.ErrCatalogReplaced
@@ -61,11 +61,11 @@ func foreignModifyAdmission(view catalog.Read, relation *catalog.Relation, opera
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	handler, err := foreignHandlerFor(view, wrapper)
+	handler, err := ForeignHandlerFor(view, wrapper)
 	if err != nil {
 		return err
 	}
-	if err := foreignOperationSupported(handler.Wrapper, operation, relation.Name()); err != nil {
+	if err := ForeignOperationSupported(handler.Wrapper, operation, relation.Name()); err != nil {
 		return err
 	}
 	if operation != catalog.ForeignInsert {
@@ -76,53 +76,53 @@ func foreignModifyAdmission(view catalog.Read, relation *catalog.Relation, opera
 	return nil
 }
 
-func (m *foreignModification) begin(ctx context.Context, rt foreignWriteRuntime) error {
-	tx, err := rt.EnlistForeign(ctx, m.source.Wrapper, m.request.ForeignRequest, true)
+func (m *foreignModification) Begin(ctx context.Context, rt foreignWriteRuntime) error {
+	tx, err := rt.EnlistForeign(ctx, m.Source.Wrapper, m.Request.ForeignRequest, true)
 	if err != nil {
 		return err
 	}
-	m.request.Transaction = tx
+	m.Request.Transaction = tx
 	m.entered = true
 	rt.TrackForeignModification(m)
-	if m.copy {
-		if beginner, ok := m.source.Wrapper.(catalog.ForeignInsertBeginner); ok {
-			m.state, err = beginner.BeginForeignInsert(ctx, catalog.ForeignInsertRequest{ForeignRequest: exec.CopyForeignRequest(m.request.ForeignRequest), Copy: true})
+	if m.Copy {
+		if beginner, ok := m.Source.Wrapper.(catalog.ForeignInsertBeginner); ok {
+			m.State, err = beginner.BeginForeignInsert(ctx, catalog.ForeignInsertRequest{ForeignRequest: exec.CopyForeignRequest(m.Request.ForeignRequest), Copy: true})
 		}
-	} else if beginner, ok := m.source.Wrapper.(catalog.ForeignModifyBeginner); ok {
-		m.state, err = beginner.BeginForeignModify(ctx, m.callbackRequest())
+	} else if beginner, ok := m.Source.Wrapper.(catalog.ForeignModifyBeginner); ok {
+		m.State, err = beginner.BeginForeignModify(ctx, m.CallbackRequest())
 	}
 	return exec.ForeignCallbackError(err)
 }
 
-func (m *foreignModification) callbackRequest() catalog.ForeignModifyRequest {
-	r := m.request
+func (m *foreignModification) CallbackRequest() catalog.ForeignModifyRequest {
+	r := m.Request
 	r.ForeignRequest = exec.CopyForeignRequest(r.ForeignRequest)
 	r.Targets.Names = slices.Clone(r.Targets.Names)
 	return r
 }
 
-func (m *foreignModification) end(ctx context.Context) error {
+func (m *foreignModification) End(ctx context.Context) error {
 	if m.ended || !m.entered {
 		return m.endError
 	}
 	m.ended = true
-	if m.copy {
-		if ender, ok := m.source.Wrapper.(catalog.ForeignInsertEnder); ok {
-			m.endError = ender.EndForeignInsert(context.WithoutCancel(ctx), catalog.ForeignInsertRequest{ForeignRequest: exec.CopyForeignRequest(m.request.ForeignRequest), Copy: true}, m.state)
+	if m.Copy {
+		if ender, ok := m.Source.Wrapper.(catalog.ForeignInsertEnder); ok {
+			m.endError = ender.EndForeignInsert(context.WithoutCancel(ctx), catalog.ForeignInsertRequest{ForeignRequest: exec.CopyForeignRequest(m.Request.ForeignRequest), Copy: true}, m.State)
 		}
-	} else if ender, ok := m.source.Wrapper.(catalog.ForeignModifyEnder); ok {
-		m.endError = ender.EndForeignModify(context.WithoutCancel(ctx), m.callbackRequest(), m.state)
+	} else if ender, ok := m.Source.Wrapper.(catalog.ForeignModifyEnder); ok {
+		m.endError = ender.EndForeignModify(context.WithoutCancel(ctx), m.CallbackRequest(), m.State)
 	}
 	m.endError = exec.ForeignCallbackError(m.endError)
-	m.state = nil
+	m.State = nil
 	return m.endError
 }
 
-func (m *foreignModification) export(ctx context.Context, row []sqltype.Value, rt foreignWriteRuntime) (catalog.ForeignRow, error) {
+func (m *foreignModification) Export(ctx context.Context, row []sqltype.Value, rt foreignWriteRuntime) (catalog.ForeignRow, error) {
 	_, output := rt.Environments()
 	out := make(catalog.ForeignRow, len(row))
 	for i, value := range row {
-		cell, err := m.source.ExportValue(ctx, value, output)
+		cell, err := m.Source.ExportValue(ctx, value, output)
 		if err != nil {
 			return nil, err
 		}
@@ -134,18 +134,18 @@ func (m *foreignModification) export(ctx context.Context, row []sqltype.Value, r
 	return out, nil
 }
 
-func (m *foreignModification) returned(ctx context.Context, row catalog.ForeignRow, rt foreignWriteRuntime) ([]sqltype.Value, error) {
+func (m *foreignModification) Returned(ctx context.Context, row catalog.ForeignRow, rt foreignWriteRuntime) ([]sqltype.Value, error) {
 	input, output := rt.Environments()
-	return m.source.ImportValues(ctx, row, nil, input, output, nil)
+	return m.Source.ImportValues(ctx, row, nil, input, output, nil)
 }
 
-func (m *foreignModification) insertRows(ctx context.Context, rt foreignWriteRuntime, rows [][]sqltype.Value, rowByRow bool, accept func([]sqltype.Value) error) (int64, error) {
-	batch, hasBatch := m.source.Wrapper.(catalog.ForeignBatchInserter)
-	sizer, hasSize := m.source.Wrapper.(catalog.ForeignBatchSizer)
+func (m *foreignModification) InsertRows(ctx context.Context, rt foreignWriteRuntime, rows [][]sqltype.Value, rowByRow bool, accept func([]sqltype.Value) error) (int64, error) {
+	batch, hasBatch := m.Source.Wrapper.(catalog.ForeignBatchInserter)
+	sizer, hasSize := m.Source.Wrapper.(catalog.ForeignBatchSizer)
 	size := 1
 	if hasBatch && hasSize && !rowByRow {
 		var err error
-		size, err = sizer.GetForeignModifyBatchSize(ctx, m.callbackRequest(), m.state)
+		size, err = sizer.GetForeignModifyBatchSize(ctx, m.CallbackRequest(), m.State)
 		if err != nil {
 			return 0, exec.ForeignCallbackError(err)
 		}
@@ -155,23 +155,23 @@ func (m *foreignModification) insertRows(ctx context.Context, rt foreignWriteRun
 	}
 	var count int64
 	if size == 1 {
-		inserter := m.source.Wrapper.(catalog.ForeignInserter)
+		inserter := m.Source.Wrapper.(catalog.ForeignInserter)
 		for _, input := range rows {
 			if err := ctx.Err(); err != nil {
 				return 0, err
 			}
-			cells, err := m.export(ctx, input, rt)
+			cells, err := m.Export(ctx, input, rt)
 			if err != nil {
 				return 0, err
 			}
-			result, present, err := inserter.ExecForeignInsert(ctx, m.callbackRequest(), m.state, cells)
+			result, present, err := inserter.ExecForeignInsert(ctx, m.CallbackRequest(), m.State, cells)
 			if err != nil {
 				return 0, exec.ForeignCallbackError(err)
 			}
 			if !present {
 				continue
 			}
-			row, err := m.returned(ctx, result, rt)
+			row, err := m.Returned(ctx, result, rt)
 			if err != nil {
 				return 0, err
 			}
@@ -192,12 +192,12 @@ func (m *foreignModification) insertRows(ctx context.Context, rt foreignWriteRun
 		inputs := make([]catalog.ForeignRow, n)
 		for i := range inputs {
 			var err error
-			inputs[i], err = m.export(ctx, rows[offset+i], rt)
+			inputs[i], err = m.Export(ctx, rows[offset+i], rt)
 			if err != nil {
 				return 0, err
 			}
 		}
-		results, err := batch.ExecForeignBatchInsert(ctx, m.callbackRequest(), m.state, inputs)
+		results, err := batch.ExecForeignBatchInsert(ctx, m.CallbackRequest(), m.State, inputs)
 		if err != nil {
 			return 0, exec.ForeignCallbackError(err)
 		}
@@ -205,7 +205,7 @@ func (m *foreignModification) insertRows(ctx context.Context, rt foreignWriteRun
 			return 0, errors.New("stuntgres: foreign batch returned more rows than supplied")
 		}
 		for _, result := range results {
-			row, err := m.returned(ctx, result, rt)
+			row, err := m.Returned(ctx, result, rt)
 			if err != nil {
 				return 0, err
 			}
@@ -222,6 +222,6 @@ func (m *foreignModification) insertRows(ctx context.Context, rt foreignWriteRun
 }
 
 type foreignTruncateGroup struct {
-	source  *exec.ForeignQuerySource
-	request catalog.ForeignTruncateRequest
+	Source  *exec.ForeignQuerySource
+	Request catalog.ForeignTruncateRequest
 }

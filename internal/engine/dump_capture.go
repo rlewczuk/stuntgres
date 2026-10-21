@@ -112,7 +112,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err
 	}
-	for address, name := range e.foreign.namespaceEntries() {
+	for address, name := range e.foreign.NamespaceEntries() {
 		ns, ok := state.Namespace(address)
 		if !ok || ns.Name() != name {
 			return nil, fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")

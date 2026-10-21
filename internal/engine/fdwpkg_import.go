@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func foreignMappingFor(view access.View, server *catalog.ForeignObject) (*catalog.ForeignObject, error) {
+func ForeignMappingFor(view access.View, server *catalog.ForeignObject) (*catalog.ForeignObject, error) {
 	for _, role := range []authorization.PrincipalRef{view.State.CurrentUser, {}} {
 		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: catalog.ForeignMappingName(server.Address(), role)}
 		if d, ok := view.Catalog.Foreign(view.Catalog.NameAddress(key)); ok {
@@ -24,7 +24,7 @@ func foreignMappingFor(view access.View, server *catalog.ForeignObject) (*catalo
 	return nil, sqlError("42704", fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, role.Name, server.Name()))
 }
 
-func foreignHandlerFor(catalog catalog.Read, wrapper *catalog.ForeignObject) (*catalog.ForeignProcedure, error) {
+func ForeignHandlerFor(catalog catalog.Read, wrapper *catalog.ForeignObject) (*catalog.ForeignProcedure, error) {
 	if wrapper.Handler == (ids.ObjectAddress{}) {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.Name()))
 	}
@@ -35,7 +35,7 @@ func foreignHandlerFor(catalog catalog.Read, wrapper *catalog.ForeignObject) (*c
 	return p.Foreign, nil
 }
 
-func foreignImportExpression(text string) (parser.Expr, error) {
+func ForeignImportExpression(text string) (parser.Expr, error) {
 	statements, err := parser.Parse("SELECT (" + text + ")")
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func foreignImportExpression(text string) (parser.Expr, error) {
 	return selectStmt.Targets[0], nil
 }
 
-func importedOptions(options []catalog.ForeignOption) []parser.ForeignOption {
+func ImportedOptions(options []catalog.ForeignOption) []parser.ForeignOption {
 	out := make([]parser.ForeignOption, len(options))
 	for i, o := range options {
 		out[i] = parser.ForeignOption{Name: parser.Identifier{Text: o.Name}, Value: o.Value}
