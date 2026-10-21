@@ -108,10 +108,6 @@ type routineFragment struct {
 	expression bool
 }
 
-func routineContainerLiteral(ctx context.Context, view catalog.Read, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
-	return routineContainerLiteralAt(ctx, view, nil, value, usage, acl)
-}
-
 func routineContainerLiteralAt(ctx context.Context, view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
 	fragments, err := routineContainerFragments(ctx, view, value, acl)
 	if err != nil {
