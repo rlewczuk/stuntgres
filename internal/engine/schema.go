@@ -346,7 +346,7 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
-	host := schemaHost{e: e, op: op, stage: stage}
+	host := ddlHost{e: e, op: op, stage: stage}
 	databaseGate := func() error {
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), catalog.CurrentDatabaseAddress)
 		rights, err := auth.Effective(ref, false)

@@ -7,14 +7,14 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func TestSchemaHostRecaptureLeavesArgument(t *testing.T) {
+func TestDDLHostRecaptureLeavesArgument(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := schemaHost{e: e, op: op, stage: stage}
+	h := ddlHost{e: e, op: op, stage: stage}
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "recaptured", ObjectRevision: 1, Owner: auth.State.CurrentUser}
 	if err := h.Stage().Create(ns); err != nil {
 		t.Fatal(err)

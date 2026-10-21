@@ -16,48 +16,48 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// typedefHost is schemaHost seen as typedef.StageHost. The ddl.Host methods
-// delegate to schemaHost; only the type methods have bodies here. 20b merges
+// typedefHost is ddlHost seen as typedef.StageHost. The ddl.Host methods
+// delegate to ddlHost; only the type methods have bodies here. 20b merges
 // the two adapters.
-type typedefHost schemaHost
+type typedefHost ddlHost
 
 var _ typedef.StageHost = typedefHost{}
 
-func (h typedefHost) AccessView(a ddl.Authority) access.View { return schemaHost(h).AccessView(a) }
+func (h typedefHost) AccessView(a ddl.Authority) access.View { return ddlHost(h).AccessView(a) }
 func (h typedefHost) Recapture(a ddl.Authority, view catalog.Read) ddl.Authority {
-	return schemaHost(h).Recapture(a, view)
+	return ddlHost(h).Recapture(a, view)
 }
 func (h typedefHost) CheckCreateIn(a ddl.Authority, namespace ids.ObjectRef) error {
-	return schemaHost(h).CheckCreateIn(a, namespace)
+	return ddlHost(h).CheckCreateIn(a, namespace)
 }
-func (h typedefHost) Context() context.Context { return schemaHost(h).Context() }
+func (h typedefHost) Context() context.Context { return ddlHost(h).Context() }
 func (h typedefHost) EmitNotice(level session.NoticeLevel, diagnostic sqlstate.Error) {
-	schemaHost(h).EmitNotice(level, diagnostic)
+	ddlHost(h).EmitNotice(level, diagnostic)
 }
-func (h typedefHost) AllocateOID() (ids.OID, error)             { return schemaHost(h).AllocateOID() }
-func (h typedefHost) Revision() (ids.DefinitionRevision, error) { return schemaHost(h).Revision() }
-func (h typedefHost) Stage() ddl.Stage                          { return schemaHost(h).Stage() }
-func (h typedefHost) StageBase() catalog.Read                   { return schemaHost(h).StageBase() }
-func (h typedefHost) StageRead() catalog.Read                   { return schemaHost(h).StageRead() }
+func (h typedefHost) AllocateOID() (ids.OID, error)             { return ddlHost(h).AllocateOID() }
+func (h typedefHost) Revision() (ids.DefinitionRevision, error) { return ddlHost(h).Revision() }
+func (h typedefHost) Stage() ddl.Stage                          { return ddlHost(h).Stage() }
+func (h typedefHost) StageBase() catalog.Read                   { return ddlHost(h).StageBase() }
+func (h typedefHost) StageRead() catalog.Read                   { return ddlHost(h).StageRead() }
 func (h typedefHost) CreationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
-	return schemaHost(h).CreationACL(owner, schema, class)
+	return ddlHost(h).CreationACL(owner, schema, class)
 }
-func (h typedefHost) DropTarget(address ids.ObjectAddress) { schemaHost(h).DropTarget(address) }
-func (h typedefHost) RecordDependencyPath(a ddl.Authority) { schemaHost(h).RecordDependencyPath(a) }
+func (h typedefHost) DropTarget(address ids.ObjectAddress) { ddlHost(h).DropTarget(address) }
+func (h typedefHost) RecordDependencyPath(a ddl.Authority) { ddlHost(h).RecordDependencyPath(a) }
 func (h typedefHost) CreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
-	return schemaHost(h).CreationNamespace(a, name)
+	return ddlHost(h).CreationNamespace(a, name)
 }
 func (h typedefHost) ExistingCreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
-	return schemaHost(h).ExistingCreationNamespace(a, name)
+	return ddlHost(h).ExistingCreationNamespace(a, name)
 }
 func (h typedefHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error) {
-	return schemaHost(h).SearchNamespaces(a, name, class)
+	return ddlHost(h).SearchNamespaces(a, name, class)
 }
 func (h typedefHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
-	return schemaHost(h).LookupFunction(a, name, signature)
+	return ddlHost(h).LookupFunction(a, name, signature)
 }
 func (h typedefHost) DependencyObject(a ddl.Authority, address ids.ObjectAddress) (string, error) {
-	return schemaHost(h).DependencyObject(a, address)
+	return ddlHost(h).DependencyObject(a, address)
 }
 
 func (h typedefHost) TrustedRestoreDestination(a ddl.Authority, what string) (bool, error) {

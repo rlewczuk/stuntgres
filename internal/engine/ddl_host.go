@@ -17,20 +17,20 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// schemaHost is the root adapter behind ddl.Host and routine.DDLHost (and,
-// as typedefHost, typedef.StageHost) for one schema statement. Schema
-// staging runs under Engine.mu without a StatementScope, so it holds the
-// engine, the operation and the catalog stage, and no authorization view: the
-// handlers pass their authority in.
-type schemaHost struct {
+// ddlHost is the root staging adapter behind ddl.Host and routine.DDLHost
+// (and, as typedefHost, typedef.StageHost) for one DDL statement. Staging
+// runs under Engine.mu without a StatementScope, so it holds the engine, the
+// operation and the catalog stage, and no authorization view: the handlers
+// pass their authority in.
+type ddlHost struct {
 	e     *Engine
 	op    *session.Operation
 	stage *CatalogStage
 }
 
 var (
-	_ ddl.Host        = schemaHost{}
-	_ routine.DDLHost = schemaHost{}
+	_ ddl.Host        = ddlHost{}
+	_ routine.DDLHost = ddlHost{}
 )
 
 // DDLAuthority marks AuthorizationView as a ddl.Authority.
@@ -46,37 +46,37 @@ func ddlAuthorityOf(a ddl.Authority) AuthorizationView {
 	return v
 }
 
-func (h schemaHost) AccessView(a ddl.Authority) access.View { return ddlAuthorityOf(a).View }
+func (h ddlHost) AccessView(a ddl.Authority) access.View { return ddlAuthorityOf(a).View }
 
-func (h schemaHost) Recapture(a ddl.Authority, view catalog.Read) ddl.Authority {
+func (h ddlHost) Recapture(a ddl.Authority, view catalog.Read) ddl.Authority {
 	v := ddlAuthorityOf(a)
 	v.Recapture(view)
 	return v
 }
 
-func (h schemaHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
+func (h ddlHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return ddlAuthorityOf(a).definitionType(id)
 }
 
-func (h schemaHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
+func (h ddlHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
 	return ddlAuthorityOf(a).definitionLookup(key)
 }
 
-func (h schemaHost) CreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
+func (h ddlHost) CreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
 	v := ddlAuthorityOf(a)
 	ref, err := h.e.collationCreationNamespaceLocked(&v, h.stage, name)
 	return ref, v, err
 }
 
-func (h schemaHost) CheckCreateIn(a ddl.Authority, namespace ids.ObjectRef) error {
+func (h ddlHost) CheckCreateIn(a ddl.Authority, namespace ids.ObjectRef) error {
 	return h.e.conversionCheckCreate(h.op, ddlAuthorityOf(a), namespace)
 }
 
-func (h schemaHost) ExistingCreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
+func (h ddlHost) ExistingCreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
 	return h.e.creationNamespace(ddlAuthorityOf(a), name)
 }
 
-func (h schemaHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error) {
+func (h ddlHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error) {
 	var kind analyze.LookupKind
 	switch class {
 	case ids.TypeClassID:
@@ -99,7 +99,7 @@ func (h schemaHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, cl
 	return namespaces, nil
 }
 
-func (h schemaHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
+func (h ddlHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
 	v := ddlAuthorityOf(a)
 	path, err := h.e.lookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
@@ -108,7 +108,7 @@ func (h schemaHost) LookupFunction(a ddl.Authority, name parser.ObjectName, sign
 	return analyze.ProcedureInNamespaces(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, signature), nil
 }
 
-func (h schemaHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
+func (h ddlHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
 	v := ddlAuthorityOf(a)
 	path, err := h.e.lookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
@@ -118,7 +118,7 @@ func (h schemaHost) SelectFunction(a ddl.Authority, name parser.ObjectName, sign
 	return identity, count, nil
 }
 
-func (h schemaHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
+func (h ddlHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
 	input, err := h.e.captureRegtypeInput(ddlAuthorityOf(a), h.op)
 	if err != nil {
 		return 0, err
@@ -129,40 +129,40 @@ func (h schemaHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OI
 
 // DependencyObject renders the description even when the path fails, so a
 // caller that only wants the text keeps it.
-func (h schemaHost) DependencyObject(a ddl.Authority, address ids.ObjectAddress) (string, error) {
+func (h ddlHost) DependencyObject(a ddl.Authority, address ids.ObjectAddress) (string, error) {
 	v := ddlAuthorityOf(a)
 	path, err := h.e.referencePath(v)
 	return dependencyObject(v.Catalog, address, path), err
 }
 
-func (h schemaHost) Stage() ddl.Stage        { return h.stage }
-func (h schemaHost) StageBase() catalog.Read { return h.stage.Base }
-func (h schemaHost) StageRead() catalog.Read { return h.e.stageRead(h.stage) }
+func (h ddlHost) Stage() ddl.Stage        { return h.stage }
+func (h ddlHost) StageBase() catalog.Read { return h.stage.Base }
+func (h ddlHost) StageRead() catalog.Read { return h.e.stageRead(h.stage) }
 
-func (h schemaHost) CreationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
+func (h ddlHost) CreationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	return h.stage.creationACL(owner, schema, class)
 }
 
-func (h schemaHost) DropTarget(address ids.ObjectAddress) {
+func (h ddlHost) DropTarget(address ids.ObjectAddress) {
 	h.stage.domainTargets = append(h.stage.domainTargets, address)
 }
 
-func (h schemaHost) RecordDependencyPath(a ddl.Authority) {
+func (h ddlHost) RecordDependencyPath(a ddl.Authority) {
 	h.stage.dependencyPath, _ = h.e.referencePath(ddlAuthorityOf(a))
 }
 
-func (h schemaHost) AllocateOID() (ids.OID, error)             { return h.e.catalog.allocateOIDLocked() }
-func (h schemaHost) Revision() (ids.DefinitionRevision, error) { return h.e.catalog.revisionLocked() }
+func (h ddlHost) AllocateOID() (ids.OID, error)             { return h.e.catalog.allocateOIDLocked() }
+func (h ddlHost) Revision() (ids.DefinitionRevision, error) { return h.e.catalog.revisionLocked() }
 
-func (h schemaHost) Context() context.Context { return h.op.Context() }
+func (h ddlHost) Context() context.Context { return h.op.Context() }
 
-func (h schemaHost) EmitNotice(level session.NoticeLevel, diagnostic sqlstate.Error) {
+func (h ddlHost) EmitNotice(level session.NoticeLevel, diagnostic sqlstate.Error) {
 	h.op.EmitNotice(level, diagnostic)
 }
 
 // BindSQLRoutine binds d's body with the stage's definitions in place of the
 // operation's. Restore defers SQL body validation until the import ends.
-func (h schemaHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
+func (h ddlHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
 	if operationReplayOrZero(h.op).sqlBodies {
 		return nil
 	}
