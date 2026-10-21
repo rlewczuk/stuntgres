@@ -3,21 +3,10 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
-
-// stageForeignValidatorJob builds the job against the stage base and records
-// its validator procedure among the stage's observed dependencies.
-func stageForeignValidatorJob(stage *CatalogStage, wrapper *catalog.ForeignObject, kind catalog.ForeignObjectKind, options []catalog.ForeignOption) (fdw.Validation, error) {
-	job, validator, err := fdw.ValidatorJob(stage.Base, wrapper, kind, options)
-	if validator != nil {
-		stage.domainBases = append(stage.domainBases, validator)
-	}
-	return job, err
-}
 
 func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, count int) (Result, error) {
 	if count != 0 {
