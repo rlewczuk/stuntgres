@@ -215,25 +215,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	c.state.Output.Regcollation, c.state.Output.Regnamespace = nil, nil
 	c.state.Output.RegTS = nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
-	if reader, ok := c.state.Input.Regtype.(capturedRegtypeInput); ok {
-		reader.op, reader.authority = nil, c.authority
-		reader.qualified = nil
-		c.state.Input.Regtype = reader
-	}
-	if reader, ok := c.state.Input.Operator.(capturedOperatorInput); ok {
-		reader.types.op, reader.types.authority = nil, c.authority
-		reader.types.qualified, reader.qualified = nil, nil
-		c.state.Input.Operator = reader
-	}
-	if reader, ok := c.state.Input.Regproc.(capturedRoutineInput); ok {
-		reader.types.op, reader.types.authority = nil, c.authority
-		reader.types.qualified = nil
-		c.state.Input.Regproc = reader
-	}
-	if reader, ok := c.state.Input.RegTS.(capturedRegTSInput); ok {
-		reader.qualified, reader.resolved = nil, nil
-		c.state.Input.RegTS = reader
-	}
+	detachCursorInput(&c.state.Input, c.authority)
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}

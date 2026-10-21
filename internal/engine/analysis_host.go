@@ -181,14 +181,12 @@ func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth analyze.Auth
 	}
 	var qualified []ids.ObjectAddress
 	var operands []catalog.ExpressionDependency
-	input.types.position = pos
-	input.qualified = &qualified
-	input.operands = &operands
+	resolver := input.RetargetOperator(analyze.IdentifierTarget{Position: pos, Qualified: &qualified, Operands: &operands})
 	var id uint32
 	if regoper {
-		id, err = input.ResolveRegoper(ctx, text)
+		id, err = resolver.ResolveRegoper(ctx, text)
 	} else {
-		id, err = input.ResolveRegoperator(ctx, text)
+		id, err = resolver.ResolveRegoperator(ctx, text)
 	}
 	if err != nil {
 		return 0, nil, nil, analyze.RegtypeInputError(err, pos)
@@ -205,9 +203,7 @@ func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth analyze.Autho
 		return 0, nil, err
 	}
 	var qualified []ids.ObjectAddress
-	input.position = pos
-	input.qualified = &qualified
-	id, err := input.ResolveRegtype(ctx, text)
+	id, err := input.RetargetRegtype(analyze.IdentifierTarget{Position: pos, Qualified: &qualified}).ResolveRegtype(ctx, text)
 	if err != nil {
 		return 0, nil, analyze.RegtypeInputError(err, pos)
 	}
