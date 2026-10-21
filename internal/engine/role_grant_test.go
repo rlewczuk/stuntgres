@@ -365,3 +365,44 @@ func TestObjectGrantMergedColumnMaskWarnings(t *testing.T) {
 		}
 	}
 }
+
+// The plan returns the warnings raised before its error and emits none
+// itself; objectGrantLocked emits them ahead of the error.
+func TestObjectGrantPlanWarningsBeforeError(t *testing.T) {
+	e, op, _, address := objectGrantUnitFixture(t)
+	e.catalog.state.MustRelation(address).RelationKind = catalog.SequenceRelation
+	request := objectGrantUnitRequest()
+	request.Privileges = []parser.GrantPrivilege{{Name: "insert"}, {Name: "select", Columns: []parser.Identifier{{Text: "missing"}}}}
+	e.mu.Lock()
+	v, err := e.authorizationLocked(op)
+	if err != nil {
+		e.mu.Unlock()
+		t.Fatal(err)
+	}
+	req, err := objectGrantRequest(op.Context(), v.View, request, func() ([]catalog.Descriptor, error) {
+		return []catalog.Descriptor{v.Catalog.Get(address)}, nil
+	})
+	if err != nil {
+		e.mu.Unlock()
+		t.Fatal(err)
+	}
+	plan, warnings, err := objectGrantPlan(op.Context(), v.View, request, req, e.catalog.revisionLocked)
+	e.mu.Unlock()
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || plan.candidate != nil {
+		t.Fatal("missing column did not fail the plan", err, plan.candidate)
+	}
+	if len(warnings) != 1 || warnings[0].Code != "0LP01" || !strings.Contains(warnings[0].Message, "only supports USAGE, SELECT, and UPDATE") {
+		t.Fatal("warning before the error was not returned", warnings)
+	}
+	if notices := op.DetachNotices(); len(notices) != 0 {
+		t.Fatal("plan emitted notices", notices)
+	}
+	before := e.catalog.state
+	if err := applyObjectGrantUnit(e, op, request); !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || e.catalog.state != before {
+		t.Fatal("failed grant published or lost its error", err)
+	}
+	if notices := op.DetachNotices(); len(notices) != 1 || notices[0] != warnings[0] {
+		t.Fatal("objectGrantLocked did not emit the warning before the error", notices)
+	}
+}
