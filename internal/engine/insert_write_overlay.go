@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -8,9 +9,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) writeOverlay() *insertWriteOverlay {
+func (s *StatementScope) writeOverlay() *dml.InsertWriteOverlay {
 	if s.insertConflict != nil && s.insertConflict.Update != nil {
-		return &s.insertConflict.insertWriteOverlay
+		return &s.insertConflict.InsertWriteOverlay
 	}
 	if s.insertReturning != nil {
 		return &s.insertReturning.Overlay
@@ -41,7 +42,7 @@ func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (storage.
 	return s.ownWrites[ref.Address][slot], true
 }
 
-func addInsertWriteKey(o *insertWriteKeyOverlay, s *StatementScope, bound *index.UniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose index.ProbePurpose) error {
+func addInsertWriteKey(o *dml.InsertWriteKeyOverlay, s *StatementScope, bound *index.UniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose index.ProbePurpose) error {
 	member, keys, err := s.existingUniqueOutput(bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return err
@@ -60,11 +61,11 @@ func addInsertWriteKey(o *insertWriteKeyOverlay, s *StatementScope, bound *index
 func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *index.UniqueBoundKey, evaluation *exec.Context, key []sqltype.Value, excluded []storage.RowVersion, purpose index.ProbePurpose) (storage.RowVersion, bool, error) {
 	c := s.writeOverlay()
 	if c.Overlays == nil {
-		c.Overlays = make(map[*index.UniqueBoundKey]*insertWriteKeyOverlay)
+		c.Overlays = make(map[*index.UniqueBoundKey]*dml.InsertWriteKeyOverlay)
 	}
 	o := c.Overlays[bound]
 	if o == nil {
-		o = &insertWriteKeyOverlay{Stage: make(map[uint64][]int), Own: make(map[uint64][]int)}
+		o = &dml.InsertWriteKeyOverlay{Stage: make(map[uint64][]int), Own: make(map[uint64][]int)}
 		c.Overlays[bound] = o
 	}
 	if !o.OwnReady {

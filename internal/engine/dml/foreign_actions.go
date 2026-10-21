@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"slices"
@@ -16,19 +16,19 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type foreignKeyJob struct {
+type ForeignKeyJob struct {
 	Child, Parent, Index   *catalog.Relation
 	Definition             catalog.ForeignKeyConstraint
 	Comparisons            []table.ForeignKeyComparison
 	ChildKey               []sqltype.Value // Reused across final rows and waited probes.
-	DeletePlan, UpdatePlan *foreignActionPlan
+	DeletePlan, UpdatePlan *ForeignActionPlan
 }
 
 func SameForeignKeyDefinition(a, b catalog.ForeignKeyConstraint) bool {
 	return a.OID == b.OID && a.Target == b.Target && a.Index == b.Index && a.Full == b.Full && a.UpdateAction == b.UpdateAction && a.DeleteAction == b.DeleteAction && slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Referenced, b.Referenced) && slices.Equal(a.DeleteAttributes, b.DeleteAttributes)
 }
 
-func RefreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
+func RefreshForeignActionJob(view catalog.Read, job *ForeignKeyJob) error {
 	child, cok := view.Relation(job.Child.Address())
 	parent, pok := view.Relation(job.Parent.Address())
 	idx, iok := view.Relation(job.Index.Address())
@@ -55,16 +55,16 @@ func RefreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
 
 // This authority is private to one statement and one captured physical child.
 // It never substitutes for the initiating target's admission or candidate view.
-type foreignActionAdmission struct {
+type ForeignActionAdmission struct {
 	Ref               ids.ObjectRef
 	Storage           *storage.Relation
 	Relation          *catalog.Relation
 	Tx                ids.TxRef
-	Jobs              []foreignKeyJob
+	Jobs              []ForeignKeyJob
 	Writable, Mutated bool
 }
 
-type foreignActionTransition struct {
+type ForeignActionTransition struct {
 	Relation  ids.ObjectAddress
 	Old, Next storage.RowVersion
 	Owner     authorization.PrincipalRef // zero means the initiating statement's actor
@@ -79,20 +79,20 @@ func ForeignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []
 	return true
 }
 
-// foreignActionScope is the statement's foreign-key action slot: admitted
+// ForeignActionScope is the statement's foreign-key action slot: admitted
 // referencing relations, row transitions, settling state, prepared check jobs
 // and the foreign-key targets of CREATE/ALTER TABLE.
-type foreignActionScope struct {
-	Admissions     map[ids.ObjectAddress]*foreignActionAdmission
-	Transitions    []foreignActionTransition
+type ForeignActionScope struct {
+	Admissions     map[ids.ObjectAddress]*ForeignActionAdmission
+	Transitions    []ForeignActionTransition
 	Settling       bool
 	ExclusionAdded bool // a new event admitted while settling actions
-	Jobs           []foreignKeyJob
+	Jobs           []ForeignKeyJob
 	KeyTargets     []ids.ObjectRef
 	AlterKeys      []table.AlterForeignKeyAdmission
 }
 
-type foreignActionPlan struct {
+type ForeignActionPlan struct {
 	Targets, ParentSlots []int
 	Defaults             []expr.Expr
 	DefaultOrigins       []analyze.DefaultOrigin
@@ -102,7 +102,7 @@ type foreignActionPlan struct {
 	DomainChecks         bool
 }
 
-func ForeignActionQuery(job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view catalog.Read) string {
+func ForeignActionQuery(job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction, view catalog.Read) string {
 	var q strings.Builder
 	deletion := action == parser.ForeignKeyCascade && event.Next.Row == 0
 	if deletion {

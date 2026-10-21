@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -206,7 +207,7 @@ func TestRuleNamedConstraintKinds(t *testing.T) {
 			if got := dependencyObject(view, provider, nil); got != "constraint provider on table sink" {
 				t.Fatal("canonical constraint subject lost current parent metadata", got)
 			}
-			err := NewInsertConflictState(conflict.Clone()).SelectArbiters(nil, parent, view)
+			err := dml.NewInsertConflictState(conflict.Clone()).SelectArbiters(nil, parent, view)
 			if kind == "check" || kind == "not_null" {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "42809" || diagnostic.Message != "constraint in ON CONFLICT clause has no associated index" {
@@ -219,7 +220,7 @@ func TestRuleNamedConstraintKinds(t *testing.T) {
 				sessionSQL(t, s, "CREATE OR REPLACE RULE r AS ON INSERT TO src DO INSERT INTO sink VALUES(NEW.id) ON CONFLICT ON CONSTRAINT provider DO UPDATE SET id=EXCLUDED.id")
 				event = alterConstraintDescriptor(t, e, "src")
 				_, conflict = ruleNamedDependencyAction(t, event, false)
-				err = NewInsertConflictState(conflict.Clone()).SelectArbiters(nil, parent, e.CatalogRead())
+				err = dml.NewInsertConflictState(conflict.Clone()).SelectArbiters(nil, parent, e.CatalogRead())
 				var diagnostic *sqlstate.Error
 				if conflict.Constraint != provider || !errors.As(err, &diagnostic) || diagnostic.Code != "42809" || diagnostic.Message != "ON CONFLICT DO UPDATE not supported with exclusion constraints" {
 					t.Fatal("identity cutover changed existing exclusion UPDATE route", err)

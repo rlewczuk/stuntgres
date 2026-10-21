@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -134,7 +135,7 @@ func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *index.Writ
 	}
 	return nil
 }
-func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *insertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
+func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *dml.InsertConflictState, purpose index.ProbePurpose) (uniqueConflict, error) {
 	row := candidate.Values
 retry:
 	binding, err := s.bindUniqueWrite(ref)
@@ -220,7 +221,7 @@ retry:
 		parent, idx = probe.Parent, probe.Index
 		current, root, versions := probe.View, probe.Root, probe.Versions
 		if check := s.insertConflict; check != nil {
-			if err := analyze.CheckBinding(auth, BindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
+			if err := analyze.CheckBinding(auth, dml.BindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
 				return uniqueConflict{}, err
 			}
 		}

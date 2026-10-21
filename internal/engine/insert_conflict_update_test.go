@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -48,7 +49,7 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q 
 		t.Fatal(err)
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	conflict := NewInsertConflictState(b.Insert.Conflict)
+	conflict := dml.NewInsertConflictState(b.Insert.Conflict)
 	if err := conflict.SelectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +141,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			t.Fatal(tc.name, err)
 		}
 		original := action.Insert.Conflict.Update
-		err = preflightConflictUpdate(NewInsertConflictState(action.Insert.Conflict), &evaluation)
+		err = preflightConflictUpdate(dml.NewInsertConflictState(action.Insert.Conflict), &evaluation)
 		if tc.error {
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || action.Insert.Conflict.Update != original {

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
@@ -40,7 +41,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 		return s.prepareViewCreation(view)
 	}
-	if parser.HasModifyingCTE(StatementCTERoot(stmt)) {
+	if parser.HasModifyingCTE(dml.StatementCTERoot(stmt)) {
 		return s.acquireCTEMutations(stmt, execute)
 	}
 	if merge, ok := stmt.(*parser.Merge); ok {

@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"fmt"
@@ -77,22 +77,22 @@ func MergeHasVirtualReads(merge *analyze.MergeBinding) bool {
 
 // DELETE carries captured identity only; payload indexes name INSERT/UPDATE
 // rows. All records remain private until the sole statement Finish.
-type mergeActionRow struct {
+type MergeActionRow struct {
 	Action     parser.MergeAction
 	Payload    int
 	Deletion   visibility.DeleteCandidate
 	UpdateMode lock.MultiMode
 }
 
-type mergeRows struct {
+type MergeRows struct {
 	index.WriteBatch
 	Predecessors []storage.RowVersion
-	Actions      []mergeActionRow
+	Actions      []MergeActionRow
 	Returning    *exec.FinalRows
 }
 
-type mergeCandidate struct {
-	updateCandidate
+type MergeCandidate struct {
+	UpdateCandidate
 	Class    parser.MergeMatch
 	Deletion visibility.DeleteCandidate
 }

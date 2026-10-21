@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -56,7 +57,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q
 	if err != nil {
 		t.Fatal(err)
 	}
-	conflict := NewInsertConflictState(b.Insert.Conflict)
+	conflict := dml.NewInsertConflictState(b.Insert.Conflict)
 	scope.insertConflict = conflict
 	if conflict != nil {
 		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -21,7 +22,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) (*foreignActionPlan, error) {
+func (s *StatementScope) planForeignAction(auth AuthorizationView, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) (*dml.ForeignActionPlan, error) {
 	cached := job.DeletePlan
 	if event.Next.Row != 0 {
 		cached = job.UpdatePlan
@@ -33,7 +34,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	if event.Next.Row == 0 && len(job.Definition.DeleteAttributes) != 0 {
 		attributes = job.Definition.DeleteAttributes
 	}
-	plan := &foreignActionPlan{Targets: make([]int, len(attributes))}
+	plan := &dml.ForeignActionPlan{Targets: make([]int, len(attributes))}
 	for i, a := range attributes {
 		plan.Targets[i] = slices.Index(job.Child.Attributes, a)
 		if plan.Targets[i] < 0 {
@@ -137,7 +138,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	return plan, nil
 }
 
-func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) error {
+func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) error {
 	e := s.engine()
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.Child.Address())
 	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
@@ -185,7 +186,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	s.foreignActionAuth = &ownerAuth
 	defer func() { s.foreignActionAuth = previous }()
 	deletion := action == parser.ForeignKeyCascade && event.Next.Row == 0
-	var plan *foreignActionPlan
+	var plan *dml.ForeignActionPlan
 	var err error
 	if !deletion {
 		plan, err = s.planForeignAction(ownerAuth, job, event, action)
@@ -250,7 +251,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		}
 		e.mu.Lock()
 		current := e.privateCatalogLocked(s.owner.Catalog)
-		err = RefreshForeignActionJob(current, job)
+		err = dml.RefreshForeignActionJob(current, job)
 		e.mu.Unlock()
 		if err != nil {
 			return err
@@ -372,14 +373,14 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 
 // Context describes the real internally executed plan; it is not parsed SQL or
 // a second dispatcher. AFTER-event diagnostics deliberately have no SPI frame.
-func (s *StatementScope) foreignActionError(err error, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view catalog.Read) error {
+func (s *StatementScope) foreignActionError(err error, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction, view catalog.Read) error {
 	err = s.op.CommandError(err)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code == "23503" || d.Code == "23001" || d.Code == "23P01" {
 		return err
 	}
 	copy := *d
-	context := `SQL statement "` + ForeignActionQuery(job, event, action, view) + `"`
+	context := `SQL statement "` + dml.ForeignActionQuery(job, event, action, view) + `"`
 	if copy.Context != "" {
 		copy.Context += "\n"
 	}

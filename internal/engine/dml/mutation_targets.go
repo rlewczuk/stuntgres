@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"stuntgres/internal/engine/analyze"
@@ -13,7 +13,7 @@ func MutationPhysicalRow(source *exec.Source, index int, b analyze.Binding) exec
 	return source.PhysicalRow(index, exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage}, version)
 }
 
-type mutationRowIdentity struct {
+type MutationRowIdentity struct {
 	Ref ids.ObjectRef
 	Row ids.RowID
 }
@@ -29,7 +29,7 @@ func ScatterMutationRow(physical exec.QueryPhysicalRow, old storage.RowVersion, 
 	return row
 }
 
-// versionRows appends the logical row identities of versions to buf.
+// VersionRows appends the logical row identities of versions to buf.
 func VersionRows(buf []ids.RowID, versions []storage.RowVersion) []ids.RowID {
 	for _, version := range versions {
 		buf = append(buf, version.Row)

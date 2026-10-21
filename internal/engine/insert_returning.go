@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -20,7 +21,7 @@ func (s *StatementScope) beginInsertReturning(b analyze.Binding) {
 	}
 	rows := exec.NewFinalRows(b.Returning.Schema, 0)
 	rows.Output = s.output
-	s.insertReturning = &insertReturningOutput{Binding: b, Rows: rows}
+	s.insertReturning = &dml.InsertReturningOutput{Binding: b, Rows: rows}
 }
 func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exec.Context) error {
 	output := s.insertReturning

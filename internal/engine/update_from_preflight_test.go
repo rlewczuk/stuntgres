@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -52,7 +53,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 			if _, ok := foldedJoin.Predicate.(plan.ComparisonExpr).Right.(plan.LiteralExpr); !ok {
 				t.Fatal("ON coercion was not eagerly traversed")
 			}
-			folded, err := PreflightReturning(&eval, output)
+			folded, err := dml.PreflightReturning(&eval, output)
 			if err != nil || folded == output || !reflect.DeepEqual(folded.Schema, output.Schema) || !reflect.DeepEqual(folded.Expressions[1], output.Expressions[1]) {
 				t.Fatal(folded, err)
 			}

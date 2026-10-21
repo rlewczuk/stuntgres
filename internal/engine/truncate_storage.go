@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -34,7 +35,7 @@ func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) err
 		}
 		for address, descriptor := range current.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
-			if !ok || !TruncateOwnsSequence(d, fence.targets) {
+			if !ok || !dml.TruncateOwnsSequence(d, fence.targets) {
 				continue
 			}
 			if _, observed := fence.sequences[address]; observed {
@@ -62,7 +63,7 @@ func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) err
 			}
 		}
 		if d.Inheritance != nil || d.Membership != nil {
-			otherTemporary, err := TruncateOtherTemporary(current, d, fence.token)
+			otherTemporary, err := dml.TruncateOtherTemporary(current, d, fence.token)
 			if err != nil {
 				return catalog.Conflict{}
 			}
@@ -167,7 +168,7 @@ func (s *StatementScope) stageTruncate() error {
 	if err == nil {
 		// Recheck closure against the same coherent catalog used to capture stores.
 		// SQL installation is blocked by selected AX; host replacement is fenced.
-		if len(TruncateReferencers(auth.Catalog, s.truncateOrZero().Selected)) != 0 {
+		if len(dml.TruncateReferencers(auth.Catalog, s.truncateOrZero().Selected)) != 0 {
 			err = catalog.Conflict{}
 		}
 	}
@@ -201,7 +202,7 @@ func (s *StatementScope) stageTruncate() error {
 }
 
 // A name observation is a fence, not permission to replay on a new relation.
-func (e *Engine) truncateNameCurrent(auth AuthorizationView, named truncateName) error {
+func (e *Engine) truncateNameCurrent(auth AuthorizationView, named dml.TruncateName) error {
 	ref, err := e.resolveRelationReference(auth, named.Name, true)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42P01" || diagnostic.Code == "3F000") {
 		return ids.ErrCatalogReplaced

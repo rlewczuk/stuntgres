@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -231,7 +232,7 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 		return errors.New("stuntgres: replacement requires its captured target view")
 	}
 	var small [8]ids.RowID
-	target, missing := s.engine().locks.ReplacementGrants(s.ticket, ref, VersionRows(small[:0], old))
+	target, missing := s.engine().locks.ReplacementGrants(s.ticket, ref, dml.VersionRows(small[:0], old))
 	if s.ticket == nil || s.ticket.Ref() != s.txRef || !target {
 		return errors.New("stuntgres: replacement requires its target grant")
 	}

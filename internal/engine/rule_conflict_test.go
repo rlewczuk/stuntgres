@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -25,7 +26,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Execution replaces the command's normalized predicate through its state.
-	state := NewInsertConflictState(first.Insert.Conflict)
+	state := dml.NewInsertConflictState(first.Insert.Conflict)
 	state.Predicate = ruleUnitInt(sink, 30)
 	state.MarkAffected(ids.RowID(42), 0)
 	if first.Insert.Conflict.Predicate == nil {

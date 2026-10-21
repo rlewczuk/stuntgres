@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -93,7 +94,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	old := storage.RowVersion{Row: 7, Version: 11, Base: 5, Born: 3, Values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
 	physical := exec.QueryPhysicalRow{Leaf: exec.Leaf{Ref: ref(c), Relation: c, Storage: &storage.Relation{}}, Version: old, Hint: 6, Segment: &exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}}
 	proposed := []sqltype.Value{inheritanceQueryInt(e, 8), inheritanceQueryInt(e, 2)}
-	scattered := ScatterMutationRow(physical, old, proposed, []int{0})
+	scattered := dml.ScatterMutationRow(physical, old, proposed, []int{0})
 	want := []sqltype.Value{old.Values[0], old.Values[1], proposed[0]}
 	if !reflect.DeepEqual(scattered, want) || !reflect.DeepEqual(old.Values, []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}) {
 		t.Fatal("scatter lost child-only values or mutated predecessor", scattered, old)
@@ -102,7 +103,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	if deletion.Ref != ref(c) || deletion.Storage != physical.Leaf.Storage || deletion.Row != 7 || deletion.Version != 11 || deletion.Base != 5 || deletion.Ordinal != 6 || deletion.Own {
 		t.Fatal("delete lost physical provenance", deletion)
 	}
-	if (mutationRowIdentity{ref(p), 7}) == (mutationRowIdentity{ref(c), 7}) {
+	if (dml.MutationRowIdentity{Ref: ref(p), Row: 7}) == (dml.MutationRowIdentity{Ref: ref(c), Row: 7}) {
 		t.Fatal("equal RowID aliased relations")
 	}
 	own := physical
@@ -111,7 +112,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		t.Fatal("prior-own provenance lost")
 	}
 	identity := exec.QueryPhysicalRow{}
-	if got := ScatterMutationRow(identity, old, proposed, []int{0}); &got[0] != &proposed[0] {
+	if got := dml.ScatterMutationRow(identity, old, proposed, []int{0}); &got[0] != &proposed[0] {
 		t.Fatal("identity scatter copied proposal")
 	}
 }

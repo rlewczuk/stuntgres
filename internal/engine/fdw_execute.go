@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
@@ -163,7 +164,7 @@ func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Bind
 		if err := s.engine().checkViewRow(s, &b, row, evaluation); err != nil {
 			return err
 		}
-		return ProjectForeignReturning(b, output, row, nil, evaluation)
+		return dml.ProjectForeignReturning(b, output, row, nil, evaluation)
 	})
 	if err != nil {
 		if output != nil {
@@ -192,7 +193,7 @@ func (s *StatementScope) finishForeignResult(b analyze.Binding, output *exec.Fin
 	return Result{Count: count, Rows: output}, nil
 }
 
-func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modification) ([]foreignMutationRow, error) {
+func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modification) ([]dml.ForeignMutationRow, error) {
 	f := m.Source
 	r := exec.CopyForeignRequest(m.Request.ForeignRequest)
 	r.Identity = &m.Request.Targets
@@ -212,7 +213,7 @@ func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modificati
 	if !ok {
 		return nil, sqlError("0A000", "foreign modification scan does not supply row identity")
 	}
-	var rows []foreignMutationRow
+	var rows []dml.ForeignMutationRow
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -239,7 +240,7 @@ func foreignTargetRows(ctx context.Context, s *StatementScope, m *fdw.Modificati
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, foreignMutationRow{Row: values, Identity: exec.CopyForeignCells(identity)})
+		rows = append(rows, dml.ForeignMutationRow{Row: values, Identity: exec.CopyForeignCells(identity)})
 	}
 	return rows, nil
 }
@@ -368,7 +369,7 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 					return Result{}, err
 				}
 			}
-			if err := ProjectForeignReturning(b, output, actual, candidate.Row, evaluation); err != nil {
+			if err := dml.ProjectForeignReturning(b, output, actual, candidate.Row, evaluation); err != nil {
 				return Result{}, err
 			}
 			count++

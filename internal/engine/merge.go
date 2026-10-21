@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -92,7 +93,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 			var value sqltype.Value
 			value, err = merge.On.Eval(&owner)
 			if err == nil {
-				facts.Truth, err = MergeOnTruth(value)
+				facts.Truth, err = dml.MergeOnTruth(value)
 				facts.Constant = true
 			}
 		} else {
@@ -119,7 +120,7 @@ func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 		return Result{}, err
 	}
-	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: MergeHasVirtualReads(b.Merge)}
+	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: dml.MergeHasVirtualReads(b.Merge)}
 	if b.Returning != nil {
 		for _, expr := range b.Returning.Expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)

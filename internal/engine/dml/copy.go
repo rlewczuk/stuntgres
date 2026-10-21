@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"errors"
@@ -48,26 +48,26 @@ func CopyRelationKind(relation *catalog.Relation, from bool) error {
 
 // Physical input keeps its immediate codec/default/constraint events. Eligible
 // COPY buffers then own a distinct insertion flush, unlike ordinary INSERT.
-type copyInsertionCursor interface {
+type CopyInsertionCursor interface {
 	InsertionOrigin() (line int64, textBytes int)
 }
 
-type copyInsertionBuffer struct {
+type CopyInsertionBuffer struct {
 	Group     *partition.InsertGroup
 	Positions []int
 }
 
-type copyInsertionState struct {
-	Cursor       copyInsertionCursor
+type CopyInsertionState struct {
+	Cursor       CopyInsertionCursor
 	single       bool
 	First, Bytes int
 	Lines        []int64
-	Buffers      []copyInsertionBuffer
+	Buffers      []CopyInsertionBuffer
 	Groups       map[*partition.InsertGroup]int
 }
 
-func NewCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyInsertionState {
-	state := &copyInsertionState{Cursor: cursor}
+func NewCopyInsertionState(cursor CopyInsertionCursor, b analyze.Binding) *CopyInsertionState {
+	state := &CopyInsertionState{Cursor: cursor}
 	for _, expression := range b.Insert.Defaults {
 		if exec.PlannedPhysicalVolatility(expression, true) == expr.Volatile {
 			state.single = true
@@ -77,7 +77,7 @@ func NewCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyI
 	return state
 }
 
-func (state *copyInsertionState) Full() bool {
+func (state *CopyInsertionState) Full() bool {
 	return state.single || len(state.Lines) >= 1000 || state.Bytes >= 65535
 }
 
@@ -94,7 +94,7 @@ func CopyInsertionDiagnostic(err error, relation string, line int64) error {
 	return &result
 }
 
-// copyLineTargets is built once per statement from the target columns.
+// CopyLineTargets is built once per statement from the target columns.
 func CopyLineTargets(b analyze.Binding) []copyfmt.Target {
 	targets := make([]copyfmt.Target, len(b.Targets))
 	for i, target := range b.Targets {

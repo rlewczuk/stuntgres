@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -281,7 +282,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	firstDefinition, firstConflict := executable(first)
 	// Mutate the actual normalized execution binding, not a stand-alone clone:
 	// execution replaces its normalized predicate through the command's state.
-	firstState := NewInsertConflictState(firstConflict)
+	firstState := dml.NewInsertConflictState(firstConflict)
 	firstState.Predicate = ruleUnitInt(sink, 12)
 	firstState.MarkAffected(ids.RowID(42), 0)
 	second := compose()

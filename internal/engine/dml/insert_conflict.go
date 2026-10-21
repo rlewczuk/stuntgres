@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"stuntgres/internal/engine/analyze"
@@ -12,10 +12,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// insertConflictState is one command's ON CONFLICT arbitration: the bound
+// InsertConflictState is one command's ON CONFLICT arbitration: the bound
 // clause it executes, the selected arbiters, unique-key checkpoints, the
 // affected count, the EXCLUDED frame and the write overlay.
-type insertConflictState struct {
+type InsertConflictState struct {
 	*analyze.InsertConflict
 	Selected      []ids.ObjectAddress
 	Catalog       *catalog.State
@@ -23,19 +23,19 @@ type insertConflictState struct {
 	StatementKeys lock.Checkpoint
 	Affected      int
 	Frame         []sqltype.Value
-	insertWriteOverlay
+	InsertWriteOverlay
 }
 
-// newInsertConflictState starts the arbitration state of one command over c,
+// NewInsertConflictState starts the arbitration state of one command over c,
 // or returns nil without a clause.
-func NewInsertConflictState(c *analyze.InsertConflict) *insertConflictState {
+func NewInsertConflictState(c *analyze.InsertConflict) *InsertConflictState {
 	if c == nil {
 		return nil
 	}
-	return &insertConflictState{InsertConflict: c}
+	return &InsertConflictState{InsertConflict: c}
 }
 
-func (c *insertConflictState) SelectArbiters(ctx *exec.Context, parent *catalog.Relation, view catalog.Read) error {
+func (c *InsertConflictState) SelectArbiters(ctx *exec.Context, parent *catalog.Relation, view catalog.Read) error {
 	c.Selected = c.Selected[:0]
 	if c.Constraint != (ids.ObjectAddress{}) && c.NamedIndex == (ids.ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")
@@ -94,7 +94,7 @@ func (c *insertConflictState) SelectArbiters(ctx *exec.Context, parent *catalog.
 	return nil
 }
 
-func (c *insertConflictState) Matches(parent *catalog.Relation, idx *catalog.IndexDefinition) (bool, error) {
+func (c *InsertConflictState) Matches(parent *catalog.Relation, idx *catalog.IndexDefinition) (bool, error) {
 	// Both directions compare sets, not key order/multiplicity. Decorations
 	// restrict a matching key occurrence without changing the expression set.
 	for _, target := range c.Keys {
@@ -143,11 +143,11 @@ func (c *insertConflictState) Matches(parent *catalog.Relation, idx *catalog.Ind
 	return true, nil
 }
 
-func BindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *insertConflictState) analyze.Binding {
+func BindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *InsertConflictState) analyze.Binding {
 	return analyze.Binding{Ref: ref, Relation: parent, Targets: action.Targets, Insert: analyze.InsertBinding{Conflict: action.InsertConflict}, QuerySources: action.Sources, Returning: action.Returning}
 }
 
-func (c *insertConflictState) MarkAffected(id ids.RowID, slot int) {
+func (c *InsertConflictState) MarkAffected(id ids.RowID, slot int) {
 	if c.AffectedRows == nil {
 		c.AffectedRows = make(map[ids.RowID]int)
 	}

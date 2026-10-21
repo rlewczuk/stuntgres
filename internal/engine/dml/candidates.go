@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"stuntgres/internal/engine/exec"
@@ -7,14 +7,14 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type updateCandidate struct {
+type UpdateCandidate struct {
 	storage.RowVersion
 	Slot        int
 	SourceIndex int
 	Physical    exec.QueryPhysicalRow
 }
 
-type deleteUsingCandidate struct {
+type DeleteUsingCandidate struct {
 	visibility.DeleteCandidate
 	SourceIndex int
 	Physical    exec.QueryPhysicalRow

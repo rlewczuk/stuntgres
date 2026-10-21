@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -13,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, AuthorizationView, error) {
+func (s *StatementScope) prepareForeignActions() ([]dml.ForeignKeyJob, AuthorizationView, error) {
 	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
@@ -92,7 +93,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			}
 		}
 	}
-	var jobs []foreignKeyJob
+	var jobs []dml.ForeignKeyJob
 	modes := make(map[ids.ObjectRef]lock.Mode)
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
@@ -109,7 +110,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 				e.mu.Unlock()
 				return nil, auth, ids.ErrCatalogReplaced
 			}
-			jobs = append(jobs, foreignKeyJob{Child: child, Parent: parent, Index: index, Definition: f})
+			jobs = append(jobs, dml.ForeignKeyJob{Child: child, Parent: parent, Index: index, Definition: f})
 			for _, a := range []ids.ObjectAddress{child.Address(), parent.Address()} {
 				ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)
 				if modes[ref] == 0 {
@@ -123,7 +124,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		}
 	}
 	e.mu.Unlock()
-	slices.SortFunc(jobs, func(a, b foreignKeyJob) int { return cmp.Compare(a.Definition.OID, b.Definition.OID) })
+	slices.SortFunc(jobs, func(a, b dml.ForeignKeyJob) int { return cmp.Compare(a.Definition.OID, b.Definition.OID) })
 	refs := make([]ids.ObjectRef, 0, len(modes))
 	for ref := range modes {
 		refs = append(refs, ref)
@@ -140,7 +141,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	e.mu.Unlock()
 	for i := range jobs {
 		job := &jobs[i]
-		if err = RefreshForeignActionJob(auth.Catalog, job); err != nil {
+		if err = dml.RefreshForeignActionJob(auth.Catalog, job); err != nil {
 			return nil, auth, err
 		}
 		job.Comparisons, err = table.BindForeignKeyComparison(auth.Catalog, job.Child, job.Parent, job.Index, job.Definition)
@@ -182,7 +183,7 @@ func (s *StatementScope) settleForeignActions() error {
 			}
 			old, ok := image.Previous(next.Row)
 			if ok {
-				s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, foreignActionTransition{Relation: a, Old: old, Next: next})
+				s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: a, Old: old, Next: next})
 			} else if next.Base != 0 {
 				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
 			}
@@ -208,7 +209,7 @@ func (s *StatementScope) settleForeignActions() error {
 				}
 			}
 			if ok {
-				s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, foreignActionTransition{Relation: a, Old: old})
+				s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: a, Old: old})
 			}
 		}
 	}
@@ -226,7 +227,7 @@ func (s *StatementScope) settleForeignActions() error {
 			}
 			action := job.Definition.DeleteAction
 			if event.Next.Row != 0 {
-				if ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
+				if dml.ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
 					continue
 				}
 				action = job.Definition.UpdateAction

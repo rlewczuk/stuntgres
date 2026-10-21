@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -181,7 +182,7 @@ func TestViewWriteDefaults(t *testing.T) {
 		ObjectAddress: indexAddress,
 		SQLIndex:      &catalog.IndexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
-	conflict := NewInsertConflictState(&analyze.InsertConflict{})
+	conflict := dml.NewInsertConflictState(&analyze.InsertConflict{})
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	if err := conflict.SelectArbiters(&evaluation, view.PhysicalBinding(b).Relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
@@ -315,7 +316,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, updateCandidate{RowVersion: old, Slot: 0})
+	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, dml.UpdateCandidate{RowVersion: old, Slot: 0})
 	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
 	}

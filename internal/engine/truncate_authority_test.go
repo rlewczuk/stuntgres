@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -109,18 +110,18 @@ func TestTruncateClosure(t *testing.T) {
 	// c needs a real referenced key for the second edge; retain the ordinary
 	// target-independent table as proof that closure walks incoming edges only.
 	selected := map[ids.ObjectAddress]int{p.Address: 1}
-	edges := TruncateReferencers(e.CatalogRead(), selected)
+	edges := dml.TruncateReferencers(e.CatalogRead(), selected)
 	if len(edges) != 1 || edges[0].Relation.Name() != "c" || edges[0].Parent.Name() != "p" {
 		t.Fatal("not relation-level incoming closure", edges)
 	}
 	c := roleTableRef(t, e, "c")
 	selected[c.Address] = 2
-	edges = TruncateReferencers(e.CatalogRead(), selected)
+	edges = dml.TruncateReferencers(e.CatalogRead(), selected)
 	if len(edges) != 1 || edges[0].Relation.Name() != "g" {
 		t.Fatal("not next FK wave", edges)
 	}
 	selected[roleTableRef(t, e, "g").Address] = 3
-	if len(TruncateReferencers(e.CatalogRead(), selected)) != 0 {
+	if len(dml.TruncateReferencers(e.CatalogRead(), selected)) != 0 {
 		t.Fatal("closure includes unrelated/outgoing relations")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
@@ -65,9 +66,9 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	}
 	scratch := make([]sqltype.Value, len(b.Targets))
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
-	var copyInsert *copyInsertionState
-	if producer, ok := cursor.(copyInsertionCursor); ok && scope != nil && (unique || scope.partitionInsert != nil) {
-		copyInsert = NewCopyInsertionState(producer, b)
+	var copyInsert *dml.CopyInsertionState
+	if producer, ok := cursor.(dml.CopyInsertionCursor); ok && scope != nil && (unique || scope.partitionInsert != nil) {
+		copyInsert = dml.NewCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}

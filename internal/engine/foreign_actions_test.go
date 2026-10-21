@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -37,7 +38,7 @@ func foreignActionUnitScope(t *testing.T, e *Engine, session *session.Session, q
 	return scope
 }
 
-func foreignActionUnitJob(t *testing.T, jobs []foreignKeyJob, name string) *foreignKeyJob {
+func foreignActionUnitJob(t *testing.T, jobs []dml.ForeignKeyJob, name string) *dml.ForeignKeyJob {
 	t.Helper()
 	for i := range jobs {
 		if jobs[i].Child.Name() == name {
@@ -80,7 +81,7 @@ func TestForeignActionsDefinition(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE c RENAME b TO author")
 	next := e.CatalogRead()
 	current := next.MustRelation(ref.Address)
-	if !slices.Equal(current.Constraints.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !SameForeignKeyDefinition(original, current.Constraints.ForeignKeys[0]) {
+	if !slices.Equal(current.Constraints.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !dml.SameForeignKeyDefinition(original, current.Constraints.ForeignKeys[0]) {
 		t.Fatal("slot/name rewrite retargeted action", original, current.Constraints.ForeignKeys[0])
 	}
 	text, err := (stored.Deparser{View: next, Relation: current, Path: []ids.ObjectAddress{current.Namespace()}}).ForeignKeyConstraintSQL(current, current.Constraints.ForeignKeys[0])
@@ -117,14 +118,14 @@ func TestForeignActionsEquality(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if ForeignActionSameKey(comparisons, []sqltype.Value{old}, []sqltype.Value{next}) {
+			if dml.ForeignActionSameKey(comparisons, []sqltype.Value{old}, []sqltype.Value{next}) {
 				t.Fatal("SQL equality suppressed representation transition")
 			}
 			equal, err := table.ForeignKeyRowsMatch(context.Background(), comparisons, []sqltype.Value{old}, []sqltype.Value{next}, sqltype.InputEnvironment{})
 			if err != nil || !equal {
 				t.Fatal("matching lost selected supporting equality", equal, err)
 			}
-			if !ForeignActionSameKey(comparisons, []sqltype.Value{next}, []sqltype.Value{next}) {
+			if !dml.ForeignActionSameKey(comparisons, []sqltype.Value{next}, []sqltype.Value{next}) {
 				t.Fatal("identical datum created an event")
 			}
 		})
@@ -230,7 +231,7 @@ func TestForeignActionsClosure(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatal(rows)
 	}
-	var events []foreignActionTransition
+	var events []dml.ForeignActionTransition
 	for _, event := range scope.foreignActionsOrZero().Transitions {
 		if event.Relation == ref.Address {
 			events = append(events, event)

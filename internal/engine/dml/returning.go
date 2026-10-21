@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"errors"
@@ -9,21 +9,21 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type insertReturningOutput struct {
+type InsertReturningOutput struct {
 	Binding analyze.Binding
 	Rows    *exec.FinalRows
-	Overlay insertWriteOverlay
+	Overlay InsertWriteOverlay
 }
 
 // This execution-private collector never escapes before executeMerge's staging
 // and the request's sole Finish. It reuses one full target-first/source frame.
-type mergeReturningOutput struct {
+type MergeReturningOutput struct {
 	Returning *analyze.Returning
 	Rows      *exec.FinalRows
 	Frame     []sqltype.Value
 }
 
-func (o *mergeReturningOutput) Project(b analyze.Binding, c *exec.Context, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
+func (o *MergeReturningOutput) Project(b analyze.Binding, c *exec.Context, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
 	if o == nil {
 		return nil
 	}
@@ -78,7 +78,7 @@ func ProjectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old
 	return nil
 }
 
-type foreignMutationRow struct {
+type ForeignMutationRow struct {
 	Row      []sqltype.Value
 	Identity catalog.ForeignRowIdentity
 }

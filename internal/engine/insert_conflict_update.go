@@ -4,6 +4,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -51,7 +52,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				return other.diagnostic(s, ref)
 			}
 			if s.viewWrite != nil {
-				b := BindingForConflict(ref, s.viewWrite.BaseRelation, c)
+				b := dml.BindingForConflict(ref, s.viewWrite.BaseRelation, c)
 				b.ViewWrite = view.ViewWriteSlotOf(s.viewWrite)
 				b.Targets = c.Targets
 				if err := e.checkViewRow(s, &b, proposal, &evaluation); err != nil {
@@ -112,7 +113,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			continue
 		}
 		if _, duplicate := c.AffectedRows[old.Row]; duplicate {
-			return ConflictUpdateCardinalityError()
+			return dml.ConflictUpdateCardinalityError()
 		}
 		lockMode, err := lock.MultiLockMode(mode)
 		if err != nil {
@@ -140,7 +141,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err != nil {
 			return err
 		}
-		b := BindingForConflict(ref, parent, c)
+		b := dml.BindingForConflict(ref, parent, c)
 		// Constraint Detail can disclose SET outputs, not unread carried target data.
 		b.Targets = c.UpdateTargets
 		if err := e.validatePhysicalInsertRow(s, b, &b, schema, row, &evaluation); err != nil {
@@ -215,7 +216,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	}
 	auth.Catalog = catalog
 	auth.Recapture(auth.Catalog)
-	if err := analyze.CheckBinding(auth, BindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
+	if err := analyze.CheckBinding(auth, dml.BindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
 		return storage.RowVersion{}, nil, "", false, err
 	}
 	namespace, ok := catalog.Namespace(parent.Namespace())
@@ -244,7 +245,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	return row, parent, namespace.Name(), live, nil
 }
 
-func preflightConflictUpdate(c *insertConflictState, evaluation *exec.Context) error {
+func preflightConflictUpdate(c *dml.InsertConflictState, evaluation *exec.Context) error {
 	if c.Update == nil {
 		return nil
 	}

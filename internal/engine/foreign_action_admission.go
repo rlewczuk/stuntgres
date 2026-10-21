@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -30,7 +31,7 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
 	for _, captured := range admission.Jobs {
-		if err := RefreshForeignActionJob(view, &captured); err != nil {
+		if err := dml.RefreshForeignActionJob(view, &captured); err != nil {
 			return err
 		}
 	}
@@ -60,7 +61,7 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 	return auth, nil
 }
 
-func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJob, writable bool) error {
+func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *dml.ForeignKeyJob, writable bool) error {
 	e := s.engine()
 	required := lock.RowShare | lock.RowExclusive
 	if writable {
@@ -84,11 +85,11 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.Catalog)
-	if err := RefreshForeignActionJob(view, job); err != nil {
+	if err := dml.RefreshForeignActionJob(view, job); err != nil {
 		return err
 	}
 	if s.foreignActionsOrZero().Admissions == nil {
-		s.foreignActions().Admissions = make(map[ids.ObjectAddress]*foreignActionAdmission)
+		s.foreignActions().Admissions = make(map[ids.ObjectAddress]*dml.ForeignActionAdmission)
 	}
 	if previous := s.foreignActionsOrZero().Admissions[ref.Address]; previous != nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
@@ -104,7 +105,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 		previous.Writable = previous.Writable || writable
 		return nil
 	}
-	s.foreignActions().Admissions[ref.Address] = &foreignActionAdmission{Ref: ref, Storage: storage, Relation: current, Tx: s.txRef, Jobs: []foreignKeyJob{*job}, Writable: writable}
+	s.foreignActions().Admissions[ref.Address] = &dml.ForeignActionAdmission{Ref: ref, Storage: storage, Relation: current, Tx: s.txRef, Jobs: []dml.ForeignKeyJob{*job}, Writable: writable}
 	return nil
 }
 
@@ -172,7 +173,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 		return err
 	}
 	s.foreignActions().Admissions[ref.Address].Mutated = true
-	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, foreignActionTransition{Relation: ref.Address, Old: old, Owner: s.foreignActionsOrZero().Admissions[ref.Address].Relation.Owner})
+	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Owner: s.foreignActionsOrZero().Admissions[ref.Address].Relation.Owner})
 	return nil
 }
 
@@ -182,7 +183,7 @@ func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, 
 	}
 	admission := s.foreignActionsOrZero().Admissions[ref.Address]
 	admission.Mutated = true
-	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, foreignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: admission.Relation.Owner})
+	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: admission.Relation.Owner})
 }
 
 func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {
@@ -217,17 +218,17 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (table.Fore
 }
 
 // foreignActions returns the statement's foreignActions slot, allocating it on first use.
-func (s *StatementScope) foreignActions() *foreignActionScope {
+func (s *StatementScope) foreignActions() *dml.ForeignActionScope {
 	if s.foreignActionsSlot == nil {
-		s.foreignActionsSlot = new(foreignActionScope)
+		s.foreignActionsSlot = new(dml.ForeignActionScope)
 	}
 	return s.foreignActionsSlot
 }
 
 // foreignActionsOrZero reads the foreignActions slot; a nil slot reads as zero.
-func (s *StatementScope) foreignActionsOrZero() foreignActionScope {
+func (s *StatementScope) foreignActionsOrZero() dml.ForeignActionScope {
 	if s.foreignActionsSlot == nil {
-		return foreignActionScope{}
+		return dml.ForeignActionScope{}
 	}
 	return *s.foreignActionsSlot
 }

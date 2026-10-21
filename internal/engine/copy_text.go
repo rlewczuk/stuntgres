@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/copyfmt"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -30,7 +31,7 @@ func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyfmt.Options, 
 	// One backing array for both row flags offsets the targets allocation.
 	n := len(b.Relation.Columns)
 	flags := make([]bool, 2*n)
-	c := &copyCursor{scope: scope, binding: b, in: copyfmt.NewLineReader(o, bufio.NewReader(copyReader{scope, r}), CopyLineTargets(b)), defaults: flags[:n:n], omitted: flags[n:]}
+	c := &copyCursor{scope: scope, binding: b, in: copyfmt.NewLineReader(o, bufio.NewReader(copyReader{scope, r}), dml.CopyLineTargets(b)), defaults: flags[:n:n], omitted: flags[n:]}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}

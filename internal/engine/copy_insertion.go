@@ -2,12 +2,13 @@ package engine
 
 import (
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 )
 
-func recordCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.Binding, candidate *index.WriteCandidate, position int) {
+func recordCopyInsertion(state *dml.CopyInsertionState, s *StatementScope, b analyze.Binding, candidate *index.WriteCandidate, position int) {
 	line, size := state.Cursor.InsertionOrigin()
 	state.Lines = append(state.Lines, line)
 	state.Bytes += size
@@ -25,12 +26,12 @@ func recordCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze
 	if !exists {
 		at = len(state.Buffers)
 		state.Groups[group] = at
-		state.Buffers = append(state.Buffers, copyInsertionBuffer{Group: group})
+		state.Buffers = append(state.Buffers, dml.CopyInsertionBuffer{Group: group})
 	}
 	state.Buffers[at].Positions = append(state.Buffers[at].Positions, position)
 }
 
-func flushCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
+func flushCopyInsertion(state *dml.CopyInsertionState, s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
 	insert := func(position int, group *partition.InsertGroup) error {
 		candidate := rows.Candidate(position)
 		var err error
@@ -45,7 +46,7 @@ func flushCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.
 			}
 		}
 		if err != nil {
-			return CopyInsertionDiagnostic(s.copyCommandError(err), b.Relation.Name(), state.Lines[position-state.First])
+			return dml.CopyInsertionDiagnostic(s.copyCommandError(err), b.Relation.Name(), state.Lines[position-state.First])
 		}
 		rows.Set(position, candidate)
 		return nil
@@ -78,6 +79,6 @@ func (c *copyCursor) InsertionOrigin() (int64, int)       { return c.in.Number()
 func (c *copyBinaryCursor) InsertionOrigin() (int64, int) { return c.in.Number(), 0 }
 
 var (
-	_ copyInsertionCursor = (*copyCursor)(nil)
-	_ copyInsertionCursor = (*copyBinaryCursor)(nil)
+	_ dml.CopyInsertionCursor = (*copyCursor)(nil)
+	_ dml.CopyInsertionCursor = (*copyBinaryCursor)(nil)
 )

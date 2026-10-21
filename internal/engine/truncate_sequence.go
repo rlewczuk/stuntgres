@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -19,10 +20,10 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	if err == nil {
 		for a, descriptor := range auth.Catalog.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
-			if !ok || !TruncateOwnsSequence(d, s.truncateOrZero().Selected) {
+			if !ok || !dml.TruncateOwnsSequence(d, s.truncateOrZero().Selected) {
 				continue
 			}
-			s.truncate().Sequences = append(s.truncateOrZero().Sequences, truncateSequence{
+			s.truncate().Sequences = append(s.truncateOrZero().Sequences, dml.TruncateSequence{
 				Ref:      e.catalog.Domain.Ref(s.txRef.Epoch(), a),
 				Relation: d, Generator: e.sequenceGeneratorLocked(s, a), Committed: e.storage.Sequences[a],
 			})
@@ -32,7 +33,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	if err != nil {
 		return err
 	}
-	slices.SortFunc(s.truncateOrZero().Sequences, func(a, b truncateSequence) int { return CompareTruncateAddress(a.Ref.Address, b.Ref.Address) })
+	slices.SortFunc(s.truncateOrZero().Sequences, func(a, b dml.TruncateSequence) int { return dml.CompareTruncateAddress(a.Ref.Address, b.Ref.Address) })
 	for _, observed := range s.truncateOrZero().Sequences {
 		if err = s.acquireSequence(observed.Ref, lock.AccessExclusive, true); err != nil {
 			return err
@@ -76,7 +77,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	// Host publication need not honor SQL locks. Do not silently omit an owned
 	// sequence added between closure capture and staging, even for an empty set.
 	for a, descriptor := range auth.Catalog.Descriptors() {
-		if d, ok := descriptor.(*catalog.Relation); ok && TruncateOwnsSequence(d, s.truncateOrZero().Selected) {
+		if d, ok := descriptor.(*catalog.Relation); ok && dml.TruncateOwnsSequence(d, s.truncateOrZero().Selected) {
 			if _, captured := observed[a]; !captured {
 				return nil, catalog.Conflict{}
 			}

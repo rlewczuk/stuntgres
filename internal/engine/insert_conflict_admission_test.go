@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -58,7 +59,7 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 		t.Fatal(err)
 	}
 	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
-	action := NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
+	action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if err := action.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
@@ -221,8 +222,8 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 func TestInsertConflictInferenceInstalledStates(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	explicit := NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Attribute: 10}}, Predicate: f.predicate})
-	targetless := NewInsertConflictState(&analyze.InsertConflict{})
+	explicit := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Attribute: 10}}, Predicate: f.predicate})
+	targetless := dml.NewInsertConflictState(&analyze.InsertConflict{})
 	f.index.SQLIndex.Include = []int32{20}
 	if err := explicit.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(explicit.Selected) != 1 {
 		t.Fatal("repeated keys / INCLUDE", err)
@@ -263,7 +264,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		f.e.storage.InstallIndexRootLocked(idx.Address(), root)
 		f.e.mu.Unlock()
 	}
-	action := NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Expression: expression}, {Expression: expression}}, Predicate: f.predicate})
+	action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Expression: expression}, {Expression: expression}}, Predicate: f.predicate})
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if err := action.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(action.Selected) != 2 {
 		t.Fatal("complete mixed expression set", action.Selected, err)

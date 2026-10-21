@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -55,7 +56,7 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, ba
 			return errors.New("stuntgres: missing writable internal action admission")
 		}
 		var small [8]ids.RowID
-		if s.engine().locks.MissingRowGrant(s.ticket, ref, VersionRows(small[:0], old)) >= 0 {
+		if s.engine().locks.MissingRowGrant(s.ticket, ref, dml.VersionRows(small[:0], old)) >= 0 {
 			return errors.New("stuntgres: internal action replacement requires its row grant")
 		}
 	}
@@ -144,7 +145,7 @@ retry:
 		}
 		for _, predecessor := range old {
 			if _, affected := s.insertConflict.AffectedRows[predecessor.Row]; affected {
-				return ConflictUpdateCardinalityError()
+				return dml.ConflictUpdateCardinalityError()
 			}
 		}
 	}

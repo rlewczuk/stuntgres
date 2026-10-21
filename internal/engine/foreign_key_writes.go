@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -201,7 +202,7 @@ func (s *StatementScope) checkForeignKeys() error {
 	e.mu.Unlock()
 	for i := range jobs {
 		job := &jobs[i]
-		if err = RefreshForeignActionJob(auth.Catalog, job); err != nil {
+		if err = dml.RefreshForeignActionJob(auth.Catalog, job); err != nil {
 			return err
 		}
 		f := job.Definition
@@ -284,7 +285,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		for _, row := range parentRows.Staged {
 			old, ok := parentRows.Previous(row.Row)
 			if ok {
-				if ForeignActionSameKey(job.Comparisons, old.Values, row.Values) {
+				if dml.ForeignActionSameKey(job.Comparisons, old.Values, row.Values) {
 					continue
 				}
 				if err := checkOld(old); err != nil {
@@ -314,7 +315,7 @@ func (s *StatementScope) checkForeignKeys() error {
 	return s.op.Context().Err()
 }
 
-func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKeyJob, rows *table.ForeignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
+func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job dml.ForeignKeyJob, rows *table.ForeignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
 	if err := table.PrepareForeignKeyChild(s.op.Context(), job.Comparisons, child, job.ChildKey, s.input); err != nil {
 		return false, err
 	}

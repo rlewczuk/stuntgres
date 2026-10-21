@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"testing"
@@ -19,7 +20,7 @@ func TestMergeNothingSelection(t *testing.T) {
 			defer target.Close()
 			defer source.Close()
 			c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			arm, err := SelectMergeArm(b.Merge, &c, parser.MergeMatched)
+			arm, err := dml.SelectMergeArm(b.Merge, &c, parser.MergeMatched)
 			want := parser.MergeDeleteAction
 			if pred == "TRUE" {
 				want = parser.MergeNothingAction
@@ -27,11 +28,11 @@ func TestMergeNothingSelection(t *testing.T) {
 			if err != nil || arm == nil || arm.Action != want {
 				t.Fatal("first true", arm, err)
 			}
-			arm, err = SelectMergeArm(b.Merge, &c, parser.MergeNotMatched)
+			arm, err = dml.SelectMergeArm(b.Merge, &c, parser.MergeNotMatched)
 			if err != nil || arm == nil || arm.Action != parser.MergeNothingAction {
 				t.Fatal("class selection", arm, err)
 			}
-			arm, err = SelectMergeArm(b.Merge, &c, parser.MergeNotMatchedBySource)
+			arm, err = dml.SelectMergeArm(b.Merge, &c, parser.MergeNotMatchedBySource)
 			if err != nil || arm != nil {
 				t.Fatal("class widened", arm, err)
 			}
@@ -66,7 +67,7 @@ func TestMergeNothingPreflight(t *testing.T) {
 				}
 				query := &exec.State{Source: source, Input: scope.input, Output: scope.output}
 				c.Query = query
-				_, err := SelectMergeArm(b.Merge, &c, parser.MergeMatched)
+				_, err := dml.SelectMergeArm(b.Merge, &c, parser.MergeMatched)
 				query.ReleaseMemberships()
 				state(t, err, "22012")
 			}
