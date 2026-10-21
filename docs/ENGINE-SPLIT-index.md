@@ -318,7 +318,8 @@ schema-level DDL 23, DML 18 distinct declarations.
    - a. **Validators take `access.View` and `access.Environment`**
      instead of `AuthorizationView` (which holds `*Engine`):
      `uniqueKeyDetailAllowed` calls `view.Effective(env, ref, false)`
-     (that is what `AuthorizationView.Effective` does today);
+     (that is what `AuthorizationView.Effective` does today; table 24a
+     already gave it the `(view, env, ...)` signature);
      `validateUnique{Entries,Pair,Root}`,
      `validateExclusion{Entries,Pair,Root}`, `mergeIndexRoot`,
      `exclusionScan`, `uniqueConflict`, `indexSnapshot.repair`,

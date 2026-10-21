@@ -49,6 +49,12 @@ area (see "Not table code").
 
 ## Inventory (measured at `c154e14fb`)
 
+The tables keep the measured file names. 24a renamed `not_null.go` to
+`alter_table.go`, `temporary_table.go` to `create_table.go`, `table.go` to
+`drop_table.go`, `alter_schema.go` to `relation_set_schema.go`,
+`inheritance_control.go` to `inheritance_remap.go` and the two
+`inheritance_dml*.go` files to `mutation_targets.go` (see Status).
+
 Two candidate areas, 74 files, about 18.7k lines, 6.6k clean (they reach
 none of `Engine`, `StatementScope`, `CatalogStage`).
 
@@ -92,20 +98,20 @@ uses `columnTransformation`, so `typedef` cannot own it).
 
 **Pipelines (orchestration stays in the root).**
 
-- *CREATE TABLE:* `createTableLocked` (`temporary_table.go:16`) →
-  `schemaTableLocked` (`schema.go:32`), or the partition variants in
+- *CREATE TABLE:* `createTableLocked` (`create_table.go:13`) →
+  `schemaTableLocked` (`create_table_stage.go:14`), or the partition variants in
   `partition_create.go`/`partition_inherit.go` → `newTableDescriptorLocked`,
   row type, `stageInheritance`, `nameCreateNotNull`,
   `stageCreateIdentities`/`stageCreateSerials`, `stageLikeColumns`,
   `bindCreateDefaults`/generations/checks, `stageLikeChecks`, definition
   OIDs, uniques, exclusions, `stageLikeIndexes`, `stageCreateForeignKeys`,
   then `stageCatalogOverlay` writes the journal.
-- *ALTER TABLE:* `alterTableLocked` (`not_null.go:36`):
-  `prepareAlterTableActions` (`alter_tablespace.go:25`) → inheritance
-  recursion through `alterInheritanceLocked` (`inheritance_alter.go:194`),
+- *ALTER TABLE:* `alterTableLocked` (`alter_table.go:36`):
+  `prepareAlterTableActions` (`alter_table_prepare.go:24`) → inheritance
+  recursion through `alterInheritanceLocked` (`inheritance_alter.go:188`),
   which re-enters `alterTableLocked` per node with
   `scope.inheritance.alter` set → guards → journal clone → a nine-pass loop
-  ordered by `alterActionPhase` (`inheritance_alter_prepare.go:42`), each
+  ordered by `alterActionPhase` (`alter_table_phase.go:8`), each
   action calling a candidate function that returns the next
   `*catalog.Relation` (`identityCandidate`, `generationCandidate`,
   `dropColumnCandidate`, `addColumnCandidate`, `alterTypeCandidate`,
@@ -115,8 +121,8 @@ uses `columnTransformation`, so `typedef` cannot own it).
   changes`. `Engine.mu` is taken and released about 30 times inside.
   Publication happens at Finish (`transaction_finish.go`).
 - *Admission:* lock modes and waits in `relation_scope.go`,
-  `alterTableLockMode` (`alter_foreign_key.go:25`),
-  `acquireDefinitionProviders` (`check.go:228`), `admitInheritanceAlter`.
+  `alterTableLockMode` (`alter_table_locks.go:8`),
+  `acquireDefinitionProviders` (`definition_providers.go:14`), `admitInheritanceAlter`.
 
 **Dirty declarations and why.** 6.5k lines are `Engine` methods (the
 handlers and stagers above), 2.5k are `StatementScope` methods (FK
@@ -187,7 +193,7 @@ set; the top ones are `dumpRelation` fields (69 uses of `.descriptor`),
 | Physical NOT NULL: 5i moved `catalog.PhysicalPrimaryForAttribute` and `CapturePhysicalPrimarySupport`. The validators `physicalNotNullOriginValid`, `physicalPrimarySupportValid` and `validatePhysicalNotNull` stayed in the root: they call `storedReferenceEpochValid` (root providers) and `indexCatalogKey` (`plan` nodes) | moved part: `catalog`; validators: root, re-measured in 23b/24b | 5i (72) |
 | `generationHasTableOID`, `generationImmutable` (187 lines) | `plan` (`plan.GenerationHasTableOID`, `plan.GenerationImmutable`) | 10e (73), done |
 | FK write-time enforcement (`checkForeignKeys`, `foreignKeyJob` scheduling in `foreign_key_writes.go`) and FK actions (`foreign_action_*.go`, `foreign_actions.go`) | `dml` | 29a/29b |
-| Inheritance DML expansion (`inheritance_dml.go`, `inheritance_dml_authority.go`) | `dml` | 29a/29b |
+| Inheritance DML expansion (`mutation_targets.go` since 24a) | `dml` | 29a/29b |
 | Inheritance query expansion: the scope methods and `inheritanceScope` (`inheritance_query_scope.go`) | root query admission (open question 1) | — |
 | `inheritance_using_index.go` | `index` (renamed `using_index_prepare.go` in 23a) | 23a/23b |
 | `typed_mutation.go` (dirty) and `typedObservationValid` | root | — |
@@ -474,7 +480,64 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
 
 ## Status
 
-- [ ] 24a — In place (renames, slot, cuts) — linear item 86
+- [x] 24a — In place (renames, slot, cuts) — linear item 86
+  (`56270ba2f`, `4dcdf411c`, `b210c6777`, `260ed66c6`, `5b4ac930a`,
+  `36249b2b4`, `e247d07c6`, then the docs commit) · selected unit and
+  dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+  user request
+  - Re-measured at `e68b939e8` (`reach` over the 73 inventory files that
+    still exist): 16.6k lines, 5.93k clean (5i had moved its helpers out).
+    After the cuts, over the same declarations plus the files 24a created:
+    6.12k → 6.91k clean (+0.79k). Clean now: the definition reader and
+    prepared inheritance nodes, `inheritanceParentActions`,
+    `inheritanceRemovedOrigin`, `inheritRetiredColumnConstraints`,
+    `ordinaryColumnDrop`, the four dependency passes, `foreignKeyDiagnostic`,
+    `foreignKeyReferencesAllowed`, `restoredForeignKeys`. Outputs in
+    `.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-IN-PLACE/` (`reach-*.txt`,
+    `delta.py`).
+  - `56270ba2f` (renames): as listed in 24a step 2. Two placements differ:
+    `discardRemovedWrites` went to `catalog_overlay_stage.go` with its only
+    caller `stageCatalogOverlay`, and `temporaryDataTarget` (read-only DML
+    admission) to `temporary_access.go`; neither is CREATE TABLE code.
+    The two `inheritance_dml*.go` files merged into `mutation_targets.go`.
+    Rebased over B6, which had changed `alterTableActionKind`; the move was
+    redone from the new body. Final base `e6f9c647b` (routine 14e; no
+    overlap).
+  - `4dcdf411c` (slot): `tableStage{likeSources}` behind
+    `CatalogStage.tableSlot`, `table()`/`tableOrZero()` in `table_stage.go`.
+  - `b210c6777`: `preparedDrop.statement any` replaces `scope`; it is only
+    compared with the consuming scope. `preparedIdentityDrop` had no scope
+    field of its own (it holds `drop *preparedDrop`), so one cut covers
+    both.
+  - `260ed66c6`: `inheritanceAlterPlan` (the pure record) embedded in
+    `inheritanceAlterState`, which keeps `stage` and `changes`.
+    `inheritRetiredColumnConstraints` takes the read it names against;
+    `inheritanceAlterState.retiredBase` supplies it.
+  - `5b4ac930a`: `foreignKeyDiagnostic`, `foreignKeyReferencesAllowed` and
+    `uniqueKeyDetailAllowed` take `access.View` and `access.Environment`
+    (index 23a cut a needs the same signature for `uniqueKeyDetailAllowed`;
+    it is already in). Correction: `restoredForeignKeys` keeps the declaring
+    authority for later staging (`stageForeignKey`,
+    `lookupNamespacesSnapshot`), so it cannot hold a view; its field is the
+    opaque `ddl.Authority`, recovered with `ddlAuthorityOf`.
+  - `36249b2b4`: `dropDependencyReader` (`drop_dependency_reader.go`, 18
+    methods, not the small reader the plan expected: `ordinaryColumnDrop`
+    also calls the view, composite and owned-sequence passes) implemented
+    by `*dropProvider`; `checkDependents`, `defaultDependents`,
+    `foreignKeyColumnDependencies`, `foreignKeyDependents` and
+    `ordinaryColumnDrop` are functions over it. The unused wrappers
+    `foreignKeyColumnDependencies(ctx, stage, ...)` and
+    `stageForeignKeyDependents(Locked)` were deleted.
+  - `e247d07c6`: `emitMaterializedSnapshot(ctx, t *dumpRelation, ...)`;
+    view 27a item 9 is done.
+  - Step 4's partition dump helpers needed no 24a code (see Notes).
+  - Open questions: 1 as settled; 2 `bindCreateDefaults` stays in the root
+    (24c host binding); 3 `projectColumnShapeRoots` stays in the root.
+  - Tests: none moved or deleted. Literals and calls were adapted in
+    `table_like*_test.go`, `table_inheritance_admission_test.go`,
+    `inheritance_retired_test.go`, `inheritance_alter_test.go`,
+    `alter_tablespace_prefix_test.go` and
+    `primary_key_authorization_test.go`.
 - [ ] 24b — `table` created and clean set moved — linear item 87
 - [ ] 24c — Host refined (docs only) — linear item 88
 - [ ] 24d — Handler decisions moved — linear item 89
@@ -483,13 +546,21 @@ Outstanding aliases: none yet.
 
 ### Notes for later steps
 
+- 24b: the dependency passes need `dropDependencyReader` and
+  `domainDependency` (`domain_dependencies.go`) in `table`; the
+  `dropProvider` methods stay in the root. `foreignKeyDiagnostic` is also
+  called by FK actions and enforcement (`dml`), which import `table`.
+  `restoredForeignKeys.auth` is a `ddl.Authority`. `inheritanceScope.alter`
+  still holds the root `inheritanceAlterState`; only the plan moves.
+
 - `dml` (29a): FK write-time enforcement and FK actions, the
   `foreignActionsSlot` and `foreignActionAuth` scope fields, and
   `mutation_targets.go` (inheritance DML expansion) are `dml`'s.
 - `partition` (25a/25b): partition imports `table`; table never imports
-  partition. The two dump helpers are reached through the interface of
-  24a step 4.
-- `view` (27b): `emitMaterializedSnapshot` becomes a function in 24a and
+  partition. The two dump helpers need no interface: index 23a moves
+  `partitionReplaySeparateConstraint` into `index`, and
+  `partitionHashReplayTarget` moves with `table` in 24b.
+- `view` (27b): `emitMaterializedSnapshot` became a function in 24a and
   moves with the materialized snapshot records.
 - `typedef`: `typed_inheritance.go`'s clean part moves here, not to
   `typedef` (it uses `columnTransformation`).

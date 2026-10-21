@@ -192,7 +192,7 @@ Genuinely dirty (they stay in the root, or their decisions move in 27d):
 | `Engine.executePolicy` (155), `finishPolicyNoticeLocked` | `policy_ddl.go:15` | stage, publication, notices |
 | `Engine.bindPolicyExpression` (62) | `policy_expression.go` | builds a binder |
 | `Engine.refreshMaterializedLocked` (100), `materializedRefreshRowsLocked`, `stageMaterializedRows` | `materialized_refresh.go:124` | consumes `Engine.mu`, runs the stored query, stages storage |
-| `Engine.stageRowSecurityFlagsLocked` | `rls_base_ddl.go` | ALTER TABLE ENABLE/FORCE ROW LEVEL SECURITY, called from `not_null.go:153` |
+| `Engine.stageRowSecurityFlagsLocked` | `rls_base_ddl.go` | ALTER TABLE ENABLE/FORCE ROW LEVEL SECURITY, called from `alter_table.go:153` |
 | `Engine.configureRowSecurityLocked`, `rowSecurityInputLocked` | `rls_base.go` | sets the RLS scope fields, called from `execute_bound.go:398` |
 | `checkRowSecurityBinding`, `checkRowSecurityRuleProgram`, `checkRowSecuritySource` | `row_security_setting.go` | privilege walkers (the `access` README keeps them in the root) |
 | `Engine.executeRuleProgramLocked`, `admitRuleCommandsLocked`, `admitRuleCTEsLocked`, `normalizeRuleCTEsLocked`, `ruleCommandScratch` | `rule_execution.go`, `rule_admission.go`, `rule_cte.go` | rule program execution runs DML |
@@ -220,7 +220,7 @@ All in `execute.go` unless noted: `CreateRule`/`AlterRule`/`DropRule` →
 `Engine.mu`); a rule program → `executeRuleProgramLocked` (527); CREATE
 MATERIALIZED VIEW → `prepareQueryTableLocked` (552, shared with CREATE
 TABLE AS; table code). RLS application: `execute_bound.go:398`. ENABLE and
-FORCE ROW LEVEL SECURITY: `not_null.go:153` (inside `alterTableLocked`).
+FORCE ROW LEVEL SECURITY: `alter_table.go:153` (inside `alterTableLocked`).
 
 ### State
 
@@ -232,7 +232,7 @@ FORCE ROW LEVEL SECURITY: `not_null.go:153` (inside `alterTableLocked`).
   `rlsProposalTable`.
 - `CatalogStage`: `materializedSlot *materializedStage`;
   `viewCascadeNames` (generic DROP cascade notice text, misnamed; used by
-  `drop_provider.go`, `extension_drop.go`, `owned_roles.go`, `table.go`,
+  `drop_provider.go`, `extension_drop.go`, `owned_roles.go`, `drop_table.go`,
   `sequence.go`, `domain_dependencies.go` and more).
 - Journal fence: `materializedSourceFence` (kind `fenceMaterializedSource`,
   declared centrally in `catalog_fence.go`).
@@ -324,8 +324,8 @@ and compare with the inventory. Then, one commit per numbered item:
    as one unit.
 9. **Materialized snapshot emitter.** `(*dumpRelation).emitMaterializedSnapshot`
    becomes `emitMaterializedSnapshot(t *dumpRelation, ...)`, so that 27b
-   can move it although `dumpRelation` belongs to `table`. Table 24a has
-   the same item: whichever runs first does it, the other skips it.
+   can move it although `dumpRelation` belongs to `table`. Done by table
+   24a (`e247d07c6`): skip it.
 
 Re-run `reach` on the same files. Every declaration in the "move" lists
 above must now be clean. If one is not, stop and record the path under
@@ -518,6 +518,6 @@ Outstanding aliases: none yet.
   ALTER TYPE; they stay in the root, so table's Part B reaches them
   through its host.
 - The RLS action rules go to `access` in B6; only ALTER TABLE code
-  (`alter_tablespace.go`, `not_null.go`, `partition_scope.go`,
+  (`alter_table_prepare.go`, `alter_table.go`, `partition_scope.go`,
   `table_inheritance_guards.go`, `control.go`) uses them, so B6 must land
   before `table` moves that code.
