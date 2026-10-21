@@ -163,14 +163,14 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				if err != nil || !reflect.DeepEqual(reconstructed, next) {
 					t.Fatal("completed reconstruction", err)
 				}
-				if err := admitRoutineCall(&evaluation, next, false, false); err != nil {
+				if err := exec.AdmitRoutineCall(&evaluation, next, false, false); err != nil {
 					t.Fatal("completed occurrence admission", err)
 				}
 			}
 			// false,false is the actual source/project demand stage, not the
 			// scalar planner's intentional SETOF skip. RECORD strictness and
 			// valid's nonstrict BOOL must not erase even all-NULL calls here.
-			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original admission", err)
 			}
 			missing := make([]catalog.ExpressionDependency, 0, len(original))
@@ -182,7 +182,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.RoutineChecks = manifest
-				if err := admitRoutineCall(&probe, call, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("missing owning manifest rescued by OID")
 				}
 			}
@@ -202,17 +202,17 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 				probe := evaluation
 				probe.RoutineChecks = copied
-				if err := admitRoutineCall(&probe, call, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("invalid original manifest admitted", mutation)
 				}
 			}
 			probe := evaluation
 			probe.RoutineChecks = append([]catalog.ExpressionDependency(nil), original...)
-			if err := admitRoutineCall(&probe, call, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&probe, call, false, false); err != nil {
 				t.Fatal("full original ref copy lost authority", err)
 			}
 			probe.RoutineAuthority = foreign.RoutineAuthority
-			if err := admitRoutineCall(&probe, call, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("foreign same-OID authority admitted")
 			}
 			mapped, _, err := retagBoundTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -231,7 +231,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
 				probe.RoutineChecks = manifest
-				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("retag manufactured destination manifest")
 				}
 			}
@@ -242,18 +242,18 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.RoutineAuthority = &changed
-			if err := admitRoutineCall(&probe, call, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("incompatible declaration admitted")
 			}
 			invalid := call
 			invalid.Info.RoutineReference = (*catalog.Procedure)(nil)
-			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed nil carrier admitted")
 			}
 			if !reflect.DeepEqual(call, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("probes mutated original graph/manifest")
 			}
-			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original admission lost", err)
 			}
 		})
@@ -308,7 +308,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 		if err != nil || childRecipe != recipe {
 			t.Fatal("stored child lost owning recipe", err)
 		}
-		if err := admitRoutineCall(&evaluation, retained, false, false); err != nil {
+		if err := exec.AdmitRoutineCall(&evaluation, retained, false, false); err != nil {
 			t.Fatal("stored original manifest admission", err)
 		}
 		missing := make([]catalog.ExpressionDependency, 0, len(viewOf(recipe).Dependencies()))
@@ -322,11 +322,11 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 			// Select the genuine owning recipe just as normal admission does,
 			// then remove its own selected-call authority. Do not allow a
 			// recipe reselection to replace the deliberately absent manifest.
-			if err := selectExpressionRecipe(&probe, recipe); err != nil {
+			if err := exec.SelectExpressionRecipe(&probe, recipe); err != nil {
 				t.Fatal("select stored owning recipe", err)
 			}
 			probe.RoutineChecks = manifest
-			if err := admitRoutineCall(&probe, retained, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, retained, false, false); err == nil {
 				t.Fatal("stored chain rescued missing owning manifest")
 			}
 		}
@@ -337,7 +337,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	if childRecipe, err := exec.ExpressionRecipeDescriptor(call.Args[0]); err != nil || childRecipe != nil {
 		t.Fatal("stored chain mutated original child ancestry", err)
 	}
-	if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
+	if err := exec.AdmitRoutineCall(&evaluation, call, false, false); err != nil {
 		t.Fatal("original captured manifest lost admission", err)
 	}
 }
@@ -356,7 +356,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 		node, _, evaluation := strictNullUnitBind(t, e, op, scope, expression)
 		scope.routineAuth = *routineAuthorityView(&evaluation)
 		evaluation.RoutineAuthority = nil
-		if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
+		if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 			t.Fatal("live owning scope", err)
 		}
 		nodes = append(nodes, node)
@@ -364,7 +364,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 	}
 	scope.Finish(nil)
 	for i, node := range nodes {
-		if err := admitRoutineCall(&evaluations[i], node, false, false); err == nil {
+		if err := exec.AdmitRoutineCall(&evaluations[i], node, false, false); err == nil {
 			t.Fatal("ended owning scope rescued by descriptor")
 		}
 	}
@@ -448,12 +448,12 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 				}
 			}
 		}
-		if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
+		if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 			t.Fatal("retained original snapshot admission", err)
 		}
 		probe := evaluation
 		probe.RoutineAuthority = auth
-		if err := admitRoutineCall(&probe, node, false, false); err == nil {
+		if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 			t.Fatal("owner revision rescued old graph")
 		}
 		fresh, freshBinder, freshEvaluation := strictNullUnitBind(t, e, op, scope, expression)
@@ -462,7 +462,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			t.Fatal("fresh analysis did not capture owner/revision", err)
 		}
 		freshEvaluation.RoutineAuthority = ownerAuth
-		if err := admitRoutineCall(&freshEvaluation, fresh, false, false); err != nil {
+		if err := exec.AdmitRoutineCall(&freshEvaluation, fresh, false, false); err != nil {
 			t.Fatal("fresh current admission", err)
 		}
 		found := false
@@ -526,7 +526,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 		}
 		retained := evaluation
 		retained.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, readerOp)
-		if err := admitRoutineCall(&retained, node, false, false); err != nil {
+		if err := exec.AdmitRoutineCall(&retained, node, false, false); err != nil {
 			t.Fatal("original PUBLIC-default authority", err)
 		}
 		for _, allowed := range []bool{false, true, false} {
@@ -549,11 +549,11 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 			}
 			probe := evaluation
 			probe.RoutineAuthority = auth
-			err := admitRoutineCall(&probe, node, false, false)
+			err := exec.AdmitRoutineCall(&probe, node, false, false)
 			if (err == nil) != allowed {
 				t.Fatal("current ACL not used by original graph", allowed, err)
 			}
-			if err := admitRoutineCall(&retained, node, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&retained, node, false, false); err != nil {
 				t.Fatal("COW mutated original authority snapshot", err)
 			}
 		}

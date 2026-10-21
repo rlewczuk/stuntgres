@@ -191,7 +191,7 @@ func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 	}
 	phase := domainCheckPhase{number: c.DomainPhase, actor: auth.State.CurrentUser, ri: ri}
 	if exists {
-		if err := phase.admission.initializePhase(&programPhases(programme)[0].admission, routineAccessOf(auth)); err != nil {
+		if err := phase.admission.InitializePhase(&programPhases(programme)[0].admission, routineAccessOf(auth)); err != nil {
 			return err
 		}
 	} else {
@@ -220,8 +220,8 @@ func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 			}
 		}
 	}
-	if program := routineProgramOf(c); program != nil && scope == nil {
-		program.include(&phase.admission)
+	if program := c.RoutineProgram; program != nil && scope == nil {
+		program.Include(&phase.admission)
 	}
 	programme.Phases = append(programPhases(programme), phase)
 	if c.PreparedDomainChecks == nil {

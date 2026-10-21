@@ -2,8 +2,6 @@ package engine
 
 import "stuntgres/internal/engine/exec"
 
-func (*routineAdmissionProgram) AdmissionProgramSlot() {}
-
 // AdmissionAccess is the routine admission view of the borrowed authority.
 func (v *AuthorizationView) AdmissionAccess() exec.RoutineAccess { return v.routineAccess() }
 
@@ -21,28 +19,8 @@ func (v *AuthorizationView) routineAccess() exec.RoutineAccess {
 	return access
 }
 
-func authoritySlot(auth *AuthorizationView) exec.AdmissionAuthority {
-	if auth == nil {
-		return nil
-	}
-	return auth
-}
-
-func programSlot(program *routineAdmissionProgram) exec.AdmissionProgram {
-	if program == nil {
-		return nil
-	}
-	return program
-}
-
 // routineAuthorityView is the borrowed local DDL admission authority, or nil.
 func routineAuthorityView(c *exec.Context) *AuthorizationView {
 	auth, _ := c.RoutineAuthority.(*AuthorizationView)
 	return auth
-}
-
-// routineProgramOf is the borrowed serial preparation footprint, or nil.
-func routineProgramOf(c *exec.Context) *routineAdmissionProgram {
-	program, _ := c.RoutineProgram.(*routineAdmissionProgram)
-	return program
 }

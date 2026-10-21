@@ -34,7 +34,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
 		parent := c
 		local := *c
-		if err := selectExpressionRecipe(&local, recipe); err != nil {
+		if err := exec.SelectExpressionRecipe(&local, recipe); err != nil {
 			return nil, false, err
 		}
 		c = &local
@@ -125,7 +125,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 					var view sqltype.Value
 					view, err = arm.TestPlan.Apply(c.Context, test.Value, c.Input, c.Output)
 					if err == nil && !view.IsNull() && !condition.Value.IsNull() {
-						if err := admitCaseEquality(c, arm); err != nil {
+						if err := exec.AdmitCaseEquality(c, arm); err != nil {
 							return nil, false, err
 						}
 						match, err = arm.Equality.EqualValues(c.Context, view, condition.Value, c.Input)
@@ -430,7 +430,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	}
 	p := expression.Properties()
 	if _, literal := expression.(plan.LiteralExpr); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && conditionalConstantInputs(expression) {
-		value, err := evaluatePlanningExpression(c, expression)
+		value, err := exec.EvaluatePlanningExpression(c, expression)
 		if err != nil {
 			return nil, false, err
 		}

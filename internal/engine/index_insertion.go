@@ -129,7 +129,7 @@ func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row 
 // cannot certify the original call after a wait.
 func (b *uniqueWriteBinding) readmitPrograms(auth exec.RoutineAccess) error {
 	for i := range b.keys {
-		if err := b.keys[i].preparation.admission.readmit(auth); err != nil {
+		if err := b.keys[i].preparation.admission.Readmit(auth); err != nil {
 			return err
 		}
 	}
@@ -137,7 +137,7 @@ func (b *uniqueWriteBinding) readmitPrograms(auth exec.RoutineAccess) error {
 		if b.insertion[i].unique != nil {
 			continue
 		}
-		if err := b.insertion[i].preparation.admission.readmit(auth); err != nil {
+		if err := b.insertion[i].preparation.admission.Readmit(auth); err != nil {
 			return err
 		}
 	}

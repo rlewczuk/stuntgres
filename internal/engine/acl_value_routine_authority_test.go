@@ -111,13 +111,13 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			}
 			// In particular, aclexplode must pass actual source/project admission;
 			// scalar planning intentionally skips SRFs and cannot prove authority.
-			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original source/project authority", err)
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.RoutineChecks = manifest
-				if err := admitRoutineCall(&probe, call, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("missing original lifetime repaired from current OID")
 				}
 			}
@@ -137,13 +137,13 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 				}
 				probe := evaluation
 				probe.RoutineChecks = checks
-				if err := admitRoutineCall(&probe, call, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("invalid selected original lifetime admitted", mode)
 				}
 			}
 			probe := evaluation
 			probe.RoutineAuthority = foreign.RoutineAuthority
-			if err := admitRoutineCall(&probe, call, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("equal-OID foreign authority admitted")
 			}
 			remapped, _, err := retagBoundTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -163,7 +163,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
 				probe.RoutineChecks = manifest
-				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("retag manufactured original destination authority")
 				}
 			}
@@ -174,18 +174,18 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.RoutineAuthority = &changed
-			if err := admitRoutineCall(&probe, call, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("incompatible current declaration admitted")
 			}
 			invalid := call
 			invalid.RoutineReference = (*catalog.Procedure)(nil)
-			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
+			if err := exec.AdmitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed-nil selected descriptor admitted")
 			}
 			if !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("negative probes mutated original manifest")
 			}
-			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("intact original authority changed after probes", err)
 			}
 		})

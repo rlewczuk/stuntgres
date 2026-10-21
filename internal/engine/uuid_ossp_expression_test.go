@@ -241,7 +241,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if routines != 1 {
 		t.Fatal("zero-arity call lost its own manifest", original)
 	}
-	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("original scalar admission", err)
 	}
 	for _, mode := range []string{"nil", "empty", "missing", "epoch", "revision", "foreign_ref"} {
@@ -271,7 +271,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			probe.RoutineChecks = deps
-			if err := admitRoutineCall(&probe, node, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("absent/stale original authority repaired")
 			}
 		})
@@ -290,7 +290,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		auth.Catalog.State().SetDescriptor(n.Ref.Address, &bad)
 		probe := evaluation
 		probe.RoutineAuthority = &auth
-		if exec.SameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
+		if exec.SameRoutineDeclaration(&bad, captured) || exec.AdmitRoutineCall(&probe, node, true, false) == nil {
 			t.Fatal("incompatible current provider/kind admitted")
 		}
 	}
@@ -300,7 +300,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	probe := evaluation
 	probe.RoutineChecks = nil
-	if err := admitRoutineCall(&probe, grafted, true, false); err != nil {
+	if err := exec.AdmitRoutineCall(&probe, grafted, true, false); err != nil {
 		t.Fatal("graft lost actual owning manifest", err)
 	}
 	if expr.InfoOf(grafted).RoutineRecipeReference != recipe || expr.InfoOf(node).RoutineRecipeReference != nil {
@@ -351,14 +351,14 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	auth := catalogAuthorization(e, view)
 	probe = evaluation
 	probe.Catalog, probe.RoutineAuthority = view, &auth
-	if err := admitRoutineCall(&probe, relocated, true, false); err == nil {
+	if err := exec.AdmitRoutineCall(&probe, relocated, true, false); err == nil {
 		t.Fatal("retag manufactured original authority")
 	}
 	probe.RoutineChecks = slices.Clone(original)
 	for i := range probe.RoutineChecks {
 		probe.RoutineChecks[i].Ref = remap(probe.RoutineChecks[i].Ref)
 	}
-	if err := admitRoutineCall(&probe, relocated, true, false); err != nil {
+	if err := exec.AdmitRoutineCall(&probe, relocated, true, false); err != nil {
 		t.Fatal("transferred original authority rejected", err)
 	}
 	foreignView := other.CatalogRead()
@@ -382,13 +382,13 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	foreignAuth := catalogAuthorization(other, foreignView)
 	probe = evaluation
 	probe.RoutineAuthority = &foreignAuth
-	if err := admitRoutineCall(&probe, foreignNode, true, false); err == nil {
+	if err := exec.AdmitRoutineCall(&probe, foreignNode, true, false); err == nil {
 		t.Fatal("foreign same-OID retag acquired original authority")
 	}
 	if !reflect.DeepEqual(binder.Dependencies, original) || expr.InfoOf(node).RoutineReference != captured || n.Procedure != captured || n.Ref.Address != ext.Members[0] {
 		t.Fatal("authority probes mutated original")
 	}
-	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("source authority lost", err)
 	}
 }
@@ -434,7 +434,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
-		err = admitRoutineCall(&evaluation, node, true, false)
+		err = exec.AdmitRoutineCall(&evaluation, node, true, false)
 		if tc.execute {
 			if err != nil {
 				t.Fatal("original carrier lost current grant", err)

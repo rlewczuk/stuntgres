@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
@@ -16,11 +17,6 @@ import (
 // pointer, never the pointee) and reads it only through AdmissionAccess. A nil
 // pointer is stored as an untyped nil.
 type AdmissionAuthority interface{ AdmissionAccess() RoutineAccess }
-
-// The routine program slot is opaque to the runtime: only engine helpers look
-// inside.
-
-type AdmissionProgram interface{ AdmissionProgramSlot() }
 
 type RoutineBodyContext struct {
 	Outer     *catalog.Procedure

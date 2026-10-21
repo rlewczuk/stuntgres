@@ -38,7 +38,7 @@ func simplifyOverlapsRoute(c *exec.Context, e functions.DatetimeOverlaps) (funct
 			if e.Folded[pair].Type() != nil {
 				continue
 			}
-			if err := admitOverlapsPair(c, e, pair); err != nil {
+			if err := exec.AdmitOverlapsPair(c, e, pair); err != nil {
 				return e, false, err
 			}
 			end, err := e.Plan.DurationEnd(c.Context, pair, start.Value, interval.Value, c.Input)

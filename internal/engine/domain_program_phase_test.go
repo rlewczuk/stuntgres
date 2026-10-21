@@ -189,7 +189,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 					scope.foreignActionAuth = &ownerAuth
 					defer func() { scope.foreignActionAuth = nil }()
 				}
-				if err := admitRoutineCall(evaluation, node, true, false); err != nil {
+				if err := exec.AdmitRoutineCall(evaluation, node, true, false); err != nil {
 					return err
 				}
 				return admitInquiryBody(evaluation, inquiry.Info)

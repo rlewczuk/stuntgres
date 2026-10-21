@@ -182,7 +182,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		// Actuals are their own executable recipe, not the prepared body's
 		// parameter-only binding. Borrow the original actual manifest without
 		// replacing the statement's main-query authority or dependencies.
-		var actualProgram routineAdmissionProgram
+		var actualProgram exec.RoutineProgram
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Catalog: auth.Catalog, Input: input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies, RoutineProgram: &actualProgram}}
 		for _, node := range nodes {
 			if sqltype.ContainsDomainConstraints(node.ResultUsage().Type) {
@@ -207,7 +207,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			}
 			frame[i] = value
 		}
-		if len(actualProgram.calls) != 0 {
+		if len(actualProgram.Calls) != 0 {
 			// Preserve the original consumed calls without retaining a graph
 			// per nested utility hop. Merge only successive anonymous graphs,
 			// preserving readmission order across other original-call owners.
@@ -215,7 +215,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			if n := len(s.routinePrograms); n != 0 {
 				program := &s.routinePrograms[n-1]
 				if program.outer == nil && program.consumer == nil && !program.ri {
-					program.admission.include(&actualProgram)
+					program.admission.Include(&actualProgram)
 					retained = true
 				}
 			}

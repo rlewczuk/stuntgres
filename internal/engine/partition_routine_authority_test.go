@@ -152,7 +152,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var retagAdmission routineAdmissionProgram
+	var retagAdmission exec.RoutineProgram
 	retagEvaluation := newEvaluation(otherAuth)
 	if _, err := prepareIndexRecipe(&retagEvaluation, retagged, refs, owner, &retagAdmission, true); err == nil {
 		t.Fatal("retag manufactured destination original lifetime")

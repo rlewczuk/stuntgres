@@ -84,7 +84,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				captured, ref = enum.Procedure, enum.Ref
 				carrier, err := exec.ExpressionRoutineDescriptor(node)
-				if err != nil || carrier != captured || !procedureReturnsSet(captured) || strictScalarRoutine(captured) {
+				if err != nil || carrier != captured || !procedureReturnsSet(captured) || exec.StrictScalarRoutine(captured) {
 					t.Fatal("enum selected declaration/set classification", err)
 				}
 				if tc.name == "enum_parameter" {
@@ -131,15 +131,15 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			}
 			admit := func(c *exec.Context, n expr.Expr, r ids.ObjectRef) error {
 				if aggregate {
-					return admitRoutineReference(c, r, "aggregate")
+					return exec.AdmitRoutineReference(c, r, "aggregate")
 				}
-				return admitRoutineCall(c, n, false, false)
+				return exec.AdmitRoutineCall(c, n, false, false)
 			}
 			if err := admit(&evaluation, node, ref); err != nil {
 				t.Fatal("original admission", err)
 			}
 			if aggregate {
-				if err := admitRoutineReference(&evaluation, ids.ObjectRef{}, "aggregate"); err == nil {
+				if err := exec.AdmitRoutineReference(&evaluation, ids.ObjectRef{}, "aggregate"); err == nil {
 					t.Fatal("missing aggregate identity admitted")
 				}
 			}
@@ -217,7 +217,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				graftProbe := evaluation
 				graftProbe.RoutineChecks = nil
-				if err := admitRoutineCall(&graftProbe, grafted, false, false); err != nil {
+				if err := exec.AdmitRoutineCall(&graftProbe, grafted, false, false); err != nil {
 					t.Fatal("graft did not select actual owning manifest", err)
 				}
 				if expr.InfoOf(grafted).RoutineRecipeReference != recipe || expr.InfoOf(node).RoutineRecipeReference != nil {
@@ -231,7 +231,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err != nil || !reflect.DeepEqual(rewritten, node) {
 						t.Fatal("structural parameter rewrite lost original carrier", err)
 					}
-					if err := admitRoutineCall(&evaluation, rewritten, false, false); err != nil {
+					if err := exec.AdmitRoutineCall(&evaluation, rewritten, false, false); err != nil {
 						t.Fatal("structural parameter rewrite lost original authority", err)
 					}
 					foreignEnum := node.(plan.UnnestExpr)
@@ -249,7 +249,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					probe = evaluation
 					probe.RoutineAuthority = foreign.RoutineAuthority
-					if err := admitRoutineCall(&probe, foreignNode, false, false); err == nil {
+					if err := exec.AdmitRoutineCall(&probe, foreignNode, false, false); err == nil {
 						t.Fatal("foreign parameter retag acquired original authority")
 					}
 				} else {
@@ -262,7 +262,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err != nil || reboundDescriptor != captured {
 						t.Fatal("literal render/rebind changed selected declaration", err)
 					}
-					if err := admitRoutineCall(&reboundEvaluation, rebound, false, false); err != nil {
+					if err := exec.AdmitRoutineCall(&reboundEvaluation, rebound, false, false); err != nil {
 						t.Fatal("literal render/rebind authority", err)
 					}
 					// Transfer the actual selected ref before descriptor retagging; no old OID
@@ -308,7 +308,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					probe = evaluation
 					probe.Catalog = view
 					probe.RoutineAuthority = &auth
-					if err := admitRoutineCall(&probe, relocated, false, false); err == nil {
+					if err := exec.AdmitRoutineCall(&probe, relocated, false, false); err == nil {
 						t.Fatal("retag manufactured original manifest")
 					}
 					deps := append([]catalog.ExpressionDependency(nil), original...)
@@ -316,7 +316,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						deps[i].Ref = remap(deps[i].Ref)
 					}
 					probe.RoutineChecks = deps
-					if err := admitRoutineCall(&probe, relocated, false, false); err != nil {
+					if err := exec.AdmitRoutineCall(&probe, relocated, false, false); err != nil {
 						t.Fatal("transferred original authority", err)
 					}
 					foreignNode, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef {
@@ -339,7 +339,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					probe = evaluation
 					probe.RoutineAuthority = foreign.RoutineAuthority
-					if err := admitRoutineCall(&probe, foreignNode, false, false); err == nil {
+					if err := exec.AdmitRoutineCall(&probe, foreignNode, false, false); err == nil {
 						t.Fatal("foreign retag acquired original authority")
 					}
 				}

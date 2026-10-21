@@ -68,7 +68,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("canonical callable absent from original manifest")
 			}
 			before := carrier
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original admission", err)
 			}
 			missing := make([]catalog.ExpressionDependency, 0, len(original))
@@ -80,7 +80,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.RoutineChecks = manifest
-				if err := admitRoutineCall(&probe, node, true, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 					t.Fatal("missing original manifest acquired authority from an OID")
 				}
 			}
@@ -97,14 +97,14 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				}
 				probe := evaluation
 				probe.RoutineChecks = stale
-				if err := admitRoutineCall(&probe, node, true, false); err == nil {
+				if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 					t.Fatal("stale original epoch/revision admitted")
 				}
 			}
 			probe := evaluation
 			foreignAuth := *routineAuthorityView(&foreign)
 			probe.RoutineAuthority = &foreignAuth
-			if err := admitRoutineCall(&probe, node, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("foreign original descriptor admitted")
 			}
 			remapped, _, err := retagBoundTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -117,7 +117,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual carrier retag", err)
 			}
-			if err := admitRoutineCall(&probe, remapped, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, remapped, true, false); err == nil {
 				t.Fatal("foreign retag manufactured an original manifest")
 			}
 			// A catalog-local replacement with an incompatible declaration is
@@ -129,13 +129,13 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.RoutineAuthority = &changed
-			if err := admitRoutineCall(&probe, node, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("changed selected declaration admitted")
 			}
 			if !reflect.DeepEqual(carrier, before) || !reflect.DeepEqual(binder.Dependencies, original) {
 				t.Fatal("negative probes mutated original carrier/manifest")
 			}
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority lost after negative probes", err)
 			}
 		})
@@ -303,7 +303,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			}
 			before := expr.InfoOf(node)
 			proofs, barriers := 0, 0
-			strictRoutineArguments(node, func(argument expr.Expr) {
+			exec.StrictRoutineArguments(node, func(argument expr.Expr) {
 				known, err := executionKnownNullArgument(&evaluation, argument)
 				if err != nil {
 					t.Fatal(err)

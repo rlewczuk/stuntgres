@@ -63,7 +63,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal("exact selected dependencies", found)
 			}
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}
 			foreign := New()
@@ -83,7 +83,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 					checks = append(checks, dep)
 				}
 				evaluation.RoutineChecks = checks
-				if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
+				if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 					t.Fatal("accepted invalid authority", mode)
 				}
 			}
@@ -95,11 +95,11 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
-			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
+			if err := exec.AdmitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("retag manufactured authority")
 			}
 			evaluation.RoutineChecks = binder.Dependencies
-			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+			if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("source authority mutated", err)
 			}
 		})

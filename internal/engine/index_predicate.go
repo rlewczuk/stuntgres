@@ -19,7 +19,7 @@ import (
 type indexExecutionPreparation struct {
 	predicate                                          expr.Expr
 	ordinary                                           []expr.Expr // Only ordinary validation without an existing ordering/hash programme.
-	admission                                          routineAdmissionProgram
+	admission                                          exec.RoutineProgram
 	constantsPrepared, predicatePrepared, keysPrepared bool
 }
 
@@ -32,7 +32,7 @@ func indexRecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRe
 	return local
 }
 
-func prepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *routineAdmissionProgram, executable bool) (expr.Expr, error) {
+func prepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *exec.RoutineProgram, executable bool) (expr.Expr, error) {
 	local := indexRecipeEvaluation(evaluation, dependencies, parent)
 	local.RoutineProgram = admission
 	prepared, _, err := exec.PreflightCoercionsWithPolicy(&local, expression, true)
