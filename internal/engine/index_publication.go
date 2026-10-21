@@ -341,26 +341,37 @@ func indexStoresUnchanged(relations, captured map[ids.ObjectAddress]*storage.Rel
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
 func (e *Engine) prepareIndexCatalog(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
-	return e.prepareIndexPublication(evaluation, current, next, relations, roots, rebuildParents, rebuildIndexes, nil, true, output, auth, runtimeOwners, candidates)
+	return e.prepareIndexRoots(evaluation, current, next, relations, roots, rebuildParents, rebuildIndexes, nil, true, output, auth, runtimeOwners, candidates)
 }
 
-func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+// prepareIndexRoots reads next, recaptures auth over it, and prepares the
+// index publication. A nil auth is trusted replacement: catalog identity but
+// no SQL principal.
+func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+	view := e.catalog.read(next)
+	disclosure := access.View{Catalog: view}
+	var env indexDisclosureEnv
+	if auth != nil {
+		recaptured := *auth
+		recaptured.Catalog = view
+		recaptured.Recapture(recaptured.Catalog)
+		disclosure, env = recaptured.View, disclosureEnv(&recaptured)
+	}
+	return prepareIndexPublication(evaluation, current, next, view, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, disclosure, env, runtimeOwners, candidates)
+}
+
+// prepareIndexPublication builds and validates the index roots of next
+// against the row publications. view reads next. Duplicate keys are reported
+// to disclosure, a view of env recaptured over view; a nil env is trusted
+// publication, which has no SQL principal. Runtime owners replace the current
+// user of their tables' indexes.
+func prepareIndexPublication(evaluation *exec.Context, current, next *catalog.State, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, disclosure access.View, env indexDisclosureEnv, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	var result map[ids.ObjectAddress]*storage.IndexRoot
-	view := e.catalog.read(next)
 	evaluation.Catalog, evaluation.Output = view, output
-	if auth == nil {
-		// Trusted replacement has catalog identity but no SQL principal.
-		auth = &AuthorizationView{View: access.View{Catalog: view}}
-	} else {
-		disclosure := *auth
-		disclosure.Catalog = view
-		disclosure.Recapture(disclosure.Catalog)
-		auth = &disclosure
-	}
-	if auth.engine != nil {
+	if env != nil {
 		local := *evaluation
-		local.RoutineAuthority = auth
+		local.RoutineAuthority = env
 		evaluation = &local
 	}
 	for a, descriptor := range next.Descriptors() {
@@ -370,14 +381,12 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 		}
 		parent := next.MustRelation(index.SQLIndex.Parent)
 		owner, runtime := runtimeOwners[parent.Address()]
-		indexAuth := auth
-		if runtime && auth.engine != nil {
-			if _, err := auth.Roles.Descriptor(owner); err != nil {
+		indexView := disclosure
+		if runtime && env != nil {
+			if _, err := disclosure.Roles.Descriptor(owner); err != nil {
 				return nil, err
 			}
-			disclosure := *auth
-			disclosure.State.CurrentUser = owner
-			indexAuth = &disclosure
+			indexView.State.CurrentUser = owner
 		}
 		if parent.Partition != nil {
 			if current.Get(a) != index {
@@ -431,7 +440,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 			}
 			rebuild = false
 		}
-		if index.SQLIndex.HasRuntimeDomainConversion() && indexAuth.engine != nil {
+		if index.SQLIndex.HasRuntimeDomainConversion() && env != nil {
 			needsEvaluation := rebuild
 			for _, publication := range publications {
 				if publication.address != parent.Address() {
@@ -450,7 +459,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 			}
 			if needsEvaluation {
 				var err error
-				evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(*indexAuth)
+				evaluation.Input.TypeDiagnosticName, err = env.TypeDiagnosticNames(indexView)
 				if err != nil {
 					return nil, err
 				}
@@ -463,7 +472,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 		if index.SQLIndex.Method == catalog.HashMethod {
 			var err error
 			if rebuild {
-				if err := validateIndexDefinition(e.catalog.read(next), index); err != nil {
+				if err := validateIndexDefinition(view, index); err != nil {
 					return nil, err
 				}
 				root, err = buildHashIndexRoot(evaluation, parent, index.SQLIndex, relations[parent.Address()], materialize || index.SQLIndex.IsExclusion(), nil)
@@ -484,7 +493,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 			}
 			if index.SQLIndex.IsExclusion() {
 				namespace := next.MustNamespace(parent.Namespace())
-				if err := validateExclusionRoot(ctx, parent, index, root, namespace.Name(), output, &indexAuth.View, disclosureEnv(indexAuth), rebuild && !runtime); err != nil {
+				if err := validateExclusionRoot(ctx, parent, index, root, namespace.Name(), output, &indexView, env, rebuild && !runtime); err != nil {
 					return nil, err
 				}
 			}
@@ -514,7 +523,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 				if err != nil {
 					return nil, err
 				}
-				if err := validateUniqueEntries(ctx, parent, index, entries, namespace.Name(), output, &indexAuth.View, disclosureEnv(indexAuth), !runtime, ordering); err != nil {
+				if err := validateUniqueEntries(ctx, parent, index, entries, namespace.Name(), output, &indexView, env, !runtime, ordering); err != nil {
 					return nil, err
 				}
 			}
@@ -528,7 +537,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 				schema = next.MustNamespace(parent.Namespace()).Name()
 			}
 			reconstruct := !produced && (rebuildParents[parent.Address()] || old == nil) && index.SQLIndex.Valid
-			merged, err := mergeIndexRoot(evaluation, parent, index, entries, &publications[i], reconstruct, materialize, false, schema, output, &indexAuth.View, disclosureEnv(indexAuth))
+			merged, err := mergeIndexRoot(evaluation, parent, index, entries, &publications[i], reconstruct, materialize, false, schema, output, &indexView, env)
 			if err != nil {
 				return nil, err
 			}
