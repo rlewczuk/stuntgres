@@ -135,6 +135,46 @@ registered reader; each Iterate executes finite source SQL FETCH and owns no
 first-request Rows/context across logical cursor requests. PostgreSQL uses actual
 postgres_fdw loopback over committed source tables. Neither path uses canned rows.
 
+`pg_user_mapping_test.go` adds focused exact raw-catalog shape, identity/options
+and disclosure witnesses. The four attributes are OID/OID/OID/TEXT[]; only options
+are nullable, PUBLIC has role OID0, and no-options SQL NULL differs from an
+empty-string option value. Actual command-created mapping IDs are positive and
+distinct, joined to exact server/role identities rather than pinned allocator
+numbers. Direct and prepared reads retain ordered and escaped option elements.
+Raw access uses ordinary captured relation SELECT ACLs, including same-held role
+changes and empty-result denial with full42501 diagnostics. PostgreSQL additionally
+exercises successful explicit grant/revoke transitions. Native catalog-source
+GRANT/REVOKE retains its existing exact0A000 unsupported boundary: rejected changes
+leave the stored ACL unchanged and direct/fresh-prepared/held reads denied, without
+leaking options. This is not a special native superuser-only read gate. Companion-view
+witnesses distinguish exact current user, direct/inherited USAGE, server owner,
+PUBLIC and membership in another mapped role. These metadata-only fixtures use
+NO HANDLER/NO VALIDATOR and assert no native provider activity; they neither
+mock external connections nor add a native transport.
+
+Focused mapping proof (run both commands under an external900-second deadline):
+
+```sh
+make check RUN='^TestReference(PGUserMapping(Shape|Metadata|Security)|FDW(MetadataLifecycle|Security|SourceSecurity|MappingOwnership|NativeControls))$'
+make check RUN='^TestReference(PGUserMapping(Shape|Metadata|Security)|FDW(MetadataLifecycle|Security|SourceSecurity|MappingOwnership|NativeControls))$' REFERENCE=1
+make check RUN='^(TestPGUserMappingAttributeFacts|TestPGAttribute(Shape|Capture)|TestCatalogSourceProducerCoverage)$'
+```
+
+Mapping feature smoke is the metadata scenario's own cohesive subtest:
+
+```sh
+make check RUN='^TestReferencePGUserMappingMetadata$'
+make check RUN='^TestReferencePGUserMappingMetadata$' REFERENCE=1
+```
+
+Expected observations: four real mapping/server/role relationships, PUBLIC0,
+exact quoted/escaped and empty-string option values, typed no-options NULL,
+four attribute rows with nullable umoptions/collation950/dimension1, raw42501
+and redacted companion options as the reader, then unredacted superuser options.
+Metadata inspection does not enter the registered native reader. Pinned
+PostgreSQL18.6 supplies the real oracle; whole-project Docker-free verification
+uses `make quickcheck` rather than widening these focused selectors.
+
 Selected proof groups (run each with and without `REFERENCE=1`):
 
 ```sh

@@ -95,6 +95,68 @@ func TestPGAttributeShape(t *testing.T) {
 	}
 }
 
+func TestPGUserMappingAttributeFacts(t *testing.T) {
+	e := New()
+	view := e.CatalogRead()
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.ForeignMappingClassID}
+	d, ok := view.Relation(address)
+	if !ok {
+		t.Fatal("missing pg_user_mapping")
+	}
+	if ids.ForeignMappingClassID != 1418 || d.Address() != address || d.ObjectName != "pg_user_mapping" || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 4 || len(d.Columns) != 4 || len(d.Attributes) != 4 || len(d.ColumnMeta.CatalogAttributes) != 4 {
+		t.Fatal("mapping catalog identity/shape", d)
+	}
+	rows := pgAttributeUnitRows(t, pgAttributeUnitCapture(t, e, view), 1418)
+	positive := 0
+	for number := range rows {
+		if number > 0 {
+			positive++
+		}
+	}
+	if positive != 4 {
+		t.Fatal("positive mapping attributes", positive, rows)
+	}
+	for i, want := range []struct {
+		name       string
+		typeID     sqltype.ID
+		notNull    bool
+		collation  uint32
+		dimensions int16
+	}{
+		{"oid", 26, true, 0, 0},
+		{"umuser", 26, true, 0, 0},
+		{"umserver", 26, true, 0, 0},
+		{"umoptions", 1009, false, 950, 1},
+	} {
+		number := int32(i + 1)
+		column := d.Columns[i]
+		if column.Name != want.name || column.Usage.Type.ID() != want.typeID || column.Nullable != !want.notNull || !column.NullabilityKnown || column.OriginTable != 1418 || column.OriginAttribute != int16(number) || d.Attributes[i] != number {
+			t.Errorf("mapping column %d: %+v", number, column)
+		}
+		fact := d.ColumnMeta.CatalogAttributes[i]
+		if fact.NotNull != want.notNull || fact.Collation != want.collation || fact.Dimensions != want.dimensions {
+			t.Errorf("mapping attribute fact %d: %+v want notNull=%t collation=%d dimensions=%d", number, fact, want.notNull, want.collation, want.dimensions)
+		}
+		row := rows[int64(number)]
+		if len(row) != 25 {
+			t.Fatal("mapping attribute row width", number, len(row))
+		}
+		name, nameErr := row[1].Text()
+		typeID, typeErr := row[2].OID()
+		gotNumber, numberErr := row[4].Integer()
+		typmod, typmodErr := row[5].Integer()
+		dimensions, dimensionsErr := row[6].Integer()
+		notNull, nullErr := row[11].Boolean()
+		collation, collationErr := row[19].OID()
+		if err := errors.Join(nameErr, typeErr, numberErr, typmodErr, dimensionsErr, nullErr, collationErr); err != nil {
+			t.Fatal("mapping attribute carriers", number, err)
+		}
+		if name != want.name || typeID != uint32(want.typeID) || gotNumber != int64(number) || typmod != -1 || dimensions != int64(want.dimensions) || notNull != want.notNull || collation != want.collation {
+			t.Errorf("mapping emitted attribute %d: name=%s type=%d number=%d typmod=%d dimensions=%d notNull=%t collation=%d", number, name, typeID, gotNumber, typmod, dimensions, notNull, collation)
+		}
+	}
+}
+
 func TestPGAttributeCapture(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()

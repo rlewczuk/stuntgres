@@ -97,9 +97,30 @@ the supported utility boundary.
 
 Wrapper/server USAGE and owner changes use existing authorization/GRANT/REVOKE
 machinery. Exact effective-user mapping wins; PUBLIC is absent-only fallback,
-not an inherited-role lookup or option merge. Raw pg_user_mapping denies PUBLIC;
-pg_user_mappings redacts options using current execution authority, including
-held prepared calls. A server owner sees PUBLIC options, not other users' secrets.
+not an inherited-role lookup or option merge.
+
+Raw `pg_catalog.pg_user_mapping` has four columns: `oid OID`, `umuser OID`,
+`umserver OID`, and nullable `umoptions TEXT[]`. The first three catalog
+attributes are NOT NULL; options have dimension1 and bootstrap C collation950.
+Mapping OIDs identify actual command-owned rows, `umserver` identifies the exact
+foreign server, and `umuser` identifies the exact role, with **0 for PUBLIC**.
+Options retain ordered `keyword=value` elements, including empty-string values
+and escaping; a mapping without options has SQL NULL, not an empty array.
+
+Raw catalog SELECT is denied to PUBLIC by default, even for `WHERE FALSE`.
+Native reads use the ordinary captured relation ACL, not a special superuser-only
+gate. Native SQL GRANT/REVOKE on catalog sources remains unsupported: it reports
+`0A000`, `statement is not supported`, without changing the ACL or permitting
+previously denied reads. PostgreSQL permits an explicit SELECT grant to expose raw
+options; that oracle behavior does not expand native catalog-grant admission.
+The separate public `pg_user_mappings` view exposes identities but redacts
+options using current execution authority, including held prepared
+calls: superusers see all options; an exact mapped current user needs server
+USAGE or ownership; a server owner sees PUBLIC options, not another named user's
+secrets. Membership in a mapped role alone does not disclose that role's options.
+Catalog inspection neither invokes a provider nor establishes a connection.
+Mapping commands still own row creation, alteration and removal.
+
 The five SQL/MED catalogs and pg_attribute.attfdwoptions expose actual descriptors;
 existing pg_get_acl reads stored wrapper/server ACLs. Merely having static
 PostgreSQL has_server_privilege/has_foreign_data_wrapper_privilege identities

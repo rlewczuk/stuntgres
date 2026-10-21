@@ -87,6 +87,8 @@ func InitializeAttributes(d *catalog.Relation) {
 				fact.NotNull = i < 2
 			case ids.ParameterClassID:
 				fact.NotNull = i < 2
+			case ids.ForeignMappingClassID:
+				fact.NotNull = i < 3
 			case 3456:
 				fact.NotNull = i < 7
 			case LanguageOID:

@@ -327,6 +327,18 @@ an explicitly registered Go provider, with real planning, typed local rechecks,
 restartable scans and terminal cleanup; a handler name or URL is not executable
 code. Optional IMPORT callbacks return actual typed table definitions.
 
+Raw `pg_user_mapping` preserves exact mapping/server/role OIDs (PUBLIC is role0)
+and ordered TEXT[] options, with nullable `umoptions` in both result metadata
+and `pg_attribute`. No-options NULL is distinct from an empty-string option.
+Ordinary raw SELECT ACLs protect secrets, including empty queries and held
+statements. Native catalog-source GRANT/REVOKE SQL remains unsupported with0A000
+and unchanged ACLs; PostgreSQL's explicit grants are exercised as oracle behavior,
+not added native admission. The companion `pg_user_mappings`
+view independently masks options by current-user/server authority, not mere
+membership in another mapped role. Metadata reads do not establish connections.
+Focused metadata/security proof and the `TestReferencePGUserMappingMetadata/Smoke`
+feature smoke are documented in the [SQL/MED test contract](reference/tables/README.md#foreign-metadata-and-scans).
+
 Retirement also fences late committed incoming dependencies, including registered
 handler/validator identities and providers discovered by CASCADE. If a concurrent
 session creates a surviving dependent after DROP captured its closure, native
