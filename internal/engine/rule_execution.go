@@ -53,10 +53,6 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.quoteCaptures = c.quotes
 }
 
-func bindingRuleRelation(b analyze.Binding) *catalog.Relation {
-	return physicalBinding(b).Relation
-}
-
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
 	program := ruleProgram{count: -1, returning: -1}
 	count, err := ruleRewriter{e.catalog.owner()}.expandLocked(auth, stmt, b, nil, &program)
