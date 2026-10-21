@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -134,25 +135,25 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	if err = b.CaptureViewLiterals(ast.Targets[0], node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
+	renderer := viewRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
 	old := e.CatalogRead()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER SCHEMA public RENAME TO moved"))
-	text, err := renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	text, err := renderer.ExpressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != `CAST(7 AS "moved"."a")` {
 		t.Fatal(text, err)
 	}
-	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	text, err = renderer.ExpressionSQL(context.Background(), old, ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != `CAST(7 AS "public"."a")` {
 		t.Fatal("retained rendering authority", text, err)
 	}
 	// Use a coherent path that does not expose the domain's namespace, so
 	// canonical presentation must spell the current qualified identity.
-	renderer.presentation = viewPresentation{deparse: true, pretty: true, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
-	text, err = renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	renderer.Presentation = viewPresentation{Deparse: true, Pretty: true, Path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
+	text, err = renderer.ExpressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != "7::moved.a" {
 		t.Fatal("renamed domain canonical cast", text, err)
 	}
-	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	text, err = renderer.ExpressionSQL(context.Background(), old, ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != "7::public.a" {
 		t.Fatal("retained domain canonical authority", text, err)
 	}

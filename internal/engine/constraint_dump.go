@@ -44,7 +44,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalogView c
 		if !c.NotValid || !dumpCheckDeclaration(catalogView, t.descriptor, c) {
 			continue
 		}
-		text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalogView, c.Expression)
+		text, err := (scalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, catalogView, c.Expression)
 		if err != nil {
 			return err
 		}
@@ -60,7 +60,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalogView c
 		if !f.NotValid {
 			continue
 		}
-		text, err := (pgRenderer{view: catalogView}).foreignKeyConstraintSQL(t.descriptor, f)
+		text, err := (pgRenderer{View: catalogView}).ForeignKeyConstraintSQL(t.descriptor, f)
 		if err != nil {
 			return err
 		}

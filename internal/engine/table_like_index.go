@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 )
 
 // Clone live definitions, not source roots or validity flags. Invalid concurrent
@@ -68,33 +69,33 @@ func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView,
 					key.Attribute = mapped
 					continue
 				}
-				node, err := remapLikeExpression(in, key.Derived.Definition, destination, auth.Catalog)
+				node, err := stored.RemapLikeExpression(in, key.Derived.Definition, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := remapLikeExpression(in, key.Derived.Execution, destination, auth.Catalog)
+				execution, err := stored.RemapLikeExpression(in, key.Derived.Execution, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
 				derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: destination.Attributes}
-				if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: destination, dependencies: &derived.Dependencies}).sql(op.Context(), auth.Catalog, node); err != nil {
+				if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &derived.Dependencies}).SQL(op.Context(), auth.Catalog, node); err != nil {
 					return err
 				}
 				key.Derived = derived
 			}
 			if old.Predicate != nil {
-				node, err := remapLikeExpression(in, old.Predicate.Definition, destination, auth.Catalog)
+				node, err := stored.RemapLikeExpression(in, old.Predicate.Definition, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := remapLikeExpression(in, old.Predicate.Execution, destination, auth.Catalog)
+				execution, err := stored.RemapLikeExpression(in, old.Predicate.Execution, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
 				predicate := &catalog.IndexPredicate{Definition: node, Execution: execution, Attributes: destination.Attributes}
 				// The analyzed tree retains external dependencies even when the
 				// execution tree has folded their containing arm away.
-				if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: destination, dependencies: &predicate.Dependencies}).sql(op.Context(), auth.Catalog, node); err != nil {
+				if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: destination, Dependencies: &predicate.Dependencies}).SQL(op.Context(), auth.Catalog, node); err != nil {
 					return err
 				}
 				definition.Predicate = predicate

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -37,7 +38,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	if b.ViewWrite != nil {
 		for _, layer := range viewWriteOf(b.ViewWrite).layers {
 			invoker = layer.relation.Owner
-			if viewOf(layer.relation).Invoker() {
+			if stored.ViewOf(layer.relation).Invoker() {
 				invoker = execution.auth.State.CurrentUser
 			}
 		}

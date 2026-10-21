@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func TestTimezoneReviewViewAtCaptured(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	ref := roleTableRef(t, e, "tz_at")
-	definition := viewOf(e.catalog.state.MustRelation(ref.Address))
+	definition := stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
 	for _, name := range []string{"tz_at", "tz_at_nested"} {
 		ast := statement(t, "SELECT explicit,local_value FROM "+name)
 		description, err := e.Describe(op, ast)
@@ -48,7 +49,7 @@ func TestTimezoneReviewViewAtCaptured(t *testing.T) {
 			}
 		}
 	}
-	if viewOf(e.catalog.state.MustRelation(ref.Address)) != definition {
+	if stored.ViewOf(e.catalog.state.MustRelation(ref.Address)) != definition {
 		t.Fatal("execution mutated stored definition")
 	}
 }
@@ -59,12 +60,12 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 		run(t, source, q)
 	}
 	ref := roleTableRef(t, source, "tz_at")
-	definition := viewOf(source.catalog.state.MustRelation(ref.Address))
-	project := definition.query.Root.(*plan.ProjectNode)
+	definition := stored.ViewOf(source.catalog.state.MustRelation(ref.Address))
+	project := definition.Query().Root.(*plan.ProjectNode)
 	for _, expression := range project.Expressions {
 		original := expression.(functions.Timezone)
 		before := original
-		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef {
+		mapped, err := stored.RemapExpression(original, func(ref ids.ObjectRef) ids.ObjectRef {
 			if ref != (ids.ObjectRef{}) {
 				ref.Address.ObjectID += 1000
 			}
@@ -97,7 +98,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{"2004-07-01 12:00:00", "2004-07-01 12:00:00"}}) {
 		t.Fatal(got)
 	}
-	if viewOf(source.catalog.state.MustRelation(ref.Address)) != definition {
+	if stored.ViewOf(source.catalog.state.MustRelation(ref.Address)) != definition {
 		t.Fatal("catalog import mutated source definition")
 	}
 }
@@ -108,36 +109,36 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 		run(t, e, q)
 	}
 	ref := roleTableRef(t, e, "tz_at")
-	definition := viewOf(e.catalog.state.MustRelation(ref.Address))
-	if err := definition.validateLiterals(e.CatalogRead()); err != nil {
+	definition := stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
+	if err := definition.ValidateLiterals(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	for _, column := range []bool{false, true} {
-		bad := *definition
+		bad := definition.Parts()
 		if column {
-			bad.columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(definition.columns))
-			for path, slot := range definition.columns {
-				bad.columns[path] = slot
+			bad.Columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(definition.Columns()))
+			for path, slot := range definition.Columns() {
+				bad.Columns[path] = slot
 			}
-			for path := range bad.columns {
-				delete(bad.columns, path)
+			for path := range bad.Columns {
+				delete(bad.Columns, path)
 				break
 			}
 		} else {
-			bad.literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(definition.Literals()))
+			bad.Literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(definition.Literals()))
 			for path, literal := range definition.Literals() {
-				bad.literals[path] = literal
+				bad.Literals[path] = literal
 			}
-			for path := range bad.Literals() {
-				delete(bad.Literals(), path)
+			for path := range bad.Literals {
+				delete(bad.Literals, path)
 				break
 			}
 		}
-		if err := bad.validateLiterals(e.CatalogRead()); err == nil {
+		if err := stored.NewView(bad).ValidateLiterals(e.CatalogRead()); err == nil {
 			t.Fatalf("missing timezone child occurrence accepted: column=%t", column)
 		}
 	}
-	if err := definition.validateLiterals(e.CatalogRead()); err != nil {
+	if err := definition.ValidateLiterals(e.CatalogRead()); err != nil {
 		t.Fatal("validation mutated stored definition", err)
 	}
 }

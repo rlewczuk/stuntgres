@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -34,15 +35,15 @@ func TestIdentifierLiteralSerializationStability(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			text, err = (scalarRenderer{}).sql(ctx, e.CatalogRead(), node)
+			text, err = (scalarRenderer{}).SQL(ctx, e.CatalogRead(), node)
 			if err != nil || text != tc.want {
 				t.Fatal("identifier literal replay", tc.input, round, text, tc.want, err)
 			}
 			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
-			text, err = renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+			renderer := viewRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
+			text, err = renderer.ExpressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || text != tc.want {
 				t.Fatal("identifier view replay", tc.input, round, text, tc.want, err)
 			}

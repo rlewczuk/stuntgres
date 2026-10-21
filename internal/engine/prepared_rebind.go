@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -118,8 +119,8 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		}
 		cell.dependencies = append(cell.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: preparedDefinitionStamp(d, auth.session)})
 		if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.ViewRelation && relation.View != nil {
-			for _, leaf := range viewOf(relation).Sources() {
-				child, err := storedViewUseReference(auth.Catalog, relation, leaf.ref)
+			for _, leaf := range stored.ViewOf(relation).Sources() {
+				child, err := stored.ViewUseReference(auth.Catalog, relation, leaf.Ref)
 				if err != nil {
 					return err
 				}
@@ -127,8 +128,8 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 					return err
 				}
 			}
-			for _, dep := range viewOf(relation).Dependencies() {
-				child, err := storedViewUseReference(auth.Catalog, relation, dep.Ref)
+			for _, dep := range stored.ViewOf(relation).Dependencies() {
+				child, err := stored.ViewUseReference(auth.Catalog, relation, dep.Ref)
 				if err != nil {
 					return err
 				}

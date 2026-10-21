@@ -91,13 +91,13 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 								t.Fatal("modifier projection lost its own input attribute")
 							}
 							path := analyze.ViewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral, Target: i}
-							captured, ok := presentation.columns[path]
+							captured, ok := presentation.Columns()[path]
 							if !ok || captured.RuleSide != 0 || captured.Frame != project.Frame {
 								t.Fatal("modifier source presentation lost its own capture")
 							}
 						}
 						path := analyze.ViewLiteralPath{Query: outer.Frame, Clause: analyze.ViewTargetLiteral}
-						if action.presentation.columns[path].RuleSide != 2 {
+						if action.presentation.Columns()[path].RuleSide != 2 {
 							t.Fatal("consumer lost its separate NEW recipe")
 						}
 					}

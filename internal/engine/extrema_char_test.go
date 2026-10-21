@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -52,7 +53,7 @@ func TestExtremaCharConversionAndRemap(t *testing.T) {
 				}
 			}
 			check(node, text)
-			remapped, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return next[d.ID()] })
+			remapped, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return next[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}

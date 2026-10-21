@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -114,7 +115,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	if !plan.GenerationImmutable(pruned) || !plan.GenerationHasTableOID(pruned) {
 		t.Fatal("surviving provider walk uses inherited volatility")
 	}
-	remapped, err := remapBoundExpression(pruned, func(old ids.ObjectRef) ids.ObjectRef { old.Address.ObjectID = 26000; return old }, nil)
+	remapped, err := stored.RemapExpression(pruned, func(old ids.ObjectRef) ids.ObjectRef { old.Address.ObjectID = 26000; return old }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,11 +139,11 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	child := *parent
 	child.ObjectAddress.ObjectID++
 	mapper := analyze.LikeInput{Source: parent}
-	left, err := remapLikeExpression(&mapper, original, &child, view)
+	left, err := stored.RemapLikeExpression(&mapper, original, &child, view)
 	if err != nil {
 		t.Fatal(err)
 	}
-	right, err := remapLikeExpression(&mapper, original, &child, view)
+	right, err := stored.RemapLikeExpression(&mapper, original, &child, view)
 	if err != nil {
 		t.Fatal(err)
 	}

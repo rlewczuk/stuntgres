@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -119,20 +120,20 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 			}
 		}
 	case "set", "reset":
-		definition := *viewOf(old)
+		definition := stored.ViewOf(old).Parts()
 		if s.Action == "set" {
-			barrier, invoker, mode, err := viewOptions(s.Options)
+			barrier, invoker, mode, err := stored.ViewOptions(s.Options)
 			if err != nil {
 				return fail(err)
 			}
 			for _, option := range s.Options {
 				switch option.Name.Text {
 				case "security_barrier":
-					definition.barrier = barrier
+					definition.Barrier = barrier
 				case "security_invoker":
-					definition.invoker = invoker
+					definition.Invoker = invoker
 				case "check_option":
-					definition.checkOption = mode
+					definition.CheckOption = mode
 				}
 			}
 		} else {
@@ -142,21 +143,22 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				}
 				switch option.Name.Text {
 				case "security_barrier":
-					definition.barrier = false
+					definition.Barrier = false
 				case "security_invoker":
-					definition.invoker = false
+					definition.Invoker = false
 				case "check_option":
-					definition.checkOption = viewCheckNone
+					definition.CheckOption = stored.CheckNone
 				}
 			}
 		}
-		definition.options = transformViewOptions(viewOf(old).options, s.Options, s.Action == "reset")
-		if definition.checkOption != viewCheckNone {
-			if err := validateViewCheckDeclaration(&definition); err != nil {
+		definition.Options = transformViewOptions(stored.ViewOf(old).Options(), s.Options, s.Action == "reset")
+		altered := stored.NewView(definition)
+		if altered.CheckOption() != stored.CheckNone {
+			if err := stored.ValidateViewCheckDeclaration(altered); err != nil {
 				return fail(err)
 			}
 		}
-		next.View = &definition
+		next.View = altered
 	default:
 		return fail(sqlError("0A000", "ALTER VIEW action is unsupported"))
 	}

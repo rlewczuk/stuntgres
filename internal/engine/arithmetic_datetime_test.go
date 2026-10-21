@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -84,7 +85,7 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Rebinding must own the target registry result, not a source operand descriptor.
-	rebound, changed, err := retagBoundTypes(target.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := stored.RetagTypes(target.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		next, _ := target.CatalogRead().LookupType(old.ID())
 		return next
 	})
@@ -96,11 +97,11 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 	if n.ResultUsage().Type != typ || n.Provider.ResultType() != typ || !n.Provider.SessionDependent() || exec.PlannedVolatility(n) != expr.Stable {
 		t.Fatal(n)
 	}
-	text, err := defaultSQL(ctx, target.CatalogRead(), rebound)
+	text, err := stored.DefaultSQL(ctx, target.CatalogRead(), rebound)
 	if err != nil || text == "" {
 		t.Fatal("symbolic target default", text, err)
 	}
-	original, err := defaultSQL(ctx, source.CatalogRead(), node)
+	original, err := stored.DefaultSQL(ctx, source.CatalogRead(), node)
 	if err != nil || original != text {
 		t.Fatal("rebind changed symbolic meaning", original, text, err)
 	}

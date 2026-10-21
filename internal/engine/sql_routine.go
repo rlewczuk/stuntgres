@@ -152,20 +152,3 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 }
 
 var _ expr.Composite = plan.SQLRoutineExpr{}
-
-func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
-	if current.SQL == nil || captured.SQL == nil || current.SQL.Source != captured.SQL.Source || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
-		return false
-	}
-	result := typ(captured.SQL.Result.Type)
-	if result == nil || result.ID() != current.SQL.Result.Type.ID() {
-		return false
-	}
-	for i, input := range captured.SQL.Inputs {
-		mapped := typ(input.Type)
-		if mapped == nil || mapped.ID() != current.SQL.Inputs[i].Type.ID() {
-			return false
-		}
-	}
-	return true
-}

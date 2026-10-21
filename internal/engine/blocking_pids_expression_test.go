@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -34,13 +35,13 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if err := b.CaptureViewLiterals(raw, n, analyze.ViewTargetLiteral, 0); err != nil {
 			t.Fatal("literal recipe pairing", err)
 		}
-		if got, err := (scalarRenderer{owner: owner}).sql(ctx, catalog, n); err != nil || !strings.Contains(got, "pg_catalog."+name+"(") {
+		if got, err := (scalarRenderer{Owner: owner}).SQL(ctx, catalog, n); err != nil || !strings.Contains(got, "pg_catalog."+name+"(") {
 			t.Fatal("stored recipe", got, err)
 		}
-		if _, err := defaultSQL(ctx, catalog, n); err == nil {
+		if _, err := stored.DefaultSQL(ctx, catalog, n); err == nil {
 			t.Fatal("volatile ownerless default rendering widened")
 		}
-		if got, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, n, pgRenderParent{}); err != nil || !strings.Contains(got, name+"(") {
+		if got, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, n, pgRenderParent{}); err != nil || !strings.Contains(got, name+"(") {
 			t.Fatal("typed deparse", got, err)
 		}
 		if got, err := (plan.BoundTree{Expression: n}).StructuralOutput(ctx); err != nil || !strings.Contains(got, "BlockingInquiry") {
@@ -64,7 +65,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			}
 		}
 		destination := New().CatalogRead()
-		mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, changed, err := stored.RetagTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == nil {
 				return nil
 			}
@@ -100,7 +101,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if _, ok := grouped.(functions.BlockingInquiry).Arg.(plan.GroupExpr); !ok {
 			t.Fatal("aggregate child not reconstructed")
 		}
-		remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
+		remapped, err := stored.RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 		if err != nil {
 			t.Fatal(err)
 		}

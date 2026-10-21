@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -235,7 +236,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 				}
 			}
 			if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.ExplicitDefault && !(s.deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
-				text, err := defaultSQL(ctx, s.catalogView, definition.Expression)
+				text, err := stored.DefaultSQL(ctx, s.catalogView, definition.Expression)
 				if err != nil {
 					return "", err
 				}
@@ -254,7 +255,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 					text = "NULL"
 				} else {
 					var err error
-					text, err = (scalarRenderer{owner: t.descriptor}).sql(ctx, s.catalogView, definition.Expression)
+					text, err = (scalarRenderer{Owner: t.descriptor}).SQL(ctx, s.catalogView, definition.Expression)
 					if err != nil {
 						return "", err
 					}
@@ -305,7 +306,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if !dumpCheckDeclaration(s.originalCatalog, t.descriptor, c) {
 				continue
 			}
-			text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, s.catalogView, c.Expression)
+			text, err := (scalarRenderer{Owner: t.descriptor, CheckReplayPrecision: true}).SQL(ctx, s.catalogView, c.Expression)
 			if err != nil {
 				return "", err
 			}
@@ -334,7 +335,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if partitionReplaySeparateConstraint(s.catalogView, index) {
 				continue
 			}
-			text, err := (pgRenderer{view: s.catalogView}).uniqueConstraintSQL(t.descriptor, &c)
+			text, err := (pgRenderer{View: s.catalogView}).UniqueConstraintSQL(t.descriptor, &c)
 			if err != nil {
 				return "", err
 			}
@@ -369,7 +370,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			if f.NotValid || physicalSelfForeignKeyDeferred(t.descriptor, f) || inheritedForeignKeyDeferred(s.originalCatalog, t.descriptor, &f) {
 				continue
 			}
-			text, err := (pgRenderer{view: s.catalogView}).foreignKeyConstraintSQL(t.descriptor, f)
+			text, err := (pgRenderer{View: s.catalogView}).ForeignKeyConstraintSQL(t.descriptor, f)
 			if err != nil {
 				return "", err
 			}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -104,14 +105,16 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if err := ruleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
-			temporary := viewOf(old).temporary != (ids.SessionToken{})
-			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).barrier, viewOf(old).Invoker(), viewOf(old).RuleOID(), catalog.ViewRelation, temporary)
+			temporary := stored.ViewOf(old).Temporary() != (ids.SessionToken{})
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, stored.ViewOf(old).Barrier(), stored.ViewOf(old).Invoker(), stored.ViewOf(old).RuleOID(), catalog.ViewRelation, temporary)
 			if err != nil {
 				return fail(err)
 			}
-			definition.options = viewOf(old).options
-			definition.checkOption = viewOf(old).checkOption
-			next.View = viewPayloadOf(definition)
+			definition = definition.With(func(p *stored.ViewParts) {
+				p.Options = stored.ViewOf(old).Options()
+				p.CheckOption = stored.ViewOf(old).CheckOption()
+			})
+			next.View = stored.ViewPayload(definition)
 			sources = b.QuerySources
 		} else {
 			if name == "_RETURN" {
@@ -139,8 +142,8 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			}
 			if definition.conditionPresentation != nil {
 				for _, source := range definition.conditionPresentation.Sources() {
-					d := auth.Catalog.MustRelation(source.ref.Address)
-					sources = append(sources, exec.Leaf{Ref: source.ref, Relation: d})
+					d := auth.Catalog.MustRelation(source.Ref.Address)
+					sources = append(sources, exec.Leaf{Ref: source.Ref, Relation: d})
 				}
 			}
 		}
@@ -167,7 +170,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(err)
 	}
 	if next.View != old.View {
-		viewOf(&next).quoteRevision = next.Revision()
+		next.View = stored.ViewOf(&next).With(func(p *stored.ViewParts) { p.QuoteRevision = next.Revision() })
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)

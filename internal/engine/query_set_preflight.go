@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -62,7 +63,7 @@ func preflightQuerySet(c *exec.Context, n *plan.SetProjectNode) (plan.Node, erro
 		return plan.ColumnExpr{Info: info, Scope: 1, Frame: n.Frame, Slot: n.BaseWidth + slot}
 	}
 	rewrite := func(bound expr.Expr, beforeDepth int) (expr.Expr, error) {
-		next, _, err := mapBoundExpressionReader(c.Catalog, nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
+		next, _, err := stored.MapExpressionReader(c.Catalog, nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
 			func(root plan.Node) (plan.Node, error) { return root, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
 				for i, original := range template.Origins {
 					if analyze.SameQuerySetOccurrence(e, original) && exec.QuerySetDepth(e) < beforeDepth {

@@ -60,7 +60,7 @@ func (e *Engine) bindIndexExpression(op *session.Operation, input sqltype.InputE
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
-	if _, err = (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.Catalog, definition); err != nil {
+	if _, err = (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: parent, Dependencies: &key.Dependencies}).SQL(op.Context(), auth.Catalog, definition); err != nil {
 		return nil, "", err
 	}
 	label := "expr"

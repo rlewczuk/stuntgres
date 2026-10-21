@@ -35,7 +35,7 @@ func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, own
 			continue
 		}
 		primary := catalog.PhysicalPrimaryForAttribute(table, foreign.Referenced[0])
-		text, err := (pgRenderer{view: view}).foreignKeyConstraintSQLWithPrimary(table, foreign, slices.Equal(foreign.Referenced, primary.Attributes))
+		text, err := (pgRenderer{View: view}).ForeignKeyConstraintSQLWithPrimary(table, foreign, slices.Equal(foreign.Referenced, primary.Attributes))
 		if err != nil {
 			return err
 		}

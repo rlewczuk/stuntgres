@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -36,7 +37,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 		}
 		authority := v
 		authority.State.CurrentUser = current.Owner
-		if viewOf(current).Invoker() {
+		if stored.ViewOf(current).Invoker() {
 			authority.State.CurrentUser = invoker
 		}
 		source, ok := v.Catalog.Relation(layer.sourceRef.Address)
@@ -50,23 +51,23 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 		} else if err := authority.CheckColumns(layer.sourceRef, source, mask, layer.targets); err != nil {
 			return err
 		}
-		for occurrence, leaf := range viewOf(current).Sources() {
+		for occurrence, leaf := range stored.ViewOf(current).Sources() {
 			// Only the rewritten main target inherits outer command reads.
 			// Independent subquery occurrences keep their own SELECT record,
 			// including another occurrence of the same physical relation.
 			if occurrence == layer.mainOccurrence && !reads {
 				continue
 			}
-			relation, ok := v.Catalog.Relation(leaf.ref.Address)
+			relation, ok := v.Catalog.Relation(leaf.Ref.Address)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			use, err := storedViewUseReference(v.Catalog, current, leaf.ref)
+			use, err := stored.ViewUseReference(v.Catalog, current, leaf.Ref)
 			if err != nil {
 				return err
 			}
-			indices := make([]int, 0, len(leaf.reads))
-			for _, attr := range leaf.reads {
+			indices := make([]int, 0, len(leaf.Reads))
+			for _, attr := range leaf.Reads {
 				found := false
 				for i, live := range relation.Attributes {
 					if live == attr {
@@ -85,7 +86,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 			if occurrence == layer.mainOccurrence {
 				continue // The next write layer owns main-source expansion.
 			}
-			mark := viewLeafRowMark(viewOf(current), occurrence, plan.RowMark{})
+			mark := viewLeafRowMark(stored.ViewOf(current), occurrence, plan.RowMark{})
 			if mark.Mode != 0 {
 				if err := authority.CheckColumns(use, relation, authorization.UpdatePrivilege, nil); err != nil {
 					return err

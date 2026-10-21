@@ -9,12 +9,13 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 // The payload seams keep "absent" a nil interface and hand the concrete
 // engine definition back only through their checked accessor.
 func TestCatalogPayloadAccessors(t *testing.T) {
-	if viewOf(&catalog.Relation{}) != nil || viewPayloadOf(nil) != nil {
+	if stored.ViewOf(&catalog.Relation{}) != nil || stored.ViewPayload(nil) != nil {
 		t.Fatal("absent view payload")
 	}
 	domain := &ids.Domain{}
@@ -24,9 +25,9 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	captured := &catalog.Relation{ObjectAddress: source}
 	ref := domain.Ref(7, source)
 	token := domain.Session(5)
-	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]catalog.Descriptor{ref: captured}}
-	d := &catalog.Relation{ObjectAddress: consumer, View: viewPayloadOf(definition)}
-	if viewOf(d) != definition || d.View.RuleOID() != 30001 {
+	definition := stored.NewView(stored.ViewParts{Rule: 30001, Consumer: consumer, Temporary: token, Sources: []viewLeaf{{Ref: ref}}, Dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, References: map[ids.ObjectRef]catalog.Descriptor{ref: captured}})
+	d := &catalog.Relation{ObjectAddress: consumer, View: stored.ViewPayload(definition)}
+	if stored.ViewOf(d) != definition || d.View.RuleOID() != 30001 {
 		t.Fatal("view payload identity")
 	}
 	if owner, session := d.View.TemporaryConsumer(); owner != consumer || session != token {
@@ -51,12 +52,12 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 		t.Fatal("absent view has dependencies")
 	}
 
-	if policyExpressionOf(nil) != nil || policyPayloadOf(nil) != nil {
+	if stored.PolicyOf(nil) != nil || policyPayloadOf(nil) != nil {
 		t.Fatal("absent policy payload")
 	}
-	condition := &policyExpression{presentation: definition}
+	condition := stored.NewPolicy(nil, nil, definition)
 	policy := catalog.PolicyDefinition{Using: policyPayloadOf(condition)}
-	if policyExpressionOf(policy.Using) != condition || policy.Check != nil {
+	if stored.PolicyOf(policy.Using) != condition || policy.Check != nil {
 		t.Fatal("policy payload identity")
 	}
 	for target, want := range map[ids.ObjectAddress]bool{source: true, column: true, other: false} {
@@ -110,23 +111,23 @@ func TestCatalogPayloadReaders(t *testing.T) {
 	}
 
 	options := []string{"security_barrier=on"}
-	view := &viewDefinition{options: options}
-	if got := viewPayloadOf(view).Options(); len(got) != 1 || &got[0] != &options[0] {
+	view := stored.NewView(stored.ViewParts{Options: options})
+	if got := stored.ViewPayload(view).Options(); len(got) != 1 || &got[0] != &options[0] {
 		t.Fatal("view options", got)
 	}
-	if (&viewDefinition{}).Options() != nil {
+	if (stored.NewView(stored.ViewParts{})).Options() != nil {
 		t.Fatal("view without options")
 	}
 
 	condition := plan.LiteralExpr{}
 	var seen []expr.Expr
-	if err := policyPayloadOf(&policyExpression{expression: condition}).VisitExpression(func(e expr.Expr) error { seen = append(seen, e); return nil }); err != nil {
+	if err := policyPayloadOf(stored.NewPolicy(nil, condition, nil)).VisitExpression(func(e expr.Expr) error { seen = append(seen, e); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if len(seen) != 1 || !reflect.DeepEqual(seen[0], expr.Expr(condition)) {
 		t.Fatal("policy expression", seen)
 	}
-	if err := policyPayloadOf(&policyExpression{expression: condition}).VisitExpression(func(expr.Expr) error { return stop }); err != stop {
+	if err := policyPayloadOf(stored.NewPolicy(nil, condition, nil)).VisitExpression(func(expr.Expr) error { return stop }); err != stop {
 		t.Fatal("policy visit error", err)
 	}
 }

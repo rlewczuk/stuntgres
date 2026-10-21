@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -497,7 +498,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 		}
 		return tb.Type(d.ID())
 	}
-	mapped, changed, err := retagBoundTypes(target.CatalogRead(), node, remap)
+	mapped, changed, err := stored.RetagTypes(target.CatalogRead(), node, remap)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -506,7 +507,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 		t.Fatal("random generation remap")
 	}
 	e := arrayRelationalUnitUnnest(t, "{1,NULL}")
-	rebound, did, err := retagBoundTypes(target.CatalogRead(), e, remap)
+	rebound, did, err := stored.RetagTypes(target.CatalogRead(), e, remap)
 	if err != nil || !did {
 		t.Fatal(did, err)
 	}

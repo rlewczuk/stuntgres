@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -77,7 +78,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			// Only the partial predicate consumes the changed generation:
 			// the admitted index has a simple INTEGER key and no stored
 			// defaults, generated columns, CHECKs or view expressions.
-			if !catalogExpressionTypesChanged(&index, typ) {
+			if !stored.ExpressionTypesChanged(&index, typ) {
 				t.Error("predicate-only type generation was not detected")
 			}
 			stores := map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): f.store}
@@ -149,7 +150,7 @@ func TestPartialIndexPredicateTypeGenerationUnchanged(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	next := catalog.CloneState(f.e.catalog.state)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor { return old }
-	if catalogExpressionTypesChanged(f.index, typ) {
+	if stored.ExpressionTypesChanged(f.index, typ) {
 		t.Fatal("unchanged partial predicate reported a generation change")
 	}
 	if err := f.e.reownCatalogExpressions(next, nil, true); err != nil {

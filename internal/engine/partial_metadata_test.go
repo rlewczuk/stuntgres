@@ -134,7 +134,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		t.Fatal("structural metadata omitted the original analyzed predicate")
 	}
 	var dependencies []ids.ObjectRef
-	if _, err := (scalarRenderer{owner: f.parent, dependencies: &dependencies}).sql(ctx, candidate, metadata.Predicate); err != nil {
+	if _, err := (scalarRenderer{Owner: f.parent, Dependencies: &dependencies}).SQL(ctx, candidate, metadata.Predicate); err != nil {
 		t.Fatal(err)
 	}
 	var attributes []ids.ObjectRef

@@ -45,7 +45,7 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   object-identity helpers; the nil-safe `Relation.HasRules`,
   `Relation.VisitRules` and `PolicyDefinition.VisitExpressions` (USING, then
   WITH CHECK) are the usual entry points. Visitors stop at the first error.
-  The engine's checked accessors (`viewOf`, `rulesOf`, `policyExpressionOf`,
+  The checked accessors (`stored.ViewOf`, `rulesOf`, `stored.PolicyOf`,
   `extension.PgcryptoProviderOf`, ...) recover the concrete types.
 - **State and Read.** `State` is one catalog snapshot: the epoch, namespace
   generation, descriptor and name maps, operator/procedure name indexes, default ACL

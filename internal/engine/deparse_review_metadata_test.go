@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -64,8 +65,8 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), rebound, pgRenderParent{})
-			want, err2 := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, pgRenderParent{})
+			got, err := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), rebound, pgRenderParent{})
+			want, err2 := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), node, pgRenderParent{})
 			if err != nil || err2 != nil || got != want || !strings.Contains(got, ".1234") {
 				t.Fatal(got, want, err, err2)
 			}
@@ -95,18 +96,18 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 			t.Fatal("unknown and concrete NULL conflated")
 		}
 		target := New()
-		retagged, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		retagged, changed, err := stored.RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, _ := target.CatalogRead().LookupType(d.ID())
 			return typ
 		})
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		remapped, err := stored.RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := (pgRenderer{view: target.CatalogRead()}).sql(context.Background(), remapped, pgRenderParent{})
+		got, err := (pgRenderer{View: target.CatalogRead()}).SQL(context.Background(), remapped, pgRenderParent{})
 		if err != nil || !strings.Contains(got, "NULL::unknown") {
 			t.Fatal(got, err)
 		}
@@ -135,7 +136,7 @@ func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
 		off  bool
 		want string
 	}{{false, "'a''b\\c'::text"}, {true, "'a''b\\\\c'::text"}} {
-		got, err := (pgRenderer{view: e.CatalogRead(), nonstandardStrings: tc.off}).sql(context.Background(), literal, pgRenderParent{})
+		got, err := (pgRenderer{View: e.CatalogRead(), NonstandardStrings: tc.off}).SQL(context.Background(), literal, pgRenderParent{})
 		if err != nil || got != tc.want {
 			t.Fatal(got, tc.want, err)
 		}
@@ -234,7 +235,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	if leaf.UnknownNull || leaf.Usage.Type.ID() != sqltype.Int4 || !leaf.Value.IsNull() {
 		t.Fatal(leaf)
 	}
-	text, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, pgRenderParent{})
+	text, err := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), node, pgRenderParent{})
 	if err != nil || text != "num_nulls(NULL::integer)" {
 		t.Fatal(text, err)
 	}
@@ -277,8 +278,8 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "CREATE TABLE t(id INT)")
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
-	view := viewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
-	literal, ok := view.Literals()[analyze.ViewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 0, Node: 0}]
+	view := stored.ViewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
+	literal, ok := view.Literals()[analyze.ViewLiteralPath{Query: view.Query().Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 0, Node: 0}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.Literals())
 	}
@@ -286,7 +287,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	if err != nil || raw != 14706123500 {
 		t.Fatal(raw, err)
 	}
-	literal, ok = view.Literals()[analyze.ViewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 1, Node: 1}]
+	literal, ok = view.Literals()[analyze.ViewLiteralPath{Query: view.Query().Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 1, Node: 1}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(view.Literals())
 	}
@@ -331,7 +332,7 @@ func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
 							if !pretty {
 								want = "(" + want + ")"
 							}
-							got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
+							got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
 							if err != nil || got != want {
 								t.Fatalf("got %q, %v; want %q", got, err, want)
 							}
@@ -358,7 +359,7 @@ func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
+				got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}
@@ -388,7 +389,7 @@ func TestDeparseConstraintsReviewConditionalPresentation(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
+				got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}
@@ -425,7 +426,7 @@ func TestDeparseConstraintsReviewPrinterContexts(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
+				got, err := (pgRenderer{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), node, pgRenderParent{})
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}

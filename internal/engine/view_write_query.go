@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -25,8 +26,8 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 	var definition *viewDefinition
 	var consumer *catalog.Relation
 	for _, layer := range w.layers {
-		if _, found := viewOf(layer.relation).queries[project.Syntax]; found {
-			definition = viewOf(layer.relation)
+		if _, found := stored.ViewOf(layer.relation).Queries()[project.Syntax]; found {
+			definition = stored.ViewOf(layer.relation)
 			consumer = layer.relation
 			break
 		}
@@ -43,7 +44,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 		slot, found := w.queryOccurrences[key]
 		if !found {
 			leaf := definition.Sources()[occurrence]
-			relation, ok := view.Relation(leaf.ref.Address)
+			relation, ok := view.Relation(leaf.Ref.Address)
 			if !ok {
 				return 0, ids.ErrCatalogReplaced
 			}
@@ -52,11 +53,11 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 				w.queryOccurrences = make(map[viewWriteOccurrence]int)
 			}
 			w.queryOccurrences[key] = slot
-			use, err := storedViewUseReference(view, consumer, leaf.ref)
+			use, err := stored.ViewUseReference(view, consumer, leaf.Ref)
 			if err != nil {
 				return 0, err
 			}
-			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, FrozenAttributes: leaf.attributes, Mark: leaf.mark})
+			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark})
 			b.SubqueryDemand = true
 		}
 		return slot, nil
@@ -91,7 +92,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 			column.QueryOccurrence = slot + 1
 			changed = true
 		}
-		use, err := storedViewUseReference(view, consumer, column.Origin)
+		use, err := stored.ViewUseReference(view, consumer, column.Origin)
 		if err != nil {
 			return nil, false, err
 		}
@@ -100,7 +101,7 @@ func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.
 		return column, changed, nil
 	}
 	return plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
-		next, translated, err := mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
+		next, translated, err := stored.MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
 		if err != nil {
 			return nil, false, err
 		}
@@ -148,12 +149,12 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 				continue
 			}
 			for _, layer := range viewWriteOf(b.ViewWrite).layers {
-				if viewOf(layer.relation) != key.definition {
+				if stored.ViewOf(layer.relation) != key.definition {
 					continue
 				}
 				current := auth.Catalog.MustRelation(layer.ref.Address)
 				source.Principal = current.Owner
-				if viewOf(current).Invoker() {
+				if stored.ViewOf(current).Invoker() {
 					source.Principal = auth.State.CurrentUser
 				}
 				break

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -32,7 +33,7 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 		sqltype.Int4: eType(t, target, sqltype.Int4),
 		sqltype.Bool: eType(t, target, sqltype.Bool),
 	}
-	mapped, changed, err := retagBoundTypes(e.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := stored.RetagTypes(e.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if next := fresh[d.ID()]; next != nil {
 			return next
 		}
@@ -58,7 +59,7 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 		if err != nil || truth != plan.True {
 			t.Fatal(truth, err)
 		}
-		if _, err := defaultSQL(ctx, entry.owner.CatalogRead(), node); err != nil {
+		if _, err := stored.DefaultSQL(ctx, entry.owner.CatalogRead(), node); err != nil {
 			t.Fatal("independently rebound stored validation", err)
 		}
 	}

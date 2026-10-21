@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -65,12 +66,12 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if oldRef.ID != uint32(source.OID) || conflict || original.Usage.Collation.ID != 0 {
 		t.Fatal("BOOL result hid wrong input authority", oldRef, conflict, original.Usage)
 	}
-	oldSQL, err := defaultSQL(context.Background(), view, original)
+	oldSQL, err := stored.DefaultSQL(context.Background(), view, original)
 	if err != nil {
 		t.Fatal(err)
 	}
 	identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
-	rebound, changed, err := retagBoundTypes(view, original, identity, remap)
+	rebound, changed, err := stored.RetagTypes(view, original, identity, remap)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -79,7 +80,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if newRef.ID != uint32(destination.OID) || !newRef.Valid() || conflict || newRef == oldRef {
 		t.Fatal("hidden comparison input not remapped", newRef, conflict)
 	}
-	newSQL, err := defaultSQL(context.Background(), view, mapped)
+	newSQL, err := stored.DefaultSQL(context.Background(), view, mapped)
 	if err != nil || !strings.Contains(newSQL, "expr_retag_destination") || strings.Contains(newSQL, "expr_retag_source") {
 		t.Fatal("stored renderer lost actual destination authority", newSQL, err)
 	}
@@ -95,16 +96,16 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if ref, conflict := original.Predicate.InputCollation(); ref != oldRef || conflict {
 		t.Fatal("source provider mutated")
 	}
-	if actual, err := defaultSQL(context.Background(), view, original); err != nil || actual != oldSQL {
+	if actual, err := stored.DefaultSQL(context.Background(), view, original); err != nil || actual != oldSQL {
 		t.Fatal("source operand graph/render changed", actual, err)
 	}
 	viewRef := catalogRef(t, e, view, "expr_retag_v")
-	stored := viewOf(view.MustRelation(viewRef.Address)).query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
-	selected, ambiguous := stored.Predicate.InputCollation()
-	if !ambiguous || selected.ID != 100 || stored.Usage.Collation.ID != 0 {
+	persisted := stored.ViewOf(view.MustRelation(viewRef.Address)).Query().Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
+	selected, ambiguous := persisted.Predicate.InputCollation()
+	if !ambiguous || selected.ID != 100 || persisted.Usage.Collation.ID != 0 {
 		t.Fatal("stored implicit conflict erased", selected, ambiguous)
 	}
-	rebound, changed, err = retagBoundTypes(view, stored, identity, remap)
+	rebound, changed, err = stored.RetagTypes(view, persisted, identity, remap)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -115,7 +116,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if mapped.Left.ResultUsage().Collation.ID != uint32(destination.OID) || mapped.Right.ResultUsage().Collation.ID != uint32(otherDestination.OID) {
 		t.Fatal("destination operands not genuine mapped capabilities")
 	}
-	if stored.Left.ResultUsage().Collation.ID != uint32(source.OID) || stored.Right.ResultUsage().Collation.ID != uint32(other.OID) {
+	if persisted.Left.ResultUsage().Collation.ID != uint32(source.OID) || persisted.Right.ResultUsage().Collation.ID != uint32(other.OID) {
 		t.Fatal("source conflict operands mutated")
 	}
 	left, right := mapped.Left.ResultUsage().Type, mapped.Right.ResultUsage().Type
@@ -126,14 +127,14 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	storedExpression := func(name string) expr.Expr {
 		ref := catalogRef(t, e, view, name)
-		return viewOf(view.MustRelation(ref.Address)).query.Root.(*plan.ProjectNode).Expressions[0]
+		return stored.ViewOf(view.MustRelation(ref.Address)).Query().Root.(*plan.ProjectNode).Expressions[0]
 	}
 	saved := storedExpression("expr_retag_case").(plan.CaseExpr)
 	ref, conflict := saved.Arms[0].Equality.InputCollation()
 	if ref.ID != uint32(other.OID) || conflict {
 		t.Fatal("saved CASE test incorrectly kept explicit strength", ref, conflict)
 	}
-	rebound, changed, err = retagBoundTypes(view, saved, identity, remap)
+	rebound, changed, err = stored.RetagTypes(view, saved, identity, remap)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -146,7 +147,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 
 	row := storedExpression("expr_retag_row").(plan.RowComparisonExpr)
-	rebound, changed, err = retagBoundTypes(view, row, identity, remap)
+	rebound, changed, err = stored.RetagTypes(view, row, identity, remap)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -187,7 +188,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if len(membership.Membership) != 1 {
 		t.Fatal("uncorrelated equality did not retain real hash strategy")
 	}
-	rebound, changed, err = retagBoundTypes(view, membership, identity, remap)
+	rebound, changed, err = stored.RetagTypes(view, membership, identity, remap)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -204,7 +205,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("membership input remap/source immutability broken")
 	}
 	projectionRef := catalogRef(t, e, view, "expr_retag_projection")
-	projection := viewOf(view.MustRelation(projectionRef.Address)).query.Root.(*plan.ProjectNode)
+	projection := stored.ViewOf(view.MustRelation(projectionRef.Address)).Query().Root.(*plan.ProjectNode)
 	demanded, err := storedProjectionDemand(projection, []int{1})
 	if err != nil {
 		t.Fatal(err)
@@ -268,12 +269,12 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			source := storedExpression(tc.name).(plan.ComparisonExpr)
-			sourceSQL, err := defaultSQL(context.Background(), view, source)
+			sourceSQL, err := stored.DefaultSQL(context.Background(), view, source)
 			if err != nil {
 				t.Fatal(err)
 			}
 			sourceRef, sourceConflict := source.Predicate.InputCollation()
-			rebound, changed, err := retagBoundTypes(view, source, mappedType, remap)
+			rebound, changed, err := stored.RetagTypes(view, source, mappedType, remap)
 			if err != nil || !changed {
 				t.Fatal("domain authority remap", changed, err)
 			}
@@ -289,7 +290,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 			if tc.name == "expr_retag_domain_bubble" {
 				targetName = "expr_retag_domain_default_destination"
 			}
-			mappedSQL, err := defaultSQL(context.Background(), view, mapped)
+			mappedSQL, err := stored.DefaultSQL(context.Background(), view, mapped)
 			if err != nil || mappedSQL == sourceSQL || !strings.Contains(mappedSQL, targetName) {
 				t.Fatal("domain renderer lost mapped graph", mappedSQL, err)
 			}
@@ -301,7 +302,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 			if ref, conflict := source.Predicate.InputCollation(); ref != sourceRef || conflict != sourceConflict {
 				t.Fatal("source domain provider mutated")
 			}
-			if actual, err := defaultSQL(context.Background(), view, source); err != nil || actual != sourceSQL {
+			if actual, err := stored.DefaultSQL(context.Background(), view, source); err != nil || actual != sourceSQL {
 				t.Fatal("source domain rendering changed", actual, err)
 			}
 		})

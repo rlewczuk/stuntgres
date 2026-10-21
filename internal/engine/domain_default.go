@@ -46,7 +46,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 		}
 		d.DomainDefaultOwn = true
 		definition := catalog.ColumnDefault{Expression: node}
-		if _, err = (scalarRenderer{definition: b.DefinitionReader(), aclOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(ctx, auth.Catalog, node); err != nil {
+		if _, err = (scalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
 		var path []ids.ObjectAddress
@@ -56,7 +56,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 				return err
 			}
 		}
-		text, err := (pgRenderer{view: auth.Catalog, path: path, output: output, nonstandardStrings: op != nil && op.NonstandardStrings}).sql(ctx, node, pgRenderParent{})
+		text, err := (pgRenderer{View: auth.Catalog, Path: path, Output: output, NonstandardStrings: op != nil && op.NonstandardStrings}).SQL(ctx, node, pgRenderParent{})
 		if err != nil {
 			return err
 		}
@@ -78,12 +78,6 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 		}
 	}
 	return nil
-}
-
-// Only meaningful NULL masks or deferred domain conversions survive ordinary
-// column-default elision. Plain builtin DEFAULT NULL retains its old absence.
-func omitColumnDefault(view catalog.Read, node expr.Expr, usage sqltype.Usage) bool {
-	return plan.StructuralNull(node) && typedef.TypeDefault(view, usage.Type) == nil && !node.Properties().RuntimeDomainConversion
 }
 
 func applyDefaultOrigin(o analyze.DefaultOrigin, c *exec.Context) {
@@ -133,7 +127,7 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 
 	var refs []ids.ObjectRef
 	snapshot, aliases := false, false
-	_, err := (scalarRenderer{validation: true, capturedManifest: definition.Dependencies, dependencies: &refs, commentSnapshot: &snapshot, catalogAliasReferences: &aliases}).sql(context.Background(), view, definition.Expression)
+	_, err := (scalarRenderer{Validation: true, CapturedManifest: definition.Dependencies, Dependencies: &refs, CommentSnapshot: &snapshot, CatalogAliasReferences: &aliases}).SQL(context.Background(), view, definition.Expression)
 	if err != nil {
 		return err
 	}

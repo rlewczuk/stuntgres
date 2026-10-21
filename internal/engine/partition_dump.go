@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -52,10 +53,10 @@ func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecess
 					}
 					var buffer [1]ids.ObjectRef
 					references := buffer[:0]
-					if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasReferences(view, datum.Value); err != nil {
+					if err := (scalarRenderer{Dependencies: &references}).RecordCatalogAliasReferences(view, datum.Value); err != nil {
 						return nil, err
 					}
-					if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(view, datum.Value); err != nil {
+					if err := (scalarRenderer{Dependencies: &references}).RecordRoutineReferences(view, datum.Value); err != nil {
 						return nil, err
 					}
 					for _, ref := range references {
@@ -96,7 +97,7 @@ func partitionKeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.R
 			text.WriteString(", ")
 		}
 		if key.Derived != nil {
-			expression, err := (scalarRenderer{owner: d}).sql(ctx, catalogView, key.Derived.Definition)
+			expression, err := (scalarRenderer{Owner: d}).SQL(ctx, catalogView, key.Derived.Definition)
 			if err != nil {
 				return "", err
 			}
@@ -212,13 +213,13 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		childSQL, parentSQL := "NULL", "NULL"
 		var err error
 		if childHasDefault {
-			childSQL, err = defaultSQL(ctx, catalogView, childDefault.Expression)
+			childSQL, err = stored.DefaultSQL(ctx, catalogView, childDefault.Expression)
 			if err != nil {
 				return "", err
 			}
 		}
 		if parentHasDefault {
-			parentSQL, err = defaultSQL(ctx, catalogView, parentDefault.Expression)
+			parentSQL, err = stored.DefaultSQL(ctx, catalogView, parentDefault.Expression)
 			if err != nil {
 				return "", err
 			}
@@ -241,7 +242,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		}
 	}
 	for _, constraint := range orderedChecks(d) {
-		expression, err := (scalarRenderer{owner: d, checkReplayPrecision: true}).sql(ctx, catalogView, constraint.Expression)
+		expression, err := (scalarRenderer{Owner: d, CheckReplayPrecision: true}).SQL(ctx, catalogView, constraint.Expression)
 		if err != nil {
 			return "", err
 		}
@@ -250,7 +251,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 			if ancestor.Name != constraint.Name {
 				continue
 			}
-			parentSQL, err := (scalarRenderer{owner: parent, checkReplayPrecision: true}).sql(ctx, catalogView, ancestor.Expression)
+			parentSQL, err := (scalarRenderer{Owner: parent, CheckReplayPrecision: true}).SQL(ctx, catalogView, ancestor.Expression)
 			if err != nil {
 				return "", err
 			}
@@ -273,7 +274,7 @@ func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog
 		if partitionReplaySeparateConstraint(catalogView, index) {
 			continue
 		}
-		definition, err := (pgRenderer{view: catalogView}).uniqueConstraintSQL(d, &constraint)
+		definition, err := (pgRenderer{View: catalogView}).UniqueConstraintSQL(d, &constraint)
 		if err != nil {
 			return "", err
 		}

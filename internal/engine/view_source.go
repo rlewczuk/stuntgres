@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
@@ -47,7 +48,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		views := scope.viewCreation()
 		views.active = append(views.active, d.Address())
 		defer func() { views.active = views.active[:len(views.active)-1] }()
-		root, source, err := e.prepareStoredQueryLocked(scope, ref, viewOf(d), invoker, mark, locks, outputUses)
+		root, source, err := e.prepareStoredQueryLocked(scope, ref, stored.ViewOf(d), invoker, mark, locks, outputUses)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +97,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 // checks; neither substitutes a live role/catalog sample during recursion.
 func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark) error {
 	d, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.Owner.Domain || ref.Epoch != auth.Catalog.Epoch() || viewOf(d) != definition {
+	if !ok || ref.Domain() != auth.Owner.Domain || ref.Epoch != auth.Catalog.Epoch() || stored.ViewOf(d) != definition {
 		return ids.ErrCatalogReplaced
 	}
 	principal := d.Owner
@@ -105,15 +106,15 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 	}
 	auth.State.CurrentUser = principal
 	for _, leaf := range definition.Sources() {
-		source, ok := auth.Catalog.Relation(leaf.ref.Address)
-		if !ok || !storedViewReferenceValid(auth.Catalog, d, leaf.ref) {
+		source, ok := auth.Catalog.Relation(leaf.Ref.Address)
+		if !ok || !stored.ViewReferenceValid(auth.Catalog, d, leaf.Ref) {
 			return ids.ErrCatalogReplaced
 		}
-		if leaf.analysisOnly {
+		if leaf.AnalysisOnly {
 			continue
 		}
-		indices := make([]int, 0, len(leaf.reads))
-		for _, attribute := range leaf.reads {
+		indices := make([]int, 0, len(leaf.Reads))
+		for _, attribute := range leaf.Reads {
 			found := false
 			for slot, live := range source.Attributes {
 				if attribute == live {
@@ -126,7 +127,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 				return fmt.Errorf("stuntgres: missing view source attribute")
 			}
 		}
-		use, err := storedViewUseReference(auth.Catalog, d, leaf.ref)
+		use, err := stored.ViewUseReference(auth.Catalog, d, leaf.Ref)
 		if err != nil {
 			return err
 		}

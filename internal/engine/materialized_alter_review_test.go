@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -302,13 +303,14 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	// the original MV's valid rule, rowtype, exposed attributes and stale rows.
 	// Validation/publication, rather than a direct descriptor-map mutation,
 	// establishes this defining predecessor while the real ALTER is pending.
-	definition := *viewOf(producer)
-	definition.rule = viewOf(d).RuleOID()
-	definition.consumer = viewOf(d).consumer
 	next := *d
-	next.View = &definition
 	next.ObjectRevision++
-	definition.quoteRevision = next.Revision()
+	definition := stored.ViewOf(producer).With(func(p *stored.ViewParts) {
+		p.Rule = stored.ViewOf(d).RuleOID()
+		p.Consumer = stored.ViewOf(d).Consumer()
+		p.QuoteRevision = next.Revision()
+	})
+	next.View = definition
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&next); err != nil {
@@ -327,7 +329,7 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	current := e.catalog.state.MustRelation(d.Address())
-	if viewOf(current) != &definition || current.Columns[0].Name != "i" || current.RowType != d.RowType || !reflect.DeepEqual(current.Attributes, d.Attributes) || e.storage.Relations[d.Address()] != store || e.storage.IndexRoots[index.Address()] != root || viewOf(current).query != viewOf(producer).query || viewOf(current).RuleOID() != viewOf(d).RuleOID() {
+	if stored.ViewOf(current) != definition || current.Columns[0].Name != "i" || current.RowType != d.RowType || !reflect.DeepEqual(current.Attributes, d.Attributes) || e.storage.Relations[d.Address()] != store || e.storage.IndexRoots[index.Address()] != root || stored.ViewOf(current).Query() != stored.ViewOf(producer).Query() || stored.ViewOf(current).RuleOID() != stored.ViewOf(d).RuleOID() {
 		t.Fatal("rejected queued ALTER changed validated producer predecessor")
 	}
 	result = sessionSQL(t, holder, "SELECT i FROM unit_mv ORDER BY i")

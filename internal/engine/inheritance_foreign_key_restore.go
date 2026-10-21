@@ -95,7 +95,7 @@ func (table *dumpRelation) emitInheritedForeignKeys(view catalog.Read, emit func
 			continue
 		}
 		target := view.MustRelation(foreign.Target)
-		text, err := (pgRenderer{view: view}).foreignKeyConstraintSQLWithPrimary(table.descriptor, *foreign, inheritedForeignKeyPrimary(target, foreign))
+		text, err := (pgRenderer{View: view}).ForeignKeyConstraintSQLWithPrimary(table.descriptor, *foreign, inheritedForeignKeyPrimary(target, foreign))
 		if err != nil {
 			return err
 		}

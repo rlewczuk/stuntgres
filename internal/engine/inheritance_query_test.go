@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -267,8 +268,8 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++
-		frozen := &viewDefinition{sources: []viewLeaf{{ref: old, only: only}}, query: &plan.Query{Root: &plan.SourceNode{Ref: old}}}
-		mapped, err := remapFrozenPresentation(e.CatalogRead(), frozen, nil, func(source ids.ObjectRef) ids.ObjectRef {
+		frozen := stored.NewView(stored.ViewParts{Sources: []viewLeaf{{Ref: old, Only: only}}, Query: &plan.Query{Root: &plan.SourceNode{Ref: old}}})
+		mapped, err := stored.RemapView(e.CatalogRead(), frozen, nil, func(source ids.ObjectRef) ids.ObjectRef {
 			if source == old {
 				return ref
 			}
@@ -278,11 +279,11 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 			t.Fatal(err)
 		}
 		remapped := mapped.Sources()[0]
-		if remapped.ref != ref || remapped.only != only || frozen.Sources()[0].ref != old || mapped.query.Root.(*plan.SourceNode).Ref != ref {
+		if remapped.Ref != ref || remapped.Only != only || frozen.Sources()[0].Ref != old || mapped.Query().Root.(*plan.SourceNode).Ref != ref {
 			t.Fatal("replacement lost source mode or mutated frozen authority")
 		}
 		var got []ids.ObjectAddress
-		err = inheritanceQueryLeaves(e.CatalogRead(), []exec.Leaf{{Ref: remapped.ref, Only: remapped.only}}, ids.SessionToken{}, func(leaf exec.Leaf) error { got = append(got, leaf.Ref.Address); return nil })
+		err = inheritanceQueryLeaves(e.CatalogRead(), []exec.Leaf{{Ref: remapped.Ref, Only: remapped.Only}}, ids.SessionToken{}, func(leaf exec.Leaf) error { got = append(got, leaf.Ref.Address); return nil })
 		want := []ids.ObjectAddress{p.Address()}
 		if !only {
 			want = append(want, c.Address())

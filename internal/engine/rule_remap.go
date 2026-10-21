@@ -11,14 +11,15 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
 func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (analyze.Binding, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
-	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
-	mapper.mutation = func(definition *plan.CTEDefinition) (analyze.Binding, error) {
+	mapper := &viewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation}
+	mapper.Mutation = func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		return remapRuleBindingMapped(view, *mutation, ref, typ, collation, mapper)
 	}
@@ -31,11 +32,11 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 		if expr == nil {
 			return nil, nil
 		}
-		node, _, err := retagBoundTypesWithQuery(view, expr, typ, nil, collation)
+		node, _, err := stored.RetagTypesWithQuery(view, expr, typ, nil, collation)
 		if err != nil {
 			return nil, err
 		}
-		return remapBoundExpressionWithQuery(node, ref, nil, mapper.nested, nil)
+		return stored.RemapExpressionWithQuery(node, ref, nil, mapper.Nested, nil)
 	}
 	mapTargetExpr := func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == nil {
@@ -63,9 +64,9 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 			return nil, nil
 		}
 		if _, project := root.(*plan.ProjectNode); project {
-			return mapper.nested(root)
+			return mapper.Nested(root)
 		}
-		return mapper.query(root)
+		return mapper.Query(root)
 	}
 	mapSources := func(sources []exec.Leaf) ([]exec.Leaf, error) {
 		next := slices.Clone(sources)
@@ -108,7 +109,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 		if err != nil {
 			return nil, err
 		}
-		next.ArrayTargets, err = mapRuleAssignmentTargets(update.ArrayTargets, mapTargetExpr, mapUsage)
+		next.ArrayTargets, err = stored.MapRuleAssignmentTargets(update.ArrayTargets, mapTargetExpr, mapUsage)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +159,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	if err != nil {
 		return b, err
 	}
-	b.ArrayTargets, err = mapRuleAssignmentTargets(b.ArrayTargets, mapTargetExpr, mapUsage)
+	b.ArrayTargets, err = stored.MapRuleAssignmentTargets(b.ArrayTargets, mapTargetExpr, mapUsage)
 	if err != nil {
 		return b, err
 	}
@@ -251,7 +252,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	}
 	b.CTEs = slices.Clone(b.CTEs)
 	for i, definition := range b.CTEs {
-		mapped, err := mapper.cte(definition)
+		mapped, err := mapper.CTE(definition)
 		if err != nil {
 			return b, err
 		}
@@ -294,17 +295,17 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 		r := &rulesOf(&copy)[i]
 		var err error
 		if r.condition != nil {
-			r.condition, _, err = retagBoundTypes(view, r.condition, typ, collation)
+			r.condition, _, err = stored.RetagTypes(view, r.condition, typ, collation)
 			if err != nil {
 				return nil, err
 			}
-			r.condition, err = remapBoundExpression(r.condition, ref, nil)
+			r.condition, err = stored.RemapExpression(r.condition, ref, nil)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if r.conditionPresentation != nil {
-			r.conditionPresentation, err = remapFrozenPresentation(view, r.conditionPresentation, mapping, ref, typ, collation)
+			r.conditionPresentation, err = stored.RemapView(view, r.conditionPresentation, mapping, ref, typ, collation)
 			if err != nil {
 				return nil, err
 			}
@@ -324,14 +325,14 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 				return nil, err
 			}
 			if action.presentation != nil {
-				action.presentation, err = remapFrozenPresentation(view, action.presentation, mapping, ref, typ, collation)
+				action.presentation, err = stored.RemapView(view, action.presentation, mapping, ref, typ, collation)
 				if err != nil {
 					return nil, err
 				}
 			}
 			action.modifierPresentations = maps.Clone(action.modifierPresentations)
 			for statement, presentation := range action.modifierPresentations {
-				mapped, err := remapFrozenPresentation(view, presentation, mapping, ref, typ, collation)
+				mapped, err := stored.RemapView(view, presentation, mapping, ref, typ, collation)
 				if err != nil {
 					return nil, err
 				}
@@ -420,7 +421,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 		for _, rule := range rulesOf(d) {
 			for _, address := range rule.references {
 				address.SubID = 0
-				if pgDependPinned(view, nil, address) {
+				if stored.DependPinned(view, nil, address) {
 					continue
 				}
 				provider := e.catalog.state.Get(address)

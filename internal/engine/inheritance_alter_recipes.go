@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -36,7 +37,7 @@ func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 				}
 				mapper.TargetSlots[i] = slot
 			}
-			mapped, err := remapLikeExpression(&mapper, definition.Expression, child, view)
+			mapped, err := stored.RemapLikeExpression(&mapper, definition.Expression, child, view)
 			if err != nil {
 				return provenance, err
 			}
@@ -71,7 +72,7 @@ func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalogView ca
 		if provenance.ExplicitDefault && !(deferDefaults && t.deferredDefinitions[attribute]) {
 			clause := " DROP DEFAULT"
 			if definition, exists := t.defaults[attribute]; exists {
-				text, err := defaultSQL(ctx, catalogView, definition.Expression)
+				text, err := stored.DefaultSQL(ctx, catalogView, definition.Expression)
 				if err != nil {
 					return err
 				}

@@ -19,6 +19,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -221,12 +222,12 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("domain_truth_barrier", func(t *testing.T) {
 		leaf := plan.DomainValueExpr{Info: expr.Info{Usage: src.Columns[0].Usage, Property: expr.Properties{DomainDependent: true, RuntimeDomainConversion: true}}}
-		properties := rewrittenIntrinsicProperties(leaf)
+		properties := stored.RewrittenIntrinsicProperties(leaf)
 		if !properties.DomainDependent || !properties.RuntimeDomainConversion {
 			t.Fatal("rewrite erased runtime domain authority")
 		}
 		properties.ParameterDependent = true
-		mapped, _, err := mapBoundExpression(auth.Catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+		mapped, _, err := stored.MapExpression(auth.Catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 			copy := expr.(plan.DomainValueExpr)
 			copy.Property = properties
 			return copy, true, nil
@@ -261,7 +262,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		identityType := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
 		for _, parent := range []expr.Expr{absolute, format} {
-			mapped, _, err := mapBoundExpression(auth.Catalog, parent, identityType, nil, nil, replaceFormal)
+			mapped, _, err := stored.MapExpression(auth.Catalog, parent, identityType, nil, nil, replaceFormal)
 			if err != nil || mapped.Properties().Volatility != expr.Volatile || mapped.Properties().RowDependent {
 				t.Fatalf("generic parent lost fresh child demand: %v %v", mapped, err)
 			}
@@ -269,7 +270,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 				t.Fatal("mutated original formal-dependent function")
 			}
 			if _, formatting := mapped.(functions.Format); formatting {
-				stable, _, err := mapBoundExpression(auth.Catalog, mapped, identityType, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+				stable, _, err := stored.MapExpression(auth.Catalog, mapped, identityType, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if _, random := expr.(functions.Random); random {
 						return ruleUnitInt(src, 11), true, nil
 					}
@@ -377,8 +378,8 @@ func TestRuleProgramAuthority(t *testing.T) {
 		auth := f.authorization(t, op)
 		f.base.RelationKind, f.base.VirtualView = catalog.ViewRelation, true
 		f.base.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}})
-		viewOf(f.view).checkOption = viewCheckCascaded
-		project := viewOf(f.view).query.Root.(*plan.ProjectNode)
+		f.view.View = stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckCascaded })
+		project := stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode)
 		predicate := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}

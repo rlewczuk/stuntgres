@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -89,9 +90,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case "rowtype":
 				next.RowType++
 			case "definition":
-				definition := *viewOf(d)
-				definition.invoker = !definition.Invoker()
-				next.View = &definition
+				next.View = stored.ViewOf(d).With(func(p *stored.ViewParts) { p.Invoker = !p.Invoker })
 			case "ref":
 				next.ObjectAddress.ObjectID += 100000
 				expectedAddress = next.Address()

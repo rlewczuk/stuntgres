@@ -7,18 +7,11 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
 )
-
-type policyExpression struct {
-	syntax       parser.Expr
-	expression   expr.Expr
-	presentation *viewDefinition
-}
 
 func policyOwnerNoun(stmt parser.Statement) string {
 	switch stmt.(type) {

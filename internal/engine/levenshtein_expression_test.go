@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -45,7 +46,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	if err != nil || readErr != nil || integer != 10 || n.Ref.Address != ext.Members[4] || value.Type() != n.ResultUsage().Type || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
 		t.Fatal(value, n.Ref, err, readErr)
 	}
-	if err := validateInstalledLevenshtein(n, e.CatalogRead()); err != nil {
+	if err := stored.ValidateInstalledLevenshtein(n, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	nonmember := *n.Procedure
@@ -55,7 +56,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	if err := extension.StockFuzzystrmatch.ValidateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
-	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
+	refs, err := stored.ExpressionDependRefs(ctx.Context, e.CatalogRead(), n)
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal(refs, err)
 	}
@@ -98,18 +99,18 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		state.SetDescriptor(n.Ref.Address, &bad)
 		forged := n
 		forged.Procedure = &bad
-		if err := validateInstalledLevenshtein(forged, e.catalog.read(state)); err == nil {
+		if err := stored.ValidateInstalledLevenshtein(forged, e.catalog.read(state)); err == nil {
 			t.Fatal("forged installed call admitted", bad)
 		}
 	}
-	retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	retagged, _, err := stored.RetagTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateInstalledLevenshtein(retagged.(plan.InstalledLevenshteinExpr), e.CatalogRead()); err != nil {
+	if err := stored.ValidateInstalledLevenshtein(retagged.(plan.InstalledLevenshteinExpr), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	stored, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), retagged)
+	stored, err := (scalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), retagged)
 	if err != nil || !strings.Contains(stored, "levenshtein_less_equal") || !strings.Contains(stored, "sitting") || !strings.Contains(stored, "20") {
 		t.Fatal(stored, err)
 	}
@@ -191,7 +192,7 @@ func TestLevenshteinRemap(t *testing.T) {
 		if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
 			t.Fatal("stale remapped authority", n.Ref)
 		}
-		if err := validateInstalledLevenshtein(n, view); err != nil {
+		if err := stored.ValidateInstalledLevenshtein(n, view); err != nil {
 			t.Fatal(err)
 		}
 		value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})

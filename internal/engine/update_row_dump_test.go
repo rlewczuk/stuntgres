@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -34,12 +35,12 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			sessionSQL(t, s, "CREATE RULE original AS ON UPDATE TO input DO ALSO "+tc.action)
 			before := e.CatalogRead()
 			input := catalogRef(t, e, before, "input")
-			stored := rulesOf(before.MustRelation(input.Address))[0]
-			action := stored.actions[0]
-			owner := action.presentation.frames[1]
+			persisted := rulesOf(before.MustRelation(input.Address))[0]
+			action := persisted.actions[0]
+			owner := action.presentation.Frames()[1]
 			child := owner.Child
-			columns := make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(action.presentation.columns))
-			for key, column := range action.presentation.columns {
+			columns := make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(action.presentation.Columns()))
+			for key, column := range action.presentation.Columns() {
 				columns[key] = column
 			}
 			// Names must come from current attributes, not stale raw identifiers.
@@ -49,7 +50,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if owner.Child != child || action.presentation.frames[1] != owner || !reflect.DeepEqual(columns, action.presentation.columns) {
+			if owner.Child != child || action.presentation.Frames()[1] != owner || !reflect.DeepEqual(columns, action.presentation.Columns()) {
 				t.Fatal("render mutated frozen namespace ownership")
 			}
 			syntax, err := parser.Parse(text)
@@ -92,7 +93,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					mapped.presentation, err = remapFrozenPresentation(current, mapped.presentation, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+					mapped.presentation, err = stored.RemapView(current, mapped.presentation, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -111,7 +112,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					} else {
 						find(mapped.binding.Predicate)
 					}
-					if executable == nil || mapped.presentation.queries[executable.Syntax] == executable {
+					if executable == nil || mapped.presentation.Queries()[executable.Syntax] == executable {
 						t.Fatal("fixture did not establish independently remapped executable and presentation graphs")
 					}
 					actual, err := ruleActionSQL(context.Background(), current, mapped)

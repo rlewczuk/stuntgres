@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -208,7 +209,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	view := New().CatalogRead()
 	original := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 3, Length: 3}}, 1, true)
 	freshView := New().CatalogRead()
-	mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		fresh, ok := freshView.LookupType(d.ID())
 		if ok {
 			return fresh
@@ -238,7 +239,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	if analyze.SameGroupExpression(original, other) || analyze.SameQuerySetOccurrence(original, seriesUnit(t, original.ResultUsage().Type, 1, 3)) {
 		t.Fatal("marker/argument kinds conflated")
 	}
-	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+	clone, err := stored.RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil || !analyze.SameGroupExpression(original, clone) {
 		t.Fatal("remap", clone, err)
 	}
@@ -255,7 +256,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 			t.Fatal(n, err)
 		}
 	}
-	text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
+	text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
 	if err != nil || !strings.Contains(text, "generate_subscripts(") || !strings.Contains(text, "ARRAY") && !strings.Contains(text, "{NULL") {
 		t.Fatal("symbolic deparse", text, err)
 	}

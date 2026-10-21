@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -249,7 +250,7 @@ func TestQuerySubqueryPresenceRemap(t *testing.T) {
 		original := q.Root.(*plan.ProjectNode).Child
 		typ := q.Root.Schema()[0].Usage.Type
 		replacement := *typ
-		mapped, err := remapViewQuery(New().CatalogRead(), queryPlan.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := stored.RemapViewQuery(New().CatalogRead(), queryPlan.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == typ {
 				return &replacement
 			}

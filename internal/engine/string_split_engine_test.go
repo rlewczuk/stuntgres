@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -176,7 +177,7 @@ func TestStringSplitExpansion(t *testing.T) {
 					}
 					var observed []int
 					instrument := func(expression expr.Expr) (expr.Expr, error) {
-						next, _, err := mapBoundExpression(binder.BindingCatalog(), expression,
+						next, _, err := stored.MapExpression(binder.BindingCatalog(), expression,
 							func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ },
 							func(query plan.Node) (plan.Node, error) { return query, nil },
 							nil,
@@ -553,7 +554,7 @@ func TestStringSplitBinding(t *testing.T) {
 			t.Fatal(q, err)
 		}
 		fresh := New().CatalogRead()
-		mapped, changed, err := retagBoundTypes(fresh, expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { next, _ := fresh.LookupType(d.ID()); return next })
+		mapped, changed, err := stored.RetagTypes(fresh, expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { next, _ := fresh.LookupType(d.ID()); return next })
 		if err != nil || !changed || mapped.ResultUsage().Type == expr.ResultUsage().Type {
 			t.Fatal(q, mapped, changed, err)
 		}
@@ -599,8 +600,8 @@ func TestStringSplitBinding(t *testing.T) {
 	if !ok || !literal.Value.IsNull() || !b.Clause.QueryHasTargetSet {
 		t.Fatal("lost original set analysis after strict folding", folded)
 	}
-	descriptor := &catalog.Relation{View: &viewDefinition{syntax: raw, query: &plan.Query{Root: &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{folded}, HasTargetSet: b.Clause.QueryHasTargetSet}}}}
-	if _, _, _, reason := viewWriteShape(descriptor); reason != "Views that return set-returning functions are not automatically updatable." {
+	descriptor := &catalog.Relation{View: stored.NewView(stored.ViewParts{Syntax: raw, Query: &plan.Query{Root: &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{folded}, HasTargetSet: b.Clause.QueryHasTargetSet}}})}
+	if _, _, _, reason := stored.ViewWriteShape(descriptor); reason != "Views that return set-returning functions are not automatically updatable." {
 		t.Fatal(reason)
 	}
 }
@@ -616,11 +617,11 @@ func TestStringSplitLifecycle(t *testing.T) {
 		}
 		for _, kind := range []parser.ValueKind{parser.NullValue, parser.StringValue} {
 			stage := makeStage(plan.UnknownOutput{Raw: parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: "retained"}}})
-			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err != nil {
+			if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: stage}})); err != nil {
 				t.Fatal("genuine contextual template root rejected", err)
 			}
 			for range 2 {
-				mapped, err := remapViewQuery(b.BindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+				mapped, err := stored.RemapViewQuery(b.BindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -636,12 +637,12 @@ func TestStringSplitLifecycle(t *testing.T) {
 		for _, program := range [][]plan.SetStep{nil, {{Kind: plan.SetStepKind(255), Index: 0}}, {{Kind: exec.QuerySetCallStep, Index: 1}}} {
 			stage := makeStage(plan.UnknownOutput{Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}})
 			stage.Steps = program
-			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
+			if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: stage}})); err == nil {
 				t.Fatal("stored executable schedule admitted malformed event", program)
 			}
 			stage.Steps = []plan.SetStep{{Kind: exec.QuerySetCallStep, Index: 0}}
 			stage.Template.Steps = program
-			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
+			if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: stage}})); err == nil {
 				t.Fatal("stored template schedule admitted malformed event", program)
 			}
 		}
@@ -651,7 +652,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 			{Info: expr.Info{Usage: call.ResultUsage()}, Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}},
 		} {
 			stage := makeStage(malformed)
-			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
+			if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: stage}})); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
 				t.Fatal("malformed contextual template accepted", err)
 			}
 		}
@@ -669,11 +670,11 @@ func TestStringSplitLifecycle(t *testing.T) {
 					Scalars: []expr.Expr{scalar}, ScalarRequests: []int{0}, Attempts: true, Steps: program}}
 		}
 		stage := makeStage()
-		if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err != nil {
+		if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: stage}})); err != nil {
 			t.Fatal("valid identity scalar reservation rejected", err)
 		}
 		for range 2 {
-			mapped, err := remapViewQuery(b.BindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+			mapped, err := stored.RemapViewQuery(b.BindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -684,34 +685,34 @@ func TestStringSplitLifecycle(t *testing.T) {
 		for _, slots := range [][]int{{}, {-1}, {1}} {
 			stage := makeStage()
 			stage.ScalarSlots = slots
-			if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
+			if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: stage}})); err == nil {
 				t.Fatal("malformed stored explicit scalar reservation admitted", slots)
 			}
 		}
 		stage = makeStage()
 		stage.Template.ScalarRequests = []int{1}
-		if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: stage}}); err == nil {
+		if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: stage}})); err == nil {
 			t.Fatal("scalar candidate mapped to a call owner")
 		}
 	})
 	t.Run("contextual_view_analysis", func(t *testing.T) {
 		value := stringSplitLiteral(b, "kept")
 		unknown := plan.UnknownOutput{Raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
-		mapped, changed, err := retagBoundTypes(New().CatalogRead(), unknown, func(*sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, changed, err := stored.RetagTypes(New().CatalogRead(), unknown, func(*sqltype.Descriptor) *sqltype.Descriptor {
 			t.Fatal("contextual analysis invented a descriptor to retag")
 			return nil
 		})
 		if err != nil || changed || !reflect.DeepEqual(mapped, unknown) {
 			t.Fatal("contextual analysis changed during retag", mapped, changed, err)
 		}
-		captured, err := remapBoundExpression(unknown, func(ref ids.ObjectRef) ids.ObjectRef {
+		captured, err := stored.RemapExpression(unknown, func(ref ids.ObjectRef) ids.ObjectRef {
 			t.Fatal("contextual analysis invented a captured reference", ref)
 			return ref
 		}, nil)
 		if err != nil || !reflect.DeepEqual(captured, unknown) {
 			t.Fatal("contextual analysis changed during capture", captured, err)
 		}
-		if _, err := remapBoundExpression(plan.UnknownOutput{Raw: parser.ColumnExpr{}}, nil, nil); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
+		if _, err := stored.RemapExpression(plan.UnknownOutput{Raw: parser.ColumnExpr{}}, nil, nil); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
 			t.Fatal("nonliteral contextual capture accepted", err)
 		}
 		project := &plan.ProjectNode{
@@ -720,8 +721,8 @@ func TestStringSplitLifecycle(t *testing.T) {
 			Expressions:         []expr.Expr{value},
 			AnalysisExpressions: []expr.Expr{unknown},
 		}
-		definition := &viewDefinition{query: &plan.Query{Root: project}}
-		if err := validateViewLeaves(b.BindingCatalog(), definition); err != nil {
+		definition := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: project}})
+		if err := stored.ValidateViewLeaves(b.BindingCatalog(), definition); err != nil {
 			t.Fatal("retained contextual literal rejected", err)
 		}
 		foreignType := *value.ResultUsage().Type
@@ -740,19 +741,19 @@ func TestStringSplitLifecycle(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				private := *project
 				private.QuerySchema = plan.QuerySchema{{Usage: tc.usage}}
-				if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != tc.message {
+				if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &private}})); err == nil || err.Error() != tc.message {
 					t.Fatal("malformed executable schema accepted", err)
 				}
 			})
 		}
 		private := *project
 		private.Expressions = []expr.Expr{unknown}
-		if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != "stuntgres: invalid view query usage" {
+		if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &private}})); err == nil || err.Error() != "stuntgres: invalid view query usage" {
 			t.Fatal("unresolved executable output accepted", err)
 		}
 		private = *project
 		private.AnalysisExpressions = []expr.Expr{plan.UnknownOutput{Raw: parser.ColumnExpr{}}}
-		if err := validateViewLeaves(b.BindingCatalog(), &viewDefinition{query: &plan.Query{Root: &private}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
+		if err := stored.ValidateViewLeaves(b.BindingCatalog(), stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &private}})); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
 			t.Fatal("nonliteral contextual placeholder accepted", err)
 		}
 	})

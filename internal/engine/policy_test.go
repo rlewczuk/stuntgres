@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -62,13 +63,13 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if condition == "random()>=0" && expression.expression.Properties().Volatility != expr.Volatile {
-				t.Fatal("policy binding lost volatile function behavior", expression.expression.Properties())
+			if condition == "random()>=0" && expression.Expression().Properties().Volatility != expr.Volatile {
+				t.Fatal("policy binding lost volatile function behavior", expression.Expression().Properties())
 			}
-			if err = validatePolicyExpression(e.CatalogRead(), d, expression); err != nil {
+			if err = stored.ValidatePolicy(e.CatalogRead(), d, expression); err != nil {
 				t.Fatal(err)
 			}
-			sql, err := policyExpressionSQL(context.Background(), e.CatalogRead(), expression)
+			sql, err := stored.PolicySQL(context.Background(), e.CatalogRead(), expression)
 			if err != nil || sql == "" {
 				t.Fatal(sql, err)
 			}
@@ -80,30 +81,30 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 				if err != nil {
 					t.Fatal("rendered expression cannot bind", sql, err)
 				}
-				if err = validatePolicyExpression(e.CatalogRead(), d, replayed); err != nil {
+				if err = stored.ValidatePolicy(e.CatalogRead(), d, replayed); err != nil {
 					t.Fatal("invalid recaptured expression", sql, err)
 				}
-				redump, err := policyExpressionSQL(context.Background(), e.CatalogRead(), replayed)
+				redump, err := stored.PolicySQL(context.Background(), e.CatalogRead(), replayed)
 				if err != nil || redump != sql {
 					t.Fatal("unstable frozen expression replay", sql, redump, err)
 				}
 				sql = redump
 			}
-			original := expression.presentation
+			original := expression.Presentation()
 			next := catalog.CloneState(e.CatalogRead().State())
 			owner := *d
 			owner.ObjectName = "renamed"
 			owner.Columns = append([]catalog.Column(nil), d.Columns...)
 			owner.Columns[0].Name = "key"
 			next.SetDescriptor(d.Address(), &owner)
-			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
+			text, err := stored.PolicySQL(context.Background(), e.catalog.read(next), expression)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if strings.Contains(sql, `"t"."id"`) && !strings.Contains(text, `"renamed"."key"`) {
 				t.Fatal("lost stable owner identity", text)
 			}
-			if expression.presentation != original || d.Name() != "t" || d.Columns[0].Name != "id" {
+			if expression.Presentation() != original || d.Name() != "t" || d.Columns[0].Name != "id" {
 				t.Fatal("mutated published definition")
 			}
 		})
@@ -217,14 +218,14 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err = validatePolicies(view, copied); err != nil {
 		t.Fatal(err)
 	}
-	if policyExpressionOf(p.Using) == expression || expression.presentation.Sources()[0].ref.Domain() != e.catalog.Domain {
+	if stored.PolicyOf(p.Using) == expression || expression.Presentation().Sources()[0].Ref.Domain() != e.catalog.Domain {
 		t.Fatal("remap mutated original expression")
 	}
-	originalSQL, err := policyExpressionSQL(context.Background(), e.CatalogRead(), expression)
+	originalSQL, err := stored.PolicySQL(context.Background(), e.CatalogRead(), expression)
 	if err != nil {
 		t.Fatal(err)
 	}
-	importedSQL, err := policyExpressionSQL(context.Background(), view, policyExpressionOf(p.Using))
+	importedSQL, err := stored.PolicySQL(context.Background(), view, stored.PolicyOf(p.Using))
 	if err != nil || importedSQL != originalSQL {
 		t.Fatal("remapped presentation lost frozen context", originalSQL, importedSQL, err)
 	}

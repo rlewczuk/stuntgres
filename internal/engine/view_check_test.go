@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -24,8 +25,8 @@ func TestViewCheckOptions(t *testing.T) {
 		value string
 		mode  viewCheckMode
 		valid bool
-	}{{"local", viewCheckLocal, true}, {"LoCaL", viewCheckLocal, true}, {"CASCADED", viewCheckCascaded, true}, {"loc", viewCheckNone, false}, {" local ", viewCheckNone, false}, {"true", viewCheckNone, false}} {
-		_, _, mode, err := viewOptions([]parser.ViewOption{{Name: parser.Identifier{Text: "check_option"}, Value: tc.value}})
+	}{{"local", stored.CheckLocal, true}, {"LoCaL", stored.CheckLocal, true}, {"CASCADED", stored.CheckCascaded, true}, {"loc", stored.CheckNone, false}, {" local ", stored.CheckNone, false}, {"true", stored.CheckNone, false}} {
+		_, _, mode, err := stored.ViewOptions([]parser.ViewOption{{Name: parser.Identifier{Text: "check_option"}, Value: tc.value}})
 		if tc.valid {
 			if err != nil || mode != tc.mode {
 				t.Fatal(tc, mode, err)
@@ -38,12 +39,12 @@ func TestViewCheckOptions(t *testing.T) {
 		}
 	}
 	options := []parser.ViewOption{{Name: parser.Identifier{Text: "security_barrier"}, Value: "true"}, {Name: parser.Identifier{Text: "security_invoker"}, Value: "false"}, {Name: parser.Identifier{Text: "check_option"}, Value: "local"}}
-	barrier, invoker, mode, err := viewOptions(options)
-	if err != nil || !barrier || invoker || mode != viewCheckLocal {
+	barrier, invoker, mode, err := stored.ViewOptions(options)
+	if err != nil || !barrier || invoker || mode != stored.CheckLocal {
 		t.Fatal(barrier, invoker, mode, err)
 	}
 	options = append(options, options[2])
-	_, _, _, err = viewOptions(options)
+	_, _, _, err = stored.ViewOptions(options)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Message != `parameter "check_option" specified more than once` {
 		t.Fatal(err)
@@ -52,22 +53,21 @@ func TestViewCheckOptions(t *testing.T) {
 
 func TestViewCheckDeclaration(t *testing.T) {
 	f := viewWriteMechanics(t)
-	if err := validateViewCheckDeclaration(viewOf(f.view)); err != nil {
+	if err := stored.ValidateViewCheckDeclaration(stored.ViewOf(f.view)); err != nil {
 		t.Fatal(err)
 	}
-	project := *viewOf(f.view).query.Root.(*plan.ProjectNode)
-	definition := *viewOf(f.view)
-	definition.query = &plan.Query{Root: &project}
+	project := *stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode)
+	definition := stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.Query = &plan.Query{Root: &project} })
 	for _, expressions := range [][]expr.Expr{nil, {plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}} {
 		project.Expressions = expressions
 		var d *sqlstate.Error
-		if err := validateViewCheckDeclaration(&definition); !errors.As(err, &d) || d.Code != "0A000" || d.Hint != "Views that have no updatable columns are not automatically updatable." {
+		if err := stored.ValidateViewCheckDeclaration(definition); !errors.As(err, &d) || d.Code != "0A000" || d.Hint != "Views that have no updatable columns are not automatically updatable." {
 			t.Fatal(err)
 		}
 	}
-	definition.syntax = &parser.Select{Distinct: &parser.DistinctClause{}}
+	definition = definition.With(func(p *stored.ViewParts) { p.Syntax = &parser.Select{Distinct: &parser.DistinctClause{}} })
 	var d *sqlstate.Error
-	if err := validateViewCheckDeclaration(&definition); !errors.As(err, &d) || d.Hint != "Views containing DISTINCT are not automatically updatable." {
+	if err := stored.ValidateViewCheckDeclaration(definition); !errors.As(err, &d) || d.Hint != "Views containing DISTINCT are not automatically updatable." {
 		t.Fatal(err)
 	}
 }
@@ -84,7 +84,7 @@ func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScop
 func TestViewCheckStack(t *testing.T) {
 	f := viewWriteMechanics(t)
 	guard := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
-	project := viewOf(f.view).query.Root.(*plan.ProjectNode)
+	project := stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode)
 	project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: guard}
 	layers := []*catalog.Relation{f.view}
 	refs := []ids.ObjectRef{f.viewRef}
@@ -102,7 +102,7 @@ func TestViewCheckStack(t *testing.T) {
 			origin.Address.SubID = source.Attributes[i]
 			expressions[i] = plan.ColumnExpr{Info: expr.Info{Usage: column.Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: i}
 		}
-		view.View = &viewDefinition{syntax: syntax, query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.Attributes}}}
+		view.View = stored.NewView(stored.ViewParts{Syntax: syntax, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, Sources: []viewLeaf{{Ref: ref, Attributes: source.Attributes}}})
 		f.e.catalog.state.SetDescriptor(view.Address(), &view)
 		layers = append(layers, &view)
 		refs = append(refs, f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), view.Address()))
@@ -112,9 +112,9 @@ func TestViewCheckStack(t *testing.T) {
 	for top := range 3 {
 		for middle := range 3 {
 			for leaf := range 3 {
-				viewOf(layers[2]).checkOption = viewCheckMode(top)
-				viewOf(layers[1]).checkOption = viewCheckMode(middle)
-				viewOf(layers[0]).checkOption = viewCheckMode(leaf)
+				for i, mode := range []int{leaf, middle, top} {
+					layers[i].View = stored.ViewOf(layers[i]).With(func(p *stored.ViewParts) { p.CheckOption = viewCheckMode(mode) })
+				}
 				b := analyze.Binding{Relation: layers[2], Ref: refs[2]}
 				if err := bindViewWrite(f.e.catalog.owner(), f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
 					t.Fatal(err)
@@ -141,17 +141,17 @@ func TestViewCheckStack(t *testing.T) {
 
 func TestViewCheckMapping(t *testing.T) {
 	f := viewWriteMechanics(t)
-	project := viewOf(f.view).query.Root.(*plan.ProjectNode)
+	project := stored.ViewOf(f.view).Query().Root.(*plan.ProjectNode)
 	column := project.Expressions[0]
 	// Reorder live physical columns while preserving frozen attribute identities.
 	f.base.Attributes = []int32{11, 7, 19}
 	f.base.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[0], f.base.Columns[2]}
-	viewOf(f.view).checkOption = viewCheckLocal
+	f.view.View = stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckLocal })
 	project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: column}
 	scope, op := f.scope(t)
 	b := viewCheckUnitBinding(t, f, scope, op)
-	mapped, ok := viewDirectColumn(viewWriteOf(b.ViewWrite).checks[0].predicates[0])
-	if !ok || mapped.Slot != 0 || !sameViewRelation(mapped.Origin, f.baseRef) {
+	mapped, ok := stored.ViewDirectColumn(viewWriteOf(b.ViewWrite).checks[0].predicates[0])
+	if !ok || mapped.Slot != 0 || !stored.SameViewRelation(mapped.Origin, f.baseRef) {
 		t.Fatal(mapped, ok)
 	}
 	old := f.e.storage.Relations[f.base.Address()].Versions[0].Values
@@ -306,14 +306,14 @@ func TestViewCheckFinish(t *testing.T) {
 
 func TestViewCheckControlRemap(t *testing.T) {
 	f := viewWriteMechanics(t)
-	for _, mode := range []viewCheckMode{viewCheckNone, viewCheckLocal, viewCheckCascaded} {
-		viewOf(f.view).checkOption = mode
+	for _, mode := range []viewCheckMode{stored.CheckNone, stored.CheckLocal, stored.CheckCascaded} {
+		f.view.View = stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.CheckOption = mode })
 		ref := func(old ids.ObjectRef) ids.ObjectRef { old.Epoch++; return old }
-		copy, err := remapFrozenPresentation(f.e.CatalogRead(), viewOf(f.view), nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
+		copy, err := stored.RemapView(f.e.CatalogRead(), stored.ViewOf(f.view), nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if copy == viewOf(f.view) || copy.checkOption != mode || copy.Sources()[0].ref.Epoch != f.baseRef.Epoch+1 || viewOf(f.view).Sources()[0].ref != f.baseRef {
+		if copy == stored.ViewOf(f.view) || copy.CheckOption() != mode || copy.Sources()[0].Ref.Epoch != f.baseRef.Epoch+1 || stored.ViewOf(f.view).Sources()[0].Ref != f.baseRef {
 			t.Fatal("mode/remint/mutation", mode, copy)
 		}
 	}

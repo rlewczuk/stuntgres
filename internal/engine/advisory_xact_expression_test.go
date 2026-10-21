@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -48,27 +49,27 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 				if strings.Contains(arguments, "$") {
 					// Prepared parameters are runtime inputs, not persistable view
 					// children. Lifetime support must not admit them to storage.
-					if _, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil); err == nil {
+					if _, err := stored.RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil); err == nil {
 						t.Fatal("persisted a runtime parameter")
 					}
 				} else {
 					last := len(node.Args) - 1
 					column := plan.ColumnExpr{Info: expr.Info{Usage: node.Args[last].ResultUsage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Slot: 1, Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
-					stored := node
-					stored.Args = append([]expr.Expr(nil), node.Args...)
-					stored.Args[last] = column
-					remapped, err := remapBoundExpression(stored, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
+					persisted := node
+					persisted.Args = append([]expr.Expr(nil), node.Args...)
+					persisted.Args[last] = column
+					remapped, err := stored.RemapExpression(persisted, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 					if err != nil {
 						t.Fatal("remapping stored column", err)
 					}
 					mapped := remapped.(functions.Advisory)
 					child := mapped.Args[last].(plan.ColumnExpr)
-					if mapped.Lifetime != functions.AdvisoryTransaction || !mapped.ValidStored() || child.Origin.Address.ObjectID != 124 || child.Slot != 7 || stored.Args[last].(plan.ColumnExpr).Slot != 1 {
+					if mapped.Lifetime != functions.AdvisoryTransaction || !mapped.ValidStored() || child.Origin.Address.ObjectID != 124 || child.Slot != 7 || persisted.Args[last].(plan.ColumnExpr).Slot != 1 {
 						t.Fatal("stored remap lost lifetime/column identity or mutated source", mapped, child)
 					}
 					// Only stored literal consumers have a catalog deparse
 					// contract; runtime parameters are not stored recipes.
-					text, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})
+					text, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, node, pgRenderParent{})
 					if err != nil {
 						t.Fatal(err)
 					}

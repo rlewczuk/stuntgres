@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -62,11 +63,11 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			copy.DomainChecks = append([]catalog.DomainCheckConstraint(nil), domain.DomainChecks...)
 			for i := range copy.DomainChecks {
 				check := &copy.DomainChecks[i]
-				node, err := remapBoundExpression(check.Expression, ref, nil)
+				node, err := stored.RemapExpression(check.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = retagBoundTypes(view, node, typ, collation)
+				node, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -83,11 +84,11 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			}
 			if domain.DomainDefault != nil {
 				definition := *domain.DomainDefault
-				node, err := remapBoundExpression(definition.Expression, ref, nil)
+				node, err := stored.RemapExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = retagBoundTypes(view, node, typ, collation)
+				node, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -113,18 +114,18 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			}
 			next.SetDescriptor(address, d)
 		}
-		if typesOnly && next.ACLItemImport() == nil && !catalogExpressionTypesChanged(d, typ) {
+		if typesOnly && next.ACLItemImport() == nil && !stored.ExpressionTypesChanged(d, typ) {
 			continue
 		}
 		if len(d.ColumnMeta.Defaults) != 0 {
 			copy := *d
 			copy.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(d.ColumnMeta.Defaults))
 			for attribute, definition := range d.ColumnMeta.Defaults {
-				node, err := remapBoundExpression(definition.Expression, ref, nil)
+				node, err := stored.RemapExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = retagBoundTypes(view, node, typ, collation)
+				node, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -142,20 +143,20 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			copy := *d
 			copy.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration, len(d.ColumnMeta.Generations))
 			for attribute, definition := range d.ColumnMeta.Generations {
-				node, err := remapBoundExpression(definition.Expression, ref, nil)
+				node, err := stored.RemapExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = retagBoundTypes(view, node, typ, collation)
+				node, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
 				definition.Expression = node
-				planned, err := remapBoundExpression(definition.Planned, ref, nil)
+				planned, err := stored.RemapExpression(definition.Planned, ref, nil)
 				if err != nil {
 					return err
 				}
-				planned, _, err = retagBoundTypes(view, planned, typ, collation)
+				planned, _, err = stored.RetagTypes(view, planned, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -174,11 +175,11 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
 			for i := range copy.Constraints.Check {
 				c := &copy.Constraints.Check[i]
-				node, err := remapBoundExpression(c.Expression, ref, nil)
+				node, err := stored.RemapExpression(c.Expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = retagBoundTypes(view, node, typ, collation)
+				node, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -220,20 +221,20 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 					continue
 				}
 				derived := *key.Derived
-				node, err := remapBoundExpression(derived.Definition, ref, nil)
+				node, err := stored.RemapExpression(derived.Definition, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = retagBoundTypes(view, node, typ, collation)
+				node, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
 				derived.Definition = node
-				node, err = remapBoundExpression(derived.Execution, ref, nil)
+				node, err = stored.RemapExpression(derived.Execution, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, _, err = retagBoundTypes(view, node, typ, collation)
+				node, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -246,19 +247,19 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			}
 			if predicate := definition.Predicate; predicate != nil {
 				p := *predicate
-				node, err := remapBoundExpression(p.Definition, ref, nil)
+				node, err := stored.RemapExpression(p.Definition, ref, nil)
 				if err != nil {
 					return err
 				}
-				p.Definition, _, err = retagBoundTypes(view, node, typ, collation)
+				p.Definition, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
-				node, err = remapBoundExpression(p.Execution, ref, nil)
+				node, err = stored.RemapExpression(p.Execution, ref, nil)
 				if err != nil {
 					return err
 				}
-				p.Execution, _, err = retagBoundTypes(view, node, typ, collation)
+				p.Execution, _, err = stored.RetagTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -291,12 +292,12 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 		if d.View == nil {
 			continue
 		}
-		definition, err := remapFrozenPresentation(view, viewOf(d), mapping, ref, typ, collation)
+		definition, err := stored.RemapView(view, stored.ViewOf(d), mapping, ref, typ, collation)
 		if err != nil {
 			return err
 		}
 		copy := *d
-		copy.View = viewPayloadOf(definition)
+		copy.View = stored.ViewPayload(definition)
 		next.SetDescriptor(address, &copy)
 	}
 	return nil
@@ -316,16 +317,16 @@ func (e *Engine) remapViewRuleOIDs(next *catalog.State) error {
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
 		if view, ok := descriptor.(*catalog.Relation); ok && view.View != nil {
-			if viewOf(view).RuleOID() == 0 {
+			if stored.ViewOf(view).RuleOID() == 0 {
 				return fmt.Errorf("stuntgres: invalid imported view rule identity")
 			}
-			reserved[viewOf(view).RuleOID()] |= ruleOID
+			reserved[stored.ViewOf(view).RuleOID()] |= ruleOID
 			views = append(views, view)
 		}
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].Address().ObjectID < views[j].Address().ObjectID })
 	for _, view := range views {
-		rule := viewOf(view).RuleOID()
+		rule := stored.ViewOf(view).RuleOID()
 		if reserved[rule]&(descriptorOID|claimedOID) != 0 {
 			for {
 				candidate, err := e.catalog.allocateOIDLocked()
@@ -338,10 +339,8 @@ func (e *Engine) remapViewRuleOIDs(next *catalog.State) error {
 				rule = candidate
 				break
 			}
-			definition := *viewOf(view)
-			definition.rule = rule
 			replacement := *view
-			replacement.View = &definition
+			replacement.View = stored.ViewOf(view).With(func(p *stored.ViewParts) { p.Rule = rule })
 			next.SetDescriptor(view.Address(), &replacement)
 		}
 		reserved[rule] |= ruleOID | claimedOID

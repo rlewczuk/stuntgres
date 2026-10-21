@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -43,7 +44,7 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefini
 			if action.binding.Ref != (ids.ObjectRef{}) {
 				address := action.binding.Ref.Address
 				provider, ok := view.Relation(address)
-				if !ok || !storedReferenceEpochValid(view, d, action.binding.Ref) || provider == nil {
+				if !ok || !stored.ReferenceEpochValid(view, d, action.binding.Ref) || provider == nil {
 					return fmt.Errorf("stuntgres: invalid rule action target")
 				}
 			}

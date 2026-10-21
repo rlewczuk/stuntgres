@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -202,7 +203,7 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 			if dependent {
 				continue
 			}
-			expression, err := remapBoundExpression(c.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
+			expression, err := stored.RemapExpression(c.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}
@@ -232,12 +233,12 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 			if attribute == target.SubID {
 				continue
 			}
-			planned, err := remapBoundExpression(definition.Planned, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
+			planned, err := stored.RemapExpression(definition.Planned, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}
 			definition.Planned = planned
-			node, err := remapBoundExpression(definition.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
+			node, err := stored.RemapExpression(definition.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}

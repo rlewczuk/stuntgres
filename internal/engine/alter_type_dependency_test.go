@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 )
 
 func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
@@ -71,9 +72,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				next := *originalView
 				next.ObjectAddress.ObjectID, next.ObjectName, next.ObjectRevision = oid, "late_view", revision
 				next.RowType = 0
-				definition := *viewOf(originalView)
-				definition.rule = rule
-				next.View = &definition
+				next.View = stored.ViewOf(originalView).With(func(p *stored.ViewParts) { p.Rule = rule })
 				next.Columns = append([]catalog.Column(nil), originalView.Columns...)
 				for i := range next.Columns {
 					next.Columns[i].OriginTable = uint32(oid)

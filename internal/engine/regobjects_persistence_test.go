@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -157,12 +158,12 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 	if err := typedef.ValidateCollationProvider(view, ref); err == nil {
 		t.Fatal("fixture's unsupported comparison provider became executable")
 	}
-	if err := validateStoredCollationDependency(view, ref, literal); err != nil {
+	if err := stored.ValidateCollationDependency(view, ref, literal); err != nil {
 		t.Fatal("scalar collation identity requires comparison capability", err)
 	}
 	// Even the very same alias Const cannot authorize an actual collation use.
 	literal.Usage.Collation.ID = 963
-	if err := validateStoredCollationDependency(view, ref, literal); err == nil {
+	if err := stored.ValidateCollationDependency(view, ref, literal); err == nil {
 		t.Fatal("identity reference bypassed comparison validation")
 	}
 	arrayType, _ := view.LookupType(typ.AssociatedArray())
@@ -171,11 +172,11 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	opaque := plan.LiteralExpr{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
-	if err := validateStoredCollationDependency(view, ref, opaque); err == nil {
+	if err := stored.ValidateCollationDependency(view, ref, opaque); err == nil {
 		t.Fatal("opaque array mistaken for scalar collation identity")
 	}
 	ref.Address.SubID = 1
-	if err := validateStoredCollationDependency(view, ref, literal); err == nil {
+	if err := stored.ValidateCollationDependency(view, ref, literal); err == nil {
 		t.Fatal("attribute address accepted as collation identity")
 	}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -19,12 +20,12 @@ func TestViewDistinctOnFrameOwnedSourceRendering(t *testing.T) {
 			run(t, e, q)
 		}
 		ref := roleTableRef(t, e, "v")
-		definition := viewOf(e.catalog.state.MustRelation(ref.Address))
+		definition := stored.ViewOf(e.catalog.state.MustRelation(ref.Address))
 		for _, added := range []bool{false, true} {
 			if added {
 				run(t, e, "ALTER TABLE only_key ADD COLUMN later INT")
 			}
-			text, err := definition.selectSQL(context.Background(), e.CatalogRead(), viewPresentation{})
+			text, err := definition.SelectSQL(context.Background(), e.CatalogRead(), viewPresentation{})
 			if err != nil {
 				t.Fatal(key, added, err)
 			}

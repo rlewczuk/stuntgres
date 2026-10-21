@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
@@ -134,12 +135,12 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 			t.Fatal("captured source end root did not distinguish deleted and live versions")
 		}
 		aliases := 0
-		for _, leaf := range viewOf(outer).Sources() {
-			view, err := scope.AcquireDataView(leaf.ref)
+		for _, leaf := range stored.ViewOf(outer).Sources() {
+			view, err := scope.AcquireDataView(leaf.Ref)
 			if err != nil || view.Load() != snapshot {
-				t.Fatal("source/alias recaptured separately", leaf.ref, err)
+				t.Fatal("source/alias recaptured separately", leaf.Ref, err)
 			}
-			if leaf.ref.Address == inner.Address() {
+			if leaf.Ref.Address == inner.Address() {
 				aliases++
 			}
 		}

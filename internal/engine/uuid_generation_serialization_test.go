@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -30,7 +31,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 			// Repeated serialization exercises re-inference without relying on
 			// incidental printer wording or requiring a provider session.
 			for round := range 3 {
-				emitted, err := defaultSQL(ctx, e.CatalogRead(), node)
+				emitted, err := stored.DefaultSQL(ctx, e.CatalogRead(), node)
 				if err != nil {
 					t.Fatal(err)
 				}

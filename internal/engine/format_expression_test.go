@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 
 	"stuntgres/internal/engine/functions"
@@ -98,19 +99,19 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, original, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := newViewRenderer(&viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages})
-	renderer.frame = b.FrameID()
-	stored, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	renderer := stored.NewQueryRenderer(stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}))
+	renderer.Frame = b.FrameID()
+	persisted, err := renderer.ExpressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}
-	replay, err := parser.Parse("SELECT " + stored)
+	replay, err := parser.Parse("SELECT " + persisted)
 	if err != nil {
-		t.Fatal(stored, err)
+		t.Fatal(persisted, err)
 	}
 	call := replay[0].(*parser.Select).Targets[0].(parser.FunctionExpr)
 	if !call.Variadic {
-		t.Fatalf("lost raw VARIADIC in %s", stored)
+		t.Fatalf("lost raw VARIADIC in %s", persisted)
 	}
 	bound, err := b.Bind(call, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
@@ -118,7 +119,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	}
 	value, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	if err != nil {
-		t.Fatal(stored, err)
+		t.Fatal(persisted, err)
 	}
 	text, err := value.Text()
 	if err != nil || text != "b/a" {
@@ -138,20 +139,20 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			stored, err := (scalarRenderer{}).sql(ctx, e.CatalogRead(), node)
+			persisted, err := (scalarRenderer{}).SQL(ctx, e.CatalogRead(), node)
 			if err != nil {
 				t.Fatal(err)
 			}
-			replay, err := parser.Parse("SELECT " + stored)
+			replay, err := parser.Parse("SELECT " + persisted)
 			if err != nil {
-				t.Fatal(stored, err)
+				t.Fatal(persisted, err)
 			}
 			rebound, err := binder.Bind(replay[0].(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
-				t.Fatal(stored, err)
+				t.Fatal(persisted, err)
 			}
 			for _, current := range []expr.Expr{node, rebound} {
-				rendered, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, current, pgRenderParent{})
+				rendered, err := (pgRenderer{View: e.CatalogRead()}).SQL(ctx, current, pgRenderParent{})
 				if err != nil || rendered != tc.want {
 					t.Fatal("ANY provenance/replay deparse", rendered, tc.want, err)
 				}
@@ -200,7 +201,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 		t.Fatal("ordered argument identity")
 	}
 	types := formatUnitTypes()
-	retained, changed, err := retagBoundTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := stored.RetagTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -229,7 +230,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	}
 	node := bound.(functions.Format)
 	types := formatUnitTypes()
-	retained, changed, err := retagBoundTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	retained, changed, err := stored.RetagTypes(b.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

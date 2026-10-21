@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/stored"
 )
 
 func validateTypeProviders(view catalog.Read, d catalog.Descriptor) error {
@@ -9,7 +10,7 @@ func validateTypeProviders(view catalog.Read, d catalog.Descriptor) error {
 	case *catalog.Type:
 		if d.SQLType.IsDomain() {
 			base := d.SQLType.DomainBase()
-			if err := validateUsageCollation(view, base); err != nil {
+			if err := stored.ValidateUsageCollation(view, base); err != nil {
 				return err
 			}
 			actual, ok := view.LookupType(base.Type.ID())
@@ -25,7 +26,7 @@ func validateTypeProviders(view catalog.Read, d catalog.Descriptor) error {
 		}
 	case *catalog.Relation:
 		for _, c := range d.Columns {
-			if err := validateUsageCollation(view, c.Usage); err != nil {
+			if err := stored.ValidateUsageCollation(view, c.Usage); err != nil {
 				return err
 			}
 			actual, ok := view.LookupType(c.Usage.Type.ID())

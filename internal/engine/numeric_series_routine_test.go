@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -114,7 +115,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
 			}
-			remapped, _, err := retagBoundTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, _, err := stored.RetagTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == nil {
 					return nil
 				}
@@ -142,7 +143,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			// Rendering/rebinding must preserve the short declaration, not emit a
 			// private synthesized step that changes the original callable identity.
-			text, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, pgRenderParent{})
+			text, err := (pgRenderer{View: e.CatalogRead()}).SQL(context.Background(), node, pgRenderParent{})
 			if err != nil {
 				t.Fatal("render original carrier", err)
 			}

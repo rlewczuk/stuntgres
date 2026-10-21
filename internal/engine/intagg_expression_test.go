@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -105,12 +106,12 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 		t.Fatal("empty group", value, err)
 	}
 	root := &plan.AggregateNode{Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{call}}
-	refs := pgDependRefs{ctx: ctx, catalog: e.CatalogRead()}
-	refs.query(root)
-	if refs.err != nil {
-		t.Fatal(refs.err)
+	refs := pgDependRefs{Context: ctx, Catalog: e.CatalogRead()}
+	refs.Query(root)
+	if refs.Err != nil {
+		t.Fatal(refs.Err)
 	}
-	if _, ok := refs.addresses[call.Ref.Address]; !ok {
+	if _, ok := refs.Addresses[call.Ref.Address]; !ok {
 		t.Fatal("plan.AggregateNode lost procedure dependency")
 	}
 }
@@ -126,7 +127,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	if analyze.SameGroupExpression(n, builtin) || analyze.SameQuerySetOccurrence(n, builtin) {
 		t.Fatal("enum/builtin identity collapsed")
 	}
-	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), n)
+	refs, err := stored.ExpressionDependRefs(context.Background(), e.CatalogRead(), n)
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("enum dependency", refs, err)
 	}
@@ -246,7 +247,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		return old
 	}
 	root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "a", Usage: call.Provider.ResultUsage()}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{call}}
-	mapped, err := remapViewQuery(view, root, ref, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	mapped, err := stored.RemapViewQuery(view, root, ref, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,11 +255,11 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	if remapped.Procedure != next.Get(mapping[call.Ref.Address]) || remapped.Ref != ref(call.Ref) || remapped.Provider == call.Provider {
 		t.Fatal("aggregate remap authority", remapped)
 	}
-	node, err := remapBoundExpression(enum, ref, nil)
+	node, err := stored.RemapExpression(enum, ref, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	node, _, err = retagBoundTypes(view, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	node, _, err = stored.RetagTypes(view, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +267,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	if n.Ref != ref(enum.Ref) || n.Procedure != next.Get(n.Ref.Address) {
 		t.Fatal("enum remap authority", n.Ref)
 	}
-	text, err := (pgRenderer{view: view}).sql(context.Background(), n, pgRenderParent{})
+	text, err := (pgRenderer{View: view}).SQL(context.Background(), n, pgRenderParent{})
 	if err != nil || !strings.Contains(text, "int_array_enum") || strings.Contains(text, "unnest") {
 		t.Fatal("wrapper renderer", text, err)
 	}

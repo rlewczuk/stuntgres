@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -200,16 +201,16 @@ func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogSta
 				if key.Derived == nil {
 					key.Attribute = c.Attributes[j]
 				} else {
-					node, err := remapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, stage.Base)
+					node, err := stored.RemapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, stage.Base)
 					if err != nil {
 						return err
 					}
-					execution, err := remapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, stage.Base)
+					execution, err := stored.RemapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, stage.Base)
 					if err != nil {
 						return err
 					}
 					derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: d.Attributes}
-					if _, err := (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), stage.Base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.Dependencies}).sql(op.Context(), stage.Base, node); err != nil {
+					if _, err := (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: e.roles.read(e.catalog.owner(), stage.Base, e.operationRolesLocked(op))}, Owner: d, Dependencies: &derived.Dependencies}).SQL(op.Context(), stage.Base, node); err != nil {
 						return err
 					}
 					key.Derived = derived
@@ -357,9 +358,9 @@ func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 				return err
 			}
 			if node != nil {
-				labels[i], err = (pgRenderer{view: catalog, relation: parent, output: output}).sql(ctx, node, pgRenderParent{})
+				labels[i], err = (pgRenderer{View: catalog, Relation: parent, Output: output}).SQL(ctx, node, pgRenderParent{})
 			} else {
-				labels[i], err = deparseAttribute(parent, attribute)
+				labels[i], err = stored.DeparseAttribute(parent, attribute)
 			}
 			if err != nil {
 				return err
@@ -446,37 +447,4 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 		return uniqueDiagnostic(ctx, parent, index, key, schema, output, allowed, building, catalog)
 	}
 	return nil
-}
-
-func (r pgRenderer) uniqueConstraintSQL(parent *catalog.Relation, c *catalog.UniqueConstraint) (string, error) {
-	index, ok := r.view.Relation(c.Index)
-	if !ok || index.SQLIndex == nil {
-		return "", fmt.Errorf("stuntgres: missing unique deparse index")
-	}
-	labels := make([]string, len(c.Attributes)+len(index.SQLIndex.Include))
-	for i, attribute := range c.Attributes {
-		label, err := r.attribute(parent, attribute)
-		if err != nil {
-			return "", err
-		}
-		labels[i] = label
-	}
-	prefix := "UNIQUE"
-	if c.Primary {
-		prefix = "PRIMARY KEY"
-	} else if c.NullsNotDistinct {
-		prefix += " NULLS NOT DISTINCT"
-	}
-	text := prefix + " (" + strings.Join(labels[:len(c.Attributes)], ", ") + ")"
-	if len(index.SQLIndex.Include) != 0 {
-		for i, attribute := range index.SQLIndex.Include {
-			label, err := r.attribute(parent, attribute)
-			if err != nil {
-				return "", err
-			}
-			labels[len(c.Attributes)+i] = label
-		}
-		text += " INCLUDE (" + strings.Join(labels[len(c.Attributes):], ", ") + ")"
-	}
-	return text, nil
 }

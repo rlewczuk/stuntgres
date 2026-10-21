@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -90,7 +91,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 			replacement = d
 		}
 	}
-	rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == text {
 			return replacement
 		}
@@ -180,8 +181,8 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	args := append([]expr.Expr(nil), node.Args...)
 	stringPlan := node.Plan
 	for _, pretty := range []bool{false, true} {
-		renderer := pgRenderer{view: e.CatalogRead(), relation: relation, pretty: pretty}
-		got, err := renderer.sql(context.Background(), node, pgRenderParent{})
+		renderer := pgRenderer{View: e.CatalogRead(), Relation: relation, Pretty: pretty}
+		got, err := renderer.SQL(context.Background(), node, pgRenderParent{})
 		want := "btrim((v)::text, (s)::text)"
 		if pretty {
 			want = "btrim(v::text, s::text)"
@@ -221,7 +222,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	if err != nil || grouped.(functions.Binary).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("aggregate rewrite lost syntax", grouped, err)
 	}
-	remapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
+	remapped, err := stored.RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
 	if err != nil || remapped.(functions.Binary).Syntax != parser.SQLFunctionSyntax ||
 		remapped.(functions.Binary).Args[0].(plan.ColumnExpr).Slot != 1 || node.Args[0].(plan.ColumnExpr).Slot != 0 {
 		t.Fatal("remap lost syntax or mutated original children", remapped, err)
@@ -232,7 +233,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 			replacement = d
 		}
 	}
-	rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	rebound, changed, err := stored.RetagTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == sqltype.Bytea {
 			return replacement
 		}
@@ -245,13 +246,13 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	if err != nil || folded.(functions.Binary).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("preflight lost syntax", folded, err)
 	}
-	got, err := (scalarRenderer{owner: relation}).sql(context.Background(), e.CatalogRead(), node)
+	got, err := (scalarRenderer{Owner: relation}).SQL(context.Background(), e.CatalogRead(), node)
 	if err != nil || got != `TRIM(LEADING "s" FROM "v")` {
 		t.Fatal("canonical replay lost special binary TRIM", got, err)
 	}
 	invalid := node
 	invalid.Syntax = parser.FunctionSyntax(255)
-	if _, err := (scalarRenderer{owner: relation}).sql(context.Background(), e.CatalogRead(), invalid); err == nil {
+	if _, err := (scalarRenderer{Owner: relation}).SQL(context.Background(), e.CatalogRead(), invalid); err == nil {
 		t.Fatal("stored binary node accepted unrelated special syntax")
 	}
 }

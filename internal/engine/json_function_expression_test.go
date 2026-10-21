@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -134,7 +135,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	view := engine.CatalogRead()
 	original := jsonFunctionUnitMarker(t, b.Type(sqltype.JSON), b.Type(sqltype.Text), `{"b":1,"a":2}`, 20)
 	fresh := jsonObjectUnitTypes()
-	mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	mapped, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -161,7 +162,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if walked != 1 || exec.PlannedVolatility(original) != expr.Immutable || !analyze.SameGroupExpression(original, original) || exec.QuerySetDepth(original) != 1 {
 		t.Fatal("closed traversal", walked)
 	}
-	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+	clone, err := stored.RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil || !analyze.SameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}
@@ -173,7 +174,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if err != nil || !exec.SourceReturnsSet(folded) {
 		t.Fatal("conditional folded set", folded, err)
 	}
-	text, err = (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
+	text, err = (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
 	if err != nil || !strings.Contains(text, "json_object_keys(") || !strings.Contains(text, "::json") {
 		t.Fatal("symbolic rendering", text, err)
 	}

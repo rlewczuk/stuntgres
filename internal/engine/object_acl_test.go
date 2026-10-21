@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -171,7 +172,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 		n.Args[i] = plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}
 	}
 	destination := New().CatalogRead()
-	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := stored.RetagTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		typ, _ := destination.LookupType(d.ID())
 		return typ
 	})
@@ -187,11 +188,11 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			t.Fatal("foreign argument carrier retained", i)
 		}
 	}
-	remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+	remapped, err := stored.RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || remapped.(functions.ObjectACL).Validate() != nil {
 		t.Fatal("stored remap", err)
 	}
-	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
+	rewritten, changed, err := stored.MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
 		if literal, ok := child.(plan.LiteralExpr); ok && literal.Value.Type().ID() == sqltype.Oid {
 			literal.Value, _ = sqltype.OIDValue(oid, 42)
 			return literal, true, nil

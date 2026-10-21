@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -433,16 +434,16 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 	}
 	protocolLiterals(t, b, want)
 	frames, queries := analyze.CollectQueryFrames(query.Root)
-	definition := &viewDefinition{syntax: raw, query: query, frames: frames, queries: queries, namespaces: b.Capture.Namespaces, literals: b.Capture.Literals, columns: b.Capture.Columns, castUsages: b.Capture.CastUsages}
-	if err := definition.validateLiterals(b.BindingCatalog()); err != nil {
+	definition := stored.NewView(stored.ViewParts{Syntax: raw, Query: query, Frames: frames, Queries: queries, Namespaces: b.Capture.Namespaces, Literals: b.Capture.Literals, Columns: b.Capture.Columns, CastUsages: b.Capture.CastUsages})
+	if err := definition.ValidateLiterals(b.BindingCatalog()); err != nil {
 		t.Fatal(err)
 	}
 	fresh := jsonObjectUnitTypes()
-	remapped, err := remapFrozenPresentation(b.BindingCatalog(), definition, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] }, nil)
+	remapped, err := stored.RemapView(b.BindingCatalog(), definition, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(remapped.Literals()) != len(want) || !reflect.DeepEqual(remapped.columns, definition.columns) {
+	if len(remapped.Literals()) != len(want) || !reflect.DeepEqual(remapped.Columns(), definition.Columns()) {
 		t.Fatal("remap changed occurrence identity")
 	}
 	for path, original := range definition.Literals() {
@@ -470,7 +471,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, wrapper, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	mapped, err := remapBoundExpression(wrapper, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+	mapped, err := stored.RemapExpression(wrapper, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +481,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	}
 	// This deliberately non-installed identity must still fail validation.
 	// A cutover to the promoted bare UUID node would wrongly lose this guard.
-	if err := validateInstalledUUIDOssp(got, b.BindingCatalog()); err == nil {
+	if err := stored.ValidateInstalledUUIDOssp(got, b.BindingCatalog()); err == nil {
 		t.Fatal("lost installed identity validation")
 	}
 	if len(b.Capture.Literals) != 0 || len(b.Capture.CastUsages) != 0 {

@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -220,7 +221,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 			t.Fatal("foreign element generation")
 		}
 	}
-	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
+	refs, err := stored.ExpressionDependRefs(ctx.Context, e.CatalogRead(), n)
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("dependency", refs, err)
 	}
@@ -251,7 +252,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if children != 1 || !analyze.SameGroupExpression(n, n) {
 		t.Fatal("walker/group identity", children)
 	}
-	stored, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), n)
+	stored, err := (scalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), n)
 	if err != nil || !strings.Contains(stored, "daitch_mokotoff") {
 		t.Fatal("stored renderer", stored, err)
 	}
@@ -315,7 +316,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
-	mapped, err := remapBoundExpression(old, func(ref ids.ObjectRef) ids.ObjectRef {
+	mapped, err := stored.RemapExpression(old, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address == ext.Members[0] {
 			ref.Address = imported.Members[0]
 		}
@@ -326,7 +327,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped, changed, err := retagBoundTypes(target.CatalogRead(), mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := stored.RetagTypes(target.CatalogRead(), mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		owned, ok := target.CatalogRead().LookupType(d.ID())
 		if !ok {
 			t.Fatal("missing target type", d.ID())
@@ -370,10 +371,10 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if err != nil || text != "{160000,460000}" {
 		t.Fatal("remapped output", text, err)
 	}
-	if _, err := (scalarRenderer{}).sql(context.Background(), target.CatalogRead(), old); err == nil {
+	if _, err := (scalarRenderer{}).SQL(context.Background(), target.CatalogRead(), old); err == nil {
 		t.Fatal("foreign stored expression admitted")
 	}
-	if _, err := (scalarRenderer{}).sql(context.Background(), target.CatalogRead(), n); err != nil {
+	if _, err := (scalarRenderer{}).SQL(context.Background(), target.CatalogRead(), n); err != nil {
 		t.Fatal("remapped stored expression", err)
 	}
 }

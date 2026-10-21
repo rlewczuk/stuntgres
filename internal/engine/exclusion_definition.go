@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -220,9 +221,9 @@ func exclusionDiagnostic(ctx context.Context, parent, index *catalog.Relation, k
 		if node != nil {
 			// Index-key syntax groups a top-level operator without imposing the
 			// fully parenthesized catalog renderer on casts inside functions.
-			labels[i], err = (pgRenderer{view: catalog, relation: parent, pretty: true, output: output}).sql(ctx, node, pgRenderParent{precedence: 6})
+			labels[i], err = (pgRenderer{View: catalog, Relation: parent, Pretty: true, Output: output}).SQL(ctx, node, pgRenderParent{Precedence: 6})
 		} else {
-			labels[i], err = deparseAttribute(parent, attribute)
+			labels[i], err = stored.DeparseAttribute(parent, attribute)
 		}
 		if err != nil {
 			return err

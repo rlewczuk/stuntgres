@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -96,7 +97,7 @@ func partitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 		var node expr.Expr
 		if key.Derived != nil {
 			var err error
-			node, err = remapLikeExpression(&in, key.Derived.Definition, relation, view)
+			node, err = stored.RemapLikeExpression(&in, key.Derived.Definition, relation, view)
 			if err != nil {
 				return false, err
 			}

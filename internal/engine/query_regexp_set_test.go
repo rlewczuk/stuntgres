@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -418,7 +419,7 @@ func TestRegexpSetWalks(t *testing.T) {
 		t.Fatal(err)
 	}
 	rewritten, err := plan.RewriteQueryExpressions(root, func(bound expr.Expr) (expr.Expr, bool, error) {
-		return mapBoundExpression(view, bound, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
+		return stored.MapExpression(view, bound, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			literal, ok := node.(plan.LiteralExpr)
 			if !ok || literal.Value.IsNull() {
 				return node, false, nil

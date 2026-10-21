@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 )
 
 // Called under Engine.mu after identity/schema analysis, before execution ACLs.
@@ -66,19 +67,19 @@ func checkRowSecurityRuleProgram(scope *StatementScope, auth AuthorizationView, 
 	return nil
 }
 
-// validateViewReadGraph has already rejected active-path cycles. Each layer's
+// stored.ValidateViewReadGraph has already rejected active-path cycles. Each layer's
 // invoker is the executing user, not the owner of an enclosing definer view.
 func checkRowSecuritySource(auth AuthorizationView, relation *catalog.Relation, principal, invoker authorization.PrincipalRef) error {
 	if relation.RelationKind != catalog.ViewRelation {
 		return access.RowSecuritySettingGuard(false, auth.Roles, relation, principal)
 	}
 	principal = relation.Owner
-	if viewOf(relation).Invoker() {
+	if stored.ViewOf(relation).Invoker() {
 		principal = invoker
 	}
-	for _, source := range viewOf(relation).Sources() {
-		child, ok := auth.Catalog.Relation(source.ref.Address)
-		if !ok || !storedViewReferenceValid(auth.Catalog, relation, source.ref) {
+	for _, source := range stored.ViewOf(relation).Sources() {
+		child, ok := auth.Catalog.Relation(source.Ref.Address)
+		if !ok || !stored.ViewReferenceValid(auth.Catalog, relation, source.Ref) {
 			return ids.ErrCatalogReplaced
 		}
 		if err := checkRowSecuritySource(auth, child, principal, invoker); err != nil {

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -220,7 +221,7 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 			if original.Address != captured.Address() {
 				continue
 			}
-			if !storedReferenceEpochValid(view, parent, original) {
+			if !stored.ReferenceEpochValid(view, parent, original) {
 				failure = ids.ErrCatalogReplaced
 				return
 			}
@@ -553,7 +554,7 @@ func composeRuleAction(auth ruleAuthority, original analyze.Binding, event strin
 		return tree.query(root)
 	}
 	mapTargets := func(targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
-		return mapRuleAssignmentTargets(targets, mapper, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return stored.MapRuleAssignmentTargets(targets, mapper, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	b.ArrayTargets, err = mapTargets(b.ArrayTargets)
 	if err != nil {
@@ -1101,7 +1102,7 @@ func refreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalo
 		return next, err
 	}
 	mapTargets := func(targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
-		return mapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return stored.MapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	b.ArrayTargets, err = mapTargets(b.ArrayTargets)
 	if err != nil {

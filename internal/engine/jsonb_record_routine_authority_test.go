@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -215,7 +216,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("foreign same-OID authority admitted")
 			}
-			mapped, _, err := retagBoundTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			mapped, _, err := stored.RetagTypes(other.CatalogRead(), call, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == nil || old.IsDeferredRecord() {
 					return old
 				}
@@ -274,7 +275,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	}
 	owner, revision := captured.Owner, captured.Revision()
 	identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
-	grafted, _, err := mapBoundExpression(view, call, identity, nil, recipe, nil)
+	grafted, _, err := stored.MapExpression(view, call, identity, nil, recipe, nil)
 	if err != nil {
 		t.Fatal("graft actual stored recipe", err)
 	}
@@ -295,7 +296,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retagged, _, err := retagBoundTypes(view, rebuilt, identity)
+	retagged, _, err := stored.RetagTypes(view, rebuilt, identity)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,8 +312,8 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 		if err := exec.AdmitRoutineCall(&evaluation, retained, false, false); err != nil {
 			t.Fatal("stored original manifest admission", err)
 		}
-		missing := make([]catalog.ExpressionDependency, 0, len(viewOf(recipe).Dependencies()))
-		for _, dependency := range viewOf(recipe).Dependencies() {
+		missing := make([]catalog.ExpressionDependency, 0, len(stored.ViewOf(recipe).Dependencies()))
+		for _, dependency := range stored.ViewOf(recipe).Dependencies() {
 			if dependency.Ref.Address != captured.Address() {
 				missing = append(missing, dependency)
 			}

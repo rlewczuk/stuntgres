@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 )
 
 // relationDumpContext is what every relation entry needs from the shared
@@ -139,13 +140,13 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 	// Materialized definitions preserve their analyzed presentation
 	// without synthetic source aliases. Their explicit empty visibility
 	// path below qualifies user types for portable, executable dump SQL.
-	presentation := viewPresentation{columns: r.Columns, deparse: r.RelationKind == catalog.MaterializedViewRelation}
-	if presentation.deparse {
+	presentation := viewPresentation{Columns: r.Columns, Deparse: r.RelationKind == catalog.MaterializedViewRelation}
+	if presentation.Deparse {
 		// A nil path is diagnostic naming's unqualified mode. Dump's
 		// canonical materialized renderer must qualify user types too.
-		presentation.path = []ids.ObjectAddress{}
+		presentation.Path = []ids.ObjectAddress{}
 	}
-	body, err := viewOf(r).selectSQL(ctx, c.catalogView, presentation)
+	body, err := stored.ViewOf(r).SelectSQL(ctx, c.catalogView, presentation)
 	if err != nil {
 		return err
 	}
@@ -158,9 +159,9 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		columns = " (" + strings.Join(labels, ", ") + ")"
 	}
 	options := ""
-	if len(viewOf(r).options) != 0 {
-		installed := make([]string, len(viewOf(r).options))
-		for i, option := range viewOf(r).options {
+	if len(stored.ViewOf(r).Options()) != 0 {
+		installed := make([]string, len(stored.ViewOf(r).Options()))
+		for i, option := range stored.ViewOf(r).Options() {
 			name, value, _ := strings.Cut(option, "=")
 			installed[i] = catalog.QuoteIdentifier(name) + "=" + dump.CommentLiteral(value)
 		}
@@ -200,17 +201,17 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		}
 		sql += "ALTER MATERIALIZED VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + " DEPENDS ON EXTENSION " + catalog.QuoteIdentifier(extension.Name()) + ";\n"
 	}
-	for _, leaf := range viewOf(r).Sources() {
-		if err := addPredecessor(leaf.ref.Address); err != nil {
+	for _, leaf := range stored.ViewOf(r).Sources() {
+		if err := addPredecessor(leaf.Ref.Address); err != nil {
 			return err
 		}
 	}
-	for _, dependency := range viewOf(r).Dependencies() {
+	for _, dependency := range stored.ViewOf(r).Dependencies() {
 		if err := addPredecessor(dependency.Ref.Address); err != nil {
 			return err
 		}
 	}
-	for _, literal := range viewOf(r).Literals() {
+	for _, literal := range stored.ViewOf(r).Literals() {
 		if err := regobj.ClassReplayReferences(c.originalCatalog, literal, addPredecessor); err != nil {
 			return err
 		}

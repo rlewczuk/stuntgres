@@ -30,9 +30,9 @@ func (dumpPresenter) RoutineIdentity(view catalog.Read, oid ids.OID) (catalog.Ro
 }
 
 func (dumpPresenter) DomainDefault(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
-	return (scalarRenderer{currentRowShape: true}).sql(ctx, view, node)
+	return (scalarRenderer{CurrentRowShape: true}).SQL(ctx, view, node)
 }
 
 func (dumpPresenter) DomainCheck(ctx context.Context, view catalog.Read, value sqltype.Usage, node expr.Expr) (string, error) {
-	return (scalarRenderer{domainValue: &value}).sql(ctx, view, node)
+	return (scalarRenderer{DomainValue: &value}).SQL(ctx, view, node)
 }

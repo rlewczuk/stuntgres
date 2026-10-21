@@ -80,7 +80,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 		if partitionReplaySeparateConstraint(view, index) {
 			continue
 		}
-		text, err := (pgRenderer{view: view}).uniqueConstraintSQL(t.descriptor, primary)
+		text, err := (pgRenderer{View: view}).UniqueConstraintSQL(t.descriptor, primary)
 		if err != nil {
 			return err
 		}

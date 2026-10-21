@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -51,10 +52,10 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			} else if score, err := value.Integer(); err != nil || score != 4 {
 				t.Fatal(score, err)
 			}
-			if err := validateInstalledSoundex(n, e.CatalogRead()); err != nil {
+			if err := stored.ValidateInstalledSoundex(n, e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
+			refs, err := stored.ExpressionDependRefs(ctx.Context, e.CatalogRead(), n)
 			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 				t.Fatal(refs, err)
 			}
@@ -96,7 +97,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				state.SetDescriptor(n.Ref.Address, &bad)
 				forged := n
 				forged.Procedure = &bad
-				if err := validateInstalledSoundex(forged, e.catalog.read(state)); err == nil {
+				if err := stored.ValidateInstalledSoundex(forged, e.catalog.read(state)); err == nil {
 					t.Fatal("forged identity", bad)
 				}
 			}
@@ -107,15 +108,15 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				} else {
 					stale.Ref.Epoch++
 				}
-				if _, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), stale); err == nil {
+				if _, err := (scalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), stale); err == nil {
 					t.Fatal("foreign/stale reference")
 				}
 			}
-			retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+			retagged, _, err := stored.RetagTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := validateInstalledSoundex(retagged.(plan.InstalledSoundexExpr), e.CatalogRead()); err != nil {
+			if err := stored.ValidateInstalledSoundex(retagged.(plan.InstalledSoundexExpr), e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			folded, _, err := exec.SimplifyConditional(ctx, n, false)
@@ -163,7 +164,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
 					t.Fatal("stale remapped authority", n.Ref)
 				}
-				if err := validateInstalledSoundex(n, view); err != nil {
+				if err := stored.ValidateInstalledSoundex(n, view); err != nil {
 					t.Fatal(err)
 				}
 				value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
@@ -209,7 +210,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 			if property.Volatility != expr.Immutable && plan.GenerationImmutable(modified) {
 				t.Fatal("nonimmutable child admitted", property)
 			}
-			retagged, _, err := retagBoundTypes(e.CatalogRead(), modified, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+			retagged, _, err := stored.RetagTypes(e.CatalogRead(), modified, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -217,7 +218,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 			if got.Properties() != property || got.Args[0].Properties() != property {
 				t.Fatal("retag discarded dependence", property, got.Properties())
 			}
-			if err := validateInstalledSoundex(got, e.CatalogRead()); err != nil {
+			if err := stored.ValidateInstalledSoundex(got, e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 		}

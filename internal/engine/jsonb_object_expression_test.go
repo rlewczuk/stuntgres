@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -41,7 +42,7 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 			t.Fatal(err)
 		}
 		original := functions.Binary{Info: expr.Info{Usage: types[sqltype.JSONB].Usage()}, Plan: plan, Args: args}
-		rebound, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
+		rebound, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
@@ -57,21 +58,21 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if err != nil || text != `{"a": "1", "b": "2"}` {
 			t.Fatal(text, err)
 		}
-		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		mapped, err := stored.RemapExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !analyze.SameGroupExpression(original, mapped) {
 			t.Fatal(mapped, err)
 		}
 		if !analyze.SameGroupExpression(original, original) {
 			t.Fatal("lost expression identity")
 		}
-		persistent, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, original)
+		persistent, err := (scalarRenderer{}).ScalarFunctionSQL(context.Background(), view, original)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !strings.HasPrefix(persistent, "pg_catalog.jsonb_object(") {
 			t.Fatal("lost symbolic call", persistent)
 		}
-		public, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
+		public, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
 		if err != nil {
 			t.Fatal(err)
 		}

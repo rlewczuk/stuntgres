@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -136,7 +137,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			for _, pretty := range []bool{false, true} {
-				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), c.node, pgRenderParent{})
+				got, err := (pgRenderer{View: view, Pretty: pretty}).SQL(context.Background(), c.node, pgRenderParent{})
 				want := c.display
 				if pretty {
 					want = c.pretty
@@ -145,7 +146,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 					t.Fatalf("display pretty=%v = %q, %v; want %q", pretty, got, err, want)
 				}
 			}
-			got, err := defaultSQL(context.Background(), view, c.node)
+			got, err := stored.DefaultSQL(context.Background(), view, c.node)
 			if err != nil || got != c.replay {
 				t.Fatalf("replay = %q, %v; want %q", got, err, c.replay)
 			}
@@ -164,11 +165,11 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		got, err := (pgRenderer{view: view}).sql(context.Background(), effect, pgRenderParent{})
+		got, err := (pgRenderer{View: view}).SQL(context.Background(), effect, pgRenderParent{})
 		if err != nil || got != "JSON_ARRAY(random(), '{}'::text ABSENT ON NULL)" {
 			t.Fatal(got, err)
 		}
-		got, err = (scalarRenderer{owner: &catalog.Relation{}}).sql(context.Background(), view, effect)
+		got, err = (scalarRenderer{Owner: &catalog.Relation{}}).SQL(context.Background(), view, effect)
 		if err != nil || got != "JSON_ARRAY(pg_catalog.random(), '{}' ABSENT ON NULL)" {
 			t.Fatal(got, err)
 		}

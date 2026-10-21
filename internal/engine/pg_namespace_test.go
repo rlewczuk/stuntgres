@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -87,7 +88,7 @@ func TestPGNamespaceShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	toast := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
-	if toast.Comment != "reserved schema for TOAST tables" || !pgDependPinned(c, nil, toast.Address()) || access.OwnershipRoot(c, toast, routine.OperatorSeeded) || !bootstrapNamespaceDumpable(toast) {
+	if toast.Comment != "reserved schema for TOAST tables" || !stored.DependPinned(c, nil, toast.Address()) || access.OwnershipRoot(c, toast, routine.OperatorSeeded) || !bootstrapNamespaceDumpable(toast) {
 		t.Fatal("actual toast seed/protected root/control baseline", toast)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -32,7 +33,7 @@ func validatePartitionDescriptor(view catalog.Read, d *catalog.Relation) error {
 			if !key.Usage.Valid() || !key.Usage.Type.Concrete() {
 				return invalid()
 			}
-			if err := validateUsageCollation(view, key.Usage); err != nil {
+			if err := stored.ValidateUsageCollation(view, key.Usage); err != nil {
 				return err
 			}
 			if key.Collation != 0 && key.Collation != key.Usage.Collation.ID {

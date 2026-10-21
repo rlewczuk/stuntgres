@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/stored"
 )
 
 func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
@@ -20,7 +21,7 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 	tableRef := catalogRef(t, e, snapshot, "retained_metadata_t")
 	oldTable := snapshot.MustRelation(tableRef.Address)
 	oldDefault := oldTable.ColumnMeta.Defaults[oldTable.Attributes[0]].Expression
-	original, err := defaultSQL(context.Background(), snapshot, oldDefault)
+	original, err := stored.DefaultSQL(context.Background(), snapshot, oldDefault)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,11 +81,11 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 			t.Fatal("replacement did not produce a genuine successor catalog")
 		}
 		assertMetadata(table.ColumnMeta.Defaults[table.Attributes[0]].Expression)
-		assertMetadata(viewOf(view).query.Root)
+		assertMetadata(stored.ViewOf(view).Query().Root)
 	}
 	// An explicitly user-held old read remains a legitimate snapshot; removal of
 	// hidden expression metadata roots must not invalidate its concrete Usage.
-	if actual, err := defaultSQL(context.Background(), snapshot, oldDefault); err != nil || actual != original {
+	if actual, err := stored.DefaultSQL(context.Background(), snapshot, oldDefault); err != nil || actual != original {
 		t.Fatal("held old definition snapshot changed", actual, original, err)
 	}
 	sessionSQL(t, owner, `INSERT INTO retained_metadata_t DEFAULT VALUES`)

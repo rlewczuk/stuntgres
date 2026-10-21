@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -147,7 +148,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		if err != nil {
 			return nil, nil, false, err
 		}
-		d.RelationKind, d.View, d.Populated = catalog.MaterializedViewRelation, viewPayloadOf(definition), !s.NoData
+		d.RelationKind, d.View, d.Populated = catalog.MaterializedViewRelation, stored.ViewPayload(definition), !s.NoData
 	}
 	d.Security.ACL = stage.creationACL(owner, ns.Address, authorization.DefaultTables)
 	if err = e.stageRowTypeLocked(stage, d); err != nil {

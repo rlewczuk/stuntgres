@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -116,7 +117,7 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	}
 	other := New()
 	read := other.CatalogRead()
-	retagged, changed, err := retagBoundTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	retagged, changed, err := stored.RetagTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil
 		}
@@ -243,7 +244,6 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 		t.Fatal("target traversal must retain bound column references", slots)
 	}
 }
-
 
 func TestArrayExpressionNullCountComposition(t *testing.T) {
 	e := New()

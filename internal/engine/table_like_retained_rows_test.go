@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 func TestTableLikeTemporaryRetainedRows(t *testing.T) {
@@ -89,7 +90,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 						t.Fatal("mapped row lacks fresh destination authority", ref)
 					}
 				}
-				if _, err := (scalarRenderer{owner: destination}).sql(context.Background(), e.stageRead(stage), node); err != nil {
+				if _, err := (scalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
 					t.Fatal("mapped analyzed/execution tree not renderable", err)
 				}
 			}
@@ -263,7 +264,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	// epoch, even when a permanent copied consumer would otherwise be valid.
 	permanent := *destination
 	permanent.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	if storedReferenceEpochValid(e.stageRead(stage), &permanent, oldRef) {
+	if stored.ReferenceEpochValid(e.stageRead(stage), &permanent, oldRef) {
 		t.Fatal("permanent consumer gained stale TEMP external authority")
 	}
 	if err := e.ValidateObjectRef(e.stageRead(stage), oldRef); err == nil {

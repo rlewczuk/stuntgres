@@ -338,7 +338,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 		}
 		definition.Dependencies = nil
 		definition.CatalogSnapshot = false
-		_, err = (scalarRenderer{aclOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, expression)
+		_, err = (scalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot}).SQL(op.Context(), auth.Catalog, expression)
 		if err != nil {
 			return fail(err)
 		}

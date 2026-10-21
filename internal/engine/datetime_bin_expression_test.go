@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -93,7 +94,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
 		}
-		next, changed, err := retagBoundTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+		next, changed, err := stored.RetagTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
@@ -169,7 +170,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if _, ok := rewritten.(functions.DatetimeBin).Args[1].(plan.GroupExpr); !ok {
 		t.Fatal("group child not rewritten")
 	}
-	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
+	mapped, err := stored.RemapExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -77,7 +78,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	if err := exec.AdmitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("foreign original body accepted")
 	}
-	remapped, _, err := retagBoundTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	remapped, _, err := stored.RetagTypes(other.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
 		}
@@ -112,11 +113,11 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	capture := func(e *Engine) []recipe {
 		view := e.CatalogRead()
 		table := view.MustRelation(roleTableRef(t, e, "body_defaults").Address)
-		stored := view.MustRelation(roleTableRef(t, e, "body_view").Address)
+		persisted := view.MustRelation(roleTableRef(t, e, "body_view").Address)
 		def := table.ColumnMeta.Defaults[table.Attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.Expression, refs: def.Dependencies},
-			{consumer: stored, node: viewOf(stored).query.Root.(*plan.ProjectNode).Expressions[0], checks: viewOf(stored).Dependencies()},
+			{consumer: persisted, node: stored.ViewOf(persisted).Query().Root.(*plan.ProjectNode).Expressions[0], checks: stored.ViewOf(persisted).Dependencies()},
 		}
 	}
 	authority := func(e *Engine) AuthorizationView {

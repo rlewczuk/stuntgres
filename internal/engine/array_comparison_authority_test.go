@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -48,7 +49,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		if input.ID != uint32(source.OID) || conflict || original.ResultUsage().Collation.ID != 0 {
 			t.Fatal("BOOL result leaked or hid input authority", input, conflict, original.ResultUsage())
 		}
-		mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, remap)
+		mapped, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, remap)
 		if err != nil || !changed {
 			t.Fatal(mapped, changed, err)
 		}
@@ -62,7 +63,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		if err != nil || truthErr != nil || truth != plan.True {
 			t.Fatal(truth, err, truthErr)
 		}
-		if _, err := defaultSQL(context.Background(), view, node); err != nil {
+		if _, err := stored.DefaultSQL(context.Background(), view, node); err != nil {
 			t.Fatal("remapped canonical renderer rejected actual predicate", err)
 		}
 	}

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -40,7 +41,7 @@ func TestRLSPolicyAggregateSemanticOwner(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := validatePolicyExpression(e.CatalogRead(), d, expression); err != nil {
+				if err := stored.ValidatePolicy(e.CatalogRead(), d, expression); err != nil {
 					t.Fatal(err)
 				}
 				return

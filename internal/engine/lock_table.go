@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -153,15 +154,15 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		return nil
 	}
 	principal := d.Owner
-	if viewOf(d).Invoker() {
+	if stored.ViewOf(d).Invoker() {
 		principal = invoker
 	}
 	ancestors = append(ancestors, ref)
-	for _, source := range viewOf(d).Sources() {
+	for _, source := range stored.ViewOf(d).Sources() {
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.Catalog)
-		child, ok := view.Relation(source.ref.Address)
-		use, useErr := storedViewUseReference(view, d, source.ref)
+		child, ok := view.Relation(source.Ref.Address)
+		use, useErr := stored.ViewUseReference(view, d, source.Ref)
 		valid := ok && useErr == nil
 		e.mu.Unlock()
 		if !valid {

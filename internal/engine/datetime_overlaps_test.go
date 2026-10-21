@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -66,7 +67,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 			for _, d := range sqltype.Builtins() {
 				replacements[d.ID()] = d
 			}
-			rebound, changed, err := retagBoundTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+			rebound, changed, err := stored.RetagTypes(New().CatalogRead(), e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(rebound, changed, err)
 			}
@@ -234,13 +235,13 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored := node.(functions.DatetimeOverlaps)
-	stored.Property = expr.Properties{RowDependent: true}
+	persisted := node.(functions.DatetimeOverlaps)
+	persisted.Property = expr.Properties{RowDependent: true}
 	for i := range 2 {
 		origin := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000, SubID: int32(i + 1)}}
-		stored.Args[i+2] = plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: i, Origin: origin}
+		persisted.Args[i+2] = plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: i, Origin: origin}
 	}
-	folded, changed, err := exec.SimplifyOverlapsRoute(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, stored)
+	folded, changed, err := exec.SimplifyOverlapsRoute(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, persisted)
 	if err != nil || !changed || folded.Folded[0].Type() != b.Type(sqltype.Timestamp) || folded.Folded[1].Type() != nil {
 		t.Fatal(folded, changed, err)
 	}
@@ -248,7 +249,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		replacements[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(New().CatalogRead(), folded, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
+	rebound, changed, err := stored.RetagTypes(New().CatalogRead(), folded, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacements[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
@@ -256,7 +257,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	if retained.Folded[0].Type() != replacements[sqltype.Timestamp] || folded.Folded[0].Type() != b.Type(sqltype.Timestamp) {
 		t.Fatal("cached endpoint authority was not independently retagged")
 	}
-	mapped, err := remapBoundExpression(retained, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, map[int32]int{1: 1, 2: 0})
+	mapped, err := stored.RemapExpression(retained, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, map[int32]int{1: 1, 2: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +336,7 @@ func TestDatetimeOverlapsStoredRenderProvenance(t *testing.T) {
 		{parser.FunctionSyntax(0), `"overlaps"`, `"overlaps"(a, b, c, d)`},
 	} {
 		order := []int{}
-		got, err := renderOverlapsCall(tc.syntax, args[:], tc.name, func(i int, arg string) (string, error) {
+		got, err := stored.RenderOverlapsCall(tc.syntax, args[:], tc.name, func(i int, arg string) (string, error) {
 			order = append(order, i)
 			return arg, nil
 		})
@@ -344,7 +345,7 @@ func TestDatetimeOverlapsStoredRenderProvenance(t *testing.T) {
 		}
 	}
 	calls := 0
-	if _, err := renderOverlapsCall(parser.SQLFunctionSyntax, args[:3], "", func(_ int, arg string) (string, error) {
+	if _, err := stored.RenderOverlapsCall(parser.SQLFunctionSyntax, args[:3], "", func(_ int, arg string) (string, error) {
 		calls++
 		return arg, nil
 	}); err == nil || calls != 0 {

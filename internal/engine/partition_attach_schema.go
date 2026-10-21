@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -129,7 +130,7 @@ func partitionAttachSchema(ctx context.Context, view catalog.Read, parent, child
 			return nil, sqlError("42804", fmt.Sprintf(`child table is missing constraint "%s"`, required.Name))
 		}
 		actual := child.Constraints.Check[at]
-		mapped, err := remapLikeExpression(&in, required.Expression, child, view)
+		mapped, err := stored.RemapLikeExpression(&in, required.Expression, child, view)
 		if err != nil {
 			return nil, err
 		}

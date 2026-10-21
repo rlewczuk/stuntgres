@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -42,7 +43,7 @@ func TestBetweenGroupedDefaultSerialization(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			canonical, err := defaultSQL(context.Background(), e.CatalogRead(), original)
+			canonical, err := stored.DefaultSQL(context.Background(), e.CatalogRead(), original)
 			if err != nil {
 				t.Fatal("serialization evaluated/rejected valid default", err)
 			}

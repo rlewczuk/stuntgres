@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -138,7 +139,7 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(New().CatalogRead(), special, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	rebound, changed, err := stored.RetagTypes(New().CatalogRead(), special, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal("slice reconstruction", changed, err)
 	}

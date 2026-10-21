@@ -225,10 +225,10 @@ Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
 (`joinExpressionSides`), planned volatility, generated admission
 (`plan.GenerationImmutable`, `plan.GenerationHasTableOID`, `validateGenerationPlan`),
 conditional planning (`exec`'s `simplifyConditionalNode`, `ConditionalConstantInputs`),
-retag (`mapBoundExpressionReader`), remap (`remapScalarExpression`), node-tree
-output (`plan.AppendBoundTree`), SQL deparse (`pgRenderer.sql`, interpreted in
-`deparse_rendering.go`), stored scalar SQL (`scalarRenderer.sql` and
-`scalarFunctionSQL`, interpreted in `scalar_rendering.go`), grouping identity
+retag (`stored.MapExpressionReader`), remap (`stored.RemapScalar`), node-tree
+output (`plan.AppendBoundTree`), SQL deparse (`stored.Deparser.SQL`, interpreted in
+`stored/deparse_rendering.go`), stored scalar SQL (`stored.ScalarRenderer.SQL` and
+`ScalarFunctionSQL`, interpreted in `stored/scalar_rendering.go`), grouping identity
 (`sameGroupExpressionIn`), the grouping rewrite (`rewriteGroup`), aggregate
 occurrence (`aggregateOccurrence`), preflight (`exec`'s `preflightCoercionNode`,
 interpreted in `exec/preflight_composite.go`), index key display

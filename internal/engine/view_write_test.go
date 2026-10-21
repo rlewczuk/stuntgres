@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -44,7 +45,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	view := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: ns, ObjectName: "logical", ObjectRevision: 1, Owner: owner, RelationKind: catalog.ViewRelation, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Columns: []catalog.Column{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Frame: 1, Syntax: syntax, Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(base.Columns), Ref: baseRef, Occurrence: 0}, Expressions: []expr.Expr{column(1), column(0)}}
-	view.View = &viewDefinition{syntax: syntax, query: &plan.Query{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
+	view.View = stored.NewView(stored.ViewParts{Syntax: syntax, Query: &plan.Query{Root: project}, Sources: []viewLeaf{{Ref: baseRef, Attributes: []int32{7, 11, 19}, Reads: []int32{7, 11}}}})
 	viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	e.catalog.state.SetDescriptor(base.Address(), base)
 	e.catalog.state.SetDescriptor(view.Address(), view)
@@ -118,28 +119,26 @@ func TestViewWriteMapping(t *testing.T) {
 	compact.Attributes = []int32{11, 19}
 	compact.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[2]}
 	compact.Columns[0].Name = "renamed"
-	slot, err := stableViewSlot(&compact, viewOf(f.view).Sources()[0], 1)
+	slot, err := stableViewSlot(&compact, stored.ViewOf(f.view).Sources()[0], 1)
 	if err != nil || slot != 0 {
 		t.Fatal(slot, err)
 	}
-	if _, err := stableViewSlot(&compact, viewOf(f.view).Sources()[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := stableViewSlot(&compact, stored.ViewOf(f.view).Sources()[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing identity admitted", err)
 	}
 	// Reject the first released classifier reason rather than a later group
 	// restriction. These are admitted AST shapes, not invented parser nodes.
 	restricted := *f.view
-	definition := *viewOf(f.view)
-	syntax := *definition.syntax
+	syntax := *stored.ViewOf(f.view).Syntax()
 	syntax.Distinct = &parser.DistinctClause{}
 	syntax.GroupBy = &parser.GroupClause{}
-	definition.syntax = &syntax
-	restricted.View = &definition
-	_, _, _, reason := viewWriteShape(&restricted)
+	restricted.View = stored.ViewOf(f.view).With(func(p *stored.ViewParts) { p.Syntax = &syntax })
+	_, _, _, reason := stored.ViewWriteShape(&restricted)
 	if reason != "Views containing DISTINCT are not automatically updatable." {
 		t.Fatal(reason)
 	}
 	syntax.Distinct = nil
-	_, _, _, reason = viewWriteShape(&restricted)
+	_, _, _, reason = stored.ViewWriteShape(&restricted)
 	if reason != "Views containing GROUP BY are not automatically updatable." {
 		t.Fatal(reason)
 	}
@@ -149,11 +148,11 @@ func TestViewWriteMapping(t *testing.T) {
 	syntax.GroupBy = nil
 	table := syntax.From
 	syntax.From = &parser.AliasReference{Input: &parser.AliasReference{Input: table, Name: parser.Identifier{Text: "inner_source"}}, Name: parser.Identifier{Text: "restored_source"}}
-	if _, _, _, reason = viewWriteShape(&restricted); reason != "" {
+	if _, _, _, reason = stored.ViewWriteShape(&restricted); reason != "" {
 		t.Fatal("aliased ordinary source rejected", reason)
 	}
 	syntax.From = &parser.AliasReference{Input: &parser.DerivedQuery{}, Name: parser.Identifier{Text: "derived_source"}}
-	if _, _, _, reason = viewWriteShape(&restricted); reason != "Views that do not select from a single table or view are not automatically updatable." {
+	if _, _, _, reason = stored.ViewWriteShape(&restricted); reason != "Views that do not select from a single table or view are not automatically updatable." {
 		t.Fatal("aliased derived source admitted", reason)
 	}
 	if err := scope.Finish(nil); err != nil {
@@ -212,10 +211,10 @@ func TestViewWriteDemand(t *testing.T) {
 	ref.Address.SubID = 11
 	column := plan.ColumnExpr{Info: expr.Info{Usage: f.integer.Usage()}, Origin: ref, Slot: 1}
 	cast := plan.CoercionExpr{Info: column.Info, Child: column}
-	if _, ok := viewDirectColumn(cast); !ok {
+	if _, ok := stored.ViewDirectColumn(cast); !ok {
 		t.Fatal("no-op cast lost origin")
 	}
-	if _, ok := viewDirectColumn(plan.CollationExpr{Info: column.Info, Child: column}); ok {
+	if _, ok := stored.ViewDirectColumn(plan.CollationExpr{Info: column.Info, Child: column}); ok {
 		t.Fatal("COLLATE gained write authority")
 	}
 	// Prepared/direct parameters are execution inputs, not stored-default

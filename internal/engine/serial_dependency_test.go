@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 )
 
 func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
@@ -41,7 +42,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, &bad); err == nil {
 		t.Fatal("untracked default edge admitted")
 	}
-	if _, err := defaultSQL(context.Background(), view, d.ColumnMeta.Defaults[1].Expression); err != nil {
+	if _, err := stored.DefaultSQL(context.Background(), view, d.ColumnMeta.Defaults[1].Expression); err != nil {
 		t.Fatal("source expression mutated", err)
 	}
 }

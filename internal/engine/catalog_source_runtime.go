@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -141,10 +142,10 @@ func (r engineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *c
 	return failure
 }
 func (r engineCatalogRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
-	return pgDependExpressionRefs(ctx, view, value)
+	return stored.ExpressionDependRefs(ctx, view, value)
 }
 func (r engineCatalogRuntime) ViewReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
-	return pgDependQueryRefs(ctx, view, nil, viewOf(relation).query)
+	return stored.QueryDependRefs(ctx, view, nil, stored.ViewOf(relation).Query())
 }
 func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
 	if key.Derived == nil {
@@ -156,43 +157,13 @@ func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key
 	return 0, false
 }
 func (r engineCatalogRuntime) IndexReferences(ctx context.Context, view catalog.Read, definition *catalog.IndexDefinition) ([]ids.ObjectAddress, error) {
-	refs := pgDependRefs{ctx: ctx, catalog: view}
-	for _, key := range definition.Keys {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		if key.Derived != nil {
-			refs.expression(key.Derived.Definition)
-		}
-		refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
-	}
-	return refs.finish()
+	return stored.IndexDependRefs(ctx, view, definition)
 }
 func (r engineCatalogRuntime) PartitionReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
-	refs := pgDependRefs{ctx: ctx, catalog: view}
-	for _, key := range relation.Partition.Keys {
-		if key.Attribute != 0 {
-			address := relation.Address()
-			address.SubID = key.Attribute
-			refs.add(address)
-		}
-		if key.Derived != nil {
-			refs.expression(key.Derived.Definition)
-		}
-		refs.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(key.Usage.Type.ID())})
-		refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
-		refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)})
-	}
-	return refs.finish()
+	return stored.PartitionDependRefs(ctx, view, relation)
 }
 func (r engineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
-	presentation := r.presentation
-	presentation.columns = relation.Columns
-	renderer := newViewRenderer(viewOf(relation))
-	renderer.presentation = presentation
-	renderer.currentNames = true
-	definition, err := renderer.selectQuerySQL(ctx, view, viewOf(relation).syntax, viewOf(relation).queries[viewOf(relation).syntax])
-	return definition, err
+	return stored.ViewDefinitionSQL(ctx, view, relation, r.presentation)
 }
 func (r engineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	return indexDefinitionSQL(ctx, view, relation, indexPresentation{})
@@ -254,7 +225,7 @@ func (r engineCatalogRuntime) ValidateACL(roles authorization.Read, d catalog.De
 	return access.ValidateACL(roles, d)
 }
 func (r engineCatalogRuntime) Pinned(view catalog.Read, address ids.ObjectAddress) bool {
-	return pgDependPinned(view, nil, address)
+	return stored.DependPinned(view, nil, address)
 }
 func (r engineCatalogRuntime) OperatorSeeded(d *catalog.Operator) bool {
 	return routine.OperatorSeeded(d)

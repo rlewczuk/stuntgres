@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -346,7 +347,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 		t.Fatal("immutable recursive rewrite", err)
 	}
 	destination := New()
-	mapped, err := remapViewQuery(destination.CatalogRead(), project, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := stored.RemapViewQuery(destination.CatalogRead(), project, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		typ, ok := destination.CatalogRead().LookupType(old.ID())
 		if !ok {
 			t.Fatal(old.ID())
@@ -377,11 +378,11 @@ func TestQueryRecursiveCTEStoredNamespaceIdentity(t *testing.T) {
 	definition := &plan.CTEDefinition{Recursive: true}
 	self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{QuerySchema: plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, Table: table, CTE: definition, Ordinal: -1}}
 	project := &plan.ProjectNode{Child: &plan.FilterNode{Child: self}}
-	if viewCTETable(project, table) != self || viewCTEOrdinal(project, -1) != self {
+	if stored.ViewCTETable(project, table) != self || stored.ViewCTEOrdinal(project, -1) != self {
 		t.Fatal("stored self scan lost opaque node identity")
 	}
-	renderer := &viewRenderer{slots: map[plan.Node]map[int]string{self: {0: "r.n"}}}
-	text, err := renderer.slotSQL(context.Background(), catalog.Read{}, viewCTETable(project, table), 0)
+	renderer := &viewRenderer{Slots: map[plan.Node]map[int]string{self: {0: "r.n"}}}
+	text, err := renderer.SlotSQL(context.Background(), catalog.Read{}, stored.ViewCTETable(project, table), 0)
 	if err != nil || text != "r.n" {
 		t.Fatal("worktable namespace slot", text, err)
 	}

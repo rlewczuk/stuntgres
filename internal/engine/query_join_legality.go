@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -241,7 +242,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	case *plan.SetNode, *plan.RecursiveUnionNode:
 		// Inline inherited sets were rejected at analysis. A stored set
 		// source is opaque to an outer row mark, but all arms still plan.
-		set := querySetNode(node)
+		set := stored.QuerySetNode(node)
 		if len(set.Grouping) != 0 {
 			groups := set.Grouping
 			var cycleMark expr.Expr
@@ -270,7 +271,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	case *plan.SourceNode:
 		mark := analyze.QueryOccurrenceMark(marks, n.Occurrence, inherited)
 		if d, ok := view.Relation(n.Ref.Address); ok && d.RelationKind == catalog.ViewRelation {
-			if err := viewRowLockLegality(viewOf(d), analyze.RowLockDiagnostic(mark)); err != nil {
+			if err := viewRowLockLegality(stored.ViewOf(d), analyze.RowLockDiagnostic(mark)); err != nil {
 				return err
 			}
 			outputUses, err := analyze.QuerySourceReadUses(reads[n.Occurrence], d.Attributes)
@@ -278,10 +279,10 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				return err
 			}
 			child := *c
-			child.QuoteOrigin = exec.QuoteOrigin{Owner: n.Ref, Definition: viewOf(d).RuleOID(), Revision: viewOf(d).quoteRevision}
-			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = viewOf(d).Dependencies(), nil, d
+			child.QuoteOrigin = exec.QuoteOrigin{Owner: n.Ref, Definition: stored.ViewOf(d).RuleOID(), Revision: stored.ViewOf(d).QuoteRevision()}
+			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = stored.ViewOf(d).Dependencies(), nil, d
 			child.RoutineRecipe, child.RoutineGraft = true, false
-			root, storedReads, err := prepareStoredExecutionRoot(&child, viewOf(d), outputUses)
+			root, storedReads, err := prepareStoredExecutionRoot(&child, stored.ViewOf(d), outputUses)
 			if err != nil {
 				return err
 			}

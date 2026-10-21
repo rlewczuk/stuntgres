@@ -46,7 +46,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		t.Fatal("missing CHECK capture manifest")
 	}
 	inquiry := relation.Constraints.Check[0].Expression.(plan.NullTestExpr).Child.(functions.VisibilityInquiry)
-	renderer := scalarRenderer{owner: relation}
+	renderer := scalarRenderer{Owner: relation}
 	intType, _ := view.LookupType(sqltype.Int4)
 	for _, tc := range []struct {
 		name   string
@@ -66,13 +66,13 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			n := inquiry
 			tc.change(&n)
-			if _, err := renderer.sql(context.Background(), view, n); err == nil {
+			if _, err := renderer.SQL(context.Background(), view, n); err == nil {
 				t.Fatal("malformed stored inquiry accepted")
 			}
 			if tc.name != "origin" {
 				// Exercise both newly integrated stored-tree consumers with the
 				// independently malformed signature/property contract.
-				if _, err := (pgRenderer{view: view, relation: relation}).sql(context.Background(), n, pgRenderParent{}); err == nil {
+				if _, err := (pgRenderer{View: view, Relation: relation}).SQL(context.Background(), n, pgRenderParent{}); err == nil {
 					t.Fatal("PostgreSQL renderer accepted malformed inquiry")
 				}
 				if _, err := (plan.BoundTree{Expression: n}).StructuralOutput(context.Background()); err == nil {

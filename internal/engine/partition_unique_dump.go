@@ -66,7 +66,7 @@ func partitionVirtualUniqueDefinitionSQL(view catalog.Read, index *catalog.Relat
 		if constraint.Index != index.Address() {
 			continue
 		}
-		text, err := (pgRenderer{view: view}).uniqueConstraintSQL(table, &constraint)
+		text, err := (pgRenderer{View: view}).UniqueConstraintSQL(table, &constraint)
 		if err != nil {
 			return "", err
 		}

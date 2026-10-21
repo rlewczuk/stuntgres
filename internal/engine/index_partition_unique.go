@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -114,31 +115,31 @@ func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 			key.Attribute = a
 			continue
 		}
-		node, err := remapLikeExpression(&in, key.Derived.Definition, child, view)
+		node, err := stored.RemapLikeExpression(&in, key.Derived.Definition, child, view)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := remapLikeExpression(&in, key.Derived.Execution, child, view)
+		execution, err := stored.RemapLikeExpression(&in, key.Derived.Execution, child, view)
 		if err != nil {
 			return nil, err
 		}
 		derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: child.Attributes}
-		if _, err = (scalarRenderer{validation: true, owner: child, dependencies: &derived.Dependencies}).sql(ctx, view, node); err != nil {
+		if _, err = (scalarRenderer{Validation: true, Owner: child, Dependencies: &derived.Dependencies}).SQL(ctx, view, node); err != nil {
 			return nil, err
 		}
 		key.Derived = derived
 	}
 	if old.Predicate != nil {
-		node, err := remapLikeExpression(&in, old.Predicate.Definition, child, view)
+		node, err := stored.RemapLikeExpression(&in, old.Predicate.Definition, child, view)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := remapLikeExpression(&in, old.Predicate.Execution, child, view)
+		execution, err := stored.RemapLikeExpression(&in, old.Predicate.Execution, child, view)
 		if err != nil {
 			return nil, err
 		}
 		predicate := &catalog.IndexPredicate{Definition: node, Execution: execution, Attributes: child.Attributes}
-		if _, err = (scalarRenderer{validation: true, owner: child, dependencies: &predicate.Dependencies}).sql(ctx, view, node); err != nil {
+		if _, err = (scalarRenderer{Validation: true, Owner: child, Dependencies: &predicate.Dependencies}).SQL(ctx, view, node); err != nil {
 			return nil, err
 		}
 		d.Predicate = predicate
@@ -174,7 +175,7 @@ func partitionIndexEquivalent(ctx context.Context, view catalog.Read, table *cat
 			return false, nil
 		}
 	}
-	render := func(expr expr.Expr) (string, error) { return (scalarRenderer{owner: table}).sql(ctx, view, expr) }
+	render := func(expr expr.Expr) (string, error) { return (scalarRenderer{Owner: table}).SQL(ctx, view, expr) }
 	for i, key := range a.Keys {
 		other := b.Keys[i]
 		if key.Attribute != other.Attribute || (key.Derived == nil) != (other.Derived == nil) {

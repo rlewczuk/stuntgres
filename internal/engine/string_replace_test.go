@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -83,7 +84,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	rebound, changed, err := stored.RetagTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
@@ -137,18 +138,18 @@ func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 func TestStringPrefixPrettyLogicalGrouping(t *testing.T) {
 	for _, parent := range []pgRenderParent{
 		{},
-		{precedence: 1, operator: "OR"},
-		{precedence: 2, operator: "AND", right: true},
-		{precedence: 3, operator: "NOT"},
+		{Precedence: 1, Operator: "OR"},
+		{Precedence: 2, Operator: "AND", Right: true},
+		{Precedence: 3, Operator: "NOT"},
 	} {
-		if pgOperatorGrouped("^@", true, parent) {
+		if stored.OperatorGrouped("^@", true, parent) {
 			t.Fatal("prefix operator grouped under Boolean parent", parent)
 		}
 	}
-	if !pgOperatorGrouped("^@", true, pgRenderParent{precedence: 5, operator: "^@", right: true}) {
+	if !stored.OperatorGrouped("^@", true, pgRenderParent{Precedence: 5, Operator: "^@", Right: true}) {
 		t.Fatal("nested prefix operand lost required grouping")
 	}
-	if !pgOperatorGrouped("-", false, pgRenderParent{precedence: 3, operator: "NOT"}) {
+	if !stored.OperatorGrouped("-", false, pgRenderParent{Precedence: 3, Operator: "NOT"}) {
 		t.Fatal("unary scalar operator lost existing grouping")
 	}
 }

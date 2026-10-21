@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -244,7 +245,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName, view.RelationKind, view.VirtualView = name, catalog.ViewRelation, false
 		attrs := slices.Clone(d.Attributes)
-		view.View = &viewDefinition{query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
+		view.View = stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, Sources: []viewLeaf{{Ref: leaf, Attributes: attrs, Reads: attrs}}})
 		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	}

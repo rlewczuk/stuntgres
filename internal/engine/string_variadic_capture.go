@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 )
 
 // Definition tokens, not unrelated catalog revisions, retire stored origins.
@@ -23,7 +24,7 @@ func pruneQuoteCaptures(g *exec.QuoteCaptureCandidate, view catalog.Read) {
 		if origin.Attribute != 0 {
 			return d.ColumnMeta.Defaults[origin.Attribute].OID == origin.Definition
 		}
-		return d.View != nil && viewOf(d).RuleOID() == origin.Definition && viewOf(d).quoteRevision == origin.Revision
+		return d.View != nil && stored.ViewOf(d).RuleOID() == origin.Definition && stored.ViewOf(d).QuoteRevision() == origin.Revision
 	}
 	for i, entry := range g.Entries {
 		if valid(entry.Origin) {

@@ -5,35 +5,12 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 )
-
-func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *policyExpression) (string, error) {
-	r := newViewRenderer(expression.presentation)
-	r.frame = 1
-	source := analyze.ViewFromRoot(r.frames[1])
-	leaf := r.sources[0]
-	d, ok := view.Relation(leaf.ref.Address)
-	if !ok {
-		return "", fmt.Errorf("stuntgres: policy owner is missing")
-	}
-	r.reserved[d.Name()] = true
-	slots := make(map[int]string, len(leaf.attributes))
-	for i, attribute := range leaf.attributes {
-		for j, current := range d.Attributes {
-			if current == attribute {
-				slots[i] = catalog.QuoteIdentifier(d.Name()) + "." + catalog.QuoteIdentifier(d.Columns[j].Name)
-				break
-			}
-		}
-	}
-	r.slots[source] = slots
-	return r.expressionSQL(ctx, view, expression.syntax, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
-}
 
 func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dump.Group, error) {
 	var groups []dump.Group
@@ -78,12 +55,12 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 			for _, clause := range []struct {
 				name string
 				expr *policyExpression
-			}{{"USING", policyExpressionOf(policy.Using)}, {"WITH CHECK", policyExpressionOf(policy.Check)}} {
+			}{{"USING", stored.PolicyOf(policy.Using)}, {"WITH CHECK", stored.PolicyOf(policy.Check)}} {
 				if clause.expr == nil {
 					continue
 				}
-				for _, leaf := range clause.expr.presentation.Sources() {
-					relation, ok := view.Relation(leaf.ref.Address)
+				for _, leaf := range clause.expr.Presentation().Sources() {
+					relation, ok := view.Relation(leaf.Ref.Address)
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
@@ -91,7 +68,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
-				for _, dependency := range clause.expr.presentation.Dependencies() {
+				for _, dependency := range clause.expr.Presentation().Dependencies() {
 					address := dependency.Ref.Address
 					address.SubID = 0
 					provider := view.Get(address)
@@ -102,7 +79,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
-				text, err := policyExpressionSQL(ctx, view, clause.expr)
+				text, err := stored.PolicySQL(ctx, view, clause.expr)
 				if err != nil {
 					return nil, err
 				}

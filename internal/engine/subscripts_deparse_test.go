@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -31,7 +32,7 @@ func TestSubscriptsDeparse(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var raw parser.Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "[-2:0]={NULL,NULL,NULL}"}}
-			definition := &viewDefinition{literals: make(map[analyze.ViewLiteralPath]plan.LiteralExpr), castUsages: make(map[analyze.ViewLiteralPath]sqltype.Usage)}
+			definition := stored.NewView(stored.ViewParts{Literals: make(map[analyze.ViewLiteralPath]plan.LiteralExpr), CastUsages: make(map[analyze.ViewLiteralPath]sqltype.Usage)})
 			for i := range tc.casts {
 				usage := arrayUsage
 				if i == 0 {
@@ -42,14 +43,14 @@ func TestSubscriptsDeparse(t *testing.T) {
 					name = "bigint"
 				}
 				raw = parser.CastExpr{Child: raw, TypeName: parser.TypeName{Name: name, ArrayBounds: []int32{0}}}
-				definition.castUsages[analyze.ViewLiteralPath{Node: i + 1}] = usage
+				definition.CastUsages()[analyze.ViewLiteralPath{Node: i + 1}] = usage
 			}
-			definition.literals[analyze.ViewLiteralPath{Node: tc.casts + 1}] = arrayLiteral
-			definition.literals[analyze.ViewLiteralPath{Node: tc.casts + 2}] = integerLiteral
+			definition.Literals()[analyze.ViewLiteralPath{Node: tc.casts + 1}] = arrayLiteral
+			definition.Literals()[analyze.ViewLiteralPath{Node: tc.casts + 2}] = integerLiteral
 			call := nullCountRaw("generate_subscripts", raw, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}})
-			renderer := &viewRenderer{viewDefinition: definition}
+			renderer := &viewRenderer{View: definition}
 			ordinal := 0
-			text, err := renderer.expressionSQLAt(context.Background(), view, call, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
+			text, err := renderer.ExpressionSQLAt(context.Background(), view, call, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
 			if err != nil || text != tc.want || ordinal != tc.casts+3 || strings.Count(text, "CAST(") != tc.casts {
 				t.Fatal("typed leaf/source cast ownership or ordinal changed", text, tc.want, ordinal, err)
 			}

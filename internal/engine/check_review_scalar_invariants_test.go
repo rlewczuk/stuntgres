@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -35,11 +36,11 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	if !ok {
 		t.Fatal("missing int4 type")
 	}
-	renderer := scalarRenderer{owner: relation}
-	if _, err := renderer.sql(ctx, view, inquiry); err != nil {
+	renderer := scalarRenderer{Owner: relation}
+	if _, err := renderer.SQL(ctx, view, inquiry); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := defaultSQL(ctx, view, inquiry); err == nil {
+	if _, err := stored.DefaultSQL(ctx, view, inquiry); err == nil {
 		t.Fatal("DEFAULT admitted comment inquiry")
 	}
 	for _, test := range []struct {
@@ -62,7 +63,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 			bad := inquiry
 			bad.Args = append([]expr.Expr(nil), inquiry.Args...)
 			test.change(&bad)
-			if _, err := renderer.sql(ctx, view, bad); err == nil {
+			if _, err := renderer.SQL(ctx, view, bad); err == nil {
 				t.Fatal("malformed inquiry persisted")
 			}
 		})

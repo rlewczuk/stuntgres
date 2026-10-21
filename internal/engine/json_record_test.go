@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +44,7 @@ func TestJSONRecordBinding(t *testing.T) {
 		t.Fatal("fabricated runtime shape")
 	}
 	bound := jsonRecordUnitCall(t, b, "json_to_record", true)
-	if !bound.Defined || bound.ResultUsage().Type.CompositeLen() != 2 || !validExpressionUsage(e.CatalogRead(), bound.ResultUsage()) {
+	if !bound.Defined || bound.ResultUsage().Type.CompositeLen() != 2 || !stored.ValidExpressionUsage(e.CatalogRead(), bound.ResultUsage()) {
 		t.Fatal("contextual source authority", bound)
 	}
 	v, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
@@ -61,7 +62,7 @@ func TestJSONRecordRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	original := jsonRecordUnitCall(t, b, "json_to_record", true)
 	fresh := jsonObjectUnitTypes()
-	mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	mapped, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
@@ -82,11 +83,11 @@ func TestJSONRecordRemap(t *testing.T) {
 	if walked != 1 || !analyze.SameGroupExpression(original, original) {
 		t.Fatal("closed child traversal", walked)
 	}
-	copy, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
+	copy, err := stored.RemapExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil || !analyze.SameGroupExpression(original, copy) {
 		t.Fatal(copy, err)
 	}
-	text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
+	text, err := (pgRenderer{View: view}).SQL(context.Background(), original, pgRenderParent{})
 	if err != nil || !strings.Contains(text, "json_to_record(") || !strings.Contains(text, "::json") {
 		t.Fatal(text, err)
 	}

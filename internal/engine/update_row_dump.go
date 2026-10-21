@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
 )
 
 // Destination coercions rebind from the independent SELECT's output schema on
@@ -15,7 +16,7 @@ import (
 func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *analyze.Binding, action ruleAction) (string, error) {
 	var sql strings.Builder
 	targetSQL := func(i int) (string, error) {
-		column, err := deparseAttribute(b.Relation, b.Relation.Attributes[b.Targets[i]])
+		column, err := stored.DeparseAttribute(b.Relation, b.Relation.Attributes[b.Targets[i]])
 		if err != nil {
 			return "", err
 		}

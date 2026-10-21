@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -162,7 +163,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				case "name":
 					copy.ObjectName = "renamed"
 				case "view":
-					definition := *viewOf(&copy)
+					definition := *stored.ViewOf(&copy)
 					copy.View = &definition
 				case "columns":
 					copy.Columns = append([]catalog.Column(nil), copy.Columns...)

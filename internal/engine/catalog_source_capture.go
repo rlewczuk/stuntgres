@@ -91,7 +91,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			runtime.auth, in.Roles = auth, auth.Roles
 		}
 		if oid == 12006 {
-			runtime.presentation = viewPresentation{deparse: true, path: scope.inquiry.deparsePath, output: scope.output, nonstandardStrings: scope.op.NonstandardStrings}
+			runtime.presentation = viewPresentation{Deparse: true, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: scope.op.NonstandardStrings}
 		}
 	}
 	in.Runtime = runtime
