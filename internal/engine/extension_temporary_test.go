@@ -85,7 +85,7 @@ func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *session.Operat
 func extensionTemporaryStage(t *testing.T, e *Engine, ext *catalog.Extension) (*CatalogStage, *temporarySessionIndexes) {
 	t.Helper()
 	base := e.CatalogRead()
-	targets, err := namespaceChildren(base, map[ids.ObjectAddress]bool{ext.TargetNamespace: true})
+	targets, err := catalog.NamespaceChildren(base, map[ids.ObjectAddress]bool{ext.TargetNamespace: true})
 	if err != nil {
 		t.Fatal(err)
 	}

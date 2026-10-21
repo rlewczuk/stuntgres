@@ -79,7 +79,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	for address := range temporary {
 		namespaces[address] = true
 	}
-	children, err := namespaceChildren(e.catalog.read(e.catalog.state), namespaces)
+	children, err := catalog.NamespaceChildren(e.catalog.read(e.catalog.state), namespaces)
 	if err != nil {
 		return err
 	}

@@ -67,7 +67,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	}
 	for i, address := range ext.Members {
 		member := view.Get(address)
-		if member == nil || member.Namespace() != ext.TargetNamespace || extension.Membership(member) != ext.Address() {
+		if member == nil || member.Namespace() != ext.TargetNamespace || catalog.ExtensionMembership(member) != ext.Address() {
 			t.Fatal("membership", address)
 		}
 		owner, _, _ := access.DescriptorACL(member)

@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
@@ -567,13 +566,13 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		}
 		var dependent []*catalog.Relation
 		var domains []catalog.Descriptor
-		children, err := namespaceChildren(auth.Catalog, seen)
+		children, err := catalog.NamespaceChildren(auth.Catalog, seen)
 		if err != nil {
 			return nil, err
 		}
 		for _, address := range children {
 			d := auth.Catalog.Get(address)
-			if extension.Membership(d) != (ids.ObjectAddress{}) {
+			if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
 				continue // the extension owns these members as one namespace dependent
 			}
 			if r, ok := d.(*catalog.Relation); ok {

@@ -117,3 +117,20 @@ func DescriptorNameKey(d Descriptor) ids.NameKey {
 	}
 	return key
 }
+
+// ExtensionMembership returns the extension that d claims to belong to, or
+// the zero address. Only types, procedures and text search templates and
+// dictionaries carry a membership.
+func ExtensionMembership(d Descriptor) ids.ObjectAddress {
+	switch d := d.(type) {
+	case *Type:
+		return d.Extension
+	case *Procedure:
+		return d.Extension
+	case *TSTemplate:
+		return d.Extension
+	case *TSDictionary:
+		return d.Extension
+	}
+	return ids.ObjectAddress{}
+}

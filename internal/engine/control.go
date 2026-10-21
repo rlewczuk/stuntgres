@@ -338,13 +338,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 				}
-				if extension.Membership(t) == (ids.ObjectAddress{}) {
+				if catalog.ExtensionMembership(t) == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 				}
 				continue
 			case *catalog.TSTemplate, *catalog.TSDictionary:
-				if extension.Membership(t) == (ids.ObjectAddress{}) {
+				if catalog.ExtensionMembership(t) == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 				}

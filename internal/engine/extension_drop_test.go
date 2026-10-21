@@ -529,7 +529,7 @@ func TestExtensionDropDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	for a, d := range before.Descriptors() {
-		if _, ok := d.(*catalog.Extension); ok || extension.Membership(d) != (ids.ObjectAddress{}) || d.Name() == "ext_drop_generic" {
+		if _, ok := d.(*catalog.Extension); ok || catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) || d.Name() == "ext_drop_generic" {
 			if e.CatalogRead().Get(a) != nil {
 				t.Fatal("generic dependency closure survived cascade", a)
 			}

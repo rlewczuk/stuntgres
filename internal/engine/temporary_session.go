@@ -175,7 +175,7 @@ func (e *Engine) endTemporarySession(s *session.Session) error {
 			e.mu.Unlock()
 			return nil
 		}
-		targets, err := namespaceChildren(base, owned)
+		targets, err := catalog.NamespaceChildren(base, owned)
 		e.mu.Unlock()
 		if err != nil {
 			return err
