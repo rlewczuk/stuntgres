@@ -53,7 +53,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 			}
 			incoming := state.actions
 			if index != 0 {
-				incoming = inheritanceParentActions(state, observed)
+				incoming = inheritanceParentActions(&state.inheritanceAlterPlan, observed)
 				if !preparatory && len(incoming) == 0 {
 					continue
 				}

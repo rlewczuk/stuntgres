@@ -197,7 +197,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					// reentry: this branch must leave disposal to its outer owner.
 					stage = e.BeginCatalogStage(c.auth.Catalog)
 					stage.authorizeLocked(c.auth, c.op.Session)
-					scope.inheritance.alter = &inheritanceAlterState{stage: stage, descendant: true}
+					scope.inheritance.alter = &inheritanceAlterState{stage: stage, inheritanceAlterPlan: inheritanceAlterPlan{descendant: true}}
 					t.Cleanup(func() { scope.inheritance.alter = nil; e.DiscardCatalogStage(stage) })
 				}
 				e.mu.Lock()

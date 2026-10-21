@@ -132,7 +132,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	c := retiredUnitTable(t, e, "c")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	state := &inheritanceAlterState{stage: stage, events: map[ids.ObjectAddress][]inheritanceAlterEvent{}}
+	state := &inheritanceAlterState{stage: stage, inheritanceAlterPlan: inheritanceAlterPlan{events: map[ids.ObjectAddress][]inheritanceAlterEvent{}}}
 	scope := &StatementScope{inheritance: inheritanceScope{alter: state}}
 	next := *p
 	next.Columns = slices.Clone(p.Columns[1:])
@@ -146,7 +146,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 		t.Fatal("actual DROP callback failed to capture removed facts", event)
 	}
 	graph := catalog.CloneInheritance(c.Inheritance)
-	inheritRetiredColumnConstraints(state, c, graph, c.Attributes[c.Index["a"]])
+	inheritRetiredColumnConstraints(&state.inheritanceAlterPlan, state.retiredBase(), c, graph, c.Attributes[c.Index["a"]])
 	if len(graph.NotNull[1].Retired) != 1 || len(graph.Checks["ck"].Retired) != 1 {
 		t.Fatal("recorded DROP failed to issue historical support")
 	}
@@ -158,7 +158,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	} {
 		state.events[p.Address()] = []inheritanceAlterEvent{bad}
 		g := catalog.CloneInheritance(c.Inheritance)
-		inheritRetiredColumnConstraints(state, c, g, 1)
+		inheritRetiredColumnConstraints(&state.inheritanceAlterPlan, state.retiredBase(), c, g, 1)
 		if len(g.NotNull[1].Retired) != 0 || len(g.Checks["ck"].Retired) != 0 {
 			t.Fatal("noncontributing event issued history", bad)
 		}

@@ -41,11 +41,17 @@ func validateRetiredInheritance(view catalog.Read, table *catalog.Relation, p ca
 	return nil
 }
 
-func inheritRetiredColumnConstraints(state *inheritanceAlterState, child *catalog.Relation, graph *catalog.TableInheritance, attribute int32) {
-	view := state.definition.base
+// view is the read the retired constraints are named against: the stage's
+// base while staging, the definition base while preparing.
+// retiredBase is the read inheritRetiredColumnConstraints names against.
+func (state *inheritanceAlterState) retiredBase() catalog.Read {
 	if state.stage != nil {
-		view = state.stage.Base
+		return state.stage.Base
 	}
+	return state.definition.base
+}
+
+func inheritRetiredColumnConstraints(state *inheritanceAlterPlan, view catalog.Read, child *catalog.Relation, graph *catalog.TableInheritance, attribute int32) {
 	for _, parent := range graph.Parents {
 		for _, event := range state.events[parent] {
 			if event.action.Action != parser.DropColumn {

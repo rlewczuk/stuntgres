@@ -127,7 +127,7 @@ func inheritanceEventName(a parser.AlterTableAction) string {
 	return a.Column.Text
 }
 
-func inheritanceParentActions(state *inheritanceAlterState, old *catalog.Relation) []parser.AlterTableAction {
+func inheritanceParentActions(state *inheritanceAlterPlan, old *catalog.Relation) []parser.AlterTableAction {
 	var actions []parser.AlterTableAction
 	state.validating = nil
 	if old.Inheritance == nil {
@@ -178,7 +178,7 @@ func inheritanceParentActions(state *inheritanceAlterState, old *catalog.Relatio
 	return actions
 }
 
-func inheritanceRemovedOrigin(state *inheritanceAlterState, origin catalog.InheritanceOrigin, kind parser.AlterTableActionKind) bool {
+func inheritanceRemovedOrigin(state *inheritanceAlterPlan, origin catalog.InheritanceOrigin, kind parser.AlterTableActionKind) bool {
 	for _, event := range state.events[origin.Parent] {
 		if event.action.Action != kind {
 			continue

@@ -71,7 +71,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					view := inheritanceUnitView(e, p, q, c)
 					stage := e.BeginCatalogStage(view)
 					stage.UpdateDescriptor(&next)
-					state := &inheritanceAlterState{stage: stage, root: p, targets: []*catalog.Relation{p, c}, selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, only: only, actions: []parser.AlterTableAction{action}, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
+					state := &inheritanceAlterState{stage: stage, inheritanceAlterPlan: inheritanceAlterPlan{root: p, targets: []*catalog.Relation{p, c}, selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, only: only, actions: []parser.AlterTableAction{action}, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}}
 					(&StatementScope{inheritance: inheritanceScope{alter: state}}).recordInheritanceAlterAction(p, &next, action)
 					actions, graph, err := e.inheritedAlterActions(state, c)
 					if err != nil {
