@@ -64,7 +64,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			stores := maps.Clone(f.e.storage.Relations)
 			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defer f.e.DiscardCatalogStage(stage)
-			if err := f.e.stagePartitionDetach(stage, f.parent, child); err != nil {
+			if err := StageDetach(stage, stage.Base, f.parent, child); err != nil {
 				t.Fatal(err)
 			}
 			view := f.e.stageRead(stage)
@@ -122,7 +122,7 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
 			stage := f.e.BeginCatalogStage(f.view)
 			defer f.e.DiscardCatalogStage(stage)
-			if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err != nil {
+			if err := StageDetach(stage, stage.Base, f.root, f.leaf); err != nil {
 				t.Fatal(err)
 			}
 			view := f.e.stageRead(stage)
@@ -156,7 +156,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 			f := partitionDetachUnitTree(t, false)
 			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defer f.e.DiscardCatalogStage(stage)
-			if err := f.e.stagePartitionDetach(stage, f.parent, f.child); err != nil {
+			if err := StageDetach(stage, stage.Base, f.parent, f.child); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -225,7 +225,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 	f.child.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err == nil || f.leaf.Membership == nil || len(f.root.Partition.Children) != 1 {
+	if err := StageDetach(stage, stage.Base, f.root, f.leaf); err == nil || f.leaf.Membership == nil || len(f.root.Partition.Children) != 1 {
 		t.Fatal("exhaustion changed original graph", err)
 	}
 }
@@ -237,7 +237,7 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.child.SQLIndex.PartitionParent = f.parent.Address()
-	if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err != nil {
+	if err := StageDetach(stage, stage.Base, f.root, f.leaf); err != nil {
 		t.Fatal(err)
 	}
 	next := f.e.stageRead(stage)

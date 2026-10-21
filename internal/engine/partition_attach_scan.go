@@ -1,15 +1,10 @@
 package engine
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
-	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // Candidate AX admission is unconditional and already complete. DEFAULT opens
@@ -107,70 +102,4 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 	}
 	_, err := scope.acquirePartitionValidationViewsLocked(e, refs)
 	return err
-}
-
-func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, parent *catalog.Relation, bound *catalog.PartitionMembership, jobs []partition.AttachScan) error {
-	ctx := scope.op.Context()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
-	for _, job := range jobs {
-		constraints := make([]partition.AttachRowConstraint, 0, 2)
-		add := func(p *catalog.Relation, m *catalog.PartitionMembership) error {
-			layout, err := catalog.InheritanceQueryLayout(p, job.Leaf)
-			if err != nil {
-				return err
-			}
-			constraint := partition.AttachRowConstraint{Parent: p, Child: catalog.Relation{Membership: m}, Layout: layout}
-			if layout != nil {
-				constraint.Scratch = make([]sqltype.Value, len(layout))
-			}
-			constraints = append(constraints, constraint)
-			return nil
-		}
-		if err := add(parent, bound); err != nil {
-			return err
-		}
-		if !job.Exclude {
-			for child := parent; child.Membership != nil; {
-				ancestor := view.MustRelation(child.Membership.Parent)
-				if err := add(ancestor, child.Membership); err != nil {
-					return err
-				}
-				child = ancestor
-			}
-		}
-		ref := view.Owner().Domain.Ref(view.Epoch(), job.Leaf.Address())
-		source, err := exec.CaptureSource(ctx, scope.partitionsOrZero().ValidationView, ref)
-		if err != nil {
-			return err
-		}
-		for i := range source.Count() {
-			row := source.Row(i)
-			for j := range constraints {
-				constraint := &constraints[j]
-				values := row
-				if constraint.Layout != nil {
-					for slot, physical := range constraint.Layout {
-						constraint.Scratch[slot] = row[physical]
-					}
-					values = constraint.Scratch
-				}
-				accepts, err := partition.Accepts(view, constraint.Parent, &constraint.Child, values, &evaluation)
-				if err != nil {
-					source.Close()
-					return err
-				}
-				if accepts != job.Exclude {
-					continue
-				}
-				source.Close()
-				message := fmt.Sprintf(`partition constraint of relation "%s" is violated by some row`, job.Leaf.Name())
-				if job.Exclude {
-					message = fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, job.Leaf.Name())
-				}
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: message, Schema: view.Get(job.Leaf.Namespace()).Name(), Table: job.Leaf.Name()}
-			}
-		}
-		source.Close()
-	}
-	return ctx.Err()
 }

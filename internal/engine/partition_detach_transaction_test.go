@@ -42,7 +42,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			partitionAttachUnitGrant(t, detach, ref, lock.AccessExclusive)
 			stage := f.e.BeginCatalogStage(detach.ResolutionCatalog())
 			defer f.e.DiscardCatalogStage(stage)
-			if err := f.e.stagePartitionDetach(stage, f.parent, f.child); err != nil {
+			if err := StageDetach(stage, stage.Base, f.parent, f.child); err != nil {
 				t.Fatal(err)
 			}
 			if err := f.e.stageCatalogOverlay(detach, stage, detach.owner.Catalog.Clone()); err != nil {

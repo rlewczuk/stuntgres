@@ -2,15 +2,12 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -46,75 +43,9 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if table.Partition == nil || table.Membership == nil || table.Inheritance != nil {
-		return nil
-	}
-	bound, err := analyze.BindUniqueAttributes(definition, nil, table.Index, table.Attributes)
+	captured, err := CaptureUniqueReplay(auth.Catalog, raw, table)
 	if err != nil {
 		return err
-	}
-	parent := auth.Catalog.MustRelation(table.Membership.Parent)
-	chosen := index.PartitionPreservedReplayChild(auth.Catalog, parent)
-	if chosen == nil || chosen.Address() != table.Address() {
-		return nil
-	}
-	var selected *catalog.Relation
-	for _, descriptor := range auth.Catalog.Descriptors() {
-		idx, ok := descriptor.(*catalog.Relation)
-		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Parent != parent.Address() || !index.PartitionIndexPreservedInvalid(auth.Catalog, idx) {
-			continue
-		}
-		child := index.PartitionDumpIndexBacking(auth.Catalog, idx.Address(), table.Address())
-		if child == nil || child.SQLIndex.Constraint != nil || child.SQLIndex.Predicate != nil || len(child.SQLIndex.Include) != 0 || child.SQLIndex.NullsNotDistinct != bound.NullsNotDistinct || len(child.SQLIndex.Keys) != len(bound.Attributes) {
-			continue
-		}
-		match := true
-		for i, key := range child.SQLIndex.Keys {
-			match = match && key.Derived == nil && key.Attribute == bound.Attributes[i]
-		}
-		if match {
-			selected = idx
-			break
-		}
-	}
-	if selected == nil {
-		return nil
-	}
-	captured := &partition.UniqueReplay{Target: table, Syntax: raw, Definition: definition, Snapshot: *definition, Descriptors: []*catalog.Relation{parent, selected}}
-	captured.Snapshot.Columns = slices.Clone(definition.Columns)
-	tables := make(map[ids.ObjectAddress]bool)
-	var capture func(*catalog.Relation) bool
-	capture = func(node *catalog.Relation) bool {
-		if node.Inheritance != nil {
-			return false
-		}
-		if definition.Primary {
-			for _, column := range definition.Columns {
-				slot, ok := node.Index[column.Text]
-				if !ok || node.Columns[slot].Nullable {
-					return false
-				}
-			}
-		}
-		tables[node.Address()] = true
-		captured.Descriptors = append(captured.Descriptors, node)
-		if node.Partition != nil {
-			for _, address := range node.Partition.Children {
-				if !capture(auth.Catalog.MustRelation(address)) {
-					return false
-				}
-			}
-		}
-		return true
-	}
-	if !capture(table) {
-		return nil
-	}
-	for _, descriptor := range auth.Catalog.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if ok && index.SQLIndex != nil && tables[index.SQLIndex.Parent] {
-			captured.Descriptors = append(captured.Descriptors, index)
-		}
 	}
 	operationReplay(op).partitionUnique = captured
 	return nil
@@ -124,21 +55,7 @@ func partitionUniqueReplayAllowed(op *session.Operation, auth AuthorizationView,
 	if op == nil || raw == nil || operationReplayOrZero(op).partitionUnique == nil || !partitionConstraintReplayImport(auth.engine, op, auth) {
 		return false
 	}
-	origin := operationReplayOrZero(op).partitionUnique
-	if origin.Target != table || origin.Syntax != raw || raw.Only || raw.IfExists || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique || raw.Actions[0].Unique != origin.Definition {
-		return false
-	}
-	current := origin.Definition
-	saved := origin.Snapshot
-	if current.Name != saved.Name || current.Primary != saved.Primary || current.NullsNotDistinct != saved.NullsNotDistinct || current.Pos != saved.Pos || !slices.Equal(current.Columns, saved.Columns) {
-		return false
-	}
-	for _, descriptor := range origin.Descriptors {
-		if auth.Catalog.Get(descriptor.Address()) != descriptor {
-			return false
-		}
-	}
-	return true
+	return uniqueReplayMatches(operationReplayOrZero(op).partitionUnique, auth.Catalog, raw, table)
 }
 
 // Consume Engine.mu like the canonical ALTER executor. The existing binder,
