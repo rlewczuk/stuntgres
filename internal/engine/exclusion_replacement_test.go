@@ -61,7 +61,7 @@ func TestExclusionReplacement(t *testing.T) {
 				t.Fatal("destination domain equality did not recognize its imported key")
 			}
 			sequenceScalar(t, b, "SELECT nextval('kept')", 2)
-			if len(target.exclusions.Pending) != 0 {
+			if target.exclusions.CountLocked() != 0 {
 				t.Fatal("replacement retained transient exclusion state")
 			}
 			uniqueClaimsEmpty(t, target)

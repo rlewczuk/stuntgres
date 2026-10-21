@@ -12,35 +12,35 @@ import (
 // advances the generation, so an exclusion scan captured earlier fails
 // currentLocked and is retaken.
 type ExclusionRegistry struct {
-	Pending    map[*lock.Ticket]*ExclusionProjection
+	pending    map[*lock.Ticket]*ExclusionProjection
 	generation uint64
 }
 
 // InstallLocked publishes p as ticket's projection.
 func (r *ExclusionRegistry) InstallLocked(ticket *lock.Ticket, p *ExclusionProjection) {
-	if r.Pending == nil {
-		r.Pending = make(map[*lock.Ticket]*ExclusionProjection)
+	if r.pending == nil {
+		r.pending = make(map[*lock.Ticket]*ExclusionProjection)
 	}
-	r.Pending[ticket] = p
+	r.pending[ticket] = p
 	r.generation++
 }
 
 // ProjectionLocked returns a private copy of ticket's projection for the
 // caller to change and install; an empty one when ticket has none.
 func (r *ExclusionRegistry) ProjectionLocked(ticket *lock.Ticket) *ExclusionProjection {
-	return cloneExclusionProjection(r.Pending[ticket])
+	return cloneExclusionProjection(r.pending[ticket])
 }
 
 // OwnLocked returns ticket's published projection, or nil. Projections are
 // immutable once installed; the caller only reads it.
 func (r *ExclusionRegistry) OwnLocked(ticket *lock.Ticket) *ExclusionProjection {
-	return r.Pending[ticket]
+	return r.pending[ticket]
 }
 
 // RemoveLocked drops ticket's projection, if it has one.
 func (r *ExclusionRegistry) RemoveLocked(ticket *lock.Ticket) {
-	if _, exists := r.Pending[ticket]; exists {
-		delete(r.Pending, ticket)
+	if _, exists := r.pending[ticket]; exists {
+		delete(r.pending, ticket)
 		r.generation++
 	}
 }
@@ -49,26 +49,26 @@ func (r *ExclusionRegistry) RemoveLocked(ticket *lock.Ticket) {
 // when the savepoint had none.
 func (r *ExclusionRegistry) RestoreLocked(ticket *lock.Ticket, p *ExclusionProjection) {
 	if p == nil {
-		delete(r.Pending, ticket)
+		delete(r.pending, ticket)
 	} else {
-		if r.Pending == nil {
-			r.Pending = make(map[*lock.Ticket]*ExclusionProjection)
+		if r.pending == nil {
+			r.pending = make(map[*lock.Ticket]*ExclusionProjection)
 		}
-		r.Pending[ticket] = p
+		r.pending[ticket] = p
 	}
 	r.generation++
 }
 
 // ResetLocked drops every projection; publication replaced the catalog epoch.
 func (r *ExclusionRegistry) ResetLocked() {
-	r.Pending = nil
+	r.pending = nil
 	r.generation++
 }
 
 // ScanLocked captures the generation and a copy of every projection for an
 // exclusion scan.
 func (r *ExclusionRegistry) ScanLocked() (uint64, map[*lock.Ticket]*ExclusionProjection) {
-	return r.generation, maps.Clone(r.Pending)
+	return r.generation, maps.Clone(r.pending)
 }
 
 // CurrentLocked reports whether no projection changed since a scan captured
@@ -76,3 +76,6 @@ func (r *ExclusionRegistry) ScanLocked() (uint64, map[*lock.Ticket]*ExclusionPro
 func (r *ExclusionRegistry) CurrentLocked(generation uint64) bool {
 	return r.generation == generation
 }
+
+// CountLocked returns how many lock owners have a projection.
+func (r *ExclusionRegistry) CountLocked() int { return len(r.pending) }
