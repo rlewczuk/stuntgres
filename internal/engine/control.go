@@ -4,13 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"stuntgres/internal/engine/session"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
 
@@ -117,39 +115,25 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	r := &restoreRun{stage: stage, source: string(data)}
-	r.statements, err = parser.ParseWithOptions(r.source, parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
+	r := &restoreRun{stage: stage}
+	host := &restoreHost{target: e, run: r}
+	source := string(data)
+	statements, err := parser.ParseWithOptions(source, parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
 		return r.decodeComment(restoreHooks, comment, position)
 	}})
 	if err != nil {
 		return err
 	}
-	r.domainReplayPairs, err = typedef.PairDomainReplay(r.source, r.statements, r.domainReplays)
+	if err := host.Begin(source, statements); err != nil {
+		return err
+	}
+	op, end, err := host.Start(ctx)
 	if err != nil {
 		return err
 	}
-	// The isolated role snapshot retains exact target identities for final remapping.
-	sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
-	if err != nil {
-		return err
-	}
-	defer func() { sess.RequestEnd(session.CleanClose); _ = sess.WaitEnd(context.Background()) }()
-	op, err := sess.Acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer op.Done()
-	defer func() {
-		operationReplay(op).sqlBodies = false
-		operationReplay(op).defaultReplay = false
-		operationReplay(op).partitionAttach = false
-		operationReplay(op).partitionCheck = nil
-		operationReplay(op).partitionUsingIndex = nil
-		operationReplay(op).partitionUnique = nil
-	}()
-	r.startCaptures(e.retiredArchiveHighWater())
-	for statementIndex, stmt := range r.statements {
-		r.cur = restoreStatement{index: statementIndex}
+	defer end()
+	for statementIndex, stmt := range statements {
+		host.Statement(statementIndex)
 		consumed, err := r.runBefore(restoreHooks, op, stmt)
 		if err != nil {
 			return err
@@ -167,7 +151,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if err := r.runPrepare(restoreHooks, op, stmt); err != nil {
 			return err
 		}
-		result, err := r.execute(op, stmt)
+		result, err := host.Execute(op, stmt)
 		if err != nil {
 			return err
 		}
@@ -178,36 +162,5 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err := r.runFinish(ctx, restoreHooks, op); err != nil {
 		return err
 	}
-	_, err = e.replaceCatalog(ctx, stage, stage.CatalogRead(), op)
-	return err
-}
-
-// execute runs one admitted statement on the stage, then clears the
-// per-statement replay flags, closes any rows and detaches the notices.
-func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (Result, error) {
-	var err error
-	var result Result
-	if insertion, ok := stmt.(*parser.Insert); ok {
-		if record, paired := r.domainReplayPairs[insertion]; paired {
-			result, err = r.stage.executeDomainReplayInsert(op, insertion, record)
-		} else {
-			result, err = r.stage.Execute(op, stmt, 0, nil)
-		}
-	} else {
-		result, err = r.stage.Execute(op, stmt, 0, nil)
-	}
-	operationReplay(op).defaultReplay = false
-	operationReplay(op).partitionAttach = false
-	operationReplay(op).partitionCheck = nil
-	operationReplay(op).partitionUsingIndex = nil
-	operationReplay(op).partitionUnique = nil
-	if result.Rows != nil {
-		closeErr := result.Rows.Close()
-		if err == nil {
-			err = closeErr
-		}
-	}
-	operationReplay(op).commentAuthority = false
-	op.DetachNotices()
-	return result, err
+	return host.Publish(ctx, op)
 }
