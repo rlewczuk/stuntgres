@@ -1583,9 +1583,9 @@ See [PostgreSQL raw encryption](https://www.postgresql.org/docs/18/pgcrypto.html
 
 ## Installed uuid-ossp version 4
 
-The uuid-ossp1.1 provider installs exactly six native members returning UUID:
-`uuid_generate_v4()` and `uuid_nil()`, `uuid_ns_dns()`, `uuid_ns_url()`,
-`uuid_ns_oid()`, `uuid_ns_x500()`. Use quoted `CREATE EXTENSION "uuid-ossp"`
+The uuid-ossp1.1 provider installs exactly eight native members returning UUID:
+`uuid_generate_v4()`, `uuid_generate_v1()`, `uuid_generate_v1mc()`, `uuid_nil()`,
+`uuid_ns_dns()`, `uuid_ns_url()`, `uuid_ns_oid()`, `uuid_ns_x500()`. Use quoted `CREATE EXTENSION "uuid-ossp"`
 with an optional installation schema. Installation uses the existing trusted
 extension/database-CREATE authority: the installer owns the extension, while
 superuser-required members installed by a nonsuperuser belong to the bootstrap
@@ -1613,9 +1613,20 @@ generation-state demand. Their values are respectively
 `6ba7b814-9dad-11d1-80b4-00c04fd430c8`. Nil UUID is an ordinary non-NULL UUID.
 They support generated columns and expression indexes while preserving genuine
 installed identity, current EXECUTE checks and symbolic qualified control recipes.
-All six overloads have zero arguments; passing NULL is a missing overload.
-Other uuid-ossp generators and arbitrary shared-library loading remain excluded;
-PostgreSQL's complete upstream inventory is larger.
+All eight overloads have zero arguments; passing NULL is a missing overload.
+Name-based v3/v5 generators and arbitrary shared-library loading remain excluded.
+
+V1 and v1mc are VOLATILE STRICT PARALLEL SAFE time UUID generators. Their shared
+physical-session allocator is nontransactional and survives rollback/Reset/Restore,
+but is never serialized. V1 uses a cryptographically seeded stable random fallback
+node with multicast/local bits; v1mc uses a fresh random node with both bits per
+demand. Neither acquires a real host MAC or calls libuuid/OSSP/uuidd/clock files.
+The Gregorian timestamp uses100ns units and ten slots per observed microsecond.
+Exhaustion waits cancellation-aware outside the private allocator lock, without
+synthetic future drift. Backward observed time increments the14-bit sequence;
+wrap stages a fresh stable fallback node. Entropy failure/cancellation commits
+no state. Across random node epochs, sessions, Drivers/processes and restarts,
+uniqueness is probabilistic, not durable or OS-synchronized.
 
 ## cube extension type
 

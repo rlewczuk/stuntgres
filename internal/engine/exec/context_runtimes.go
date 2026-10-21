@@ -550,6 +550,9 @@ func (c *Context) FunctionUUIDReady() error {
 }
 
 func (c *Context) FunctionUUIDTime() int64 { return c.LiveHost().FunctionUUIDTime() }
+func (c *Context) FunctionUUIDV1(multicast bool) ([16]byte, error) {
+	return c.LiveHost().FunctionUUIDV1(multicast)
+}
 
 func (c *Context) FunctionUUIDEntropy(bytes []byte) error { _, err := rand.Read(bytes); return err }
 

@@ -91,6 +91,7 @@ type Host interface {
 	FunctionRandomOwner() (expr.RandomOwner, error)
 	FunctionUUIDReady() error
 	FunctionUUIDTime() int64
+	FunctionUUIDV1(multicast bool) ([16]byte, error)
 	FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error)
 	FunctionRegexExecution() *sqltype.PGRegexExecution
 	// plan.Runtime

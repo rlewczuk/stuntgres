@@ -55,7 +55,7 @@ var definitions = [...]Definition{
 	{Names: []string{"uuidv4"}, ExactSpelling: true, SharedGates: true, Bind: bindUUIDGeneration},
 	{Names: []string{"uuidv7"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindUUIDGeneration},
 	{Names: []string{"format"}, SharedGates: true, Bind: bindFormat, ProbeCall: probeFormat},
-	{Names: []string{"uuid_generate_v4", "uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500"}, Bind: bindUUIDOssp},
+	{Names: []string{"uuid_generate_v4", "uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500", "uuid_generate_v1", "uuid_generate_v1mc"}, Bind: bindUUIDOssp},
 	{Names: arrayInspectNames[:], Bind: bindArrayInspect, ProbeCall: probeArrayInput},
 	{Names: arrayRandomNames[:], Bind: bindArrayRandom, ProbeCall: probeArrayInput},
 	{Names: arrayTransformNames[:], Bind: bindArrayTransform, ProbeCall: probeArrayTransform},

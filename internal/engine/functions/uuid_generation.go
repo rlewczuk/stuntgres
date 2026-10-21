@@ -77,7 +77,7 @@ func (e UUIDGeneration) Eval(c expr.Context) (sqltype.Value, error) {
 	if value, ok := uuidOsspConstant(e.Name); ok {
 		return sqltype.UUIDValue(e.Usage.Type, value)
 	}
-	if e.Name != "uuidv4" && e.Name != "uuidv7" && e.Name != "gen_random_uuid" {
+	if e.Name != "uuidv4" && e.Name != "uuidv7" && e.Name != "gen_random_uuid" && !uuidOsspTime(e.Name) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid UUID selector")
 	}
 	var shift sqltype.Value
@@ -92,6 +92,13 @@ func (e UUIDGeneration) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	if err := c.FunctionUUIDReady(); err != nil {
 		return sqltype.Value{}, err
+	}
+	if uuidOsspTime(e.Name) {
+		value, err := c.FunctionUUIDV1(e.Name == "uuid_generate_v1mc")
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.UUIDValue(e.Usage.Type, value)
 	}
 	if e.Name != "uuidv7" {
 		return uuidGenerateV4(ctx, c, e.Usage.Type)
@@ -152,6 +159,9 @@ func uuidGenerateV4(ctx context.Context, source interface{ FunctionUUIDEntropy([
 	}
 	return sqltype.UUIDValue(result, uuidPackV4(entropy))
 }
+func uuidOsspTime(name string) bool {
+	return name == "uuid_generate_v1" || name == "uuid_generate_v1mc"
+}
 func UUIDGenerationShape(raw parser.FunctionExpr, visible bool) bool {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	valid := visible && !raw.Variadic && (len(raw.Args) == 0 || name == "uuidv7" && len(raw.Args) == 1)
@@ -171,10 +181,13 @@ func CoerceUUIDShift(b ArgumentCoercer, argument Argument, target sqltype.Usage)
 	return b.CoerceArgument(argument, CoercionRequest{Intent: DirectFormalArgument, Target: target, AtRaw: true})
 }
 func NewUUIDGeneration(info expr.Info, name string, args []expr.Expr, timestamp *sqltype.Descriptor) (UUIDGeneration, error) {
-	if name != "uuidv4" && name != "uuidv7" && name != "gen_random_uuid" {
+	if name != "uuidv4" && name != "uuidv7" && name != "gen_random_uuid" && !uuidOsspTime(name) {
 		if _, ok := uuidOsspConstant(name); !ok || len(args) != 0 || timestamp != nil {
 			return UUIDGeneration{}, fmt.Errorf("stuntgres: invalid UUID constant selector or shape")
 		}
+	}
+	if uuidOsspTime(name) && (len(args) != 0 || timestamp != nil) {
+		return UUIDGeneration{}, fmt.Errorf("stuntgres: invalid UUID time selector shape")
 	}
 	node := UUIDGeneration{Info: info, Name: name, Args: args, Timestamp: timestamp}
 	if len(args) != 0 {
@@ -245,7 +258,7 @@ func (e UUIDGeneration) Render() (expr.Rendering, error) {
 // replayFault validates the stored signature and its optional uuidv7 shift.
 func (e UUIDGeneration) replayFault() error {
 	_, constant := uuidOsspConstant(e.Name)
-	if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.UUID || (!constant && e.Name != "uuidv7" && e.Name != "uuidv4" && e.Name != "gen_random_uuid") || len(e.Args) > 1 || len(e.Args) != 0 && e.Name != "uuidv7" {
+	if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.UUID || (!constant && !uuidOsspTime(e.Name) && e.Name != "uuidv7" && e.Name != "uuidv4" && e.Name != "gen_random_uuid") || len(e.Args) > 1 || len(e.Args) != 0 && e.Name != "uuidv7" || uuidOsspTime(e.Name) && e.Timestamp != nil {
 		return fmt.Errorf("stuntgres: invalid stored UUID generation signature")
 	}
 	if len(e.Args) != 0 && e.Args[0].ResultUsage().Type.ID() != sqltype.Interval {

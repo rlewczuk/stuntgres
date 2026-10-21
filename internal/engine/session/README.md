@@ -60,8 +60,8 @@ so either import would form a cycle.
   `ScanNotificationPending` (the root listener, `sessionNotifications`, holds
   the state under `Engine.mu` and does the polling and fanout); the advisory delegate (`advisory.go`),
   `AuthorizationState` (`authorization.go`), `RandomState` (`random.go`),
-  the UUID clock (`uuid_clock.go`) and `StatementLease`
-  (`statement_lease.go`).
+  the v7 UUID clock (`uuid_clock.go`), the coupled nontransactional v1 allocator
+  (`uuid_v1.go`, `Session.UUIDV1`) and `StatementLease` (`statement_lease.go`).
 - **The journal** (`journal.go`): `Journal`, a transaction's private catalog
   overlay (descriptors and name bindings with their originals, default ACLs,
   sequence generators, private relation storage as `StorageChange`, observed
@@ -107,6 +107,15 @@ so either import would form a cycle.
   `Session.Mu`, `SettingsStore.Mu` and `Engine.sessionMu`; the lock manager
   innermost. Code here never takes `Engine.mu`; it reaches the engine only
   through `Host`.
+- **UUID allocation.** A private leaf mutex couples v1/v1mc fallback node,
+  observed microsecond bucket,100ns slot and14-bit sequence. No catalog,
+  transaction, lifecycle or v7 mutex is held over entropy or clock-progress
+  waiting. Entropy staging holds only the allocator mutex; cancellation-aware
+  slot waits release it and recapture clock/state on return. Failed/canceled
+  draws commit nothing. Rollback/Reset/Restore do not rewind this physical
+  session state, which is never serialized. Sequence wrap rotates the random
+  fallback node. Cross-session/random-epoch uniqueness is probabilistic;
+  there is no host-MAC discovery, UUID ABI, uuidd or persistent clock file.
 - **No orchestration.** The transaction owner holds the journal; statement
   admission serializes writers, and the root engine validates and publishes
   it under `Engine.mu` (§3 rule 4). The journal itself takes no lock.
@@ -157,4 +166,6 @@ make check RUN='^TestNotificationQueue'
 make check RACE=1 RUN='^TestSessionHost'
 make check RACE=1 RUN='^(TestSessionPayload|TestOwnerExtension|TestExclusionMark|TestOperation(AnalysisSlot|ReplaySlot))'
 make check RUN='^(TestCatalogFences|TestCatalogTypeJournalSlotsCopyOnWrite|TestEnumProvenanceSavepoints)'
+make check RUN='^TestUUIDOsspTime(Packing|Clock|Sequence|Entropy|Cancellation|Concurrent)$'
+make check RACE=1 RUN='^TestUUIDOsspTimeConcurrent$'
 ```

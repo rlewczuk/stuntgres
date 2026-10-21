@@ -96,9 +96,9 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 func TestUUIDOsspNamespaceManifest(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
 	view := e.CatalogRead()
-	want := map[string]expr.Volatility{"uuid_generate_v4": expr.Volatile, "uuid_nil": expr.Immutable, "uuid_ns_dns": expr.Immutable, "uuid_ns_url": expr.Immutable, "uuid_ns_oid": expr.Immutable, "uuid_ns_x500": expr.Immutable}
+	want := map[string]expr.Volatility{"uuid_generate_v4": expr.Volatile, "uuid_generate_v1": expr.Volatile, "uuid_generate_v1mc": expr.Volatile, "uuid_nil": expr.Immutable, "uuid_ns_dns": expr.Immutable, "uuid_ns_url": expr.Immutable, "uuid_ns_oid": expr.Immutable, "uuid_ns_x500": expr.Immutable}
 	if len(ext.Members) != len(want) {
-		t.Fatal("six-member manifest", len(ext.Members))
+		t.Fatal("eight-member manifest", len(ext.Members))
 	}
 	seen := make(map[string]bool)
 	for _, address := range ext.Members {

@@ -118,7 +118,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 
 func TestUUIDOsspControls(t *testing.T) {
 	record := extension.OwnerRecord{Name: "uuid-ossp", Schema: "public", Version: "1.1", Owner: "installer", Members: []extension.MemberOwner{{Kind: "procedure", Name: "uuid_generate_v4", Signature: "", Owner: "postgres"}}}
-	for _, name := range []string{"uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500"} {
+	for _, name := range []string{"uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500", "uuid_generate_v1", "uuid_generate_v1mc"} {
 		record.Members = append(record.Members, extension.MemberOwner{Kind: "procedure", Name: name, Signature: "", Owner: "postgres"})
 	}
 	encode := func(r extension.OwnerRecord) string {

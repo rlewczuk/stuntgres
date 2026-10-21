@@ -440,7 +440,7 @@ Registered families:
 | Math | `math_bind.go` | `mathNames` | `ExactSpelling`, `SharedGates` |
 | UUID generation | `uuid_generation_bind.go` | `uuidv4`, `uuidv7` | `ExactSpelling`, `SharedGates`; `uuidv7` also `OwnsLabels` |
 | `format` | `format_bind.go` | `format` | `SharedGates` |
-| uuid-ossp | `uuid_ossp_bind.go` | `uuid_generate_v4`, `uuid_nil`, `uuid_ns_dns`, `uuid_ns_url`, `uuid_ns_oid`, `uuid_ns_x500` | none |
+| uuid-ossp | `uuid_ossp_bind.go` | `uuid_generate_v4`, `uuid_generate_v1`, `uuid_generate_v1mc`, `uuid_nil`, `uuid_ns_dns`, `uuid_ns_url`, `uuid_ns_oid`, `uuid_ns_x500` | none |
 | Arrays | `array_{inspect,random,transform,search}_bind.go` | `array*Names` | none |
 | Range inspection | `range_inspect_bind.go` | `rangeInspectNames` | none |
 | JSON/JSONB calls | `json_call_bind.go` | `jsonCallNames` | `Claims` |
@@ -898,8 +898,8 @@ state over the role store, not function nodes; they live in `regobj` with
 `regobj.ContainsEmptyACL`, which serves Dump and deparse.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay outside
-`functions`: the state is `session.RandomState` and the UUID clock in
-`session` (`session/random.go`, `session/uuid_clock.go`); the engine keeps the session generators behind the `exec.Context` clock
+`functions`: the state is `session.RandomState`, the v7 clock and coupled v1
+allocator (`session/random.go`, `session/uuid_clock.go`, `session/uuid_v1.go`); the engine keeps the session generators behind the `exec.Context` clock
 and sleep methods, and the closed DEFAULT admission of clock and sleep
 calls (`closedTransactionTimeDefault`). Function evaluation borrows the same owners only when demanded. Literal
 NULL folding and reached runtime argument effects remain distinct. Aggregate
@@ -1603,7 +1603,7 @@ make check RUN='^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOss
 make check REFERENCE=1 RUN='^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOssp|NumericFormattingUUIDDefaults|SearchPath)'
 ```
 
-The six-member `UUIDOsspMembers` manifest supplies installed declaration and
+The eight-member `UUIDOsspMembers` manifest supplies installed declaration and
 owner-recipe validation. `UUIDGeneration` also hosts the five immutable UUID
 constants: literal bytes return before session readiness, entropy or clock
 demand. Stored installed recipes retain their procedure/epoch/ACL carrier,
@@ -1617,6 +1617,24 @@ make check RUN='^TestUUIDOsspNamespace(Constants|Construction|ExpressionIdentity
 make check RUN='^TestReferenceUUIDOsspNamespace(Values|Bindings|Identity|Diagnostics|Authority|Consumers|Controls|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferenceUUIDOsspNamespace(Values|Bindings|Identity|Diagnostics|Authority|Consumers|Controls|FeatureSmoke)$'
 ```
+
+V1/v1mc dispatch through `FunctionUUIDV1(multicast)` only on demand. The private
+physical-session allocator couples the random fallback node/time/sequence,
+survives transaction/catalog controls and never enters stored expressions.
+Ten100ns slots per observed microsecond bound interpolation; exhaustion waits
+cancellation-aware outside its mutex and recaptures both clock and state.
+Rollback increments the14-bit sequence; wrap rotates the stable fallback node.
+V1mc draws an independent fresh multicast/local node. Failures commit no state.
+There is no host-MAC/OS UUID ABI/uuidd/file coordination, and random node epochs
+and independent sessions offer probabilistic rather than durable uniqueness.
+
+```sh
+make check RUN='^TestUUIDOsspTime(Packing|Clock|Sequence|Entropy|Cancellation|Concurrent|KernelDemand)$'
+make check RACE=1 RUN='^(TestUUIDOsspTimeConcurrent|TestReferenceUUIDOsspTimeConcurrency)$'
+make check RUN='^TestReferenceUUIDOsspTime(Identity|Generation|Diagnostics|Consumers|Authority|Controls|Concurrency|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceUUIDOsspTime(Identity|Generation|Diagnostics|Consumers|Authority|Controls|Concurrency|FeatureSmoke)$'
+```
+
 
 
 Array and range families (registry; the engine's `TestArray*`,

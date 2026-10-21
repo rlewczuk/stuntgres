@@ -45,6 +45,7 @@ type Context interface {
 	FunctionArrayRandomOwner() (RandomOwner, error)
 	FunctionUUIDReady() error
 	FunctionUUIDTime() int64
+	FunctionUUIDV1(multicast bool) ([16]byte, error)
 	FunctionUUIDEntropy([]byte) error
 	FunctionPgcryptoEntropy([]byte) error
 	FunctionPgcryptoFIPSMode() bool

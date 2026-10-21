@@ -98,6 +98,7 @@ type Session struct {
 	Random                 RandomState
 	ArrayRandom            RandomState // independent of random()/setseed()
 	UUID                   uuidClock
+	uuidTime               uuidV1Allocator
 	DatabaseName           string
 	Timeouts               sessionTimeouts
 	Payload                PayloadSlot // Root payload; set before publication, never changed. See payloadOf.

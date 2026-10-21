@@ -14,6 +14,8 @@ var UUIDOsspMembers = [...]struct {
 	{"uuid_ns_url", "uuid_ns_url", expr.Immutable},
 	{"uuid_ns_oid", "uuid_ns_oid", expr.Immutable},
 	{"uuid_ns_x500", "uuid_ns_x500", expr.Immutable},
+	{"uuid_generate_v1", "uuid_generate_v1", expr.Volatile},
+	{"uuid_generate_v1mc", "uuid_generate_v1mc", expr.Volatile},
 }
 
 func UUIDOsspLookup(name string) (selector string, volatility expr.Volatility, ok bool) {

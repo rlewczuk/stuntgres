@@ -478,8 +478,9 @@ See [native contract](docs/DIALECT.md#pg_range-supported-range-metadata) and
 
 ## Installed UUID version 4 — change note
 
-`CREATE EXTENSION "uuid-ossp"` installs six zero-argument `RETURNS uuid`
-members, version1.1: `uuid_generate_v4()` and the five immutable constants below.
+`CREATE EXTENSION "uuid-ossp"` installs eight zero-argument `RETURNS uuid`
+members, version1.1: `uuid_generate_v4()`, `uuid_generate_v1()`,
+`uuid_generate_v1mc()` and the five immutable constants below.
 The generator uses Go's
 `crypto/rand` source and the shared UUID codec to return non-NULL random
 version4/RFC-variant values. The function is VOLATILE: held calls, row defaults
@@ -487,7 +488,7 @@ and views demand fresh values; generated columns and expression indexes reject i
 Schema visibility and real installed procedure identities survive native
 Dump/Reset/Restore, including grouped views projecting UUID calls beside
 aggregates. Legitimate group-stage metadata is retained without relaxing closed
-DEFAULT restrictions. Other upstream uuid-ossp generators are not installed.
+DEFAULT restrictions. The name-based v3/v5 generators are not installed.
 Its installed identity also participates in current-invoker EXECUTE grants:
 held calls, views and demanded DEFAULT writes deny after revocation, without
 borrowing a table/view owner's function authority or publishing partial writes.
@@ -505,6 +506,20 @@ These installed calls retain current-invoker EXECUTE authority and qualified
 symbolic recipes through controls; immutable generated columns and expression
 indexes accept them. Ordinary UUID storage, textual bindings and NULL semantics
 are unchanged. None accepts a NULL argument or any other argument.
+
+The time generators are VOLATILE STRICT PARALLEL SAFE version1/RFC-variant
+UUID functions. One nontransactional physical-session allocator couples a
+cryptographically seeded fallback node, time and14-bit sequence. V1 uses that
+stable random multicast/local node; v1mc draws a fresh random node with both bits
+set on each demand. There is no host-MAC discovery, C UUID library, uuidd,
+clock file or durable cross-process coordination. Equal microsecond buckets
+have ten100ns slots; exhaustion waits cancellation-aware outside the allocator
+lock for observed clock progress. Clock rollback increments the sequence; wrap
+rotates the stable random fallback node. Failed entropy/canceled calls publish
+no allocation state. Rollback and native catalog controls do not rewind the
+allocator. Uniqueness across random node epochs, physical sessions, Drivers and
+restarts is probabilistic, not a persisted coordination guarantee.
+See [time-generator proof and smoke](reference/catalogs/README.md#installed-uuid-ossp-time-generators).
 
 ## Language catalog — change note
 

@@ -41,7 +41,7 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 	}
 	// The installed uuid-ossp routine sat before the shared gates and matched
 	// every spelling; its installed lookup owns exact resolution.
-	for _, name := range []string{"uuid_generate_v4", "UUID_Generate_V4", "uuid_nil", "UUID_Nil", "uuid_ns_dns", "UUID_NS_DNS", "uuid_ns_url", "UUID_NS_URL", "uuid_ns_oid", "UUID_NS_OID", "uuid_ns_x500", "UUID_NS_X500"} {
+	for _, name := range []string{"uuid_generate_v1", "UUID_Generate_V1", "uuid_generate_v1mc", "UUID_Generate_V1mc", "uuid_generate_v4", "UUID_Generate_V4", "uuid_nil", "UUID_Nil", "uuid_ns_dns", "UUID_NS_DNS", "uuid_ns_url", "UUID_NS_URL", "uuid_ns_oid", "UUID_NS_OID", "uuid_ns_x500", "UUID_NS_X500"} {
 		definition, ok := Lookup(name)
 		if !ok || definition.Bind == nil || definition.ExactSpelling || definition.SharedGates {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
@@ -160,7 +160,7 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "concat_w\u017f", "concatenate", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
+	for _, name := range []string{"", "uuid_generate_v3", "uuid_generate_v5", "uuid_generate_v4x", "concat_w\u017f", "concatenate", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
 		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
 		"Date_Trunc", "MAKE_DATE", "AGE", "ISFINITE", "overlaps", "TO_NUMBER",
 		"RANDOM", "Random_Normal", "SETSEED", "randoms", "setseeds", "PG_SLEEP", "Pg_Sleep_For", "pg_sleep_untill", "sleep",

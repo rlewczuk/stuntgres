@@ -908,8 +908,8 @@ make check RUN='^TestReferencePGAggregate(Lifecycle|Prepared)$' RACE=1
 `TestReferenceUUIDOsspGeneration`, `Identity`, `Diagnostics`, `Consumers`,
 `Controls`, `GroupedControls` and `FeatureSmoke` share public direct/held
 scenarios across native and PostgreSQL (historical version4 evidence:18.0).
-Native installs six selected members, version1.1: uuid_generate_v4() plus the
-five constants described below; additional upstream generators remain excluded.
+Native installs eight selected members, version1.1: uuid_generate_v4(), the
+two time generators and five constants; name-based v3/v5 remain excluded.
 Independent canonical decoding checks non-NULL values, version4 and RFC variant bits,
 while transport metadata is checked before iteration, including empty results.
 Bounded distinctness is a freshness witness, not proof of cryptographic security.
@@ -983,7 +983,7 @@ Current-invoker EXECUTE remains required for held calls, views and defaults;
 revoked late defaults publish no partial writes. Immutable generated/index and
 grouped expressions are admitted without converting installed recipes to literals.
 Native-only phases preserve values/NULL, retained rows/metadata, held statements,
-six-member owner recipes and independent-driver replay with atomic failed/canceled
+eight-member owner recipes and independent-driver replay with atomic failed/canceled
 Restore. Existing V4 freshness and volatile-consumer rejection remain unchanged.
 
 Run each selected command with a900-second external deadline:
@@ -1000,6 +1000,53 @@ The catalog part additionally supplies a standalone public-API Go smoke as a
 session artifact; materialize it at `/tmp/uuid-namespace-smoke.go` and run
 `go run /tmp/uuid-namespace-smoke.go` from the repository root, then remove that
 temporary source. Successful smoke is silent and failures exit nonzero.
+
+### Installed uuid-ossp time generators
+
+The shared completed `TestReferenceUUIDOsspTime` family has eight definitions:
+`Identity`, `Generation`, `Diagnostics`, `Consumers`, `Authority`, `Controls`,
+`Concurrency`, `FeatureSmoke`. They independently decode RFC4122 time/sequence,
+version1/variant bits and v1mc multicast/local node bits, bracket demand-time
+timestamps and extract the saved UUID's timestamp. Direct/fresh/SAME held calls,
+empty/populated UUID metadata, exact diagnostics including NULL-argument
+overload failure, defaults/views and ACL revocation retain actual installed
+identities. Native controls preserve saved values and qualified consumers,
+without serializing or rewinding generation state. Concurrent borrowed-session
+and DB-prepared routes require full cardinality, uniqueness and zero errors.
+No stable PostgreSQL host node or real MAC is assumed.
+
+Native uses a nontransactional physical-session coupled random fallback
+node/time/sequence allocator. V1 keeps its fallback node until sequence wrap;
+v1mc draws a fresh multicast/local node per demand. Equal microsecond buckets
+provide ten100ns slots then wait cancellation-aware outside the allocator lock.
+Rollback increments the14-bit sequence; wrap stages a fresh fallback node.
+Entropy failures and cancellation leave state unchanged. There is no host-MAC
+discovery, C UUID ABI, uuidd, clock file or durable coordination; uniqueness
+across random epochs/sessions/Drivers/processes/restarts is probabilistic.
+Private deterministic allocator tests supplement, not replace, public evidence.
+
+Use900-second external deadlines, with the same completed definitions in both modes:
+
+```sh
+make check RUN='^TestReferenceUUIDOsspTime(Identity|Generation|Diagnostics|Consumers|Authority|Controls|Concurrency|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceUUIDOsspTime(Identity|Generation|Diagnostics|Consumers|Authority|Controls|Concurrency|FeatureSmoke)$'
+make check RUN='^TestUUIDOsspTime(Packing|Clock|Sequence|Entropy|Cancellation|Concurrent|KernelDemand)$'
+make check RACE=1 RUN='^(TestUUIDOsspTimeConcurrent|TestReferenceUUIDOsspTimeConcurrency)$'
+```
+
+Feature smoke:
+
+```sh
+make check RUN='^TestReferenceUUIDOsspTimeFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceUUIDOsspTimeFeatureSmoke$'
+```
+
+Expected observations: both installed functions produce fresh valid time UUIDs
+through direct/SAME held/default/view calls; saved timestamp extraction agrees
+with independent decoding, mc node bits are set, empty metadata stays UUID,
+wrong arity yields the complete42883 diagnostic without effects, and native
+Dump/Reset/Restore preserves saved values while subsequent calls remain fresh.
+
 
 
 ### pg_language selected proof

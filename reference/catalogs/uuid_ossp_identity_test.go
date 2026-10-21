@@ -86,7 +86,7 @@ func TestReferenceUUIDOsspIdentity(t *testing.T) {
 		uuidOsspRead(t, p, c, r, pg, "SELECT uuid_ossp_part.uuid_generate_v4() AS u", 1, 1)
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='uuid_ossp_part' AND p.proname IN ('uuid_generate_v1','uuid_generate_v1mc','uuid_generate_v3','uuid_generate_v5')", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='uuid_ossp_part' AND p.proname IN ('uuid_generate_v3','uuid_generate_v5')", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		}
 	})
 }
