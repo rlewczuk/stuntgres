@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -95,7 +96,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	if err = regobj.ClassReplayReferences(view, numeric, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || len(replay) != 0 {
 		t.Fatal(replay, err)
 	}
-	if !DefaultReplayDeferrable(catalog.ColumnDefault{Expression: numeric}) {
+	if !table.DefaultReplayDeferrable(catalog.ColumnDefault{Expression: numeric}) {
 		t.Fatal("closed numeric regclass default not deferred")
 	}
 }
@@ -125,7 +126,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	if count != 2 {
 		t.Fatal(count)
 	}
-	if exec.PlannedVolatility(node) != expr.Immutable || !plan.GenerationImmutable(node) || !DefaultReplayDeferrable(catalog.ColumnDefault{Expression: node}) || !b.SameGroupExpression(node, node) {
+	if exec.PlannedVolatility(node) != expr.Immutable || !plan.GenerationImmutable(node) || !table.DefaultReplayDeferrable(catalog.ColumnDefault{Expression: node}) || !b.SameGroupExpression(node, node) {
 		t.Fatal("constructor properties/walkers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -152,10 +153,10 @@ func TestRegclassDeferredDefinitionSelection(t *testing.T) {
 	text, _ := view.LookupType(sqltype.Text)
 	scalar := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage()}, Value: sqltype.String(regclass, "1259")}
 	inline := plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "inline")}
-	if !DefaultReplayDeferrable(catalog.ColumnDefault{Expression: scalar}) || DefaultReplayDeferrable(catalog.ColumnDefault{Expression: inline}) {
+	if !table.DefaultReplayDeferrable(catalog.ColumnDefault{Expression: scalar}) || table.DefaultReplayDeferrable(catalog.ColumnDefault{Expression: inline}) {
 		t.Fatal("selected result eligibility or primitive inline definition changed")
 	}
-	table := dumpRelation{
+	table := table.DumpRelation{
 		Schema: "public", Name: "t", Attributes: descriptor.Attributes,
 		Columns: descriptor.Columns, Descriptor: descriptor,
 		Defaults:            map[int32]catalog.ColumnDefault{1: {Expression: inline}, 2: {Expression: scalar}},
@@ -242,7 +243,7 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 			descriptor, _ := view.Descriptor(ownerRef.Address)
 			owner := descriptor.(*catalog.Relation)
 			definition := owner.ColumnMeta.Defaults[owner.Attributes[owner.Index["v"]]]
-			if DefaultReplayDeferrable(definition) || definition.Expression.ResultUsage().Type.ID() != sqltype.Bool {
+			if table.DefaultReplayDeferrable(definition) || definition.Expression.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("opaque BOOL default changed eligibility")
 			}
 			for _, dependency := range definition.Dependencies {

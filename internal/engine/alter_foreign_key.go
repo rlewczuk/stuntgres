@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -35,7 +36,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	childRef, err := e.resolveRelationReference(auth, raw.Name, true)
 	if err != nil {
 		e.mu.Unlock()
-		if raw.IfExists && RenameMissing(err) {
+		if raw.IfExists && table.RenameMissing(err) {
 			return nil
 		}
 		return err
@@ -45,13 +46,13 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		err = analyze.TableKindError(child, "ADD CONSTRAINT")
 	}
 	if err == nil {
-		err = InheritanceAlterActionsGuard(auth.Catalog, child, raw.Actions)
+		err = table.InheritanceAlterActionsGuard(auth.Catalog, child, raw.Actions)
 	}
 	if err != nil {
 		e.mu.Unlock()
 		return err
 	}
-	captures := make([]alterForeignKeyAdmission, count)
+	captures := make([]table.AlterForeignKeyAdmission, count)
 	refs := []ids.ObjectRef{childRef}
 	stores := map[ids.ObjectAddress]*storage.Relation{childRef.Address: e.privateStorageLocked(s.owner.Catalog, childRef.Address)}
 	i := 0
@@ -62,7 +63,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		ref, resolveErr := e.resolveReference(auth, action.ForeignKey.Target)
 		if resolveErr != nil {
 			e.mu.Unlock()
-			return AlterCookingError(resolveErr)
+			return table.AlterCookingError(resolveErr)
 		}
 		captures[i].Target = ref
 		captures[i].Storage = e.privateStorageLocked(s.owner.Catalog, ref.Address)
@@ -78,10 +79,10 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 						}
 					}
 				} else {
-					attributes, _ = ForeignKeyAttributes(parent, action.ForeignKey.Referenced)
+					attributes, _ = table.ForeignKeyAttributes(parent, action.ForeignKey.Referenced)
 				}
 				if len(attributes) != 0 {
-					if index, keyErr := ForeignKeyIndex(auth.Catalog, parent, attributes); keyErr == nil {
+					if index, keyErr := table.ForeignKeyIndex(auth.Catalog, parent, attributes); keyErr == nil {
 						captures[i].Index = index.Address()
 					}
 				}
@@ -98,7 +99,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	for _, ref := range refs {
 		mode := lock.ShareRowExclusive
 		if ref == childRef {
-			mode = AlterTableLockMode(raw)
+			mode = table.AlterTableLockMode(raw)
 		}
 		if err := s.foreignKeyGrant(ref, 0, mode, stores[ref.Address]); err != nil {
 			return err
@@ -173,7 +174,7 @@ func (s *StatementScope) validateAddedForeignKeys(view catalog.Read, child *cata
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
-		comparisons, err := BindForeignKeyComparison(view, child, parent, index, f)
+		comparisons, err := table.BindForeignKeyComparison(view, child, parent, index, f)
 		if err != nil {
 			return err
 		}

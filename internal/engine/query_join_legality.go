@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -108,7 +109,7 @@ func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 	if column, ok := expression.(plan.ColumnExpr); ok && column.Virtual != nil {
 		// A virtual column is a recipe boundary, not a lexical child in the
 		// enclosing query's frame or routine dependency manifest.
-		return AdmitColumnVirtualGeneration(c, column, catalog)
+		return table.AdmitColumnVirtualGeneration(c, column, catalog)
 	}
 	if subquery, ok := expression.(plan.SubqueryExpr); ok {
 		project := subquery.QueryPlan.Root.(*plan.ProjectNode)

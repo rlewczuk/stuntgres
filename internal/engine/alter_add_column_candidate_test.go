@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -63,7 +64,7 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 		t.Fatal("candidate shares index")
 	}
 	delete(next.Index, "sentinel")
-	fills, volatile, err := planAddedColumns(scope, []addedColumn{added})
+	fills, volatile, err := planAddedColumns(scope, []table.AddedColumn{added})
 	if err != nil || volatile {
 		t.Fatal(fills, volatile, err)
 	}
@@ -96,7 +97,7 @@ func TestAlterAddColumnNonvolatileDemandOnce(t *testing.T) {
 	for _, volatility := range []expr.Volatility{expr.Immutable, expr.Stable} {
 		calls := 0
 		expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: volatility}}, eval: func(*exec.Context) (sqltype.Value, error) { calls++; return value, nil }}
-		additions := []addedColumn{{Attribute: 4, Expression: expression, Value: sqltype.Null(u.Type)}}
+		additions := []table.AddedColumn{{Attribute: 4, Expression: expression, Value: sqltype.Null(u.Type)}}
 		fills, volatile, err := planAddedColumns(scope, additions)
 		if err != nil || volatile || calls != 1 || fills[4] != value || additions[0].Value != value {
 			t.Fatal(fills, volatile, calls, err)
@@ -125,7 +126,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	next.ColumnMeta.HighWater = 4
 	calls := 0
 	expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Integer(u.Type, int64(calls)) }}
-	additions := []addedColumn{{Attribute: 4, Column: &parser.Column{Name: "b"}, Expression: expression, Value: sqltype.Null(u.Type)}}
+	additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "b"}, Expression: expression, Value: sqltype.Null(u.Type)}}
 	fills, volatile, err := planAddedColumns(scope, additions)
 	if err != nil || !volatile || calls != 0 || len(fills) != 0 {
 		t.Fatal(fills, volatile, calls, err)
@@ -151,7 +152,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		return transformed, nil
 	}}
 	transforms := []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}
-	replacement, own, deleted, err := rewriteTypeRows(scope, scope.op, old, &next, store, 2, transforms, additions, nil, NewAlterRowValidator(&next, ""))
+	replacement, own, deleted, err := rewriteTypeRows(scope, scope.op, old, &next, store, 2, transforms, additions, nil, table.NewAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(own) != 2 || deleted != nil {
 		t.Fatal(replacement, own, calls, err)
 	}

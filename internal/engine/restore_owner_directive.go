@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -19,7 +20,7 @@ func beforeRestoreOwnerSnapshot(r *restoreRun, _ *session.Operation, _ parser.St
 	r.cur.domainOwnerPair = r.pairedDomainOwner
 	r.pairedDomainOwner = typedef.RestoredDomainOwner{}
 	r.lastAuthorization, r.createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
-	r.pairedOwner = restoredInheritedOwner{}
+	r.pairedOwner = table.RestoredInheritedOwner{}
 	return false, nil
 }
 

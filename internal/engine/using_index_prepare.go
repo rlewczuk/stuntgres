@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -16,7 +17,7 @@ import (
 func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured index.UsingIndexAttachment) (*index.UsingIndexPreparation, error) {
 	prepared := &index.UsingIndexPreparation{Parent: parent}
 	if !captured.NotNullPrepared {
-		candidate, err := UsingIndexNotNullCandidate(op, view, reader, parent, captured)
+		candidate, err := table.UsingIndexNotNullCandidate(op, view, reader, parent, captured)
 		if err != nil {
 			return nil, err
 		}
@@ -53,7 +54,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *session.Operation, view catalog.R
 		}
 		for _, constraint := range parent.Constraints.NotNull {
 			if constraint.NotValid && slices.Contains(captured.Attributes, constraint.Attribute) {
-				prepared.Err = IncompatibleNotValid(constraint.Name, parent.Name())
+				prepared.Err = table.IncompatibleNotValid(constraint.Name, parent.Name())
 				return prepared, nil
 			}
 		}

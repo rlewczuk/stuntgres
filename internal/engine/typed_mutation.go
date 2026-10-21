@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -19,7 +20,7 @@ import (
 type typedRelationMutation struct {
 	old, next  *catalog.Relation
 	transforms []index.ColumnTransformation
-	additions  []addedColumn
+	additions  []table.AddedColumn
 	checks     []catalog.CheckConstraint
 }
 
@@ -41,7 +42,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 			case parser.DropColumn:
 				mutation.next, err = scope.dropColumnCandidate(stage, mutation.next, ref, a, nil)
 			case parser.AddColumn:
-				var added addedColumn
+				var added table.AddedColumn
 				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.Usage)
 				if err == nil && added.Column != nil {
 					if planned.Usage != nil {
@@ -55,7 +56,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 			}
 		}
 		if pass == 0 {
-			checks, err := CaptureAlterTypeChecks(op, auth.Catalog, old, mutation.next, raw)
+			checks, err := table.CaptureAlterTypeChecks(op, auth.Catalog, old, mutation.next, raw)
 			if err != nil {
 				return mutation, err
 			}
@@ -168,11 +169,11 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 	}
 	schema := auth.Catalog.Get(old.Namespace()).Name()
-	validator := NewAlterRowValidator(next, schema)
+	validator := table.NewAlterRowValidator(next, schema)
 	if len(mutation.checks) != 0 {
 		checks := *next
 		checks.Constraints.Check = mutation.checks
-		validator.Checks = ValidCheckTraversal(&checks)
+		validator.Checks = table.ValidCheckTraversal(&checks)
 		e.mu.Lock()
 		err = e.captureCheckCommentSnapshotLocked(scope, &checks)
 		if err == nil {

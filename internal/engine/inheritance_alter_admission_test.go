@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -230,7 +231,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	g := inheritanceAlterGrandchild(t, e, c)
 	grown := e.CatalogRead()
 	currentChild := grown.MustRelation(c.Address())
-	if currentChild == c || !currentChild.History.HasSubclasses || currentChild.History.SubclassPredecessor != c || currentChild.Revision() != currentChild.History.SubclassPublication || !InheritanceMarkerPublication(c, currentChild) {
+	if currentChild == c || !currentChild.History.HasSubclasses || currentChild.History.SubclassPredecessor != c || currentChild.Revision() != currentChild.History.SubclassPublication || !table.InheritanceMarkerPublication(c, currentChild) {
 		t.Fatal("first-grandchild publication was not the actual narrow marker copy")
 	}
 	if grown.Epoch() != beforeGrowth.Epoch() {
@@ -283,7 +284,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	state := inheritanceAlterPending(t, command, c)
 	g := inheritanceAlterGrandchild(t, e, c)
 	marker := e.CatalogRead().MustRelation(c.Address())
-	if !InheritanceMarkerPublication(c, marker) {
+	if !table.InheritanceMarkerPublication(c, marker) {
 		t.Fatal("fixture failed to publish genuine first-child marker")
 	}
 	// A subsequent actual metadata publication keeps the marker's fields but is
@@ -298,7 +299,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	queryCreatePublish(t, e, stage)
 	stable := e.CatalogRead()
 	stores := maps.Clone(e.storage.Relations)
-	if InheritanceMarkerPublication(c, &later) {
+	if table.InheritanceMarkerPublication(c, &later) {
 		t.Fatal("subsequent mutation laundered the first-child marker")
 	}
 	holder.Finish(nil)
@@ -615,7 +616,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("mixed fixture did not produce its actual cooked NN/CHECK")
 			}
 			newAttribute := cooked.Attributes[cooked.Index["b"]]
-			if !slices.Equal(ConstraintAttributeKeys(cooked, cooked.Constraints.Check[0].Expression), []int32{newAttribute}) || cooked.Constraints.Check[0].Name != "ck" || cooked.Constraints.NotNull[0].Name != "nn" || cooked.Constraints.Check[0].OID != 0 || cooked.Constraints.NotNull[0].OID != 0 {
+			if !slices.Equal(table.ConstraintAttributeKeys(cooked, cooked.Constraints.Check[0].Expression), []int32{newAttribute}) || cooked.Constraints.Check[0].Name != "ck" || cooked.Constraints.NotNull[0].Name != "nn" || cooked.Constraints.Check[0].OID != 0 || cooked.Constraints.NotNull[0].OID != 0 {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.Namespace(), Name: "old_b"}

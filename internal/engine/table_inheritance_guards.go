@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 )
 
 // Dependency mutation sees the private descriptor authority, not stale base
@@ -22,5 +23,5 @@ func inheritanceStageAlterGuard(stage *CatalogStage, relation *catalog.Relation)
 			}
 		}
 	}
-	return InheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) catalog.Descriptor { return stage.Get(address) }, func(address ids.ObjectAddress) bool { _, removed := stage.Removal(address); return removed }, relation)
+	return table.InheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) catalog.Descriptor { return stage.Get(address) }, func(address ids.ObjectAddress) bool { _, removed := stage.Removal(address); return removed }, relation)
 }

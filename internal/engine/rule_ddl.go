@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -25,20 +26,20 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	if err != nil {
 		return fail(err)
 	}
-	var table parser.ObjectName
+	var tbl parser.ObjectName
 	var name string
 	switch s := stmt.(type) {
 	case *parser.CreateRule:
-		table, name = s.Table, s.Name.Text
+		tbl, name = s.Table, s.Name.Text
 	case *parser.AlterRule:
-		table, name = s.Table, s.Name.Text
+		tbl, name = s.Table, s.Name.Text
 	case *parser.DropRule:
-		table, name = s.Table, s.Name.Text
+		tbl, name = s.Table, s.Name.Text
 	}
-	ref, err := e.resolveRelationReference(auth, table, true)
+	ref, err := e.resolveRelationReference(auth, tbl, true)
 	if err != nil {
-		if s, ok := stmt.(*parser.DropRule); ok && s.IfExists && RenameMissing(err) {
-			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(table)))
+		if s, ok := stmt.(*parser.DropRule); ok && s.IfExists && table.RenameMissing(err) {
+			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(tbl)))
 		}
 		return fail(err)
 	}

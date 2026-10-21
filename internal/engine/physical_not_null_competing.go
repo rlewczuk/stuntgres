@@ -5,16 +5,17 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
+func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
 	if len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique {
 		return nil, nil
 	}
 	definition := raw.Actions[0].Unique
-	reject := func() (*physicalNotNullConstructor, error) {
-		return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
+	reject := func() (*table.PhysicalNotNullConstructor, error) {
+		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	if provider == nil || !provider.permuted || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || definition.Primary || definition.Name.Text == "" || len(definition.Columns) != len(provider.primary.Keys) {
 		return reject()
@@ -48,5 +49,5 @@ func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *pars
 			}
 		}
 	}
-	return &physicalNotNullConstructor{Before: old, Ref: provider.ref, Deferred: definition, Competing: true}, nil
+	return &table.PhysicalNotNullConstructor{Before: old, Ref: provider.ref, Deferred: definition, Competing: true}, nil
 }

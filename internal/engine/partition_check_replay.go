@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -28,7 +29,7 @@ func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.Al
 	if !partitionConstraintReplayImport(e, op, auth) {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK authority")
 	}
-	if err := RestoreAlterConstraints(raw); err != nil {
+	if err := table.RestoreAlterConstraints(raw); err != nil {
 		return err
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, true)

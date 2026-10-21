@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -249,21 +250,21 @@ func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, catalog
 }
 
 func (p *dropProvider) InheritanceAlterGuard(relation *catalog.Relation) error {
-	return InheritanceDependencyAlterGuard(p.Descriptors(), p.Replacement, p.Removed, relation)
+	return table.InheritanceDependencyAlterGuard(p.Descriptors(), p.Replacement, p.Removed, relation)
 }
 
-func (p *dropProvider) ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
+func (p *dropProvider) ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
 	p.owner.mu.Lock()
 	defer p.owner.mu.Unlock()
 	return p.viewDependents(targets, mode, foreign...)
 }
 
-func (p *dropProvider) applyForeignKeyDependents(edges []domainDependency) error {
+func (p *dropProvider) applyForeignKeyDependents(edges []table.DomainDependency) error {
 	if p.stage != nil {
 		p.owner.mu.Lock()
 		defer p.owner.mu.Unlock()
 	}
-	return ForeignKeyDependents(p, edges)
+	return table.ForeignKeyDependents(p, edges)
 }
 
 func (p *dropProvider) MissingColumnNotice(column, relation string) {
@@ -484,7 +485,7 @@ func (scope *StatementScope) prepareColumnDropAfter(auth AuthorizationView, old 
 	if err != nil {
 		return nil, err
 	}
-	next, err := OrdinaryColumnDrop(provider, old, ref, action)
+	next, err := table.OrdinaryColumnDrop(provider, old, ref, action)
 	if err != nil {
 		return nil, err
 	}

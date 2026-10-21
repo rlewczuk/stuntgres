@@ -6,10 +6,11 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.CreateTable, origins map[ids.OID]restoredNotNull) {
+func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.CreateTable, origins map[ids.OID]table.RestoredNotNull) {
 	relation, ok := e.CatalogRead().Relation(created.Address)
 	if !ok {
 		return
@@ -31,7 +32,7 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 						return
 					}
 				}
-				origins[constraint.OID] = restoredNotNull{created, attribute, constraint.OID}
+				origins[constraint.OID] = table.RestoredNotNull{Ref: created, Attribute: attribute, Constraint: constraint.OID}
 				return
 			}
 		}
@@ -50,25 +51,25 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 	}
 }
 
-func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]restoredNotNull) (restoredNotNull, error) {
+func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]table.RestoredNotNull) (table.RestoredNotNull, error) {
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.SetNotNull {
-		return restoredNotNull{}, sqlError("0A000", RestoreNoInheritBoundary)
+		return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	auth, err := operationAuthorization(op)
 	if err != nil {
-		return restoredNotNull{}, err
+		return table.RestoredNotNull{}, err
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, false)
 	if err != nil {
-		return restoredNotNull{}, err
+		return table.RestoredNotNull{}, err
 	}
 	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
-		return restoredNotNull{}, sqlError("0A000", RestoreNoInheritBoundary)
+		return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	slot, ok := relation.Index[raw.Actions[0].Column.Text]
 	if !ok {
-		return restoredNotNull{}, sqlError("0A000", RestoreNoInheritBoundary)
+		return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	for _, constraint := range relation.Constraints.NotNull {
 		if constraint.Attribute != relation.Attributes[slot] || constraint.NotValid {
@@ -79,13 +80,13 @@ func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTab
 			return origin, nil
 		}
 	}
-	return restoredNotNull{}, sqlError("0A000", RestoreNoInheritBoundary)
+	return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
 }
 
 // Unlike public UPDATE, this interpreter can only run inside isolated Restore,
 // after an imported explicit validated local NN and its immediately paired SET.
-func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Update, origin restoredNotNull) error {
-	name, column, label, err := RestoreNoInheritSyntax(raw)
+func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Update, origin table.RestoredNotNull) error {
+	name, column, label, err := table.RestoreNoInheritSyntax(raw)
 	if err != nil {
 		return err
 	}
@@ -116,31 +117,31 @@ func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Upda
 	old, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || old.RelationKind != catalog.TableRelation || origin.Ref != ref {
 		e.mu.Unlock()
-		return sqlError("0A000", RestoreNoInheritBoundary)
+		return sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	slot, ok := old.Index[column]
 	if !ok || old.Attributes[slot] != origin.Attribute || old.Columns[slot].Nullable {
 		e.mu.Unlock()
-		return sqlError("0A000", RestoreNoInheritBoundary)
+		return sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	index := slices.IndexFunc(old.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
 		return c.OID == origin.Constraint && c.Name == label && c.Attribute == origin.Attribute && !c.NotValid
 	})
 	if index < 0 {
 		e.mu.Unlock()
-		return sqlError("0A000", RestoreNoInheritBoundary)
+		return sqlError("0A000", table.RestoreNoInheritBoundary)
 	}
 	for _, constraint := range old.Constraints.Unique {
 		if constraint.Primary && slices.Contains(constraint.Attributes, origin.Attribute) {
 			e.mu.Unlock()
-			return sqlError("0A000", RestoreNoInheritBoundary)
+			return sqlError("0A000", table.RestoreNoInheritBoundary)
 		}
 	}
 	if graph := old.Inheritance; graph != nil {
 		fact := graph.NotNull[origin.Attribute]
 		if !fact.Local || fact.Count() != 0 {
 			e.mu.Unlock()
-			return sqlError("0A000", RestoreNoInheritBoundary)
+			return sqlError("0A000", table.RestoreNoInheritBoundary)
 		}
 	}
 	if old.Constraints.NotNull[index].NoInherit {

@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -51,19 +52,19 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	}
 	row := []sqltype.Value{value, sqltype.Null(value.Type())}
 	eval := exec.Context{}
-	if err := EvaluateGenerations(context.Background(), d, row, &eval); err != nil {
+	if err := table.EvaluateGenerations(context.Background(), d, row, &eval); err != nil {
 		t.Fatal(err)
 	}
 	if n, err := row[1].Integer(); err != nil || n != 2 {
 		t.Fatal(n, err)
 	}
 	row[0] = sqltype.Null(value.Type())
-	if err := EvaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() {
+	if err := table.EvaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() {
 		t.Fatal(row, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := EvaluateGenerations(canceled, d, row, &eval); !errors.Is(err, context.Canceled) {
+	if err := table.EvaluateGenerations(canceled, d, row, &eval); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	wrong := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 2, Frame: 1, Row: row}}

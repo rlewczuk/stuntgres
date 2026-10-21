@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -36,7 +37,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := raw[0].(*parser.AlterTable).Actions
-	next, err := NotNullCandidate(op, auth.Catalog, old, actions[1], NotNullDirect)
+	next, err := table.NotNullCandidate(op, auth.Catalog, old, actions[1], table.NotNullDirect)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,7 @@ func TestAlterAddConstraintPrimaryPrerequisite(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = VerifyAlterPrimaryPrerequisites(old, raw[0].(*parser.AlterTable).Actions)
+		err = table.VerifyAlterPrimaryPrerequisites(old, raw[0].(*parser.AlterTable).Actions)
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `cannot create primary key on column "a"`, Detail: `The constraint "nn" on column "a" of table "t", marked NOT VALID, is incompatible with a primary key.`, Hint: "You might need to validate it using ALTER TABLE ... VALIDATE CONSTRAINT."}
 		var got *sqlstate.Error
 		if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
@@ -109,7 +110,7 @@ func TestAlterAddConstraintPrimaryPrerequisite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyAlterPrimaryPrerequisites(old, raw[0].(*parser.AlterTable).Actions); err != nil {
+	if err := table.VerifyAlterPrimaryPrerequisites(old, raw[0].(*parser.AlterTable).Actions); err != nil {
 		t.Fatal("new key was prematurely bound against original shape", err)
 	}
 	if e.catalog.state != before || e.storage.Relations[old.Address()] != store || alterConstraintDescriptor(t, e, "t") != old || !old.Constraints.NotNull[0].NotValid || len(old.Constraints.Unique) != 0 {
@@ -161,7 +162,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			next := old
 			for _, action := range actions {
 				if action.Action == parser.DropConstraint {
-					next, err = NotNullCandidate(op, auth.Catalog, next, action, NotNullDirect)
+					next, err = table.NotNullCandidate(op, auth.Catalog, next, action, table.NotNullDirect)
 					if err != nil {
 						t.Fatal(err)
 					}

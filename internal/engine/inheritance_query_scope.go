@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 )
 
 // Called under Engine.mu. Stored views expose their named source's scan mode,
@@ -45,7 +46,7 @@ func inheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 		if d.RelationKind != catalog.TableRelation || leaf.Only {
 			return visit(leaf)
 		}
-		return InheritanceQueryClosure(view, d, token, func(physical *catalog.Relation) error {
+		return table.InheritanceQueryClosure(view, d, token, func(physical *catalog.Relation) error {
 			child := leaf
 			child.Ref.Address, child.Relation = physical.Address(), physical
 			return visit(child)

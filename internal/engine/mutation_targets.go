@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -48,7 +49,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 		}
 		var pending []exec.Leaf
-		err := InheritanceQueryClosure(view, root, s.op.Session.SessionToken, func(child *catalog.Relation) error {
+		err := table.InheritanceQueryClosure(view, root, s.op.Session.SessionToken, func(child *catalog.Relation) error {
 			if child.Address() == root.Address() {
 				return nil
 			}
@@ -187,7 +188,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 	}
 	relation := physical.Leaf.Relation
 	generationEval := *eval
-	if err := EvaluateGenerations(eval.Context, relation, row, &generationEval); err != nil {
+	if err := table.EvaluateGenerations(eval.Context, relation, row, &generationEval); err != nil {
 		return err
 	}
 	diagnostic := func(column, check string) error {
@@ -202,13 +203,13 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 		}
 		e.mu.Unlock()
 		if check != "" {
-			return CheckDetailError(physicalSchema, relation.Name(), check, detail)
+			return table.CheckDetailError(physicalSchema, relation.Name(), check, detail)
 		}
 		return notNullDetailError(physicalSchema, relation.Name(), column, detail)
 	}
 	for i, column := range relation.Columns {
 		if !column.Nullable {
-			value, err := LogicalColumnValue(relation, i, row, &generationEval)
+			value, err := table.LogicalColumnValue(relation, i, row, &generationEval)
 			if err != nil {
 				return err
 			}
@@ -217,7 +218,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 			}
 		}
 	}
-	if constraint, err := ValidateCheckRow(relation, row, &generationEval); err != nil {
+	if constraint, err := table.ValidateCheckRow(relation, row, &generationEval); err != nil {
 		return err
 	} else if constraint != nil {
 		return diagnostic("", constraint.Name)

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -39,13 +40,13 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 	child := view.MustRelation(catalogRef(t, e, view, "c").Address)
 	f := child.Constraints.ForeignKeys[0]
 	index := view.MustRelation(f.Index)
-	comparisons, err := BindForeignKeyComparison(view, child, parent, index, f)
+	comparisons, err := table.BindForeignKeyComparison(view, child, parent, index, f)
 	if err != nil {
 		t.Fatal(err)
 	}
 	root := e.storage.IndexRoots[f.Index]
 	original := slices.Clone(root.Entries)
-	rows := foreignKeyRows{Committed: e.storage.Relations[parent.Address()].Versions, Ends: e.storage.Relations[parent.Address()].Ends, Frontier: e.visibility.CommitSeq(), Root: root, Index: f.Index}
+	rows := table.ForeignKeyRows{Committed: e.storage.Relations[parent.Address()].Versions, Ends: e.storage.Relations[parent.Address()].Ends, Frontier: e.visibility.CommitSeq(), Root: root, Index: f.Index}
 	missing := e.storage.Relations[catalogRef(t, e, view, "probe_input").Address].Versions[0].Values
 	for _, target := range []int{0, 2048, 4095, 4096} {
 		t.Run(fmt.Sprint(target), func(t *testing.T) {
@@ -54,14 +55,14 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 				values = root.Entries[target].Keys
 			}
 			key := make([]sqltype.Value, len(comparisons))
-			if err := PrepareForeignKeyChild(context.Background(), comparisons, values, key, sqltype.InputEnvironment{}); err != nil {
+			if err := table.PrepareForeignKeyChild(context.Background(), comparisons, values, key, sqltype.InputEnvironment{}); err != nil {
 				t.Fatal(err)
 			}
 			compared, visited := 0, 0
 			var located storage.IndexEntry
-			err := ProbeForeignKeyIndex(root, func(entry storage.IndexEntry) (int, error) {
+			err := table.ProbeForeignKeyIndex(root, func(entry storage.IndexEntry) (int, error) {
 				compared++
-				return ForeignKeyIndexOrder(context.Background(), index, comparisons, entry, key, sqltype.InputEnvironment{})
+				return table.ForeignKeyIndexOrder(context.Background(), index, comparisons, entry, key, sqltype.InputEnvironment{})
 			}, func(entry storage.IndexEntry) (bool, error) {
 				visited++
 				located = entry
@@ -74,7 +75,7 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 			if err != nil || compared > 15 || visited != wantVisits {
 				t.Fatal("ordered lower bound/equal run", target, compared, visited, err)
 			}
-			matching, locator, err := FindForeignKeyParent(context.Background(), index, comparisons, rows, key, sqltype.InputEnvironment{})
+			matching, locator, err := table.FindForeignKeyParent(context.Background(), index, comparisons, rows, key, sqltype.InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -110,7 +111,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	candidate := *child
 	candidate.Columns = slices.Clone(child.Columns)
 	candidate.Columns[0].Usage = numeric.Usage()
-	if _, err := BindForeignKeyComparison(view, &candidate, parent, index, f); err == nil {
+	if _, err := table.BindForeignKeyComparison(view, &candidate, parent, index, f); err == nil {
 		t.Fatal("predicate numeric/int comparability overrode integer index family")
 	} else {
 		var diagnostic *sqlstate.Error
@@ -121,7 +122,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	// A reader lacking the exact selected input generation cannot borrow it.
 	state := catalog.CloneState(view.State())
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
-	if _, err := BindForeignKeyComparison(e.catalog.read(state), child, parent, index, f); err == nil {
+	if _, err := table.BindForeignKeyComparison(e.catalog.read(state), child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")
 	}
 	if child.Columns[0].Usage.Type.ID() != sqltype.Int4 || child.Constraints.ForeignKeys[0].Index != index.Address() {

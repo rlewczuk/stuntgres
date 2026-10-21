@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -167,7 +168,7 @@ type supportedDependent struct {
 
 // Walk the existing immediate-provider edges depth-first. Genuine identities
 // order mixed siblings; same-owner CHECK siblings retain declaration order.
-func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, foreign ...domainDependency) []supportedDependent {
+func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []viewDependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, foreign ...table.DomainDependency) []supportedDependent {
 	policyTargets := targets
 	if len(views) != 0 {
 		policyTargets = make([]ids.ObjectAddress, len(targets), len(targets)+len(views))
@@ -182,7 +183,7 @@ func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress,
 }
 
 // Other labels are captured before CASCADE mutates policy and rule metadata.
-func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, other []supportedDependent, foreign ...domainDependency) []supportedDependent {
+func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []viewDependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, other []supportedDependent, foreign ...table.DomainDependency) []supportedDependent {
 	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {

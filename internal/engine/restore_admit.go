@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -96,13 +97,13 @@ func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.Alte
 // admitRestoreCreateTable captures and strips the table's foreign keys
 // (bound at finish) and checks its stored expressions.
 func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.CreateTable) error {
-	if declarations := ForeignKeyDeclarations(s); len(declarations) != 0 {
+	if declarations := table.ForeignKeyDeclarations(s); len(declarations) != 0 {
 		var err error
 		r.cur.pending, err = r.stage.captureRestoredForeignKeys(op, declarations)
 		if err != nil {
 			return err
 		}
-		StripRestoreForeignKeys(s)
+		table.StripRestoreForeignKeys(s)
 	}
 	if restoreStagesTemporary(s.Persistence, s.Name) {
 		return sqlError("0A000", "restore cannot stage non-retractable effects")
@@ -185,7 +186,7 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {
 		return r.stage.restoreInheritedCheck(op, s, r.generationRepairs)
 	}
-	return RestoreAlterConstraints(s)
+	return table.RestoreAlterConstraints(s)
 }
 
 func admitRestoreAlterTableOf(_ *restoreRun, _ *session.Operation, s *parser.AlterTableOf) error {
@@ -289,9 +290,9 @@ func admitRestoreSessionAuthorization(r *restoreRun, _ *session.Operation, s *pa
 // attribute rank.
 func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.Update) error {
 	var err error
-	if RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
+	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
 		err = r.stage.restoreRetiredConstraint(op, s, r.historicalAuthority)
-	} else if RestoreCatalogName(s.Name, "pg_constraint") {
+	} else if table.RestoreCatalogName(s.Name, "pg_constraint") {
 		err = r.stage.restoreNoInheritNotNull(op, s, r.pairedNotNull)
 		if err == nil {
 			delete(r.notNullOrigins, r.pairedNotNull.Constraint)
@@ -299,7 +300,7 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 	} else {
 		err = r.stage.restoreAttributeRank(op, s)
 	}
-	r.pairedNotNull = restoredNotNull{}
+	r.pairedNotNull = table.RestoredNotNull{}
 	return err
 }
 
@@ -322,7 +323,7 @@ func replayRestorePhysicalNotNull(r *restoreRun, op *session.Operation, s *parse
 		}
 		r.pairedPhysical = nil
 	}
-	r.pairedNotNull = restoredNotNull{}
+	r.pairedNotNull = table.RestoredNotNull{}
 	return nil
 }
 

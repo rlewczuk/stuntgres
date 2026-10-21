@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -57,7 +58,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *session.Operati
 		b.Clause.DomainValueUsage = &base
 		node, err := b.BindBoolean(check.Expression, analyze.ProjectionContext, "CHECK")
 		if err != nil {
-			return AlterCookingError(err)
+			return table.AlterCookingError(err)
 		}
 		var refs []ids.ObjectRef
 		if _, err := (stored.ScalarRenderer{DomainValue: &base, Dependencies: &refs}).SQL(ctx, auth.Catalog, node); err != nil {

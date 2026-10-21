@@ -8,13 +8,14 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 type inheritancePreparedAction struct {
 	old, next *catalog.Relation
-	added     addedColumn
+	added     table.AddedColumn
 	drop      *preparedDrop
 	identity  *preparedIdentityDrop
 	types     []catalog.Descriptor
@@ -28,9 +29,9 @@ type inheritancePreparedNode struct {
 	graph                                          *catalog.TableInheritance
 	steps                                          map[int]inheritancePreparedAction
 	inline                                         []inheritancePreparedAction
-	checks                                         preparedAddedChecks
+	checks                                         table.PreparedAddedChecks
 	afterDrop                                      *preparedDrop
-	reader                                         inheritanceDefinitionReader
+	reader                                         table.InheritanceDefinitionReader
 	phaseZeroOnly                                  bool
 	usingIndexes                                   []index.UsingIndexAttachment
 	usingNotNull                                   []inheritancePreparedAction
@@ -41,19 +42,19 @@ type inheritancePreparedNode struct {
 func (e *Engine) prepareInheritanceNode(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, actions []parser.AlterTableAction) (*inheritancePreparedNode, error) {
 	state := scope.inheritance.alter
 	prepared := &inheritancePreparedNode{old: old, actions: actions, graph: state.Graph, steps: make(map[int]inheritancePreparedAction)}
-	prepared.phaseZeroOnly = state.Only && !InheritancePureDefinitionPreparation(actions)
+	prepared.phaseZeroOnly = state.Only && !table.InheritancePureDefinitionPreparation(actions)
 	reader := state.Definition
-	reader.Observations = &inheritanceDefinitionObservations{}
+	reader.Observations = &table.InheritanceDefinitionObservations{}
 	previousDefinition := op.Definition
 	defer func() { op.Definition = previousDefinition }()
 	next := old
-	var additions []addedColumn
+	var additions []table.AddedColumn
 	var prior *preparedDrop
 	attachmentIndex := 0
 phases:
 	for phase := 0; phase <= 6; phase++ {
 		for index, action := range actions {
-			if AlterActionPhase(action.Action) != phase {
+			if table.AlterActionPhase(action.Action) != phase {
 				continue
 			}
 			if err := op.Context().Err(); err != nil {
@@ -96,7 +97,7 @@ phases:
 					additions = append(additions, step.added)
 				}
 			case parser.SetNotNull, parser.AddNotNull, parser.DropNotNull, parser.DropConstraint:
-				next, err = NotNullCandidate(op, auth.Catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
+				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
 			case parser.DropIdentity:
 				step.identity, err = e.prepareIdentityDropDefinition(scope, auth, next, action)
 				if err == nil {
@@ -116,7 +117,7 @@ phases:
 			if err == nil {
 				step.next = next
 				reader.AppendDescriptor(next)
-				step.types, err = PrepareInheritanceRowType(&reader, next)
+				step.types, err = table.PrepareInheritanceRowType(&reader, next)
 			}
 			if err != nil {
 				step.err = err
@@ -165,7 +166,7 @@ phases:
 				action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.Column.Name}, Constraint: parser.Identifier{Text: added.Declaration.ColumnName}}
 				before := next
 				var err error
-				next, err = NotNullCandidate(op, auth.Catalog, next, action, NotNullDirect)
+				next, err = table.NotNullCandidate(op, auth.Catalog, next, action, table.NotNullDirect)
 				prepared.inline = append(prepared.inline, inheritancePreparedAction{old: before, next: next, err: err})
 				if err != nil {
 					next = before
@@ -177,7 +178,7 @@ phases:
 			for i, captured := range prepared.usingIndexes {
 				before := next
 				var err error
-				next, err = UsingIndexNotNullCandidate(op, auth.Catalog, reader, next, captured)
+				next, err = table.UsingIndexNotNullCandidate(op, auth.Catalog, reader, next, captured)
 				if err == nil {
 					err = scope.inheritanceOnlyCreatedConstraint(before, next)
 				}
@@ -213,7 +214,7 @@ phases:
 			var err error
 			prepared.checks, err = e.prepareAddedChecks(scope, op, auth, next, raw)
 			if err != nil {
-				prepared.checks = preparedAddedChecks{Old: next}
+				prepared.checks = table.PreparedAddedChecks{Old: next}
 				prepared.checksError = err
 				break phases
 			}
@@ -236,26 +237,26 @@ func (scope *StatementScope) inheritancePreparedNode() *inheritancePreparedNode 
 	return scope.inheritance.alter.prepared[scope.lockedRef.Address]
 }
 
-func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, addedColumn, bool, error) {
+func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, table.AddedColumn, bool, error) {
 	if prepared == nil {
-		return nil, addedColumn{}, false, nil
+		return nil, table.AddedColumn{}, false, nil
 	}
 	step, exists := prepared.steps[idx]
 	if !exists {
-		return nil, addedColumn{}, false, nil
+		return nil, table.AddedColumn{}, false, nil
 	}
 	if step.old != old {
-		return nil, addedColumn{}, true, ids.ErrCatalogReplaced
+		return nil, table.AddedColumn{}, true, ids.ErrCatalogReplaced
 	}
 	if len(step.notices) != 0 {
 		scope.op.Notices = append(scope.op.Notices, step.notices...)
 	}
 	if step.err != nil {
-		return nil, addedColumn{}, true, step.err
+		return nil, table.AddedColumn{}, true, step.err
 	}
 	for _, descriptor := range step.types {
 		if err := stage.replaceDescriptor(descriptor, false); err != nil {
-			return nil, addedColumn{}, true, err
+			return nil, table.AddedColumn{}, true, err
 		}
 	}
 	if step.drop != nil {

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 )
 
 func TestGeneratedCompositeAttributeProviders(t *testing.T) {
@@ -52,7 +53,7 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 	if selected < 0 {
 		t.Fatal("missing selected pair member")
 	}
-	if err := ValidateGenerationProviders(view, holder); err != nil {
+	if err := table.ValidateGenerationProviders(view, holder); err != nil {
 		t.Fatal(err)
 	}
 	if err := (relationProvider{}).Validate(view, holder); err != nil {
@@ -82,7 +83,7 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 		func(g *catalog.ColumnGeneration) { g.Dependencies[selected].Epoch++ },
 	} {
 		bad := withDependency(change)
-		if err := ValidateGenerationProviders(view, bad); err == nil {
+		if err := table.ValidateGenerationProviders(view, bad); err == nil {
 			t.Fatal("forged generation field provider admitted", bad.ColumnMeta.Generations[generationAttribute].Dependencies[selected])
 		}
 	}
@@ -90,7 +91,7 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 	wrongOwner.OwningRelation = holder.Address()
 	candidate := catalog.CloneState(view.State())
 	candidate.SetDescriptor(pair.Address(), &wrongOwner)
-	if err := ValidateGenerationProviders(e.catalog.read(candidate), holder); err == nil {
+	if err := table.ValidateGenerationProviders(e.catalog.read(candidate), holder); err == nil {
 		t.Fatal("unrelated backing relation accepted as named rowtype authority")
 	}
 
@@ -117,7 +118,7 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 	address.SubID = foreign.Attributes[0]
 	ownColumn.Origin = view.Owner().Domain.Ref(view.Epoch(), address)
 	ownColumn.Slot = 0
-	if err := ValidateGenerationPlan(view, holder, ownColumn); err == nil {
+	if err := table.ValidateGenerationPlan(view, holder, ownColumn); err == nil {
 		t.Fatal("provider metadata admitted a cross-table data read")
 	}
 	if e.CatalogRead().State() != view.State() || view.MustType(pair.Address()) != pair {

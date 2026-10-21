@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 )
 
@@ -43,8 +44,8 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 			return fmt.Errorf("stuntgres: missing generated replacement storage")
 		}
 		schema := next.Get(descriptor.Namespace()).Name()
-		historical := ValidCheckTraversal(descriptor)
-		requiredNotNull := NewAlterRowValidator(descriptor, schema).NotNull
+		historical := table.ValidCheckTraversal(descriptor)
+		requiredNotNull := table.NewAlterRowValidator(descriptor, schema).NotNull
 		if scope := scopeOf(eval.Host); scope != nil {
 			stage := scope.engine()
 			stage.mu.Lock()
@@ -80,12 +81,12 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 				return err
 			}
 			row := append([]sqltype.Value(nil), rows.Versions[i].Values...)
-			if err := EvaluateGenerations(ctx, &filtered, row, &eval); err != nil {
+			if err := table.EvaluateGenerations(ctx, &filtered, row, &eval); err != nil {
 				return err
 			}
 			for _, slot := range requiredNotNull {
 				column := descriptor.Columns[slot]
-				value, err := LogicalColumnValue(descriptor, slot, row, &eval)
+				value, err := table.LogicalColumnValue(descriptor, slot, row, &eval)
 				if err != nil {
 					return err
 				}
@@ -97,12 +98,12 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 					return notNullDetailError(schema, descriptor.Name(), column.Name, detail)
 				}
 			}
-			constraint, err := ValidateCheckRow(historical, row, &eval)
+			constraint, err := table.ValidateCheckRow(historical, row, &eval)
 			if err != nil {
 				return err
 			}
 			if constraint != nil {
-				return CheckDetailError(schema, descriptor.Name(), constraint.Name, "")
+				return table.CheckDetailError(schema, descriptor.Name(), constraint.Name, "")
 			}
 			for slot, comparison := range comparisons {
 				before := rows.Versions[i].Values[slot]

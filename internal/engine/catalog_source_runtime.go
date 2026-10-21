@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 )
 
@@ -199,7 +200,7 @@ func (r engineCatalogRuntime) ExpressionTree(typ *sqltype.Descriptor, expression
 	return plan.CatalogTree(typ, expression)
 }
 func (r engineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]pgcatalog.ForeignKeyComparison, error) {
-	bound, err := BindForeignKeyComparison(view, child, parent, index, key)
+	bound, err := table.BindForeignKeyComparison(view, child, parent, index, key)
 	if err != nil {
 		return nil, err
 	}

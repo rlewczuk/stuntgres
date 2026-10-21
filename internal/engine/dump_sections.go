@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/table"
 )
 
 // dumpSection is one fixed part of the Dump script.
@@ -118,7 +119,7 @@ func emitDumpSequenceCompletion(_ context.Context, s *dumpScript, w *dumpWriter)
 }
 
 func emitDumpMaterializedSnapshots(ctx context.Context, s *dumpScript, w *dumpWriter) error {
-	slices.SortFunc(s.materialized, func(a, b dumpRelation) int {
+	slices.SortFunc(s.materialized, func(a, b table.DumpRelation) int {
 		if order := strings.Compare(a.Schema, b.Schema); order != 0 {
 			return order
 		}

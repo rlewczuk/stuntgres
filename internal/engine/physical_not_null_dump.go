@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/table"
 )
 
 // Track only actual moved providers in the existing event graph. Consumers do
@@ -49,7 +50,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 			continue
 		}
 		if relation.SQLIndex != nil {
-			producer, moved, err := PhysicalCompetingIndexSource(view, relation)
+			producer, moved, err := table.PhysicalCompetingIndexSource(view, relation)
 			if err != nil {
 				return err
 			}
@@ -101,7 +102,7 @@ func physicalNotNullDumpDependencies(view catalog.Read, graph dump.Graph) error 
 				if !ok {
 					return fmt.Errorf("stuntgres: missing physical foreign-key provider")
 				}
-				_, moved, err := PhysicalCompetingIndexSource(view, index)
+				_, moved, err := table.PhysicalCompetingIndexSource(view, index)
 				if err != nil {
 					return err
 				}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 )
 
@@ -142,7 +143,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			rows.Append(candidate)
 			continue
 		}
-		if err := EvaluateGenerations(ctx, b.Relation, row, &evaluation); err != nil {
+		if err := table.EvaluateGenerations(ctx, b.Relation, row, &evaluation); err != nil {
 			return index.WriteBatch{}, err
 		}
 		if b.Relation.RelationKind == catalog.ForeignRelation {
@@ -161,7 +162,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			if c.Nullable {
 				continue
 			}
-			value, err := LogicalColumnValue(b.Relation, j, row, &evaluation)
+			value, err := table.LogicalColumnValue(b.Relation, j, row, &evaluation)
 			if err != nil {
 				return index.WriteBatch{}, err
 			}
@@ -173,7 +174,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 		if len(b.Relation.Constraints.Check) != 0 {
-			constraint, checkErr := ValidateCheckRow(b.Relation, row, &evaluation)
+			constraint, checkErr := table.ValidateCheckRow(b.Relation, row, &evaluation)
 			if checkErr != nil {
 				return index.WriteBatch{}, checkErr
 			}

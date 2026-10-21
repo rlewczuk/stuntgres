@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -43,7 +44,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 			p := predicate
 			p.Left = bad
 			copy.Constraints.Check[0].Expression = p
-			if err := ValidateChecks(view, &copy, map[string]bool{}); err == nil {
+			if err := table.ValidateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("invalid descriptor accepted")
 			}
 		})
@@ -55,14 +56,14 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		copy := *original
 		copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
 		copy.Constraints.Check[0].Expression = node
-		if err := ValidateChecks(view, &copy, map[string]bool{}); err == nil {
+		if err := table.ValidateChecks(view, &copy, map[string]bool{}); err == nil {
 			t.Fatalf("unpersistable %T accepted", node)
 		}
 	}
 	copy := *original
 	copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
 	copy.Constraints.Check[0].Dependencies = nil
-	if err := ValidateChecks(view, &copy, map[string]bool{}); err == nil {
+	if err := table.ValidateChecks(view, &copy, map[string]bool{}); err == nil {
 		t.Fatal("missing dependency manifest accepted")
 	}
 }
@@ -74,20 +75,20 @@ func TestCheckCompletedRowValidator(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE t(a INT CONSTRAINT c CHECK(a=1))")
 	ref := roleTableRef(t, e, "t")
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
-	table := d.(*catalog.Relation)
-	old := []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}
+	tbl := d.(*catalog.Relation)
+	old := []sqltype.Value{sqltype.Null(tbl.Columns[0].Usage.Type)}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Row: old, Scope: 7, Frame: 9}}
 	for _, n := range []int64{1, 2} {
-		v, err := sqltype.Integer(table.Columns[0].Usage.Type, n)
+		v, err := sqltype.Integer(tbl.Columns[0].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}
-		c, err := ValidateCheckRow(table, []sqltype.Value{v}, &eval)
+		c, err := table.ValidateCheckRow(tbl, []sqltype.Value{v}, &eval)
 		if err != nil || (c != nil) != (n == 2) {
 			t.Fatal(n, c, err)
 		}
 	}
-	if c, err := ValidateCheckRow(table, old, &eval); err != nil || c != nil {
+	if c, err := table.ValidateCheckRow(tbl, old, &eval); err != nil || c != nil {
 		t.Fatal("UNKNOWN rejected", c, err)
 	}
 	if eval.Scope != 7 || eval.Frame != 9 || &eval.Row[0] != &old[0] {
@@ -114,7 +115,7 @@ func TestCheckNativeCatalogReplacementOrigins(t *testing.T) {
 			defer finish()
 			ref := roleTableRef(t, target, "t")
 			d, _ := target.CatalogRead().Descriptor(ref.Address)
-			if err := ValidateChecks(target.CatalogRead(), d.(*catalog.Relation), map[string]bool{}); err != nil {
+			if err := table.ValidateChecks(target.CatalogRead(), d.(*catalog.Relation), map[string]bool{}); err != nil {
 				t.Fatal(err)
 			}
 			ast := statement(t, "INSERT INTO t VALUES(2)")

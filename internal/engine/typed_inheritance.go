@@ -3,13 +3,14 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 )
 
 func typedObservationValid(stage *CatalogStage, current catalog.Read) bool {
 	if stage.typed.SourceType() == (ids.ObjectAddress{}) {
 		return true
 	}
-	observed := TypedClosure(current, stage.typed.SourceType())
+	observed := table.TypedClosure(current, stage.typed.SourceType())
 	if len(observed) != len(stage.typed.ObservedTables()) {
 		return false
 	}

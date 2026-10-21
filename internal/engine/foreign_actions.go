@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -146,7 +147,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		if err = refreshForeignActionJob(auth.Catalog, job); err != nil {
 			return nil, auth, err
 		}
-		job.comparisons, err = BindForeignKeyComparison(auth.Catalog, job.child, job.parent, job.index, job.definition)
+		job.comparisons, err = table.BindForeignKeyComparison(auth.Catalog, job.child, job.parent, job.index, job.definition)
 		if err != nil {
 			return nil, auth, err
 		}

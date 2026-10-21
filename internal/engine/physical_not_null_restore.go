@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -16,19 +17,19 @@ type restoredPhysicalNotNull struct {
 	authority      AuthorizationView
 	ref            ids.ObjectRef
 	current        *catalog.Relation
-	repairs        []physicalNotNullRepair
-	facts          []restoredPhysicalNotNullFact
+	repairs        []table.PhysicalNotNullRepair
+	facts          []table.RestoredPhysicalNotNullFact
 	primary        *catalog.PhysicalPrimarySupport
 	position       int
 	ownerDirective bool
 }
 
-func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *parser.AlterTable, repairs []physicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
+func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *parser.AlterTable, repairs []table.PhysicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
 	if len(repairs) == 0 {
 		return nil, nil
 	}
-	reject := func() (*physicalNotNullConstructor, error) {
-		return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
+	reject := func() (*table.PhysicalNotNullConstructor, error) {
+		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	if raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 {
 		return reject()
@@ -88,7 +89,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *p
 		}
 		seen[attribute] = true
 	}
-	constructor := &physicalNotNullConstructor{Before: old, Ref: ref, Repairs: repairs}
+	constructor := &table.PhysicalNotNullConstructor{Before: old, Ref: ref, Repairs: repairs}
 	if action.Action == parser.AddUsingIndex {
 		constructor.IndexName = action.UsingIndex.Index.Text
 	}
@@ -96,7 +97,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *p
 }
 
 // Capture actual normal constructor results, not a generated-name prediction.
-func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constructor *physicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*restoredPhysicalNotNull, error) {
+func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*restoredPhysicalNotNull, error) {
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
@@ -104,7 +105,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	reject := func() (*restoredPhysicalNotNull, error) {
-		return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
+		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	if !partitionConstraintReplayImport(e, op, auth) || constructor.Ref.Epoch != auth.Catalog.Epoch() {
 		return reject()
@@ -114,9 +115,9 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 		return reject()
 	}
 	if constructor.Deferred != nil {
-		return nil, ValidateDeferredPhysicalPrimary(constructor, current)
+		return nil, table.ValidateDeferredPhysicalPrimary(constructor, current)
 	}
-	pair := &restoredPhysicalNotNull{op: op, authority: auth, ref: constructor.Ref, current: current, repairs: constructor.Repairs, facts: make([]restoredPhysicalNotNullFact, len(constructor.Repairs))}
+	pair := &restoredPhysicalNotNull{op: op, authority: auth, ref: constructor.Ref, current: current, repairs: constructor.Repairs, facts: make([]table.RestoredPhysicalNotNullFact, len(constructor.Repairs))}
 	for i, repair := range constructor.Repairs {
 		slot, exists := current.Index[repair.Column]
 		beforeSlot, beforeExists := constructor.Before.Index[repair.Column]
@@ -136,7 +137,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 				return reject()
 			}
 		}
-		pair.facts[i] = restoredPhysicalNotNullFact{Attribute: attribute, OID: current.Constraints.NotNull[idx].OID, Usage: current.Columns[slot].Usage}
+		pair.facts[i] = table.RestoredPhysicalNotNullFact{Attribute: attribute, OID: current.Constraints.NotNull[idx].OID, Usage: current.Columns[slot].Usage}
 		primary := catalog.PhysicalPrimaryForAttribute(current, attribute)
 		if repair.Primary == "" {
 			if slices.ContainsFunc(current.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
@@ -156,7 +157,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 				if !index.PhysicalPrimarySupportValid(auth.Catalog, current, primary, pair.primary) {
 					return reject()
 				}
-				if constructor.IndexName != "" && !PhysicalImportedIndexMatches(indexes[primary.Index], constructor, current, primary) {
+				if constructor.IndexName != "" && !table.PhysicalImportedIndexMatches(indexes[primary.Index], constructor, current, primary) {
 					return reject()
 				}
 			} else if primary.OID != pair.primary.Constraint || primary.Index != pair.primary.Index {
@@ -181,9 +182,9 @@ func (pair *restoredPhysicalNotNull) admits(stmt parser.Statement) bool {
 // The selected NN and its outbound dependency projection disappear together in
 // the sole private stage. The surviving physical flag is not a synthetic NN row.
 func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delete, pair *restoredPhysicalNotNull) error {
-	repair, valid := RestorePhysicalNotNullSyntax(raw)
-	reject := func() error { return sqlError("0A000", RestorePhysicalNotNullBoundary) }
-	if !valid || pair == nil || pair.op != op || pair.position >= len(pair.repairs) || !SamePhysicalRepair(repair, pair.repairs[pair.position]) {
+	repair, valid := table.RestorePhysicalNotNullSyntax(raw)
+	reject := func() error { return sqlError("0A000", table.RestorePhysicalNotNullBoundary) }
+	if !valid || pair == nil || pair.op != op || pair.position >= len(pair.repairs) || !table.SamePhysicalRepair(repair, pair.repairs[pair.position]) {
 		return reject()
 	}
 	if err := op.Context().Err(); err != nil {
@@ -251,7 +252,7 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 	if old.Inheritance != nil {
 		next.Inheritance = catalog.CloneInheritance(old.Inheritance)
 	}
-	RemoveDetachedNotNullMetadata(&next, old.Constraints.NotNull[idx])
+	table.RemoveDetachedNotNullMetadata(&next, old.Constraints.NotNull[idx])
 	cause := &catalog.PhysicalNotNullCause{Kind: catalog.PhysicalNotNullImportFlag, Ref: ref, Origin: ref, Attribute: fact.Attribute, RemovedNN: fact.OID, Usage: fact.Usage}
 	if pair.primary != nil {
 		cause.Kind = catalog.PhysicalNotNullImportCleanup

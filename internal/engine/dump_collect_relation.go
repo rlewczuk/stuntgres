@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 )
 
 // relationDumpContext is what every relation entry needs from the shared
@@ -176,7 +177,7 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		if stored == nil {
 			return fmt.Errorf("stuntgres: materialized view storage is missing")
 		}
-		c.materialized = append(c.materialized, dumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: stored.Versions, Ends: stored.Ends, Frontier: c.source.frontier, Descriptor: r})
+		c.materialized = append(c.materialized, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: stored.Versions, Ends: stored.Ends, Frontier: c.source.frontier, Descriptor: r})
 	}
 	// Capture every source occurrence and expression dependency from the
 	// same immutable catalog used to render the definition. Attribute
@@ -293,7 +294,7 @@ func collectTableDump(_ context.Context, c *dumpCollection, a ids.ObjectAddress,
 	if stored != nil {
 		versions, ends = stored.Versions, stored.Ends
 	}
-	c.tables = append(c.tables, dumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: versions, Ends: ends, Frontier: c.source.frontier, Comment: r.Comment, ColumnComments: r.ColumnMeta.Comments, NotNullConstraints: r.Constraints.NotNull, Defaults: r.ColumnMeta.Defaults, DeferredDefinitions: edges.deferredDefinitions, Descriptor: r, Identities: r.ColumnMeta.Identities, IdentitySequences: linked})
+	c.tables = append(c.tables, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: versions, Ends: ends, Frontier: c.source.frontier, Comment: r.Comment, ColumnComments: r.ColumnMeta.Comments, NotNullConstraints: r.Constraints.NotNull, Defaults: r.ColumnMeta.Defaults, DeferredDefinitions: edges.deferredDefinitions, Descriptor: r, Identities: r.ColumnMeta.Identities, IdentitySequences: linked})
 	if selected := c.recipePlan[r.Address()]; selected != nil {
 		c.tables[len(c.tables)-1].RecipePlaceholders = true
 		c.tables[len(c.tables)-1].RecipeComponent = selected.RecipeComponent
@@ -353,7 +354,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 	var deferredPredecessors []ids.OID
 	var deferredDefinitions map[int32]bool
 	for attribute, definition := range r.ColumnMeta.Defaults {
-		eligible := DefaultReplayDeferrable(definition)
+		eligible := table.DefaultReplayDeferrable(definition)
 		if eligible {
 			if deferredDefinitions == nil {
 				deferredDefinitions = make(map[int32]bool)

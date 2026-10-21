@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -104,7 +105,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if err := validateDomainDefault(after, mapped); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateGenerationPlan(after, nil, mapped.DomainDefault.Expression); err != nil {
+	if err := table.ValidateGenerationPlan(after, nil, mapped.DomainDefault.Expression); err != nil {
 		t.Fatal(err)
 	}
 	var selected plan.FieldExpr
@@ -179,7 +180,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	forged := row
 	forged.FieldProjection = slices.Clone(row.FieldProjection)
 	forged.FieldProjection[0] = forged.FieldProjection[1]
-	if err := ValidateGenerationPlan(after, nil, forged); err == nil {
+	if err := table.ValidateGenerationPlan(after, nil, forged); err == nil {
 		t.Fatal("duplicate retained attribute admitted")
 	}
 	foreign := New().CatalogRead()

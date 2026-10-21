@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,7 +30,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 	}
 	defer cleanup()
 	actions := statement(t, "ALTER TABLE t ALTER a TYPE BIGINT USING b,ALTER b TYPE BIGINT USING a*10").(*parser.AlterTable).Actions
-	queue, err := CaptureAlterTypeChecks(op, e.CatalogRead(), old, old, actions)
+	queue, err := table.CaptureAlterTypeChecks(op, e.CatalogRead(), old, old, actions)
 	if err != nil || len(queue) != 4 {
 		t.Fatal(queue, err)
 	}
@@ -46,7 +47,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 	if next == old || !reflect.DeepEqual(old.Constraints.Check, oldChecks) || old.Columns[1].Usage.Type.ID() != 23 || next.Columns[0].Usage.Type.ID() != 20 || next.Columns[1].Usage.Type.ID() != 20 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) {
 		t.Fatal("mutated original/final layout", old, next)
 	}
-	if err := ValidateChecks(e.CatalogRead(), next, map[string]bool{}); err != nil {
+	if err := table.ValidateChecks(e.CatalogRead(), next, map[string]bool{}); err != nil {
 		t.Fatal("new expression/manifest invalid", err)
 	}
 	for i, c := range next.Constraints.Check {
@@ -95,7 +96,7 @@ func TestAlterTypeCheckAtomicity(t *testing.T) {
 			if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT * FROM t")), rows) {
 				t.Fatal("published failed CHECK/NN candidate")
 			}
-			if err := ValidateChecks(e.CatalogRead(), old.(*catalog.Relation), map[string]bool{}); err != nil {
+			if err := table.ValidateChecks(e.CatalogRead(), old.(*catalog.Relation), map[string]bool{}); err != nil {
 				t.Fatal("damaged incumbent manifest", err)
 			}
 		})
@@ -147,7 +148,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 			}
 			defer cleanup()
 			actions := statement(t, "ALTER TABLE t ALTER c TYPE "+tc.declaration).(*parser.AlterTable).Actions
-			queue, err := CaptureAlterTypeChecks(op, e.CatalogRead(), original, original, actions)
+			queue, err := table.CaptureAlterTypeChecks(op, e.CatalogRead(), original, original, actions)
 			if err != nil || len(queue) != 1 {
 				t.Fatal(queue, err)
 			}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -20,7 +21,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, true)
-	if raw.IfExists && RenameMissing(err) {
+	if raw.IfExists && table.RenameMissing(err) {
 		return e.renameRelationLocked(scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, false, count)
 	}
 	if err != nil {
@@ -102,7 +103,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 		}
 	} else {
 		var next *catalog.Relation
-		next, err = RenameLocalConstraint(parent, raw.Constraint.Text, raw.NewName.Text, kind)
+		next, err = table.RenameLocalConstraint(parent, raw.Constraint.Text, raw.NewName.Text, kind)
 		if err == nil {
 			err = stage.Replace(next)
 		}

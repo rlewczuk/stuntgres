@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -477,7 +478,7 @@ func (e *Engine) rowConstraintError(s *StatementScope, b analyze.Binding, schema
 		return err
 	}
 	if check != "" {
-		return CheckDetailError(schema, b.Relation.Name(), check, detail)
+		return table.CheckDetailError(schema, b.Relation.Name(), check, detail)
 	}
 	return notNullDetailError(schema, b.Relation.Name(), column, detail)
 }
@@ -485,14 +486,14 @@ func (e *Engine) rowConstraintError(s *StatementScope, b analyze.Binding, schema
 // Public UPDATE and admitted RI assignment share generation and local checks.
 func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schema string, row []sqltype.Value, eval *exec.Context) error {
 	generationEval := *eval
-	if err := EvaluateGenerations(eval.Context, b.Relation, row, &generationEval); err != nil {
+	if err := table.EvaluateGenerations(eval.Context, b.Relation, row, &generationEval); err != nil {
 		return err
 	}
 	for i, column := range b.Relation.Columns {
 		if column.Nullable {
 			continue
 		}
-		value, err := LogicalColumnValue(b.Relation, i, row, &generationEval)
+		value, err := table.LogicalColumnValue(b.Relation, i, row, &generationEval)
 		if err != nil {
 			return err
 		}
@@ -501,7 +502,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schem
 		}
 	}
 	if len(b.Relation.Constraints.Check) != 0 {
-		constraint, err := ValidateCheckRow(b.Relation, row, eval)
+		constraint, err := table.ValidateCheckRow(b.Relation, row, eval)
 		if err != nil {
 			return err
 		}

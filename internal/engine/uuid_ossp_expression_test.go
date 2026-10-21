@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -43,7 +44,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if plan.GenerationHasTableOID(n) {
 		t.Fatal("zero-child UUID leaf acquired a tableoid dependency")
 	}
-	if err := ValidateGenerationPlan(view, nil, n); err != nil {
+	if err := table.ValidateGenerationPlan(view, nil, n); err != nil {
 		t.Fatal("installed UUID plan validation", err)
 	}
 	found := false

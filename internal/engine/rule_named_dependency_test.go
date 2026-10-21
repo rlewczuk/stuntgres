@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -130,7 +131,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						mode = "CASCADE"
 					}
 					actions := statement(t, "ALTER TABLE sink DROP CONSTRAINT sink_key "+mode).(*parser.AlterTable).Actions
-					next, err := NotNullCandidate(op, auth.Catalog, parent, actions[0], NotNullDirect)
+					next, err := table.NotNullCandidate(op, auth.Catalog, parent, actions[0], table.NotNullDirect)
 					if err != nil {
 						t.Fatal(err)
 					}

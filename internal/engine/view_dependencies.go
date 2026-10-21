@@ -6,6 +6,7 @@ import (
 	"sort"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -60,7 +61,7 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 	return edges
 }
 
-func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
+func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
 	edges := provider.viewClosure(targets)
 	expanded := targets
 	if len(edges) != 0 {
@@ -72,24 +73,24 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	}
 	policies := provider.policyDependentLabels(expanded)
 	policies = append(policies, provider.ruleDependentLabels(expanded)...)
-	checks, err := CheckDependents(provider, expanded, mode)
+	checks, err := table.CheckDependents(provider, expanded, mode)
 	if err != nil {
 		return err
 	}
-	defaults, err := DefaultDependents(provider, expanded, mode)
+	defaults, err := table.DefaultDependents(provider, expanded, mode)
 	if err != nil {
 		return err
 	}
-	visibleForeign := slices.ContainsFunc(foreign, func(edge domainDependency) bool { return !edge.Automatic })
+	visibleForeign := slices.ContainsFunc(foreign, func(edge table.DomainDependency) bool { return !edge.Automatic })
 	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policies) == 0 && !visibleForeign {
-		return ForeignKeyDependents(provider, foreign)
+		return table.ForeignKeyDependents(provider, foreign)
 	}
 	if mode == parser.DropRestrict {
 		labels := supportedDependentLabelsWithPolicies(provider.base, targets, checks, edges, defaults, provider.path, policies, foreign...)
 		multipleDeletion := provider.scope != nil && provider.scope.inheritance.alter != nil
 		return supportedRestrictErrorLabels(provider.base, edges, provider.path, labels, multipleDeletion)
 	}
-	if err := ForeignKeyDependents(provider, foreign); err != nil {
+	if err := table.ForeignKeyDependents(provider, foreign); err != nil {
 		return err
 	}
 	if err := provider.policyDependents(expanded, mode); err != nil {

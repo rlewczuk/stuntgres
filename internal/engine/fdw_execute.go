@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -139,7 +140,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 						}
 					}
 				}
-				if err := EvaluateGenerations(s.op.Context(), b.Relation, row, &evaluation); err != nil {
+				if err := table.EvaluateGenerations(s.op.Context(), b.Relation, row, &evaluation); err != nil {
 					return Result{}, err
 				}
 				rows = append(rows, row)
@@ -364,7 +365,7 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 				if err != nil {
 					return Result{}, err
 				}
-				if err := EvaluateGenerations(ctx, b.Relation, row, evaluation); err != nil {
+				if err := table.EvaluateGenerations(ctx, b.Relation, row, evaluation); err != nil {
 					return Result{}, err
 				}
 				input, err := m.Export(ctx, row, s.foreignWrites())

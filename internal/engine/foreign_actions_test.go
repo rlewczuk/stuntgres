@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -68,7 +69,7 @@ func TestForeignActionsDefinition(t *testing.T) {
 		candidate := *child
 		candidate.Constraints.ForeignKeys = slices.Clone(child.Constraints.ForeignKeys)
 		change(&candidate.Constraints.ForeignKeys[0])
-		if err := ValidateForeignKeys(view, &candidate, map[string]bool{}); err == nil {
+		if err := table.ValidateForeignKeys(view, &candidate, map[string]bool{}); err == nil {
 			t.Fatal("invalid action attachment admitted", candidate.Constraints.ForeignKeys[0])
 		}
 	}
@@ -104,7 +105,7 @@ func TestForeignActionsEquality(t *testing.T) {
 			f := child.Constraints.ForeignKeys[0]
 			parent := view.MustRelation(f.Target)
 			index := view.MustRelation(f.Index)
-			comparisons, err := BindForeignKeyComparison(view, child, parent, index, f)
+			comparisons, err := table.BindForeignKeyComparison(view, child, parent, index, f)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -119,7 +120,7 @@ func TestForeignActionsEquality(t *testing.T) {
 			if foreignActionSameKey(comparisons, []sqltype.Value{old}, []sqltype.Value{next}) {
 				t.Fatal("SQL equality suppressed representation transition")
 			}
-			equal, err := ForeignKeyRowsMatch(context.Background(), comparisons, []sqltype.Value{old}, []sqltype.Value{next}, sqltype.InputEnvironment{})
+			equal, err := table.ForeignKeyRowsMatch(context.Background(), comparisons, []sqltype.Value{old}, []sqltype.Value{next}, sqltype.InputEnvironment{})
 			if err != nil || !equal {
 				t.Fatal("matching lost selected supporting equality", equal, err)
 			}

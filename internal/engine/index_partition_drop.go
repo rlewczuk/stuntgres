@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -60,7 +61,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 }
 
 // The caller owns Engine.mu; all exits release it before candidate validation.
-func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, table *catalog.Relation, syntax *parser.AlterTable) (Result, error) {
+func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, tbl *catalog.Relation, syntax *parser.AlterTable) (Result, error) {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
 	stage.indexes().Output = scope.output
@@ -71,7 +72,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 	defer e.DiscardCatalogStage(stage)
 	for _, action := range syntax.Actions {
 		view := e.stageRead(stage)
-		current := view.MustRelation(table.Address())
+		current := view.MustRelation(tbl.Address())
 		found := false
 		for _, c := range current.Constraints.Unique {
 			if c.Name != action.Constraint.Text {
@@ -79,7 +80,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			}
 			found = true
 			if c.Parent != 0 {
-				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, table.Name()))
+				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, tbl.Name()))
 			}
 			idx := view.MustRelation(c.Index)
 			if err := index.PartitionIndexDropDependency(view, idx); err != nil {
@@ -98,7 +99,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			}
 			found = true
 			if c.Parent != 0 {
-				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, table.Name()))
+				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, tbl.Name()))
 			}
 			idx := view.MustRelation(c.Index)
 			if err := index.PartitionIndexDropDependency(view, idx); err != nil {
@@ -112,7 +113,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 			}
 		}
 		if !found {
-			if _, err := NotNullCandidate(scope.op, view, current, action, NotNullDirect); err != nil {
+			if _, err := table.NotNullCandidate(scope.op, view, current, action, table.NotNullDirect); err != nil {
 				return Result{}, err
 			}
 		}

@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -315,7 +316,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	if !sameVersionRoot(store.Versions, rows) || store.Ends != ends || store.Generation != generation {
 		t.Fatal("replacement changed immutable row predecessors")
 	}
-	if err := ValidateGenerationProviders(retained, consumer); err != nil {
+	if err := table.ValidateGenerationProviders(retained, consumer); err != nil {
 		t.Fatal("live table/index generation providers rejected", err)
 	}
 	for attribute, definition := range consumer.ColumnMeta.Generations {

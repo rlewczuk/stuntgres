@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -76,10 +77,10 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				t.Fatal("procedure identity collapsed")
 			}
 			consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.Ref}}}}}
-			if err := ValidateGenerationProviders(e.CatalogRead(), consumer); err != nil {
+			if err := table.ValidateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 				t.Fatal(err)
 			}
-			if err := ValidateGenerationPlan(e.CatalogRead(), consumer, n); err != nil {
+			if err := table.ValidateGenerationPlan(e.CatalogRead(), consumer, n); err != nil {
 				t.Fatal(err)
 			}
 			for _, mutate := range []func(*catalog.Procedure){

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/table"
 )
 
 // Rebind only after the existing ordinary TYPE/unique/index providers finish.
@@ -15,7 +16,7 @@ func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, ch
 		return parent, nil
 	}
 	next := *parent
-	PrunePhysicalNotNull(&next)
+	table.PrunePhysicalNotNull(&next)
 	var support *catalog.PhysicalPrimarySupport
 	copied := next.Constraints.PhysicalNotNull != nil && len(next.Constraints.PhysicalNotNull) != len(parent.Constraints.PhysicalNotNull)
 	for attribute, proof := range next.Constraints.PhysicalNotNull {

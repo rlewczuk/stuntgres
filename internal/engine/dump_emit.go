@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -104,7 +105,7 @@ func emitDumpEvents(ctx context.Context, s *dumpScript, w *dumpWriter) error {
 
 // table returns a copy of the captured table record for oid; emitters may
 // adjust the copy without changing the capture.
-func (s *dumpScript) table(oid ids.OID) dumpRelation {
+func (s *dumpScript) table(oid ids.OID) table.DumpRelation {
 	return s.tables[s.tableIndices[oid]]
 }
 

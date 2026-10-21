@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
+func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]table.AlterTypeIndex, error) {
 	op := scope.op
 	hasType := false
 	for _, action := range actions {
@@ -16,13 +17,13 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 	if !hasType {
 		return nil, nil
 	}
-	var queue []alterTypeIndex
+	var queue []table.AlterTypeIndex
 	for _, descriptor := range view.Descriptors() {
 		idx, ok := descriptor.(*catalog.Relation)
 		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Parent != original.Address() {
 			continue
 		}
-		pending := alterTypeIndex{Index: idx}
+		pending := table.AlterTypeIndex{Index: idx}
 		dropped := false
 		for _, key := range idx.SQLIndex.Keys {
 			if key.Derived == nil {
@@ -94,7 +95,7 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 	return queue, nil
 }
 
-func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []alterTypeIndex) error {
+func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []table.AlterTypeIndex) error {
 	for _, pending := range queue {
 		copy := *pending.Index
 		definition := *copy.SQLIndex

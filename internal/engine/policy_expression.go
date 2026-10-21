@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -35,7 +36,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	node, err := b.BindBoolean(raw, analyze.ProjectionContext, "POLICY")
 	if err != nil {
-		return nil, AlterCookingError(err)
+		return nil, table.AlterCookingError(err)
 	}
 	raw = b.NormalizeStoredExpression(raw)
 	if err = b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {

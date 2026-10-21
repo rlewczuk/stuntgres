@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -24,11 +25,11 @@ import (
 // PostgreSQL dependency traversal visits a dependent domain's descendants before
 // resuming its parent's remaining dependents. Stable attributes are separate
 // dependents; a containing table is never a domain-drop target.
-func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets []ids.ObjectAddress) ([]domainDependency, error) {
+func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets []ids.ObjectAddress) ([]table.DomainDependency, error) {
 	return stageDropProvider(ctx, stage, nil, nil, nil).DependencyClosure(targets)
 }
 
-func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]domainDependency, error) {
+func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]table.DomainDependency, error) {
 	ctx := provider.ctx
 	domains := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, a := range targets {
@@ -61,7 +62,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 	for _, a := range targets {
 		seen[a] = true
 	}
-	var result []domainDependency
+	var result []table.DomainDependency
 	resultSlots := make(map[ids.ObjectAddress]int)
 	// Only composite-attribute roots with real domain-default edges use the
 	// released reverse-postorder walk. CHECK-only and other provider routes
@@ -106,7 +107,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 			}
 		}
-		var direct []domainDependency
+		var direct []table.DomainDependency
 		for a, descriptor := range provider.Descriptors() {
 			if mergedDescriptors {
 				if replacement := provider.Replacement(a); replacement != nil {
@@ -117,14 +118,14 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 			// staged their removal. Their external consumers still need pruning,
 			// just like consumers of owned row types and associated arrays.
 			if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == target {
-				direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true, Relation: index})
+				direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true, Relation: index})
 				continue
 			}
 			if provider.Removed(a) {
 				continue
 			}
 			if target.ClassID == ids.NamespaceClassID && descriptor.Namespace() == target && access.OwnershipRoot(provider.base, descriptor, routine.OperatorSeeded) {
-				edge := domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)}
+				edge := table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)}
 				edge.Relation, _ = descriptor.(*catalog.Relation)
 				direct = append(direct, edge)
 				continue
@@ -132,7 +133,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 			switch d := descriptor.(type) {
 			case *catalog.Operator:
 				if routine.OperatorDependsOn(provider.base, d, target) {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
 				}
 			case *catalog.ForeignObject:
 				for _, dependency := range pgcatalog.ForeignDependencies(d) {
@@ -140,13 +141,13 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						continue
 					}
 					if dependency == target {
-						direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
 						break
 					}
 				}
 			case *catalog.Extension:
 				if d.TargetNamespace == target {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
 				}
 			case *catalog.Procedure:
 				if d.SQL != nil && target.ClassID == ids.TypeClassID {
@@ -155,19 +156,19 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						uses = uses || ids.OID(input.Type.ID()) == target.ObjectID
 					}
 					if uses {
-						direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
 					}
 				}
 				if d.Extension == target {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
 			case *catalog.TSDictionary:
 				if d.Extension == target {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
 			case *catalog.TSTemplate:
 				if d.Extension == target {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
 			case *catalog.Type:
 				if replacement, ok := provider.Replacement(a).(*catalog.Type); ok {
@@ -177,7 +178,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					for _, check := range d.DomainChecks {
 						for _, dep := range check.Dependencies {
 							if dep.Ref.Address == target {
-								direct = append(direct, domainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, Target: target, Root: root, OID: check.OID, Label: "constraint " + catalog.DependencyIdentifier(check.Name), Domain: d})
+								direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, Target: target, Root: root, OID: check.OID, Label: "constraint " + catalog.DependencyIdentifier(check.Name), Domain: d})
 								break
 							}
 						}
@@ -204,30 +205,30 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					if defaultRootDependency {
 						dependencyTarget = root
 					}
-					direct = append(direct, domainDependency{Address: a, Target: dependencyTarget, Root: root, OID: a.ObjectID, Label: "type " + catalog.TypeDiagnosticNameAt(provider.base, d, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: dependencyTarget, Root: root, OID: a.ObjectID, Label: "type " + catalog.TypeDiagnosticNameAt(provider.base, d, provider.path)})
 				}
 				if d.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}) {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
 			case *catalog.Relation:
 				if replacement, ok := provider.Replacement(a).(*catalog.Relation); ok {
 					d = replacement
 				}
 				if d.Foreign != nil && d.Foreign.Server == target {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path), Relation: d})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path), Relation: d})
 				}
 				if d.RelationKind == catalog.CompositeRelation && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}) {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
 					continue
 				}
 				if materializedExtensionDepends(d, target) {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true, Label: "materialized view " + dependencyRelationName(provider.base, d, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true, Label: "materialized view " + dependencyRelationName(provider.base, d, provider.path)})
 				}
 				if d.Membership != nil && d.Membership.Parent == target {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
 				}
 				if partitionDependsOn(d, target) {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Label: "table " + dependencyRelationName(provider.base, d, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Label: "table " + dependencyRelationName(provider.base, d, provider.path)})
 					continue
 				}
 				if d.SQLIndex != nil {
@@ -248,7 +249,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						}
 					}
 					if depends && !automatic {
-						direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "index " + dependencyRelationName(provider.base, d, provider.path), Relation: d})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "index " + dependencyRelationName(provider.base, d, provider.path), Relation: d})
 					}
 					continue
 				}
@@ -258,7 +259,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)
 						}
-						direct = append(direct, domainDependency{Address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, Target: target, Root: root, OID: rule.OID, Label: "rule " + catalog.DependencyIdentifier(rule.Name) + " on " + relationDiagnosticKind(d) + " " + name, Relation: d})
+						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, Target: target, Root: root, OID: rule.OID, Label: "rule " + catalog.DependencyIdentifier(rule.Name) + " on " + relationDiagnosticKind(d) + " " + name, Relation: d})
 					}
 				}
 				if d.View != nil {
@@ -275,7 +276,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)
 						}
-						direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: relationDiagnosticKind(d) + " " + name, Relation: d})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: relationDiagnosticKind(d) + " " + name, Relation: d})
 					}
 					continue
 				}
@@ -286,27 +287,27 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					name = dependencyRelationName(provider.base, d, provider.path)
 				}
 				if d.OfType == target {
-					direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
 					continue
 				}
 				if d.Inheritance != nil {
 					for _, parent := range d.Inheritance.Parents {
 						if parent == target {
-							direct = append(direct, domainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
+							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
 							break
 						}
 					}
 				}
 				for _, policy := range d.Security.Policies {
 					if policyDepends(policy, target) {
-						direct = append(direct, domainDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Target: target, Root: root, OID: policy.OID, Label: "policy " + catalog.DependencyIdentifier(policy.Name) + " on table " + name, Relation: d})
+						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Target: target, Root: root, OID: policy.OID, Label: "policy " + catalog.DependencyIdentifier(policy.Name) + " on table " + name, Relation: d})
 					}
 				}
 				for i, c := range d.Columns {
 					column := a
 					column.SubID = d.Attributes[i]
 					if typedef.UsageDependsOn(c.Usage, target) {
-						direct = append(direct, domainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, Relation: d, Column: c.Name})
+						direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, Relation: d, Column: c.Name})
 					}
 					if droppedColumns[column] {
 						continue
@@ -314,7 +315,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					if definition, ok := d.ColumnMeta.Defaults[column.SubID]; ok {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
-								direct = append(direct, domainDependency{Address: ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID}, Target: target, Root: root, OID: definition.OID, Label: "default value for column " + catalog.DependencyIdentifier(c.Name) + " of table " + name, Relation: d})
+								direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID}, Target: target, Root: root, OID: definition.OID, Label: "default value for column " + catalog.DependencyIdentifier(c.Name) + " of table " + name, Relation: d})
 								break
 							}
 						}
@@ -322,7 +323,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					if definition, generated := d.ColumnMeta.Generations[column.SubID]; generated && target != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}) {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
-								direct = append(direct, domainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of table " + name, Relation: d, Column: c.Name})
+								direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of table " + name, Relation: d, Column: c.Name})
 								break
 							}
 						}
@@ -340,7 +341,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						if target.ClassID == ids.RelationClassID {
 							orderOID, ordinal = a.ObjectID, int32(check.Ordinal)
 						}
-						direct = append(direct, domainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, Target: target, Root: root, OID: orderOID, Ordinal: ordinal, Label: "constraint " + catalog.DependencyIdentifier(check.Name) + " on table " + name, Relation: d})
+						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, Target: target, Root: root, OID: orderOID, Ordinal: ordinal, Label: "constraint " + catalog.DependencyIdentifier(check.Name) + " on table " + name, Relation: d})
 					}
 				}
 				for _, f := range d.Constraints.ForeignKeys {
@@ -350,7 +351,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					}
 					automatic := target.ClassID == d.Address().ClassID && target.ObjectID == d.Address().ObjectID && (target.SubID == 0 || slices.Contains(f.Attributes, target.SubID))
 					if depends || automatic {
-						direct = append(direct, domainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: f.OID}, Target: target, Root: root, OID: f.OID, Label: "constraint " + catalog.DependencyIdentifier(f.Name) + " on table " + name, Relation: d, Automatic: automatic})
+						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2606, ObjectID: f.OID}, Target: target, Root: root, OID: f.OID, Label: "constraint " + catalog.DependencyIdentifier(f.Name) + " on table " + name, Relation: d, Automatic: automatic})
 					}
 				}
 			}
@@ -421,11 +422,11 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 	return result, nil
 }
 
-func domainRestrictError(stage *CatalogStage, targets []ids.ObjectAddress, edges []domainDependency, originalRootCount int, subject ids.ObjectAddress) error {
+func domainRestrictError(stage *CatalogStage, targets []ids.ObjectAddress, edges []table.DomainDependency, originalRootCount int, subject ids.ObjectAddress) error {
 	return stageDropProvider(context.Background(), stage, nil, nil, nil).restrictError(targets, edges, originalRootCount, subject)
 }
 
-func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges []domainDependency, originalRootCount int, subject ids.ObjectAddress) error {
+func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges []table.DomainDependency, originalRootCount int, subject ids.ObjectAddress) error {
 	message := "cannot drop desired object(s) because other objects depend on them"
 	primary := subject
 	if primary == (ids.ObjectAddress{}) {
@@ -685,7 +686,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 			if err = provider.InheritanceAlterGuard(next); err != nil {
 				return err
 			}
-			next, err = OrdinaryColumnDrop(provider, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.Columns[slot].Name}, Mode: parser.DropCascade})
+			next, err = table.OrdinaryColumnDrop(provider, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.Columns[slot].Name}, Mode: parser.DropCascade})
 			if err != nil {
 				return err
 			}

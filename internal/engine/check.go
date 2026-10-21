@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -93,7 +94,7 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 		}
 		if err != nil {
 			if altering {
-				err = AlterCookingError(err)
+				err = table.AlterCookingError(err)
 			}
 			return err
 		}
@@ -175,6 +176,6 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 
 // Provider references join the incumbent dependency stage. Owner-local column
 // dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
-func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
-	return CheckDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.CheckDependencyEdge, error) {
+	return table.CheckDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }

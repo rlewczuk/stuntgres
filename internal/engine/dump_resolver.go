@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/table"
 )
 
 // dumpResolver is the root's dump.Resolver.
@@ -98,7 +99,7 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		if !index.BackingConstraintPresent(parent, source) {
 			return 0, fmt.Errorf("stuntgres: orphan unique index dump dependency")
 		}
-		if producer, moved, err := PhysicalCompetingIndexSource(view, source); err != nil {
+		if producer, moved, err := table.PhysicalCompetingIndexSource(view, source); err != nil {
 			return 0, err
 		} else if moved {
 			source = producer

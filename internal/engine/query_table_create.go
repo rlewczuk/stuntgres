@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -97,7 +98,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 			}
 			return nil, nil, false, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type %s`, column.Name, typeName))
 		}
-		if err = ValidateQueryTableOutputType(typ); err != nil {
+		if err = table.ValidateQueryTableOutputType(typ); err != nil {
 			return nil, nil, false, err
 		}
 		if projection.Expressions[i].CollationIndeterminate() {

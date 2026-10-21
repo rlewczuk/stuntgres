@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -40,12 +41,12 @@ func (e *Engine) capturePhysicalImportIndex(before catalog.Read, raw *parser.Cre
 // A keyless physical cleanup may be followed immediately by the captured,
 // unrelated ordinary primary declaration. It cannot certify one of its own
 // flag-only attributes as a primary key (or as an INCLUDE payload key).
-func (e *Engine) prepareDeferredPhysicalPrimary(op *session.Operation, raw *parser.AlterTable, pair *restoredPhysicalNotNull, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
+func (e *Engine) prepareDeferredPhysicalPrimary(op *session.Operation, raw *parser.AlterTable, pair *restoredPhysicalNotNull, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
 	if pair == nil || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique {
 		return nil, nil
 	}
-	reject := func() (*physicalNotNullConstructor, error) {
-		return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
+	reject := func() (*table.PhysicalNotNullConstructor, error) {
+		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	definition := raw.Actions[0].Unique
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || !definition.Primary || definition.NullsNotDistinct || definition.Name.Text == "" || len(definition.Columns) == 0 || pair.position != len(pair.repairs) || pair.primary != nil || pair.op != op {
@@ -77,5 +78,5 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *session.Operation, raw *pars
 			return reject()
 		}
 	}
-	return &physicalNotNullConstructor{Before: old, Ref: ref, Deferred: definition}, nil
+	return &table.PhysicalNotNullConstructor{Before: old, Ref: ref, Deferred: definition}, nil
 }

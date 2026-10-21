@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -14,5 +15,5 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *catal
 }
 
 func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error) (*catalog.Relation, error) {
-	return OrdinaryColumnDrop(stageDropProvider(ctx, stage, scope, changes, project), old, ref, a)
+	return table.OrdinaryColumnDrop(stageDropProvider(ctx, stage, scope, changes, project), old, ref, a)
 }

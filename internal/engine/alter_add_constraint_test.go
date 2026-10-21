@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -100,8 +101,8 @@ func TestAlterAddConstraintValidationSelection(t *testing.T) {
 	if d.Columns[0].Nullable || !d.Constraints.NotNull[0].NotValid || !d.Constraints.Check[0].NotValid {
 		t.Fatal("invalid means unenforced or flags lost", d)
 	}
-	v := NewAlterRowValidator(d, "public")
-	v.Checks = ValidCheckTraversal(d)
+	v := table.NewAlterRowValidator(d, "public")
+	v.Checks = table.ValidCheckTraversal(d)
 	if len(v.NotNull) != 0 || len(v.Checks.Constraints.Check) != 0 {
 		t.Fatal("historical selection contains invalid jobs", v)
 	}
@@ -112,7 +113,7 @@ func TestAlterAddConstraintValidationSelection(t *testing.T) {
 		}
 	}
 	row := e.storage.Relations[d.Address()].Versions[1]
-	failed, err := ValidateCheckRow(d, row.Values, &evaluation)
+	failed, err := table.ValidateCheckRow(d, row.Values, &evaluation)
 	if err != nil || failed == nil || failed.Name != "ck" {
 		t.Fatal("ordinary DML lost invalid CHECK enforcement", failed, err)
 	}
@@ -172,7 +173,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	child, parent := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "p")
 	f := child.Constraints.ForeignKeys[0]
 	index := e.catalog.state.MustRelation(f.Index)
-	comparisons, err := BindForeignKeyComparison(e.CatalogRead(), child, parent, index, f)
+	comparisons, err := table.BindForeignKeyComparison(e.CatalogRead(), child, parent, index, f)
 	if err != nil {
 		t.Fatal(err)
 	}

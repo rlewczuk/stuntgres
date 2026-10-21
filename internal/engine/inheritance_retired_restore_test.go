@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -31,7 +32,7 @@ func retiredRaw(t *testing.T, q string) *parser.Update {
 
 func TestRestoreConstraintHistorySyntax(t *testing.T) {
 	good := retiredRepairSQL("c", "nn", "n", false, false, 1, retiredRow("n", "0:7", "77"))
-	parsed, err := RestoreRetiredSyntax(retiredRaw(t, good))
+	parsed, err := table.RestoreRetiredSyntax(retiredRaw(t, good))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +79,7 @@ func TestRestoreConstraintHistorySyntax(t *testing.T) {
 			if bad == good {
 				t.Fatal("ineffective negative mutation", name)
 			}
-			if _, err := RestoreRetiredSyntax(retiredRaw(t, bad)); err == nil {
+			if _, err := table.RestoreRetiredSyntax(retiredRaw(t, bad)); err == nil {
 				t.Fatal("noncanonical carrier admitted", name)
 			}
 		})
@@ -101,32 +102,32 @@ func TestRestoreConstraintHistorySyntax(t *testing.T) {
 			call := sub.Query.Targets[0].(parser.AggregateExpr)
 			mutate(&call)
 			sub.Query.Targets[0] = call
-			if _, err := RestoreRetiredSyntax(raw); err == nil {
+			if _, err := table.RestoreRetiredSyntax(raw); err == nil {
 				t.Fatal("noncanonical modifier admitted on exact DISTINCT aggregate", name)
 			}
 		})
 	}
 	for name, q := range map[string]string{"returning": good + " RETURNING conname", "extra_predicate": good + " AND true", "from": strings.Replace(good, " WHERE conrelid", " FROM public.p WHERE conrelid", 1), "cte": "WITH unused AS(SELECT 1) " + good} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := RestoreRetiredSyntax(retiredRaw(t, q)); err == nil {
+			if _, err := table.RestoreRetiredSyntax(retiredRaw(t, q)); err == nil {
 				t.Fatal("unbounded canonical syntax admitted")
 			}
 		})
 	}
 	for _, before := range []int{-1, 32767, 32768} {
 		bounded := retiredRepairSQL("c", "nn", "n", false, false, before, retiredRow("n", "0:7", "77"))
-		if _, err := RestoreRetiredSyntax(retiredRaw(t, bounded)); err == nil {
+		if _, err := table.RestoreRetiredSyntax(retiredRaw(t, bounded)); err == nil {
 			t.Fatal("out-of-range contribution total admitted", before)
 		}
 	}
 	// CHECK and remapped archival namespaces share the same exact grammar.
 	check := retiredRepairSQL("c", "ck", "c", false, false, 1, retiredRow("c", "91:7", "78"))
-	if decoded, err := RestoreRetiredSyntax(retiredRaw(t, check)); err != nil || !decoded.Check || decoded.Rows[0].Archive != 91 {
+	if decoded, err := table.RestoreRetiredSyntax(retiredRaw(t, check)); err != nil || !decoded.Check || decoded.Rows[0].Archive != 91 {
 		t.Fatal("canonical CHECK/archive rejected", decoded, err)
 	}
 }
 
-func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *restoredHistoryAuthority) {
+func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *table.RestoredHistoryAuthority) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE history_reader LOGIN")
@@ -145,7 +146,7 @@ func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *restoredH
 	} {
 		roleExecute(t, e, op, q)
 	}
-	a := &restoredHistoryAuthority{Facts: make(map[ids.OID]restoredHistoricalFact), Archives: make(map[uint64]uint64), Sources: make(map[retiredSourceIdentity]retiredSourceDescription), NextArchive: e.retiredArchiveHighWater()}
+	a := &table.RestoredHistoryAuthority{Facts: make(map[ids.OID]table.RestoredHistoricalFact), Archives: make(map[uint64]uint64), Sources: make(map[table.RetiredSourceIdentity]table.RetiredSourceDescription), NextArchive: e.retiredArchiveHighWater()}
 	refs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	for _, name := range []string{"c", "d", "f"} {
 		r := retiredUnitTable(t, e, name)
@@ -154,11 +155,11 @@ func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *restoredH
 	e.captureHistoricalFacts(refs, a.Facts)
 	return e, op, a
 }
-func retiredAuthorityClone(a *restoredHistoryAuthority) *restoredHistoryAuthority {
-	return &restoredHistoryAuthority{Facts: maps.Clone(a.Facts), Archives: maps.Clone(a.Archives), Sources: maps.Clone(a.Sources), NextArchive: a.NextArchive}
+func retiredAuthorityClone(a *table.RestoredHistoryAuthority) *table.RestoredHistoryAuthority {
+	return &table.RestoredHistoryAuthority{Facts: maps.Clone(a.Facts), Archives: maps.Clone(a.Archives), Sources: maps.Clone(a.Sources), NextArchive: a.NextArchive}
 }
-func retiredAuthorityEqual(a, b *restoredHistoryAuthority) bool {
-	return a.NextArchive == b.NextArchive && maps.Equal(a.Archives, b.Archives) && maps.Equal(a.Sources, b.Sources) && maps.EqualFunc(a.Facts, b.Facts, func(x, y restoredHistoricalFact) bool {
+func retiredAuthorityEqual(a, b *table.RestoredHistoryAuthority) bool {
+	return a.NextArchive == b.NextArchive && maps.Equal(a.Archives, b.Archives) && maps.Equal(a.Sources, b.Sources) && maps.EqualFunc(a.Facts, b.Facts, func(x, y table.RestoredHistoricalFact) bool {
 		return x.Ref == y.Ref && x.OID == y.OID && x.Name == y.Name && x.Check == y.Check && slices.Equal(x.Attributes, y.Attributes) && analyze.SameGroupExpression(x.Expression, y.Expression) && x.NotValid == y.NotValid && x.NoInherit == y.NoInherit && x.Local == y.Local && x.Count == y.Count
 	})
 }
@@ -173,7 +174,7 @@ func retiredResourceCounts(e *Engine) [7]int {
 	counts[6] = lockState.KeyBuckets
 	return counts
 }
-func retiredReject(t *testing.T, e *Engine, op *session.Operation, q string, a *restoredHistoryAuthority) {
+func retiredReject(t *testing.T, e *Engine, op *session.Operation, q string, a *table.RestoredHistoryAuthority) {
 	t.Helper()
 	before := e.catalog.state
 	stores := maps.Clone(e.storage.Relations)
@@ -192,12 +193,12 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	q := retiredRepairSQL("c", "nn", "n", false, false, 1, retiredRow("n", "0:7", "77"))
 	old := retiredUnitTable(t, e, "c")
 	oid := old.Constraints.NotNull[0].OID
-	for name, mutate := range map[string]func(*restoredHistoricalFact){
-		"epoch": func(f *restoredHistoricalFact) { f.Ref.Epoch++ }, "owner": func(f *restoredHistoricalFact) { f.Ref = New().catalog.Domain.Ref(f.Ref.Epoch, f.Ref.Address) },
-		"oid": func(f *restoredHistoricalFact) { f.OID++ }, "name": func(f *restoredHistoricalFact) { f.Name = "wrong" },
-		"kind": func(f *restoredHistoricalFact) { f.Check = true }, "key": func(f *restoredHistoricalFact) { f.Attributes = []int32{1} },
-		"validity": func(f *restoredHistoricalFact) { f.NotValid = true }, "noinherit": func(f *restoredHistoricalFact) { f.NoInherit = true },
-		"before_local": func(f *restoredHistoricalFact) { f.Local = true }, "before_count": func(f *restoredHistoricalFact) { f.Count++ },
+	for name, mutate := range map[string]func(*table.RestoredHistoricalFact){
+		"epoch": func(f *table.RestoredHistoricalFact) { f.Ref.Epoch++ }, "owner": func(f *table.RestoredHistoricalFact) { f.Ref = New().catalog.Domain.Ref(f.Ref.Epoch, f.Ref.Address) },
+		"oid": func(f *table.RestoredHistoricalFact) { f.OID++ }, "name": func(f *table.RestoredHistoricalFact) { f.Name = "wrong" },
+		"kind": func(f *table.RestoredHistoricalFact) { f.Check = true }, "key": func(f *table.RestoredHistoricalFact) { f.Attributes = []int32{1} },
+		"validity": func(f *table.RestoredHistoricalFact) { f.NotValid = true }, "noinherit": func(f *table.RestoredHistoricalFact) { f.NoInherit = true },
+		"before_local": func(f *table.RestoredHistoricalFact) { f.Local = true }, "before_count": func(f *table.RestoredHistoricalFact) { f.Count++ },
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := retiredAuthorityClone(a)
@@ -245,8 +246,8 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TEMP TABLE history_temp() INHERITS(public.p,public.q)")
 	temp := retiredUnitTable(t, e, "history_temp")
 	tempRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), temp.Address())
-	tempFacts := make(map[ids.OID]restoredHistoricalFact)
-	CaptureHistoricalRelation(e.CatalogRead(), tempRef, tempFacts)
+	tempFacts := make(map[ids.OID]table.RestoredHistoricalFact)
+	table.CaptureHistoricalRelation(e.CatalogRead(), tempRef, tempFacts)
 	if len(tempFacts) != 0 {
 		t.Fatal("TEMP facts entered permanent logical-import pairing")
 	}
@@ -308,9 +309,9 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	liveQ := retiredUnitTable(t, e, "q").Constraints.NotNull[0].OID
 	check := retiredRepairSQL("c", "ck", "c", false, false, 1, retiredRow("c", "0:7", "78"))
 	checkOID := old.Constraints.Check[0].OID
-	for name, mutate := range map[string]func(*restoredHistoricalFact){
-		"recipe":   func(f *restoredHistoricalFact) { f.Expression = nil },
-		"validity": func(f *restoredHistoricalFact) { f.NotValid = true },
+	for name, mutate := range map[string]func(*table.RestoredHistoricalFact){
+		"recipe":   func(f *table.RestoredHistoricalFact) { f.Expression = nil },
+		"validity": func(f *table.RestoredHistoricalFact) { f.NotValid = true },
 	} {
 		t.Run("check_"+name, func(t *testing.T) {
 			bad := retiredAuthorityClone(a)
@@ -337,7 +338,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	if ck.NotValid || ck.NoInherit || ck.OID != old.Constraints.Check[0].OID {
 		t.Fatal("CHECK repair changed validity/kind/identity")
 	}
-	if err := ValidateInheritance(e.CatalogRead(), f); err != nil {
+	if err := table.ValidateInheritance(e.CatalogRead(), f); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -406,7 +407,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	d := retiredUnitTable(t, e, "d")
 	oid := d.Constraints.NotNull[0].OID
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
-	CaptureHistoricalRelation(e.CatalogRead(), ref, a.Facts)
+	table.CaptureHistoricalRelation(e.CatalogRead(), ref, a.Facts)
 	before := a.Facts[oid]
 	q := retiredRepairSQL("d", "nn", "n", false, before.Local, before.Count, retiredRow("n", "0:7", "77"))
 	if err := e.restoreRetiredConstraint(op, retiredRaw(t, q), a); err != nil {
@@ -416,7 +417,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	if current.Constraints.NotNull[0].OID != oid || current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].NotValid || len(current.Constraints.Unique) != 1 || !current.Constraints.Unique[0].Primary {
 		t.Fatal("history repair borrowed NO INHERIT prohibition or damaged real primary enforcement")
 	}
-	if err := ValidateInheritance(e.CatalogRead(), current); err != nil {
+	if err := table.ValidateInheritance(e.CatalogRead(), current); err != nil {
 		t.Fatal(err)
 	}
 }

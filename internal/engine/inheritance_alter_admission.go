@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +21,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 	original := scope.statementMutation
 	locked := map[ids.ObjectAddress]bool{state.Root.Address(): true}
 	processed := make(map[ids.ObjectAddress]bool)
-	state.Definition = inheritanceDefinitionReader{Base: auth.Catalog}
+	state.Definition = table.InheritanceDefinitionReader{Base: auth.Catalog}
 	if !preparatory {
 		state.prepared = make(map[ids.ObjectAddress]*inheritancePreparedNode)
 		state.Preparing = true
@@ -33,7 +34,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		targets := InheritanceAlterOrder(current, state.Root)
+		targets := table.InheritanceAlterOrder(current, state.Root)
 		e.mu.Unlock()
 		state.Targets = targets
 		progress := false
@@ -43,7 +44,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 			}
 			incoming := state.Actions
 			if index != 0 {
-				incoming = InheritanceParentActions(&state.inheritanceAlterPlan, observed)
+				incoming = table.InheritanceParentActions(&state.InheritanceAlterPlan, observed)
 				if !preparatory && len(incoming) == 0 {
 					continue
 				}
@@ -59,12 +60,12 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 			e.mu.Lock()
 			actualCatalog := e.privateCatalogLocked(scope.owner.Catalog)
 			actual, _ := actualCatalog.Relation(observed.Address())
-			if actualCatalog.Epoch() != auth.Catalog.Epoch() || !InheritanceMarkerPublication(observed, actual) {
+			if actualCatalog.Epoch() != auth.Catalog.Epoch() || !table.InheritanceMarkerPublication(observed, actual) {
 				e.mu.Unlock()
 				return ids.ErrCatalogReplaced
 			}
 			currentAuth, err := e.statementAuthorizationLocked(op, raw)
-			if err == nil && !preparatory && (index == 0 || InheritanceEntryOwner(incoming)) {
+			if err == nil && !preparatory && (index == 0 || table.InheritanceEntryOwner(incoming)) {
 				err = currentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 			}
 			e.mu.Unlock()
@@ -91,7 +92,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 					return err
 				}
 			}
-			if index != 0 && !InheritanceEntryOwner(incoming) && len(planned) != 0 {
+			if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 {
 				e.mu.Lock()
 				err = currentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 				e.mu.Unlock()
@@ -123,7 +124,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 				return err
 			}
 		}
-		state.Targets = InheritanceAlterOrder(current, state.Root)
+		state.Targets = table.InheritanceAlterOrder(current, state.Root)
 		e.mu.Unlock()
 		scope.statementMutation = original
 		return nil

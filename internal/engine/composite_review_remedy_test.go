@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -45,7 +46,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 }
 
 func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
-	e, source, table := typedUnitCatalog(t, false)
+	e, source, tbl := typedUnitCatalog(t, false)
 	before := e.CatalogRead()
 	row, _ := before.LookupType(source.RowType)
 	array, _ := before.LookupArray(row)
@@ -54,18 +55,18 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range []*sqltype.Descriptor{row, array, domain} {
-		consumer := *table
+		consumer := *tbl
 		consumer.OfType = ids.ObjectAddress{}
 		consumer.RelationKind = catalog.MaterializedViewRelation
 		consumer.Columns = []catalog.Column{{Name: "v", Usage: typ.Usage()}}
 		state := *before.State()
 		state.CloneDescriptors()
-		state.SetDescriptor(table.Address(), &consumer)
+		state.SetDescriptor(tbl.Address(), &consumer)
 		view := e.catalog.read(&state)
 		domainUnitDiagnostic(t, typedef.RowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
-		stage.typedState().Source = table.OfType
-		stage.typedState().Observed = TypedClosure(before, table.OfType)
+		stage.typedState().Source = tbl.OfType
+		stage.typedState().Observed = table.TypedClosure(before, tbl.OfType)
 		if typedObservationValid(stage, view) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
@@ -127,7 +128,7 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 }
 
 func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
-	e, source, table := typedUnitCatalog(t, false)
+	e, source, tbl := typedUnitCatalog(t, false)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	left := domainUnitTable(t, e, op, "CREATE TABLE left_child(v pair, CONSTRAINT field_check CHECK ((v).id>0), CONSTRAINT keep_check CHECK ((v).note<>'bad')) INHERITS(typed)")
@@ -136,8 +137,8 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	stage.typedState().Source = table.OfType
-	stage.typedState().Observed = TypedClosure(before, table.OfType)
+	stage.typedState().Source = tbl.OfType
+	stage.typedState().Observed = table.TypedClosure(before, tbl.OfType)
 	if err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +156,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if len(current.Constraints.Check) != 1 || current.Constraints.Check[0].Name != "keep_check" || len(child.Constraints.Check) != 2 {
 		t.Fatal("pruning authority lost")
 	}
-	actions, renames, graph, err := TypedInheritedActions(view, current, nil)
+	actions, renames, graph, err := table.TypedInheritedActions(view, current, nil)
 	if err != nil || len(actions) != 0 || len(renames) != 0 {
 		t.Fatal("unrelated inherited shape changed", err)
 	}

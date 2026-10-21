@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -85,7 +86,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	broken := *relation
 	broken.Constraints.Check = append([]catalog.CheckConstraint(nil), relation.Constraints.Check...)
 	broken.Constraints.Check[0].VisibilitySnapshot = false
-	if err := ValidateChecks(view, &broken, map[string]bool{}); err == nil {
+	if err := table.ValidateChecks(view, &broken, map[string]bool{}); err == nil {
 		t.Fatal("invalid capture manifest accepted")
 	}
 }

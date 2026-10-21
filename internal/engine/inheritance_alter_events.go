@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -17,7 +18,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 	case parser.AddColumn:
 		if slot, exists := after.Index[a.Definition.Name]; exists {
 			if _, old := before.Index[a.Definition.Name]; !old {
-				events = append(events, inheritanceAlterEvent{Action: a, Attribute: after.Attributes[slot]})
+				events = append(events, table.InheritanceAlterEvent{Action: a, Attribute: after.Attributes[slot]})
 			}
 		}
 	case parser.DropColumn:
@@ -27,7 +28,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 			}
 			action := a
 			action.Column = parser.Identifier{Text: before.Columns[slot].Name}
-			event := inheritanceAlterEvent{Action: action, Attribute: attribute}
+			event := table.InheritanceAlterEvent{Action: action, Attribute: attribute}
 			for _, c := range before.Constraints.NotNull {
 				if c.Attribute == attribute && !slices.ContainsFunc(after.Constraints.NotNull, func(next catalog.NotNullConstraint) bool { return next.OID == c.OID }) {
 					event.RetiredNotNull = append(event.RetiredNotNull, c)
@@ -48,7 +49,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 				action := a
 				action.Action = parser.DropNotNull
 				action.Column = parser.Identifier{Text: before.Columns[before.IndexForAttribute(old.Attribute)].Name}
-				events = append(events, inheritanceAlterEvent{Action: action, Attribute: old.Attribute, Constraint: old.OID})
+				events = append(events, table.InheritanceAlterEvent{Action: action, Attribute: old.Attribute, Constraint: old.OID})
 			}
 		}
 		for _, old := range before.Constraints.Check {
@@ -56,12 +57,12 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 				action := a
 				action.Action = parser.DropConstraint
 				action.Constraint = parser.Identifier{Text: old.Name}
-				events = append(events, inheritanceAlterEvent{Action: action, Constraint: old.OID})
+				events = append(events, table.InheritanceAlterEvent{Action: action, Constraint: old.OID})
 			}
 		}
 	case parser.AlterColumnType, parser.SetExpression, parser.DropExpression:
 		if !state.Only {
-			events = append(events, inheritanceAlterEvent{Action: a})
+			events = append(events, table.InheritanceAlterEvent{Action: a})
 		}
 	}
 	if !state.Only {
@@ -78,7 +79,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 			if validation || a.Action == parser.SetNotNull {
 				action.Action = parser.SetNotNull
 			}
-			events = append(events, inheritanceAlterEvent{Action: action, Attribute: next.Attribute, Validation: validation})
+			events = append(events, table.InheritanceAlterEvent{Action: action, Attribute: next.Attribute, Validation: validation})
 		}
 	}
 	state.Events[before.Address()] = events
@@ -99,19 +100,19 @@ func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Rela
 		}
 		definition := *raw[index]
 		definition.Name = parser.Identifier{Text: c.Name}
-		state.Events[before.Address()] = append(state.Events[before.Address()], inheritanceAlterEvent{Action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, Constraint: c.OID})
+		state.Events[before.Address()] = append(state.Events[before.Address()], table.InheritanceAlterEvent{Action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, Constraint: c.OID})
 	}
 }
 
-func (scope *StatementScope) inheritanceNotNullMode(column string) notNullRecursion {
+func (scope *StatementScope) inheritanceNotNullMode(column string) table.NotNullRecursion {
 	state := scope.inheritance.alter
 	if state != nil && state.Descendant {
 		if state.Validating[column] {
-			return NotNullValidation
+			return table.NotNullValidation
 		}
-		return NotNullInherited
+		return table.NotNullInherited
 	}
-	return NotNullDirect
+	return table.NotNullDirect
 }
 
 // ONLY's fresh-fact prohibition uses the actual phase input, including earlier

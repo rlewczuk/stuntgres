@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -31,22 +32,22 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 	return maximum
 }
 
-func (e *Engine) captureHistoricalFacts(refs map[ids.ObjectAddress]ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
+func (e *Engine) captureHistoricalFacts(refs map[ids.ObjectAddress]ids.ObjectRef, facts map[ids.OID]table.RestoredHistoricalFact) {
 	view := e.CatalogRead()
 	for _, ref := range refs {
-		CaptureHistoricalRelation(view, ref, facts)
+		table.CaptureHistoricalRelation(view, ref, facts)
 	}
 }
 
-func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Update, authority *restoredHistoryAuthority) error {
-	repair, err := RestoreRetiredSyntax(raw)
+func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Update, authority *table.RestoredHistoryAuthority) error {
+	repair, err := table.RestoreRetiredSyntax(raw)
 	if err != nil {
 		return err
 	}
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	reject := func() error { return sqlError("0A000", RestoreRetiredBoundary) }
+	reject := func() error { return sqlError("0A000", table.RestoreRetiredBoundary) }
 	if authority == nil || authority.Facts == nil || authority.Archives == nil || authority.Sources == nil {
 		return reject()
 	}
@@ -80,12 +81,12 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 		e.mu.Unlock()
 		return reject()
 	}
-	var fact restoredHistoricalFact
+	var fact table.RestoredHistoricalFact
 	var provenance catalog.InheritedConstraint
 	if repair.Check {
 		for _, c := range old.Constraints.Check {
 			if c.Name == repair.Name {
-				fact = restoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: ConstraintAttributeKeys(old, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NoInherit: c.NoInherit}
+				fact = table.RestoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Check: true, Attributes: table.ConstraintAttributeKeys(old, c.Expression), Expression: c.Expression, NotValid: c.NotValid, NoInherit: c.NoInherit}
 				provenance = old.Inheritance.Checks[c.Name]
 				break
 			}
@@ -93,7 +94,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 	} else {
 		for _, c := range old.Constraints.NotNull {
 			if c.Name == repair.Name {
-				fact = restoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Attributes: []int32{c.Attribute}, NotValid: c.NotValid, NoInherit: c.NoInherit}
+				fact = table.RestoredHistoricalFact{Ref: ref, OID: c.OID, Name: c.Name, Attributes: []int32{c.Attribute}, NotValid: c.NotValid, NoInherit: c.NoInherit}
 				provenance = old.Inheritance.NotNull[c.Attribute]
 				break
 			}
@@ -136,8 +137,8 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 			nextArchives[row.Archive] = archive
 		}
 		record := catalog.RetiredInheritanceOrigin{Parent: parent, Attribute: row.Attribute, Column: row.Column, Name: row.Name, Constraint: row.Constraint, Lifetime: row.Lifetime, Archive: archive, Own: fact.OID, Check: fact.Check, Replayed: true}
-		identity := retiredSourceIdentity{Parent: parent, Archive: archive, Lifetime: row.Lifetime, Constraint: row.Constraint}
-		description := retiredSourceDescription{Column: row.Column, Name: row.Name, Attribute: row.Attribute, Check: row.Check}
+		identity := table.RetiredSourceIdentity{Parent: parent, Archive: archive, Lifetime: row.Lifetime, Constraint: row.Constraint}
+		description := table.RetiredSourceDescription{Column: row.Column, Name: row.Name, Attribute: row.Attribute, Check: row.Check}
 		if previous, known := nextSources[identity]; known && previous != description {
 			e.mu.Unlock()
 			return reject()

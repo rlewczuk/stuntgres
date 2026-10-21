@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ import (
 func TestAlterTablespacePreparation(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
-	prepare := func(actions []parser.AlterTableAction) (alterTablePreparation, error) {
+	prepare := func(actions []parser.AlterTableAction) (table.AlterTablePreparation, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		return e.prepareAlterTableActions(scope, scope.op, auth, old, ref, actions)
@@ -97,7 +98,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 	if err := validateAlterTablespaceMove(destination); err != nil {
 		t.Fatal(err)
 	}
-	if InheritanceRecursiveAction(old, actions[0], false) || !tablespaceOnlyActions(actions) {
+	if table.InheritanceRecursiveAction(old, actions[0], false) || !tablespaceOnlyActions(actions) {
 		t.Fatal("assignment propagated to descendants")
 	}
 	// A successful no-work utility must still pass the ordinary completion gate.
@@ -123,7 +124,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
 	before, roles, revision := e.catalog.state, e.roles.published, old.Revision()
-	prepare := func(query string) (alterTablePreparation, error) {
+	prepare := func(query string) (table.AlterTablePreparation, error) {
 		statements, err := parser.Parse(query)
 		if err != nil {
 			t.Fatal(err)
@@ -195,7 +196,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		t.Fatal("root lost original preparation", state.Types, state.Tablespace)
 	}
 	rootCapture := state.Types[0]
-	assertRootOrigin := func(captured alterTypePreparation) {
+	assertRootOrigin := func(captured table.AlterTypePreparation) {
 		t.Helper()
 		columns := 0
 		plan.WalkExpression(captured.Transformation.Expression, func(expression expr.Expr) {

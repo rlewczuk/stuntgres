@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -19,11 +20,11 @@ func (e *Engine) validateRestoredDefault(op *session.Operation, s *parser.AlterT
 		return err
 	}
 	d := auth.Catalog.MustRelation(ref.Address)
-	if InheritedDefaultReplay(s, d) {
+	if table.InheritedDefaultReplay(s, d) {
 		return nil
 	}
 	slot, ok := d.Index[s.Column.Text]
-	if !ok || !DefaultReplayDeferrable(d.ColumnMeta.Defaults[d.Attributes[slot]]) {
+	if !ok || !table.DefaultReplayDeferrable(d.ColumnMeta.Defaults[d.Attributes[slot]]) {
 		return sqlError("0A000", "restore accepts only deferred captured-reference or regclass defaults")
 	}
 	return nil

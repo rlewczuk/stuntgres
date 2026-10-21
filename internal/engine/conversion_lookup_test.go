@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/table"
 	"testing"
 
 	"stuntgres/internal/engine/access"
@@ -279,7 +280,7 @@ func TestRoutineAliasStorageAdmission(t *testing.T) {
 	op, _ := conversionUnitAuth(t, e)
 	for _, id := range []sqltype.ID{sqltype.Regproc, sqltype.Regprocedure, 1008, 2207} {
 		typ, _ := e.CatalogRead().LookupType(id)
-		if err := ValidateQueryTableOutputType(typ); err != nil {
+		if err := table.ValidateQueryTableOutputType(typ); err != nil {
 			t.Fatal("routine alias query storage rejected", err)
 		}
 	}

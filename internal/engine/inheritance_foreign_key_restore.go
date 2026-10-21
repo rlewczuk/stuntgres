@@ -5,29 +5,30 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
 // This is not a general valid ALTER whitelist. Only a successful isolated
 // import of both actual relations, with a strict ordinary inheritance edge,
 // can issue a receipt. The incumbent pending binder remains the sole FK binder.
-func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (restoredForeignKeys, bool, error) {
+func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
 	if len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddForeignKey || raw.Actions[0].ForeignKey == nil || raw.Actions[0].ForeignKey.NotValid {
-		return restoredForeignKeys{}, false, nil
+		return table.RestoredForeignKeys{}, false, nil
 	}
-	reject := func() (restoredForeignKeys, bool, error) {
-		return restoredForeignKeys{}, false, sqlError("0A000", RestoreInheritedForeignKeyBoundary)
+	reject := func() (table.RestoredForeignKeys, bool, error) {
+		return table.RestoredForeignKeys{}, false, sqlError("0A000", table.RestoreInheritedForeignKeyBoundary)
 	}
 	foreign := raw.Actions[0].ForeignKey
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(foreign.Target.Parts) != 2 || foreign.Name.Text == "" || len(foreign.Columns) == 0 {
 		return reject()
 	}
 	if raw.Name.Parts[0].Text == foreign.Target.Parts[0].Text && raw.Name.Parts[1].Text == foreign.Target.Parts[1].Text {
-		return restoredForeignKeys{}, false, nil
+		return table.RestoredForeignKeys{}, false, nil
 	}
 	pending, err := e.captureRestoredForeignKeys(op, []parser.ForeignKeyConstraint{*foreign})
 	if err != nil {
-		return restoredForeignKeys{}, false, err
+		return table.RestoredForeignKeys{}, false, err
 	}
 	auth := ddlAuthorityOf(pending.Auth)
 	e.mu.Lock()
@@ -37,30 +38,30 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 	}
 	sourceRef, err := e.resolveRelationReference(auth, raw.Name, false)
 	if err != nil {
-		return restoredForeignKeys{}, false, err
+		return table.RestoredForeignKeys{}, false, err
 	}
 	targetRef, err := e.resolveRelationReference(auth, foreign.Target, false)
 	if err != nil {
-		return restoredForeignKeys{}, false, err
+		return table.RestoredForeignKeys{}, false, err
 	}
 	source, sourceOK := auth.Catalog.Relation(sourceRef.Address)
 	target, targetOK := auth.Catalog.Relation(targetRef.Address)
-	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != catalog.TableRelation || target.RelationKind != catalog.TableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !InheritedForeignKeyDescendant(auth.Catalog, target, source.Address()) {
+	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != catalog.TableRelation || target.RelationKind != catalog.TableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !table.InheritedForeignKeyDescendant(auth.Catalog, target, source.Address()) {
 		return reject()
 	}
 	if auth.Catalog.MustNamespace(source.Namespace()).Temporary != (ids.SessionToken{}) || auth.Catalog.MustNamespace(target.Namespace()).Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	if err := auth.Check(access.Requirement{Object: sourceRef, OwnerOnly: true}); err != nil {
-		return restoredForeignKeys{}, false, err
+		return table.RestoredForeignKeys{}, false, err
 	}
-	receipt := &restoredInheritedForeignKey{Source: sourceRef, Target: targetRef, BeforeSource: source, BeforeTarget: target, Raw: *foreign, Providers: make(map[ids.ObjectAddress]restoredInheritedForeignIndex)}
+	receipt := &table.RestoredInheritedForeignKey{Source: sourceRef, Target: targetRef, BeforeSource: source, BeforeTarget: target, Raw: *foreign, Providers: make(map[ids.ObjectAddress]table.RestoredInheritedForeignIndex)}
 	var valid bool
-	receipt.Columns, valid = CaptureInheritedForeignColumns(source, foreign.Columns)
+	receipt.Columns, valid = table.CaptureInheritedForeignColumns(source, foreign.Columns)
 	if !valid {
 		return reject()
 	}
-	receipt.Deleted, valid = CaptureInheritedForeignColumns(source, foreign.DeleteColumns)
+	receipt.Deleted, valid = table.CaptureInheritedForeignColumns(source, foreign.DeleteColumns)
 	if !valid {
 		return reject()
 	}
@@ -81,7 +82,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 			}
 		}
 	}
-	receipt.Referenced, valid = CaptureInheritedForeignColumns(target, referenced)
+	receipt.Referenced, valid = table.CaptureInheritedForeignColumns(target, referenced)
 	if !valid || len(receipt.Referenced) != len(receipt.Columns) {
 		return reject()
 	}
@@ -94,11 +95,11 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.Address() {
 			continue
 		}
-		eligible, err := ForeignKeyIndexEligible(target, index, attributes)
+		eligible, err := table.ForeignKeyIndexEligible(target, index, attributes)
 		if err != nil {
-			return restoredForeignKeys{}, false, err
+			return table.RestoredForeignKeys{}, false, err
 		}
-		receipt.Providers[address] = restoredInheritedForeignIndex{Current: index, Eligible: eligible}
+		receipt.Providers[address] = table.RestoredInheritedForeignIndex{Current: index, Eligible: eligible}
 	}
 	pending.Child = sourceRef
 	pending.Definitions[0].Target = targetRef.Address
@@ -109,7 +110,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 
 // Comments and final attribute-rank repairs do not alter these key/provider
 // observations. No later key, owner, type or provider incarnation can reuse them.
-func validateRestoredInheritedForeignKey(e *Engine, receipt *restoredInheritedForeignKey, op *session.Operation, declaration restoredForeignKeys, view catalog.Read) error {
+func validateRestoredInheritedForeignKey(e *Engine, receipt *table.RestoredInheritedForeignKey, op *session.Operation, declaration table.RestoredForeignKeys, view catalog.Read) error {
 	auth := ddlAuthorityOf(declaration.Auth)
 	auth.Catalog = view
 	auth.Recapture(view)
@@ -118,7 +119,7 @@ func validateRestoredInheritedForeignKey(e *Engine, receipt *restoredInheritedFo
 	}
 	source, _ := view.Relation(receipt.Source.Address)
 	target, _ := view.Relation(receipt.Target.Address)
-	if !InheritedForeignRelationUnchanged(source, receipt.BeforeSource) || !InheritedForeignRelationUnchanged(target, receipt.BeforeTarget) || !InheritedForeignKeyDescendant(view, target, source.Address()) || !InheritedForeignColumnsUnchanged(source, receipt.Columns) || !InheritedForeignColumnsUnchanged(source, receipt.Deleted) || !InheritedForeignColumnsUnchanged(target, receipt.Referenced) {
+	if !table.InheritedForeignRelationUnchanged(source, receipt.BeforeSource) || !table.InheritedForeignRelationUnchanged(target, receipt.BeforeTarget) || !table.InheritedForeignKeyDescendant(view, target, source.Address()) || !table.InheritedForeignColumnsUnchanged(source, receipt.Columns) || !table.InheritedForeignColumnsUnchanged(source, receipt.Deleted) || !table.InheritedForeignColumnsUnchanged(target, receipt.Referenced) {
 		return ids.ErrCatalogReplaced
 	}
 	seen := 0

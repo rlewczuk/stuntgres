@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -194,7 +195,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 		t.Fatal("subordinate provider is not the real ADD", provider, err)
 	}
 	graph := make(dump.Graph)
-	var tables []dumpRelation
+	var tables []table.DumpRelation
 	indices := make(map[ids.OID]int)
 	for _, descriptor := range view.Descriptors() {
 		r, ok := descriptor.(*catalog.Relation)
@@ -206,7 +207,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 			if r.Membership != nil {
 				graph[dump.Event{OID: r.Address().ObjectID}] = []dump.Event{{OID: r.Membership.Parent.ObjectID}}
 			}
-			tables = append(tables, dumpRelation{Descriptor: r})
+			tables = append(tables, table.DumpRelation{Descriptor: r})
 		} else {
 			graph[dump.Event{OID: r.Address().ObjectID}] = []dump.Event{{OID: r.SQLIndex.Parent.ObjectID}}
 			indices[r.Address().ObjectID] = len(indices)
@@ -226,7 +227,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	state.SetDescriptor(consumer.Address(), consumer)
 	view = view.WithState(&state)
 	graph[dump.Event{OID: consumer.Address().ObjectID}] = []dump.Event{{OID: local.Address().ObjectID}}
-	tables = append(tables, dumpRelation{Descriptor: consumer, Columns: consumer.Columns, Attributes: consumer.Attributes, Versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value, leafValue}}}})
+	tables = append(tables, table.DumpRelation{Descriptor: consumer, Columns: consumer.Columns, Attributes: consumer.Attributes, Versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value, leafValue}}}})
 	declarations, err := dump.Order(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal(err)

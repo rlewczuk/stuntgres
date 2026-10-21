@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -16,10 +17,10 @@ import (
 // Engine.mu is held by the caller.
 // On completion error only, the result retains the admitted TYPE prefix for
 // sequence AS; that error-path result must never reach a descriptor candidate.
-func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, actions []parser.AlterTableAction) (alterTablePreparation, error) {
-	prepared := alterTablePreparation{Actions: actions}
-	fail := func(err error) (alterTablePreparation, error) {
-		return alterTablePreparation{}, err
+func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, actions []parser.AlterTableAction) (table.AlterTablePreparation, error) {
+	prepared := table.AlterTablePreparation{Actions: actions}
+	fail := func(err error) (table.AlterTablePreparation, error) {
+		return table.AlterTablePreparation{}, err
 	}
 	for _, action := range actions {
 		if err := alterTableActionKind(original, action.Action); err != nil {

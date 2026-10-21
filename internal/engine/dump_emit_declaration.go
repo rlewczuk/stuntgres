@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -79,13 +80,13 @@ func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx dumpView) erro
 		parent := s.originalCatalog.MustRelation(original.SQLIndex.Parent)
 		for i := range parent.Constraints.Unique {
 			if parent.Constraints.Unique[i].Index == original.Address() {
-				if err := EmitPhysicalPrimaryCleanup(s.originalCatalog, parent, &parent.Constraints.Unique[i], w.emit, w.setOwner); err != nil {
+				if err := table.EmitPhysicalPrimaryCleanup(s.originalCatalog, parent, &parent.Constraints.Unique[i], w.emit, w.setOwner); err != nil {
 					return err
 				}
-				if err := EmitPhysicalSelfForeignKeys(s.originalCatalog, parent, idx.owner, true, w.emit, w.setOwner); err != nil {
+				if err := table.EmitPhysicalSelfForeignKeys(s.originalCatalog, parent, idx.owner, true, w.emit, w.setOwner); err != nil {
 					return err
 				}
-				if err := EmitPhysicalCompetingUniques(s.originalCatalog, parent, idx.owner, true, w.emit, w.setOwner); err != nil {
+				if err := table.EmitPhysicalCompetingUniques(s.originalCatalog, parent, idx.owner, true, w.emit, w.setOwner); err != nil {
 					return err
 				}
 				break
@@ -108,7 +109,7 @@ func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx dumpView) erro
 // emitDumpTable writes a table's CREATE and the statements that complete
 // its declaration: owner transfer, inherited defaults, NOT NULL and key
 // repairs, typed attachment, renames and comments.
-func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t dumpRelation) error {
+func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.DumpRelation) error {
 	t.Descriptor = s.catalogView.MustRelation(t.Descriptor.Address())
 	inheritedOwnerReplay := t.Descriptor.Inheritance != nil && t.Owner != "postgres"
 	if inheritedOwnerReplay {
@@ -151,10 +152,10 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t dumpRela
 	if err := t.EmitPhysicalNotNull(s.originalCatalog, w.emit, w.setOwner); err != nil {
 		return err
 	}
-	if err := EmitPhysicalSelfForeignKeys(s.originalCatalog, t.Descriptor, t.Owner, false, w.emit, w.setOwner); err != nil {
+	if err := table.EmitPhysicalSelfForeignKeys(s.originalCatalog, t.Descriptor, t.Owner, false, w.emit, w.setOwner); err != nil {
 		return err
 	}
-	if err := EmitPhysicalCompetingUniques(s.originalCatalog, t.Descriptor, t.Owner, false, w.emit, w.setOwner); err != nil {
+	if err := table.EmitPhysicalCompetingUniques(s.originalCatalog, t.Descriptor, t.Owner, false, w.emit, w.setOwner); err != nil {
 		return err
 	}
 	if attachAfterCreate {
@@ -188,7 +189,7 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t dumpRela
 
 // dumpTableCreateSQL renders a table's CREATE TABLE (or partition child)
 // statement. It writes nothing, so every rendering error precedes output.
-func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, attachAfterCreate bool) (string, error) {
+func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *table.DumpRelation, attachAfterCreate bool) (string, error) {
 	qualified := catalog.QuoteIdentifier(t.Schema) + "." + catalog.QuoteIdentifier(t.Name)
 	var line strings.Builder
 	if t.Descriptor.Membership == nil || partitionDumpNeedsAttach(s.catalogView, t.Descriptor) {
@@ -275,7 +276,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 				}
 				line.WriteString(")")
 			}
-			if !c.Nullable && DumpNotNullDeclaration(s.originalCatalog, t.Descriptor, t.Attributes[i]) {
+			if !c.Nullable && table.DumpNotNullDeclaration(s.originalCatalog, t.Descriptor, t.Attributes[i]) {
 				for _, constraint := range t.NotNullConstraints {
 					if constraint.Attribute == t.Attributes[i] && !constraint.NotValid {
 						line.WriteString(" CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " NOT NULL")
@@ -289,7 +290,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 				if constraint.NotValid {
 					continue
 				}
-				if inheritance.Columns[constraint.Attribute].Local || !DumpNotNullDeclaration(s.originalCatalog, t.Descriptor, constraint.Attribute) {
+				if inheritance.Columns[constraint.Attribute].Local || !table.DumpNotNullDeclaration(s.originalCatalog, t.Descriptor, constraint.Attribute) {
 					continue
 				}
 				if localElements > 0 {
@@ -300,11 +301,11 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 				line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " NOT NULL " + catalog.QuoteIdentifier(t.Columns[slot].Name))
 			}
 		}
-		for _, c := range OrderedChecks(t.Descriptor) {
+		for _, c := range table.OrderedChecks(t.Descriptor) {
 			if c.NotValid || t.DeferredChecks[c.Name] {
 				continue
 			}
-			if !DumpCheckDeclaration(s.originalCatalog, t.Descriptor, c) {
+			if !table.DumpCheckDeclaration(s.originalCatalog, t.Descriptor, c) {
 				continue
 			}
 			text, err := (stored.ScalarRenderer{Owner: t.Descriptor, CheckReplayPrecision: true}).SQL(ctx, s.catalogView, c.Expression)
@@ -321,14 +322,14 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			}
 		}
 		for _, c := range t.Descriptor.Constraints.Unique {
-			if PhysicalPrimaryDeferred(t.Descriptor, &c) {
+			if table.PhysicalPrimaryDeferred(t.Descriptor, &c) {
 				continue
 			}
 			idx, ok := s.catalogView.Relation(c.Index)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing unique dump index")
 			}
-			if _, moved, err := PhysicalCompetingIndexSource(s.originalCatalog, idx); err != nil {
+			if _, moved, err := table.PhysicalCompetingIndexSource(s.originalCatalog, idx); err != nil {
 				return "", err
 			} else if moved {
 				continue
@@ -368,7 +369,7 @@ func dumpTableCreateSQL(ctx context.Context, s *dumpScript, t *dumpRelation, att
 			line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(c.Name) + " " + text)
 		}
 		for _, f := range t.Descriptor.Constraints.ForeignKeys {
-			if f.NotValid || PhysicalSelfForeignKeyDeferred(t.Descriptor, f) || InheritedForeignKeyDeferred(s.originalCatalog, t.Descriptor, &f) {
+			if f.NotValid || table.PhysicalSelfForeignKeyDeferred(t.Descriptor, f) || table.InheritedForeignKeyDeferred(s.originalCatalog, t.Descriptor, &f) {
 				continue
 			}
 			text, err := (stored.Deparser{View: s.catalogView}).ForeignKeyConstraintSQL(t.Descriptor, f)

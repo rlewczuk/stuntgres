@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -26,7 +27,7 @@ func beforeRestoreInheritedForeignKey(r *restoreRun, op *session.Operation, stmt
 	}
 	r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
 	r.physicalForeignProvider = nil
-	r.pairedNotNull = restoredNotNull{}
+	r.pairedNotNull = table.RestoredNotNull{}
 	return true, nil
 }
 
@@ -56,7 +57,7 @@ func prepareRestoreGenerationPair(r *restoreRun, op *session.Operation, stmt par
 func afterRestoreHistoricalRelation(r *restoreRun, _ *session.Operation, stmt parser.Statement, result Result) error {
 	if _, ok := stmt.(*parser.CreateTable); ok && result.created != (ids.ObjectRef{}) {
 		r.historicalRefs[result.created.Address] = result.created
-		CaptureHistoricalRelation(r.stage.CatalogRead(), result.created, r.historicalAuthority.Facts)
+		table.CaptureHistoricalRelation(r.stage.CatalogRead(), result.created, r.historicalAuthority.Facts)
 	}
 	return nil
 }
@@ -105,7 +106,7 @@ func afterRestoreGeneration(r *restoreRun, op *session.Operation, stmt parser.St
 		return err
 	}
 	r.generationRepairs = append(r.generationRepairs, record)
-	delete(r.placeholderOrigins, restoredGenerationKey{record.Ref.Address, record.Attribute})
+	delete(r.placeholderOrigins, table.RestoredGenerationKey{Relation: record.Ref.Address, Attribute: record.Attribute})
 	return nil
 }
 

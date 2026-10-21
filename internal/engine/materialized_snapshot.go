@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -37,7 +38,7 @@ func materializedViewReadError(d *catalog.Relation) error {
 
 // emitMaterializedSnapshot writes the materialized view t's snapshot record:
 // its population flag and the rows its table dump emits.
-func emitMaterializedSnapshot(ctx context.Context, t *dumpRelation, catalog catalog.Read, emit func(string) error) error {
+func emitMaterializedSnapshot(ctx context.Context, t *table.DumpRelation, catalog catalog.Read, emit func(string) error) error {
 	var rows strings.Builder
 	if err := t.EmitRows(ctx, catalog, func(line string) error { rows.WriteString(line); return nil }); err != nil {
 		return err

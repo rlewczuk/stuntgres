@@ -5,9 +5,10 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 )
 
-var _ dropDependencyReader = (*dropProvider)(nil)
+var _ table.DropDependencyReader = (*dropProvider)(nil)
 
 func (p *dropProvider) Context() context.Context { return p.ctx }
 func (p *dropProvider) BaseRead() catalog.Read   { return p.base }

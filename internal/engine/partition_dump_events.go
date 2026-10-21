@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/table"
 )
 
 // A preexisting incomplete manual index must not be present while ATTACH could
@@ -48,7 +49,7 @@ func partitionDumpLateIndexTables(view catalog.Read) map[ids.ObjectAddress]bool 
 // Extend the existing declaration graph in place. The same source-priority
 // scheduler owns declarations, names, physical data, constraint origins and
 // captured membership/index edges; there is no independent topology sorter.
-func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Graph, declarations []dump.Event, tables []dumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
+func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Graph, declarations []dump.Event, tables []table.DumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
 	lateTables := partitionDumpLateIndexTables(view)
 	lateIndexes := make(map[ids.OID]bool)
 	for oid := range indexIndices {
@@ -306,7 +307,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 		defaultSources[oid], lateDefaults[oid] = sources, late
 	}
 
-	byOID := make(map[ids.OID]*dumpRelation, len(tables))
+	byOID := make(map[ids.OID]*table.DumpRelation, len(tables))
 	for i := range tables {
 		byOID[tables[i].Descriptor.Address().ObjectID] = &tables[i]
 	}
@@ -516,11 +517,11 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph dump.Grap
 			graph.Add(rows, name)
 		}
 	}
-	if err := InheritanceRecipeEvents(ctx, view, graph, declarations, tables, nameReady); err != nil {
+	if err := table.InheritanceRecipeEvents(ctx, view, graph, declarations, tables, nameReady); err != nil {
 		return err
 	}
-	RetiredConstraintEvents(view, graph, tables)
-	if err := InheritedForeignKeyEvents(view, graph, tables, nameReady); err != nil {
+	table.RetiredConstraintEvents(view, graph, tables)
+	if err := table.InheritedForeignKeyEvents(view, graph, tables, nameReady); err != nil {
 		return err
 	}
 	return ctx.Err()

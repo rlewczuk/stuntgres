@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -48,7 +49,7 @@ func domainAlterReplayOwnership(t *testing.T) {
 				}
 				message := typedef.RestoreDomainOwnerBoundary
 				if tc.name == "wrong_kind" {
-					message = RestoreInheritedOwnerBoundary
+					message = table.RestoreInheritedOwnerBoundary
 				}
 				domainUnitDiagnostic(t, err, "0A000", message)
 				return

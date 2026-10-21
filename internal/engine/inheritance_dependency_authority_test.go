@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -100,13 +101,13 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					if definition == "column" || authority == "whole" {
 						err = stageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, project, ids.ObjectAddress{})
 					} else if definition == "default" {
-						var edges []defaultDependencyEdge
+						var edges []table.DefaultDependencyEdge
 						edges, err = stageDefaultDependents(stage, roots, mode)
 						if authority == "restrict" && (err != nil || len(edges) != 1) {
 							t.Fatal("RESTRICT must report its dependency without mutation", edges, err)
 						}
 					} else {
-						var edges []checkDependencyEdge
+						var edges []table.CheckDependencyEdge
 						edges, err = stageCheckDependents(stage, roots, mode)
 						if authority == "restrict" && (err != nil || len(edges) != 1) {
 							t.Fatal("RESTRICT must report its dependency without mutation", edges, err)

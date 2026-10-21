@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -79,7 +80,7 @@ func (e *Engine) stageLikeColumns(op *session.Operation, auth AuthorizationView,
 					// tree, including frozen literals and external identities, is reusable.
 					node := old.Expression
 					temporary := auth.Catalog.MustNamespace(destination.Namespace()).Temporary
-					if err := ValidateCookedDefaultTemporary(node, temporary); err != nil {
+					if err := table.ValidateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
 					definition := catalog.ColumnDefault{Expression: node}
@@ -164,7 +165,7 @@ func (e *Engine) stageLikeChecks(op *session.Operation, auth AuthorizationView, 
 		if in.Options&analyze.LikeConstraints == 0 {
 			continue
 		}
-		for _, old := range OrderedChecks(in.Source) {
+		for _, old := range table.OrderedChecks(in.Source) {
 			if names[old.Name] {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, destination.Name()))
 			}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -23,7 +24,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 	if err == nil && ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if ifExists && RenameMissing(err) {
+	if ifExists && table.RenameMissing(err) {
 		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
 		op.Session.Mu.Unlock()
@@ -53,7 +54,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 		if old.OfType != (ids.ObjectAddress{}) {
 			return fail(sqlError("42809", "cannot rename column of typed table"))
 		}
-		if err := InheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
+		if err := table.InheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
 		}
 		if catalog.InheritanceParticipant(auth.Catalog, old) {
@@ -66,7 +67,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 				Detail:  "This operation is not supported for sequences.",
 			})
 		}
-		renamed, err = RenameColumnCandidate(old, column, destination)
+		renamed, err = table.RenameColumnCandidate(old, column, destination)
 		if err != nil {
 			return fail(err)
 		}

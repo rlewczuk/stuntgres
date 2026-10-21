@@ -18,6 +18,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -181,16 +182,16 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 			},
 		},
 	}
-	if err := ValidateGenerationProviders(e.CatalogRead(), generated); err != nil {
+	if err := table.ValidateGenerationProviders(e.CatalogRead(), generated); err != nil {
 		t.Fatal("installed generation provider rejected", err)
 	}
-	if err := ValidateGenerationPlan(e.CatalogRead(), generated, n); err != nil {
+	if err := table.ValidateGenerationPlan(e.CatalogRead(), generated, n); err != nil {
 		t.Fatal("installed generation plan rejected", err)
 	}
 	stale := n.Ref
 	stale.Epoch = 0
 	generated.ColumnMeta.Generations[1] = catalog.ColumnGeneration{Dependencies: []ids.ObjectRef{stale}}
-	if err := ValidateGenerationProviders(e.CatalogRead(), generated); err == nil {
+	if err := table.ValidateGenerationProviders(e.CatalogRead(), generated); err == nil {
 		t.Fatal("invalid installed generation epoch accepted")
 	}
 	var children []expr.Expr

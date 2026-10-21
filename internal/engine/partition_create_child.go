@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -88,7 +89,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
-	if err = NameCreateNotNull(d, auth.Catalog); err != nil {
+	if err = table.NameCreateNotNull(d, auth.Catalog); err != nil {
 		return nil, err
 	}
 	for i := range d.Constraints.NotNull {

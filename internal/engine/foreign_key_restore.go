@@ -10,18 +10,19 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Pending declarations live only inside the isolated Restore invocation. Capture
 // the declaring principal and namespace identities, not the later owner directive.
-func (e *Engine) captureRestoredForeignKeys(op *session.Operation, raw []parser.ForeignKeyConstraint) (restoredForeignKeys, error) {
+func (e *Engine) captureRestoredForeignKeys(op *session.Operation, raw []parser.ForeignKeyConstraint) (table.RestoredForeignKeys, error) {
 	auth, err := operationAuthorization(op)
 	if err != nil {
-		return restoredForeignKeys{}, err
+		return table.RestoredForeignKeys{}, err
 	}
-	pending := restoredForeignKeys{Auth: auth, Definitions: make([]restoredForeignKey, len(raw))}
+	pending := table.RestoredForeignKeys{Auth: auth, Definitions: make([]table.RestoredForeignKey, len(raw))}
 	for i, f := range raw {
 		pending.Definitions[i].Raw = f
 	}
@@ -30,7 +31,7 @@ func (e *Engine) captureRestoredForeignKeys(op *session.Operation, raw []parser.
 
 // Only the exact successful creation outcome admits target/path discovery.
 // A skipped CREATE must not inspect any ignored declaration, even its schema.
-func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) error {
+func (e *Engine) resolveRestoredForeignKeyTargets(pending *table.RestoredForeignKeys) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for i := range pending.Definitions {
@@ -51,7 +52,7 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 	return nil
 }
 
-func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operation, pending []restoredForeignKeys) error {
+func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operation, pending []table.RestoredForeignKeys) error {
 	if len(pending) == 0 {
 		return nil
 	}
@@ -130,7 +131,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 			}
 			parent := view.MustRelation(f.Target)
 			index := view.MustRelation(f.Index)
-			comparisons, err := BindForeignKeyComparison(view, child, parent, index, f)
+			comparisons, err := table.BindForeignKeyComparison(view, child, parent, index, f)
 			if err != nil {
 				return err
 			}
@@ -138,8 +139,8 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 			if childStore == nil || parentStore == nil {
 				return ids.ErrCatalogReplaced
 			}
-			children := foreignKeyRows{Storage: childStore, Committed: childStore.Versions, Ends: childStore.Ends, Frontier: e.visibility.CommitSeq()}
-			parents := foreignKeyRows{Storage: parentStore, Committed: parentStore.Versions, Ends: parentStore.Ends, Frontier: e.visibility.CommitSeq(), Index: f.Index, Root: e.storage.IndexRoots[f.Index]}
+			children := table.ForeignKeyRows{Storage: childStore, Committed: childStore.Versions, Ends: childStore.Ends, Frontier: e.visibility.CommitSeq()}
+			parents := table.ForeignKeyRows{Storage: parentStore, Committed: parentStore.Versions, Ends: parentStore.Ends, Frontier: e.visibility.CommitSeq(), Index: f.Index, Root: e.storage.IndexRoots[f.Index]}
 			if err := validateForeignKeyData(ctx, auth, child, parent, f, comparisons, children, parents, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
 				return err
 			}
@@ -153,7 +154,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 	return err
 }
 
-func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, comparisons []foreignKeyComparison, children, parents foreignKeyRows, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, comparisons []table.ForeignKeyComparison, children, parents table.ForeignKeyRows, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	index, ok := auth.Catalog.Relation(f.Index)
 	if !ok {
 		return ids.ErrCatalogReplaced
@@ -163,23 +164,23 @@ func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, 
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
-		any, all := ForeignKeyNullState(comparisons, row.Values)
+		any, all := table.ForeignKeyNullState(comparisons, row.Values)
 		if any {
 			if f.Full && !all {
-				return false, ForeignKeyDiagnostic(ctx, auth.View, auth, child, parent, f, row.Values, false, true, output)
+				return false, table.ForeignKeyDiagnostic(ctx, auth.View, auth, child, parent, f, row.Values, false, true, output)
 			}
 			return false, nil
 		}
-		if err := PrepareForeignKeyChild(ctx, comparisons, row.Values, key, input); err != nil {
+		if err := table.PrepareForeignKeyChild(ctx, comparisons, row.Values, key, input); err != nil {
 			return false, err
 		}
-		matching, _, err := FindForeignKeyParent(ctx, index, comparisons, parents, key, input)
+		matching, _, err := table.FindForeignKeyParent(ctx, index, comparisons, parents, key, input)
 		if err != nil {
 			return false, err
 		}
 		found := matching.Row != 0
 		if !found {
-			return false, ForeignKeyDiagnostic(ctx, auth.View, auth, child, parent, f, row.Values, false, false, output)
+			return false, table.ForeignKeyDiagnostic(ctx, auth.View, auth, child, parent, f, row.Values, false, false, output)
 		}
 		return false, nil
 	})

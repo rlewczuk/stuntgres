@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -91,10 +92,10 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		t.Fatal("argument identity collapsed")
 	}
 	consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.Ref}}}}}
-	if err := ValidateGenerationProviders(e.CatalogRead(), consumer); err != nil {
+	if err := table.ValidateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateGenerationPlan(e.CatalogRead(), consumer, n); err != nil {
+	if err := table.ValidateGenerationPlan(e.CatalogRead(), consumer, n); err != nil {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*catalog.Procedure){

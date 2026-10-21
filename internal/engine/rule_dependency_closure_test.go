@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -45,7 +46,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	if viewDepends(event, provider) {
 		t.Fatal("domain entered the view's unrelated SELECT definition")
 	}
-	closure := func(target ids.ObjectAddress) []domainDependency {
+	closure := func(target ids.ObjectAddress) []table.DomainDependency {
 		t.Helper()
 		edges, err := domainDependencyClosure(context.Background(), e.BeginCatalogStage(view), []ids.ObjectAddress{target})
 		if err != nil {

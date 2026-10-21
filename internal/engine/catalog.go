@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/access"
@@ -140,7 +141,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := typedef.ValidateTypedAttachment(v, r); err != nil {
 		return err
 	}
-	if err := ValidateInheritance(v, r); err != nil {
+	if err := table.ValidateInheritance(v, r); err != nil {
 		return err
 	}
 	if r.RelationKind == catalog.CompositeRelation {
@@ -203,7 +204,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		}
 		names[c.Name], attrs[c.Attribute] = true, true
 	}
-	if err := ValidatePhysicalNotNull(v, r, attrs); err != nil {
+	if err := table.ValidatePhysicalNotNull(v, r, attrs); err != nil {
 		return err
 	}
 	for i, c := range r.Columns {
@@ -214,7 +215,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: inconsistent not-null projection")
 		}
 	}
-	if err := ValidateChecks(v, r, names); err != nil {
+	if err := table.ValidateChecks(v, r, names); err != nil {
 		return err
 	}
 	if err := index.ValidateUniques(v, r, names); err != nil {
@@ -223,7 +224,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := index.ValidateExclusions(v, r, names); err != nil {
 		return err
 	}
-	if err := ValidateForeignKeys(v, r, names); err != nil {
+	if err := table.ValidateForeignKeys(v, r, names); err != nil {
 		return err
 	}
 	for attribute, identity := range r.ColumnMeta.Identities {
@@ -287,17 +288,17 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid column generation kind")
 		}
 		if definition.Kind == catalog.GenerationVirtual {
-			if err := VirtualDestination(r.Columns[slot]); err != nil {
+			if err := table.VirtualDestination(r.Columns[slot]); err != nil {
 				return err
 			}
-			if err := VirtualGenerationSecurity(definition.Expression); err != nil {
+			if err := table.VirtualGenerationSecurity(definition.Expression); err != nil {
 				return err
 			}
-			if err := VirtualGenerationSecurity(definition.Planned); err != nil {
+			if err := table.VirtualGenerationSecurity(definition.Planned); err != nil {
 				return err
 			}
 		}
-		if err := ValidateGenerationPlan(v, r, definition.Planned); err != nil {
+		if err := table.ValidateGenerationPlan(v, r, definition.Planned); err != nil {
 			return err
 		}
 		var dependencies []ids.ObjectRef
@@ -307,7 +308,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid column generation expression")
 		}
 	}
-	if err := ValidateGenerationProviders(v, r); err != nil {
+	if err := table.ValidateGenerationProviders(v, r); err != nil {
 		return err
 	}
 	for sub, text := range r.ColumnMeta.Comments {
@@ -379,7 +380,7 @@ type CatalogStage struct {
 	initialTables    map[ids.ObjectAddress]*storage.Relation
 	initialTx        ids.TxRef
 	querySources     []catalog.Descriptor
-	tableSlot        *tableStage
+	tableSlot        *table.Stage
 	indexesSlot      *index.Stage
 	materializedSlot *materializedStage
 }
@@ -1057,7 +1058,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		}
 		for _, descriptor := range next.Descriptors() {
 			if relation, ok := descriptor.(*catalog.Relation); ok && relation.Inheritance != nil {
-				if err := ValidateInheritance(e.catalog.read(next), relation); err != nil {
+				if err := table.ValidateInheritance(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
@@ -1087,17 +1088,17 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Constraints.Check) != 0 {
-				if err := ValidateCheckProviders(e.catalog.read(next), relation); err != nil {
+				if err := table.ValidateCheckProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.ColumnMeta.Defaults) != 0 {
-				if err := ValidateDefaultProviders(e.catalog.read(next), relation); err != nil {
+				if err := table.ValidateDefaultProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.ColumnMeta.Generations) != 0 {
-				if err := ValidateGenerationProviders(e.catalog.read(next), relation); err != nil {
+				if err := table.ValidateGenerationProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}

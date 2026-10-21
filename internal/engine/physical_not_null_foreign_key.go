@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -29,7 +30,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if !partitionConstraintReplayImport(e, op, auth) {
-		return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
+		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	ref, err := e.resolveRelationReference(auth, name, false)
 	if err != nil {
@@ -41,7 +42,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 	}
 	for attribute, proof := range old.Constraints.PhysicalNotNull {
 		if !index.PhysicalNotNullOriginValid(auth.Catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
-			return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
+			return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 		}
 	}
 	for i := range old.Constraints.Unique {
@@ -51,7 +52,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 		}
 		support := catalog.CapturePhysicalPrimarySupport(old, primary)
 		if !index.PhysicalPrimarySupportValid(auth.Catalog, old, primary, support) {
-			return nil, sqlError("0A000", RestorePhysicalNotNullBoundary)
+			return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 		}
 		return &restoredPhysicalForeignKeyProvider{op: op, authority: auth, ref: ref, current: old, primary: support}, nil
 	}
@@ -61,12 +62,12 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name p
 // Reuse the incumbent captured-FK binder, including its one data validation and
 // publication. The optional supporting slot pins only this genuine current PK;
 // ordinary declarations continue to use the unchanged zero-slot selection.
-func (e *Engine) capturePhysicalSelfForeignKey(op *session.Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (restoredForeignKeys, bool, error) {
+func (e *Engine) capturePhysicalSelfForeignKey(op *session.Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
 	if len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddForeignKey || raw.Actions[0].ForeignKey == nil || raw.Actions[0].ForeignKey.NotValid {
-		return restoredForeignKeys{}, false, nil
+		return table.RestoredForeignKeys{}, false, nil
 	}
-	reject := func() (restoredForeignKeys, bool, error) {
-		return restoredForeignKeys{}, false, sqlError("0A000", RestorePhysicalNotNullBoundary)
+	reject := func() (table.RestoredForeignKeys, bool, error) {
+		return table.RestoredForeignKeys{}, false, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	foreign := raw.Actions[0].ForeignKey
 	if provider == nil || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(foreign.Target.Parts) != 2 || foreign.Name.Text == "" || len(foreign.Columns) != len(provider.primary.Keys) {
@@ -79,7 +80,7 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *session.Operation, raw *parse
 	}
 	auth, err := operationAuthorization(op)
 	if err != nil {
-		return restoredForeignKeys{}, false, err
+		return table.RestoredForeignKeys{}, false, err
 	}
 	e.mu.Lock()
 	valid := partitionConstraintReplayImport(e, op, auth) && auth.RoleRecord == provider.authority.RoleRecord && created[provider.ref.Address] == provider.ref && provider.ref.Epoch == auth.Catalog.Epoch() && auth.Catalog.Get(provider.ref.Address) == provider.current
@@ -126,9 +127,9 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *session.Operation, raw *parse
 			if !ok || index.Address() == provider.primary.Index {
 				continue
 			}
-			eligible, eligibilityErr := ForeignKeyIndexEligible(old, index, attributes)
+			eligible, eligibilityErr := table.ForeignKeyIndexEligible(old, index, attributes)
 			if eligibilityErr != nil {
-				return restoredForeignKeys{}, false, eligibilityErr
+				return table.RestoredForeignKeys{}, false, eligibilityErr
 			}
 			if eligible {
 				return reject()
@@ -138,11 +139,11 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *session.Operation, raw *parse
 	}
 	pending, err := e.captureRestoredForeignKeys(op, []parser.ForeignKeyConstraint{*foreign})
 	if err != nil {
-		return restoredForeignKeys{}, false, err
+		return table.RestoredForeignKeys{}, false, err
 	}
 	pending.Child = provider.ref
 	if err := e.resolveRestoredForeignKeyTargets(&pending); err != nil {
-		return restoredForeignKeys{}, false, err
+		return table.RestoredForeignKeys{}, false, err
 	}
 	if pending.Definitions[0].Target != provider.ref.Address {
 		return reject()

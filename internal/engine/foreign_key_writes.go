@@ -10,16 +10,17 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, idx ids.ObjectAddress) (foreignKeyRows, error) {
+func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, idx ids.ObjectAddress) (table.ForeignKeyRows, error) {
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
-		return foreignKeyRows{}, ids.ErrCatalogReplaced
+		return table.ForeignKeyRows{}, ids.ErrCatalogReplaced
 	}
 	changes := s.owner.Catalog
 	if s.catalog != nil {
@@ -27,9 +28,9 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, idx ids.Object
 	}
 	storage := e.privateStorageLocked(changes, ref.Address)
 	if storage == nil {
-		return foreignKeyRows{}, ids.ErrCatalogReplaced
+		return table.ForeignKeyRows{}, ids.ErrCatalogReplaced
 	}
-	r := foreignKeyRows{Storage: storage, Committed: storage.Versions, Ends: storage.Ends, Own: s.ownWrites[ref.Address], Staged: s.stage.rows[ref.Address], PriorDeletes: s.ownDeletes[ref.Address], CurrentDeletes: s.stage.deletes[ref.Address], Frontier: e.visibility.CommitSeq()}
+	r := table.ForeignKeyRows{Storage: storage, Committed: storage.Versions, Ends: storage.Ends, Own: s.ownWrites[ref.Address], Staged: s.stage.rows[ref.Address], PriorDeletes: s.ownDeletes[ref.Address], CurrentDeletes: s.stage.deletes[ref.Address], Frontier: e.visibility.CommitSeq()}
 	r.Index = idx
 	if idx != (ids.ObjectAddress{}) {
 		r.Root = e.storage.IndexRoots[idx]
@@ -37,7 +38,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, idx ids.Object
 			r.Root = index.JournalIndexesOrZero(changes).UniqueRoots[idx]
 		}
 		if r.Root == nil {
-			return foreignKeyRows{}, fmt.Errorf("stuntgres: ready foreign-key index root is missing")
+			return table.ForeignKeyRows{}, fmt.Errorf("stuntgres: ready foreign-key index root is missing")
 		}
 	}
 	if s.projectedRoots {
@@ -93,7 +94,7 @@ func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode 
 }
 
 func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) error {
-	declarations := ForeignKeyDeclarations(raw)
+	declarations := table.ForeignKeyDeclarations(raw)
 	if len(declarations) == 0 {
 		return nil
 	}
@@ -176,7 +177,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 type foreignKeyJob struct {
 	child, parent, index   *catalog.Relation
 	definition             catalog.ForeignKeyConstraint
-	comparisons            []foreignKeyComparison
+	comparisons            []table.ForeignKeyComparison
 	childKey               []sqltype.Value // Reused across final rows and waited probes.
 	deletePlan, updatePlan *foreignActionPlan
 }
@@ -237,10 +238,10 @@ func (s *StatementScope) checkForeignKeys() error {
 					continue
 				}
 			}
-			any, all := ForeignKeyNullState(job.comparisons, row.Values)
+			any, all := table.ForeignKeyNullState(job.comparisons, row.Values)
 			if any {
 				if f.Full && !all {
-					return ForeignKeyDiagnostic(s.op.Context(), childAuth.View, childAuth, job.child, job.parent, f, row.Values, false, true, s.output)
+					return table.ForeignKeyDiagnostic(s.op.Context(), childAuth.View, childAuth, job.child, job.parent, f, row.Values, false, true, s.output)
 				}
 				continue
 			}
@@ -273,12 +274,12 @@ func (s *StatementScope) checkForeignKeys() error {
 				return err
 			}
 			if !found {
-				return ForeignKeyDiagnostic(s.op.Context(), childAuth.View, childAuth, job.child, job.parent, f, row.Values, false, false, s.output)
+				return table.ForeignKeyDiagnostic(s.op.Context(), childAuth.View, childAuth, job.child, job.parent, f, row.Values, false, false, s.output)
 			}
 		}
 		checkOld := func(old storage.RowVersion) error {
 			return children.Each(func(child storage.RowVersion) (bool, error) {
-				match, err := ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, old.Values, s.input)
+				match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, old.Values, s.input)
 				if err != nil || !match {
 					return false, err
 				}
@@ -286,7 +287,7 @@ func (s *StatementScope) checkForeignKeys() error {
 				if err != nil || found {
 					return false, err
 				}
-				return false, ForeignKeyDiagnostic(s.op.Context(), parentAuth.View, parentAuth, job.child, job.parent, f, old.Values, true, false, s.output)
+				return false, table.ForeignKeyDiagnostic(s.op.Context(), parentAuth.View, parentAuth, job.child, job.parent, f, old.Values, true, false, s.output)
 			})
 		}
 		for _, row := range parentRows.Staged {
@@ -322,12 +323,12 @@ func (s *StatementScope) checkForeignKeys() error {
 	return s.op.Context().Err()
 }
 
-func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKeyJob, rows *foreignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
-	if err := PrepareForeignKeyChild(s.op.Context(), job.comparisons, child, job.childKey, s.input); err != nil {
+func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKeyJob, rows *table.ForeignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
+	if err := table.PrepareForeignKeyChild(s.op.Context(), job.comparisons, child, job.childKey, s.input); err != nil {
 		return false, err
 	}
 	for {
-		matching, locator, err := FindForeignKeyParent(s.op.Context(), job.index, job.comparisons, *rows, job.childKey, s.input)
+		matching, locator, err := table.FindForeignKeyParent(s.op.Context(), job.index, job.comparisons, *rows, job.childKey, s.input)
 		if err != nil || matching.Row == 0 {
 			return false, err
 		}
@@ -348,13 +349,13 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 				if err := s.physicalRowEvent(ref, parent, lock.MultiKeyShare, 0); err != nil {
 					return false, err
 				}
-				return ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child, parent.Values, s.input)
+				return table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child, parent.Values, s.input)
 			}
 		}
 	}
 }
 
-func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignKeyRows) error {
+func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *table.ForeignKeyRows) error {
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()

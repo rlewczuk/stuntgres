@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -13,7 +14,7 @@ import (
 // neither retirement nor dependency traversal publishes the private candidate.
 // Each action classifies its own dependencies before any later backing removal.
 func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *catalog.Relation, actions []parser.AlterTableAction, changes *session.Journal) (*catalog.Relation, *CatalogStage, error) {
-	if !HasDroppedConstraintIndexes(old, actions) {
+	if !table.HasDroppedConstraintIndexes(old, actions) {
 		return next, stage, nil
 	}
 	if stage == nil {
@@ -28,7 +29,7 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 // constraints without backing indexes, during staging and pure preparation.
 func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, actions []parser.AlterTableAction) (*catalog.Relation, error) {
 	for _, action := range actions {
-		constraint, address := DroppedConstraint(old, action)
+		constraint, address := table.DroppedConstraint(old, action)
 		if constraint == (ids.ObjectAddress{}) {
 			continue
 		}
@@ -56,7 +57,7 @@ func dropConstraintIndexes(provider *dropProvider, old, next *catalog.Relation, 
 }
 
 func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *catalog.Relation, actions []parser.AlterTableAction, prior *preparedDrop) (*preparedDrop, error) {
-	if !HasDroppedConstraintIndexes(old, actions) {
+	if !table.HasDroppedConstraintIndexes(old, actions) {
 		return nil, nil
 	}
 	provider, err := scope.prepareDropDefinitionProvider(auth, next, scope.lockedRef, prior)

@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -159,7 +160,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return err
 		}
 		return children.Each(func(child storage.RowVersion) (bool, error) {
-			match, err := ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
+			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
@@ -173,11 +174,11 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err := s.physicalRowEvent(ref, latest, lock.MultiKeyShare, 0); err != nil {
 				return false, err
 			}
-			match, err = ForeignKeyRowsMatch(s.op.Context(), job.comparisons, latest.Values, event.old.Values, s.input)
+			match, err = table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, latest.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
-			d := ForeignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
+			d := table.ForeignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
 			var diagnostic *sqlstate.Error
 			if !errors.As(d, &diagnostic) {
 				return false, d
@@ -212,7 +213,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	var retainedMatches map[ids.RowID]struct{}
 	if retained.Storage != nil {
 		err = retained.Each(func(child storage.RowVersion) (bool, error) {
-			match, err := ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
+			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
@@ -231,7 +232,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if _, exists := retainedMatches[child.Row]; exists {
 			return false, nil
 		}
-		match, err := ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
+		match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 		if match {
 			candidates = append(candidates, child)
 		}
@@ -280,7 +281,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
-		match, err := ForeignKeyRowsMatch(s.op.Context(), job.comparisons, old.Values, event.old.Values, s.input)
+		match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, old.Values, event.old.Values, s.input)
 		if err != nil {
 			return err
 		}
@@ -365,7 +366,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return err
 		}
 		return final.Each(func(child storage.RowVersion) (bool, error) {
-			match, err := ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
+			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
@@ -373,7 +374,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err != nil || found {
 				return false, err
 			}
-			return false, ForeignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
+			return false, table.ForeignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
 		})
 	}
 	return nil

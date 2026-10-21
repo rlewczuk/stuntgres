@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -46,7 +47,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	for _, name := range names {
 		ref, err := e.resolveRelationReference(auth, name, true)
 		if err != nil {
-			if !RenameMissing(err) {
+			if !table.RenameMissing(err) {
 				return fail(err)
 			}
 			kind, missing := "relation", name.Parts[len(name.Parts)-1].Text

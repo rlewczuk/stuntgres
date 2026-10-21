@@ -14,14 +14,15 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, addedColumn, error) {
+func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, table.AddedColumn, error) {
 	scope.routineAuth = auth
-	fail := func(err error) (*catalog.Relation, addedColumn, error) { return nil, addedColumn{}, err }
+	fail := func(err error) (*catalog.Relation, table.AddedColumn, error) { return nil, table.AddedColumn{}, err }
 	column := action.Definition
 	if column == nil {
 		return fail(fmt.Errorf("stuntgres: missing ADD column declaration"))
@@ -40,7 +41,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 			return fail(sqlError("42701", message))
 		}
 		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42701", Message: message + ", skipping"})
-		return old, addedColumn{}, nil
+		return old, table.AddedColumn{}, nil
 	}
 	if old.ColumnMeta.HighWater >= 1600 {
 		return fail(sqlError("54011", "tables can have at most 1600 columns"))
@@ -89,7 +90,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 	definition := catalog.Column{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.Address().ObjectID), OriginAttribute: int16(attribute)}
 	next.Columns = append(next.Columns, definition)
 	next.Attributes = append(next.Attributes, attribute)
-	added := addedColumn{Attribute: attribute, Column: column, Declaration: declaration, Value: sqltype.Null(usage.Type)}
+	added := table.AddedColumn{Attribute: attribute, Column: column, Declaration: declaration, Value: sqltype.Null(usage.Type)}
 	node, origin := analyze.ColumnDefault(auth.Catalog, &next, len(next.Columns)-1)
 	added.Expression = node
 	added.Dependencies, added.Consumer = origin.Definition.Dependencies, origin.Consumer
@@ -106,12 +107,12 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 		binder.Consumer.DefaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
 		node, err := binder.BindDefault(declaration.DefaultExpr, definition)
 		if err != nil {
-			return fail(AlterCookingError(err))
+			return fail(table.AlterCookingError(err))
 		}
 		if !stored.OmitColumnDefault(auth.Catalog, node, usage) {
 			persisted := catalog.ColumnDefault{Expression: node}
 			if _, err := (stored.ScalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Dependencies: &persisted.Dependencies, CommentSnapshot: &persisted.CatalogSnapshot, CatalogAliasReferences: &persisted.CatalogAliasReferences}).SQL(op.Context(), auth.Catalog, node); err != nil {
-				return fail(AlterCookingError(err))
+				return fail(table.AlterCookingError(err))
 			}
 			if next.ColumnMeta.Defaults == nil {
 				next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
@@ -127,7 +128,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 	return &next, added, nil
 }
 
-func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32]sqltype.Value, bool, error) {
+func planAddedColumns(scope *StatementScope, additions []table.AddedColumn) (map[int32]sqltype.Value, bool, error) {
 	var fills map[int32]sqltype.Value
 	perRow := false
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
@@ -139,10 +140,10 @@ func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32
 			recipe.RoutineReferences, recipe.RoutineConsumer = added.Dependencies, added.Consumer
 			planned, _, err := exec.PreflightCoercionsWithPolicy(&recipe, added.Expression, true)
 			if err != nil {
-				return nil, false, AlterCookingError(err)
+				return nil, false, table.AlterCookingError(err)
 			}
 			if err := exec.AdmitExpression(&recipe, planned, recipe.Catalog); err != nil {
-				return nil, false, AlterCookingError(err)
+				return nil, false, table.AlterCookingError(err)
 			}
 			added.Expression = planned
 			properties := planned.Properties()
@@ -152,7 +153,7 @@ func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32
 			}
 			added.Value, err = planned.Eval(&evaluation)
 			if err != nil {
-				return nil, false, AlterCookingError(err)
+				return nil, false, table.AlterCookingError(err)
 			}
 		}
 		if fills == nil {

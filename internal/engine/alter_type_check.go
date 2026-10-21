@@ -9,12 +9,13 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
 // Reparse original syntax against the completed TYPE descriptor, rather than
 // retagging old operators or retaining inferred coercions from the old usage.
-func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, ref ids.ObjectRef, next *catalog.Relation, queue []alterTypeCheck) (*catalog.Relation, []catalog.CheckConstraint, error) {
+func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, ref ids.ObjectRef, next *catalog.Relation, queue []table.AlterTypeCheck) (*catalog.Relation, []catalog.CheckConstraint, error) {
 	if len(queue) == 0 {
 		return next, nil, nil
 	}
@@ -33,7 +34,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 		// expression is bound; this wrapper never creates catalog metadata.
 		syntax, err := parser.ParseWithOptions("CREATE TABLE "+catalog.QuoteIdentifier(next.Name())+" (CHECK ("+pending.SQL+"))", parser.Options{Context: op.Context(), StandardConformingStrings: true})
 		if err != nil {
-			return nil, nil, AlterTypeCheckReparseError(err)
+			return nil, nil, table.AlterTypeCheckReparseError(err)
 		}
 		e.mu.Lock()
 		if ref.Epoch != e.catalog.state.Epoch() {
@@ -48,7 +49,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 		node, err := binder.BindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, analyze.ProjectionContext, "CHECK")
 		e.mu.Unlock()
 		if err != nil {
-			return nil, nil, AlterTypeCheckReparseError(err)
+			return nil, nil, table.AlterTypeCheckReparseError(err)
 		}
 		definition := replacement.Constraints.Check[pending.Index]
 		definition.OID = 0 // Affected TYPE definitions get a new logical identity.

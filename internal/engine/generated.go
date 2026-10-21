@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -67,7 +68,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 	column := d.Columns[slot]
 	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
 	if kind == catalog.GenerationVirtual {
-		if err := VirtualDestination(column); err != nil {
+		if err := table.VirtualDestination(column); err != nil {
 			return catalog.ColumnGeneration{}, err
 		}
 	}
@@ -77,7 +78,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 	}
 	analyzed := node
 	if kind == catalog.GenerationVirtual {
-		if err := VirtualGenerationSecurity(analyzed); err != nil {
+		if err := table.VirtualGenerationSecurity(analyzed); err != nil {
 			return catalog.ColumnGeneration{}, err
 		}
 	}
