@@ -34,7 +34,7 @@ const (
 type ruleCommand struct {
 	syntax  parser.Statement
 	binding analyze.Binding
-	auth    AuthorizationView
+	auth    ruleAuthority
 	source  ruleCommandSource
 }
 
@@ -340,12 +340,12 @@ func ruleSetAction(b analyze.Binding, syntax parser.Statement) bool {
 	return set
 }
 
-func composeRuleAction(auth AuthorizationView, original analyze.Binding, event string, r ruleDefinition, action ruleAction) (analyze.Binding, error) {
+func composeRuleAction(auth ruleAuthority, original analyze.Binding, event string, r ruleDefinition, action ruleAction) (analyze.Binding, error) {
 	qualified := original.Predicate != nil || original.Update != nil && original.Update.Predicate != nil
 	if (qualified || r.condition != nil) && ruleSetAction(action.binding, action.syntax) {
 		return analyze.Binding{}, sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 	}
-	catalog := auth.Catalog
+	catalog := auth.Access().Catalog
 	p, err := makeRuleProducer(catalog, original, event, ruleProducerOutputUses(original, r, action.binding))
 	if err != nil {
 		return analyze.Binding{}, err
@@ -358,8 +358,8 @@ func composeRuleAction(auth AuthorizationView, original analyze.Binding, event s
 	}
 	// Resolve authority at the retained producer boundary, before switching
 	// to the event owner's context for stored action refresh and composition.
-	caller := auth.State.CurrentUser
-	auth.State.CurrentUser = original.Relation.Owner
+	caller := auth.Access().State.CurrentUser
+	auth = auth.AsUser(original.Relation.Owner)
 	b := action.binding
 	dependenciesPrivate := false
 	b.Insert.Conflict = b.Insert.Conflict.Clone()
@@ -724,7 +724,7 @@ func composeRuleAction(auth AuthorizationView, original analyze.Binding, event s
 				b.QuerySources[i].Principal = caller
 			}
 		} else {
-			b.QuerySources[i].Principal = auth.State.CurrentUser
+			b.QuerySources[i].Principal = auth.Access().State.CurrentUser
 		}
 	}
 	b.SubqueryDemand = b.SubqueryDemand || original.SubqueryDemand
@@ -733,28 +733,28 @@ func composeRuleAction(auth AuthorizationView, original analyze.Binding, event s
 	return b, nil
 }
 
-func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
+func (e *Engine) expandRulesLocked(scope *StatementScope, auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
 	event := ruleEvent(stmt)
 	firstCommand := len(program.commands)
 	b = physicalBinding(b)
 	if event == "" || b.Relation == nil {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
-	current, ok := auth.Catalog.Relation(b.Ref.Address)
-	if !ok || b.Ref.Epoch != auth.Catalog.Epoch() {
+	current, ok := auth.Access().Catalog.Relation(b.Ref.Address)
+	if !ok || b.Ref.Epoch != auth.Access().Catalog.Epoch() {
 		return -1, ids.ErrCatalogReplaced
 	}
 	var err error
-	b, err = refreshRuleBinding(auth.Catalog, b, current)
+	b, err = refreshRuleBinding(auth.Access().Catalog, b, current)
 	if err != nil {
 		return -1, err
 	}
 	if insert, ok := stmt.(*parser.Insert); ok && b.Rule.Template {
 		b.Insert.Defaults = nil
-		analyze.BindInsertDefaults(e.catalog.owner(), &b, auth.Catalog, insert.Override)
+		analyze.BindInsertDefaults(e.catalog.owner(), &b, auth.Access().Catalog, insert.Override)
 	}
 	if current.RelationKind != catalog.ViewRelation {
-		b.Storage = e.authorizationStorageLocked(auth, b.Ref.Address)
+		b.Storage = auth.StorageLocked(b.Ref.Address)
 	}
 	rules := rulesOf(b.Relation)
 	matched := slices.ContainsFunc(rules, func(r ruleDefinition) bool { return r.event == event })
@@ -766,7 +766,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	}
 	if current.RelationKind == catalog.ViewRelation && !matched {
 		b.ViewWrite = nil
-		if err := bindViewWrite(e.catalog.owner(), auth.Catalog, &b, stmt); err != nil {
+		if err := bindViewWrite(e.catalog.owner(), auth.Access().Catalog, &b, stmt); err != nil {
 			return -1, err
 		}
 		return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
@@ -824,13 +824,12 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 		for _, address := range r.references {
 			whole := address
 			whole.SubID = 0
-			if descriptor, ok := auth.Catalog.Find(whole); ok {
-				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), Revision: descriptor.Revision()})
+			if descriptor, ok := auth.Access().Catalog.Find(whole); ok {
+				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.Access().Catalog.Epoch(), address), Revision: descriptor.Revision()})
 			}
 		}
 		for _, action := range r.actions {
-			actionAuth := auth
-			actionAuth.State.CurrentUser = current.Owner
+			actionAuth := auth.AsUser(current.Owner)
 			composed, err := composeRuleAction(auth, b, event, r, action)
 			if err != nil {
 				return -1, err
@@ -842,7 +841,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 				if providers > 1 {
 					return -1, sqlError("0A000", "cannot have RETURNING lists in multiple rules")
 				}
-				composed.Returning, err = ruleReturningProjection(auth.Catalog, b.Returning, action.binding.Returning)
+				composed.Returning, err = ruleReturningProjection(auth.Access().Catalog, b.Returning, action.binding.Returning)
 				if err != nil {
 					return -1, err
 				}
@@ -887,7 +886,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	return count, nil
 }
 
-func (e *Engine) appendRuleCommand(program *ruleProgram, auth AuthorizationView, stmt parser.Statement, b analyze.Binding) int {
+func (e *Engine) appendRuleCommand(program *ruleProgram, auth ruleAuthority, stmt parser.Statement, b analyze.Binding) int {
 	index := len(program.commands)
 	program.commands = append(program.commands, ruleCommand{syntax: stmt, binding: b, auth: auth})
 	return index
@@ -901,8 +900,8 @@ func markRuleCommandSource(program *ruleProgram, start int, source ruleCommandSo
 	}
 }
 
-func ruleResidual(auth AuthorizationView, b analyze.Binding, event string, rules []ruleDefinition) (analyze.Binding, error) {
-	catalog := auth.Catalog
+func ruleResidual(auth ruleAuthority, b analyze.Binding, event string, rules []ruleDefinition) (analyze.Binding, error) {
+	catalog := auth.Access().Catalog
 	p, err := makeRuleProducer(catalog, b, event)
 	if err != nil {
 		return b, err
@@ -1019,13 +1018,13 @@ func ruleReturningProjection(catalog catalog.Read, original, provider *analyze.R
 	return &copy, nil
 }
 
-func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
+func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth ruleAuthority, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
 	if b.Relation.RelationKind != catalog.ViewRelation {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
 	prior := viewWriteOf(b.ViewWrite)
 	b.ViewWrite = nil
-	if err := bindViewWrite(e.catalog.owner(), auth.Catalog, &b, stmt, b.Ref); err != nil {
+	if err := bindViewWrite(e.catalog.owner(), auth.Access().Catalog, &b, stmt, b.Ref); err != nil {
 		return -1, err
 	}
 	if b.ViewWrite != nil && prior != nil {
@@ -1148,15 +1147,15 @@ func refreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalo
 	return b, nil
 }
 
-func refreshRuleSources(auth AuthorizationView, b analyze.Binding) (analyze.Binding, error) {
-	catalog := auth.Catalog
+func refreshRuleSources(auth ruleAuthority, b analyze.Binding) (analyze.Binding, error) {
+	catalog := auth.Access().Catalog
 	var sources []exec.Leaf
 	for i, source := range b.QuerySources {
 		current, ok := catalog.Relation(source.Ref.Address)
-		if !ok || source.Relation == nil || source.Ref.Domain() != auth.Owner.Domain || source.Ref.Epoch != catalog.Epoch() || source.Ref.Address.SubID != 0 {
+		if !ok || source.Relation == nil || source.Ref.Domain() != auth.Access().Owner.Domain || source.Ref.Epoch != catalog.Epoch() || source.Ref.Address.SubID != 0 {
 			return b, ids.ErrCatalogReplaced
 		}
-		storage := auth.engine.authorizationStorageLocked(auth, source.Ref.Address)
+		storage := auth.StorageLocked(source.Ref.Address)
 		if current == source.Relation && storage == source.Storage {
 			continue
 		}

@@ -82,7 +82,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	}
 	for i := range program.commands {
 		command := &program.commands[i]
-		if err := analyze.CheckBinding(command.auth, command.binding, command.syntax); err != nil {
+		if err := analyze.CheckBinding(ruleAuthorizationOf(command.auth), command.binding, command.syntax); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -129,15 +129,16 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			return Result{}, err
 		}
 		physical := physicalBinding(command.binding)
-		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: viewWriteOf(command.binding.ViewWrite), sources: command.binding.QuerySources, auth: &program.commands[i].auth})
+		commandAuth := ruleAuthorizationOf(command.auth)
+		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: viewWriteOf(command.binding.ViewWrite), sources: command.binding.QuerySources, auth: &commandAuth})
 		captures := &exec.QuoteCaptureCandidate{}
 		if command.binding.Parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
-			pruneQuoteCaptures(captures, command.auth.Catalog)
+			pruneQuoteCaptures(captures, commandAuth.Catalog)
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: commandAuth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 		e.mu.Lock()
-		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, command.auth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
+		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, commandAuth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
 			return Result{}, err
 		}
 	}

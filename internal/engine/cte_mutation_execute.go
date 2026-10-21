@@ -109,8 +109,9 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			if _, selectOnly := rewrite.command.syntax.(*parser.Select); selectOnly {
 				continue
 			}
-			syntax, commandBinding, commandAuth = rewrite.command.syntax, rewrite.command.binding, rewrite.command.auth
-			scope.ruleActionAuth = &rewrite.command.auth
+			ruleAuth := ruleAuthorizationOf(rewrite.command.auth)
+			syntax, commandBinding, commandAuth = rewrite.command.syntax, rewrite.command.binding, ruleAuth
+			scope.ruleActionAuth = &ruleAuth
 		} else {
 			scope.ruleActionAuth = originalRuleAuth
 		}

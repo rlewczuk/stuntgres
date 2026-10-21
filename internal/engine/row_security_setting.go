@@ -34,13 +34,13 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b an
 		if mutation, ok := analyze.MutationBinding(definition); ok {
 			caller := auth
 			if rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
-				caller = rewrite.caller
+				caller = ruleAuthorizationOf(rewrite.caller)
 			}
 			if err := checkRowSecurityBinding(scope, caller, *mutation); err != nil {
 				return err
 			}
 			if rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
-				if err := checkRowSecurityBinding(scope, rewrite.command.auth, rewrite.command.binding); err != nil {
+				if err := checkRowSecurityBinding(scope, ruleAuthorizationOf(rewrite.command.auth), rewrite.command.binding); err != nil {
 					return err
 				}
 			}
@@ -59,7 +59,7 @@ func checkRowSecurityRuleProgram(scope *StatementScope, auth AuthorizationView, 
 		return err
 	}
 	for _, command := range program.commands {
-		if err := checkRowSecurityBinding(scope, command.auth, command.binding); err != nil {
+		if err := checkRowSecurityBinding(scope, ruleAuthorizationOf(command.auth), command.binding); err != nil {
 			return err
 		}
 	}
