@@ -732,3 +732,41 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 	}
 	return e.checkTemporaryTypedReplacementLocked()
 }
+
+func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
+	view := e.catalog.read(e.catalog.state)
+	for _, descriptor := range e.catalog.state.Descriptors() {
+		d, ok := descriptor.(*catalog.Relation)
+		if !ok || len(rulesOf(d)) == 0 {
+			continue
+		}
+		ns, ok := e.catalog.state.Namespace(d.Namespace())
+		if !ok || ns.Temporary == (ids.SessionToken{}) {
+			continue
+		}
+		for _, rule := range rulesOf(d) {
+			for _, address := range rule.references {
+				address.SubID = 0
+				if stored.DependPinned(view, nil, address) {
+					continue
+				}
+				provider := e.catalog.state.Get(address)
+				if address.ClassID == 2606 {
+					parent := constraintParent(view, address)
+					if parent == nil {
+						return ids.ErrCatalogReplaced
+					}
+					provider = parent
+				}
+				if provider == nil {
+					return ids.ErrCatalogReplaced
+				}
+				providerNS, ok := e.catalog.state.Namespace(provider.Namespace())
+				if !ok || providerNS.Temporary != ns.Temporary {
+					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
+				}
+			}
+		}
+	}
+	return nil
+}

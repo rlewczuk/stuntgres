@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // The requested relation remains the SQL/ACL namespace. This execution-owned
@@ -319,19 +318,6 @@ func bindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 	b.ViewWrite = viewWriteSlotOf(w)
 	b.Targets = targets
 	return lowerViewWrite(owner, view, b, stmt)
-}
-
-func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(plan.Node, func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error)) (expr.Expr, bool, error) {
-	var mapper func(expr.Expr) (expr.Expr, bool, error)
-	mapper = func(n expr.Expr) (expr.Expr, bool, error) {
-		return stored.MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) {
-			if len(queries) != 0 {
-				return queries[0](root, mapper)
-			}
-			return plan.RewriteQueryExpressions(root, mapper)
-		}, recipe, leaf)
-	}
-	return mapper(bound)
 }
 
 func lowerViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, stmt parser.Statement) error {
