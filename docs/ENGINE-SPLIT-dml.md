@@ -14,8 +14,8 @@ constraints, verification, documentation and report.
   - 29b (item 108): 29a, plus the Part A moves it imports or shares files
     with: `copyfmt` 19b (59), `index` 23b (83), `table` 24b (87),
     `partition` 25b (91), `fdw` 26b (95), `view` 27b (100).
-  - 29c (item 109): 29b, plus every upper feature's Part B: 23d.2 (85b), 24d
-    (89), 25d (93), 26d (97), 27d (102). Their write-side host interfaces
+  - 29c (item 109): 29b, plus every upper feature's Part B: 23d.2 (85b), 24d.1
+    and 24d.2 (89a, 89b), 25d (93), 26d (97), 27d (102). Their write-side host interfaces
     are what 29c composes.
   - 29d (item 110): 29c.
 - **Effort:** high for 29a and 29b; xhigh for 29c (docs only, host
@@ -399,3 +399,7 @@ Outstanding aliases: none yet.
   29c embeds `index.WriteHost` in `dml.Host` and decides whether the
   per-row interface calls cost anything measurable (23d.2 calls the
   concrete methods).
+- Table 24c: `evaluateInsertValuesRow` (`identity.go`; callers
+  `insert.go`, `merge_rows.go`, `fdw_execute.go`) is DML, not identity
+  code; it stays in the root through 24d and moves with the INSERT
+  executors (29b/29d), out of `identity.go`.

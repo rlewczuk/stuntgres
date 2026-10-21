@@ -20,7 +20,7 @@ constraints, verification, documentation and report.
     also needs the `dump` records (item 56, 18b): check that 87 already
     waits for 56, and stop if it does not.
   - 25c (item 92): 91 and 88 (`table` 24c).
-  - 25d (item 93): 92 and 89 (`table` 24d).
+  - 25d (item 93): 92, 89a and 89b (`table` 24d.1 and 24d.2).
 - **Effort:** high for 25a and 25b; xhigh for 25c; high for 25d.
 - **Session size:** one sub-step per session.
 - **Linear items:** 25a = 90, 25b = 91, 25c = 92, 25d = 93. Items that wait
@@ -280,7 +280,7 @@ or releases it, and never waits.
 | Group | Methods (draft) | Replaces |
 |---|---|---|
 | Shared DDL contract | `ddl.Host` (20a) | the `AuthorizationView`, `*CatalogStage` and `op` parameters |
-| Table creation | the `table.Host` methods that build a child table (24c) | the table machinery `schemaPartitionChildLocked` calls |
+| Table creation | `table.Host` (24c: embed it; the child needs exactly the CREATE set) and the 24d.1 functions `NewRelation`, `StageCreateIdentities`, `StageInheritance`, ... over it; `BindColumnDefaults` with the zero temporary token, as today | the table machinery `schemaPartitionChildLocked` calls |
 | Binding (the root builds the binders) | `BindPartitionKeys(auth, relation, spec)`, `BindPartitionBound(auth, parent, bound)` | `Engine.bindPartitionKeys`, `pendingPartitionDefinition.bindPartitionDatum` |
 | Evaluation | `Evaluation() exec.Context` | the contexts of `evaluateBounds` and the attach checks |
 | Fences | `RecordStorageRead(fence)` | appends to `CatalogStage.storageReads` |

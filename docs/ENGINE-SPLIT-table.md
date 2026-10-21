@@ -12,13 +12,15 @@ constraints, verification, documentation and report.
 - **Needs:** 24a: catalog 5i (linear item 72). 24b: 24a, index 23b (item
   83), `dump` 18b (item 56) and access B6 (item 79); 23b already brings
   `stored` 22b (item 68) and `regobj` 21b (item 65). 24c: 24b and index
-  23c (item 84). 24d: 24c and index 23d.1 (item 85a). Read the sequence
+  23c (item 84). 24d.1: 24c and index 23d.1 (item 85a); 24d.2 and 24d.3:
+  24d.1. Read the sequence
   prompt's "Notes for later steps" (identity and serial staging belong
   here).
-- **Effort:** high for 24a; xhigh for 24b (broad), 24c and 24d.
+- **Effort:** high for 24a; xhigh for 24b (broad), 24c and 24d.1–24d.3.
 - **Session size:** one sub-step per session. 24a may need two sessions:
   do the renames and slots first (commit), then the cuts.
-- **Linear items:** 24a = 86, 24b = 87 (broad), 24c = 88, 24d = 89.
+- **Linear items:** 24a = 86, 24b = 87 (broad), 24c = 88, 24d.1 = 89a,
+  24d.2 = 89b, 24d.3 = 89c.
 - **Tools:** `reach`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach -dir . -files
   '<regexp>' [-cut 'From>To,...']`) and `frontier`
@@ -357,68 +359,452 @@ Do the steps in this order; each numbered step is one commit and builds.
 
 ## Part B
 
-### 24c — Refine the host (docs only)
+### 24c — Refine the host (docs only; linear item 88)
 
-Re-measure the remaining handlers and write the host and the move set
-here; wait for approval. Start from this sketch (draft signatures; the
-`ddl` contract of step 20 provides authority, stage, namespaces, OIDs,
-revisions, notices and context):
+Measure the remaining handlers with `reach` and `frontier`, starting from
+the draft sketch (`table.Host` = `ddl.Host` plus descriptors, row types,
+binding, type resolution, identity staging and a `Removal()` accessor),
+then write the final interfaces, the move set and the commit sequence into
+this file, and wait for approval. Five questions were open: (1) which ALTER
+candidates move; (2) where identity and serial staging and
+`relationDiagnosticKind` go; (3) how index decisions are reached; (4)
+whether the inheritance recursion decisions move; (5) the lock contract of
+every host method.
 
-```go
-package table
+**24c refine (approved; measured at `bdba4968a`).** `frontier` over the 67
+root files that still hold table code (the inventory files left in the
+root after 24b, plus `identity.go`, `identity_alter.go`,
+`identity_drop_definition.go`, `serial.go`, `sequence_dependencies.go`,
+`typed_mutation.go`, `rename.go`, `relation_set_schema.go` and
+`drop_dependency_reader.go`; FK write-time and action files,
+`mutation_targets.go`, `catalog_overlay_stage.go` and
+`temporary_preservation.go` left out; output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-REFINE/frontier-table.txt`): 180
+declarations, about 270 engine edges. `createTableLocked`,
+`schemaTableLocked`, `alterTableLocked`, `alterInheritanceLocked`,
+`prepareInheritanceNode`, the drop provider and the Restore hooks were read
+directly. The 85a seam (`index.Host`, `index.KeyHost`, `index.DropStage`,
+`index.ValidityTarget` on `ddlHost`) was read on its branch; 85a merged
+(`0ab96a3a8`) before this record and its result agrees. Findings:
 
-type Host interface {
-	ddl.Host
+- **The shared DDL host covers most CREATE edges.** `allocateOIDLocked`
+  and `revisionLocked` are `Allocator`; `stage.Base`, `stageRead`,
+  `stage.Create`/`Replace`/`Get`/`UpdateDescriptor` are `StageBase`,
+  `StageRead` and `Stage()`; `op.Context`, `op.EmitNotice` and the
+  temporal-modifier WARNING are `Context` and `EmitNotice`;
+  `creationACL` is `CreationACL`; `referencePath` is
+  `RecordDependencyPath`; `e.creationNamespace` is
+  `ExistingCreationNamespace`. `AuthorizationView` fields the decisions
+  read (`Catalog`, `Owner`, `Roles`, `CanUse`, `Check`, `CheckCreate`, the
+  temporary namespace, `domainOf(e)`, `e.catalog.Domain.Ref`) are all on the
+  `access.View` that `AccessView(auth)` returns. Existing `ddlHost` methods
+  fit as they are: `StageRowType`, `ResolveType`, `ResolveColumnCollation`,
+  `DisplaceAssociatedArray`, `AssociatedArrayName`, `CreationTypeACL`
+  (typedef), `AddDomainBase`, `RemoveObject`, `RelationDiagnostic`,
+  `TrustedRestoreDestination` (its "destination" text is
+  `create_table.go`'s), and the 85a `index.Host` methods.
+- **ALTER needs the scope.** Its candidates read `scope.input`, which the
+  comment and CHECK snapshot captures (`captureCommentSnapshotLocked`,
+  `captureCheckCommentSnapshotLocked`, `captureCheckVisibilitySnapshotLocked`)
+  and `captureTypeDiagnosticName` mutate in place, `scope.routineAuth`,
+  `scope.inquiry.deparsePath`, `scope.output` and the sequence generator
+  (`sequenceGeneratorLocked`). `ddlHost` is scope-less by design.
+- **Lock contracts the sketch did not foresee.** `alterTableLocked` holds
+  `Engine.mu` through admission, unlocks at line 168 and then opens 14
+  windows of its own; its callees open more. Three candidates break the
+  "under `Engine.mu`" rule today: `generationCandidate` binds with no lock
+  at all, `bindColumnChecks(altering=true)` and `rebindAlterTypeChecks`
+  take `Engine.mu` once per CHECK, `rebindAlterTypeIndexes` once per key
+  and predicate. None of those windows contains a wait.
+- **Waits** stay where they are: `stageAlterIdentityTypes`, identity SET
+  and DROP (`acquireSequence`), DROP COLUMN/CONSTRAINT providers
+  (`Acquire`, `lockInheritanceClosure`), `acquireDefinitionProviders`,
+  `acquireForeignKeyTypeProviders`, `acquireSerializableSnapshot`,
+  `admitInheritanceAlter`, `acquireInheritanceDefinitions`. Row work stays
+  too: `rewriteTypeRows`, `projectColumnShape`,
+  `validateAddedConstraintRows`, `transportIndexLayouts`,
+  `planAddedColumns`, FK validation.
+- **Removal has mixed contracts.** Of `table.DropDependencyReader`'s 18
+  methods about 8 are generic reads; `Acquire`, `OwnedExpressionDependencies`
+  and `CompositeFieldDependencies` wait, `ApplyViewDependents` takes
+  `Engine.mu`, the rest take no lock. The prepared drops (`preparedDrop`,
+  `preparedIdentityDrop`) are fences on statement identity that replay
+  into `CatalogStage` internals.
+- **Restore.** Each repair hook takes `operationAuthorization` and the
+  trust check (`partitionConstraintReplayImport`) under `Engine.mu`, four
+  begin and publish their own stage; their decisions read only a catalog
+  view and an authority.
+- **Regression found and fixed** (``e6176d3c3``): 24b moved
+  `discoveryReader()` into `table` unexported, so the anonymous-interface
+  assertion in `prepareDropDefinitionProvider` never matched and drop
+  discovery during inheritance admission recorded into the node reader's
+  observations (a stricter fence than intended). It is now
+  `table.InheritanceDefinitionReader.DiscoveryReader`, asserted on the
+  concrete type in `dropDiscoveryInput`; unit test
+  `TestDropDiscoveryInputLeavesInheritanceFenceUnobserved`.
+- **Not needed** (the sketch had them): `NewTableDescriptor` (a function
+  over `ddl.Allocator`), `AssignDefinitionOIDs` (likewise),
+  `ResolveColumnType` (CREATE column types come from analysis through
+  `ResolveTableColumnType`, which has the Restore `"char"` exception; ALTER
+  uses `ResolveType` and `ResolveColumnCollation`, the operation's
+  authority, exactly as today), `StageIdentitySequence` (a `table`
+  function) and `Removal()` (decision 6).
 
-	// Descriptors and row types, under Engine.mu.
-	NewTableDescriptor(namespace ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []catalog.Column, index map[string]int) (*catalog.Relation, error)
-	StageRowType(*catalog.Relation) error
-	AssignDefinitionOIDs(*catalog.Relation) error
+Decisions:
 
-	// Binding is done by the root (rule 6): the host builds the binder.
-	// Today: bindCreateDefaults, bindColumnChecks, bindCreateGenerations.
-	BindColumnDefaults(auth ddl.Authority, rel *catalog.Relation, declarations []analyze.ColumnDeclaration) (map[int32]catalog.ColumnDefault, error)
-	BindChecks(auth ddl.Authority, rel *catalog.Relation, raw []*parser.CheckConstraint, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error
-	BindGenerations(auth ddl.Authority, rel *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error
+1. **Two hosts, like `index.Host`/`WriteHost`.** Every method of both
+   runs with `Engine.mu` held, never takes or releases it, and never waits.
+   - `table.Host` lives on the shared `ddlHost` (new root
+     `table_host.go`, `var _ table.Host = ddlHost{}`): CREATE TABLE, the
+     CREATE SCHEMA element, PARTITION OF children, LIKE, identity and
+     serial columns, FK staging. It is `ddl.Host` + `index.Host` +
+     `ddl.TypeStaging` plus:
+     - already on `ddlHost`, declared again: `StageRowType(*catalog.Relation)
+       error`, `ResolveType(parser.TypeName) (sqltype.Usage, error)`,
+       `ResolveColumnCollation(sqltype.Usage, *parser.ObjectName)
+       (sqltype.Usage, error)`;
+     - stage slots: `TableStage() *Stage` (`CatalogStage.table()`),
+       `SequenceStage() *sequence.Stage` (`sequenceState()`),
+       `SequenceColumns() []catalog.Column` (`sequence.Columns` over the
+       live state, not the stage, as `identity.go` and `serial.go` read
+       it), `NameBinding(ids.NameKey) (ids.ObjectAddress, bool)` (the
+       stage's own binding; `Stage().LookupName` filters removals and
+       vacated names), `StageChanged() bool` (descriptor, removal or old
+       name count non-zero; `StageRead` alone would clone the state and
+       change `auth.Catalog`'s identity);
+     - authority: `StagedTemporary(auth ddl.Authority, namespace
+       *catalog.Namespace) ddl.Authority` (sets `stagedTemporary` for the
+       session's own non-TOAST temporary namespace; it takes the
+       descriptor because identity staging reads it from the stage);
+     - resolution: `ResolveReference(auth ddl.Authority, name
+       parser.ObjectName) (ids.ObjectRef, error)` (`resolveReference`, the
+       positioned 42P01/42501 of analyzed names: FK targets, DROP TABLE,
+       restored defaults) and `ResolveRestoredRelation(auth, name)
+       (ids.ObjectRef, error)` (`resolveRelationReference(…, false)`, the
+       Restore repairs). `ResolveRelation` is taken: it is role's utility
+       variant;
+     - binding, bodies whole in the root (rule 6): `DescribeCreateTable(auth,
+       s *parser.CreateTable, input sqltype.InputEnvironment)
+       (analyze.Binding, error)` (`describe` over `analysisHost`);
+       `BindColumnDefaults(auth, columns []catalog.Column, declarations
+       []analyze.ColumnDeclaration, input sqltype.InputEnvironment,
+       temporary ids.SessionToken) (map[int32]catalog.ColumnDefault,
+       error)` (binder, `DefaultTemporary`, `bindCreateDefaults`; the
+       PARTITION OF child passes the zero token, as today);
+       `BindGenerations(auth, rel *catalog.Relation, declarations
+       []analyze.ColumnDeclaration, input) error` (`bindCreateGenerations`
+       with one shared namespace); `BindChecks(auth, rel, raw
+       []*parser.CheckConstraint, input, inherited
+       map[string]catalog.CheckConstraint) error` (`bindColumnChecks`
+       without the `altering` lock).
+   - `table.AlterHost` = `Host` plus the scope-bound methods, on a new root
+     `alterHost{ddlHost; scope *StatementScope}` (`var _ table.AlterHost =
+     alterHost{}`). Embedding gives it the `index.Host` methods too.
+     - `Input() sqltype.InputEnvironment`: the live `scope.input`; `table`
+       re-reads it before every binding call because captures mutate it;
+     - captures: `CaptureTypeDiagnosticName(auth) error`,
+       `CaptureCommentSnapshot() error`, `CaptureCheckSnapshots(rel
+       *catalog.Relation, visibility bool) error`;
+     - binding: `CookDefault(auth, rel *catalog.Relation, slot int, raw
+       parser.Expr, withDefinition bool) (expr.Expr, catalog.ColumnDefault,
+       error)` (binder and renderer; ADD COLUMN passes `op.Definition`,
+       SET DEFAULT does not, so the flag keeps both renderings);
+       `BindGeneration(auth, rel, slot int, raw parser.Expr)
+       (catalog.ColumnGeneration, error)`; `RebindCheck(auth, rel, ref
+       ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr)
+       (expr.Expr, error)`; `BindAlterTypeUsing(auth, original
+       *catalog.Relation, ref ids.ObjectRef, column string, using
+       parser.Expr, usage sqltype.Usage) (expr.Expr,
+       []catalog.ExpressionDependency, error)`;
+       `OperationDefinition() catalog.DefinitionReader` (`op.Definition`,
+       not 23c's stage `DefinitionReader()`);
+     - dependents: `TypeChangeDependents(auth, target ids.ObjectAddress)
+       error` (the policy, rule and view 0A000 checks of ALTER TYPE);
+     - identity: `StageIdentitySequenceOptions(table *catalog.Relation,
+       attribute int32, sequence ids.ObjectAddress, raw
+       []parser.SequenceOption) error` (`stageIdentitySequenceOptionsLocked`;
+       the caller already holds the sequence's SRE grant).
+   - The CREATE SCHEMA element keeps `ddl.SchemaHost.StageSchemaTable` (`ddl`
+     is below `table`); its body becomes a forwarder to
+     `table.StageCreateTable`. `fdw.Host.StageForeignTable` likewise until
+     26e.
+2. **ALTER candidates** (question 1). The root wrappers hold `Engine.mu`
+   across each call; for `generationCandidate`, `prepareAddedChecks`,
+   `rebindAlterTypeChecks` and `rebindAlterTypeIndexes` the window only
+   widens, and nothing in it waits (23c decision 2's reasoning).
+   - Move: `addColumnCandidate` (the wrapper keeps `scope.routineAuth =
+     auth`), `alterTypeCandidate`, `generationCandidate`, the TYPE trio
+     (`admitAlterTypeLocked`, `completeAlterTypeLocked`,
+     `prepareAlterTypeLocked`), `prepareAlterTableActions` with
+     `alterTableActionKind` (after `alterTablespaceKind` and
+     `checkAlterTablespaceCreate` go to `ddl`), `stageAddedUnique` (calls
+     `index.StageUniqueDefinitions`), `prepareAddedChecks`,
+     `stageAddedForeignKey` with `stageForeignKey`,
+     `captureAlterTypeIndexes` (a plain function of context, view, deparse
+     path and output), `rebindAlterTypeIndexes` (over `index.Host`'s
+     binders), ADD IDENTITY, and the post-loop rebuilds
+     `RebuildAlterNotNulls`, `RebuildAlterForeignKeys`,
+     `RebindPhysicalNotNullType` (over `ddl.Stage`), and
+     `remapPhysicalNotNull` (TEMP preservation's; a function of the next
+     state, its read, the previous descriptors and a ref builder).
+   - Split: SET IDENTITY (`PrepareIdentitySet` → the root waits and
+     stages → `FinishIdentitySet`; numeric errors still precede the
+     conflict error), DROP IDENTITY (decision 6), `rebindAlterTypeChecks`
+     (binder behind `RebindCheck`), `stageAddedChecks` (the prepared-node
+     cache selection stays), `alterDefaultLocked` (guards and the next
+     descriptor as `AlterDefaultCandidate`) and `cookAlterDefaultLocked`
+     (behind `CookDefault`), `renameConstraintLocked` (`RenameConstraint`
+     for lines 36–110; the root keeps resolution, the inheritance branch
+     and the stage lifecycle), and the pure pieces of the loop: the ONLY
+     SET NOT NULL rewrite, the CHECK syntax collection (shared with the
+     prepare side), `storedReplacements`, the no-change predicate and
+     `dependencyTargets`.
+   - Index's (85a): the root loop calls `index.StageExclusion` and
+     `index.CaptureUsingIndexes` directly; `stageUsingIndex` and
+     `prepareUsingIndexMetadata` stay root wrappers (`index.StageUsingIndex`
+     runs unlocked over `UsingIndexStage`), called from the loop and the
+     inheritance prepare side.
+   - Already in `table`: `NotNullCandidate`, `UsingIndexNotNullCandidate`,
+     `OrdinaryColumnDrop`.
+   - Stays: the `alterTableLocked` skeleton (admission, journal clone,
+     its windows, the nine-pass loop, row phase, install); the waits and
+     row work listed above; `dropColumnCandidate` (a provider builder);
+     `stageDroppedConstraintIndexes`; `stageAlterIdentityTypes`,
+     `alterIdentityTypeSequence`, `refreshIdentitySequenceLocked`; column
+     projection; `recomputeRemappedGenerations`,
+     `repairRemappedGenerationsLocked`; `typedMutation`, `stageTypedRows`;
+     `acquireAlterForeignKeys`, `acquireForeignKeyDefinitionProviders`.
+     The stage is begun with partial authority at three sites
+     (`alter_table.go` twice, `alter_constraint_drop.go`); keep them as they
+     are (pure refactor).
+3. **Identity and serial** (question 2). CREATE staging moves:
+   `StageCreateIdentities`, `StageIdentitySequence`, `StageCreateSerials`
+   and the unexported `ownedSequenceName` over `SequenceStage`,
+   `SequenceColumns`, `StagedTemporary`, `ExistingCreationNamespace` and
+   `CreationACL(…, DefaultSequences)`; allocation order unchanged. ALTER's
+   option, refresh and type staging stays in the root behind
+   `StageIdentitySequenceOptions`; the decisions are already in
+   `sequence`. The identity DROP decision moves over the extended reader
+   (decision 6); `preparedIdentityDrop` and its prepare/consume stay.
+   `relationDiagnosticKind` is not table code (10 production callers in
+   drop diagnostics, domains, indexes, roles and the schema host): it
+   becomes `catalog.RelationDiagnosticKind` (pure over the relation kind;
+   `ddl` cannot import `stored`, and `alterTablespaceKind` needs it in
+   `ddl`). `ddlHost.RelationDiagnostic` keeps its signature.
+   `evaluateInsertValuesRow` (`identity.go`) is DML: it goes with `dml`
+   (29a/29b), not here.
+4. **Index decisions** (question 3). As 23c decision 5 and the 85a seam
+   built it: `table.Host` embeds `index.Host` (and so `index.KeyHost`),
+   and `table` calls the 23d.1 `index` functions directly. The edges 85a
+   hoists to the callers (`captureLikeSource` before unique staging,
+   `rebuildAlterNotNullsLocked` after `RebuildAlterUniques`, the USING
+   INDEX NOT NULL preparation) become table code in 24d.1/24d.2.
+5. **Inheritance recursion** (question 4). The decisions move with no
+   host: `PlanInheritanceAlter(view, root, raw)` (the guard, ONLY-primary
+   XX000, targets and plan initialization of `alterInheritanceLocked`
+   lines 29–62; the root unlocks on its error), `InheritedAlterActions(plan,
+   view, retired catalog.Read, old)`, `FinishInheritanceAlterCandidate(plan,
+   view, old, next)`, and nil-safe `*InheritanceAlterPlan` methods
+   `RecordAction`, `RecordChecks`, `NotNullMode`, `OnlyCreatedConstraint`
+   (the root adds `scope.inheritancePlan()`, nil when not recursing); the
+   inheritance DEFAULT core (`InheritanceDefaultCandidate`) and the rename
+   cores (`RenameInheritanceColumn[Precheck]`,
+   `RenameInheritanceConstraint[Precheck]`). The prepare side stays in the
+   root: `prepareInheritanceNode` replays phases 0–6 of the loop that
+   stays, mixes all three lock contracts in one loop, needs scope state
+   (`active`, `txRef`, `holdsColumnDropGrant`), sets the root-private
+   `auth.definition`, and records root prepared drops. So do
+   `inheritancePreparedNode`/`Action`, `consumeInheritancePreparedAction`,
+   `admitInheritanceAlter` and `acquireInheritanceDefinitions`.
+6. **Removal** (the `ddl` removal interface step 20 left to 24c). No
+   `ddl.Removal` and no `Removal()` host method: no other feature needs
+   one (fdw, role and the view 27c sketch run dependents as root
+   orchestration), half of the reader is table-shaped
+   (`DomainDependency`, inheritance guards), and its waits break `ddl`'s
+   "under `Engine.mu`, never waits" rule. `table.DropDependencyReader`
+   stays the table-local removal interface, built by the root
+   (`stageDropProvider`, `prepareDropDefinitionProvider`) and passed as an
+   argument, as `OrdinaryColumnDrop` already takes it. Its comment says
+   "callers hold nothing" and marks which methods wait or take
+   `Engine.mu`. 24d.2 adds `Remove(ids.ObjectRef) error`,
+   `ExpressionDependencies(roots []ids.ObjectAddress, mode
+   parser.DropMode, subject ids.ObjectAddress) error` (waits), a generic
+   `Notice(sqlstate.Error)` and the identity hooks
+   `CaptureIdentitySequence(table *catalog.Relation, attribute int32, seq
+   ids.ObjectRef) error` (waits, then one window) and
+   `TombstoneIdentity(ids.ObjectAddress)`, so `dropConstraintIndexes`,
+   `ownedSequences` and the DROP IDENTITY decision move. Prepared drops
+   (`preparedDrop`, `prepare/finish/consumePreparedDrop`,
+   `holdsColumnDropGrant`) stay root; `table` never names them.
+7. **Restore and dump.** The root wrappers stay the hook bodies (control
+   30c reaches them); their cores move:
+   - A, whole over a `catalog.Read`: `captureRestoredPlaceholders`,
+     `captureRestoredNotNulls`, `captureHistoricalFacts`,
+     `retiredArchiveHighWater`, `capturePhysicalImportIndex`,
+     `remapRetiredConstraints` (shares a high-water helper with
+     `retiredArchiveHighWater`), `validateForeignKeyData` (over `access.View`
+     and `access.Environment`), the records `restoredPhysicalNotNull` and
+     `restoredPhysicalForeignKeyProvider` (their authority field becomes a
+     `RoleRecord`), and `physicalNotNullDumpDependencies` over a
+     `dump.Resolver` (the `routine.NormalizeOperatorDumpPredecessors`
+     precedent).
+   - B, split with no stage: `pairRestoredGeneration`,
+     `captureRestoredGeneration`, `closeRestoredRecipesForData`,
+     `restoreInheritedCheck`, `pairRestoredNotNull`,
+     `captureInheritedOwner`, `restoreInheritedOwner`,
+     `captureInheritedForeignKey`, the unchanged-check of
+     `validateRestoredInheritedForeignKey` (`(*RestoredInheritedForeignKey).Unchanged`),
+     `preparePhysicalNotNullConstructor`,
+     `capturePhysicalNotNullConstructor`, `prepareDeferredPhysicalPrimary`,
+     `preparePhysicalCompetingUnique`, `capturePhysicalForeignKeyProvider`,
+     `capturePhysicalSelfForeignKey`, `validateRestoredDefault`. The root
+     keeps the context check, `operationAuthorization`, any superuser
+     42501 that precedes the lock, the window, the trust check and
+     resolution; the core takes `catalog.Read` or `access.View` +
+     `access.Environment`.
+   - C, split around their own stage: `restoreRetiredConstraint` (per-row
+     parents through `ResolveRestoredRelation`, then
+     `CommitRetiredRepair` after publication), `restoreNoInheritNotNull`,
+     `restorePhysicalNotNull`, `restoreAttributeRank`. The core returns
+     `next` (nil for no change); one root helper takes the shared tail
+     (begin, authorize, unlock, `Replace`, validate, publish with a nil
+     scope). Trust checks and error order differ per hook, so the wrappers
+     stay separate.
+   - D, stays: `bindRestoredForeignKeys` (stage, rows, publication),
+     `resolveRestoredForeignKeyTargets` (`lookupNamespacesSnapshot` skips
+     the epoch check that `SearchNamespaces` makes),
+     `captureRestoredForeignKeys`, `restore_replay.go`.
+   Restore's unlocked `resolveRelationReference` calls and
+   `bindRestoredForeignKeys`'s unlocked `BeginCatalogStage` run on the
+   private single-goroutine restore engine; keep them as they are.
+8. **CREATE side.**
+   - Move: `schemaTableLocked` as `StageCreateTable(h Host, auth, s
+     *parser.CreateTable, ns ids.ObjectAddress, owner
+     authorization.PrincipalRef, input sqltype.InputEnvironment,
+     foreignTargets []ids.ObjectRef) error` (same order; the 42P07 NOTICE
+     through `EmitNotice`); `newTableDescriptorLocked` as `NewRelation(a
+     ddl.Allocator, …)` (OID then revision; typedef's
+     `NewCompositeRelation` forwards to it and sets the kind);
+     `assignDefinitionOIDsLocked` as `AssignDefinitionOIDs(a ddl.Allocator,
+     d)`; `stageInheritance`; LIKE (`captureLikeSource` as
+     `(*Stage).CaptureLikeSource`, `stageLikeColumns`, `stageLikeChecks`,
+     `stageLikeIndexes`); `stageCreateForeignKeys`; `typedObservationValid`
+     (pure over `*typedef.TypedStage`).
+   - Split: `validateLikeSources` (pure body to `(*Stage).ValidateLikeSources`;
+     the `CatalogStage` method forwards), `dropTableLocked` (`DropTargets`:
+     the resolve, kind and ownership loop), `alterSchemaLocked` (four pure
+     cores: owned sequences, the group, candidates, conflicts;
+     `catalogStore.advanceRevisionFrontier` never reads its receiver and
+     becomes a function), `prepareQueryTableLocked` (column derivation as
+     `QueryTableColumns`, `CanUse` in column order), `createTableLocked`'s
+     persistence checks (optional).
+   - Stays: `createTableLocked` (unlock, partition finish, typed sources,
+     providers, overlay or publication, conflict recheck), CREATE TABLE AS
+     rows and publication (`stageQueryTableRows`, `validateInitialTables`,
+     `publishQueryTable`, `executeQueryTableLocked`),
+     `renameRelationLocked` (generic relation rename with eight callers;
+     optional pure cores), `stageCheckDependents` (test-only; moves to a
+     test file), `schemaPartitionTableLocked` (partition 25).
+9. **Hand-offs.** Partition 25c builds on `table.Host`:
+   `schemaPartitionChildLocked` needs exactly the CREATE set
+   (`StageCreateIdentities`, `BindColumnDefaults`, `NewRelation`, ...), so
+   `partition.Host` can embed `table.Host`. fdw 26e calls the moved
+   `table` functions directly and drops the two forwarders. Control's
+   Restore hooks keep their root bodies (decision 7). `ddl` gets
+   `alterTablespaceKind`, `checkAlterTablespaceCreate` (next to
+   `TablespaceRef`) and `GeneratedRelationName` (85a).
+10. **24d splits** into 24d.1 (CREATE, linear item 89a), 24d.2 (ALTER,
+    89b, needs 89a) and 24d.3 (Restore and dump cores, 89c, needs 89a).
+    Partition 25d, fdw 26e and DML 29c need 89a and 89b; the end-state
+    review needs all three.
 
-	// Types.
-	ResolveColumnType(auth ddl.Authority, name parser.TypeName, collation *parser.ObjectName) (sqltype.Usage, error)
+### 24d — Move the handler decisions (linear items 89a, 89b and 89c)
 
-	// Identity and serial staging (sequence notes): descriptor decisions
-	// come from package sequence; the host stages on CatalogStage.
-	// Today: Engine.stageIdentitySequence (identity.go:114).
-	StageIdentitySequence(table *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error
+Follow the 24c refine above. One sub-step per session. The handlers'
+orchestration (`Engine.mu`, lock waits, journal clone and install,
+Finish) stays in the root and calls the moved decisions through the host.
+Moved names are capitalized; no aliases.
 
-	// Dependents (the ddl removal interface implemented by dropProvider).
-	Removal() ddl.Removal
-}
-```
+**24d.1 move set (item 89a; needs 88 and 85a, both done).** Into `table`:
 
-Questions to settle in 24c:
+- `host.go`: `Host`, `AlterHost` (declared here; implemented in 24d.2).
+- `create.go`: `StageCreateTable`, `NewRelation`, `AssignDefinitionOIDs`,
+  `CheckCreatePersistence` (optional).
+- `inheritance_create.go`: `StageInheritance`.
+- `like.go`: `(*Stage).CaptureLikeSource`, `(*Stage).ValidateLikeSources`,
+  `StageLikeColumns`, `StageLikeChecks`, `StageLikeIndexes`.
+- `identity.go`/`serial.go`: `StageCreateIdentities`,
+  `StageIdentitySequence`, `StageCreateSerials`, `ownedSequenceName`.
+- `foreign_key_stage.go`: `StageForeignKey`, `StageCreateForeignKeys`.
+- `drop.go`, `set_schema.go`, `query_table.go`: `DropTargets`, the four
+  SET SCHEMA cores, `QueryTableColumns`.
+- `typed.go`: `TypedObservationValid`.
 
-1. Which candidate functions of the ALTER pass loop move (the
-   `*Candidate` decisions) and which stay as root steps because they wait
-   or rewrite rows (`rewriteTypeRows`, `validateAddedConstraintRows`).
-   The loop skeleton of `alterTableLocked` stays in the root.
-2. The identity and serial staging (`stageCreateIdentities`,
-   `stageIdentitySequence` in `identity.go`, `identityCandidate` in
-   `identity_alter.go`, `stageCreateSerials` in `serial.go`, the identity
-   DROP flow in `identity_drop_definition.go`) and
-   `relationDiagnosticKind` (`sequence_dependencies.go`): which decisions
-   move here and which stay on `CatalogStage` (`sequence.Stage`).
-3. How index decisions are reached: through `index.Host`/`WriteHost` (23c)
-   or through package `index` functions called with this host.
-4. Whether the inheritance recursion decisions
-   (`inheritedAlterActions`, `prepareInheritanceNode`) can move once
-   `inheritanceAlterState` is split, or stay as root orchestration.
-5. Every host method documents "runs under `Engine.mu`, never waits" or
-   "waits; the caller holds nothing" (index notes).
+Into `catalog`: `RelationDiagnosticKind`. Root: `table_host.go` (the
+`ddlHost` methods, `alterHost` skeleton), `ddlHost.NewCompositeRelation`
+and `StageSchemaTable` and `StageForeignTable` as forwarders.
 
-### 24d — Move the handler decisions
+**24d.2 move set (item 89b; needs 89a).** Into `table`: the ALTER
+candidates and splits of decision 2, the inheritance decisions of decision
+5, `DropDependencyReader`'s additions and the decisions they enable
+(`DropConstraintIndexes`, `OwnedSequences`, DROP IDENTITY). Into `ddl`:
+`AlterTablespaceKind`, `CheckAlterTablespaceCreate`. Root:
+`alterHost` methods.
 
-Follow 24c. The handlers' orchestration (`Engine.mu`, lock waits, journal
-clone and install, Finish) stays in the root; it calls the moved
-decisions through the host.
+**24d.3 move set (item 89c; needs 89a).** Into `table`: the Restore and
+dump cores of decision 7, groups A–C.
+
+**Stays in the root** (all three): `createTableLocked`, `alterTableLocked`
+and its loop, `alterInheritanceLocked` and the prepare side,
+`dropTableLocked`, `alterSchemaLocked`, `renameRelationLocked` and
+`renameConstraintLocked` as orchestration, CREATE TABLE AS execution and
+publication, every wait, row and storage path listed in 24c, the DROP
+pipeline (`drop_provider.go`), the binder bodies behind the host methods,
+`restore_replay.go`, the Restore hook wrappers, and the thin wrappers that
+build a host for callers outside the moved set.
+
+**Commit sequence (24d.1).**
+
+1. Pure helpers: `catalog.RelationDiagnosticKind` (10 call sites);
+   `NewRelation`, `AssignDefinitionOIDs` over `ddl.Allocator`;
+   `typedObservationValid`; `stageCheckDependents` to its test file.
+2. Seam: `table.Host` and `table.AlterHost`; root `table_host.go` with the
+   assertions and the new `ddlHost` methods. Unit test first, observed
+   failing: `BindColumnDefaults` through the host binds the same defaults
+   as `schemaTableLocked`, and `StageChanged` reports a staged descriptor.
+3. Port in place: root functions over `table.Host` for decisions 3 and 8,
+   naming no `Engine`, `CatalogStage`, `AuthorizationView` or
+   `StatementScope`; old entry points become thin wrappers.
+4. Move into `table` with `movex` and qualify; no aliases.
+5. Docs: `table` README (host, entry points, what stays), this Status,
+   the §8 row, the status page; `AGENTS.md` unchanged.
+
+**Commit sequence (24d.2).**
+
+1. `ddl.AlterTablespaceKind`, `ddl.CheckAlterTablespaceCreate`; the plan
+   methods of decision 5 and `scope.inheritancePlan()`.
+2. Seam: `alterHost` methods; the root wrappers take `Engine.mu` around
+   `generationCandidate`, `prepareAddedChecks`, `rebindAlterTypeChecks`
+   and `rebindAlterTypeIndexes` (bodies lose their inner windows). Unit
+   test first, observed failing: `Input()` reflects a capture made through
+   `CaptureCheckSnapshots`.
+3. `DropDependencyReader` additions on `*dropProvider`.
+4. Port in place (decisions 2, 5, 6), then move with `movex`; no aliases.
+5. Docs.
+
+**Commit sequence (24d.3).**
+
+1. Port the cores in place (groups A–C), the root wrappers calling them;
+   the shared stage-tail helper.
+2. Move with `movex`; no aliases. 3. Docs.
+
+Proof for each: the engine units of "Targeted tests" (the ALTER and
+inheritance lock and cancellation units also with `RACE=1`), the reference
+selections in quick and `REFERENCE=1` mode, and quickcheck. 24d.2 also
+checks that the ALTER first-error order is unchanged on the multi-action
+reference cases. 24d.1 and 24d.3 also run the Dump→Restore→Dump smoke of
+24b (`.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-PACKAGE/dumpsmoke`): output
+byte-identical.
 
 ## Invariants
 
@@ -542,8 +928,16 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   `b05bbcdf9`, `8797fe715`, `a0ef76b6c`, `e0eb9d15d`, `30ed6f576`, then the
   docs commit) · selected unit and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 24b record below
-- [ ] 24c — Host refined (docs only) — linear item 88
-- [ ] 24d — Handler decisions moved — linear item 89
+- [x] 24c — Host refined (docs only) — linear item 88 (`e6176d3c3`, then
+  the docs commit) · `table.Host` on `ddlHost`, `table.AlterHost` on a
+  scope-bound `alterHost`; no `ddl.Removal`; 24d split into 24d.1–24d.3 ·
+  the 24b regression fix (`e6176d3c3`) passed its unit test, the inheritance
+  and drop units (also `RACE=1`), `^TestReference(Inheritance|AlterDropColumn)`
+  in quick and `REFERENCE=1` mode, and quickcheck; racecheck skipped at user
+  request
+- [ ] 24d.1 — CREATE decisions moved — linear item 89a
+- [ ] 24d.2 — ALTER and inheritance decisions moved — linear item 89b
+- [ ] 24d.3 — Restore and dump cores moved — linear item 89c
 
 Outstanding aliases: none (24a and 24b added none).
 
@@ -618,29 +1012,38 @@ OUT was `sqlError` alone. No aliases.
   `REFERENCE=1` apart from known drift (see the report). racecheck,
   finalcheck and bench skipped at user request (no startup change).
 
-### Notes for 24c
+### 24c record
 
-- The inheritance prepare side stays in the root: `prepareInheritanceNode`,
-  `inheritancePreparedNode`, `inheritancePreparedAction` and the
-  `prepared` map on `inheritanceAlterState`. They hold `*preparedDrop` and
-  `*preparedIdentityDrop`; 24c decides whether `table.Host` (or the `ddl`
-  removal interface) exposes prepared drops, or the prepare side stays.
-- `table.DropDependencyReader` has 18 exported methods implemented by
-  `*dropProvider`; 24c's `Removal()` can start from it.
-- Index 23d.1 (item 85a, done) moved `table.IncompatibleNotValid` and
-  `table.RejectVirtualIndexUses` down to `index.IncompatibleNotValid` and
-  `index.RejectVirtualUses`. The other edges its notes name are table code
-  now: `table.UsingIndexNotNullCandidate`, `table.NotNullCandidate`,
-  `table.NotNullDirect`. The constraint-index staging the table handlers
-  call is `index.StageCreateUniques`/`StageUniqueDefinitions`,
-  `StageCreateExclusions`/`StageExclusion`, `RebuildAlterUniques`,
-  `RebuildAlterExclusions`, `CaptureUsingIndexes` and `StageUsingIndex`
-  over a `ddlHost`; the root wrappers `stageUsingIndex`,
-  `prepareUsingIndexMetadata` and `stagePartitionConstraintDrop` remain
-  for 24d (see the index prompt's 23d.1 record).
+Done on `implement-part/PG18-ENGINE-SPLIT-TABLE-REFINE` from `bdba4968a`
+(table 24b merged). The refine is in Part B above. One code commit:
+
+- `e6176d3c3` fixes a 24b regression the measurement found: the
+  `discoveryReader()` assertion in `prepareDropDefinitionProvider` named an
+  unexported method that had moved to `table`, so it never matched (see the
+  findings). Lesson for later moves: grep the root for anonymous-interface
+  assertions with unexported methods (`.(interface {` followed by a
+  lower-case method) before moving their implementers; the build cannot
+  catch them. No other such assertion exists in `internal/engine`.
+
+Notes for 24d (from index 23d.1, item 85a, merged in `0ab96a3a8`):
+
+- 85a moved `table.IncompatibleNotValid` and `table.RejectVirtualIndexUses`
+  down to `index.IncompatibleNotValid` and `index.RejectVirtualUses`, and
+  hoisted the table edges: CREATE TABLE and PARTITION OF record each LIKE
+  source before `index.StageCreateUniques`; ALTER TABLE and typed mutation
+  run `rebuildAlterNotNullsLocked` between `index.RebuildAlterUniques` and
+  `RebuildAlterExclusions` (it returns its parent when nothing changes);
+  `prepareUsingIndexMetadata` runs `table.UsingIndexNotNullCandidate` first.
+- Root wrappers left for 24d: `stageUsingIndex` and
+  `prepareUsingIndexMetadata` (ALTER TABLE, inheritance prepare),
+  `stagePartitionConstraintDrop`, `stagePartitionIndexChild(ren)`.
+  `index.StageUsingIndex` takes the narrow `UsingIndexStage` and runs
+  unlocked; `index.StageUniqueDefinitions`/`StageCreateUniques` take no
+  authority; `index.Host` also has `ValidityTarget()`.
 - `alterTableActionKind` needs the SET TABLESPACE check
-  (`alterTablespaceKind`); `inheritanceQueryLeaves` needs `viewLeafRowMark`
-  (view 27b may move both into `view` or keep them with query admission).
+  (`alterTablespaceKind`, decision 2); `inheritanceQueryLeaves` needs
+  `viewLeafRowMark` (view 27b may move both into `view` or keep them with
+  query admission).
 
 ### Notes for later steps
 

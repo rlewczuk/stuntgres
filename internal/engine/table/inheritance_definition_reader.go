@@ -151,7 +151,9 @@ func InheritanceMarkerPublication(old, current *catalog.Relation) bool {
 	return old == current || current != nil && old != nil && !old.History.HasSubclasses && current.History.HasSubclasses && current.History.SubclassPredecessor == old && current.Revision() == current.History.SubclassPublication
 }
 
-func (r InheritanceDefinitionReader) discoveryReader() catalog.DefinitionReader {
+// DiscoveryReader reads like r but records no observations, so dependency
+// discovery does not widen the node fence.
+func (r InheritanceDefinitionReader) DiscoveryReader() catalog.DefinitionReader {
 	r.Observations = nil
 	return r
 }

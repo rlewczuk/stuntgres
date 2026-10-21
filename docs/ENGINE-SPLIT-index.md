@@ -26,7 +26,7 @@ constraints, verification, documentation and report.
   the box unticked until both are done.
 - **Linear items:** 23a = 82, 23b = 83, 23c = 84, 23d.1 = 85a, 23d.2 =
   85b. Items that wait for this step: 24b (87) needs 83, 24c (88) needs 84,
-  24d (89) needs 85a, 29a (107) needs 82, 29b (108) needs 83, 29c (109)
+  24d.1 (89a) needs 85a, 29a (107) needs 82, 29b (108) needs 83, 29c (109)
   needs 85b, 30b (112) needs 83.
 - **Tools:** run from the worktree root; never pipe them into `head`.
   - `reach` (which declarations reach `Engine`, `StatementScope` or
@@ -722,7 +722,7 @@ Decisions:
    accessors. The dead free `partitionIndexPromotionPath` is deleted.
 10. **23d splits** into 23d.1 (DDL decisions, linear item 85a) and 23d.2
    (write-time decisions, item 85b). They touch different files and risks:
-   23d.1 is catalog staging, 23d.2 the per-row DML path. Table 24d (89)
+   23d.1 is catalog staging, 23d.2 the per-row DML path. Table 24d.1 (89a)
    needs 85a; DML 29c (109) needs 85b. 85b may run beside 85a once 85a's
    seam commit has landed.
 

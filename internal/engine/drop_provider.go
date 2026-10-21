@@ -515,12 +515,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err != nil {
 		return nil, err
 	}
-	prepared := &preparedDrop{old: old, ref: ref, prior: prior, statement: scope, txRef: scope.txRef, base: auth.Catalog, discovery: auth.Catalog, input: auth.definition}
-	if reader, present := prepared.input.(interface {
-		discoveryReader() catalog.DefinitionReader
-	}); present {
-		prepared.input = reader.discoveryReader()
-	}
+	prepared := &preparedDrop{old: old, ref: ref, prior: prior, statement: scope, txRef: scope.txRef, base: auth.Catalog, discovery: auth.Catalog, input: dropDiscoveryInput(auth.definition)}
 	provider := &dropProvider{base: auth.Catalog, owner: e, path: path, prepared: prepared, ctx: scope.op.Context(), scope: scope}
 	provider.observe(ref.Address)
 	return provider, nil
@@ -920,4 +915,14 @@ func (s *StatementScope) dropsOrZero() dropScope {
 		return dropScope{}
 	}
 	return *s.dropsSlot
+}
+
+// dropDiscoveryInput is the definition a prepared drop discovers dependents
+// through. An inheritance node reader's observations fence only the node's
+// own cooking, so the drop reads through a copy that records nothing.
+func dropDiscoveryInput(input catalog.DefinitionReader) catalog.DefinitionReader {
+	if reader, present := input.(table.InheritanceDefinitionReader); present {
+		return reader.DiscoveryReader()
+	}
+	return input
 }
