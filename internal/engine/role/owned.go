@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"fmt"
@@ -13,7 +13,10 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func ownedSources(view access.View, specs []parser.RoleSpec, reassign bool) (map[authorization.PrincipalRef]bool, authorization.PrincipalRef, error) {
+// OwnedSources resolves the source roles of REASSIGN OWNED or DROP OWNED and
+// checks that the current user has their privileges. It returns the sources
+// and the first one the database system requires, if any.
+func OwnedSources(view access.View, specs []parser.RoleSpec, reassign bool) (map[authorization.PrincipalRef]bool, authorization.PrincipalRef, error) {
 	refs := make(map[authorization.PrincipalRef]bool, len(specs))
 	protected := authorization.PrincipalRef{}
 	for _, spec := range specs {
@@ -46,54 +49,54 @@ func ownedSources(view access.View, specs []parser.RoleSpec, reassign bool) (map
 	return refs, protected, nil
 }
 
-// ownedPlan is what a REASSIGN OWNED or DROP OWNED statement acts on.
-type ownedPlan struct {
-	reassign bool
-	sources  map[authorization.PrincipalRef]bool
+// OwnedPlan is what a REASSIGN OWNED or DROP OWNED statement acts on.
+type OwnedPlan struct {
+	Reassign bool
+	Sources  map[authorization.PrincipalRef]bool
 	// target is REASSIGN OWNED's new owner.
-	target authorization.PrincipalRef
-	mode   parser.DropMode
+	Target authorization.PrincipalRef
+	Mode   parser.DropMode
 	// roots are the objects to reassign or drop; DROP OWNED's include the
 	// extension members removed with their extension.
-	roots []ids.ObjectAddress
+	Roots []ids.ObjectAddress
 	// primaryRoot is DROP OWNED's only root, named in dependency diagnostics.
-	primaryRoot ids.ObjectAddress
+	PrimaryRoot ids.ObjectAddress
 	// noop is REASSIGN OWNED to its only source, which changes nothing.
-	noop bool
+	Noop bool
 }
 
-// planOwned resolves and authorizes the roles of a REASSIGN OWNED or DROP
-// OWNED statement and selects its roots. env supplies the reference path of
-// the extension-member diagnostic.
-func planOwned(view access.View, env access.Environment, stmt parser.Statement) (ownedPlan, error) {
+// PlanOwned resolves and authorizes the roles of a REASSIGN OWNED or DROP
+// OWNED statement and selects its roots. describe names an object in the
+// extension-member diagnostic, as dependency diagnostics do.
+func PlanOwned(view access.View, stmt parser.Statement, describe func(ids.ObjectAddress) string) (OwnedPlan, error) {
 	var specs []parser.RoleSpec
-	plan := ownedPlan{mode: parser.DropRestrict}
+	plan := OwnedPlan{Mode: parser.DropRestrict}
 	switch s := stmt.(type) {
 	case *parser.ReassignOwned:
-		plan.reassign = true
+		plan.Reassign = true
 		specs = s.Sources
 	case *parser.DropOwned:
 		specs = s.Sources
-		plan.mode = s.Mode
+		plan.Mode = s.Mode
 	}
-	reassign := plan.reassign
-	sources, protected, err := ownedSources(view, specs, reassign)
+	reassign := plan.Reassign
+	sources, protected, err := OwnedSources(view, specs, reassign)
 	if err != nil {
-		return ownedPlan{}, err
+		return OwnedPlan{}, err
 	}
 	if reassign {
 		s := stmt.(*parser.ReassignOwned)
-		plan.target, err = authorization.MembershipRole(view.Roles, view.State, s.Target)
+		plan.Target, err = authorization.MembershipRole(view.Roles, view.State, s.Target)
 		if err != nil {
-			return ownedPlan{}, err
+			return OwnedPlan{}, err
 		}
-		allowed, err := view.Roles.InheritsRole(view.State.CurrentUser, plan.target)
+		allowed, err := view.Roles.InheritsRole(view.State.CurrentUser, plan.Target)
 		if err != nil {
-			return ownedPlan{}, err
+			return OwnedPlan{}, err
 		}
 		if !allowed {
-			role, _ := view.Roles.Descriptor(plan.target)
-			return ownedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to reassign objects", Detail: fmt.Sprintf(`Only roles with privileges of role "%s" may reassign objects to it.`, role.Name)}
+			role, _ := view.Roles.Descriptor(plan.Target)
+			return OwnedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to reassign objects", Detail: fmt.Sprintf(`Only roles with privileges of role "%s" may reassign objects to it.`, role.Name)}
 		}
 	}
 	// PostgreSQL resolves and authorizes utility operands before entering the
@@ -104,11 +107,11 @@ func planOwned(view access.View, env access.Environment, stmt parser.Statement) 
 		if reassign {
 			noun = "reassign ownership of objects owned by"
 		}
-		return ownedPlan{}, sqlError("2BP01", fmt.Sprintf(`cannot %s role %s because they are required by the database system`, noun, role.Name))
+		return OwnedPlan{}, sqlError("2BP01", fmt.Sprintf(`cannot %s role %s because they are required by the database system`, noun, role.Name))
 	}
-	plan.sources = sources
-	if reassign && len(sources) == 1 && sources[plan.target] {
-		plan.noop = true
+	plan.Sources = sources
+	if reassign && len(sources) == 1 && sources[plan.Target] {
+		plan.Noop = true
 		return plan, nil
 	}
 	roots := access.OwnedRoots(view.Catalog, sources, routine.OperatorSeeded)
@@ -130,9 +133,8 @@ func planOwned(view access.View, env access.Environment, stmt parser.Statement) 
 		}
 		roots = local
 		if len(local) == 1 {
-			plan.primaryRoot = local[0]
+			plan.PrimaryRoot = local[0]
 		}
-		path, _ := env.ReferencePath()
 		pending := make(map[ids.ObjectAddress]bool, len(roots))
 		for _, a := range roots {
 			pending[a] = true
@@ -147,11 +149,11 @@ func planOwned(view access.View, env access.Environment, stmt parser.Statement) 
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := view.Catalog.MustExtension(extension)
-				return ownedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(view.Catalog, a, path) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."}
+				return OwnedPlan{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + describe(a) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."}
 			}
 		}
 		roots = extension.RemovalRoots(view.Catalog, roots)
 	}
-	plan.roots = roots
+	plan.Roots = roots
 	return plan, nil
 }

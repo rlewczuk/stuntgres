@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -28,7 +29,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					if member.Kind() != ids.TSTemplateObject {
 						t.Fatal("unexpected ownerless member", member)
 					}
-					if err := stageOwnership(stage, member, source.Ref); err == nil {
+					if err := role.StageOwnership(stage, member, source.Ref); err == nil {
 						t.Fatal("template acquired an owner")
 					}
 					if e.catalog.state != original.State() || stage.Get(member.Address()) != nil {
@@ -36,7 +37,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					}
 					return
 				}
-				if err := stageOwnership(stage, member, source.Ref); err != nil {
+				if err := role.StageOwnership(stage, member, source.Ref); err != nil {
 					t.Fatal(err)
 				}
 				ownershipUnitPublish(t, e, stage)
@@ -89,7 +90,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				extensionOwner := roleAttributeCreate(t, e, op, "own_extension", false, parser.RoleOptions{})
 				transfer := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(transfer)
-				if err := stageOwnership(transfer, extension, extensionOwner.Ref); err != nil {
+				if err := role.StageOwnership(transfer, extension, extensionOwner.Ref); err != nil {
 					t.Fatal(err)
 				}
 				ownershipUnitPublish(t, e, transfer)

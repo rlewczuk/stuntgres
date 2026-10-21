@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -426,7 +427,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		// though the SQL surface does not offer ALTER FUNCTION OWNER here.
 		target := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
 		stage := e.BeginCatalogStage(base)
-		if err := stageOwnership(stage, captured, target); err != nil {
+		if err := role.StageOwnership(stage, captured, target); err != nil {
 			t.Fatal(err)
 		}
 		ownershipUnitPublish(t, e, stage)
@@ -480,7 +481,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		// raw descriptor owner or manufacture a destination manifest.
 		for _, owner := range []authorization.PrincipalRef{{}, foreignOwner} {
 			badStage := e.BeginCatalogStage(e.CatalogRead())
-			if err := stageOwnership(badStage, current, owner); err != nil {
+			if err := role.StageOwnership(badStage, current, owner); err != nil {
 				t.Fatal(err)
 			}
 			bad := badStage.Get(current.Address()).(*catalog.Procedure)

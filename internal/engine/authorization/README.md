@@ -27,7 +27,8 @@ SQL behavior and native limits are described in
   `OwnedMembershipCandidate` and `ValidateDeletionCandidate`.
 - **ACL algorithms:** `Privileges`, `ACLValue`, `ACLEntry` and `ACLGrantee`.
   `ACLRights` evaluates an ACL. `ObjectGrantSource`, `ChangeObjectACL`,
-  `ScopedACLGrantOptions` and `OwnedACL` plan GRANT, REVOKE and DROP OWNED.
+  `ScopedACLGrantOptions` and `OwnedACL` plan GRANT, REVOKE and DROP OWNED;
+  `GrantWarning` is the 01006/01007 warning of a partial GRANT or REVOKE.
   `SchemaACLOwner` transfers ownership. `MaterializeRelationACL` and
   `MaterializeDatabaseACL` build absent-ACL baselines. `ObjectPrivilege` and
   `ForeignPrivilege` parse privilege lists. `ACLItemBits` converts to

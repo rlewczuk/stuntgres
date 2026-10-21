@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"context"
@@ -14,11 +14,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// defaultPrivilegesPlan validates ALTER DEFAULT PRIVILEGES and returns the
+// DefaultPrivilegesPlan validates ALTER DEFAULT PRIVILEGES and returns the
 // default ACL records it changes. A nil record restores the key's baseline.
 // The records carry no OID yet; keys whose record would not change are left
 // out.
-func defaultPrivilegesPlan(ctx context.Context, view access.View, s *parser.AlterDefaultPrivileges) (map[catalog.DefaultACLKey]*catalog.DefaultACLRecord, error) {
+func DefaultPrivilegesPlan(ctx context.Context, view access.View, s *parser.AlterDefaultPrivileges) (map[catalog.DefaultACLKey]*catalog.DefaultACLRecord, error) {
 	var creators []parser.RoleSpec
 	var schemas []parser.Identifier
 	for _, option := range s.Options {

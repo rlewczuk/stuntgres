@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -95,7 +96,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		if d == nil {
 			t.Fatal("missing root", name)
 		}
-		if err := stageOwnership(stage, d, target); err != nil {
+		if err := role.StageOwnership(stage, d, target); err != nil {
 			t.Fatal(name, err)
 		}
 	}
@@ -168,7 +169,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	ownershipUnitPublish(t, e, stage)
 	base = e.CatalogRead()
 	stage = e.BeginCatalogStage(base)
-	if err := stageOwnership(stage, ns, target); err == nil {
+	if err := role.StageOwnership(stage, ns, target); err == nil {
 		t.Fatal("metadata overflow accepted")
 	}
 	if stage.DescriptorCount() != 0 || e.catalog.state.Get(ns.Address()) != ns {
@@ -227,15 +228,15 @@ func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 	auth.RoleRecord = graph
 	retained := e.roles.published
 	for _, reassign := range []bool{false, true} {
-		refs, protected, err := ownedSources(auth.View, []parser.RoleSpec{{Name: "postgres"}, {Name: "renamed_initial"}, {Name: "renamed_initial"}}, reassign)
+		refs, protected, err := role.OwnedSources(auth.View, []parser.RoleSpec{{Name: "postgres"}, {Name: "renamed_initial"}, {Name: "renamed_initial"}}, reassign)
 		if err != nil || len(refs) != 2 || !refs[ordinary] || !refs[initial] || protected != initial {
 			t.Fatal("canonical initial source or deduplicated union", refs, protected, err)
 		}
-		refs, protected, err = ownedSources(auth.View, []parser.RoleSpec{{Name: "postgres"}}, reassign)
+		refs, protected, err = role.OwnedSources(auth.View, []parser.RoleSpec{{Name: "postgres"}}, reassign)
 		if err != nil || len(refs) != 1 || protected != (authorization.PrincipalRef{}) {
 			t.Fatal("ordinary familiar-name superuser was protected", refs, protected, err)
 		}
-		if _, _, err = ownedSources(auth.View, []parser.RoleSpec{{Name: "renamed_initial"}, {Name: "missing_source"}}, reassign); err == nil {
+		if _, _, err = role.OwnedSources(auth.View, []parser.RoleSpec{{Name: "renamed_initial"}, {Name: "missing_source"}}, reassign); err == nil {
 			t.Fatal("initial protection masked late operand resolution")
 		}
 	}

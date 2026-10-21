@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -379,18 +380,18 @@ func TestObjectGrantPlanWarningsBeforeError(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	req, err := objectGrantRequest(op.Context(), v.View, request, func() ([]catalog.Descriptor, error) {
+	req, err := role.ObjectGrantRequest(op.Context(), v.View, request, func() ([]catalog.Descriptor, error) {
 		return []catalog.Descriptor{v.Catalog.Get(address)}, nil
 	})
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	plan, warnings, err := objectGrantPlan(op.Context(), v.View, request, req, e.catalog.revisionLocked)
+	plan, warnings, err := role.ObjectGrantPlan(op.Context(), v.View, request, req, e.catalog.revisionLocked)
 	e.mu.Unlock()
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || plan.candidate != nil {
-		t.Fatal("missing column did not fail the plan", err, plan.candidate)
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || plan.Candidate != nil {
+		t.Fatal("missing column did not fail the plan", err, plan.Candidate)
 	}
 	if len(warnings) != 1 || warnings[0].Code != "0LP01" || !strings.Contains(warnings[0].Message, "only supports USAGE, SELECT, and UPDATE") {
 		t.Fatal("warning before the error was not returned", warnings)

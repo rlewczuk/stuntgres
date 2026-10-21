@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -53,15 +54,15 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *sessio
 	}
 	// The successor genuinely owns the containing namespace. It does not
 	// inherit pg_database_owner, and neither actor nor successor is superuser.
-	if err := stageOwnership(setup, setup.Base.Get(sequence.Namespace()), target); err != nil {
+	if err := role.StageOwnership(setup, setup.Base.Get(sequence.Namespace()), target); err != nil {
 		t.Fatal(err)
 	}
 	sentinel := roleTableRef(t, e, "ownership_fence_sentinel")
-	if err := stageOwnership(setup, setup.Base.Get(sentinel.Address), actor); err != nil {
+	if err := role.StageOwnership(setup, setup.Base.Get(sentinel.Address), actor); err != nil {
 		t.Fatal(err)
 	}
 	if !private {
-		if err := stageOwnership(setup, setup.Base.Get(catalog.CurrentDatabaseAddress), actor); err != nil {
+		if err := role.StageOwnership(setup, setup.Base.Get(catalog.CurrentDatabaseAddress), actor); err != nil {
 			t.Fatal(err)
 		}
 	}

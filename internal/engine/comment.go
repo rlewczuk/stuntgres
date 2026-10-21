@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
 )
 
@@ -84,7 +85,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 			if target.Superuser {
 				attribute = "SUPERUSER"
 			}
-			return nil, roleDiagnostic("42501", "permission denied", "The current user must have the "+attribute+" attribute.")
+			return nil, role.Diagnostic("42501", "permission denied", "The current user must have the "+attribute+" attribute.")
 		}
 		if auth.RoleRecord.Revision == ^uint64(0) {
 			return nil, fmt.Errorf("stuntgres: authorization revision exhausted")

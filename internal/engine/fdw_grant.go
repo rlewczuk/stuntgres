@@ -85,7 +85,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if available == 0 && authorization.ACLRights(d.ACL, d.Owner, principals, authorization.UsagePrivilege, false) == 0 {
 			return Result{}, sqlError("42501", "permission denied for "+s.Kind+" "+d.Name())
 		}
-		if warning, ok := grantWarning(d.Name(), "", authorization.UsagePrivilege, available, false, s.Revoke); ok {
+		if warning, ok := authorization.GrantWarning(d.Name(), "", authorization.UsagePrivilege, available, false, s.Revoke); ok {
 			op.EmitNotice(session.LevelWarning, warning)
 		}
 		if available == 0 {

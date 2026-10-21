@@ -360,7 +360,8 @@ Decisions:
    `tablespace_test.go` pins it.
 7. **Errors.** `ddl/errors.go` gets the usual package-local `sqlError` and
    a detail variant for `schemaReserved`; both build the same
-   `sqlstate.Error` as the root's `sqlError` and `roleDiagnostic`.
+   `sqlstate.Error` as the root's `sqlError` and `roleDiagnostic` (now
+   `role.Diagnostic`).
 8. **Imports.** `ddl` adds only `sqltype` (allowed above) and the standard
    library; it still imports nothing above `session`.
 9. **Seed comments go to `catalog`** as `NamespaceCommentBaseline` and

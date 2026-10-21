@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	"fmt"
 	"math/bits"
 	"slices"
 	"stuntgres/internal/sqlstate"
@@ -256,4 +257,29 @@ func ChangeObjectACL(ctx context.Context, roles Read, old ACLValue, owner, sourc
 		return old, false, nil
 	}
 	return candidate, true, nil
+}
+
+// GrantWarning is the WARNING GRANT and REVOKE raise when they grant or
+// revoke fewer privileges than requested; false when there is none.
+func GrantWarning(relation, column string, requested, available Privileges, all, revoke bool) (sqlstate.Error, bool) {
+	if available == requested || available != 0 && all {
+		return sqlstate.Error{}, false
+	}
+	message, code := "no privileges were granted", "01007"
+	if available != 0 {
+		message = "not all privileges were granted"
+	}
+	if revoke {
+		code = "01006"
+		message = "no privileges could be revoked"
+		if available != 0 {
+			message = "not all privileges could be revoked"
+		}
+	}
+	if column == "" {
+		message += fmt.Sprintf(` for "%s"`, relation)
+	} else {
+		message += fmt.Sprintf(` for column "%s" of relation "%s"`, column, relation)
+	}
+	return sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message}, true
 }

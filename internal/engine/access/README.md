@@ -85,7 +85,10 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
   `operationAuthorization`), role publication (`roleStore`) and the catalog
   authority fences.
 - Role DDL, GRANT/REVOKE, ALTER DEFAULT PRIVILEGES and the ownership
-  statements; `SetObjectACL` and `SetRoleReferences`.
+  statements; `SetObjectACL` and `SetRoleReferences`. Their request and
+  plan functions and the ownership staging are in
+  [`role`](../role/README.md), which calls this package over the captured
+  `View`.
 - Search path resolution and `temporaryNamespace`, RLS configuration and the
   walkers over view definitions, view writes and rule programs
   (`CheckViewWrite`, `checkViewRowMarks*`, the `row_security_setting.go`

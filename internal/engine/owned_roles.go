@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -23,16 +24,19 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	if err != nil {
 		return fail(err)
 	}
-	plan, err := planOwned(auth.View, auth, stmt)
+	plan, err := role.PlanOwned(auth.View, stmt, func(address ids.ObjectAddress) string {
+		path, _ := auth.ReferencePath()
+		return dependencyObject(auth.Catalog, address, path)
+	})
 	if err != nil {
 		return fail(err)
 	}
-	if plan.noop {
+	if plan.Noop {
 		e.mu.Unlock()
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	reassign, sources, target, mode, roots, primaryRoot := plan.reassign, plan.sources, plan.target, plan.mode, plan.roots, plan.primaryRoot
+	reassign, sources, target, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Target, plan.Mode, plan.Roots, plan.PrimaryRoot
 	stage := e.ownershipStage(auth, scope.op)
 	stage.dependencyPath, _ = e.referencePath(auth)
 	e.mu.Unlock()
@@ -82,7 +86,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			if err != nil {
 				break
 			}
-			if err = stageOwnership(stage, d, target); err != nil {
+			if err = role.StageOwnership(stage, d, target); err != nil {
 				break
 			}
 			switch d.(type) {
@@ -123,10 +127,10 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		// PostgreSQL collects actual policy and grantor-membership deletions
 		// alongside ownership roots. Prepare cleanup once, still entirely private,
 		// before discovering consumers of the complete pending deletion union.
-		if err = stageOwnedCleanup(scope.op.Context(), stage, auth.Roles, auth.RoleRecord, sources); err != nil {
+		if err = role.StageOwnedCleanup(scope.op.Context(), stage, auth.Roles, auth.RoleRecord, sources); err != nil {
 			return Result{}, err
 		}
-		if primaryRoot != (ids.ObjectAddress{}) && ownedCleanupAddsDeletionRoot(stage, sources) {
+		if primaryRoot != (ids.ObjectAddress{}) && role.OwnedCleanupAddsDeletionRoot(stage, sources) {
 			primaryRoot = ids.ObjectAddress{}
 		}
 		if err = scope.stageExpressionDependents(stage, roots, mode, nil); err != nil {

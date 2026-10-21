@@ -1,4 +1,4 @@
-package engine
+package role
 
 import (
 	"cmp"
@@ -14,43 +14,20 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// grantWarning is the WARNING GRANT and REVOKE raise when they grant or
-// revoke fewer privileges than requested; false when there is none.
-func grantWarning(relation, column string, requested, available authorization.Privileges, all, revoke bool) (sqlstate.Error, bool) {
-	if available == requested || available != 0 && all {
-		return sqlstate.Error{}, false
-	}
-	message, code := "no privileges were granted", "01007"
-	if available != 0 {
-		message = "not all privileges were granted"
-	}
-	if revoke {
-		code = "01006"
-		message = "no privileges could be revoked"
-		if available != 0 {
-			message = "not all privileges could be revoked"
-		}
-	}
-	if column == "" {
-		message += fmt.Sprintf(` for "%s"`, relation)
-	} else {
-		message += fmt.Sprintf(` for column "%s" of relation "%s"`, column, relation)
-	}
-	return sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message}, true
-}
-
 type columnGrantRequest struct {
 	sub  int32
 	name string
 	mask authorization.Privileges
 }
-type objectGrantChange struct {
-	descriptor   catalog.Descriptor
+
+// ObjectGrantChange is the new descriptor of one changed grant target.
+type ObjectGrantChange struct {
+	Descriptor   catalog.Descriptor
 	columnsOwned bool
 }
 
-// grantRequest is a validated GRANT or REVOKE on objects.
-type grantRequest struct {
+// GrantRequest is a validated GRANT or REVOKE on objects.
+type GrantRequest struct {
 	targets  []catalog.Descriptor
 	grantees []authorization.ACLGrantee
 	// masks holds the privileges of each s.Privileges item; tableMask and
@@ -63,18 +40,18 @@ type grantRequest struct {
 	superuser  bool
 }
 
-// objectGrantRequest validates s: grantor, object kind, targets, grantees,
+// ObjectGrantRequest validates s: grantor, object kind, targets, grantees,
 // privileges and GRANT OPTION for PUBLIC, in PostgreSQL's order. resolve
 // returns the targets; it is called only for supported kinds, after the kind
 // check and before grantees are resolved.
-func objectGrantRequest(ctx context.Context, view access.View, s *parser.ObjectGrant, resolve func() ([]catalog.Descriptor, error)) (grantRequest, error) {
+func ObjectGrantRequest(ctx context.Context, view access.View, s *parser.ObjectGrant, resolve func() ([]catalog.Descriptor, error)) (GrantRequest, error) {
 	if s.Grantor != nil {
 		grantor, err := authorization.MembershipRole(view.Roles, view.State, *s.Grantor)
 		if err != nil {
-			return grantRequest{}, err
+			return GrantRequest{}, err
 		}
 		if grantor != view.State.CurrentUser {
-			return grantRequest{}, sqlError("0A000", "grantor must be current user")
+			return GrantRequest{}, sqlError("0A000", "grantor must be current user")
 		}
 	}
 	unavailable := ""
@@ -89,14 +66,14 @@ func objectGrantRequest(ctx context.Context, view access.View, s *parser.ObjectG
 		unavailable = "LARGE OBJECT privileges are unsupported in embedded mode"
 	case "", "sequence", "schema", "type", "domain", "function", "procedure", "routine", "parameter", "tablespace":
 	default:
-		return grantRequest{}, sqlError("0A000", "statement is not supported")
+		return GrantRequest{}, sqlError("0A000", "statement is not supported")
 	}
-	var req grantRequest
+	var req GrantRequest
 	var err error
 	if unavailable == "" {
 		req.targets, err = resolve()
 		if err != nil {
-			return grantRequest{}, err
+			return GrantRequest{}, err
 		}
 	}
 	req.grantees = make([]authorization.ACLGrantee, len(s.Grantees))
@@ -107,7 +84,7 @@ func objectGrantRequest(ctx context.Context, view access.View, s *parser.ObjectG
 		}
 		role, err := authorization.MembershipRole(view.Roles, view.State, spec.Role)
 		if err != nil {
-			return grantRequest{}, err
+			return GrantRequest{}, err
 		}
 		req.grantees[i] = authorization.ACLGrantee{Role: role}
 	}
@@ -119,7 +96,7 @@ func objectGrantRequest(ctx context.Context, view access.View, s *parser.ObjectG
 		}
 		req.masks[i], err = authorization.ObjectPrivilege(item, kind)
 		if err != nil {
-			return grantRequest{}, err
+			return GrantRequest{}, err
 		}
 		if item.Columns == nil {
 			req.tableMask |= req.masks[i]
@@ -129,47 +106,47 @@ func objectGrantRequest(ctx context.Context, view access.View, s *parser.ObjectG
 	if s.GrantOption {
 		for _, grantee := range req.grantees {
 			if grantee.Public {
-				return grantRequest{}, sqlError("0LP01", "grant options can only be granted to roles")
+				return GrantRequest{}, sqlError("0LP01", "grant options can only be granted to roles")
 			}
 		}
 	}
 	if unavailable != "" {
-		return grantRequest{}, sqlError("0A000", unavailable)
+		return GrantRequest{}, sqlError("0A000", unavailable)
 	}
 	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
-		return grantRequest{}, err
+		return GrantRequest{}, err
 	}
 	req.principals, err = view.Roles.RoleClosure(ctx, actor.Ref, true)
 	if err != nil {
-		return grantRequest{}, err
+		return GrantRequest{}, err
 	}
 	req.superuser = actor.Superuser
 	return req, nil
 }
 
-// grantPlan is the catalog change of a GRANT or REVOKE on objects.
-type grantPlan struct {
+// GrantPlan is the catalog change of a GRANT or REVOKE on objects.
+type GrantPlan struct {
 	// candidate is the next catalog state; nil when nothing changes.
-	candidate *catalog.State
-	changed   map[ids.ObjectAddress]objectGrantChange
+	Candidate *catalog.State
+	Changed   map[ids.ObjectAddress]ObjectGrantChange
 }
 
-// objectGrantPlan builds the new ACLs of req's targets. revision allocates
+// ObjectGrantPlan builds the new ACLs of req's targets. revision allocates
 // the plan stamps of changed sequences. The warnings are returned in
 // statement order, also with an error: the ones raised before it.
-func objectGrantPlan(ctx context.Context, view access.View, s *parser.ObjectGrant, req grantRequest, revision func() (ids.DefinitionRevision, error)) (grantPlan, []sqlstate.Error, error) {
+func ObjectGrantPlan(ctx context.Context, view access.View, s *parser.ObjectGrant, req GrantRequest, revision func() (ids.DefinitionRevision, error)) (GrantPlan, []sqlstate.Error, error) {
 	var warnings []sqlstate.Error
 	warn := func(warning sqlstate.Error) { warnings = append(warnings, warning) }
-	plan := grantPlan{changed: make(map[ids.ObjectAddress]objectGrantChange)}
+	plan := GrantPlan{Changed: make(map[ids.ObjectAddress]ObjectGrantChange)}
 	for _, target := range req.targets {
 		address := target.Address()
 		if err := ctx.Err(); err != nil {
-			return grantPlan{}, warnings, err
+			return GrantPlan{}, warnings, err
 		}
 		if target.Kind() != ids.RelationObject {
 			d := target
-			if prior := plan.changed[address].descriptor; prior != nil {
+			if prior := plan.Changed[address].Descriptor; prior != nil {
 				d = prior
 			}
 			next, warning, err := changeNonRelationGrant(ctx, view, d, s, req.grantees, req.principals, req.superuser, req.tableMask, req.tableAll)
@@ -177,49 +154,49 @@ func objectGrantPlan(ctx context.Context, view access.View, s *parser.ObjectGran
 				warn(*warning)
 			}
 			if err != nil {
-				return grantPlan{}, warnings, err
+				return GrantPlan{}, warnings, err
 			}
 			if next != nil {
-				plan.changed[address] = objectGrantChange{descriptor: next}
-				if plan.candidate == nil {
-					plan.candidate = catalog.CloneState(view.Catalog.State())
+				plan.Changed[address] = ObjectGrantChange{Descriptor: next}
+				if plan.Candidate == nil {
+					plan.Candidate = catalog.CloneState(view.Catalog.State())
 				}
 				if parameter, ok := next.(*catalog.Parameter); ok {
-					catalog.InstallParameterGrant(plan.candidate, parameter)
-					if plan.candidate.Get(address) == nil {
-						plan.changed[address] = objectGrantChange{}
+					catalog.InstallParameterGrant(plan.Candidate, parameter)
+					if plan.Candidate.Get(address) == nil {
+						plan.Changed[address] = ObjectGrantChange{}
 					}
 				} else {
-					plan.candidate.SetDescriptor(address, next)
+					plan.Candidate.SetDescriptor(address, next)
 				}
 			}
 			continue
 		}
 		relation := target.(*catalog.Relation)
-		prior := plan.changed[address]
-		if prior.descriptor != nil {
-			relation = prior.descriptor.(*catalog.Relation)
+		prior := plan.Changed[address]
+		if prior.Descriptor != nil {
+			relation = prior.Descriptor.(*catalog.Relation)
 		}
 		change, changed, err := relationGrantChange(ctx, view, s, req, relation, prior, warn)
 		if err != nil {
-			return grantPlan{}, warnings, err
+			return GrantPlan{}, warnings, err
 		}
 		if !changed {
 			continue
 		}
-		plan.changed[address] = change
-		next := change.descriptor.(*catalog.Relation)
+		plan.Changed[address] = change
+		next := change.Descriptor.(*catalog.Relation)
 		if next.RelationKind == catalog.SequenceRelation {
 			stamp, err := revision()
 			if err != nil {
-				return grantPlan{}, warnings, err
+				return GrantPlan{}, warnings, err
 			}
 			next.SequencePlanStamp = stamp
 		}
-		if plan.candidate == nil {
-			plan.candidate = catalog.CloneState(view.Catalog.State())
+		if plan.Candidate == nil {
+			plan.Candidate = catalog.CloneState(view.Catalog.State())
 		}
-		plan.candidate.SetDescriptor(address, next)
+		plan.Candidate.SetDescriptor(address, next)
 	}
 	return plan, warnings, nil
 }
@@ -227,17 +204,17 @@ func objectGrantPlan(ctx context.Context, view access.View, s *parser.ObjectGran
 // relationGrantChange applies s to relation's table and column ACLs. prior is
 // the change an earlier target of the statement made to the same relation.
 // It returns false when neither ACL changes.
-func relationGrantChange(ctx context.Context, view access.View, s *parser.ObjectGrant, req grantRequest, relation *catalog.Relation, prior objectGrantChange, warn func(sqlstate.Error)) (objectGrantChange, bool, error) {
+func relationGrantChange(ctx context.Context, view access.View, s *parser.ObjectGrant, req GrantRequest, relation *catalog.Relation, prior ObjectGrantChange, warn func(sqlstate.Error)) (ObjectGrantChange, bool, error) {
 	if s.Kind == "sequence" && relation.RelationKind != catalog.SequenceRelation {
-		return objectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is not a sequence`, relation.Name()))
+		return ObjectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is not a sequence`, relation.Name()))
 	}
 	switch relation.RelationKind {
 	case catalog.IndexRelation:
-		return objectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is an index`, relation.Name()))
+		return ObjectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is an index`, relation.Name()))
 	case catalog.CompositeRelation:
-		return objectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.Name()))
+		return ObjectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.Name()))
 	case catalog.CatalogRelation:
-		return objectGrantChange{}, false, sqlError("0A000", "statement is not supported")
+		return ObjectGrantChange{}, false, sqlError("0A000", "statement is not supported")
 	}
 	classMask := authorization.TableGrantPrivileges
 	noun := "table"
@@ -256,7 +233,7 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 	} else if targetMask & ^classMask != 0 {
 		for _, item := range s.Privileges {
 			if _, err := authorization.ObjectPrivilege(item, ""); err != nil {
-				return objectGrantChange{}, false, err
+				return ObjectGrantChange{}, false, err
 			}
 		}
 	}
@@ -267,15 +244,15 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 	if targetMask != 0 {
 		source, available, sourceErr := authorization.ObjectGrantSource(ctx, relation.Owner, originalTable, authorization.ACLValue{}, req.principals, req.superuser, targetMask)
 		if sourceErr != nil {
-			return objectGrantChange{}, false, sourceErr
+			return ObjectGrantChange{}, false, sourceErr
 		}
 		if available == 0 {
 			hasRelationPrivileges := authorization.ACLRights(originalTable, relation.Owner, req.principals, classMask, false) != 0 || access.PredefinedPrivileges(relation, req.principals) != 0
 			if !hasRelationPrivileges {
-				return objectGrantChange{}, false, sqlError("42501", "permission denied for "+noun+" "+relation.Name())
+				return ObjectGrantChange{}, false, sqlError("42501", "permission denied for "+noun+" "+relation.Name())
 			}
 		}
-		if warning, ok := grantWarning(relation.Name(), "", targetMask, available, req.tableAll, s.Revoke); ok {
+		if warning, ok := authorization.GrantWarning(relation.Name(), "", targetMask, available, req.tableAll, s.Revoke); ok {
 			warn(warning)
 		}
 		if available != 0 {
@@ -290,7 +267,7 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 			nextTable, tableChanged, err = authorization.ChangeObjectACL(ctx, view.Roles, materialized, relation.Owner, source, req.grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 		}
 		if err != nil {
-			return objectGrantChange{}, false, err
+			return ObjectGrantChange{}, false, err
 		}
 		tableChanged = tableChanged || available != 0 && !relation.Security.ACL.Explicit
 	}
@@ -325,7 +302,7 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 		for _, column := range item.Columns {
 			index, ok := relation.Index[column.Text]
 			if !ok {
-				return objectGrantChange{}, false, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column.Text, relation.Name()))
+				return ObjectGrantChange{}, false, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column.Text, relation.Name()))
 			}
 			if mask != 0 {
 				addColumn(relation.Attributes[index], column.Text, mask)
@@ -341,7 +318,7 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 		old := relation.Security.ColumnACL[column.sub]
 		source, available, sourceErr := authorization.ObjectGrantSource(ctx, relation.Owner, originalTable, old, req.principals, req.superuser, column.mask)
 		if sourceErr != nil {
-			return objectGrantChange{}, false, sourceErr
+			return ObjectGrantChange{}, false, sourceErr
 		}
 		if available == 0 {
 			if !columnPrivilegesChecked {
@@ -350,10 +327,10 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 				columnPrivilegesChecked = true
 			}
 			if !hasColumnPrivileges && authorization.ACLRights(old, authorization.PrincipalRef{}, req.principals, authorization.ColumnGrantPrivileges, false)&authorization.ColumnGrantPrivileges == 0 {
-				return objectGrantChange{}, false, sqlError("42501", fmt.Sprintf(`permission denied for column "%s" of relation "%s"`, column.name, relation.Name()))
+				return ObjectGrantChange{}, false, sqlError("42501", fmt.Sprintf(`permission denied for column "%s" of relation "%s"`, column.name, relation.Name()))
 			}
 		}
-		if warning, ok := grantWarning(relation.Name(), column.name, column.mask, available, column.mask == authorization.ColumnGrantPrivileges, s.Revoke); ok {
+		if warning, ok := authorization.GrantWarning(relation.Name(), column.name, column.mask, available, column.mask == authorization.ColumnGrantPrivileges, s.Revoke); ok {
 			warn(warning)
 		}
 		// System attributes participate in release diagnostics, not native storage.
@@ -362,7 +339,7 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 		}
 		next, didChange, err := authorization.ChangeObjectACL(ctx, view.Roles, old, relation.Owner, source, req.grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 		if err != nil {
-			return objectGrantChange{}, false, err
+			return ObjectGrantChange{}, false, err
 		}
 		if didChange {
 			if nextColumns == nil {
@@ -383,20 +360,20 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 		}
 	}
 	if !tableChanged && nextColumns == nil {
-		return objectGrantChange{}, false, nil
+		return ObjectGrantChange{}, false, nil
 	}
-	next, _ := prior.descriptor.(*catalog.Relation)
+	next, _ := prior.Descriptor.(*catalog.Relation)
 	if next == nil {
 		copy := *relation
 		next = &copy
 	}
-	change := objectGrantChange{descriptor: next, columnsOwned: prior.columnsOwned || nextColumns != nil}
+	change := ObjectGrantChange{Descriptor: next, columnsOwned: prior.columnsOwned || nextColumns != nil}
 	next.Security.ACL = nextTable
 	if nextColumns != nil {
 		next.Security.ColumnACL = nextColumns
 	}
 	if err := access.ValidateACL(view.Roles, next); err != nil {
-		return objectGrantChange{}, false, err
+		return ObjectGrantChange{}, false, err
 	}
 	return change, true, nil
 }

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `47b3bd17c` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 99, 103, 107 and 111). Steps 8–17 were
+Last verified against `master` at `d12bb058f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 86, 90, 94, 95, 96, 99, 103, 104, 107 and 111). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -19,7 +19,8 @@ files, so they may run in parallel on separate branches; rebase the others
 after each lands.
 
 - **Stored-SQL package:** 69 (stored 22c).
-- **Upper features, packages:** 83 (index 23b), 104 (role 28b).
+- **Upper features, packages:** 83 (index 23b).
+- **Upper features, refined:** 105 (role 28c, docs only).
 - **Upper features, decisions:** 97 (fdw 26d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -67,6 +68,8 @@ Item 103 (role 28a) is done, so role 28b (item 104) is ready; role 28c
 (item 105) then needs 104 and 61.
 Item 111 (control 30a) is done; control 30b (item 112) still waits for
 70, 83, 87, 91 and 100.
+Item 104 (role 28b) is done, so role 28c (item 105, docs only) is ready;
+role 28d (item 106) then needs 105.
 Item 96 (fdw 26c, docs only) is done, so fdw 26d (item 97) is ready; fdw
 26e (item 98) then needs 97 and table 24d (item 89).
 Item 68 (stored 22b) is done, so stored 22c (item 69) and index 23b
@@ -519,7 +522,8 @@ Item 68 (stored 22b) is done, so stored 22c (item 69) and index 23b
     interfaces, grant, default-privilege and owned plans split
     (`23c4487dc`, `40d6de294`, `5f467d54d`, `32097b551`, `86c27112c`,
     `0ed6411b1`, then the docs commit)
-  - [ ] 28b — `role` created and clean set moved
+  - [x] 28b — `role` created and clean set moved (`a781528f1`,
+    `eb6d750cc`, `0521e3b83`, `2492afb3f`, then the docs commit)
   - [ ] 28c — Host refined (docs only)
   - [ ] 28d — Handler decisions moved
 - [ ] **Step 29 — `dml`** ([prompt](ENGINE-SPLIT-dml.md); 29b needs Part A of
@@ -1176,8 +1180,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      `defaultPrivilegesPlan`, `planOwned`; every request and plan function
      clean · selected unit and dual-mode proof and quickcheck passed;
      racecheck/finalcheck skipped at user request
-104. [ ] Role 28b: `role` created, clean set moved —
+104. [x] Role 28b: `role` created, clean set moved —
      [role](ENGINE-SPLIT-role.md) 28b · needs 103, 65, 79
+     (`a781528f1`, `eb6d750cc`, `0521e3b83`, `2492afb3f`, then the docs
+     commit) · grant, default-privilege and owned plans, ownership and DROP
+     OWNED staging over `role.OwnerStage`/`OwnedCleanupStage`, role
+     diagnostics; `GrantWarning` to `authorization` (fdw 26d's first step);
+     `PlanOwned` takes a describer for the root `dependencyObject`; no
+     aliases · selected unit and dual-mode proof and quickcheck passed;
+     racecheck/finalcheck skipped at user request
 105. [ ] Role 28c: host refined (docs only) — [role](ENGINE-SPLIT-role.md)
      28c · needs 104, 61
 106. [ ] Role 28d: handler decisions moved — [role](ENGINE-SPLIT-role.md)

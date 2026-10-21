@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -25,7 +26,7 @@ func (e *Engine) ResolveLogin(name string) (authorization.PrincipalRef, error) {
 		return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: authenticated role %q does not exist", name)
 	}
 	if !d.Login {
-		return authorization.PrincipalRef{}, roleLoginError(name)
+		return authorization.PrincipalRef{}, role.LoginError(name)
 	}
 	return d.Ref, nil
 }

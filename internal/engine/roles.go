@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -45,9 +47,6 @@ func (e *Engine) initialRole(ctx context.Context, authenticated authorization.Pr
 	return target.Ref, nil
 }
 
-func roleDiagnostic(code, message, detail string) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
-}
 func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -152,7 +151,7 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 	case *parser.DropRole:
 		actor, exists := v.Roles.Find(v.State.CurrentUser)
 		if !exists || !actor.Superuser {
-			return Result{}, roleDiagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
+			return Result{}, role.Diagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
 		}
 		return e.dropRolesLocked(op, v, s)
 	}
@@ -268,7 +267,7 @@ func (e *Engine) dropRolesLocked(op *session.Operation, v AuthorizationView, s *
 	for _, ref := range ordered {
 		d := targets[ref]
 		if d.Predefined() {
-			return Result{}, roleDiagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
+			return Result{}, role.Diagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
 		}
 		var dependencies []access.RoleDependency
 		for _, object := range v.Catalog.Descriptors() {
@@ -306,7 +305,7 @@ func (e *Engine) dropRolesLocked(op *session.Operation, v AuthorizationView, s *
 			for i, dep := range dependencies {
 				details[i] = dependencyDescription(v, dep)
 			}
-			return Result{}, roleDiagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
+			return Result{}, role.Diagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
 		}
 	}
 	if v.RoleRecord.Revision == ^uint64(0) {

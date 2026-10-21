@@ -426,7 +426,7 @@ DROP dependents, `replacementMu` release, validations, publication);
 
 1. `grantWarning` → `authorization.GrantWarning`; callers in
    `role_grant_plan.go`, `role_grant_objects.go`, `database_grant.go` and
-   `fdw_grant.go`.
+   `fdw_grant.go`. Done in role 28b (`2492afb3f`); start at 2.
 2. Seam: `fdw.Host`, `fdw_host.go` on `ddlHost` with its assertion,
    `StageForeignTable`, and `stageForeignTableLocked` over `(op, input)`.
    Unit test first, observed failing: `StageForeignTable` stages a foreign
@@ -615,9 +615,8 @@ Outstanding aliases: none yet.
     `access.Environment`: `access.View.Check` reads it only for type
     diagnostics and temporary namespaces, never for a wrapper.
 - 26d: follow the 26c refine above. The decisions use the moved helpers
-  (`fdw.Find`, `fdw.MappingAuthority`, `fdw.ValidatorJob`, ...). If 28b has
-  already moved `grantWarning` into `role`, move it from there to
-  `authorization`.
+  (`fdw.Find`, `fdw.MappingAuthority`, `fdw.ValidatorJob`, ...). Role 28b
+  already moved `grantWarning` to `authorization.GrantWarning`.
 - 26e: `fdw.Host.StageForeignTable` and the root `stageForeignValidatorJob`
   exist only for the foreign-table path; 26e replaces both when
   `stageForeignTableLocked` and `executeForeignTableAlter` move, and drops
