@@ -269,7 +269,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		}
 		accepted = append(accepted, row)
 	}
-	count, err := scope.stage.applyInsertValidated(ref, indexWriteBatch{values: accepted})
+	count, err := scope.stage.applyInsertBatch(ref, indexWriteBatch{values: accepted})
 	if err != nil || count != 2 {
 		t.Fatal("postfailure batch", count, err)
 	}

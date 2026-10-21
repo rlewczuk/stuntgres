@@ -173,7 +173,7 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 		old := retained.Data().Committed[bound.Ref.Address]
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		result, err := e.executeUpdate(op.Context(), scope, bound, source, nil, nil, "public")
+		result, err := executeUpdate(op.Context(), scope, bound, source, nil, nil, "public")
 		finishErr := scope.Finish(err)
 		op.Done()
 		runtime.ReadMemStats(&after)
@@ -229,7 +229,7 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 		t.Fatal("existing action stage", err)
 	}
 	earlier := scope.stage.rows[bound.Ref.Address]
-	result, err := e.executeUpdate(op.Context(), scope, bound, source, nil, nil, "public")
+	result, err := executeUpdate(op.Context(), scope, bound, source, nil, nil, "public")
 	finishErr := scope.Finish(err)
 	op.Done()
 	if result.Rows != nil {

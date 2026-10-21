@@ -277,7 +277,7 @@ Do the steps in this order; each numbered step is one commit and builds.
 **Open questions** (answer in the 24a result; ask before deviating):
 
 1. Settled during planning: inheritance query expansion is called by root
-   query admission (`query_admission.go`, `update_from_admission.go`), not
+   query admission (`query_admission.go`, `query_table_refs.go`), not
    by DML executors. Its clean helpers (`captureInheritanceQueryPrefix`,
    `inheritanceQueryClosure`, `inheritanceQueryLeaves`, `sourceOnly`) read
    stored view leaves and nothing in the root, so they move with `table`

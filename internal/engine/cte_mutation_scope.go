@@ -12,24 +12,46 @@ import (
 // Command-local state is switched inside one statement owner. Stage, view,
 // operation, ticket, constraint queues and publication never move with it.
 // The embedded context keeps single-command statements allocation-free.
+// Fields are grouped by owner; every group is a value, so activateMutation
+// and the rule and SQL routine save/restore copy the whole mutation at once.
 type statementMutation struct {
-	statement             parser.Statement
+	statement parser.Statement
+	mutationTarget
+	inheritedTargets []exec.Leaf // Inheritance expansion of the target (table, dml).
+	viewWrite        *viewWrite  // Auto-updatable view lowering (view).
+	mutationIndexes
+	mutationInsert
+	mutationPartition
+	rls rowSecurityMutation
+}
+
+// mutationTarget is the admitted, locked command target (dml).
+type mutationTarget struct {
 	lockedRef             ids.ObjectRef
 	lockedDescriptor      catalog.Descriptor
 	lockedStorage         *storage.Relation
 	lockedIdentityOnly    bool
-	inheritedTargets      []exec.Leaf
-	viewWrite             *viewWrite
-	routineDependencies   []catalog.ExpressionDependency // Borrowed immutable manifest follows command activation.
-	uniqueBinding         *uniqueWriteBinding
-	indexBindings         map[ids.ObjectAddress]*uniqueWriteBinding
-	insertConflict        *insertConflictState
-	insertReturning       *insertReturningOutput
-	partitionInsert       *partitionInsertState
-	rls                   rowSecurityMutation
-	partitionRelations    map[ids.ObjectAddress]*catalog.Relation
 	admittedTargetName    parser.ObjectName
 	admittedTargetLexical ids.ObjectRef
+	routineDependencies   []catalog.ExpressionDependency // Borrowed immutable manifest follows command activation.
+}
+
+// mutationIndexes holds the unique and exclusion write bindings (index).
+type mutationIndexes struct {
+	uniqueBinding *uniqueWriteBinding
+	indexBindings map[ids.ObjectAddress]*uniqueWriteBinding
+}
+
+// mutationInsert holds INSERT's ON CONFLICT and RETURNING state (dml).
+type mutationInsert struct {
+	insertConflict  *insertConflictState
+	insertReturning *insertReturningOutput
+}
+
+// mutationPartition holds INSERT partition routing (partition).
+type mutationPartition struct {
+	partitionInsert    *partitionInsertState
+	partitionRelations map[ids.ObjectAddress]*catalog.Relation
 }
 
 func (s *StatementScope) activateMutation(index int) {

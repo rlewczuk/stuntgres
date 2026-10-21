@@ -314,7 +314,7 @@ func (s *StatementScope) checkInsertUniqueRow(ref ids.ObjectRef, candidate *inde
 
 func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows indexWriteBatch) (int, error) {
 	if s.partitionInsert == nil {
-		return s.Writes().applyInsertValidated(ref, rows)
+		return s.Writes().applyInsertBatch(ref, rows)
 	}
 	count := 0
 	for _, group := range s.partitionInsert.order {

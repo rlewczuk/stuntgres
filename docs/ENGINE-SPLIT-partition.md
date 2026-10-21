@@ -430,9 +430,10 @@ Outstanding aliases: none yet.
   `partitionInsertionGroup`, `partitionStoredRow`,
   `validateTargetPartitionConstraint`, `checkInsertUniqueRow`,
   `applyInsertValidated`, `missingPartition`) on top of the routing
-  records moved here. Today `StatementScope.applyInsertValidated`
-  (`partition_insert.go`) shadows `WriteStage.applyInsertValidated`; rename
-  one of them when `dml` touches them.
+  records moved here. DML 29a renamed the shadowed
+  `WriteStage.applyInsertValidated` to `applyInsertBatch`; the router
+  `StatementScope.applyInsertValidated` (`partition_insert.go`) kept its
+  name.
 - Step 30 (`control`) owns the Restore executors left in the root
   (`begin*Replay`, `executePartitionUniqueReplayLocked`,
   `repairRemappedHashPartitions`, the teardown capture and validation).

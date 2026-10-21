@@ -1779,14 +1779,14 @@ INSERT conflict, RETURNING, UPDATE and MERGE payloads), so it is an upper
 package that may import `analyze` payload types; `analyze` never imports
 it.
 
-**Part A.** 29a, in place: the INSERT VALUES loop leaves
-`executePreparedCommandLocked` (`execute_bound.go`) for an `insert.go`;
-misplaced code goes to its owners (unique records to `index`, rule
-helpers to `stored` and `view`, generic source capture to `exec`,
-`rowByID` to `storage`); one receiver style
-for the executors (`executeUpdate` and `executeMerge` are `Engine`
-methods, `executeDelete` a scope method); FK enforcement and FK actions
-are grouped here. 29b moves the clean set: ON CONFLICT state and arbiter
+**Part A.** 29a (done), in place: the INSERT executor left
+`executePreparedCommandLocked` (`execute_bound.go`) for `insert.go`
+(`executeInsertLocked`); misplaced code went to its owners (unique records
+to `index`, rule helpers to `stored` and `view`, generic source capture to
+`exec`, `rowByID` to `storage`, write-set merges to `write_set.go`); the
+UPDATE, MERGE and DELETE executors became functions over the scope;
+`statementMutation` became embedded value groups by owner; FK enforcement
+and FK actions are grouped here. 29b moves the clean set: ON CONFLICT state and arbiter
 inference, MERGE and UPDATE records, RETURNING output, TRUNCATE records,
 COPY execution records.
 
@@ -2090,7 +2090,7 @@ package-specific scope. This section holds the rules every session follows.
 | 26 | [`ENGINE-SPLIT-fdw.md`](ENGINE-SPLIT-fdw.md) | 26c: 20b; 26e: 24d | 26a done in place (`fdw_` files, `foreignRegistry`, authority cuts, participant methods, scan request, write runtime; racecheck/finalcheck skipped at user request); 26b done (`fdw` created: definition types, registry, options, identity set, write protocol, participants and DDL helpers; the driver imports `fdw`; no aliases; racecheck/finalcheck skipped at user request); 26c–26e planned |
 | 27 | [`ENGINE-SPLIT-view.md`](ENGINE-SPLIT-view.md) | 27b: 22c, 24b; 27c: 20b | 27a done in place (dead code, drop diagnostics split, `dropCascadeNames`, view-write lowering and rule expansion off `Engine`, opaque rule authority, access helpers over `access.View`, RLS and rule-action value groups; racecheck/finalcheck skipped at user request); 27b–27d planned |
 | 28 | [`ENGINE-SPLIT-role.md`](ENGINE-SPLIT-role.md) | 28b: 21b, B6; 28c: 20b | planned (28a–28d) |
-| 29 | [`ENGINE-SPLIT-dml.md`](ENGINE-SPLIT-dml.md) | 29a: 23a, 24a; 29b: Part A of 19, 23–27; 29c: Part B of 23–27 | planned (29a–29d) |
+| 29 | [`ENGINE-SPLIT-dml.md`](ENGINE-SPLIT-dml.md) | 29a: 23a, 24a; 29b: Part A of 19, 23–27; 29c: Part B of 23–27 | 29a done in place (`executeInsertLocked` in `insert.go`, misplaced helpers to their owners' files, executors as functions over the scope, `statementMutation` value groups; racecheck/finalcheck skipped at user request); 29b–29d planned |
 | 30 | [`ENGINE-SPLIT-control.md`](ENGINE-SPLIT-control.md) | 30a: 18c; 30b: 22d, 21b, 14e, 15e, Part A of 23–27 | planned (30a–30c) |
 
 The follow-ups of §6 (F6, 5i, 5j, 10e, 11e, 11f, 12f, 13f, B6, 14e, 15e)

@@ -240,8 +240,8 @@ Lessons from 4c, for 5f, 6c and 7c:
   names are `ErrCatalogReplaced` and `sqlError`.
 - **Engine side of former lock files:** `advisory_lock.go` (session delegate,
   `acquireAdvisory`), `blocking_pids.go` (SQL function, PID values),
-  `unique_lock.go` (key hash, comparer, `acquireUnique`) and
-  `physical_row_events.go`.
+  `unique_lock.go` (key hash, comparer, `acquireUnique`) and the physical
+  row events in `statement_host_row_lock.go` (merged there by DML 29a).
 - **Cut 11:** `relationTimeoutSlot` in `relation_timeout.go`; `Operation`
   embeds it as `lockWait` and the policy holds `timeoutSlot`.
 - **`EndReason`:** no change. The manager never used it.

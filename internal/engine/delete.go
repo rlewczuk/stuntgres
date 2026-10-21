@@ -14,32 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func mergeDeletions(previous, staged map[ids.ObjectAddress]*visibility.PrivateDeletes) map[ids.ObjectAddress]*visibility.PrivateDeletes {
-	if len(staged) == 0 {
-		return previous
-	}
-	next := make(map[ids.ObjectAddress]*visibility.PrivateDeletes, len(previous)+len(staged))
-	for a, root := range previous {
-		next[a] = root
-	}
-	for a, root := range staged {
-		old := previous[a]
-		if old == nil {
-			next[a] = root
-			continue
-		}
-		rows := make(map[ids.RowID]visibility.DeleteCandidate, len(old.Rows)+len(root.Rows))
-		for id, candidate := range old.Rows {
-			rows[id] = candidate
-		}
-		for id, candidate := range root.Rows {
-			rows[id] = candidate
-		}
-		next[a] = &visibility.PrivateDeletes{Rows: rows}
-	}
-	return next
-}
-
 func (s *StatementScope) acquireRow(candidate visibility.DeleteCandidate) error {
 	if err := s.active(); err != nil {
 		return err
@@ -179,7 +153,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	return nil
 }
 
-func (s *StatementScope) executeDelete(b analyze.Binding, view *visibility.View, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
+func executeDelete(s *StatementScope, b analyze.Binding, view *visibility.View, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
 	source, err := s.captureMutationSource(s.op.Context(), view, b)
 	if err != nil {
 		if inputs != nil {

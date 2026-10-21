@@ -151,7 +151,7 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 				}
 				return sqltype.Integer(project.Schema()[0].Usage.Type, 99)
 			}))
-			result, err := e.executeUpdate(ctx, scope, b, target, sources, nil, "public")
+			result, err := executeUpdate(ctx, scope, b, target, sources, nil, "public")
 			if phase == "live_source" {
 				if !errors.Is(err, context.Canceled) || result.Rows != nil || result.Count != 0 || calls != 2 || !stagedBeforeCancel {
 					t.Fatal("late source cancellation", result, err, calls, stagedBeforeCancel)

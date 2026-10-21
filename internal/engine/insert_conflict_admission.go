@@ -64,7 +64,7 @@ func (s *StatementScope) insertConflictVisible(row storage.RowVersion, committed
 	return nil
 }
 
-func (w *WriteStage) applyInsertValidated(ref ids.ObjectRef, rows indexWriteBatch) (int, error) {
+func (w *WriteStage) applyInsertBatch(ref ids.ObjectRef, rows indexWriteBatch) (int, error) {
 	count := len(rows.values)
 	if action := w.scope.insertConflict; action != nil && action.Update != nil {
 		return action.affected, nil
