@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 
 // Partition reads reuse the mapped physical-prefix source used by inheritance.
 // Row identities and versions always retain their original physical storage.
-func CapturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View, ref ids.ObjectRef, parent *catalog.Relation) (*exec.Source, error) {
+func CaptureQueryPrefix(catalogView catalog.Read, view *visibility.View, ref ids.ObjectRef, parent *catalog.Relation) (*exec.Source, error) {
 	// The visibility capture retains the statement's admitted topology, not a
 	// live descriptor that may have gained children while a leaf lock waited.
 	if captured, ok := catalogView.Relation(ref.Address); ok {
@@ -23,7 +23,7 @@ func CapturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
 	source := &exec.Source{Ref: ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0)}
-	err := PartitionPhysicalDescendants(catalogView, parent, func(leaf *catalog.Relation) error {
+	err := PhysicalDescendants(catalogView, parent, func(leaf *catalog.Relation) error {
 		childRef := ref.Domain().Ref(ref.Epoch, leaf.Address())
 		layout, err := catalog.InheritanceQueryLayout(parent, leaf)
 		if err != nil {

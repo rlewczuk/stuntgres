@@ -6,9 +6,10 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 )
 
-var _ partitionRecipeHost = (*statementHost)(nil)
+var _ partition.RecipeHost = (*statementHost)(nil)
 
 func (h *statementHost) CommandIdentity() ids.CommandIdentity {
 	return ids.CommandIdentity{Transaction: h.txRef, Command: h.command}
@@ -26,14 +27,14 @@ func (h *statementHost) ReferentialActor() (authorization.PrincipalRef, bool) {
 }
 
 // PartitionPrograms reads the partitions slot without allocating it.
-func (h *statementHost) PartitionPrograms(identity partitionRoutineIdentity) []expr.Expr {
+func (h *statementHost) PartitionPrograms(identity partition.RoutineIdentity) []expr.Expr {
 	return h.scope().partitionsOrZero().Programs[identity]
 }
 
-func (h *statementHost) RecordPartitionPrograms(identity partitionRoutineIdentity, expressions []expr.Expr, admission exec.RoutineProgram) {
+func (h *statementHost) RecordPartitionPrograms(identity partition.RoutineIdentity, expressions []expr.Expr, admission exec.RoutineProgram) {
 	slot := h.scope().partitions()
 	if slot.Programs == nil {
-		slot.Programs = make(map[partitionRoutineIdentity][]expr.Expr)
+		slot.Programs = make(map[partition.RoutineIdentity][]expr.Expr)
 	}
 	slot.Programs[identity] = expressions
 	h.routinePrograms = append(h.routinePrograms, commandRoutineProgram{admission: admission})

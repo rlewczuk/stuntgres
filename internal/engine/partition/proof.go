@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"context"
@@ -17,16 +17,16 @@ import (
 // evaluator or a second binder. CHECK permits UNKNOWN. Endpoint reasoning is
 // therefore performed only in the non-NULL key domain; explicit RANGE must first
 // prove that domain, whereas its complement already accepts every NULL key.
-type partitionProofGoal struct {
-	left, Right *partitionProofGoal
+type ProofGoal struct {
+	left, Right *ProofGoal
 	key         int
 	Op          string
 	value       sqltype.Value
 }
 
-func partitionProofAnd(a, b *partitionProofGoal) *partitionProofGoal {
+func proofAnd(a, b *ProofGoal) *ProofGoal {
 	if a.Op == "false" || b.Op == "false" {
-		return &partitionProofGoal{Op: "false"}
+		return &ProofGoal{Op: "false"}
 	}
 	if a.Op == "true" {
 		return b
@@ -34,11 +34,11 @@ func partitionProofAnd(a, b *partitionProofGoal) *partitionProofGoal {
 	if b.Op == "true" {
 		return a
 	}
-	return &partitionProofGoal{Op: "and", left: a, Right: b}
+	return &ProofGoal{Op: "and", left: a, Right: b}
 }
-func partitionProofOr(a, b *partitionProofGoal) *partitionProofGoal {
+func proofOr(a, b *ProofGoal) *ProofGoal {
 	if a.Op == "true" || b.Op == "true" {
-		return &partitionProofGoal{Op: "true"}
+		return &ProofGoal{Op: "true"}
 	}
 	if a.Op == "false" {
 		return b
@@ -46,12 +46,12 @@ func partitionProofOr(a, b *partitionProofGoal) *partitionProofGoal {
 	if b.Op == "false" {
 		return a
 	}
-	return &partitionProofGoal{Op: "or", left: a, Right: b}
+	return &ProofGoal{Op: "or", left: a, Right: b}
 }
 
 // Tuple predicates are lexicographic. Infinite suffixes terminate the finite
 // prefix; they are not ordinary type infinity values.
-func PartitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *partitionProofGoal {
+func ProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *ProofGoal {
 	datum := tuple[at]
 	if datum.Kind != 0 {
 		truth := datum.Kind < 0
@@ -59,26 +59,26 @@ func PartitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *
 			truth = !truth
 		}
 		if truth {
-			return &partitionProofGoal{Op: "true"}
+			return &ProofGoal{Op: "true"}
 		}
-		return &partitionProofGoal{Op: "false"}
+		return &ProofGoal{Op: "false"}
 	}
 	op := "<"
 	if greater {
 		op = ">="
 	}
 	if at == len(tuple)-1 {
-		return &partitionProofGoal{key: at, Op: op, value: datum.Value}
+		return &ProofGoal{key: at, Op: op, value: datum.Value}
 	}
-	rest := PartitionProofTuple(tuple, at+1, greater)
+	rest := ProofTuple(tuple, at+1, greater)
 	strict := "<"
 	if greater {
 		strict = ">"
 	}
-	return partitionProofOr(&partitionProofGoal{key: at, Op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, Op: "=", value: datum.Value}, rest))
+	return proofOr(&ProofGoal{key: at, Op: strict, value: datum.Value}, proofAnd(&ProofGoal{key: at, Op: "=", value: datum.Value}, rest))
 }
 
-func PartitionConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
+func ConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
 	// Range endpoint implication does not prove seeded hash membership. Private
 	// replay attachment uses the ordinary full-row validation path instead.
 	if bound.Strategy == parser.PartitionHash {
@@ -112,14 +112,14 @@ func PartitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 		}
 		keys[i] = node
 	}
-	proof := partitionProof{ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
-	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*partitionProofGoal, bool) {
+	proof := prover{ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
+	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*ProofGoal, bool) {
 		if complement {
-			return partitionProofOr(PartitionProofTuple(membership.Lower, 0, false), PartitionProofTuple(membership.Upper, 0, true)), true
+			return proofOr(ProofTuple(membership.Lower, 0, false), ProofTuple(membership.Upper, 0, true)), true
 		}
-		return partitionProofAnd(PartitionProofTuple(membership.Lower, 0, true), PartitionProofTuple(membership.Upper, 0, false)), false
+		return proofAnd(ProofTuple(membership.Lower, 0, true), ProofTuple(membership.Upper, 0, false)), false
 	}
-	goal := &partitionProofGoal{Op: "true"}
+	goal := &ProofGoal{Op: "true"}
 	nullAllowed := exclude || bound.DefaultBound
 	if bound.DefaultBound {
 		for _, address := range parent.Partition.Children {
@@ -128,7 +128,7 @@ func PartitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 				continue
 			}
 			part, _ := goalFor(child.Membership, true)
-			goal = partitionProofAnd(goal, part)
+			goal = proofAnd(goal, part)
 		}
 	} else {
 		goal, _ = goalFor(bound, exclude)
@@ -146,7 +146,7 @@ func PartitionConstraintProven(ctx context.Context, input sqltype.InputEnvironme
 	return proof.implies(goal)
 }
 
-type partitionProof struct {
+type prover struct {
 	ctx      context.Context
 	input    sqltype.InputEnvironment
 	relation *catalog.Relation
@@ -154,12 +154,12 @@ type partitionProof struct {
 	entries  []catalog.PartitionKeyEntry
 }
 
-func partitionProofSame(a, b expr.Expr) bool {
+func proofSame(a, b expr.Expr) bool {
 	binder := analyze.Binder{Consumer: analyze.ConsumerContext{CheckDefinitionEquality: true}}
 	return binder.SameGroupExpression(a, b)
 }
 
-func (p *partitionProof) nonNull(key expr.Expr) bool {
+func (p *prover) nonNull(key expr.Expr) bool {
 	if column, ok := key.(plan.ColumnExpr); ok {
 		for _, constraint := range p.relation.Constraints.NotNull {
 			if constraint.Attribute == column.Origin.Address.SubID && !constraint.NotValid {
@@ -168,29 +168,29 @@ func (p *partitionProof) nonNull(key expr.Expr) bool {
 		}
 	}
 	for _, check := range p.relation.Constraints.Check {
-		if !check.NotValid && partitionCheckNonNull(check.Expression, key) {
+		if !check.NotValid && checkNonNull(check.Expression, key) {
 			return true
 		}
 	}
 	return false
 }
 
-func partitionCheckNonNull(node, key expr.Expr) bool {
+func checkNonNull(node, key expr.Expr) bool {
 	switch e := node.(type) {
 	case plan.NullTestExpr:
-		return e.Not && partitionProofSame(e.Child, key)
+		return e.Not && proofSame(e.Child, key)
 	case plan.LogicalExpr:
 		if e.Op == parser.LogicalAnd {
-			return partitionCheckNonNull(e.Left, key) || partitionCheckNonNull(e.Right, key)
+			return checkNonNull(e.Left, key) || checkNonNull(e.Right, key)
 		}
 		if e.Op == parser.LogicalOr {
-			return partitionCheckNonNull(e.Left, key) && partitionCheckNonNull(e.Right, key)
+			return checkNonNull(e.Left, key) && checkNonNull(e.Right, key)
 		}
 	}
 	return false
 }
 
-func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
+func (p *prover) implies(goal *ProofGoal) (bool, error) {
 	if err := p.ctx.Err(); err != nil {
 		return false, err
 	}
@@ -216,7 +216,7 @@ func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
 	return false, nil
 }
 
-func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, error) {
+func (p *prover) fact(node expr.Expr, goal *ProofGoal) (bool, error) {
 	if goal.Op == "true" {
 		return true, nil
 	}
@@ -265,7 +265,7 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 	}
 	if e, ok := node.(plan.NullTestExpr); ok {
 		for _, key := range p.keys {
-			if partitionProofSame(e.Child, key) {
+			if proofSame(e.Child, key) {
 				return !e.Not, nil
 			}
 		}
@@ -278,9 +278,9 @@ func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, e
 	key := p.keys[goal.key]
 	operator := e.Operator
 	literal, matched := e.Right.(plan.LiteralExpr)
-	if !partitionProofSame(e.Left, key) || !matched {
+	if !proofSame(e.Left, key) || !matched {
 		literal, matched = e.Left.(plan.LiteralExpr)
-		if !matched || !partitionProofSame(e.Right, key) {
+		if !matched || !proofSame(e.Right, key) {
 			return false, nil
 		}
 		switch operator {

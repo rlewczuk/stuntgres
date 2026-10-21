@@ -1,21 +1,22 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/visibility"
 )
 
 // partitions returns the statement's partitions slot, allocating it on first use.
-func (s *StatementScope) partitions() *partitionScope {
+func (s *StatementScope) partitions() *partition.Scope {
 	if s.partitionsSlot == nil {
-		s.partitionsSlot = new(partitionScope)
+		s.partitionsSlot = new(partition.Scope)
 	}
 	return s.partitionsSlot
 }
 
 // partitionsOrZero reads the partitions slot; a nil slot reads as zero.
-func (s *StatementScope) partitionsOrZero() partitionScope {
+func (s *StatementScope) partitionsOrZero() partition.Scope {
 	if s.partitionsSlot == nil {
-		return partitionScope{}
+		return partition.Scope{}
 	}
 	return *s.partitionsSlot
 }

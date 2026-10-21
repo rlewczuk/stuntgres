@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -37,7 +38,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
 	if parent.Partition == nil {
-		return fail(PartitionAttachKindError(parent))
+		return fail(partition.AttachKindError(parent))
 	}
 	if parent.Partition.Strategy == parser.PartitionHash && !operationReplayOrZero(op).partitionAttach {
 		return fail(sqlError("0A000", "hash partition attachment is unsupported"))
@@ -51,7 +52,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
-	bound, err := PreparePartitionBounds(parent, raw.Bound)
+	bound, err := partition.PrepareBounds(parent, raw.Bound)
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return fail(err)
@@ -67,7 +68,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	// PostgreSQL demands incumbent DEFAULT AX before candidate AX. Its proof
 	// can elide descendant admission; candidate descendants always receive AX.
-	var defaultScans []partitionAttachScan
+	var defaultScans []partition.AttachScan
 	if !bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Partition.DefaultChild)
 		if err = scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
@@ -108,7 +109,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err != nil {
 		return Result{}, err
 	}
-	if err = PartitionAttachEligibility(catalog, parent, child); err != nil {
+	if err = partition.AttachEligibility(catalog, parent, child); err != nil {
 		return Result{}, err
 	}
 	if err = scope.acquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
@@ -156,10 +157,10 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	stage.domainBases = append(stage.domainBases, parent, child)
 	e.mu.Unlock()
-	if err = PartitionAttachEligibility(auth.Catalog, parent, child); err != nil {
+	if err = partition.AttachEligibility(auth.Catalog, parent, child); err != nil {
 		return Result{}, err
 	}
-	next, err := PartitionAttachSchema(scope.op.Context(), auth.Catalog, parent, child)
+	next, err := partition.AttachSchema(scope.op.Context(), auth.Catalog, parent, child)
 	if err != nil {
 		return Result{}, err
 	}

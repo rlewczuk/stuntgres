@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"stuntgres/internal/parser"
@@ -6,7 +6,7 @@ import (
 
 // Only selected EXCLUDE declarations use the public recursive ADD route.
 // Private replay origins for other constraint kinds retain their own fences.
-func PartitionExclusionAddActions(raw *parser.AlterTable) bool {
+func ExclusionAddActions(raw *parser.AlterTable) bool {
 	if len(raw.Actions) == 0 {
 		return false
 	}

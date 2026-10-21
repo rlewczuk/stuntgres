@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 )
 
-type partitionConstraintReplay struct {
+type ConstraintReplay struct {
 	Original  catalog.Read
 	resolver  dump.Resolver
 	Temporary map[ids.ObjectAddress]string
@@ -20,8 +20,8 @@ type partitionConstraintReplay struct {
 
 // Reserve names against the entire captured namespace, not just objects that
 // happen to have been emitted. Temporary names depend on logical order, not OIDs.
-func PartitionConstraintDumpCatalog(r dump.Resolver, view catalog.Read) (catalog.Read, *partitionConstraintReplay) {
-	replay := &partitionConstraintReplay{Original: view, resolver: r, Temporary: make(map[ids.ObjectAddress]string), Occupied: make(map[ids.ObjectAddress]map[string]bool)}
+func ConstraintDumpCatalog(r dump.Resolver, view catalog.Read) (catalog.Read, *ConstraintReplay) {
+	replay := &ConstraintReplay{Original: view, resolver: r, Temporary: make(map[ids.ObjectAddress]string), Occupied: make(map[ids.ObjectAddress]map[string]bool)}
 	var tables []*catalog.Relation
 	reserved := make(map[ids.ObjectAddress]map[string]bool)
 	for key := range view.Names() {
@@ -102,7 +102,7 @@ func PartitionConstraintDumpCatalog(r dump.Resolver, view catalog.Read) (catalog
 	return view, replay
 }
 
-func (r *partitionConstraintReplay) TableRenames(view catalog.Read, table *catalog.Relation) (string, error) {
+func (r *ConstraintReplay) TableRenames(view catalog.Read, table *catalog.Relation) (string, error) {
 	used := r.Occupied[table.Namespace()]
 	if used == nil {
 		used = make(map[string]bool)
@@ -120,7 +120,7 @@ func (r *partitionConstraintReplay) TableRenames(view catalog.Read, table *catal
 			used[idx.Name()] = true
 		}
 	}
-	if table.Membership == nil || PartitionDumpNeedsAttach(view, table) {
+	if table.Membership == nil || DumpNeedsAttach(view, table) {
 		return "", nil
 	}
 	return r.MembershipRenames(view, table, dump.Event{OID: table.Address().ObjectID}), nil
@@ -128,7 +128,7 @@ func (r *partitionConstraintReplay) TableRenames(view catalog.Read, table *catal
 
 // A populated ATTACH can create an entire inherited subtree in one SQL event.
 // Reserve that complete creation sequence before freeing any generated name.
-func (r *partitionConstraintReplay) MembershipRenames(view catalog.Read, table *catalog.Relation, event dump.Event) string {
+func (r *ConstraintReplay) MembershipRenames(view catalog.Read, table *catalog.Relation, event dump.Event) string {
 	type rename struct {
 		index     *catalog.Relation
 		generated string
@@ -143,7 +143,7 @@ func (r *partitionConstraintReplay) MembershipRenames(view catalog.Read, table *
 		if root := index.PartitionReplayVirtualUniqueRoot(r.Original, idx); root != nil && !index.PartitionReplayOnlyExclusion(root) {
 			return
 		}
-		if partitionConstraintCreator(r.resolver, r.Original, idx) != event {
+		if constraintCreator(r.resolver, r.Original, idx) != event {
 			return
 		}
 		used := r.Occupied[idx.Namespace()]
@@ -189,7 +189,7 @@ func (r *partitionConstraintReplay) MembershipRenames(view catalog.Read, table *
 	return sql.String()
 }
 
-func (r *partitionConstraintReplay) FinalRenameOrder() []*catalog.Relation {
+func (r *ConstraintReplay) FinalRenameOrder() []*catalog.Relation {
 	var indexes []*catalog.Relation
 	for address := range r.Temporary {
 		indexes = append(indexes, r.Original.MustRelation(address))
@@ -200,7 +200,7 @@ func (r *partitionConstraintReplay) FinalRenameOrder() []*catalog.Relation {
 	return indexes
 }
 
-func (r *partitionConstraintReplay) FinalRenameSQL(index *catalog.Relation) string {
+func (r *ConstraintReplay) FinalRenameSQL(index *catalog.Relation) string {
 	used := r.Occupied[index.Namespace()]
 	if used == nil {
 		used = make(map[string]bool)
@@ -212,7 +212,7 @@ func (r *partitionConstraintReplay) FinalRenameSQL(index *catalog.Relation) stri
 	return "ALTER INDEX " + schema + "." + catalog.QuoteIdentifier(r.Temporary[index.Address()]) + " RENAME TO " + catalog.QuoteIdentifier(index.Name()) + ";\n"
 }
 
-func PartitionIndexDumpAttachmentSQL(view catalog.Read, index *catalog.Relation) string {
+func IndexDumpAttachmentSQL(view catalog.Read, index *catalog.Relation) string {
 	parent := view.MustRelation(index.SQLIndex.PartitionParent)
 	return "ALTER INDEX " + catalog.QuoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name()) + " ATTACH PARTITION " + catalog.QuoteIdentifier(view.Get(index.Namespace()).Name()) + "." + catalog.QuoteIdentifier(index.Name()) + ";\n"
 }

@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"stuntgres/internal/engine/authorization"
@@ -14,18 +14,18 @@ import (
 // Each demanded key has its own original manifest. The statement owns cooked
 // expressions, never row values or permission results; routinePrograms owns the
 // consumed graph for the existing wait/publication readmission fences.
-type partitionRoutineIdentity struct {
+type RoutineIdentity struct {
 	owner *catalog.Relation
 	phase ids.CommandIdentity
 	actor authorization.PrincipalRef
 	ri    bool
 }
 
-// partitionRecipeHost is the statement state a partition key recipe reads
+// RecipeHost is the statement state a partition key recipe reads
 // through its evaluation's live host. The root implements it on statementHost;
 // without a statement host the recipe runs uncached under the evaluation's own
 // routine program.
-type partitionRecipeHost interface {
+type RecipeHost interface {
 	// CommandIdentity is the statement's transaction and command identity.
 	CommandIdentity() ids.CommandIdentity
 	// PreparedDomainChecks are the statement's prepared domain check programs.
@@ -34,17 +34,17 @@ type partitionRecipeHost interface {
 	// authority; false outside a referential action.
 	ReferentialActor() (authorization.PrincipalRef, bool)
 	// PartitionPrograms returns the consumed recipe programs of identity, or nil.
-	PartitionPrograms(identity partitionRoutineIdentity) []expr.Expr
+	PartitionPrograms(identity RoutineIdentity) []expr.Expr
 	// RecordPartitionPrograms caches the programs of identity and records their
 	// routine admission among the statement's consumed routine programs.
-	RecordPartitionPrograms(identity partitionRoutineIdentity, expressions []expr.Expr, admission exec.RoutineProgram)
+	RecordPartitionPrograms(identity RoutineIdentity, expressions []expr.Expr, admission exec.RoutineProgram)
 }
 
-func EvaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
+func EvaluateRecipe(evaluation *exec.Context, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
 	key := owner.Partition.Keys[keyIndex].Derived
 	local := index.RecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1
-	host, _ := local.LiveHost().(partitionRecipeHost)
+	host, _ := local.LiveHost().(RecipeHost)
 	if host != nil {
 		local.DomainPhase = host.CommandIdentity()
 		local.PreparedDomainChecks = host.PreparedDomainChecks()
@@ -53,7 +53,7 @@ func EvaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, 
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	identity := partitionRoutineIdentity{owner: owner, phase: local.DomainPhase, actor: auth.State.CurrentUser}
+	identity := RoutineIdentity{owner: owner, phase: local.DomainPhase, actor: auth.State.CurrentUser}
 	if host != nil {
 		actor, ok := host.ReferentialActor()
 		identity.ri = ok && actor == auth.State.CurrentUser
@@ -87,24 +87,24 @@ func EvaluatePartitionRecipe(evaluation *exec.Context, owner *catalog.Relation, 
 	return value, err
 }
 
-// partitionScope is the statement's partition slot: consumed partition routine
+// Scope is the statement's partition slot: consumed partition routine
 // programs and the latest-DDL validation scan view (never the retained query
 // snapshot).
-type partitionScope struct {
-	Programs       map[partitionRoutineIdentity][]expr.Expr
+type Scope struct {
+	Programs       map[RoutineIdentity][]expr.Expr
 	ValidationView *visibility.View // Latest DDL scan, same owner; never the retained query snapshot.
 }
 
 // dropPrograms drops the consumed partition routine programs together with
 // the borrowed admission context they belong to.
-func (p *partitionScope) DropPrograms() {
+func (p *Scope) DropPrograms() {
 	if p != nil {
 		p.Programs = nil
 	}
 }
 
 // releaseValidationView releases the latest-DDL scan view, if any.
-func (p *partitionScope) ReleaseValidationView() {
+func (p *Scope) ReleaseValidationView() {
 	if p != nil && p.ValidationView != nil {
 		p.ValidationView.Release()
 		p.ValidationView = nil

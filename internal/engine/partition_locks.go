@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -41,7 +42,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 		if access.RowSecurityActions(s.Actions) || tablespaceOnlyActions(s.Actions) {
 			return nil
 		}
-		if PartitionExclusionAddActions(s) {
+		if partition.ExclusionAddActions(s) {
 			return nil
 		}
 		if index.PartitionConstraintDropActions(d, s.Actions) {
@@ -59,7 +60,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 				err.Hint = "Do not specify the ONLY keyword."
 				return err
 			}
-			if slot, ok := d.Index[action.Column.Text]; ok && PartitionKeyUsesAttribute(d, d.Attributes[slot]) {
+			if slot, ok := d.Index[action.Column.Text]; ok && partition.KeyUsesAttribute(d, d.Attributes[slot]) {
 				return sqlError("42P16", fmt.Sprintf(`cannot drop column "%s" because it is part of the partition key of relation "%s"`, action.Column.Text, d.Name()))
 			}
 		}
@@ -137,7 +138,7 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !PartitionAppendCompatible(old, d) {
+	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partition.AppendCompatible(old, d) {
 		return ids.ErrCatalogReplaced
 	}
 	if catalog.HierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
@@ -248,7 +249,7 @@ func (s *StatementScope) partitionCaptureCatalog(catalog catalog.Read) catalog.R
 	changed := false
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.Relation(address)
-		if current != captured && PartitionAppendCompatible(captured, current) {
+		if current != captured && partition.AppendCompatible(captured, current) {
 			changed = true
 			break
 		}
@@ -260,7 +261,7 @@ func (s *StatementScope) partitionCaptureCatalog(catalog catalog.Read) catalog.R
 	state.CloneDescriptors()
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.Relation(address)
-		if current != captured && PartitionAppendCompatible(captured, current) {
+		if current != captured && partition.AppendCompatible(captured, current) {
 			state.SetDescriptor(address, captured)
 		}
 	}

@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func partitionConstraintCreator(r dump.Resolver, view catalog.Read, idx *catalog.Relation) dump.Event {
+func constraintCreator(r dump.Resolver, view catalog.Read, idx *catalog.Relation) dump.Event {
 	root := index.PartitionReplayVirtualUniqueRoot(view, idx)
 	if root != nil && (!index.PartitionReplayOnlyExclusion(root) || root.Address() == idx.Address()) {
 		return dump.Event{OID: root.Address().ObjectID}
@@ -28,7 +28,7 @@ func partitionConstraintCreator(r dump.Resolver, view catalog.Read, idx *catalog
 	creator := dump.Event{OID: table.Address().ObjectID}
 	for idx.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		table = view.MustRelation(idx.SQLIndex.Parent)
-		if PartitionDumpNeedsAttach(view, table) {
+		if DumpNeedsAttach(view, table) {
 			creator = dump.Event{OID: table.Address().ObjectID, Phase: dump.TableAttachment}
 		}
 		idx = view.MustRelation(idx.SQLIndex.PartitionParent)
@@ -38,7 +38,7 @@ func partitionConstraintCreator(r dump.Resolver, view catalog.Read, idx *catalog
 
 // Remove only DEFAULT-last edges contradicted by an ONLY origin's captured
 // gap-before-declaration-before-covered-membership requirements.
-func partitionExclusionDefaultBefore(view catalog.Read, gap, sibling *catalog.Relation) bool {
+func exclusionDefaultBefore(view catalog.Read, gap, sibling *catalog.Relation) bool {
 	if gap.Membership == nil || !gap.Membership.DefaultBound {
 		return false
 	}
@@ -51,7 +51,7 @@ func partitionExclusionDefaultBefore(view catalog.Read, gap, sibling *catalog.Re
 	return false
 }
 
-func PartitionVirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relation) (string, error) {
+func VirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relation) (string, error) {
 	table := view.MustRelation(idx.SQLIndex.Parent)
 	if idx.SQLIndex.IsExclusion() {
 		text, err := index.DefinitionSQL(context.Background(), view, idx, index.Presentation{Dump: true, Exclusion: true})
@@ -80,7 +80,7 @@ func PartitionVirtualUniqueDefinitionSQL(view catalog.Read, idx *catalog.Relatio
 // Reserve the real recursive creation sequence before any RENAME frees a stem,
 // exactly like existing inline partition constraint replay. Final names remain
 // owned by the scheduler's existing terminal rename barriers.
-func (r *partitionConstraintReplay) VirtualUniqueRenames(view catalog.Read, idx *catalog.Relation) string {
+func (r *ConstraintReplay) VirtualUniqueRenames(view catalog.Read, idx *catalog.Relation) string {
 	if index.PartitionReplayOnlyExclusion(idx) {
 		return ""
 	}
@@ -134,23 +134,23 @@ func (r *partitionConstraintReplay) VirtualUniqueRenames(view catalog.Read, idx 
 	return sql.String()
 }
 
-func partitionVirtualUniqueMembershipReady(view catalog.Read, graph dump.Graph, event dump.Event, table *catalog.Relation) {
+func virtualUniqueMembershipReady(view catalog.Read, graph dump.Graph, event dump.Event, table *catalog.Relation) {
 	member := dump.Event{OID: table.Address().ObjectID}
-	if PartitionDumpNeedsAttach(view, table) {
+	if DumpNeedsAttach(view, table) {
 		member.Phase = dump.TableAttachment
 	}
 	graph.Add(event, member)
 	if table.Partition != nil {
 		for _, address := range table.Partition.Children {
-			partitionVirtualUniqueMembershipReady(view, graph, event, view.MustRelation(address))
+			virtualUniqueMembershipReady(view, graph, event, view.MustRelation(address))
 		}
 	}
 }
 
-func partitionReplayTopologyReady(view catalog.Read, table *catalog.Relation) bool {
+func replayTopologyReady(view catalog.Read, table *catalog.Relation) bool {
 	for _, descriptor := range view.Descriptors() {
 		idx, ok := descriptor.(*catalog.Relation)
-		if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == table.Address() && (partitionPreservedReplayBacking(view, idx) || index.PartitionReplayVirtualUniqueRoot(view, idx) != nil) {
+		if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == table.Address() && (preservedReplayBacking(view, idx) || index.PartitionReplayVirtualUniqueRoot(view, idx) != nil) {
 			return true
 		}
 	}

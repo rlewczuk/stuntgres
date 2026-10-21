@@ -12,6 +12,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
@@ -159,7 +160,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 		t.Fatal("failed CHECK mutated remapped storage")
 	}
 	for _, name := range []string{"root", "leaf"} {
-		if err := ValidatePartitionDescriptor(e.CatalogRead(), rangePartitionRelation(t, e, name)); err != nil {
+		if err := partition.ValidateDescriptor(e.CatalogRead(), rangePartitionRelation(t, e, name)); err != nil {
 			t.Fatal(err)
 		}
 	}

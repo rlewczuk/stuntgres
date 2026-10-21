@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
@@ -28,8 +29,8 @@ type partitionInsertState struct {
 	layouts     map[ids.ObjectAddress]*exec.InheritanceQuerySegment
 	physicalRow []sqltype.Value
 	namedRow    []sqltype.Value
-	groups      map[ids.ObjectAddress]*partitionInsertGroup
-	order       []*partitionInsertGroup
+	groups      map[ids.ObjectAddress]*partition.InsertGroup
+	order       []*partition.InsertGroup
 }
 
 func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth AuthorizationView, target *catalog.Relation) error {
@@ -84,7 +85,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		}
 		child = parent
 	}
-	if err := PartitionPhysicalDescendants(auth.Catalog, target, func(leaf *catalog.Relation) error {
+	if err := partition.PhysicalDescendants(auth.Catalog, target, func(leaf *catalog.Relation) error {
 		if err := e.captureCheckCommentSnapshotLocked(s, leaf); err != nil {
 			return err
 		}
@@ -107,7 +108,7 @@ func (s *StatementScope) validatePartitionInsert(b analyze.Binding, row []sqltyp
 	destination := state.target
 	for destination.Partition != nil {
 		var values [32]catalog.PartitionDatum
-		key, err := PartitionRowKey(destination, state.rowFor(destination, row), evaluation, values[:0])
+		key, err := partition.RowKey(destination, state.rowFor(destination, row), evaluation, values[:0])
 		if err != nil {
 			return err
 		}
@@ -117,7 +118,7 @@ func (s *StatementScope) validatePartitionInsert(b analyze.Binding, row []sqltyp
 			if child.Membership.DefaultBound {
 				continue
 			}
-			contains, err := PartitionContains(evaluation.Context, destination.Partition.Keys, child.Membership, key, s.input)
+			contains, err := partition.Contains(evaluation.Context, destination.Partition.Keys, child.Membership, key, s.input)
 			if err != nil {
 				return err
 			}
@@ -161,7 +162,7 @@ func (s *StatementScope) validateTargetPartitionConstraint(b analyze.Binding, ro
 	state := s.partitionInsert
 	for child := state.target; child.Membership != nil; {
 		parent := state.catalog.MustRelation(child.Membership.Parent)
-		accepts, err := PartitionAccepts(state.catalog, parent, child, state.rowFor(parent, row), evaluation)
+		accepts, err := partition.Accepts(state.catalog, parent, child, state.rowFor(parent, row), evaluation)
 		if err != nil {
 			return err
 		}
@@ -279,14 +280,14 @@ func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value
 	return row
 }
 
-func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partitionInsertGroup {
+func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partition.InsertGroup {
 	state := s.partitionInsert
 	address := state.destination.Address()
 	group := state.groups[address]
 	if group == nil {
-		group = &partitionInsertGroup{Ref: ref.Domain().Ref(ref.Epoch, address)}
+		group = &partition.InsertGroup{Ref: ref.Domain().Ref(ref.Epoch, address)}
 		if state.groups == nil {
-			state.groups = make(map[ids.ObjectAddress]*partitionInsertGroup)
+			state.groups = make(map[ids.ObjectAddress]*partition.InsertGroup)
 		}
 		state.groups[address] = group
 		state.order = append(state.order, group)

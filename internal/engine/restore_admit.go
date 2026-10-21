@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -214,7 +215,7 @@ func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser
 
 // admitRestoreDropTable admits only a generated partition replay teardown.
 func admitRestoreDropTable(r *restoreRun, op *session.Operation, s *parser.DropTable) error {
-	if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, PartitionReplayStem) {
+	if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, partition.ReplayStem) {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	return r.stage.validatePartitionReplayTeardown(op, s.Names[0], r.partitionTeardowns)

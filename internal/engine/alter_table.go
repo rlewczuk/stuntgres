@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
@@ -74,7 +75,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if partitionUniqueReplayAllowed(op, auth, s, old) {
 		return e.executePartitionUniqueReplayLocked(scope, op, auth, s, old)
 	}
-	if catalog.HierarchyRelation(old) && PartitionExclusionAddActions(s) {
+	if catalog.HierarchyRelation(old) && partition.ExclusionAddActions(s) {
 		return e.executePartitionExclusionAddLocked(scope, op, auth, s, old)
 	}
 	if catalog.HierarchyRelation(old) && index.PartitionConstraintDropActions(old, s.Actions) {

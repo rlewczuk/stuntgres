@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -42,7 +43,7 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 			key.Label = r.Column.Text
 			if _, generated := d.ColumnMeta.Generations[key.Attribute]; generated {
 				diagnostic := sqlError("42P17", "cannot use generated column in partition key")
-				return nil, PartitionGeneratedError(diagnostic, r.Pos, key.Label)
+				return nil, partition.GeneratedError(diagnostic, r.Pos, key.Label)
 			}
 		} else {
 			ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
@@ -72,7 +73,7 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 			}
 			for _, slot := range binder.Query.Sources[0].Uses {
 				if _, generated := d.ColumnMeta.Generations[d.Attributes[slot]]; generated {
-					return nil, PartitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
+					return nil, partition.GeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
 			}
 			key.Derived = &catalog.DerivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}

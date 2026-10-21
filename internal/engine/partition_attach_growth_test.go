@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -141,7 +142,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal(err)
 			}
 			current := e.catalog.state.MustRelation(parent.Address())
-			if !PartitionAppendCompatible(parent, current) {
+			if !partition.AppendCompatible(parent, current) {
 				t.Fatal("same-authority append rejected")
 			}
 			if replacement {
@@ -171,10 +172,10 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			}
 			captured := reader.partitionCaptureCatalog(e.CatalogRead())
 			var admitted, fresh []ids.ObjectAddress
-			if err := PartitionPhysicalDescendants(captured, captured.MustRelation(parent.Address()), func(d *catalog.Relation) error { admitted = append(admitted, d.Address()); return nil }); err != nil {
+			if err := partition.PhysicalDescendants(captured, captured.MustRelation(parent.Address()), func(d *catalog.Relation) error { admitted = append(admitted, d.Address()); return nil }); err != nil {
 				t.Fatal(err)
 			}
-			if err := PartitionPhysicalDescendants(e.CatalogRead(), current, func(d *catalog.Relation) error { fresh = append(fresh, d.Address()); return nil }); err != nil {
+			if err := partition.PhysicalDescendants(e.CatalogRead(), current, func(d *catalog.Relation) error { fresh = append(fresh, d.Address()); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if !slices.Equal(admitted, []ids.ObjectAddress{old.Address()}) || !slices.Equal(fresh, []ids.ObjectAddress{old.Address(), candidate.Address()}) {
@@ -256,7 +257,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			bound := partitionAttachUnitRange(t, parent, 1, 3)
-			var scans []partitionAttachScan
+			var scans []partition.AttachScan
 			join := partitionAttachUnitWorker(t, scope, func() error {
 				if mode == "candidate_proven" {
 					if err := scope.acquirePartitionDescendants(targetRef, lock.AccessExclusive); err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 )
 
 // The third pair makes the schema-before-object requirement deterministic even
@@ -35,7 +36,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				}
 			}
 			view := e.catalog.read(state)
-			_, replay := PartitionConstraintDumpCatalog(dumpResolver{}, view)
+			_, replay := partition.ConstraintDumpCatalog(dumpResolver{}, view)
 			// Exact ordinals, not just uniqueness, define canonical table allocation.
 			for i, index := range indexes {
 				want := fmt.Sprintf("__stuntgres_partition_key_%d", i+1)

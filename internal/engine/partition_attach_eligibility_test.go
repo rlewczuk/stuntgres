@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -16,7 +17,7 @@ func TestPartitionAttachEligibility(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "parent", 32200, "k")
 	child := inheritanceUnitRelation(e, "child", 32201, "k")
 	view := inheritanceUnitView(e, parent, child)
-	if err := PartitionAttachEligibility(view, parent, child); err != nil {
+	if err := partition.AttachEligibility(view, parent, child); err != nil {
 		t.Fatal(err)
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32202}
@@ -24,7 +25,7 @@ func TestPartitionAttachEligibility(t *testing.T) {
 	child.ObjectNamespace = ns
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: `cannot attach a temporary relation as partition of permanent relation "parent"`}
 	var got *sqlstate.Error
-	if err := PartitionAttachEligibility(view, parent, child); !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
+	if err := partition.AttachEligibility(view, parent, child); !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
 		t.Fatalf("temporary eligibility: got %v want %v", err, want)
 	}
 	if child.Membership != nil || parent.Partition != nil {
@@ -51,7 +52,7 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	view := inheritanceUnitView(e, parent, child)
 	check := func(wantValid bool) {
 		t.Helper()
-		err := ValidatePartitionDescriptor(view, child)
+		err := partition.ValidateDescriptor(view, child)
 		if (err == nil) != wantValid {
 			t.Fatalf("persistence validity got %v want valid=%v", err, wantValid)
 		}
@@ -102,7 +103,7 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, PartitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, PartitionLocal: true}}
 			original := append([]catalog.NotNullConstraint(nil), child.Constraints.NotNull...)
 			view := inheritanceUnitView(e, parent, child)
-			next, err := PartitionAttachSchema(op.Context(), view, parent, child)
+			next, err := partition.AttachSchema(op.Context(), view, parent, child)
 			if !c.parentInvalid && c.childInvalid {
 				want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P17", Message: `constraint "` + name + `" conflicts with NOT VALID constraint on child table "child"`}
 				var got *sqlstate.Error

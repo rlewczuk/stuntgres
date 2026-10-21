@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func PartitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (string, error) {
+func TupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (string, error) {
 	var text strings.Builder
 	for i, datum := range tuple {
 		if i > 0 {
@@ -29,9 +29,9 @@ func PartitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (str
 	return text.String(), nil
 }
 
-// partitionBoundary is a statement-local projection of the one immutable child
+// Boundary is a statement-local projection of the one immutable child
 // topology. Tuples and descriptors are referenced, not copied or persisted.
-type partitionBoundary struct {
+type Boundary struct {
 	Tuple    []catalog.PartitionDatum
 	Relation *catalog.Relation
 	Lower    bool

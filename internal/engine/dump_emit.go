@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 )
@@ -134,12 +135,12 @@ func emitDumpRename(_ context.Context, s *dumpScript, w *dumpWriter, event dump.
 }
 
 func emitDumpIndexAttachment(_ context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
-	return w.emit(PartitionIndexDumpAttachmentSQL(s.originalCatalog, dumpEventRelation(s.originalCatalog, event)))
+	return w.emit(partition.IndexDumpAttachmentSQL(s.originalCatalog, dumpEventRelation(s.originalCatalog, event)))
 }
 
 func emitDumpTableAttachment(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
 	descriptor := dumpEventRelation(s.originalCatalog, event)
-	text, err := PartitionAttachDumpSQL(ctx, s.originalCatalog, descriptor)
+	text, err := partition.AttachDumpSQL(ctx, s.originalCatalog, descriptor)
 	if err != nil {
 		return err
 	}

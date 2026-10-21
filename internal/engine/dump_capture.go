@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
@@ -37,7 +38,7 @@ type dumpCapture struct {
 	// values.
 	catalogView, originalCatalog catalog.Read
 	originalRoles, domainRoles   authorization.Read
-	constraintReplay             *partitionConstraintReplay
+	constraintReplay             *partition.ConstraintReplay
 	recipePlan                   map[ids.ObjectAddress]*table.DumpRelation
 	aclOutput                    regobj.ACLItemOutput
 
@@ -109,7 +110,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*dumpCapture, error) {
 	}
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
-	catalogView, constraintReplay := PartitionConstraintDumpCatalog(dumpResolver{}, catalogView)
+	catalogView, constraintReplay := partition.ConstraintDumpCatalog(dumpResolver{}, catalogView)
 	domainRoles := e.roles.read(e.catalog.owner(), catalogView, e.roles.published)
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err

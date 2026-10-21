@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
@@ -25,7 +26,7 @@ type dumpScript struct {
 	seedStatements, conversionSeeds           []string
 	conversionSchemas                         []string
 	sequenceCreation, sequenceCompletion      []string
-	invalidReplay                             map[ids.OID]partitionInvalidReplay
+	invalidReplay                             map[ids.OID]partition.InvalidReplay
 	eventOrder                                []dump.Event
 	declarations                              map[ids.OID]dump.Statement
 	operatorLinks                             map[ids.OID]string
@@ -200,10 +201,10 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 		}
 	}
 	viewOrder := dump.DeclarationIDs(declarationOrder)
-	if err := PartitionDumpEvents(ctx, dumpResolver{}, s.originalCatalog, s.graph, dump.DeclarationEvents(viewOrder), s.tables, s.indexIndices, s.constraintReplay, s.deferDefaults); err != nil {
+	if err := partition.DumpEvents(ctx, dumpResolver{}, s.originalCatalog, s.graph, dump.DeclarationEvents(viewOrder), s.tables, s.indexIndices, s.constraintReplay, s.deferDefaults); err != nil {
 		return nil, err
 	}
-	s.invalidReplay = PartitionInvalidDumpEvents(s.originalCatalog, s.graph, s.indexIndices)
+	s.invalidReplay = partition.InvalidDumpEvents(s.originalCatalog, s.graph, s.indexIndices)
 	if err := domainInvalidDumpEvents(ctx, s.catalogView, s.graph, s.domainNodes); err != nil {
 		return nil, err
 	}

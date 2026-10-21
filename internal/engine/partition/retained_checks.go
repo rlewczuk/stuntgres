@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func partitionRetainedAttributeChanged(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, attribute int32, before, after []sqltype.Value) (bool, error) {
+func retainedAttributeChanged(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, attribute int32, before, after []sqltype.Value) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -35,13 +35,13 @@ func partitionRetainedAttributeChanged(ctx context.Context, h index.PartitionRow
 					if input == attribute {
 						continue
 					}
-					changed, err := partitionRetainedAttributeChanged(ctx, h, d, input, before, after)
+					changed, err := retainedAttributeChanged(ctx, h, d, input, before, after)
 					if err != nil || changed {
 						return changed, err
 					}
 				}
 			} else {
-				changed, err := partitionRetainedAttributeChanged(ctx, h, d, address.SubID, before, after)
+				changed, err := retainedAttributeChanged(ctx, h, d, address.SubID, before, after)
 				if err != nil || changed {
 					return changed, err
 				}
@@ -55,7 +55,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h index.PartitionRow
 
 // Only material datum/provider changes make a retained NOT VALID check newly
 // relevant. Descriptor ownership alone does not change its old-row authority.
-func partitionRetainedCheckAffected(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, check catalog.CheckConstraint, before, after []sqltype.Value) (bool, error) {
+func retainedCheckAffected(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, check catalog.CheckConstraint, before, after []sqltype.Value) (bool, error) {
 	var original *catalog.CheckConstraint
 	for i := range h.Relation.Constraints.Check {
 		if h.Relation.Constraints.Check[i].Name == check.Name {
@@ -73,13 +73,13 @@ func partitionRetainedCheckAffected(ctx context.Context, h index.PartitionRowHis
 		if whole == h.Relation.Address() {
 			if address.SubID == 0 {
 				for _, attribute := range h.Relation.Attributes {
-					changed, err := partitionRetainedAttributeChanged(ctx, h, d, attribute, before, after)
+					changed, err := retainedAttributeChanged(ctx, h, d, attribute, before, after)
 					if err != nil || changed {
 						return changed, err
 					}
 				}
 			} else {
-				changed, err := partitionRetainedAttributeChanged(ctx, h, d, address.SubID, before, after)
+				changed, err := retainedAttributeChanged(ctx, h, d, address.SubID, before, after)
 				if err != nil || changed {
 					return changed, err
 				}
@@ -94,7 +94,7 @@ func partitionRetainedCheckAffected(ctx context.Context, h index.PartitionRowHis
 // their ownership. Only material literal payloads or an owner-sensitive result,
 // not Type/Domain/Procedure/Collation address renumbering, change that recipe's
 // retained-row inputs. Compare literals before any identity normalization.
-func PartitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, ownerChanged bool) (bool, error) {
+func CheckRecipeAffected(ctx context.Context, before, after expr.Expr, ownerChanged bool) (bool, error) {
 	if ownerChanged && plan.GenerationHasTableOID(before) {
 		return true, ctx.Err()
 	}
@@ -142,13 +142,13 @@ func PartitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, 
 // This one statement-local descriptor reuses ordinary physical validation and its
 // CHECK preflight ordering. Its subset changes only when affected inputs change;
 // invalidate the existing preparation entry then, never a published descriptor.
-type partitionRetainedChecks struct {
+type RetainedChecks struct {
 	descriptor     catalog.Relation
 	initialized    bool
 	recipeAffected []bool
 }
 
-func (p *partitionRetainedChecks) ForRow(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *index.Snapshot, evaluation *exec.Context) (*catalog.Relation, error) {
+func (p *RetainedChecks) ForRow(ctx context.Context, h index.PartitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *index.Snapshot, evaluation *exec.Context) (*catalog.Relation, error) {
 	if !p.initialized {
 		p.descriptor = *d
 		p.descriptor.Constraints.Check = slices.Clone(d.Constraints.Check)
@@ -168,7 +168,7 @@ func (p *partitionRetainedChecks) ForRow(ctx context.Context, h index.PartitionR
 			if original == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			affected, err := PartitionCheckRecipeAffected(ctx, original.Expression, check.Expression, ownerChanged)
+			affected, err := CheckRecipeAffected(ctx, original.Expression, check.Expression, ownerChanged)
 			if err != nil {
 				return nil, err
 			}
@@ -189,7 +189,7 @@ func (p *partitionRetainedChecks) ForRow(ctx context.Context, h index.PartitionR
 					if !exists {
 						return nil, ids.ErrCatalogReplaced
 					}
-					different, err := PartitionCheckRecipeAffected(ctx, generation.Planned, current.Planned, ownerChanged)
+					different, err := CheckRecipeAffected(ctx, generation.Planned, current.Planned, ownerChanged)
 					if err != nil {
 						return nil, err
 					}
@@ -212,7 +212,7 @@ func (p *partitionRetainedChecks) ForRow(ctx context.Context, h index.PartitionR
 			affected := p.recipeAffected != nil && p.recipeAffected[i]
 			if !affected {
 				var err error
-				affected, err = partitionRetainedCheckAffected(ctx, h, d, check, before, after)
+				affected, err = retainedCheckAffected(ctx, h, d, check, before, after)
 				if err != nil {
 					return nil, err
 				}

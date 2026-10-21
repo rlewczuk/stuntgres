@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"slices"
@@ -9,7 +9,7 @@ import (
 
 // These newly admitted mutation forms finish ordinary analysis and ACL checks,
 // but must not demand defaults, capture virtual storage or publish routed effects.
-func PartitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) error {
+func WriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) error {
 	if d == nil || !catalog.HierarchyRelation(d) {
 		return nil
 	}
@@ -24,7 +24,7 @@ func PartitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Rela
 	return nil
 }
 
-func PartitionKeyUsesAttribute(d *catalog.Relation, attribute int32) bool {
+func KeyUsesAttribute(d *catalog.Relation, attribute int32) bool {
 	if d.Partition == nil {
 		return false
 	}
@@ -45,7 +45,7 @@ func PartitionKeyUsesAttribute(d *catalog.Relation, attribute int32) bool {
 
 // The stored defining arrays/key providers remain identical. Only an appended
 // child manifest may cross the read admission fence; no name/shape retargeting.
-func PartitionAppendCompatible(old, current *catalog.Relation) bool {
+func AppendCompatible(old, current *catalog.Relation) bool {
 	if old == nil || current == nil || old.Partition == nil || current.Partition == nil ||
 		!catalog.RelationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
 		old.Membership != current.Membership || old.Inheritance != current.Inheritance ||

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -21,11 +22,11 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		if b.Modulus > greatest {
 			greatest = b.Modulus
 		}
-		if CompareHashPartitionBound(b, p.bound) <= 0 {
-			if preceding == nil || CompareHashPartitionBound(preceding.Membership, b) < 0 {
+		if partition.CompareHashBound(b, p.bound) <= 0 {
+			if preceding == nil || partition.CompareHashBound(preceding.Membership, b) < 0 {
 				preceding = child
 			}
-		} else if following == nil || CompareHashPartitionBound(b, following.Membership) < 0 {
+		} else if following == nil || partition.CompareHashBound(b, following.Membership) < 0 {
 			following = child
 		}
 	}
@@ -47,7 +48,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 			return err
 		}
 		child := p.stage.Base.MustRelation(address)
-		if !HashPartitionOverlap(p.bound, child.Membership) {
+		if !partition.HashOverlap(p.bound, child.Membership) {
 			continue
 		}
 		slot := p.bound.Remainder

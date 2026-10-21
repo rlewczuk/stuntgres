@@ -7,24 +7,25 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Candidate AX admission is unconditional and already complete. DEFAULT opens
 // descendants only when the deciding relation cannot prove its exclusion.
-func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, parent, target *catalog.Relation, bound *catalog.PartitionMembership, exclude, lockChildren bool) ([]partitionAttachScan, error) {
-	var scans []partitionAttachScan
+func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, parent, target *catalog.Relation, bound *catalog.PartitionMembership, exclude, lockChildren bool) ([]partition.AttachScan, error) {
+	var scans []partition.AttachScan
 	var walk func(catalog.Read, *catalog.Relation) error
 	walk = func(view catalog.Read, d *catalog.Relation) error {
-		proven, err := PartitionConstraintProven(s.op.Context(), s.input, view, parent, d, bound, exclude)
+		proven, err := partition.ConstraintProven(s.op.Context(), s.input, view, parent, d, bound, exclude)
 		if err != nil {
 			return err
 		}
 		if proven && !exclude {
 			for child := parent; child.Membership != nil; {
 				ancestor := view.MustRelation(child.Membership.Parent)
-				proven, err = PartitionConstraintProven(s.op.Context(), s.input, view, ancestor, d, child.Membership, false)
+				proven, err = partition.ConstraintProven(s.op.Context(), s.input, view, ancestor, d, child.Membership, false)
 				if err != nil || !proven {
 					break
 				}
@@ -38,7 +39,7 @@ func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, paren
 			return nil
 		}
 		if d.Partition == nil {
-			scans = append(scans, partitionAttachScan{Leaf: d, Exclude: exclude})
+			scans = append(scans, partition.AttachScan{Leaf: d, Exclude: exclude})
 			return nil
 		}
 		for _, address := range d.Partition.Children {
@@ -71,7 +72,7 @@ func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, paren
 // Fences cover the complete candidate stores even when proof elides a scan.
 // Scanned DEFAULT stores have their own predecessors. Normal query snapshots
 // are untouched; the dedicated view uses the same owner/command and own rows.
-func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogStage, view catalog.Read, candidate *catalog.Relation, jobs []partitionAttachScan) error {
+func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogStage, view catalog.Read, candidate *catalog.Relation, jobs []partition.AttachScan) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -89,7 +90,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 		stage.storageReads = append(stage.storageReads, storageReadFence{address: d.Address(), storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
 		return nil
 	}
-	if err := PartitionPhysicalDescendants(view, candidate, capture); err != nil {
+	if err := partition.PhysicalDescendants(view, candidate, capture); err != nil {
 		return err
 	}
 	refs := make([]ids.ObjectRef, 0, len(jobs))
@@ -108,17 +109,17 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 	return err
 }
 
-func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, parent *catalog.Relation, bound *catalog.PartitionMembership, jobs []partitionAttachScan) error {
+func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, parent *catalog.Relation, bound *catalog.PartitionMembership, jobs []partition.AttachScan) error {
 	ctx := scope.op.Context()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
 	for _, job := range jobs {
-		constraints := make([]partitionAttachRowConstraint, 0, 2)
+		constraints := make([]partition.AttachRowConstraint, 0, 2)
 		add := func(p *catalog.Relation, m *catalog.PartitionMembership) error {
 			layout, err := catalog.InheritanceQueryLayout(p, job.Leaf)
 			if err != nil {
 				return err
 			}
-			constraint := partitionAttachRowConstraint{Parent: p, Child: catalog.Relation{Membership: m}, Layout: layout}
+			constraint := partition.AttachRowConstraint{Parent: p, Child: catalog.Relation{Membership: m}, Layout: layout}
 			if layout != nil {
 				constraint.Scratch = make([]sqltype.Value, len(layout))
 			}
@@ -153,7 +154,7 @@ func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, paren
 					}
 					values = constraint.Scratch
 				}
-				accepts, err := PartitionAccepts(view, constraint.Parent, &constraint.Child, values, &evaluation)
+				accepts, err := partition.Accepts(view, constraint.Parent, &constraint.Child, values, &evaluation)
 				if err != nil {
 					source.Close()
 					return err

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -42,7 +43,7 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *session.Operation, raw *pars
 	address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: raw.Actions[0].UsingIndex.Index.Text})
 	index, ok := auth.Catalog.Relation(address)
 	if ok && index.SQLIndex != nil && index.SQLIndex.Parent == table.Address() && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && index.SQLIndex.Constraint == nil {
-		operationReplay(op).partitionUsingIndex = &partitionUsingIndexReplay{Target: table, Index: index, Syntax: raw}
+		operationReplay(op).partitionUsingIndex = &partition.UsingIndexReplay{Target: table, Index: index, Syntax: raw}
 	}
 	return nil
 }

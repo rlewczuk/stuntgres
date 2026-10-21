@@ -1,4 +1,4 @@
-package engine
+package partition
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -17,7 +17,7 @@ func HasHashPartition(snapshot *catalog.State) bool {
 
 // Partition rows have equal named columns, but private replay may preserve a
 // different physical order. Borrow values unless a real layout change is needed.
-func PartitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []sqltype.Value {
+func ReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []sqltype.Value {
 	same := true
 	for i, c := range to.Columns {
 		if from.Columns[i].Name != c.Name {

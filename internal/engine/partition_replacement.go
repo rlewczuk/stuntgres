@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -37,7 +38,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			return nil, ids.ErrCatalogReplaced
 		}
 		historyPosition := 0
-		var retainedChecks partitionRetainedChecks
+		var retainedChecks partition.RetainedChecks
 		for i, version := range store.Versions {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -56,7 +57,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			destination := root
 			for destination.Partition != nil {
 				var buffer [32]catalog.PartitionDatum
-				key, err := PartitionRowKey(destination, PartitionReplacementRow(source, destination, version.Values), evaluation, buffer[:])
+				key, err := partition.RowKey(destination, partition.ReplacementRow(source, destination, version.Values), evaluation, buffer[:])
 				if err != nil {
 					return nil, err
 				}
@@ -66,7 +67,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 					if child.Membership.DefaultBound {
 						continue
 					}
-					contains, err := PartitionContains(ctx, destination.Partition.Keys, child.Membership, key, evaluation.Input)
+					contains, err := partition.Contains(ctx, destination.Partition.Keys, child.Membership, key, evaluation.Input)
 					if err != nil {
 						return nil, err
 					}
@@ -84,7 +85,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 				}
 				destination = selected
 			}
-			values := PartitionReplacementRow(source, destination, version.Values)
+			values := partition.ReplacementRow(source, destination, version.Values)
 			validation := destination
 			if destination.Address() == address && history.Relation != nil {
 				var err error
@@ -103,7 +104,7 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 			child := destination
 			for child.Membership != nil {
 				parent := view.MustRelation(child.Membership.Parent)
-				allowed, err := PartitionAccepts(view, parent, child, PartitionReplacementRow(source, parent, version.Values), evaluation)
+				allowed, err := partition.Accepts(view, parent, child, partition.ReplacementRow(source, parent, version.Values), evaluation)
 				if err != nil {
 					return nil, err
 				}

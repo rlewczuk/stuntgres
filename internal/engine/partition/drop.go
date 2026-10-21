@@ -1,11 +1,11 @@
-package engine
+package partition
 
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func PartitionDependsOn(relation *catalog.Relation, target ids.ObjectAddress) bool {
+func DependsOn(relation *catalog.Relation, target ids.ObjectAddress) bool {
 	if relation.Partition == nil {
 		return false
 	}

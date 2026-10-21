@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -79,7 +80,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 	if selected == nil {
 		return nil
 	}
-	captured := &partitionUniqueReplay{Target: table, Syntax: raw, Definition: definition, Snapshot: *definition, Descriptors: []*catalog.Relation{parent, selected}}
+	captured := &partition.UniqueReplay{Target: table, Syntax: raw, Definition: definition, Snapshot: *definition, Descriptors: []*catalog.Relation{parent, selected}}
 	captured.Snapshot.Columns = slices.Clone(definition.Columns)
 	tables := make(map[ids.ObjectAddress]bool)
 	var capture func(*catalog.Relation) bool
