@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `edba54105` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 103, 104, 105, 106, 107, 111 and 112). Steps 8–17 were
+Last verified against `master` at `949c682a1` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 90, 91, 92, 94, 95, 96, 97, 99, 100, 101, 103, 104, 105, 106, 107, 108, 111 and 112). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`.
 
@@ -16,7 +16,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8); none is ready now.
 
-- **DML and Dump/Restore:** 108 (DML 29b), 113 (control 30c).
+- **DML and Dump/Restore:** 113 (control 30c).
 - **Upper features, decisions:** 89a (table 24d.1), 102 (view 27d).
 
 Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
@@ -110,6 +110,8 @@ ready; the end-state review (item 114) still waits for 98, 110 and 113.
 Item 101 (view 27c) is done, so view 27d (item 102) is ready; it and table
 24d.1 (item 89a) both want `creationError` in `ddl`, and whichever lands
 first moves it.
+Item 108 (DML 29b) is done; DML 29c (item 109) still waits for 89a, 89b,
+93 and 102.
 Item 85b (index 23d.2) is done and closes step 23; DML 29c (item 109)
 still waits for 108, 89a, 89b, 93 and 102.
 
@@ -584,7 +586,8 @@ still waits for 108, 89a, 89b, 93 and 102.
   19 and 23–27, 29c needs Part B of 23–27)
   - [x] 29a — In place: `insert.go`, misplaced code to owners, receivers
     (`919c6319f`, `3bbec01e0`, `146d99d5b`, `03b5e1c78`, then the docs commit)
-  - [ ] 29b — `dml` created and clean set moved
+  - [x] 29b — `dml` created and clean set moved
+    (`8b336c6c1`, `280456a1b`, `c69b2ba66`, `92fe07400`, `bb16abdca`, then the docs commit)
   - [ ] 29c — Host refined (docs only)
   - [ ] 29d — Executors moved
 - [ ] **Step 30 — `control`** ([prompt](ENGINE-SPLIT-control.md); 30a needs
@@ -1384,8 +1387,15 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      `statementMutation` grouped into embedded value groups · selected unit
      and dual-mode proof and quickcheck passed; racecheck/finalcheck skipped
      at user request
-108. [ ] DML 29b: `dml` created, clean set moved — [dml](ENGINE-SPLIT-dml.md)
-     29b · needs 107, 59, 83, 87, 91, 95, 100
+108. [x] DML 29b: `dml` created, clean set moved — [dml](ENGINE-SPLIT-dml.md)
+     29b · needs 107, 59, 83, 87, 91, 95, 100 (`8b336c6c1`, `280456a1b`, `c69b2ba66`, `92fe07400`, `bb16abdca`, then the docs commit) ·
+     ON CONFLICT state and predicate proofs, write overlay, RETURNING
+     outputs, MERGE/UPDATE/DELETE records, inheritance target helpers,
+     TRUNCATE and FK action records, COPY insertion batching in `dml`; the
+     record-running functions, COPY cursors, `truncateGraphFence` and the
+     `statementMutation` groups stay in the root; no aliases · selected
+     unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
+     skipped at user request
 109. [ ] DML 29c: host refined (docs only) — [dml](ENGINE-SPLIT-dml.md) 29c ·
      needs 108, 85b, 89a, 89b, 93, 97, 102
 110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109

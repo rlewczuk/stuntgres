@@ -209,12 +209,12 @@ the binder reads stored view definitions (`stored`): `StoredViewVolatile`,
 admission (rule rewriting, its CTE commands and view-write lowering are in
 [`view`](../view/README.md)); the privilege walkers over view
 definitions, view writes and rule programs (`AuthorizationView.CheckViewWrite`,
-`checkViewRowMarks*`, the `row_security_setting.go` walkers); the ON CONFLICT execution state
-(`insertConflictState`: selected arbiters, unique-key checkpoints, the
-affected count, the EXCLUDED frame and the write overlay, built per command
-over the binding's clause); and the execution-side helpers over
-the binding types: `evalBindingDefault`, `applyDefaultOrigin`, `capturedDomainReplayCell`,
-`mergeHasVirtualReads` and `selectMergeArm` (`view` has `PhysicalBinding`
+`checkViewRowMarks*`, the `row_security_setting.go` walkers); and the
+execution-side helpers over the binding types: `evalBindingDefault`,
+`applyDefaultOrigin` and `capturedDomainReplayCell` (`dml` has the ON
+CONFLICT execution state `InsertConflictState`, built per command over the
+binding's clause, and `MergeHasVirtualReads` and `SelectMergeArm`, see
+[`dml`](../dml/README.md); `view` has `PhysicalBinding`
 and `BindingDefaultOrigin`; `stored` has
 `ValidateCompositeOccurrence` and `RemapLikeExpression`). The executor-side legality walks stay too
 (`validateQueryJoinExecution`, `validateMutationJoinExecution`,

@@ -351,13 +351,95 @@ publication stay in the root. The checks in §8.3 pass.
   `insert_conflict_authorization_test.go` calls `applyInsertBatch`;
   `partition_attach_definition_test.go` keys the `mutationPartition`
   group. No test moved or deleted.
-- [ ] 29b — `dml` created and clean set moved
+- [x] 29b — `dml` created and clean set moved (`8b336c6c1`, `280456a1b`, `c69b2ba66`, `92fe07400`, `bb16abdca`, then the docs
+  commit) · selected unit proof and quickcheck passed, `REFERENCE=1`
+  selection passed (see the 29b record); racecheck/finalcheck skipped at
+  user request
 - [ ] 29c — Host refined (docs only)
 - [ ] 29d — Executors moved
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (29b added none).
+
+### 29b record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-PACKAGE`, started at
+`116432550`, rebased onto `edba54105` (docs-only refines of 25c, 27c and
+30b) and replayed onto `949c682a1` (index 23d.2: the export commit
+conflicted in `exclusion_admission.go` and `insert_conflict_admission.go`;
+the scripts `c1.sh`, `c2.sh`, `c3.sh`, `c3-post.sh` and `c4.sh` in
+`.cswd/tmp/PG18-ENGINE-SPLIT-DML-PACKAGE/` rebuilt the commits after the
+seam commit was cherry-picked, the re-measured fixed point was unchanged
+and the moved files came out byte-identical).
+
+| Commit | Change |
+|---|---|
+| `8b336c6c1` | Seam: the dirty methods of moving records become root functions taking the record first (`stageMergeRows`, `recordCopyInsertion`, `flushCopyInsertion`, `addInsertWriteKey`, `preflightConflictUpdate`) |
+| `280456a1b` | Staging: the clean declarations of 23 mixed files to nine `dmlmv_*.go` files (`movedecl`) |
+| `c69b2ba66` | Export in place (`expspec`/`movex`, 133 rows); the COPY cursors' `insertionOrigin` becomes `InsertionOrigin` with the interface, plus static assertions |
+| `92fe07400` | Move: 12 files (about 1.3k lines) to `dml`, `dml/errors.go`, `movex -qual dml` over 50 root files, `keylit` for 5 `MutationRowIdentity` literals, README |
+| `bb16abdca` | `insert_conflict_predicate_test.go` and `insert_conflict_truth_test.go` move to `dml`; `conflictPredicateImpliedBy` unexported again |
+
+- **Re-measure.** `reach` over the inventory files (plus `copy_text.go`,
+  `copy_binary.go`, `identity.go`): 82 clean, 143 dirty declarations. The
+  `frontier` fixed point after the seam commit: 70 members, OUT `sqlError`
+  alone, 162 IN keys.
+- **Stayed in the root** (clean or listed for 29b, but not movable now):
+  - `truncateGraphFence` and its methods: every catalog fence implements
+    the root `catalogFence` (`currentLocked(*Engine, …)`) and its kind is
+    declared in `catalog_fence.go`; like 27b's `materializedSourceFence`,
+    the type stays with its methods (step 3 above assumed it could move).
+  - `mutationTarget`, `mutationIndexes`, `mutationInsert`: clean, but they
+    are embedded scope state that `activateMutation` swaps by value (as
+    27b kept `rowSecurityMutation`).
+  - `completeCTEMutation` (returns the root `Result`),
+    `evaluateUpdateAssignments` and `evaluateInsertValuesRow` (they call
+    `evalDefaultExpression`/`evalBindingDefault` in `domain_default.go`),
+    `preflightUpdate`, `preflightUpdateWithPlanning` and `preflightMerge`
+    (root `preflightQuery` and the join legality walks).
+  - The COPY cursors (`copyCursor`, `copyBinaryCursor`, `copyOutput`,
+    `copyBinaryOutput`, `copyCommandError`): they hold the
+    `StatementScope`. The inventory table listed them for 29b.
+- **Members the plan did not list:** `copyLineTargets`, `preflightReturning`
+  (now clean), `projectForeignReturning` and `foreignMutationRow`
+  (`fdw_execute.go`; the plan put them in 29d), `foreignActionAdmission`,
+  `foreignActionSameKey`, `refreshForeignActionJob`,
+  `sameForeignKeyDefinition`, `insertWriteOverlay`, `insertWriteKeyOverlay`,
+  `insertConflictState.markAffected`.
+- **Runtime interface match.** `insert_query.go` reaches
+  `copyInsertionCursor` through a type assertion on the cursor, so the
+  compiler did not flag the cursors when the interface method was
+  exported: `movex` renames only objects declared in its `-files`. The
+  cursors' methods were renamed by hand and `copy_insertion.go` now
+  asserts both cursors statically.
+- **Names.** Default capitalization, no stutter drops
+  (`dml.InsertConflictState`, `dml.MergeRows`, `dml.TruncateScope`,
+  `dml.CopyInsertionState`, ...). `errors.go` holds `sqlError` only: the
+  set uses no `insertError`.
+- **Imports.** `analyze`, `authorization`, `catalog`, `copyfmt`, `exec`,
+  `expr`, `ids`, `index`, `lock`, `partition`, `plan`, `storage`, `table`,
+  `visibility`, `parser`, `sqlstate`, `sqltype` (`go list`); no root, no
+  `view` or `fdw` yet.
+- **Tests.** The two predicate proof files moved (their fixture now scans
+  `sqltype.Builtins()` instead of building an engine). The other DML unit
+  tests build an engine and stay in the root, naming `dml.X`; five call
+  sites use the seam functions. None deleted.
+- **Checks.** String-literal multiset unchanged apart from
+  `dml/errors.go`; selected units after every commit; quickcheck on the
+  rebased branch; `REFERENCE=1` selection
+  `^TestReference(InsertConflict|InsertReturning|MergeInsert|MergeReturning|Truncate|Copy|ForeignAction|DeleteUsing|UpdateFrom|CTEDML)`.
+  racecheck, finalcheck and bench skipped at user request (no startup
+  change).
 
 ### Notes for later steps
+
+- 29b, for 29c/29d: the seam functions `stageMergeRows`,
+  `recordCopyInsertion`, `flushCopyInsertion`, `addInsertWriteKey` and
+  `preflightConflictUpdate` are the record-running code that moves with the
+  executors behind `dml.Host`. `truncateGraphFence` can move only if the
+  fence check splits into a pure `dml` core and a root wrapper that keeps
+  `Kind`/`currentLocked`. `evaluateInsertValuesRow` and
+  `evaluateUpdateAssignments` need the default evaluators
+  (`domain_default.go`) behind the host or in a lower package.
 
 - View 27c (item 101), for 29c: 27d moves `rowSecurityMutation` to `view`
   as `RowSecurity` (exported fields; `statementMutation.rls` keeps its
