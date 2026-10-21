@@ -499,14 +499,6 @@ func insertError(code, message string, pos parser.Position) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(pos.Character)}
 }
 
-func notNullDetailError(schema, table, column, detail string) error {
-	return &sqlstate.Error{
-		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
-		Message: fmt.Sprintf("null value in column \"%s\" of relation \"%s\" violates not-null constraint", column, table),
-		Schema:  schema, Table: table, Column: column, Detail: detail,
-	}
-}
-
 // FrameImporter fills one canonical frame and completes input CHECKs in lexical
 // order. It enters and returns without Engine.mu; SQL actual-expression import
 // owns only its binding/capture lock and evaluates outside it without replay.

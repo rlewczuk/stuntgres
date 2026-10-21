@@ -218,7 +218,8 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		} else {
 			p.endError = failure
 		}
-		m, err := s.planForeignModification(op.Context(), &exec.ForeignQuerySource{Wrapper: p}, catalog.ForeignInsert, false)
+		s.foreignUnlocked()
+		m, err := fdw.PlanModification(op.Context(), &exec.ForeignQuerySource{Wrapper: p}, catalog.ForeignInsert, false)
 		if err != nil {
 			t.Fatal(err)
 		}

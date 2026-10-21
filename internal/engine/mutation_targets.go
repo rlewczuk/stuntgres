@@ -197,7 +197,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.B
 		if check != "" {
 			return table.CheckDetailError(physicalSchema, relation.Name(), check, detail)
 		}
-		return notNullDetailError(physicalSchema, relation.Name(), column, detail)
+		return table.NotNullDetailError(physicalSchema, relation.Name(), column, detail)
 	}
 	for i, column := range relation.Columns {
 		if !column.Nullable {

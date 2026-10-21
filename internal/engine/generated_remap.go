@@ -95,7 +95,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 					if err != nil {
 						return err
 					}
-					return notNullDetailError(schema, descriptor.Name(), column.Name, detail)
+					return table.NotNullDetailError(schema, descriptor.Name(), column.Name, detail)
 				}
 			}
 			constraint, err := table.ValidateCheckRow(historical, row, &eval)

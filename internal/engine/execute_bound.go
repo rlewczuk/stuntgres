@@ -200,7 +200,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				continue
 			}
 			defaultEvaluation := evaluation
-			applyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
+			analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
 			folded, changed, foldErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
 				return Result{}, foldErr
@@ -583,7 +583,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		if b.Rule.Template {
-			source = freezeViewWriteSources(scope, source, b.QuerySources)
+			source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, hostOf(scope))
 		}
 		if scope.protocolOrZero().bind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)

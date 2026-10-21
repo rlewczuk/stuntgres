@@ -268,7 +268,7 @@ func TestViewWriteDemand(t *testing.T) {
 		if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 			t.Fatal(err)
 		}
-		source = freezeViewWriteSources(scope, source, leaves)
+		source = view.FreezeWriteSources(source, leaves, scope.authority, hostOf(scope))
 		if source.Input == nil || source.Count() != 1 {
 			source.Close()
 			t.Fatal("frozen bridge exposed a deleted version")

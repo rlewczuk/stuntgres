@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -111,7 +112,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 		}
 		for j, expression := range b.Insert.Defaults {
 			if expression != nil && (defaultSource == nil || defaultSource.rowDefaults()[j]) {
-				row[j], err = evalBindingDefault(&b, &evaluation, j, expression)
+				row[j], err = view.EvalBindingDefault(&b, &evaluation, j, expression)
 				if err != nil {
 					return index.WriteBatch{}, err
 				}

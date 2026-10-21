@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -84,7 +85,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = validatePhysicalRowConstraints(d, "public", values, &evaluation, func() (string, error) { return "test row", nil })
+		err = retainedRowError(d, values, &evaluation)
 		if want == "" {
 			if err != nil {
 				t.Fatal(err)
@@ -117,7 +118,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	validate([]sqltype.Value{integer(1), integer(1)}, "")            // Relevant changed payload is checked and now satisfies its predicate.
 	// Real movement uses the ordinary full destination validator, not the
 	// retained-row subset, and must reject even an old NOT VALID violation.
-	err = validatePhysicalRowConstraints(leaf, "public", oldValues, &evaluation, func() (string, error) { return "test row", nil })
+	err = retainedRowError(leaf, oldValues, &evaluation)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Constraint != "old_payload" {
 		t.Fatal("full destination validation lost NOT VALID enforcement", err)
@@ -143,7 +144,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = validatePhysicalRowConstraints(virtualDescriptor, "public", virtualAfter, &evaluation, func() (string, error) { return "test row", nil })
+	err = retainedRowError(virtualDescriptor, virtualAfter, &evaluation)
 	if !errors.As(err, &diagnostic) || diagnostic.Constraint != "virtual_input" {
 		t.Fatal("changed stored input of virtual generation was ignored", err)
 	}
@@ -203,7 +204,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = validatePhysicalRowConstraints(literalDescriptor, "public", oldValues, &evaluation, func() (string, error) { return "test row", nil })
+	err = retainedRowError(literalDescriptor, oldValues, &evaluation)
 	if !errors.As(err, &diagnostic) || diagnostic.Constraint != "changed_key" {
 		t.Fatal("changed stored literal did not enforce its CHECK", err)
 	}
@@ -214,4 +215,13 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if snapshot.PartitionRows[destination].Relation != leaf || snapshot.PartitionRows[leaf.Address()].Relation != nil {
 		t.Fatal("row history address mapping lost provenance")
 	}
+}
+
+// retainedRowError renders a physical row violation with a fixed detail.
+func retainedRowError(relation *catalog.Relation, row []sqltype.Value, evaluation *exec.Context) error {
+	violation, err := table.PhysicalRowViolation(relation, row, evaluation)
+	if err != nil || violation == nil {
+		return err
+	}
+	return violation.Diagnostic("public", "test row")
 }

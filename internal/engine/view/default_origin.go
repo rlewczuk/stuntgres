@@ -3,6 +3,8 @@ package view
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
 )
 
 func BindingDefaultOrigin(b *analyze.Binding, slot int) analyze.DefaultOrigin {
@@ -16,4 +18,9 @@ func BindingDefaultOrigin(b *analyze.Binding, slot int) analyze.DefaultOrigin {
 		return analyze.DefaultOrigin{}
 	}
 	return analyze.DefaultOrigin{Definition: definition, Consumer: physical.Relation, Quote: exec.QuoteOrigin{Owner: physical.Ref, Attribute: attribute, Definition: definition.OID}}
+}
+
+// EvalBindingDefault evaluates the default of binding slot.
+func EvalBindingDefault(b *analyze.Binding, c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
+	return analyze.EvalDefault(c, node, BindingDefaultOrigin(b, slot))
 }

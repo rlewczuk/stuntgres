@@ -451,14 +451,7 @@ func (s *StatementScope) mergeFollowChainStrong(b analyze.Binding) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	for _, key := range unique.KeySlots {
-		for _, target := range b.Merge.UpdateTargets {
-			if key == target {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
+	return dml.MergeFollowStrong(b.Merge, unique.KeySlots), nil
 }
 
 // MERGE follows a committed update even with a retained RR frontier. Deletion

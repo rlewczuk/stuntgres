@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -94,10 +95,16 @@ func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluatio
 					return nil, err
 				}
 			}
-			detail := func() (string, error) { return exec.FailingRowDetail(values, evaluation.Output, nil, nil, destination) }
-			schema := view.Get(destination.Namespace()).Name()
-			if err := validatePhysicalRowConstraints(validation, schema, values, evaluation, detail); err != nil {
+			violation, err := table.PhysicalRowViolation(validation, values, evaluation)
+			if err != nil {
 				return nil, err
+			}
+			if violation != nil {
+				detail, err := exec.FailingRowDetail(values, evaluation.Output, nil, nil, destination)
+				if err != nil {
+					return nil, err
+				}
+				return nil, violation.Diagnostic(view.Get(destination.Namespace()).Name(), detail)
 			}
 			// The highest HASH target can itself have RANGE ancestors; ordinary direct
 			// insertion would enforce their constraints as well.

@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -44,7 +45,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			return Result{}, err
 		}
 		if b.ViewWrite != nil || b.Rule.Template {
-			source = freezeViewWriteSources(scope, source, b.QuerySources)
+			source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, hostOf(scope))
 		}
 		b.Query = &plan.Query{Root: queryRoot}
 		rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.input, scope.output, scope)
@@ -82,7 +83,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			return Result{}, err
 		}
 		if b.ViewWrite != nil || b.Rule.Template {
-			evaluation.Query.Source = freezeViewWriteSources(scope, evaluation.Query.Source, b.QuerySources)
+			evaluation.Query.Source = view.FreezeWriteSources(evaluation.Query.Source, b.QuerySources, scope.authority, hostOf(scope))
 		}
 		defer evaluation.Query.Source.Close()
 	}
@@ -128,7 +129,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			}
 			for j, expression := range b.Insert.Defaults {
 				if expression != nil && row[j].Type() != nil {
-					row[j], err = evalBindingDefault(&b, &evaluation, j, expression)
+					row[j], err = view.EvalBindingDefault(&b, &evaluation, j, expression)
 					if err != nil {
 						return Result{}, err
 					}

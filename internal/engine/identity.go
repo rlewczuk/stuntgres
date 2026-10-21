@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -60,7 +61,7 @@ func evaluateInsertValuesRow(read catalog.Read, b *analyze.Binding, supplied []e
 			continue
 		}
 		if len(b.Insert.Defaults) != 0 && b.Insert.Defaults[target] != nil {
-			value, err := evalBindingDefault(b, evaluation, target, b.Insert.Defaults[target])
+			value, err := view.EvalBindingDefault(b, evaluation, target, b.Insert.Defaults[target])
 			if err != nil {
 				return err
 			}

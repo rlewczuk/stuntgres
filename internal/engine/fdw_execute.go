@@ -67,7 +67,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		return Result{}, err
 	}
 	s.foreignUnlocked()
-	m, err := s.planForeignModification(s.op.Context(), target.Foreign, op, false)
+	m, err := fdw.PlanModification(s.op.Context(), target.Foreign, op, false)
 	if err != nil {
 		return Result{}, err
 	}

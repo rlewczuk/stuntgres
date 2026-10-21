@@ -2,10 +2,8 @@ package engine
 
 import (
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
-	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.Binding) error {
@@ -50,60 +48,4 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 		}
 	}
 	return nil
-}
-
-// Raw prefixes must be selected before frozen-layout bridges are installed.
-// Detach bundle ownership while replacing occurrences, as stored view opening
-// does; the returned head owns every input and each bridge's private scratch.
-func freezeViewWriteSources(scope *StatementScope, source *exec.Source, leaves []exec.Leaf) *exec.Source {
-	sources := source.Sources
-	source.Sources = nil
-	for i, leaf := range leaves {
-		child := source
-		if sources != nil {
-			child = sources[i]
-		}
-		child = frozenViewSource(scope, child, leaf.FrozenAttributes, leaf.Relation.Attributes)
-		if sources != nil {
-			sources[i] = child
-		} else {
-			source = child
-		}
-	}
-	if sources != nil {
-		source = sources[0]
-		source.Sources = sources
-	}
-	return source
-}
-
-func frozenViewSource(scope *StatementScope, source *exec.Source, attributes, live []int32) *exec.Source {
-	if attributes == nil {
-		return source
-	}
-	unchanged := len(attributes) == len(live)
-	if unchanged {
-		for i, a := range attributes {
-			if live[i] != a {
-				unchanged = false
-				break
-			}
-		}
-	}
-	if unchanged {
-		return source
-	}
-	layout := make([]int, len(attributes))
-	for i, a := range attributes {
-		layout[i] = -1
-		for j, b := range live {
-			if a == b {
-				layout[i] = j
-				break
-			}
-		}
-	}
-	bridge := &exec.Source{Ref: source.Ref, Input: source, Layout: layout, Scratch: make([]sqltype.Value, len(layout)), Authority: scope.authority, Locks: source.Locks, Occurrence: source.Occurrence}
-	borrowQueryAuthority(bridge, scope)
-	return bridge
 }

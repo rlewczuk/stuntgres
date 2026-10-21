@@ -89,7 +89,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *dml.Fore
 				continue
 			}
 			defaultEvaluation := evaluation
-			applyDefaultOrigin(view.BindingDefaultOrigin(&b, plan.Targets[i]), &defaultEvaluation)
+			analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&b, plan.Targets[i]), &defaultEvaluation)
 			folded, _, err := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {
 				return nil, err
@@ -298,7 +298,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 				row[slot] = sqltype.Null(job.Child.Columns[slot].Usage.Type)
 				if len(plan.Defaults) != 0 && plan.Defaults[i] != nil {
 					if len(plan.DefaultOrigins) != 0 {
-						row[slot], err = evalDefaultExpression(&evaluation, plan.Defaults[i], plan.DefaultOrigins[i])
+						row[slot], err = analyze.EvalDefault(&evaluation, plan.Defaults[i], plan.DefaultOrigins[i])
 					} else {
 						row[slot], err = plan.Defaults[i].Eval(&evaluation)
 					}

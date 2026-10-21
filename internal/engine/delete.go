@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -192,7 +193,7 @@ func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.So
 			return Result{}, err
 		}
 		if b.ViewWrite != nil || b.Rule.Template {
-			inputs = freezeViewWriteSources(s, inputs, b.QuerySources)
+			inputs = view.FreezeWriteSources(inputs, b.QuerySources, s.authority, hostOf(s))
 		}
 		defer inputs.Close()
 		state := &exec.State{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}

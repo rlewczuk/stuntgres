@@ -45,7 +45,7 @@ func evaluateUpdateAssignments(eval *exec.Context, action *analyze.UpdateBinding
 		if len(action.ArrayTargets) != 0 && action.ArrayTargets[i] != nil {
 			value, err = action.ArrayTargets[i].ApplyExpression(eval, row[target], expr)
 		} else if len(action.DefaultOrigins) != 0 && action.DefaultOrigins[i].Requested {
-			value, err = evalDefaultExpression(eval, expr, action.DefaultOrigins[i])
+			value, err = analyze.EvalDefault(eval, expr, action.DefaultOrigins[i])
 		} else {
 			value, err = expr.Eval(eval)
 		}

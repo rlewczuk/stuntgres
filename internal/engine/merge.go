@@ -71,7 +71,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 				continue
 			}
 			defaultOwner := owner
-			applyDefaultOrigin(view.BindingDefaultOrigin(&arm.Input, j), &defaultOwner)
+			analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&arm.Input, j), &defaultOwner)
 			arm.Input.Insert.Defaults[j], _, err = exec.PreflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err

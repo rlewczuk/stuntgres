@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -42,7 +43,7 @@ func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 		var recipe exec.Context
 		if len(original.DefaultOrigins) != 0 && original.DefaultOrigins[i].Requested {
 			recipe = *c
-			applyDefaultOrigin(original.DefaultOrigins[i], &recipe)
+			analyze.ApplyDefaultOrigin(original.DefaultOrigins[i], &recipe)
 			owner = &recipe
 		}
 		folded, changed, err := exec.PreflightUpdateExpression(owner, expression, planConstants)
@@ -185,7 +186,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 			return Result{}, err
 		}
 		if b.ViewWrite != nil || b.Rule.Template {
-			from = freezeViewWriteSources(s, from, b.QuerySources)
+			from = view.FreezeWriteSources(from, b.QuerySources, s.authority, hostOf(s))
 		}
 		defer from.Close()
 		inputs = from
@@ -474,7 +475,7 @@ func (e *Engine) rowConstraintError(s *StatementScope, b analyze.Binding, schema
 	if check != "" {
 		return table.CheckDetailError(schema, b.Relation.Name(), check, detail)
 	}
-	return notNullDetailError(schema, b.Relation.Name(), column, detail)
+	return table.NotNullDetailError(schema, b.Relation.Name(), column, detail)
 }
 
 // Public UPDATE and admitted RI assignment share generation and local checks.
