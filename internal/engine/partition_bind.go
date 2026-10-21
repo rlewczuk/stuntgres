@@ -3,14 +3,11 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -46,38 +43,24 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 				return nil, partition.GeneratedError(diagnostic, r.Pos, key.Label)
 			}
 		} else {
-			ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-			columns := make([]analyze.QueryColumn, len(d.Columns))
-			for j, c := range d.Columns {
-				columns[j] = analyze.QueryColumn{Descriptor: c, Slot: j, Leaf: 0, Physical: j}
-			}
-			namespace := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: d.Columns}
-			binder := newExpressionBinder(op.Context(), e, input, op, nil)
-			binder.Consumer.PartitionConsumer, binder.Params.NoParameters, binder.Query.Auth = "partition key expression", true, &auth
-			binder.Query.Namespace = &namespace
-			binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
-			node, err := binder.Bind(r.Expression, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+			derived, uses, err := (ddlHost{e: e, op: op}).BindKeyExpression(auth, d, r.Expression, input)
 			if err != nil {
 				return nil, err
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			planned, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, true)
-			if err != nil {
-				return nil, err
-			}
+			planned := derived.Execution
 			if exec.PlannedVolatility(planned) != expr.Immutable {
 				return nil, sqlError("42P17", "functions in partition key expression must be marked IMMUTABLE")
 			}
 			if !planned.Properties().RowDependent {
 				return nil, sqlError("42P17", "cannot use constant expression as partition key")
 			}
-			for _, slot := range binder.Query.Sources[0].Uses {
+			for _, slot := range uses {
 				if _, generated := d.ColumnMeta.Generations[d.Attributes[slot]]; generated {
 					return nil, partition.GeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
 			}
-			key.Derived = &catalog.DerivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}
-			text, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &key.Derived.Dependencies}).SQL(op.Context(), auth.Catalog, node)
+			key.Derived = derived
+			text, err := (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &key.Derived.Dependencies}).SQL(op.Context(), auth.Catalog, derived.Definition)
 			if err != nil {
 				return nil, err
 			}
@@ -112,47 +95,6 @@ func (e *Engine) bindPartitionKeys(op *session.Operation, auth AuthorizationView
 	return definition, nil
 }
 
-// bindPartitionDatum captures one datum's exact provider references under mu.
-// Its caller evaluates the returned tree only after this method releases mu;
-// transient sequence calls retain their ordinary RX/grant-time admission.
-func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, datum parser.PartitionDatum, key catalog.PartitionKeyEntry) (expr.Expr, error) {
-	e := scope.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(scope.op)
-	if err != nil {
-		return nil, err
-	}
-	if auth.Catalog.Epoch() != p.auth.Catalog.Epoch() {
-		return nil, ids.ErrCatalogReplaced
-	}
-	if auth.Revision != p.stage.authRevision || auth.RoleRecord.Revision != p.stage.roleRevision {
-		return nil, fmt.Errorf("stuntgres: authorization changed before publication")
-	}
-	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-	binder.Query.Auth = &p.auth
-	binder.Params.NoParameters = true
-	binder.Consumer.PartitionConsumer = "partition bound"
-	node, err := binder.Bind(datum.Expression, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: key.Usage.Type.Usage()})
-	if err != nil {
-		return nil, err
-	}
-	if node.ResultUsage() != key.Usage {
-		input, annotations := analyze.DomainCoercionInput(node, key.Usage)
-		info, err := analyze.StorageCoercionInfo(binder.BindingCatalog(), binder.Info(key.Usage, datum.Pos, input.Properties()), input)
-		if err != nil {
-			return nil, err
-		}
-		coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
-		if err != nil {
-			return nil, expr.ErrorAt("42804", fmt.Sprintf(`specified value cannot be cast to type %s for column "%s"`, key.Usage.Type.DiagnosticName(), key.Label), datum.Pos)
-		}
-		info.Property = analyze.CoercionProperties(input, coercionPlan)
-		node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
-	}
-	return analyze.StorageDestination(node, key.Usage, node.SourcePosition())
-}
-
 func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evaluation *exec.Context) error {
 	if p.Bound.Strategy == parser.PartitionHash {
 		return scope.op.Context().Err()
@@ -173,7 +115,7 @@ func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evalu
 			}
 			// PostgreSQL advances the key type cursor only for finite datums,
 			// including malformed finite entries after an infinite datum.
-			node, err := p.bindPartitionDatum(scope, datum, p.Parent.Partition.Keys[finite])
+			node, err := (partitionBoundBinder{scope: scope, pending: p}).BindBound(datum, p.Parent.Partition.Keys[finite])
 			if err != nil {
 				return err
 			}
