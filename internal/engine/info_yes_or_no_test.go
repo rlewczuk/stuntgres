@@ -139,7 +139,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}
-	if err := reownExpressions(source.catalog.read(next), next, nil, true); err != nil {
+	if err := ReownExpressions(source.catalog.read(next), next, nil, true); err != nil {
 		t.Fatal(err)
 	}
 	view := source.catalog.read(next)

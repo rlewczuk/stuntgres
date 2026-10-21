@@ -26,7 +26,7 @@ type ruleDefinition struct {
 	references            []ids.ObjectAddress
 }
 
-func ruleEvent(stmt parser.Statement) string {
+func RuleEvent(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.Insert:
 		return "INSERT"

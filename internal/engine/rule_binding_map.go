@@ -9,13 +9,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Binding, error) {
+func MapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Binding, error) {
 	originalReturning := b.Returning
-	expression := func(value expr.Expr) (expr.Expr, error) { next, _, err := mapper.expression(value); return next, err }
+	expression := func(value expr.Expr) (expr.Expr, error) { next, _, err := mapper.Expression(value); return next, err }
 	list := func(values []expr.Expr) ([]expr.Expr, bool, error) {
 		var copied []expr.Expr
 		for i, value := range values {
-			next, changed, err := mapper.expression(value)
+			next, changed, err := mapper.Expression(value)
 			if err != nil {
 				return nil, false, err
 			}
@@ -32,7 +32,7 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 		return copied, true, nil
 	}
 	targets := func(values []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
-		return stored.MapRuleAssignmentTargets(values, mapper.expression, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return stored.MapRuleAssignmentTargets(values, mapper.Expression, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	var err error
 	b.ArrayTargets, err = targets(b.ArrayTargets)
@@ -40,7 +40,7 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 		return b, err
 	}
 	if b.Query != nil {
-		root, err := mapper.query(b.Query.Root)
+		root, err := mapper.Query(b.Query.Root)
 		if err != nil {
 			return b, err
 		}
@@ -74,7 +74,7 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 	if err != nil {
 		return b, err
 	}
-	b.Delete.Using, err = mapper.query(b.Delete.Using)
+	b.Delete.Using, err = mapper.Query(b.Delete.Using)
 	if err != nil {
 		return b, err
 	}
@@ -89,11 +89,11 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 		if err != nil {
 			return b, err
 		}
-		update.Predicate, predicateChanged, err = mapper.expression(update.Predicate)
+		update.Predicate, predicateChanged, err = mapper.Expression(update.Predicate)
 		if err != nil {
 			return b, err
 		}
-		update.From, err = mapper.query(update.From)
+		update.From, err = mapper.Query(update.From)
 		if err != nil {
 			return b, err
 		}
@@ -116,7 +116,7 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 		conflict := *b.Insert.Conflict
 		var keys []analyze.ConflictKey
 		for i, key := range conflict.Keys {
-			next, changed, err := mapper.expression(key.Expression)
+			next, changed, err := mapper.Expression(key.Expression)
 			if err != nil {
 				return b, err
 			}
@@ -132,7 +132,7 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 		}
 		conflictChanged := keys != nil
 		var predicateChanged bool
-		conflict.Predicate, predicateChanged, err = mapper.expression(conflict.Predicate)
+		conflict.Predicate, predicateChanged, err = mapper.Expression(conflict.Predicate)
 		if err != nil {
 			return b, err
 		}
@@ -144,7 +144,7 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 			if err != nil {
 				return b, err
 			}
-			update.Predicate, predicateChanged, err = mapper.expression(update.Predicate)
+			update.Predicate, predicateChanged, err = mapper.Expression(update.Predicate)
 			if err != nil {
 				return b, err
 			}
@@ -180,7 +180,7 @@ func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 	}
 	var definitions []*plan.CTEDefinition
 	for i, original := range b.CTEs {
-		next, err := mapper.definition(original)
+		next, err := mapper.Definition(original)
 		if err != nil {
 			return b, err
 		}

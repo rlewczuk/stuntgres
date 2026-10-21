@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dump.Group, error) {
+func PolicyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dump.Group, error) {
 	var groups []dump.Group
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)

@@ -192,7 +192,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	next.SetDescriptor(address, consumer)
 	next.SetEpoch(next.Epoch() + 1)
-	if err := reownExpressions(e.catalog.read(next), next, mapping, false); err != nil {
+	if err := ReownExpressions(e.catalog.read(next), next, mapping, false); err != nil {
 		t.Fatal("relocated consumer", err)
 	}
 	relocated := next.MustRelation(address)

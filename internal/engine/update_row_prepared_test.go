@@ -51,7 +51,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			}
 			assertBorrowed()
 			input := catalogRef(t, e, e.CatalogRead(), "input")
-			stored := rulesOf(e.CatalogRead().MustRelation(input.Address))[0]
+			stored := RulesOf(e.CatalogRead().MustRelation(input.Address))[0]
 			if len(stored.Actions()[0].Binding().Prepared.SequenceConstants) == 0 {
 				t.Fatal("recipe lost its own sequence capture")
 			}

@@ -10,7 +10,7 @@ import (
 // not evaluate operators, functions, domains or producers, and never mutates the
 // analyzed recipe. The ordinary mapper rederives only changed child ancestry.
 func specializeRuleParameterExpression(c *exec.Context, expression expr.Expr) (expr.Expr, bool, error) {
-	return rewriteViewExpression(c.Catalog, expression, nil, func(node expr.Expr) (expr.Expr, bool, error) {
+	return RewriteViewExpression(c.Catalog, expression, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 		parameter, ok := node.(plan.ParameterExpr)
 		if !ok {
 			return node, false, nil

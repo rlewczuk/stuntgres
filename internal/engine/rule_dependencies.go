@@ -200,11 +200,11 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 			descriptor = replacement
 		}
 		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(rulesOf(d)) == 0 {
+		if !ok || len(RulesOf(d)) == 0 {
 			continue
 		}
 		var kept []ruleDefinition
-		for _, r := range rulesOf(d) {
+		for _, r := range RulesOf(d) {
 			drop := false
 			for _, target := range targets {
 				if ruleDepends(provider.base, r, target) {
@@ -216,11 +216,11 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 				kept = append(kept, r)
 			}
 		}
-		if len(kept) == len(rulesOf(d)) {
+		if len(kept) == len(RulesOf(d)) {
 			continue
 		}
 		copy := *d
-		copy.Rules = rulesPayloadOf(kept)
+		copy.Rules = RulesPayload(kept)
 		revision, err := provider.revision(copy.Revision())
 		if err != nil {
 			return err

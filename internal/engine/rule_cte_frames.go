@@ -72,5 +72,5 @@ func isolateRuleCTEFrames(view catalog.Read, original, action analyze.Binding, s
 		}
 		return ownerFrame(old)
 	}
-	return mapRuleBindingRecipes(action, newRuleTreeMapper(view, frame, 0, original.CTEs, ruleTreeMapping{ownerFrame: ownerFrame}))
+	return MapRuleBindingRecipes(action, NewRuleTreeMapper(view, frame, 0, original.CTEs, ruleTreeMapping{OwnerFrame: ownerFrame}))
 }

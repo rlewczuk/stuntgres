@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func refreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalog.Relation) (analyze.Binding, error) {
+func RefreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalog.Relation) (analyze.Binding, error) {
 	old := b.Relation
 	if slices.Equal(old.Attributes, current.Attributes) {
 		b.Relation = current
@@ -69,11 +69,11 @@ func refreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalo
 		return column, true, nil
 	}
 	mapExpr := func(expr expr.Expr) (expr.Expr, error) {
-		next, _, err := rewriteViewExpression(catalog, expr, nil, leaf)
+		next, _, err := RewriteViewExpression(catalog, expr, nil, leaf)
 		return next, err
 	}
 	mapTargets := func(targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
-		return stored.MapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return stored.MapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) { return RewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	b.ArrayTargets, err = mapTargets(b.ArrayTargets)
 	if err != nil {
@@ -81,7 +81,7 @@ func refreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalo
 	}
 	if b.Query != nil {
 		next := *b.Query
-		next.Root, err = plan.RewriteQueryExpressions(next.Root, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) })
+		next.Root, err = plan.RewriteQueryExpressions(next.Root, func(expr expr.Expr) (expr.Expr, bool, error) { return RewriteViewExpression(catalog, expr, nil, leaf) })
 		if err != nil {
 			return b, err
 		}
@@ -106,18 +106,18 @@ func refreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalo
 			return b, err
 		}
 		for i, expr := range u.Assignments {
-			u.Assignments[i], _, err = rewriteViewExpression(catalog, expr, nil, leaf)
+			u.Assignments[i], _, err = RewriteViewExpression(catalog, expr, nil, leaf)
 			if err != nil {
 				return b, err
 			}
 		}
-		u.Predicate, _, err = rewriteViewExpression(catalog, u.Predicate, nil, leaf)
+		u.Predicate, _, err = RewriteViewExpression(catalog, u.Predicate, nil, leaf)
 		if err != nil {
 			return b, err
 		}
 		b.Update = &u
 	}
-	b.Predicate, _, err = rewriteViewExpression(catalog, b.Predicate, nil, leaf)
+	b.Predicate, _, err = RewriteViewExpression(catalog, b.Predicate, nil, leaf)
 	if err != nil {
 		return b, err
 	}
@@ -169,8 +169,8 @@ func refreshRuleConflict(catalog catalog.Read, b analyze.Binding, current *catal
 		}
 		return column, true, nil
 	}
-	mapper := newRuleTreeMapper(catalog, nil, 0, nil, ruleTreeMapping{leaf: leaf})
-	mapped, err := mapRuleBindingRecipes(analyze.Binding{Insert: analyze.InsertBinding{Conflict: &c}}, mapper)
+	mapper := NewRuleTreeMapper(catalog, nil, 0, nil, ruleTreeMapping{Leaf: leaf})
+	mapped, err := MapRuleBindingRecipes(analyze.Binding{Insert: analyze.InsertBinding{Conflict: &c}}, mapper)
 	if err != nil {
 		return nil, err
 	}

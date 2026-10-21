@@ -133,7 +133,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := validatePolicies(v, r); err != nil {
 		return err
 	}
-	if err := validateRules(v, r); err != nil {
+	if err := ValidateRules(v, r); err != nil {
 		return err
 	}
 	if err := typedef.ValidateTypedAttachment(v, r); err != nil {
@@ -1075,8 +1075,8 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 					return ChangeSet{}, err
 				}
 			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(rulesOf(relation)) != 0 {
-				if err := validateRules(e.catalog.read(next), relation); err != nil {
+			if relation, ok := descriptor.(*catalog.Relation); ok && len(RulesOf(relation)) != 0 {
+				if err := ValidateRules(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}

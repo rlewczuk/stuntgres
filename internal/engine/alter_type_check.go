@@ -120,7 +120,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 		}
 		replacement.Constraints.Check[pending.index] = definition
 	}
-	if err := refreshGenerationChecks(&replacement, auth.Catalog); err != nil {
+	if err := RefreshGenerationChecks(&replacement, auth.Catalog); err != nil {
 		return nil, nil, err
 	}
 	for _, pending := range queue {

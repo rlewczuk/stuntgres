@@ -116,7 +116,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 				t.Fatal(err)
 			}
 			grafted, err = plan.RewriteQueryExpressions(grafted, func(bound expr.Expr) (expr.Expr, bool, error) {
-				return rewriteViewExpression(e.CatalogRead(), bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+				return RewriteViewExpression(e.CatalogRead(), bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if occurrence, ok := expr.(*plan.WindowExpr); ok && occurrence.Frame == project.Frame {
 						copy := *occurrence
 						copy.Slot = slots[occurrence.Slot]

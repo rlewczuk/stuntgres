@@ -71,12 +71,12 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 			t.Fatal("target/EXCLUDED namespaces lost their distinct halves")
 		}
 	}
-	next, err := refreshRuleBinding(view, b, &current)
+	next, err := RefreshRuleBinding(view, b, &current)
 	if err != nil {
 		t.Fatal(err)
 	}
 	check(next)
-	mapped, err := remapRuleBinding(view, b, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+	mapped, err := RemapRuleBinding(view, b, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

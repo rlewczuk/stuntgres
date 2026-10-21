@@ -66,19 +66,19 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 		}
 	}
 
-	if rulesOf(&catalog.Relation{}) != nil || rulesPayloadOf(nil) != nil {
+	if RulesOf(&catalog.Relation{}) != nil || RulesPayload(nil) != nil {
 		t.Fatal("absent rules payload")
 	}
-	empty := &catalog.Relation{Rules: rulesPayloadOf([]ruleDefinition{})}
-	if empty.Rules == nil || rulesOf(empty) == nil || len(rulesOf(empty)) != 0 {
+	empty := &catalog.Relation{Rules: RulesPayload([]ruleDefinition{})}
+	if empty.Rules == nil || RulesOf(empty) == nil || len(RulesOf(empty)) != 0 {
 		t.Fatal("empty rule list collapsed")
 	}
 	rules := []ruleDefinition{{OID: 40001, Name: "a"}, {OID: 40002, Name: "b"}}
-	withRules := &catalog.Relation{Rules: rulesPayloadOf(rules)}
-	if got := rulesOf(withRules); len(got) != 2 || &got[0] != &rules[0] {
+	withRules := &catalog.Relation{Rules: RulesPayload(rules)}
+	if got := RulesOf(withRules); len(got) != 2 || &got[0] != &rules[0] {
 		t.Fatal("rule list identity")
 	}
-	if validateRules(catalog.Read{}, &catalog.Relation{}) != nil {
+	if ValidateRules(catalog.Read{}, &catalog.Relation{}) != nil {
 		t.Fatal("absent rules rejected")
 	}
 	rules[1].Name = "a"

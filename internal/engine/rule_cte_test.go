@@ -46,7 +46,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	definition := &plan.CTEDefinition{Statement: original.Syntax(), Mutation: &originalBinding, Schema: plan.QuerySchema(src.Columns), Owner: 1}
 	t.Run("complete_executable_tuple", func(t *testing.T) {
 		action := ruleUnitInsert(e, sink, 1, 11)
-		src.Rules = rulesPayloadOf([]ruleDefinition{NewRule(RuleParts{Name: "redirect", Event: "INSERT", Instead: true, Actions: []ruleAction{action}})})
+		src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{Name: "redirect", Event: "INSERT", Instead: true, Actions: []ruleAction{action}})})
 		defer func() { src.Rules = nil }()
 		parent := analyze.Binding{CTEs: []*plan.CTEDefinition{definition}}
 		e.mu.Lock()
@@ -68,7 +68,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		selection := &plan.CTEDefinition{Query: provider, Owner: 1}
 		for _, protected := range []*plan.CTEDefinition{definition, selection} {
 			scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(src.Columns), Query: protected.Query, CTE: protected, ScanFrame: 1}
-			mapped, err := newRuleTreeMapper(auth.Catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*plan.CTEDefinition{protected}).query(scan)
+			mapped, err := NewRuleTreeMapper(auth.Catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*plan.CTEDefinition{protected}).Query(scan)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -149,14 +149,14 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		root := &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)}, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}
 		finalized := make(map[plan.Node]bool)
 		finishCount := 0
-		mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{
-			leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
+		mapper := NewRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{
+			Leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 					return ruleUnitInt(sink, 11), true, nil
 				}
 				return expr, false, nil
 			},
-			finish: func(root plan.Node) (plan.Node, error) {
+			Finish: func(root plan.Node) (plan.Node, error) {
 				finishCount++
 				result, err := finalizeRuleQuery(auth.Catalog, root, finalized)
 				if err == nil {
@@ -165,14 +165,14 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 				return result, err
 			},
 		})
-		mapped, err := mapper.query(root)
+		mapped, err := mapper.Query(root)
 		if err != nil {
 			t.Fatal(err)
 		}
 		project := mapped.(*plan.ProjectNode)
 		result := project.Child.(*plan.DerivedNode)
 		analysis := project.AnalysisExpressions[0].(plan.SubqueryExpr)
-		definition, err := mapper.definition(local)
+		definition, err := mapper.Definition(local)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -182,7 +182,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if _, formal := definition.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.ColumnExpr); formal {
 			t.Fatal("formal reference survived semantic provider mapping")
 		}
-		repeated, err := mapper.query(root)
+		repeated, err := mapper.Query(root)
 		if err != nil || repeated != mapped || finishCount != 2 {
 			t.Fatalf("query finalization not exactly once per changed query: %d %v", finishCount, err)
 		}
@@ -196,7 +196,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		owned := &plan.CTEDefinition{Statement: auxiliary.Syntax(), Mutation: &auxiliaryBinding, Owner: 1, Name: "ignored"}
 		b := original.Binding()
 		b.CTEs = []*plan.CTEDefinition{owned}
-		mapped, err := remapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+		mapped, err := RemapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -31,7 +31,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 	// Ownership changes replace provider generations even when all SQL types are
 	// unchanged. Refresh stored CHECK/view/policy/default captures through the
 	// ordinary catalog expression remapper, not its type-only rename fast path.
-	if err := reownExpressions(e.catalog.read(candidate), candidate, nil, false); err != nil {
+	if err := ReownExpressions(e.catalog.read(candidate), candidate, nil, false); err != nil {
 		return err
 	}
 	e.catalog.state = candidate

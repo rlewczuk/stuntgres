@@ -35,13 +35,13 @@ type dumpScript struct {
 func buildDumpScript(ctx context.Context, capture *dumpCapture) (*dumpScript, error) {
 	s := &dumpScript{dumpCapture: capture}
 	var err error
-	if s.policyGroups, err = policyDumpGroups(ctx, s.originalCatalog, s.originalRoles); err != nil {
+	if s.policyGroups, err = PolicyDumpGroups(ctx, s.originalCatalog, s.originalRoles); err != nil {
 		return nil, err
 	}
-	if s.ruleGroups, err = ruleDumpGroups(ctx, s.originalCatalog, s.originalRoles); err != nil {
+	if s.ruleGroups, err = RuleDumpGroups(ctx, s.originalCatalog, s.originalRoles); err != nil {
 		return nil, err
 	}
-	if s.securityGroups, err = rowSecurityDumpGroups(ctx, s.catalogView, s.domainRoles); err != nil {
+	if s.securityGroups, err = RowSecurityDumpGroups(ctx, s.catalogView, s.domainRoles); err != nil {
 		return nil, err
 	}
 	if err := s.addDeclarationEdges(); err != nil {

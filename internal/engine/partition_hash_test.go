@@ -117,7 +117,7 @@ func TestHashPartitionRemap(t *testing.T) {
 			break
 		}
 	}
-	remapped, err := remapPartitionDescriptor(catalog, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+	remapped, err := RemapPartitionDescriptor(catalog, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
 		if typ == old.Usage.Type {
 			return replacement
 		}

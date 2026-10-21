@@ -16,7 +16,7 @@ import (
 // its objects were renumbered by mapping (or, with typesOnly, after only
 // their types changed). view is the catalog view of next; its owner supplies
 // the reference domain.
-func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
+func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
 	domain := view.Owner().Domain
 	collation := typedef.RemappedCollationCapabilities(next, mapping)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
@@ -109,9 +109,9 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		if !ok {
 			continue
 		}
-		if len(rulesOf(d)) != 0 {
+		if len(RulesOf(d)) != 0 {
 			var err error
-			d, err = remapRules(view, d, mapping, ref, typ, collation)
+			d, err = RemapRules(view, d, mapping, ref, typ, collation)
 			if err != nil {
 				return err
 			}
@@ -199,7 +199,7 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 					}
 				}
 			}
-			if err := refreshGenerationChecks(&copy, view); err != nil {
+			if err := RefreshGenerationChecks(&copy, view); err != nil {
 				return err
 			}
 			d = &copy
@@ -278,7 +278,7 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		if catalog.HierarchyRelation(d) {
 			var err error
-			d, err = remapPartitionDescriptor(view, d, ref, typ, mapping, typesOnly, collation)
+			d, err = RemapPartitionDescriptor(view, d, ref, typ, mapping, typesOnly, collation)
 			if err != nil {
 				return err
 			}
@@ -286,7 +286,7 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		if len(d.Security.Policies) != 0 {
 			var err error
-			d, err = remapPolicies(view, d, mapping, ref, typ, collation)
+			d, err = RemapPolicies(view, d, mapping, ref, typ, collation)
 			if err != nil {
 				return err
 			}

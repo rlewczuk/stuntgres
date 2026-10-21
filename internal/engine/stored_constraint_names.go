@@ -7,7 +7,7 @@ import (
 
 // Attached constraints have catalog identities but no standalone descriptors.
 // Resolve them from their canonical parent metadata, never a spelling registry.
-func constraintName(parent *catalog.Relation, address ids.ObjectAddress) string {
+func ConstraintName(parent *catalog.Relation, address ids.ObjectAddress) string {
 	if parent == nil || address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return ""
 	}
@@ -39,12 +39,12 @@ func constraintName(parent *catalog.Relation, address ids.ObjectAddress) string 
 	return ""
 }
 
-func constraintParent(view catalog.Read, address ids.ObjectAddress) *catalog.Relation {
+func ConstraintParent(view catalog.Read, address ids.ObjectAddress) *catalog.Relation {
 	if address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return nil
 	}
 	for _, descriptor := range view.Descriptors() {
-		if parent, ok := descriptor.(*catalog.Relation); ok && constraintName(parent, address) != "" {
+		if parent, ok := descriptor.(*catalog.Relation); ok && ConstraintName(parent, address) != "" {
 			return parent
 		}
 	}

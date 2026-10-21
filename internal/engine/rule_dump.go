@@ -134,7 +134,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		}
 		return text, true, nil
 	}
-	node, _, err := rewriteViewExpression(view, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+	node, _, err := RewriteViewExpression(view, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if c, ok := expr.(plan.ReturningColumnExpr); ok {
 			return c.ColumnExpr, true, nil
 		}
@@ -292,7 +292,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 	return "", fmt.Errorf("stuntgres: missing rule FROM presentation for %T", root)
 }
 
-func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (string, error) {
+func RuleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (string, error) {
 	b := action.binding
 	if _, selecting := action.syntax.(*parser.Select); selecting {
 		return action.presentation.SelectSQL(ctx, view, viewPresentation{})
@@ -322,7 +322,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				if presentation == nil {
 					return "", fmt.Errorf("stuntgres: missing retained rule modifier presentation")
 				}
-				return ruleActionSQL(ctx, view, ruleAction{syntax: statement, binding: *mutation, presentation: presentation, modifierPresentations: action.modifierPresentations})
+				return RuleActionSQL(ctx, view, ruleAction{syntax: statement, binding: *mutation, presentation: presentation, modifierPresentations: action.modifierPresentations})
 			}
 			return "", fmt.Errorf("stuntgres: missing retained rule modifier binding")
 		})
@@ -388,7 +388,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				}
 				// Names belong to the current parent metadata, not the frozen
 				// action's creation spelling or a newly reused name.
-				canonicalName := constraintName(d, constraint)
+				canonicalName := ConstraintName(d, constraint)
 				if canonicalName == "" {
 					return "", fmt.Errorf("stuntgres: missing named rule constraint")
 				}
@@ -505,11 +505,11 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 	return sql.String(), nil
 }
 
-func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dump.Group, error) {
+func RuleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dump.Group, error) {
 	var groups []dump.Group
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(rulesOf(d)) == 0 {
+		if !ok || len(RulesOf(d)) == 0 {
 			continue
 		}
 		ns := view.MustNamespace(d.Namespace())
@@ -525,7 +525,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			return nil, err
 		}
 		var sql strings.Builder
-		for _, r := range rulesOf(d) {
+		for _, r := range RulesOf(d) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -533,7 +533,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 				address.SubID = 0
 				var provider catalog.Descriptor
 				if address.ClassID == 2606 {
-					parent := constraintParent(view, address)
+					parent := ConstraintParent(view, address)
 					if parent == nil {
 						return nil, ids.ErrCatalogReplaced
 					}
@@ -569,7 +569,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			} else {
 				parts := make([]string, len(r.actions))
 				for i, action := range r.actions {
-					parts[i], err = ruleActionSQL(ctx, view, action)
+					parts[i], err = RuleActionSQL(ctx, view, action)
 					if err != nil {
 						return nil, err
 					}

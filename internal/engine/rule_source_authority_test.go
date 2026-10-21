@@ -79,7 +79,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 						p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
 						p.Binding.QuerySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
 					})
-					src.Rules = rulesPayloadOf([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "r", Event: event, Actions: []ruleAction{action}})})
+					src.Rules = RulesPayload([]ruleDefinition{NewRule(RuleParts{OID: 900101, Name: "r", Event: event, Actions: []ruleAction{action}})})
 					program := ruleProgram{count: -1, returning: -1}
 					e.mu.Lock()
 					_, err = ruleRewriter{e.catalog.owner()}.expandLocked(auth, syntax, original, nil, &program)

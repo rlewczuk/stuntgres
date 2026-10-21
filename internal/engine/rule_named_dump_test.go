@@ -49,7 +49,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					if intended.OID == 0 || other.OID == 0 || intended.OID == other.OID || intended.Index == other.Index {
 						t.Fatal("fixture lacks two distinct real named constraint providers")
 					}
-					stored := rulesOf(before.MustRelation(srcRef.Address))[0]
+					stored := RulesOf(before.MustRelation(srcRef.Address))[0]
 					conflict := func(r ruleDefinition) *analyze.InsertConflict {
 						t.Helper()
 						b := r.Actions()[0].Binding()
@@ -117,7 +117,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					e.mu.Lock()
 					roles := e.roles.read(e.catalog.owner(), current, e.roles.published)
 					e.mu.Unlock()
-					groups, err := ruleDumpGroups(context.Background(), current, roles)
+					groups, err := RuleDumpGroups(context.Background(), current, roles)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -142,7 +142,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						t.Fatalf("exported rule reanalysis: %v\n%s", err, groups[0].SQL)
 					}
 					reboundView := e.CatalogRead()
-					rebound := rulesOf(reboundView.MustRelation(srcRef.Address))[0]
+					rebound := RulesOf(reboundView.MustRelation(srcRef.Address))[0]
 					assertSources(rebound)
 					if conflict(rebound).Constraint != intendedAddress {
 						t.Fatal("reanalysis did not capture the actual class2606 renamed constraint identity")
@@ -178,7 +178,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					importedSrc := catalogRef(t, e, imported, "src")
 					importedSink := catalogRef(t, e, imported, "sink")
 					importedParent := imported.MustRelation(importedSink.Address)
-					importedRule := rulesOf(imported.MustRelation(importedSrc.Address))[0]
+					importedRule := RulesOf(imported.MustRelation(importedSrc.Address))[0]
 					importedConflict := conflict(importedRule)
 					var importedProvider catalog.UniqueConstraint
 					for _, definition := range importedParent.Constraints.Unique {

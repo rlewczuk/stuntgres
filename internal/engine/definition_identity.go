@@ -105,7 +105,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			claimed[d.View.RuleOID()] = true
 		}
 		if ns, ok := next.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
-			for _, r := range rulesOf(d) {
+			for _, r := range RulesOf(d) {
 				claimed[r.OID] = true
 			}
 			for _, p := range d.Security.Policies {
@@ -189,12 +189,12 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 		if ns, ok := next.Namespace(old.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if len(old.Constraints.NotNull)+len(old.Constraints.Check)+len(old.Constraints.Unique)+len(old.Constraints.Exclusion)+len(old.Constraints.ForeignKeys)+len(old.ColumnMeta.Defaults)+len(old.ColumnMeta.Generations)+len(old.Security.Policies)+len(rulesOf(old)) == 0 {
+		if len(old.Constraints.NotNull)+len(old.Constraints.Check)+len(old.Constraints.Unique)+len(old.Constraints.Exclusion)+len(old.Constraints.ForeignKeys)+len(old.ColumnMeta.Defaults)+len(old.ColumnMeta.Generations)+len(old.Security.Policies)+len(RulesOf(old)) == 0 {
 			continue
 		}
 		d := *old
 		changed, nullCopied, checkCopied, defaultCopied := false, false, false, false
-		for i, r := range rulesOf(old) {
+		for i, r := range RulesOf(old) {
 			id, err := remint(r.OID)
 			if err != nil {
 				return err
@@ -202,10 +202,10 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			if id == r.OID {
 				continue
 			}
-			if len(rulesOf(&d)) != 0 && &rulesOf(&d)[0] == &rulesOf(old)[0] {
-				d.Rules = rulesPayloadOf(append([]ruleDefinition(nil), rulesOf(old)...))
+			if len(RulesOf(&d)) != 0 && &RulesOf(&d)[0] == &RulesOf(old)[0] {
+				d.Rules = RulesPayload(append([]ruleDefinition(nil), RulesOf(old)...))
 			}
-			rulesOf(&d)[i].OID = id
+			RulesOf(&d)[i].OID = id
 			changed = true
 		}
 		for i, p := range old.Security.Policies {
@@ -403,13 +403,13 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 		view := e.catalog.read(next)
 		for address, descriptor := range next.Descriptors() {
 			parent, ok := descriptor.(*catalog.Relation)
-			if !ok || len(rulesOf(parent)) == 0 {
+			if !ok || len(RulesOf(parent)) == 0 {
 				continue
 			}
 			if namespace, ok := next.Namespace(parent.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			remapped, err := remapRuleConstraintIdentities(view, parent, constraintMapping)
+			remapped, err := RemapRuleConstraintIdentities(view, parent, constraintMapping)
 			if err != nil {
 				return err
 			}

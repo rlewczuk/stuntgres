@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (analyze.Binding, error) {
+func RemapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (analyze.Binding, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
 	mapper := &viewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation}
 	mapper.Mutation = func(definition *plan.CTEDefinition) (analyze.Binding, error) {
@@ -259,7 +259,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	}
 	b.Rule.CTEs = nil
 	if current != nil {
-		b, err = refreshRuleBinding(view, b, current)
+		b, err = RefreshRuleBinding(view, b, current)
 		if err != nil {
 			return b, err
 		}
@@ -267,7 +267,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	return b, nil
 }
 
-func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*catalog.Relation, error) {
+func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*catalog.Relation, error) {
 	if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
@@ -289,9 +289,9 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 		}
 	}
 	copy := *d
-	copy.Rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
-	for i := range rulesOf(&copy) {
-		r := &rulesOf(&copy)[i]
+	copy.Rules = RulesPayload(slices.Clone(RulesOf(d)))
+	for i := range RulesOf(&copy) {
+		r := &RulesOf(&copy)[i]
 		var err error
 		if r.condition != nil {
 			r.condition, _, err = stored.RetagTypes(view, r.condition, typ, collation)
@@ -310,7 +310,7 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 			}
 		}
 		if r.conditionBinding != nil {
-			next, err := remapRuleBinding(view, *r.conditionBinding, ref, typ, collation)
+			next, err := RemapRuleBinding(view, *r.conditionBinding, ref, typ, collation)
 			if err != nil {
 				return nil, err
 			}
@@ -319,7 +319,7 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 		r.actions = slices.Clone(r.actions)
 		for j := range r.actions {
 			action := &r.actions[j]
-			action.binding, err = remapRuleBinding(view, action.binding, ref, typ, collation)
+			action.binding, err = RemapRuleBinding(view, action.binding, ref, typ, collation)
 			if err != nil {
 				return nil, err
 			}
@@ -349,9 +349,9 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 // Definition OID reminting follows descriptor/expression import. Only named
 // constraint identities change here; canonical recipe mapping keeps modifying
 // WITH definitions and their scans coherent without remapping scalar types again.
-func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) (*catalog.Relation, error) {
+func RemapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) (*catalog.Relation, error) {
 	var replacement *catalog.Relation
-	for i, r := range rulesOf(d) {
+	for i, r := range RulesOf(d) {
 		var references []ids.ObjectAddress
 		for j, address := range r.references {
 			if next, ok := mapping[address]; ok && next != address {
@@ -366,7 +366,7 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 		}
 		if replacement == nil {
 			copy := *d
-			copy.Rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
+			copy.Rules = RulesPayload(slices.Clone(RulesOf(d)))
 			replacement = &copy
 		}
 		r.references = references
@@ -386,19 +386,19 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 				r.actions[j].binding = conflict(r.actions[j].binding)
 				continue
 			}
-			mapper := newRuleTreeMapper(view, nil, 0, nil, ruleTreeMapping{
-				mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
+			mapper := NewRuleTreeMapper(view, nil, 0, nil, ruleTreeMapping{
+				Mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 					mutation, _ := analyze.MutationBinding(definition)
 					return conflict(*mutation), nil
 				},
 			})
-			next, err := mapRuleBindingRecipes(conflict(r.actions[j].binding), mapper)
+			next, err := MapRuleBindingRecipes(conflict(r.actions[j].binding), mapper)
 			if err != nil {
 				return nil, err
 			}
 			r.actions[j].binding = next
 		}
-		rulesOf(replacement)[i] = r
+		RulesOf(replacement)[i] = r
 	}
 	if replacement == nil {
 		return d, nil

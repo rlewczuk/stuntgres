@@ -24,8 +24,8 @@ import (
 func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.ObjectAddress) string {
 	base := target
 	base.SubID = 0
-	if parent := constraintParent(view, base); parent != nil {
-		return "constraint " + catalog.DependencyIdentifier(constraintName(parent, base)) + " on table " + dependencyRelationName(view, parent, path)
+	if parent := ConstraintParent(view, base); parent != nil {
+		return "constraint " + catalog.DependencyIdentifier(ConstraintName(parent, base)) + " on table " + dependencyRelationName(view, parent, path)
 	}
 	if d, ok := view.Namespace(base); ok {
 		return "schema " + catalog.DependencyIdentifier(d.Name())
@@ -290,7 +290,7 @@ func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, pat
 		if !ok || slices.Contains(targets, d.Address()) {
 			continue
 		}
-		for _, r := range rulesOf(d) {
+		for _, r := range RulesOf(d) {
 			for _, target := range targets {
 				if ruleDepends(view, r, target) {
 					if observe != nil {

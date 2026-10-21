@@ -35,7 +35,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			sessionSQL(t, s, "CREATE RULE original AS ON UPDATE TO input DO ALSO "+tc.action)
 			before := e.CatalogRead()
 			input := catalogRef(t, e, before, "input")
-			persisted := rulesOf(before.MustRelation(input.Address))[0]
+			persisted := RulesOf(before.MustRelation(input.Address))[0]
 			action := persisted.Actions()[0]
 			owner := action.Presentation().Frames()[1]
 			child := owner.Child
@@ -46,7 +46,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			// Names must come from current attributes, not stale raw identifiers.
 			sessionSQL(t, s, "ALTER TABLE t DROP COLUMN spare")
 			sessionSQL(t, s, "ALTER TABLE t RENAME COLUMN id TO renamed")
-			text, err := ruleActionSQL(context.Background(), e.CatalogRead(), action)
+			text, err := RuleActionSQL(context.Background(), e.CatalogRead(), action)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -69,7 +69,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			sessionSQL(t, s, "CREATE RULE rebuilt AS ON UPDATE TO input DO ALSO "+text)
 			current := e.CatalogRead()
 			found := false
-			for _, rule := range rulesOf(current.MustRelation(input.Address)) {
+			for _, rule := range RulesOf(current.MustRelation(input.Address)) {
 				if rule.Name != "rebuilt" {
 					continue
 				}
@@ -80,16 +80,16 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 						t.Fatal("reanalysis lost tuple owner", update)
 					}
 				}
-				if _, err := ruleActionSQL(context.Background(), current, rule.Actions()[0]); err != nil {
+				if _, err := RuleActionSQL(context.Background(), current, rule.Actions()[0]); err != nil {
 					t.Fatal("rebound source namespace", err)
 				}
 				mapped := rule.Actions()[0]
-				expected, err := ruleActionSQL(context.Background(), current, mapped)
+				expected, err := RuleActionSQL(context.Background(), current, mapped)
 				if err != nil {
 					t.Fatal(err)
 				}
 				for generation := range 3 {
-					binding, err := remapRuleBinding(current, mapped.Binding(), func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+					binding, err := RemapRuleBinding(current, mapped.Binding(), func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -116,7 +116,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					if executable == nil || mapped.Presentation().Queries()[executable.Syntax] == executable {
 						t.Fatal("fixture did not establish independently remapped executable and presentation graphs")
 					}
-					actual, err := ruleActionSQL(context.Background(), current, mapped)
+					actual, err := RuleActionSQL(context.Background(), current, mapped)
 					if err != nil || actual != expected {
 						t.Fatal("canonical render after independent graph remap", generation, actual, expected, err)
 					}

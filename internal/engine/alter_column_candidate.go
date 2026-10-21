@@ -246,7 +246,7 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 			next.ColumnMeta.Generations[attribute] = definition
 		}
 	}
-	if err := refreshGenerationChecks(&next, view); err != nil {
+	if err := RefreshGenerationChecks(&next, view); err != nil {
 		return nil, err
 	}
 	if _, exists := old.ColumnMeta.Identities[old.Attributes[slot]]; exists {

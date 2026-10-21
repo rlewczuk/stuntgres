@@ -558,7 +558,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	next.SetProcedureNames(procedures.Index)
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || len(relation.Security.Policies) == 0 && len(rulesOf(relation)) == 0 {
+		if !ok || len(relation.Security.Policies) == 0 && len(RulesOf(relation)) == 0 {
 			continue
 		}
 		view := e.catalog.read(next)
@@ -568,14 +568,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		// enter the candidate after imported expressions have been remapped,
 		// so advance their frozen definition refs without applying import IDs.
 		if len(relation.Security.Policies) != 0 {
-			replacement, err := remapPolicies(view, relation, nil, remap, typ, nil)
+			replacement, err := RemapPolicies(view, relation, nil, remap, typ, nil)
 			if err != nil {
 				return err
 			}
 			relation = replacement
 		}
-		if len(rulesOf(relation)) != 0 {
-			replacement, err := remapRules(view, relation, nil, remap, typ, nil)
+		if len(RulesOf(relation)) != 0 {
+			replacement, err := RemapRules(view, relation, nil, remap, typ, nil)
 			if err != nil {
 				return err
 			}
@@ -737,14 +737,14 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 	view := e.catalog.read(e.catalog.state)
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(rulesOf(d)) == 0 {
+		if !ok || len(RulesOf(d)) == 0 {
 			continue
 		}
 		ns, ok := e.catalog.state.Namespace(d.Namespace())
 		if !ok || ns.Temporary == (ids.SessionToken{}) {
 			continue
 		}
-		for _, rule := range rulesOf(d) {
+		for _, rule := range RulesOf(d) {
 			for _, address := range rule.References() {
 				address.SubID = 0
 				if stored.DependPinned(view, nil, address) {
@@ -752,7 +752,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 				}
 				provider := e.catalog.state.Get(address)
 				if address.ClassID == 2606 {
-					parent := constraintParent(view, address)
+					parent := ConstraintParent(view, address)
 					if parent == nil {
 						return ids.ErrCatalogReplaced
 					}

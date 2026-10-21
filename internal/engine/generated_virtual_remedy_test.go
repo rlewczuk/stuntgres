@@ -77,7 +77,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	old := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Origin: origin, Scope: 1, Frame: 1, Slot: 1, Virtual: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: seven}, RowWidth: 2, QueryOccurrence: 1}
 	ordinary := *source
 	ordinary.Constraints.Check = []catalog.CheckConstraint{{Name: "positive", Expression: old}}
-	if err := refreshGenerationChecks(&ordinary, view); err != nil {
+	if err := RefreshGenerationChecks(&ordinary, view); err != nil {
 		t.Fatal(err)
 	}
 	column := ordinary.Constraints.Check[0].Expression.(plan.ColumnExpr)
@@ -103,7 +103,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 		t.Fatal("owner copy retained source execution recipe", copiedColumn)
 	}
 	wide.Constraints.Check = []catalog.CheckConstraint{{Name: "positive", Expression: copied}}
-	if err := refreshGenerationChecks(&wide, view); err != nil {
+	if err := RefreshGenerationChecks(&wide, view); err != nil {
 		t.Fatal(err)
 	}
 	column = wide.Constraints.Check[0].Expression.(plan.ColumnExpr)

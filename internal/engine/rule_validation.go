@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func validateRules(view catalog.Read, d *catalog.Relation) error {
+func ValidateRules(view catalog.Read, d *catalog.Relation) error {
 	if d.Rules == nil {
 		return nil
 	}
@@ -32,7 +32,7 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefini
 		}
 		providers := 0
 		for _, action := range r.actions {
-			if ruleEvent(action.syntax) == "" || action.binding.Parameters.Count != 0 {
+			if RuleEvent(action.syntax) == "" || action.binding.Parameters.Count != 0 {
 				return fmt.Errorf("stuntgres: invalid rule action")
 			}
 			if action.binding.Returning != nil {
@@ -54,7 +54,7 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefini
 			whole.SubID = 0
 			provider := view.Get(whole)
 			if address.ClassID == 2606 && address.SubID == 0 {
-				parent := constraintParent(view, address)
+				parent := ConstraintParent(view, address)
 				if parent == nil {
 					return fmt.Errorf("stuntgres: missing rule dependency")
 				}

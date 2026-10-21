@@ -22,14 +22,14 @@ func (r ruleList) Visit(visit func(catalog.RuleFact) error) error {
 }
 
 // rulesOf returns d's rules, or nil when d stores none.
-func rulesOf(d *catalog.Relation) []ruleDefinition {
+func RulesOf(d *catalog.Relation) []ruleDefinition {
 	r, _ := d.Rules.(ruleList)
 	return r
 }
 
 // rulesPayloadOf stores r as a payload. A nil slice stays a nil payload; an
 // empty non-nil slice stays an empty list.
-func rulesPayloadOf(r []ruleDefinition) catalog.RulesPayload {
+func RulesPayload(r []ruleDefinition) catalog.RulesPayload {
 	if r == nil {
 		return nil
 	}
