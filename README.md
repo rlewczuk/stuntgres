@@ -3364,8 +3364,9 @@ the preceding result prefix; missing variables, invalid vars shape and ordinary
 SQL errors are not suppressed. Named/default calls retain their written form
 through stored expressions and native replay, and use the real routine's ACL
 and dependency authority. GROUP matching distinguishes named/positional and
-omitted/explicit-default forms. Demanded arithmetic and scalar methods raise
-native `0A000`, even with silent enabled; unreachable branches remain undemanded.
+omitted/explicit-default forms. The five shape/scalar methods described below
+share this evaluator. Demanded arithmetic and remaining methods raise native
+`0A000`, even with silent enabled; unreachable branches remain undemanded.
 `_tz`, SQL/JSON query syntax and GIN remain excluded.
 See [navigation contracts](reference/binary_json_arrays/README.md#jsonpath-navigation-and-array-queries).
 Feature smoke: `make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$'`;
@@ -3396,9 +3397,26 @@ and no variables. `@?` tests item presence; `@@` returns a singleton Boolean or
 SQL NULL, including its retained Boolean prefix before a suppressed path error.
 Invalid path input and missing variables still raise their actual diagnostics.
 Documented structural and supported subscript errors are suppressed; demanded
-arithmetic and scalar/datetime methods retain the existing native `0A000`
+arithmetic and remaining scalar/datetime methods retain the native `0A000`
 boundary. Held statements, actual operator-routine ACLs and symbolic native
 replay use the ordinary expression paths. See [operator contracts and smoke](reference/binary_json_arrays/README.md#jsonb-jsonpath-operators).
+
+Change note: JSONPath `type()`, `size()`, `boolean()`, `string()` and `keyvalue()`
+now execute through every existing path consumer, including `@?`/`@@`.
+Type preserves arrays; size counts arrays and returns1 for lax nonarrays
+(strict nonarrays raise22039). Boolean/string/keyvalue unwrap one array level
+only in lax mode. Their invalid conversions still raise in lax; silent can
+terminate traversal with a retained prefix, while predicates yield unknown.
+Boolean accepts unpadded unique Boolean-string prefixes or signed-int32 lexical
+numeric output: numeric1.0 is invalid, numeric1e2 is true. String conversion
+preserves exact numeric display scale and spells booleans true/false.
+Keyvalue emits canonical id/key/value objects; IDs identify source occurrences
+within one invocation/base, not portable absolute counters. Equal distinct
+objects differ, revisits agree, and generated wrappers establish fresh bases.
+Prepared reuse, stored recipes and native replay keep no persistent ID state.
+See [method contracts](reference/binary_json_arrays/README.md#jsonpath-shape-and-scalar-methods).
+Feature smoke: `make check RUN='^TestReferenceJSONPathMethodsFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceJSONPathMethodsFeatureSmoke$' REFERENCE=1`.
 
 
 

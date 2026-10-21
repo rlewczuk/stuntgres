@@ -18,8 +18,9 @@ The shared bodies also cover BOOL metadata before iteration, same-held recovery,
 the actual two-argument operator routines and runtime ACLs, stored expressions,
 native same/fresh-engine Dump/Reset/Restore with actual emitted SQL replay on PG,
 late-error atomicity and evaluator-admitted cancellation. Demanded arithmetic
-and scalar methods retain explicit native `0A000` boundaries while PostgreSQL
-has independently expected numeric/datetime suppression.
+and remaining methods retain explicit native `0A000` boundaries while PostgreSQL
+has independently expected numeric/datetime suppression. The five selected
+shape/scalar methods below are supported through these same operators.
 
 Selected proof (run each selector in both modes after affected changes):
 
@@ -2022,8 +2023,9 @@ whereas `q` ignores `x`, `s` and `m`. Suppression pins strict silent prefix
 `[1]` for `[{"x":1},{},{"x":3}]`, not an empty result or lax `[1,3]`.
 Predicate structural failures become unknown; missing variables, nonobject vars,
 ordinary SQL errors and cancellation are not silenced. CapabilityBoundary
-asserts genuine PostgreSQL arithmetic/method results and native demanded
-`0A000`, including predicate/exists/silent contexts and unreachable branches.
+asserts supported size results alongside genuine PostgreSQL arithmetic/remaining
+method results and native demanded `0A000`, including predicate/exists/silent
+contexts and unreachable branches.
 
 Cancellation uses the same bounded8192-by-4092-byte string shape below32MiB,
 retaining all wildcard, strict recursive, comparison, regex and root paths.
@@ -2138,8 +2140,8 @@ Replay retains captured JSONPath leaf typing without accumulating duplicate
 casts on redump; outer explicit casts, domains and typmod conversions remain
 part of the stored recipe.
 Whole-project Docker-free verification remains `make quickcheck`.
-JSONPath operators, `_tz`, arithmetic/scalar methods, SQL/JSON query syntax and
-GIN are not enabled by this consumer. The four query consumers below reuse it.
+`_tz`, arithmetic, remaining scalar methods, SQL/JSON query syntax and GIN
+remain excluded. Query consumers and operators reuse this evaluator.
 
 ### JSONPath query consumer contracts
 
@@ -2224,6 +2226,78 @@ consumer demand and no-prefix-on-error, reminted child authority and once-only
 written argument order, genuine routine lifetime manifests, and invocation
 cursor ownership/reopening. Parser units inspect transported AST state and
 full consumption rather than execute public SQL outside reference/.
+
+### JSONPath shape and scalar methods
+
+The `TestReferenceJSONPathMethods` family specifies exactly `type()`, `size()`,
+`boolean()`, `string()` and `keyvalue()` through the existing evaluator and all
+seven consumers. Shape/Conversions pin scalar/object/array kinds, array sizes,
+exact numerics and string content. Type/size never automatically unwrap arrays.
+Size returns1 for lax nonarrays and raises22039 in strict mode. The other three
+methods unwrap only one array level in lax mode; empty arrays emit nothing and
+nested arrays fail rather than recursively flattening.
+
+Boolean string parsing accepts case-insensitive unique true/false/yes/no/on/off
+prefixes plus exact1/0, without whitespace trimming. Numeric output must be
+lexically valid signed int32:1.0 and overflow fail22036, while1e2 succeeds.
+String preserves exact numeric display scale and uses true/false for booleans.
+Conversion/wrong-shape errors occur in lax too; silent stops evaluation with
+the consumer's permitted prefix, and predicates produce unknown. Missing
+variables, invalid vars, SQL child errors, cancellation and demanded excluded
+methods remain unsuppressible.
+
+KeyValue/Identity assert fixed member keys/values, canonical object order and
+numeric ID equivalence classes within one invocation. Repeated source objects
+agree; equal distinct occurrences differ. Root and vars have separate origins,
+and generated wrappers establish fresh bases for their value descendants.
+Tests never compare absolute allocator values across calls or servers.
+Held/Consumers pin actual statement reuse, four-slot NULL/default/named binding,
+JSONB/BOOL/ordinality metadata, tail demand and public concurrent isolation.
+Diagnostics retain complete SQLSTATE/English/position/context/stage assertions.
+
+Stored/Controls exercise generated/default/CHECK/view/index recipes, ordinary
+relational consumers, native retained cursors, Dump/Reset/Restore, deterministic
+redump, fresh-driver restoration and actual emitted-SQL replay on PostgreSQL.
+Atomicity pins late method failures without partial writes and held recovery.
+Cancellation stores typed bounded JSONB arguments before admission; every row,
+including the early-valid small row, executes selected methods. Native admission
+observes `sqltype.jsonbOutput`, which renders the completed selected-method array.
+Keyvalue retains its large values through `.value.string()` so output work remains
+observable. PostgreSQL progress observes the third invocation's sequence advance:
+two prior calls, including at least one large selected result, have completed.
+The existing bounded fixture joins canceled read/write workers, verifies the
+sentinel and reuses the same held statements. Recovery expects INT8 sum25 and
+five JSONB `["x"]` rows for string or five `["1"]` rows for keyvalue, plus the
+unchanged sentinel99. Private RetainedNodes
+and Isolation units supplement public coverage with generated-node lifetime
+and immutable typed-plan concurrent reuse.
+
+Run each focused batch in both modes, with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceJSONPathMethods(Shape|Conversions|KeyValue|Identity)$'
+make check RUN='^TestReferenceJSONPathMethods(Suppression|Diagnostics|Consumers|Held)$'
+make check RUN='^TestReferenceJSONPathMethods(Stored|Controls|Atomicity|Cancellation)$'
+make check RUN='^TestReferenceJSONPathMethodsFeatureSmoke$'
+```
+
+Repeat each with `REFERENCE=1` for the real pinned PostgreSQL fixture. Changed
+boundaries require selected dual-mode proof as well:
+
+```sh
+make check RUN='^TestReferenceJSONPathNavigate(CapabilityBoundary|RecursiveBoundary|RecursiveRanges)$'
+make check RUN='^TestReferenceJSONBPathOpsCapabilityBoundary$'
+make check RUN='^TestJSONPathNavigate(Suppression|Traversal)$'
+make check RUN='^TestJSONPathMethods(RetainedNodes|Isolation)$'
+make check RUN='^TestReferenceJSONPathMethods(Held|Cancellation)$' RACE=1
+make check RUN='^TestJSONPathMethodsIsolation$' RACE=1
+```
+
+The standalone FeatureSmoke executes all five methods: type labels, sizes3/1,
+strict-size22039, Boolean conversion sequence, exact string conversion, relational
+keyvalue IDs, conversion22036/silent prefix[true], held recovery and stored
+view replay. Its argv is the FeatureSmoke selector above, and the same command
+with `REFERENCE=1`. Whole-project Docker-free proof remains `make quickcheck`.
 
 ### Binary conversion
 

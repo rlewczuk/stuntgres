@@ -30,7 +30,8 @@ func TestReferenceJSONBPathOpsCapabilityBoundary(t *testing.T) {
 		}{
 			{`1`, `$ / 0`, `stuntgres: JSONPath arithmetic is unsupported`, nil, nil},
 			{`"not-a-date"`, `$.datetime()`, `stuntgres: JSONPath scalar methods are unsupported`, nil, nil},
-			{`[1,2]`, `$.size()`, `stuntgres: JSONPath scalar methods are unsupported`, true, nil},
+			{`[1,2]`, `$.size()`, ``, true, nil},
+			{`[1,2]`, `$.double()`, `stuntgres: JSONPath scalar methods are unsupported`, true, nil},
 		} {
 			for i, op := range jsonbPathOps {
 				t.Run(op+"/"+tc.path, func(t *testing.T) {
@@ -39,7 +40,7 @@ func TestReferenceJSONBPathOpsCapabilityBoundary(t *testing.T) {
 						want = tc.match
 					}
 					s := jsonbPathOpsOne(jsonbPathOpsSQL(op), want, tc.doc, tc.path)
-					if !b.PG {
+					if !b.PG && tc.message != "" {
 						s = jsonpathNavigateError(s.Query, "0A000", tc.message, tc.doc, tc.path)
 					}
 					jsonpathNavigateBoth(t, p, b, c, s)

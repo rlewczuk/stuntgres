@@ -27,15 +27,20 @@ func jsonpathStructure(code, message string) error {
 }
 
 type jsonpathScope struct {
-	current *jsonbNode
-	last    int
-	ignore  bool
+	current       *jsonbNode
+	origin        uint64
+	currentOrigin uint64
+	last          int
+	ignore        bool
 }
 type jsonpathExecutor struct {
 	ctx        context.Context
 	root, vars *jsonbNode
 	strict     bool
 	regex      map[*jsonpathNode]*PGRegexProgram
+	identities map[jsonpathObject]int64
+	nextID     int64
+	nextOrigin uint64
 }
 
 // The executor owns neither its inputs nor a result collection. Consumer stop
@@ -50,7 +55,7 @@ func executeJSONPath(ctx context.Context, document, path, variables Value, emit 
 	if variables.jsonb.root.kind != jsonbObject {
 		return jsonpathExecStatus{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: `"vars" argument is not an object`, Detail: `Jsonpath parameters should be encoded as key-value pairs of "vars" object.`}
 	}
-	e := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, vars: &variables.jsonb.root, strict: path.jsonpath.strict}
+	e := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, vars: &variables.jsonb.root, strict: path.jsonpath.strict, nextOrigin: 2}
 	stopped, err := e.walk(path.jsonpath.root, e.root, jsonpathScope{current: e.root, last: -1}, emit)
 	if s, ok := err.(*jsonpathStructuralError); ok {
 		return jsonpathExecStatus{jsonpathSuppressibleStop, s.diagnostic}, nil
@@ -77,6 +82,8 @@ type jsonpathWork struct {
 	size        int
 	children    bool
 	child       int
+	keyvalue    bool
+	identity    int64
 }
 
 func (e *jsonpathExecutor) walk(path *jsonpathNode, input *jsonbNode, scope jsonpathScope, emit func(*jsonbNode) (bool, error)) (bool, error) {
@@ -90,6 +97,24 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input *jsonbNode, scope json
 		stack = stack[:len(stack)-1]
 		n, v, s := w.path, w.node, w.scope
 		// Iterator frames bound scratch by nesting depth rather than collection width.
+		if w.keyvalue {
+			if w.child < len(v.fields) {
+				field := &v.fields[w.child]
+				w.child++
+				stack = append(stack, w)
+				pair := &jsonbNode{kind: jsonbObject, fields: []jsonbEntry{
+					{key: "id", value: jsonpathInteger(w.identity)},
+					{key: "key", value: jsonbNode{kind: jsonbString, text: field.key}, ordinal: 1},
+					{key: "value", value: field.value, ordinal: 2},
+				}}
+				// Each generated wrapper establishes its own base, including the
+				// borrowed value subtree. Never mutate source nodes or shared plans.
+				s.origin = e.nextOrigin
+				e.nextOrigin++
+				stack = append(stack, jsonpathWork{path: n.next, node: pair, scope: s, unwrap: true})
+			}
+			continue
+		}
 		if w.children {
 			var child *jsonbNode
 			if v.kind == jsonbObject {
@@ -168,15 +193,17 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input *jsonbNode, scope json
 			continue
 		}
 		// Only the first level is automatically unwrapped by each relevant operation.
-		if !e.strict && w.unwrap && v.kind == jsonbArray && (n.kind == "key" || n.kind == "anykey" || n.kind == "filter") {
+		if !e.strict && w.unwrap && v.kind == jsonbArray && (n.kind == "key" || n.kind == "anykey" || n.kind == "filter" || n.kind == "method" && (n.text == "boolean" || n.text == "string" || n.text == "keyvalue")) {
 			stack = append(stack, jsonpathWork{path: n, node: v, scope: s, children: true})
 			continue
 		}
 		var structural error
 		switch n.kind {
 		case "$":
+			s.origin = 0
 			push(n.next, e.root, s)
 		case "@":
+			s.origin = s.currentOrigin
 			push(n.next, s.current, s)
 		case "variable":
 			node, err := jsonbExtractField(e.ctx, e.vars, n.text)
@@ -186,6 +213,7 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input *jsonbNode, scope json
 			if node == nil {
 				return false, failure("42704", fmt.Sprintf("could not find jsonpath variable \"%s\"", n.text))
 			}
+			s.origin = 1
 			push(n.next, node, s)
 		case "number":
 			x := &jsonbNode{kind: jsonbNumber, number: jsonbDecimal{digits: n.number.text, exponent: n.number.exponent, scale: n.number.scale, negative: n.number.negative}}
@@ -254,6 +282,7 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input *jsonbNode, scope json
 		case "filter":
 			candidate := s
 			candidate.current = v
+			candidate.currentOrigin = s.origin
 			truth, err := e.condition(n.left, candidate)
 			if err != nil {
 				return false, err
@@ -261,6 +290,25 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input *jsonbNode, scope json
 			if truth == jsonpathTrue {
 				push(n.next, v, s)
 			}
+		case "method":
+			if n.text == "keyvalue" {
+				if v.kind != jsonbObject {
+					return false, jsonpathStructure("2203C", "jsonpath item method .keyvalue() can only be applied to an object")
+				}
+				if len(v.fields) != 0 {
+					stack = append(stack, jsonpathWork{path: n, node: v, scope: s, keyvalue: true, identity: e.objectID(v, s.origin)})
+				}
+				break
+			}
+			if n.text == "size" && v.kind != jsonbArray && e.strict {
+				structural = jsonpathStructure("22039", "jsonpath item method .size() can only be applied to an array")
+				break
+			}
+			result, err := e.scalarMethod(n.text, v)
+			if err != nil {
+				return false, err
+			}
+			push(n.next, result, s)
 		case "+", "-", "*", "/", "%", "unary+", "unary-":
 			return false, failure("0A000", "stuntgres: JSONPath arithmetic is unsupported")
 		case "||", "&&", "==", "!=", "<", ">", "<=", ">=", "starts with", "like_regex", "!", "is unknown", "exists":

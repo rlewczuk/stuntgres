@@ -36,7 +36,7 @@ func TestReferenceJSONPathNavigateRecursiveBoundary(t *testing.T) {
 					})
 				}
 				jsonpathNavigateBoth(t, p, b, c, jsonpathNavigateSelect(q, `[1, 2, null, "s", true]`, `{"a":1,"b":[2,null,"s",true]}`, mode+`$.**{last}`))
-				for _, path := range []string{`$.**{last}.size()`, `$.**{last}[$v]`, `$.a.**{last}[$v]`} {
+				for _, path := range []string{`$.**{last}.size()`, `$.**{last}.double()`, `$.**{last}[$v]`, `$.a.**{last}[$v]`} {
 					t.Run(mode+path, func(t *testing.T) {
 						doc := `1`
 						if path == `$.a.**{last}[$v]` {

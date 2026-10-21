@@ -58,6 +58,7 @@ func TestJSONPathNavigateTraversal(t *testing.T) {
 				{scalar, `$.**{0}`, `[` + scalar + `]`},
 				{scalar, `$.**{0 to last}`, `[` + scalar + `]`},
 				{scalar, `$.**{last}.size()`, `[]`},
+				{scalar, `$.**{last}.double()`, `[]`},
 				{scalar, `$.**{last}[$v]`, `[]`},
 				{`{"a":` + scalar + `}`, `$.a.**{last}[$v]`, `[]`},
 				{`{"a":` + scalar + `}`, `$.**{last}`, `[` + scalar + `]`},
@@ -152,7 +153,7 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	}
 	for _, tc := range []struct{ path, code string }{
 		{`$v`, `42704`}, {`exists($v)`, `42704`}, {`$v==1`, `42704`},
-		{`exists($.size())`, `0A000`}, {`$.size()>0`, `0A000`}, {`exists(1+2)`, `0A000`},
+		{`exists($.double())`, `0A000`}, {`$.double()>0`, `0A000`}, {`exists(1+2)`, `0A000`},
 		{`$[2147483648]`, `22033`}, {`$[$v]`, `42704`},
 	} {
 		for _, silent := range []bool{false, true} {

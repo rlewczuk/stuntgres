@@ -43,9 +43,9 @@ func TestReferenceJSONPathNavigateCapabilityBoundary(t *testing.T) {
 		q := "SELECT jsonb_path_query_array($1::jsonb,$2::jsonpath,'{}'::jsonb,$3::boolean) AS changed"
 		for _, tc := range []struct{ path, want, message string }{
 			{`1+2`, `[3]`, `stuntgres: JSONPath arithmetic is unsupported`},
-			{`$.size()`, `[2]`, `stuntgres: JSONPath scalar methods are unsupported`},
-			{`exists($.size())`, `[true]`, `stuntgres: JSONPath scalar methods are unsupported`},
-			{`$.size() > 0`, `[true]`, `stuntgres: JSONPath scalar methods are unsupported`},
+			{`$.double()`, `[1, 2]`, `stuntgres: JSONPath scalar methods are unsupported`},
+			{`exists($.double())`, `[true]`, `stuntgres: JSONPath scalar methods are unsupported`},
+			{`$.double() > 0`, `[true]`, `stuntgres: JSONPath scalar methods are unsupported`},
 			{`exists(1+2)`, `[true]`, `stuntgres: JSONPath arithmetic is unsupported`},
 			{`(1+2) == 3`, `[true]`, `stuntgres: JSONPath arithmetic is unsupported`},
 		} {
@@ -57,7 +57,12 @@ func TestReferenceJSONPathNavigateCapabilityBoundary(t *testing.T) {
 				jsonpathNavigateBoth(t, p, b, c, s)
 			}
 		}
-		for _, tc := range []struct{ path, want string }{{`$.missing.size()`, `[]`}, {`(1==1)||($.size()>0)`, `[true]`}} {
+		for _, tc := range []struct{ path, want string }{{`$.size()`, `[2]`}, {`exists($.size())`, `[true]`}, {`$.size()>0`, `[true]`}} {
+			for _, silent := range []bool{false, true} {
+				jsonpathNavigateBoth(t, p, b, c, jsonpathNavigateSelect(q, tc.want, `[1,2]`, tc.path, silent))
+			}
+		}
+		for _, tc := range []struct{ path, want string }{{`$.missing.size()`, `[]`}, {`(1==1)||($.size()>0)`, `[true]`}, {`$.missing.double()`, `[]`}, {`(1==1)||($.double()>0)`, `[true]`}} {
 			jsonpathNavigateBoth(t, p, b, c, jsonpathNavigateSelect(q, tc.want, `{}`, tc.path, true))
 		}
 		jsonpathNavigateBoth(t, p, b, c, jsonpathNavigateSelect(q, nil, nil, `$.size()`, true))

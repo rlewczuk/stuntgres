@@ -2143,10 +2143,20 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   written labels/order and omitted versus explicit defaults. Stored defaults,
   generated/CHECK/view/index expressions and native replay use ordinary routine
   ACL/dependency and descriptor authority. Existing strict-NULL pruning and
-  runtime-parameter optimizer boundaries remain unchanged. Demanded arithmetic
-  and all scalar methods raise native `0A000` through silent/predicate layers;
-  unreachable branches are not eagerly rejected. `_tz`, SQL/JSON query forms
-  and GIN remain unsupported. JSONB `@?`/`@@` use the same exists/match consumers
+  runtime-parameter optimizer boundaries remain unchanged. `type()` preserves
+  arrays; `size()` counts array elements, returns1 for lax nonarrays and raises
+  22039 for strict nonarrays. `boolean()`, `string()` and `keyvalue()` unwrap one
+  array level only in lax mode; invalid conversions still raise22036/2203C in
+  lax and strict modes, independently of silent suppression. Boolean accepts
+  unpadded unique string prefixes or numeric output valid as signed int32
+  (1.0 fails, 1e2 succeeds). String retains exact numeric display scale and
+  spells booleans true/false. Keyvalue emits id/key/value objects with numeric,
+  per-invocation/base identity: source revisits agree, equal distinct occurrences
+  differ, and generated wrappers have fresh bases. No absolute ID or state
+  survives a call or enters persistence. Demanded arithmetic and remaining
+  methods raise native `0A000` through silent/predicate layers; unreachable
+  branches are not eagerly rejected. `_tz`, SQL/JSON query forms and GIN remain
+  unsupported. JSONB `@?`/`@@` use the same exists/match consumers
   with silent evaluation and no variables: suppressed structural/subscript
   errors do not hide malformed path input, missing variables, caller cancellation
   or demanded native unsupported arithmetic/methods. Match can retain a singleton

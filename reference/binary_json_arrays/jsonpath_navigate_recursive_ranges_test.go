@@ -40,7 +40,7 @@ func TestReferenceJSONPathNavigateRecursiveRanges(t *testing.T) {
 						jsonpathNavigateBoth(t, p, b, c, jsonpathNavigateSelect(q, tc.want, doc, mode+`$.**{`+tc.bounds+`}`))
 					})
 				}
-				for _, path := range []string{`$.x.**{last to 1}`, `$.x.**{last to 1}[$v]`, `$.x.**{last to 1}.size()`} {
+				for _, path := range []string{`$.x.**{last to 1}`, `$.x.**{last to 1}[$v]`, `$.x.**{last to 1}.size()`, `$.x.**{last to 1}.double()`} {
 					t.Run(mode+path, func(t *testing.T) {
 						jsonpathNavigateBoth(t, p, b, c, jsonpathNavigateSelect(q, `[]`, `{"x":{"a":1}}`, mode+path))
 					})

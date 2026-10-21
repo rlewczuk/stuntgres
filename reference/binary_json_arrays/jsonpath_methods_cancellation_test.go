@@ -1,0 +1,106 @@
+package reference_test
+
+import (
+	"context"
+	"database/sql"
+	"strings"
+	"testing"
+	"time"
+
+	"stuntgres/reference/fixture"
+)
+
+func TestReferenceJSONPathMethodsCancellation(t *testing.T) {
+	for _, method := range []string{"string", "keyvalue"} {
+		t.Run(method, func(t *testing.T) {
+			jsonpathNavigateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
+				run(fixture.Exec(`CREATE TABLE jpm_active(id int,v jsonb,p jsonpath,vars jsonb DEFAULT '{}')`, 0))
+				run(fixture.Exec(`CREATE TABLE jpm_cancel_out(id int,v jsonb)`, 0))
+				run(fixture.Exec(`INSERT INTO jpm_active(id,v,p) VALUES(1,'[0]','$'),(2,'[0]','$'),(3,'[0]','$'),(4,'[0]','$'),(5,'[0]','$')`, 5))
+				run(fixture.Exec(`INSERT INTO jpm_cancel_out VALUES(0,'99')`, 1))
+				run(fixture.Exec(`CREATE SEQUENCE jpm_cancel_progress`, 0))
+				element := `"` + strings.Repeat("x", 4080) + `"`
+				small := `["x"]`
+				path := `$[*].string()`
+				want := `["x"]`
+				if method == "keyvalue" {
+					element = `{"a":` + element + `}`
+					small = `[{"a":1}]`
+					path = `$[*].keyvalue().value.string()`
+					want = `["1"]`
+				}
+				large := `[` + strings.Repeat(element+",", 8191) + element + `]`
+				// Every invocation, including the early-valid row, executes selected
+				// methods. Keep keyvalue's large values in the generated result so
+				// output materialization itself is an observable bounded workload.
+				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id=1`, 1, small, path)))
+				call := `jsonb_path_query_array(v,p,vars,CASE WHEN nextval('jpm_cancel_progress')<0 THEN true ELSE false END)`
+				readSQL := `SELECT sum(length(` + call + `::text)) AS n FROM jpm_active`
+				writeSQL := `INSERT INTO jpm_cancel_out SELECT id,` + call + ` FROM jpm_active ORDER BY id`
+				resetProgress := func() {
+					run(fixture.Select(`SELECT setval('jpm_cancel_progress',1,false) AS progress`, []string{"progress"}, []string{"INT8"}, [][]any{{int64(1)}}))
+				}
+				admitted := func(ctx context.Context) {
+					if !b.PG {
+						return
+					}
+					// The third invocation cannot evaluate its silent argument until
+					// two prior calls completed. With only one small row, at least
+					// one large selected-method result has already materialized.
+					for {
+						var value int64
+						var called bool
+						if err := fixture.Admin.QueryRowContext(ctx, `SELECT last_value,is_called FROM public.jpm_cancel_progress`).Scan(&value, &called); err != nil {
+							t.Fatal("selected-method output progress", err)
+						}
+						if called && value >= 3 {
+							return
+						}
+						if ctx.Err() != nil {
+							t.Fatal("selected-method progress deadline", ctx.Err())
+						}
+					}
+				}
+				read, err := c.PrepareContext(p.Ctx, readSQL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer read.Close()
+				write, err := c.PrepareContext(p.Ctx, writeSQL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer write.Close()
+				defer func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel()
+					if _, err := c.ExecContext(ctx, `UPDATE jpm_active SET v='[0]',p='$'`); err != nil {
+						t.Error(err)
+					}
+				}()
+				// All JSONB arguments are already typed stored values. The native
+				// jsonbOutput frame is Evaluate's result rendering after the path
+				// has completed, not input parsing or a JSON argument constructor.
+				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id>1`, 4, large, path)))
+				resetProgress()
+				fixture.BinaryConversionActiveCancelAfter(t, p, b, c, readSQL, "sqltype.jsonbOutput", admitted, func(ctx context.Context) fixture.RelationOutcome {
+					rows, err := read.QueryContext(ctx)
+					return fixture.RelationOutcome{Rows: rows, Err: err}
+				})
+				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id>1`, 4, small, path)))
+				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(25)}}))
+				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id>1`, 4, large, path)))
+				resetProgress()
+				fixture.BinaryConversionActiveCancelAfter(t, p, b, c, writeSQL, "sqltype.jsonbOutput", admitted, func(ctx context.Context) fixture.RelationOutcome {
+					result, err := write.ExecContext(ctx)
+					return fixture.RelationOutcome{Result: result, Err: err}
+				})
+				run(fixture.Select(`SELECT id,v FROM jpm_cancel_out ORDER BY id`, []string{"id", "v"}, []string{"INT4", "JSONB"}, [][]any{{int64(0), `99`}}))
+				run(fixture.Prepared(fixture.Exec(`UPDATE jpm_active SET v=$1,p=$2 WHERE id>1`, 4, small, path)))
+				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: write, SQL: writeSQL}, b.Recorder, fixture.Exec(writeSQL, 5))
+				run(fixture.Select(`SELECT id,v FROM jpm_cancel_out ORDER BY id`, []string{"id", "v"}, []string{"INT4", "JSONB"}, [][]any{{int64(0), `99`}, {int64(1), want}, {int64(2), want}, {int64(3), want}, {int64(4), want}, {int64(5), want}}))
+			})
+		})
+	}
+}
