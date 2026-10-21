@@ -137,7 +137,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return err
 		}
 		schema := view.Get(parent.Namespace()).Name()
-		if err := validateUniqueRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth, building); err != nil {
+		if err := validateUniqueRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth.View, disclosureEnv(&indexAuth), building); err != nil {
 			return err
 		}
 		build := &alterIndexBuild{index: index, root: full, store: visible}

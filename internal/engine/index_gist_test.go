@@ -59,7 +59,7 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 			t.Fatal("membership reordered", root)
 		}
 		before := append([]storage.IndexEntry(nil), root.Entries...)
-		err = validateExclusionRoot(context.Background(), parent, index, root, "public", sqltype.OutputEnvironment{}, nil, true)
+		err = validateExclusionRoot(context.Background(), parent, index, root, "public", sqltype.OutputEnvironment{}, nil, nil, true)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 			t.Fatal("nonadjacent overlap not rejected", err)
@@ -80,7 +80,7 @@ func TestLogicalGiSTDeltaImmutable(t *testing.T) {
 	}
 	before := append([]storage.IndexEntry(nil), root.Entries...)
 	publication := &rowPublication{writes: []storage.RowVersion{row(3, "10.0.0.1", "[3,7)")}, singleSlot: -1}
-	_, err = mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
+	_, err = mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 		t.Fatal("delta overlap not rejected", err)
@@ -89,13 +89,13 @@ func TestLogicalGiSTDeltaImmutable(t *testing.T) {
 	replacement.Base = 1
 	replacement.Version = 4
 	publication.writes = []storage.RowVersion{replacement}
-	next, err := mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
+	next, err := mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil || next == nil || len(next.Entries) != 2 || next.Entries[1].Version != 4 {
 		t.Fatal("replacement", next, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = mergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
+	_, err = mergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestLogicalGiSTUnchangedPublicationNonadjacentOverlap(t *testing.T) {
 			// There are deliberately no writes or deletions: exercise the
 			// unchanged-membership validation entrance, not the GiST delta path.
 			publication := &rowPublication{singleSlot: -1}
-			next, err := mergeIndexRoot(evaluation, parent, index, root.Entries, publication, false, materialize, false, "public", sqltype.OutputEnvironment{}, nil)
+			next, err := mergeIndexRoot(evaluation, parent, index, root.Entries, publication, false, materialize, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 			if !reflect.DeepEqual(*root, rootBefore) || !reflect.DeepEqual(root.Entries, entriesBefore) ||
 				!reflect.DeepEqual(*store, storeBefore) {
 				t.Fatal("unchanged publication mutated original root entries or storage")

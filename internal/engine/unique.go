@@ -385,10 +385,10 @@ func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 	return d
 }
 
-func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
-		return validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building)
+		return validateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building)
 	}
 	if !d.Unique {
 		return nil
@@ -397,25 +397,25 @@ func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, ro
 	if err != nil {
 		return err
 	}
-	return validateUniqueEntries(ctx, parent, index, root.Entries, schema, output, auth, building, ordering)
+	return validateUniqueEntries(ctx, parent, index, root.Entries, schema, output, view, env, building, ordering)
 }
 
-func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []storage.IndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
+func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool, ordering indexOrdering) error {
 	if index.SQLIndex.IsExclusion() {
-		return validateExclusionEntries(ctx, parent, index, entries, schema, output, auth, building)
+		return validateExclusionEntries(ctx, parent, index, entries, schema, output, view, env, building)
 	}
 	for i := 1; i < len(entries); i++ {
-		if err := validateUniquePair(ctx, parent, index, entries[i-1], entries[i], schema, output, auth, building, ordering); err != nil {
+		if err := validateUniquePair(ctx, parent, index, entries[i-1], entries[i], schema, output, view, env, building, ordering); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
+func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool, ordering indexOrdering) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
-		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building)
+		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, view, env, building)
 	}
 	if !d.Unique || !d.NullsNotDistinct && uniqueHasNull(current.Keys) {
 		return nil
@@ -425,10 +425,10 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 		return err
 	}
 	if cmp == 0 {
-		allowed := auth == nil || auth.engine == nil // Trusted publication has no SQL principal.
-		if auth != nil && auth.engine != nil {
-			ref := auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), parent.Address())
-			allowed, err = uniqueKeyDetailAllowed(auth.View, *auth, ref, d.Keys)
+		allowed := env == nil // Trusted publication has no SQL principal.
+		if env != nil {
+			ref := view.Catalog.Owner().Domain.Ref(view.Catalog.Epoch(), parent.Address())
+			allowed, err = uniqueKeyDetailAllowed(*view, env, ref, d.Keys)
 			if err != nil {
 				return err
 			}
@@ -440,8 +440,8 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 			key = previous.Keys
 		}
 		var catalog catalog.Read
-		if auth != nil {
-			catalog = auth.Catalog
+		if view != nil {
+			catalog = view.Catalog
 		}
 		return uniqueDiagnostic(ctx, parent, index, key, schema, output, allowed, building, catalog)
 	}

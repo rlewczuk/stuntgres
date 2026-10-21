@@ -141,7 +141,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		evaluation.RoutineAuthority = &auth
 		root, err := buildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
 		if err == nil {
-			err = validateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth, first)
+			err = validateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth.View, disclosureEnv(&auth), first)
 		}
 		if err != nil {
 			e.DiscardCatalogStage(stage)

@@ -484,7 +484,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 			}
 			if index.SQLIndex.IsExclusion() {
 				namespace := next.MustNamespace(parent.Namespace())
-				if err := validateExclusionRoot(ctx, parent, index, root, namespace.Name(), output, indexAuth, rebuild && !runtime); err != nil {
+				if err := validateExclusionRoot(ctx, parent, index, root, namespace.Name(), output, &indexAuth.View, disclosureEnv(indexAuth), rebuild && !runtime); err != nil {
 					return nil, err
 				}
 			}
@@ -514,7 +514,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 				if err != nil {
 					return nil, err
 				}
-				if err := validateUniqueEntries(ctx, parent, index, entries, namespace.Name(), output, indexAuth, !runtime, ordering); err != nil {
+				if err := validateUniqueEntries(ctx, parent, index, entries, namespace.Name(), output, &indexAuth.View, disclosureEnv(indexAuth), !runtime, ordering); err != nil {
 					return nil, err
 				}
 			}
@@ -528,7 +528,7 @@ func (e *Engine) prepareIndexPublication(evaluation *exec.Context, current, next
 				schema = next.MustNamespace(parent.Namespace()).Name()
 			}
 			reconstruct := !produced && (rebuildParents[parent.Address()] || old == nil) && index.SQLIndex.Valid
-			merged, err := mergeIndexRoot(evaluation, parent, index, entries, &publications[i], reconstruct, materialize, false, schema, output, indexAuth)
+			merged, err := mergeIndexRoot(evaluation, parent, index, entries, &publications[i], reconstruct, materialize, false, schema, output, &indexAuth.View, disclosureEnv(indexAuth))
 			if err != nil {
 				return nil, err
 			}

@@ -4,15 +4,16 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, stmt parser.Statement) error {
+func (g *indexMaintenanceGrant) collectPartitionIndexes(view access.View, stmt parser.Statement) error {
 	add := func(index *catalog.Relation) {
-		ref := auth.Ref(index.Address())
+		ref := view.Ref(index.Address())
 		if !slices.Contains(g.indexes, ref) {
 			g.indexes = append(g.indexes, ref)
 		}
@@ -22,16 +23,16 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		if !slices.Contains(g.parents, parentRef) {
 			g.parents = append(g.parents, parentRef)
 		}
-		if table := auth.Catalog.MustRelation(address); table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
+		if table := view.Catalog.MustRelation(address); table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 			g.partition = true
 		}
-		g.descriptors[address] = auth.Catalog.MustRelation(address)
+		g.descriptors[address] = view.Catalog.MustRelation(address)
 	}
 	if _, drop := stmt.(*parser.DropIndex); drop {
 		selected := false
 		for _, target := range g.targets {
 			index := g.descriptors[target.Address]
-			table := auth.Catalog.MustRelation(index.SQLIndex.Parent)
+			table := view.Catalog.MustRelation(index.SQLIndex.Parent)
 			if table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 				selected = true
 				break
@@ -44,7 +45,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		return nil
 	}
 	indexes := make([]*catalog.Relation, 0, len(g.indexes))
-	for _, descriptor := range auth.Catalog.Descriptors() {
+	for _, descriptor := range view.Catalog.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 			indexes = append(indexes, index)
 		}
@@ -66,9 +67,9 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 				if index.SQLIndex.Constraint != nil && drop.Mode != parser.DropCascade {
 					root := index
 					for !slices.ContainsFunc(g.targets, func(target ids.ObjectRef) bool { return target.Address == root.Address() }) {
-						root = auth.Catalog.MustRelation(root.SQLIndex.PartitionParent)
+						root = view.Catalog.MustRelation(root.SQLIndex.PartitionParent)
 					}
-					table := auth.Catalog.Get(index.SQLIndex.Parent)
+					table := view.Catalog.Get(index.SQLIndex.Parent)
 					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because other objects depend on it", root.Name()), Detail: fmt.Sprintf("constraint %s on table %s depends on index %s", index.SQLIndex.Constraint.Name, table.Name(), root.Name()), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 				}
 			}
@@ -81,7 +82,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		// before taking any lock. No names are resolved after a wait.
 		root := g.descriptors[g.targets[0].Address]
 		for root.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
-			root = auth.Catalog.MustRelation(root.SQLIndex.PartitionParent)
+			root = view.Catalog.MustRelation(root.SQLIndex.PartitionParent)
 		}
 		roots[root.Address()] = true
 		for {
@@ -103,7 +104,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		return nil
 	}
 	for address := range roots {
-		add(auth.Catalog.MustRelation(address))
+		add(view.Catalog.MustRelation(address))
 	}
 	return nil
 }

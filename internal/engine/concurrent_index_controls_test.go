@@ -340,7 +340,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := validateUniqueRoot(context.Background(), parent, &next, root, "public", sqltype.OutputEnvironment{}, nil, true); err != nil {
+			if err := validateUniqueRoot(context.Background(), parent, &next, root, "public", sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
 				t.Fatal(err)
 			}
 			stage := e.BeginCatalogStage(base)

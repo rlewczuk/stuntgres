@@ -117,7 +117,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			}
 			schema = namespace.Name()
 		}
-		if err := validateUniqueRoot(ctx, parent, index, root, schema, sqltype.OutputEnvironment{}, nil, true); err != nil {
+		if err := validateUniqueRoot(ctx, parent, index, root, schema, sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
 			return nil, 0, 0, err
 		}
 	}

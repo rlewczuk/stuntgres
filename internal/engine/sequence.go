@@ -384,7 +384,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			e.mu.Unlock()
 			return Result{}, sequence.NotSequenceError(d)
 		}
-		if er = relationDropOwner(auth, ref, d); er != nil {
+		if er = relationDropOwner(auth.View, auth, ref, d); er != nil {
 			e.mu.Unlock()
 			return Result{}, er
 		}
@@ -462,7 +462,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if !ok {
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		if err = relationDropOwner(auth, ref, d); err != nil {
+		if err = relationDropOwner(auth.View, auth, ref, d); err != nil {
 			return Result{}, err
 		}
 		if d.Sequence.Identity {
@@ -494,20 +494,20 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil
 }
-func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation) error {
-	err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
+func relationDropOwner(view access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation) error {
+	err := view.Check(env, access.Requirement{Object: ref, OwnerOnly: true})
 	if err == nil {
 		return nil
 	}
-	if _, validationErr := auth.Object(ref); validationErr != nil {
+	if _, validationErr := view.Object(ref); validationErr != nil {
 		return validationErr
 	}
-	ns, ok := auth.Catalog.Namespace(d.Namespace())
+	ns, ok := view.Catalog.Namespace(d.Namespace())
 	if !ok {
 		return fmt.Errorf("stuntgres: invalid sequence namespace")
 	}
 	namespace := ref.Domain().Ref(ref.Epoch, ns.Address())
-	if auth.Check(access.Requirement{Object: namespace, OwnerOnly: true}) == nil {
+	if view.Check(env, access.Requirement{Object: namespace, OwnerOnly: true}) == nil {
 		return nil
 	}
 	return err

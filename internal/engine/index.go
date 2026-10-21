@@ -333,7 +333,7 @@ func buildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *ca
 	}
 	return entries, nil
 }
-func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old []storage.IndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*storage.IndexRoot, error) {
+func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, old []storage.IndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
@@ -402,7 +402,7 @@ func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 	}
 	if len(added) == 0 && len(ended) == 0 {
 		if validate {
-			if err := validateUniqueEntries(ctx, parent, index, old, schema, output, auth, building, o); err != nil {
+			if err := validateUniqueEntries(ctx, parent, index, old, schema, output, view, env, building, o); err != nil {
 				return nil, err
 			}
 		}
@@ -424,7 +424,7 @@ func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 		entries = append(entries, added...)
 		root := newLogicalIndexRoot(d, entries)
 		if validate {
-			if err := validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building); err != nil {
+			if err := validateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building); err != nil {
 				return nil, err
 			}
 		}
@@ -444,7 +444,7 @@ func mergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 	havePrevious := false
 	accept := func(entry storage.IndexEntry) error {
 		if havePrevious && validate {
-			if err := validateUniquePair(ctx, parent, index, previous, entry, schema, output, auth, building, o); err != nil {
+			if err := validateUniquePair(ctx, parent, index, previous, entry, schema, output, view, env, building, o); err != nil {
 				return err
 			}
 		}

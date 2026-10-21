@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -171,7 +172,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	}}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	dirty := map[ids.ObjectAddress]bool{source.Address(): true, destination.Address(): true}
-	if err := snapshot.repair(evaluation.Context, &evaluation, relations, nil, dirty, AuthorizationView{}); err != nil {
+	if err := snapshot.repair(evaluation.Context, &evaluation, relations, nil, dirty, access.View{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	// The existing storage remint mutates candidate row identities in place.

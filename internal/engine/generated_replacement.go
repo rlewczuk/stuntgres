@@ -106,7 +106,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		moved, err = stage.repairRemappedHashPartitions(ctx, &evaluation, auth, indexes)
 	}
 	if err == nil {
-		err = indexes.repair(ctx, &evaluation, relations, changed, moved, auth)
+		err = indexes.repair(ctx, &evaluation, relations, changed, moved, auth.View, disclosureEnv(&auth))
 	}
 	if err == nil {
 		scope.completed = true

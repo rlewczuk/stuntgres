@@ -2,12 +2,13 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
 	if previous.Row == current.Row || uniqueHasNull(previous.Keys) || uniqueHasNull(current.Keys) {
 		return nil
 	}
@@ -15,13 +16,13 @@ func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation,
 	if err != nil || !match {
 		return err
 	}
-	allowed := auth == nil || auth.engine == nil
+	allowed := env == nil // Trusted publication has no SQL principal.
 	var catalog catalog.Read
-	if auth != nil {
-		catalog = auth.Catalog
-		if auth.engine != nil {
+	if view != nil {
+		catalog = view.Catalog
+		if env != nil {
 			ref := catalog.Owner().Domain.Ref(catalog.Epoch(), parent.Address())
-			allowed, err = uniqueKeyDetailAllowed(auth.View, *auth, ref, index.SQLIndex.Keys)
+			allowed, err = uniqueKeyDetailAllowed(*view, env, ref, index.SQLIndex.Keys)
 			if err != nil {
 				return err
 			}
@@ -33,12 +34,12 @@ func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation,
 	}
 	return exclusionDiagnostic(ctx, parent, index, key, existing, schema, output, allowed, building, catalog)
 }
-func validateExclusionRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateExclusionRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
 	if root == nil {
 		return ctx.Err()
 	}
 	if root.Hash == nil {
-		return validateExclusionEntries(ctx, parent, index, root.Entries, schema, output, auth, building)
+		return validateExclusionEntries(ctx, parent, index, root.Entries, schema, output, view, env, building)
 	}
 	var leftKey, rightKey [1]sqltype.Value
 	for _, bucket := range root.Hash.Buckets {
@@ -48,7 +49,7 @@ func validateExclusionRoot(ctx context.Context, parent, index *catalog.Relation,
 			for _, prior := range bucket[:i] {
 				rightKey[0] = prior.Key
 				right := storage.IndexEntry{Row: prior.Row, Version: prior.Version, Keys: rightKey[:]}
-				if err := validateExclusionPair(ctx, parent, index, right, left, schema, output, auth, building); err != nil {
+				if err := validateExclusionPair(ctx, parent, index, right, left, schema, output, view, env, building); err != nil {
 					return err
 				}
 			}
@@ -57,7 +58,7 @@ func validateExclusionRoot(ctx context.Context, parent, index *catalog.Relation,
 	return ctx.Err()
 }
 
-func validateExclusionEntries(ctx context.Context, parent, index *catalog.Relation, entries []storage.IndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateExclusionEntries(ctx context.Context, parent, index *catalog.Relation, entries []storage.IndexEntry, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
 	for i, current := range entries {
 		start := 0
 		if index.SQLIndex.Method == catalog.BtreeMethod {
@@ -67,7 +68,7 @@ func validateExclusionEntries(ctx context.Context, parent, index *catalog.Relati
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if err := validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building); err != nil {
+			if err := validateExclusionPair(ctx, parent, index, previous, current, schema, output, view, env, building); err != nil {
 				return err
 			}
 		}

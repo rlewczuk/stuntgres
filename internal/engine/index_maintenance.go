@@ -27,7 +27,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	if g == nil {
 		return fail(fmt.Errorf("stuntgres: index utility has no relation admission"))
 	}
-	if err := g.check(auth, stmt, true); err != nil {
+	if err := g.check(auth.View, auth, stmt, true); err != nil {
 		return fail(err)
 	}
 	if err := scope.captureIdentityLocked(auth); err != nil {
