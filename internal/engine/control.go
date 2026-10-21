@@ -82,204 +82,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return err
 	}
 	ctx = aclItemOutputContext(ctx, capture.aclOutput)
-	policyGroups, err := policyDumpGroups(ctx, capture.originalCatalog, capture.originalRoles)
+	script, err := buildDumpScript(ctx, capture)
 	if err != nil {
 		return err
-	}
-	ruleGroups, err := ruleDumpGroups(ctx, capture.originalCatalog, capture.originalRoles)
-	if err != nil {
-		return err
-	}
-	securityGroups, err := rowSecurityDumpGroups(ctx, capture.catalogView, capture.domainRoles)
-	if err != nil {
-		return err
-	}
-	domainNodes := make(map[ids.OID]*catalog.Type, len(capture.domains))
-	for _, d := range capture.domains {
-		id := d.Address().ObjectID
-		domainNodes[id] = d
-		capture.graph[dump.Event{OID: id}] = nil
-		if d.SQLType.IsDomain() {
-			predecessor, err := dumpPredecessor(capture.catalogView, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, d.Address())
-			if err != nil {
-				return err
-			}
-			if predecessor != 0 {
-				capture.graph[dump.Event{OID: id}] = []dump.Event{{OID: predecessor}}
-			}
-			if d.DomainDefault != nil {
-				for _, dependency := range d.DomainDefault.Dependencies {
-					predecessor, err := dumpPredecessor(capture.catalogView, dependency.Address, d.Address())
-					if err != nil {
-						return err
-					}
-					event, dependencyEvent := dump.Event{OID: id}, dump.Event{OID: predecessor}
-					if predecessor != 0 && !slices.Contains(capture.graph[event], dependencyEvent) {
-						capture.graph[event] = append(capture.graph[event], dependencyEvent)
-					}
-				}
-			}
-			for _, check := range d.DomainChecks {
-				if check.NotValid {
-					continue
-				}
-				for _, dependency := range check.Dependencies {
-					predecessor, err := dumpPredecessor(capture.catalogView, dependency.Ref.Address, d.Address())
-					if err != nil {
-						return err
-					}
-					event := dump.Event{OID: id}
-					dependencyEvent := dump.Event{OID: predecessor}
-					if predecessor != 0 && !slices.Contains(capture.graph[event], dependencyEvent) {
-						capture.graph[event] = append(capture.graph[event], dependencyEvent)
-					}
-				}
-			}
-		}
-	}
-	for _, d := range capture.operators {
-		if d.Function == 0 && operatorShellGenerator(capture.catalogView, d) != nil {
-			continue
-		}
-		id := d.Address().ObjectID
-		capture.graph[dump.Event{OID: id}] = nil
-		for _, dependency := range routine.OperatorDependencyAddresses(capture.catalogView, d) {
-			if dependency.ClassID == ids.NamespaceClassID {
-				continue
-			}
-			predecessor, err := dumpPredecessor(capture.catalogView, dependency, d.Address())
-			if err != nil {
-				return err
-			}
-			if predecessor != 0 {
-				capture.graph[dump.Event{OID: id}] = append(capture.graph[dump.Event{OID: id}], dump.Event{OID: predecessor})
-			}
-		}
-	}
-	// Reconstruct final links, not allocation history: asymmetric links remain
-	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
-	operatorDumpEvents(capture.catalogView, capture.operators, capture.graph)
-	if err := sqlRoutineDumpEvents(capture.catalogView, capture.sqlRoutines, capture.graph); err != nil {
-		return err
-	}
-	for event, predecessors := range capture.graph {
-		id := event.OID
-		relation, ok := capture.catalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id})
-		if !ok {
-			continue
-		}
-		columns, err := dumpColumnPredecessors(capture.catalogView, relation, dump.DeclarationIDs(predecessors))
-		if err != nil {
-			return err
-		}
-		capture.graph[event] = dump.DeclarationEvents(columns)
-		if inline, ok := capture.inlinePredecessors[id]; ok {
-			inline, err = dumpColumnPredecessors(capture.catalogView, relation, inline)
-			if err != nil {
-				return err
-			}
-			capture.inlinePredecessors[id] = inline
-		}
-	}
-	collationStatements, err := collationDumpStatements(ctx, capture.catalogView, capture.domainRoles, capture.collations)
-	if err != nil {
-		return err
-	}
-	seedStatements, err := typedef.CollationSeedDumpStatements(ctx, capture.catalogView, capture.domainRoles)
-	if err != nil {
-		return err
-	}
-	conversionStatements, conversionSchemas, err := conversionDumpStatements(ctx, capture.catalogView, capture.domainRoles, capture.conversions)
-	if err != nil {
-		return err
-	}
-	conversionSeeds, err := typedef.ConversionSeedDumpStatements(ctx, capture.catalogView, capture.domainRoles)
-	if err != nil {
-		return err
-	}
-	if capture.deferDefaults {
-		for oid, predecessors := range capture.inlinePredecessors {
-			capture.graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
-		}
-	}
-	// Capture collision-remap provenance from the same immutable snapshot as
-	// the capture.graph, before any dump-private naming substitutions.
-	var priorities map[ids.OID]ids.OID
-	for address, priority := range capture.originalCatalog.State().DumpPriorities() {
-		if _, emitted := capture.graph[dump.Event{OID: address.ObjectID}]; emitted {
-			if priorities == nil {
-				priorities = make(map[ids.OID]ids.OID)
-			}
-			priorities[address.ObjectID] = priority
-		}
-	}
-	if err := physicalNotNullDumpDependencies(capture.originalCatalog, capture.graph); err != nil {
-		return err
-	}
-	normalizeOperatorDumpPredecessors(capture.catalogView, capture.graph)
-	declarationOrder, err := dump.Order(ctx, capture.graph, priorities)
-	if err != nil && !capture.deferDefaults && ctx.Err() == nil && len(capture.inlinePredecessors) != 0 {
-		for oid, predecessors := range capture.inlinePredecessors {
-			capture.graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
-		}
-		if err := physicalNotNullDumpDependencies(capture.originalCatalog, capture.graph); err != nil {
-			return err
-		}
-		normalizeOperatorDumpPredecessors(capture.catalogView, capture.graph)
-		declarationOrder, err = dump.Order(ctx, capture.graph, priorities)
-		capture.deferDefaults = err == nil
-	}
-	if err != nil {
-		return err
-	}
-	for i := range capture.tables {
-		if err := capture.tables[i].prepareInheritedRecipes(capture.originalCatalog); err != nil {
-			return err
-		}
-	}
-	viewOrder := dump.DeclarationIDs(declarationOrder)
-	if err := partitionDumpEvents(ctx, capture.originalCatalog, capture.graph, dump.DeclarationEvents(viewOrder), capture.tables, capture.indexIndices, capture.constraintReplay, capture.deferDefaults); err != nil {
-		return err
-	}
-	invalidReplay := partitionInvalidDumpEvents(capture.originalCatalog, capture.graph, capture.indexIndices)
-	if err := domainInvalidDumpEvents(ctx, capture.catalogView, capture.graph, domainNodes); err != nil {
-		return err
-	}
-	normalizeOperatorDumpPredecessors(capture.catalogView, capture.graph)
-	eventOrder, err := dump.Order(ctx, capture.graph, priorities)
-	if err != nil {
-		return err
-	}
-	declarations, err := mixedDumpStatements(ctx, capture.catalogView, capture.domainRoles, viewOrder, domainNodes, capture.composites)
-	if err != nil {
-		return err
-	}
-	for _, d := range capture.sqlRoutines {
-		declaration, err := sqlRoutineDumpStatement(capture.catalogView, capture.domainRoles, d)
-		if err != nil {
-			return err
-		}
-		declarations[d.Address().ObjectID] = declaration
-	}
-	operatorLinks := make(map[ids.OID]string)
-	for _, d := range capture.operators {
-		if d.Function == 0 && operatorShellGenerator(capture.catalogView, d) != nil {
-			continue
-		}
-		declaration, err := operatorDumpDeclaration(ctx, capture.catalogView, capture.domainRoles, d)
-		if err != nil {
-			return err
-		}
-		declarations[d.Address().ObjectID] = declaration
-		if d.Function != 0 {
-			text, err := operatorDumpLinks(capture.catalogView, d)
-			if err != nil {
-				return err
-			}
-			if text != "" {
-				operatorLinks[d.Address().ObjectID] = text
-			}
-		}
 	}
 	emit := func(s string) error {
 		if err := ctx.Err(); err != nil {
@@ -294,18 +99,18 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		return ctx.Err()
 	}
-	if len(capture.sqlRoutines) != 0 {
+	if len(script.sqlRoutines) != 0 {
 		if err := emit(routine.RestoreDirective + "\n"); err != nil {
 			return err
 		}
 	}
-	for _, line := range capture.preamble {
+	for _, line := range script.preamble {
 		if err := emit(line); err != nil {
 			return err
 		}
 	}
-	sort.Slice(capture.schemas, func(i, j int) bool { return capture.schemas[i].name < capture.schemas[j].name })
-	for _, s := range capture.schemas {
+	sort.Slice(script.schemas, func(i, j int) bool { return script.schemas[i].name < script.schemas[j].name })
+	for _, s := range script.schemas {
 		prefix := "CREATE SCHEMA "
 		if s.configured {
 			prefix += "IF NOT EXISTS "
@@ -319,23 +124,23 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 	}
-	for _, line := range conversionSchemas {
+	for _, line := range script.conversionSchemas {
 		if err := emit(line); err != nil {
 			return err
 		}
 	}
-	for _, line := range seedStatements {
+	for _, line := range script.seedStatements {
 		if err := emit(line); err != nil {
 			return err
 		}
 	}
-	for _, line := range conversionSeeds {
+	for _, line := range script.conversionSeeds {
 		if err := emit(line); err != nil {
 			return err
 		}
 	}
-	sort.Slice(capture.schemaComments, func(i, j int) bool { return capture.schemaComments[i].name < capture.schemaComments[j].name })
-	for _, c := range capture.schemaComments {
+	sort.Slice(script.schemaComments, func(i, j int) bool { return script.schemaComments[i].name < script.schemaComments[j].name })
+	for _, c := range script.schemaComments {
 		literal := "NULL"
 		if c.text != "" {
 			literal = dump.CommentLiteral(c.text)
@@ -344,15 +149,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
-	sequenceCreation, sequenceCompletion := sequence.DumpStatements(capture.sequences)
+	sequenceCreation, sequenceCompletion := sequence.DumpStatements(script.sequences)
 	for _, line := range sequenceCreation {
 		if err := emit(line); err != nil {
 			return err
 		}
 	}
 	currentOwner := ""
-	for _, declarations := range [2][]dump.Statement{collationStatements, conversionStatements} {
-		for _, declaration := range declarations {
+	for _, statements := range [2][]dump.Statement{script.collationStatements, script.conversionStatements} {
+		for _, declaration := range statements {
 			if declaration.Owner != currentOwner {
 				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.Owner, "'", "''") + "';\n"); err != nil {
 					return err
@@ -376,20 +181,20 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		currentOwner = owner
 		return nil
 	}
-	for _, event := range eventOrder {
+	for _, event := range script.eventOrder {
 		oid := event.OID
 		if event.Phase != dump.Declaration {
 			if event.Phase == dump.OperatorLinks {
 				if err := setOwner("postgres"); err != nil {
 					return err
 				}
-				if err := emit(operatorLinks[oid]); err != nil {
+				if err := emit(script.operatorLinks[oid]); err != nil {
 					return err
 				}
 				continue
 			}
 			if event.Phase == dump.DomainChecks {
-				text, err := domainInvalidDumpStatement(ctx, capture.catalogView, domainNodes[oid])
+				text, err := domainInvalidDumpStatement(ctx, script.catalogView, script.domainNodes[oid])
 				if err != nil {
 					return err
 				}
@@ -411,7 +216,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if err := setOwner("postgres"); err != nil {
 					return err
 				}
-				text, err := invalidReplay[oid].sql(ctx, capture.originalCatalog, event.Phase)
+				text, err := script.invalidReplay[oid].sql(ctx, script.originalCatalog, event.Phase)
 				if err != nil {
 					return err
 				}
@@ -424,28 +229,28 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if err := setOwner("postgres"); err != nil {
 					return err
 				}
-				descriptor := capture.originalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
+				descriptor := script.originalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 				var text string
 				switch event.Phase {
 				case dump.Rename:
-					text = capture.constraintReplay.finalRenameSQL(descriptor)
+					text = script.constraintReplay.finalRenameSQL(descriptor)
 				case dump.IndexAttachment:
-					text = partitionIndexDumpAttachmentSQL(capture.originalCatalog, descriptor)
+					text = partitionIndexDumpAttachmentSQL(script.originalCatalog, descriptor)
 				case dump.TableAttachment:
-					text, err = partitionAttachDumpSQL(ctx, capture.originalCatalog, descriptor)
+					text, err = partitionAttachDumpSQL(ctx, script.originalCatalog, descriptor)
 					if err != nil {
 						return err
 					}
-					text += capture.constraintReplay.membershipRenames(capture.catalogView, descriptor, event)
+					text += script.constraintReplay.membershipRenames(script.catalogView, descriptor, event)
 				}
 				if err := emit(text); err != nil {
 					return err
 				}
 				continue
 			}
-			t := capture.tables[capture.tableIndices[oid]]
+			t := script.tables[script.tableIndices[oid]]
 			owner := t.owner
-			if event.Phase == dump.InheritanceChecks || event.Phase == dump.RetiredConstraints || event.Phase == dump.InheritedForeignKeys || event.Phase == dump.InvalidConstraints && catalog.InheritanceParticipant(capture.originalCatalog, t.descriptor) {
+			if event.Phase == dump.InheritanceChecks || event.Phase == dump.RetiredConstraints || event.Phase == dump.InheritedForeignKeys || event.Phase == dump.InvalidConstraints && catalog.InheritanceParticipant(script.originalCatalog, t.descriptor) {
 				owner = "postgres"
 			}
 			if err := setOwner(owner); err != nil {
@@ -453,21 +258,21 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			switch event.Phase {
 			case dump.Defaults:
-				err = t.emitDeferredDefaults(ctx, capture.originalCatalog, emit)
+				err = t.emitDeferredDefaults(ctx, script.originalCatalog, emit)
 			case dump.Rows:
-				err = t.emitRows(ctx, capture.originalCatalog, emit)
+				err = t.emitRows(ctx, script.originalCatalog, emit)
 			case dump.InvalidConstraints:
-				err = t.emitInvalidConstraints(ctx, capture.originalCatalog, emit)
+				err = t.emitInvalidConstraints(ctx, script.originalCatalog, emit)
 			case dump.InheritanceRecipes:
-				err = t.emitInheritedGenerations(ctx, capture.originalCatalog, emit)
+				err = t.emitInheritedGenerations(ctx, script.originalCatalog, emit)
 			case dump.InheritanceChecks:
-				err = t.emitInheritedChecks(ctx, capture.originalCatalog, emit)
+				err = t.emitInheritedChecks(ctx, script.originalCatalog, emit)
 			case dump.InheritedForeignKeys:
-				err = t.emitInheritedForeignKeys(capture.originalCatalog, emit)
+				err = t.emitInheritedForeignKeys(script.originalCatalog, emit)
 			case dump.RetiredConstraints:
-				err = t.emitRetiredConstraints(capture.originalCatalog, false, emit, setOwner)
+				err = t.emitRetiredConstraints(script.originalCatalog, false, emit, setOwner)
 				if err == nil {
-					err = t.emitRetiredConstraints(capture.originalCatalog, true, emit, setOwner)
+					err = t.emitRetiredConstraints(script.originalCatalog, true, emit, setOwner)
 				}
 			}
 			if err != nil {
@@ -475,8 +280,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			continue
 		}
-		if declaration, exists := declarations[oid]; exists {
-			if domain := domainNodes[oid]; domain != nil && domain.SQLType.IsDomain() && declaration.Owner != "postgres" {
+		if declaration, exists := script.declarations[oid]; exists {
+			if domain := script.domainNodes[oid]; domain != nil && domain.SQLType.IsDomain() && declaration.Owner != "postgres" {
 				// Owner metadata does not imply schema CREATE/USAGE. Preserve
 				// its captured identity, construct as bootstrap, then transfer only
 				// the exact fresh domain through the ordinary owner executor.
@@ -490,7 +295,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if err := emit(declaration.SQL); err != nil {
 					return err
 				}
-				qualified, err := catalogTypeDeclaration(capture.catalogView, domain.SQLType.Usage())
+				qualified, err := catalogTypeDeclaration(script.catalogView, domain.SQLType.Usage())
 				if err != nil {
 					return err
 				}
@@ -510,8 +315,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			continue
 		}
-		if position, isIndex := capture.indexIndices[oid]; isIndex {
-			index := capture.indexes[position]
+		if position, isIndex := script.indexIndices[oid]; isIndex {
+			index := script.indexes[position]
 			if index.owner != currentOwner {
 				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(index.owner, "'", "''") + "';\n"); err != nil {
 					return err
@@ -521,38 +326,38 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if err := emit(index.sql); err != nil {
 				return err
 			}
-			original := capture.originalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
+			original := script.originalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 			if original.SQLIndex != nil && original.SQLIndex.Constraint != nil && original.SQLIndex.Constraint.Primary {
-				parent := capture.originalCatalog.MustRelation(original.SQLIndex.Parent)
+				parent := script.originalCatalog.MustRelation(original.SQLIndex.Parent)
 				for i := range parent.Constraints.Unique {
 					if parent.Constraints.Unique[i].Index == original.Address() {
-						if err := emitPhysicalPrimaryCleanup(capture.originalCatalog, parent, &parent.Constraints.Unique[i], emit, setOwner); err != nil {
+						if err := emitPhysicalPrimaryCleanup(script.originalCatalog, parent, &parent.Constraints.Unique[i], emit, setOwner); err != nil {
 							return err
 						}
-						if err := emitPhysicalSelfForeignKeys(capture.originalCatalog, parent, index.owner, true, emit, setOwner); err != nil {
+						if err := emitPhysicalSelfForeignKeys(script.originalCatalog, parent, index.owner, true, emit, setOwner); err != nil {
 							return err
 						}
-						if err := emitPhysicalCompetingUniques(capture.originalCatalog, parent, index.owner, true, emit, setOwner); err != nil {
+						if err := emitPhysicalCompetingUniques(script.originalCatalog, parent, index.owner, true, emit, setOwner); err != nil {
 							return err
 						}
 						break
 					}
 				}
 			}
-			if partitionReplayVirtualUniqueRoot(capture.originalCatalog, original) != nil {
-				if err := emit(capture.constraintReplay.virtualUniqueRenames(capture.originalCatalog, original)); err != nil {
+			if partitionReplayVirtualUniqueRoot(script.originalCatalog, original) != nil {
+				if err := emit(script.constraintReplay.virtualUniqueRenames(script.originalCatalog, original)); err != nil {
 					return err
 				}
 			}
-			descriptor := capture.catalogView.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-			if capture.constraintReplay.occupied[descriptor.Namespace()] == nil {
-				capture.constraintReplay.occupied[descriptor.Namespace()] = make(map[string]bool)
+			descriptor := script.catalogView.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
+			if script.constraintReplay.occupied[descriptor.Namespace()] == nil {
+				script.constraintReplay.occupied[descriptor.Namespace()] = make(map[string]bool)
 			}
-			capture.constraintReplay.occupied[descriptor.Namespace()][descriptor.Name()] = true
+			script.constraintReplay.occupied[descriptor.Namespace()][descriptor.Name()] = true
 			continue
 		}
-		if index, isView := capture.viewIndices[oid]; isView {
-			view := capture.views[index]
+		if index, isView := script.viewIndices[oid]; isView {
+			view := script.views[index]
 			if view.owner != currentOwner {
 				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(view.owner, "'", "''") + "';\n"); err != nil {
 					return err
@@ -564,8 +369,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			continue
 		}
-		t := capture.tables[capture.tableIndices[oid]]
-		t.descriptor = capture.catalogView.MustRelation(t.descriptor.Address())
+		t := script.tables[script.tableIndices[oid]]
+		t.descriptor = script.catalogView.MustRelation(t.descriptor.Address())
 		inheritedOwnerReplay := t.descriptor.Inheritance != nil && t.owner != "postgres"
 		if inheritedOwnerReplay {
 			// Retain a real captured-role directive before the privileged CREATE;
@@ -585,13 +390,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		// post-creation array rank. Reconstruct ordinary columns, then attach.
 		attachAfterCreate := t.descriptor.OfType != (ids.ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.ColumnMeta.Generations) != 0 || slices.ContainsFunc(t.columns, func(column catalog.Column) bool { return column.DeclaredDimensions != 0 }))
 		var line strings.Builder
-		if t.descriptor.Membership == nil || partitionDumpNeedsAttach(capture.catalogView, t.descriptor) {
+		if t.descriptor.Membership == nil || partitionDumpNeedsAttach(script.catalogView, t.descriptor) {
 			typed := t.descriptor.OfType != (ids.ObjectAddress{}) && !attachAfterCreate
 			hasElements := !typed || len(t.columns) != 0 || len(t.descriptor.Constraints.Check) != 0 || len(t.descriptor.Constraints.Unique) != 0 || len(t.descriptor.Constraints.Exclusion) != 0 || len(t.descriptor.Constraints.ForeignKeys) != 0
 			line.WriteString("CREATE TABLE " + qualified)
 			if typed {
-				source := capture.catalogView.MustType(t.descriptor.OfType)
-				namespace := capture.catalogView.Get(source.ObjectNamespace).Name()
+				source := script.catalogView.MustType(t.descriptor.OfType)
+				namespace := script.catalogView.Get(source.ObjectNamespace).Name()
 				line.WriteString(" OF " + catalog.QuoteIdentifier(namespace) + "." + catalog.QuoteIdentifier(source.Name()))
 			}
 			if hasElements {
@@ -617,21 +422,21 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if typed {
 					line.WriteString(" WITH OPTIONS")
 				} else {
-					declaration, err := catalogColumnDeclaration(capture.catalogView, c)
+					declaration, err := catalogColumnDeclaration(script.catalogView, c)
 					if err != nil {
 						return err
 					}
 					line.WriteString(" " + declaration)
 					if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
-						name := typedef.CollationSQLName(capture.catalogView, c.Usage.Collation.ID)
+						name := typedef.CollationSQLName(script.catalogView, c.Usage.Collation.ID)
 						if name == "" {
 							return fmt.Errorf("stuntgres: unsupported stored collation")
 						}
 						line.WriteString(" COLLATE " + name)
 					}
 				}
-				if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.ExplicitDefault && !(capture.deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
-					text, err := defaultSQL(ctx, capture.catalogView, definition.Expression)
+				if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.ExplicitDefault && !(script.deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
+					text, err := defaultSQL(ctx, script.catalogView, definition.Expression)
 					if err != nil {
 						return err
 					}
@@ -650,7 +455,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						text = "NULL"
 					} else {
 						var err error
-						text, err = (scalarRenderer{owner: t.descriptor}).sql(ctx, capture.catalogView, definition.Expression)
+						text, err = (scalarRenderer{owner: t.descriptor}).sql(ctx, script.catalogView, definition.Expression)
 						if err != nil {
 							return err
 						}
@@ -669,7 +474,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					}
 					line.WriteString(")")
 				}
-				if !c.Nullable && dumpNotNullDeclaration(capture.originalCatalog, t.descriptor, t.attributes[i]) {
+				if !c.Nullable && dumpNotNullDeclaration(script.originalCatalog, t.descriptor, t.attributes[i]) {
 					for _, constraint := range t.notNullConstraints {
 						if constraint.Attribute == t.attributes[i] && !constraint.NotValid {
 							line.WriteString(" CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " NOT NULL")
@@ -683,7 +488,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					if constraint.NotValid {
 						continue
 					}
-					if inheritance.Columns[constraint.Attribute].Local || !dumpNotNullDeclaration(capture.originalCatalog, t.descriptor, constraint.Attribute) {
+					if inheritance.Columns[constraint.Attribute].Local || !dumpNotNullDeclaration(script.originalCatalog, t.descriptor, constraint.Attribute) {
 						continue
 					}
 					if localElements > 0 {
@@ -698,10 +503,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if c.NotValid || t.deferredChecks[c.Name] {
 					continue
 				}
-				if !dumpCheckDeclaration(capture.originalCatalog, t.descriptor, c) {
+				if !dumpCheckDeclaration(script.originalCatalog, t.descriptor, c) {
 					continue
 				}
-				text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, capture.catalogView, c.Expression)
+				text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, script.catalogView, c.Expression)
 				if err != nil {
 					return err
 				}
@@ -718,19 +523,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if physicalPrimaryDeferred(t.descriptor, &c) {
 					continue
 				}
-				index, ok := capture.catalogView.Relation(c.Index)
+				index, ok := script.catalogView.Relation(c.Index)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing unique dump index")
 				}
-				if _, moved, err := physicalCompetingIndexSource(capture.originalCatalog, index); err != nil {
+				if _, moved, err := physicalCompetingIndexSource(script.originalCatalog, index); err != nil {
 					return err
 				} else if moved {
 					continue
 				}
-				if partitionReplaySeparateConstraint(capture.catalogView, index) {
+				if partitionReplaySeparateConstraint(script.catalogView, index) {
 					continue
 				}
-				text, err := (pgRenderer{view: capture.catalogView}).uniqueConstraintSQL(t.descriptor, &c)
+				text, err := (pgRenderer{view: script.catalogView}).uniqueConstraintSQL(t.descriptor, &c)
 				if err != nil {
 					return err
 				}
@@ -744,14 +549,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if c.Parent != 0 {
 					continue
 				}
-				index, ok := capture.catalogView.Relation(c.Index)
+				index, ok := script.catalogView.Relation(c.Index)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing exclusion dump index")
 				}
-				if partitionReplaySeparateConstraint(capture.catalogView, index) {
+				if partitionReplaySeparateConstraint(script.catalogView, index) {
 					continue
 				}
-				text, err := indexDefinitionSQL(ctx, capture.catalogView, index, indexPresentation{dump: true, exclusion: true})
+				text, err := indexDefinitionSQL(ctx, script.catalogView, index, indexPresentation{dump: true, exclusion: true})
 				if err != nil {
 					return err
 				}
@@ -762,10 +567,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(c.Name) + " " + text)
 			}
 			for _, f := range t.descriptor.Constraints.ForeignKeys {
-				if f.NotValid || physicalSelfForeignKeyDeferred(t.descriptor, f) || inheritedForeignKeyDeferred(capture.originalCatalog, t.descriptor, &f) {
+				if f.NotValid || physicalSelfForeignKeyDeferred(t.descriptor, f) || inheritedForeignKeyDeferred(script.originalCatalog, t.descriptor, &f) {
 					continue
 				}
-				text, err := (pgRenderer{view: capture.catalogView}).foreignKeyConstraintSQL(t.descriptor, f)
+				text, err := (pgRenderer{view: script.catalogView}).foreignKeyConstraintSQL(t.descriptor, f)
 				if err != nil {
 					return err
 				}
@@ -784,24 +589,24 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					if i > 0 {
 						line.WriteString(", ")
 					}
-					parent := capture.catalogView.MustRelation(address)
-					namespace := capture.catalogView.Get(parent.Namespace()).Name()
+					parent := script.catalogView.MustRelation(address)
+					namespace := script.catalogView.Get(parent.Namespace()).Name()
 					line.WriteString(catalog.QuoteIdentifier(namespace) + "." + catalog.QuoteIdentifier(parent.Name()))
 				}
 				line.WriteString(")")
 			}
 		} else {
 			var deferred map[int32]bool
-			if capture.deferDefaults {
+			if script.deferDefaults {
 				deferred = t.deferredDefinitions
 			}
-			definition, err := partitionChildSQL(ctx, capture.catalogView, t.descriptor, qualified, deferred)
+			definition, err := partitionChildSQL(ctx, script.catalogView, t.descriptor, qualified, deferred)
 			if err != nil {
 				return err
 			}
 			line.WriteString(definition)
 		}
-		key, err := partitionKeySQL(ctx, capture.catalogView, t.descriptor)
+		key, err := partitionKeySQL(ctx, script.catalogView, t.descriptor)
 		if err != nil {
 			return err
 		}
@@ -817,29 +622,29 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return err
 			}
 		}
-		if err := t.emitInheritedDefaults(ctx, capture.originalCatalog, capture.deferDefaults, emit); err != nil {
+		if err := t.emitInheritedDefaults(ctx, script.originalCatalog, script.deferDefaults, emit); err != nil {
 			return err
 		}
 		if err := t.emitNoInheritNotNull(emit, setOwner); err != nil {
 			return err
 		}
-		if err := t.emitPhysicalNotNull(capture.originalCatalog, emit, setOwner); err != nil {
+		if err := t.emitPhysicalNotNull(script.originalCatalog, emit, setOwner); err != nil {
 			return err
 		}
-		if err := emitPhysicalSelfForeignKeys(capture.originalCatalog, t.descriptor, t.owner, false, emit, setOwner); err != nil {
+		if err := emitPhysicalSelfForeignKeys(script.originalCatalog, t.descriptor, t.owner, false, emit, setOwner); err != nil {
 			return err
 		}
-		if err := emitPhysicalCompetingUniques(capture.originalCatalog, t.descriptor, t.owner, false, emit, setOwner); err != nil {
+		if err := emitPhysicalCompetingUniques(script.originalCatalog, t.descriptor, t.owner, false, emit, setOwner); err != nil {
 			return err
 		}
 		if attachAfterCreate {
-			source := capture.catalogView.MustType(t.descriptor.OfType)
-			namespace := capture.catalogView.Get(source.ObjectNamespace).Name()
+			source := script.catalogView.MustType(t.descriptor.OfType)
+			namespace := script.catalogView.Get(source.ObjectNamespace).Name()
 			if err := emit("ALTER TABLE " + qualified + " OF " + catalog.QuoteIdentifier(namespace) + "." + catalog.QuoteIdentifier(source.Name()) + ";\n"); err != nil {
 				return err
 			}
 		}
-		renames, err := capture.constraintReplay.tableRenames(capture.catalogView, t.descriptor)
+		renames, err := script.constraintReplay.tableRenames(script.catalogView, t.descriptor)
 		if err != nil {
 			return err
 		}
@@ -864,18 +669,18 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
-	slices.SortFunc(capture.materialized, func(a, b dumpRelation) int {
+	slices.SortFunc(script.materialized, func(a, b dumpRelation) int {
 		if order := strings.Compare(a.schema, b.schema); order != 0 {
 			return order
 		}
 		return strings.Compare(a.name, b.name)
 	})
-	for i := range capture.materialized {
-		if err := capture.materialized[i].emitMaterializedSnapshot(ctx, capture.originalCatalog, emit); err != nil {
+	for i := range script.materialized {
+		if err := script.materialized[i].emitMaterializedSnapshot(ctx, script.originalCatalog, emit); err != nil {
 			return err
 		}
 	}
-	for _, group := range policyGroups {
+	for _, group := range script.policyGroups {
 		if group.Owner != currentOwner {
 			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.Owner, "'", "''") + "';\n"); err != nil {
 				return err
@@ -886,7 +691,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
-	for _, group := range securityGroups {
+	for _, group := range script.securityGroups {
 		if group.Owner != currentOwner {
 			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.Owner, "'", "''") + "';\n"); err != nil {
 				return err
@@ -899,7 +704,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	// User rules are post-data: importing ordinary INSERT rows must not rewrite
 	// fixture data before every relation and original stored row exists.
-	for _, group := range ruleGroups {
+	for _, group := range script.ruleGroups {
 		if group.Owner != currentOwner {
 			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.Owner, "'", "''") + "';\n"); err != nil {
 				return err
@@ -914,12 +719,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// Repair only the lost metadata after all owner SQL, as genuine PostgreSQL
 	// catalog SQL under the authenticated administrator, not as replay comments.
 	rankAuthority := false
-	for _, event := range eventOrder {
-		index, exists := capture.tableIndices[event.OID]
+	for _, event := range script.eventOrder {
+		index, exists := script.tableIndices[event.OID]
 		if event.Phase != dump.Declaration || !exists {
 			continue
 		}
-		table := capture.tables[index]
+		table := script.tables[index]
 		inheritance := table.descriptor.Inheritance
 		if inheritance == nil {
 			continue
@@ -934,7 +739,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				rankAuthority = true
 			}
-			qualified := catalog.QuoteIdentifier(capture.catalogView.Get(table.descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.name)
+			qualified := catalog.QuoteIdentifier(script.catalogView.Get(table.descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.name)
 			if err := emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, dump.CommentLiteral(qualified), dump.CommentLiteral(column.Name))); err != nil {
 				return err
 			}
