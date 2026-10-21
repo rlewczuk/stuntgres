@@ -57,7 +57,7 @@ func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (storage.
 	return s.ownWrites[ref.Address][slot], true
 }
 
-func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *index.UniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose index.ProbePurpose) error {
+func addInsertWriteKey(o *insertWriteKeyOverlay, s *StatementScope, bound *index.UniqueBoundKey, evaluation *exec.Context, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose index.ProbePurpose) error {
 	member, keys, err := s.existingUniqueOutput(bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return err
@@ -85,7 +85,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *index
 	}
 	if !o.ownReady {
 		for slot, row := range s.ownWrites[ref.Address] {
-			if err := o.add(s, bound, evaluation, row, slot, o.own, purpose); err != nil {
+			if err := addInsertWriteKey(o, s, bound, evaluation, row, slot, o.own, purpose); err != nil {
 				return storage.RowVersion{}, false, err
 			}
 		}
@@ -93,7 +93,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *index
 	}
 	stage := s.stage.rows[ref.Address]
 	for o.stageCount < len(stage) {
-		if err := o.add(s, bound, evaluation, stage[o.stageCount], o.stageCount, o.stage, purpose); err != nil {
+		if err := addInsertWriteKey(o, s, bound, evaluation, stage[o.stageCount], o.stageCount, o.stage, purpose); err != nil {
 			return storage.RowVersion{}, false, err
 		}
 		o.stageCount++

@@ -52,7 +52,7 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q 
 	if err := conflict.selectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if err := conflict.preflightUpdate(&evaluation); err != nil {
+	if err := preflightConflictUpdate(conflict, &evaluation); err != nil {
 		t.Fatal(err)
 	}
 	scope.insertConflict = conflict
@@ -140,7 +140,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			t.Fatal(tc.name, err)
 		}
 		original := action.Insert.Conflict.Update
-		err = newInsertConflictState(action.Insert.Conflict).preflightUpdate(&evaluation)
+		err = preflightConflictUpdate(newInsertConflictState(action.Insert.Conflict), &evaluation)
 		if tc.error {
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || action.Insert.Conflict.Update != original {

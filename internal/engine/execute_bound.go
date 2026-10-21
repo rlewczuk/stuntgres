@@ -77,7 +77,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				return Result{}, err
 			}
 			scope.insertConflict = conflict
-			if err := conflict.preflightUpdate(&evaluation); err != nil {
+			if err := preflightConflictUpdate(conflict, &evaluation); err != nil {
 				return Result{}, err
 			}
 		}

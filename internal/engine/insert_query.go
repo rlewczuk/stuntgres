@@ -122,10 +122,10 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				return index.WriteBatch{}, err
 			}
 			if copyInsert != nil {
-				copyInsert.record(scope, b, &candidate, len(rows.Values))
+				recordCopyInsertion(copyInsert, scope, b, &candidate, len(rows.Values))
 				rows.Append(candidate)
 				if copyInsert.full() {
-					if err := copyInsert.flush(scope, b, &rows, &evaluation); err != nil {
+					if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 						return index.WriteBatch{}, err
 					}
 				}
@@ -203,17 +203,17 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 		if copyInsert != nil {
-			copyInsert.record(scope, b, &candidate, len(rows.Values))
+			recordCopyInsertion(copyInsert, scope, b, &candidate, len(rows.Values))
 		}
 		rows.Append(candidate)
 		if copyInsert != nil && copyInsert.full() {
-			if err := copyInsert.flush(scope, b, &rows, &evaluation); err != nil {
+			if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 				return index.WriteBatch{}, err
 			}
 		}
 	}
 	if copyInsert != nil && len(copyInsert.lines) != 0 {
-		if err := copyInsert.flush(scope, b, &rows, &evaluation); err != nil {
+		if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
 			return index.WriteBatch{}, err
 		}
 	}

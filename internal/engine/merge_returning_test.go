@@ -150,7 +150,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					t.Fatal("accepted output count", calls, rows.returning.Count)
 				}
 			}
-			if err = rows.stage(scope.Writes(), b.Ref); err != nil {
+			if err = stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}

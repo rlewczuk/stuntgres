@@ -258,7 +258,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	return row, parent, namespace.Name(), live, nil
 }
 
-func (c *insertConflictState) preflightUpdate(evaluation *exec.Context) error {
+func preflightConflictUpdate(c *insertConflictState, evaluation *exec.Context) error {
 	if c.Update == nil {
 		return nil
 	}

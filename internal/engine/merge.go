@@ -204,7 +204,7 @@ func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	if err := rows.stage(scope.Writes(), b.Ref); err != nil {
+	if err := stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
 		return Result{}, err
 	}
 	if rows.returning != nil && b.Returning.RegclassOutput && rows.returning.Count != 0 {

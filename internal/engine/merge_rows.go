@@ -32,7 +32,7 @@ type mergeRows struct {
 	returning    *exec.FinalRows
 }
 
-func (rows *mergeRows) stage(w *WriteStage, ref ids.ObjectRef) error {
+func stageMergeRows(rows *mergeRows, w *WriteStage, ref ids.ObjectRef) error {
 	for start := 0; start < len(rows.actions); {
 		action := rows.actions[start]
 		if action.action == parser.MergeDeleteAction {

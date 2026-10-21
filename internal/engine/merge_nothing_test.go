@@ -105,7 +105,7 @@ func TestMergeNothingPublication(t *testing.T) {
 				t.Fatal("omission assembled mutation/output", rows)
 			}
 			defer rows.returning.Close()
-			if err = rows.stage(scope.Writes(), b.Ref); err != nil {
+			if err = stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
 				t.Fatal(err)
 			}
 			if len(scope.stage.rows) != 0 {

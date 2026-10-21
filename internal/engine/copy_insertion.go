@@ -43,7 +43,7 @@ func newCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyI
 	return state
 }
 
-func (state *copyInsertionState) record(s *StatementScope, b analyze.Binding, candidate *index.WriteCandidate, position int) {
+func recordCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.Binding, candidate *index.WriteCandidate, position int) {
 	line, size := state.cursor.insertionOrigin()
 	state.lines = append(state.lines, line)
 	state.bytes += size
@@ -70,7 +70,7 @@ func (state *copyInsertionState) full() bool {
 	return state.single || len(state.lines) >= 1000 || state.bytes >= 65535
 }
 
-func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
+func flushCopyInsertion(state *copyInsertionState, s *StatementScope, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
 	insert := func(position int, group *partition.InsertGroup) error {
 		candidate := rows.Candidate(position)
 		var err error

@@ -98,7 +98,7 @@ func TestMergeInsertPublication(t *testing.T) {
 				if err != nil || len(rows.Values) != 2 {
 					t.Fatal("bag occurrences", rows, err)
 				}
-				if err := rows.stage(scope.Writes(), b.Ref); err != nil {
+				if err := stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
 					t.Fatal(err)
 				}
 				if err := scope.Finish(nil); err != nil {
