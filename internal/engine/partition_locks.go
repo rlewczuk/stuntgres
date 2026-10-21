@@ -77,23 +77,6 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 	return nil
 }
 
-// These newly admitted mutation forms finish ordinary analysis and ACL checks,
-// but must not demand defaults, capture virtual storage or publish routed effects.
-func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) error {
-	if d == nil || !catalog.HierarchyRelation(d) {
-		return nil
-	}
-	switch syntax := statement.(type) {
-	case *parser.Insert:
-		if syntax.Conflict != nil {
-			return sqlError("0A000", "ON CONFLICT on partition hierarchies is unsupported")
-		}
-	case *parser.Merge:
-		return sqlError("0A000", "merging partition hierarchies is unsupported")
-	}
-	return nil
-}
-
 func partitionDefaultReplayAllowed(e *Engine, op *session.Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
 	if e == nil || op == nil || op.Self != op || !operationReplayOrZero(op).defaultReplay || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
 		return false
@@ -125,25 +108,6 @@ func (e *Engine) partitionParentAuthorization(op *session.Operation, auth Author
 	parentAuth := auth
 	parentAuth.State.CurrentUser = bootstrap.Ref
 	return parentAuth, nil
-}
-
-func partitionKeyUsesAttribute(d *catalog.Relation, attribute int32) bool {
-	if d.Partition == nil {
-		return false
-	}
-	for _, key := range d.Partition.Keys {
-		if key.Attribute == attribute {
-			return true
-		}
-		if key.Derived != nil {
-			for _, ref := range key.Derived.Dependencies {
-				if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == d.Address().ObjectID && ref.Address.SubID == attribute {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) error {
@@ -276,22 +240,6 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 		return err
 	}
 	return s.acquirePartitionDescendants(child, lock.AccessExclusive)
-}
-
-// The stored defining arrays/key providers remain identical. Only an appended
-// child manifest may cross the read admission fence; no name/shape retargeting.
-func partitionAppendCompatible(old, current *catalog.Relation) bool {
-	if old == nil || current == nil || old.Partition == nil || current.Partition == nil ||
-		!catalog.RelationDefiningAuthorityCompatible(old, current) || old.RelationKind != current.RelationKind ||
-		old.Membership != current.Membership || old.Inheritance != current.Inheritance ||
-		old.Partition.Strategy != current.Partition.Strategy ||
-		len(old.Partition.Keys) != len(current.Partition.Keys) ||
-		len(current.Partition.Children) <= len(old.Partition.Children) ||
-		&old.Partition.Keys[0] != &current.Partition.Keys[0] ||
-		!slices.Equal(old.Partition.Children, current.Partition.Children[:len(old.Partition.Children)]) {
-		return false
-	}
-	return old.Partition.DefaultChild == (ids.ObjectAddress{}) || old.Partition.DefaultChild == current.Partition.DefaultChild
 }
 
 // One existing visibility capture owns the admitted descriptors. Copy metadata

@@ -1,10 +1,8 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"slices"
-	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
@@ -251,28 +249,6 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	return nil
 }
 
-func partitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (string, error) {
-	var text strings.Builder
-	for i, datum := range tuple {
-		if i > 0 {
-			text.WriteString(", ")
-		}
-		switch datum.Kind {
-		case -1:
-			text.WriteString("MINVALUE")
-		case 1:
-			text.WriteString("MAXVALUE")
-		default:
-			value, err := datum.Value.Type().SQLLiteral(ctx, datum.Value)
-			if err != nil {
-				return "", err
-			}
-			text.WriteString(value)
-		}
-	}
-	return text.String(), nil
-}
-
 // Both CREATE and ATTACH use the same typed deciding-component diagnostic.
 // ATTACH transforms datums before opening its candidate, then invokes this
 // validation after that existing relation's eligibility/schema checks.
@@ -302,14 +278,6 @@ func (p *pendingPartitionDefinition) validateBounds(scope *StatementScope) error
 		return d
 	}
 	return nil
-}
-
-// partitionBoundary is a statement-local projection of the one immutable child
-// topology. Tuples and descriptors are referenced, not copied or persisted.
-type partitionBoundary struct {
-	tuple    []catalog.PartitionDatum
-	relation *catalog.Relation
-	lower    bool
 }
 
 func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {

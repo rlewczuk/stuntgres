@@ -10,8 +10,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type partitionReplayTeardown struct{ child, parent ids.ObjectRef }
-
 // Only the private importer records exact empty DEFAULT identities before an
 // emitted detach. A name prefix alone cannot grant arbitrary DROP admission.
 func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser.AlterTableDetachPartition) (partitionReplayTeardown, error) {

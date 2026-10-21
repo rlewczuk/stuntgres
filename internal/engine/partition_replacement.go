@@ -10,38 +10,8 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-func hasHashPartition(snapshot *catalog.State) bool {
-	for _, d := range snapshot.Descriptors() {
-		if relation, ok := d.(*catalog.Relation); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
-			return true
-		}
-	}
-	return false
-}
-
-// Partition rows have equal named columns, but private replay may preserve a
-// different physical order. Borrow values unless a real layout change is needed.
-func partitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []sqltype.Value {
-	same := true
-	for i, c := range to.Columns {
-		if from.Columns[i].Name != c.Name {
-			same = false
-			break
-		}
-	}
-	if same {
-		return row
-	}
-	values := make([]sqltype.Value, len(to.Columns))
-	for i, c := range to.Columns {
-		values[i] = row[from.Index[c.Name]]
-	}
-	return values
-}
 
 // Run only inside the isolated admitted repair statement, after scalar/provider
 // remint and before index transport. Published target/TEMP roots are never touched.

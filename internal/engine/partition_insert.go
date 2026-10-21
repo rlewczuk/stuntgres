@@ -31,11 +31,6 @@ type partitionInsertState struct {
 	groups      map[ids.ObjectAddress]*partitionInsertGroup
 	order       []*partitionInsertGroup
 }
-type partitionInsertGroup struct {
-	ref    ids.ObjectRef
-	rows   index.WriteBatch
-	unique *index.UniqueWriteBinding
-}
 
 func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth AuthorizationView, target *catalog.Relation) error {
 	if !catalog.HierarchyRelation(target) {

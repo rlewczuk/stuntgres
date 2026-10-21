@@ -14,14 +14,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type partitionUniqueReplay struct {
-	target      *catalog.Relation
-	syntax      *parser.AlterTable
-	definition  *parser.UniqueConstraint
-	snapshot    parser.UniqueConstraint
-	descriptors []*catalog.Relation
-}
-
 // This origin belongs to one private-import operation and one captured definition,
 // target and subtree, after its intended plain tree is already attached.
 func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.AlterTable) error {

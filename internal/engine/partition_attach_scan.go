@@ -11,11 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type partitionAttachScan struct {
-	leaf    *catalog.Relation
-	exclude bool
-}
-
 // Candidate AX admission is unconditional and already complete. DEFAULT opens
 // descendants only when the deciding relation cannot prove its exclusion.
 func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, parent, target *catalog.Relation, bound *catalog.PartitionMembership, exclude, lockChildren bool) ([]partitionAttachScan, error) {
@@ -111,13 +106,6 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 	}
 	_, err := scope.acquirePartitionValidationViewsLocked(e, refs)
 	return err
-}
-
-type partitionAttachRowConstraint struct {
-	parent  *catalog.Relation
-	child   catalog.Relation
-	layout  []int
-	scratch []sqltype.Value
 }
 
 func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, parent *catalog.Relation, bound *catalog.PartitionMembership, jobs []partitionAttachScan) error {

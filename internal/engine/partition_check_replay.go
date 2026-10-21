@@ -46,18 +46,6 @@ func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.Al
 	return nil
 }
 
-func partitionCheckReplayActions(raw *parser.AlterTable) bool {
-	if raw == nil || len(raw.Actions) == 0 {
-		return false
-	}
-	for _, action := range raw.Actions {
-		if action.Action != parser.AddCheck || action.Check == nil || !action.Check.NotValid {
-			return false
-		}
-	}
-	return true
-}
-
 // Callers hold Engine.mu, as do the existing hierarchy admission guards.
 func partitionConstraintReplayImport(e *Engine, op *session.Operation, auth AuthorizationView) bool {
 	if e == nil || op == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {

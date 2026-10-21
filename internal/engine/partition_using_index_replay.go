@@ -9,11 +9,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type partitionUsingIndexReplay struct {
-	target, index *catalog.Relation
-	syntax        *parser.AlterTable
-}
-
 // Capture the existing physical schema/index origin on the private import lease.
 // The ordinary USING INDEX binder owns eligibility, allocation and publication.
 func (e *Engine) beginPartitionUsingIndexReplay(op *session.Operation, raw *parser.AlterTable) error {
