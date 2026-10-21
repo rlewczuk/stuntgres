@@ -34,6 +34,14 @@ type indexDescriptorStage interface {
 // StageBase is the catalog the stage started from.
 func (s *CatalogStage) StageBase() catalog.Read { return s.Base }
 
+// recordIndexCandidate records a produced root candidate in the indexes slot.
+func (s *CatalogStage) recordIndexCandidate(index ids.ObjectAddress, candidate indexRootCandidate) {
+	if s.indexesOrZero().candidates == nil {
+		s.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
+	}
+	s.indexes().candidates[index] = candidate
+}
+
 // removed reports whether the stage removed address.
 func (s *CatalogStage) removed(address ids.ObjectAddress) bool {
 	_, removed := s.Removal(address)

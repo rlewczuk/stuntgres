@@ -191,7 +191,7 @@ func (s *StatementScope) stageTruncate() error {
 	for _, selected := range s.truncateOrZero().relations {
 		address := selected.ref.Address
 		if selected.relation.RelationKind != catalog.PartitionedRelation && selected.relation.RelationKind != catalog.ForeignRelation {
-			if err := transportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage, address, changes.Storage[address].Replacement); err != nil {
+			if err := transportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage.recordIndexCandidate, address, changes.Storage[address].Replacement); err != nil {
 				return err
 			}
 		}
