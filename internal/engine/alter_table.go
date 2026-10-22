@@ -600,7 +600,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			break
 		}
 	}
-	fills, perRowAdd, err := planAddedColumns(scope, additions)
+	fills, perRowAdd, err := planAddedColumns(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), additions)
 	if err != nil {
 		return Result{}, err
 	}
@@ -673,7 +673,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 			return Result{}, err
 		}
-		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, storageOwner, next, store, frontier, transformations, additions, storedReplacements, validator)
+		writes, deletes := scope.columnProjectionRoots(storageOwner.Address())
+		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(alterRowEvaluation(scope, op, scope.routineAuth.Catalog), storageOwner, next, store, frontier, writes, deletes, transformations, additions, storedReplacements, validator)
 		if err != nil {
 			return Result{}, err
 		}
@@ -736,7 +737,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				return Result{}, err
 			}
 		}
-		if err := scope.validateAddedConstraintRows(scanValidator, versions, ends, frontier, projectedWrites, projectedDeletes); err != nil {
+		if err := validateAddedConstraintRows(alterRowEvaluation(scope, scope.op, catalog.Read{}), scanValidator, versions, ends, frontier, projectedWrites, projectedDeletes); err != nil {
 			return Result{}, err
 		}
 	}

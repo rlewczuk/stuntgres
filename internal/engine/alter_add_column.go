@@ -19,10 +19,9 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 	return table.AddColumnCandidate(alterHost{ddlHost{e: e, op: op}, scope}, auth, old, action, captured)
 }
 
-func planAddedColumns(scope *StatementScope, additions []table.AddedColumn) (map[int32]sqltype.Value, bool, error) {
+func planAddedColumns(evaluation exec.Context, additions []table.AddedColumn) (map[int32]sqltype.Value, bool, error) {
 	var fills map[int32]sqltype.Value
 	perRow := false
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for i := range additions {
 		added := &additions[i]
 		if added.Expression != nil {

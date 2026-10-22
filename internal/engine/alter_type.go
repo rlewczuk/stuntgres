@@ -63,9 +63,15 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation
 	return table.AlterTypeCandidate(alterHost{ddlHost{e: e, op: op, stage: stage}, scope}, auth, original, next, ref, a, prepared)
 }
 
+// alterRowEvaluation is the statement's evaluation template for ALTER row
+// fills, rewrites and scans; read is the catalog local lowering admits against.
+func alterRowEvaluation(scope *StatementScope, op *session.Operation, read catalog.Read) exec.Context {
+	return exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: read}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+}
+
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, transforms []index.ColumnTransformation, additions []table.AddedColumn, generations []int32, validator table.AlterRowValidator) (*storage.Relation, []storage.RowVersion, *visibility.PrivateDeletes, error) {
+func rewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, transforms []index.ColumnTransformation, additions []table.AddedColumn, generations []int32, validator table.AlterRowValidator) (*storage.Relation, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	if store.Generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
@@ -104,7 +110,6 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 			}
 		}
 	}
-	writes, deletes := scope.columnProjectionRoots(old.Address())
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
 		if row.Base != 0 {
@@ -114,14 +119,13 @@ func rewriteTypeRows(scope *StatementScope, op *session.Operation, old, next *ca
 			replaced[row.Row] = true
 		}
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	preparedTransforms := false
 	var generationProgram []expr.Expr
 	preparedGeneration := false
 	convert := func(input []storage.RowVersion, committed bool) ([]storage.RowVersion, error) {
 		result := make([]storage.RowVersion, 0, len(input))
 		for _, row := range input {
-			if err := op.Context().Err(); err != nil {
+			if err := evaluation.Context.Err(); err != nil {
 				return nil, err
 			}
 			if committed && replaced[row.Row] || !visibility.LiveVersion(row, frontier, store.Ends, deletes) {

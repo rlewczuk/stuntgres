@@ -149,7 +149,8 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 		return integer(31), nil
 	}}
 	additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "c"}, Value: integer(5)}}
-	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""))
+	ownWrites, ownDeletes := scope.columnProjectionRoots(old.Address())
+	replacement, writes, deletes, err := rewriteTypeRows(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), &old, &next, store, 2, ownWrites, ownDeletes, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(writes) != 2 || deletes != nil || replacement.Generation != 2 {
 		t.Fatal(replacement, writes, calls, err)
 	}
@@ -203,7 +204,8 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	replacement, writes, deletes, err := rewriteTypeRows(scope, op, &old, &next, store, 1, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""))
+	ownWrites, ownDeletes := scope.columnProjectionRoots(old.Address())
+	replacement, writes, deletes, err := rewriteTypeRows(alterRowEvaluation(scope, op, scope.routineAuth.Catalog), &old, &next, store, 1, ownWrites, ownDeletes, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""))
 	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.Generation != 7 || len(store.Versions[0].Values) != 2 || store.Versions[0].Values[1] != value {
 		t.Fatal("real rewrite cancellation leaked candidate", replacement, writes, deletes, calls, err)
 	}
