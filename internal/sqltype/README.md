@@ -275,9 +275,21 @@ DES primitive known-answer, parallel distinct-key schedules, bytewise folding,
 widening SQL TEXT admission. Streaming callers own one reusable4096-byte scratch
 buffer; MD5-crypt reuses it across all1000 rounds.
 
+SHA256/SHA512-crypt reuse two standard-library digest states, fixed digest/salt
+buffers and the same bounded streaming scratch. P is streamed from repeated DP
+blocks, never materialized at password length or allocated per round. DP retains
+the algorithm's quadratic input work but polls cancellation while streaming;
+each round also polls. Parser-only tests select maximum999999999 without hashing.
+`pgcrypto_sha_salt.go` retains raw and decoded salts and pinned64-bit signed64
+saturation/int32 narrowing. `Evaluate` receives an explicit per-call notice sink;
+nil is valid for standalone units, never a retained/global session policy.
+The public fixtures independently assert full22003 clamp notices and body errors.
+
 ```sh
 make check RUN='^TestPgcrypto(DES(Vectors|Protocol|Cancellation)|MD5(Vectors|Salt|Cancellation)|Salt(Parameters|Encoding)|PasswordDispatch)$'
 make check RACE=1 RUN='^TestPgcrypto(DES(Protocol|Cancellation)|MD5Cancellation)$'
+make check RUN='^TestPgcrypto(SHA(Vectors|Parsing|Cancellation|Isolation)|Salt(Parameters|Encoding)|PasswordDispatch|BcryptCancellation|MD5Salt|RawVectors|Cancellation|Password(Entropy|Notices)|NoticeCurrentHost)$'
+make check RACE=1 RUN='^TestPgcrypto(SHA(Cancellation|Isolation)|PasswordNotices|NoticeCurrentHost)$'
 ```
 
 The public direct/prepared/control scenarios and actual feature smoke belong to

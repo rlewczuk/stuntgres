@@ -19,6 +19,7 @@ type pgcryptoEntropyUnitContext struct {
 	cancel  context.CancelFunc
 	order   []int
 	sizes   []int
+	notices []sqlstate.Error
 }
 
 func (c *pgcryptoEntropyUnitContext) FunctionContext() context.Context { return c.Context }
@@ -30,6 +31,10 @@ func (c *pgcryptoEntropyUnitContext) FunctionPgcryptoEntropy(dst []byte) error {
 	}
 	clear(dst)
 	return c.failure
+}
+
+func (c *pgcryptoEntropyUnitContext) FunctionPgcryptoNotice(n sqlstate.Error) {
+	c.notices = append(c.notices, n)
 }
 
 type pgcryptoEntropyArgument struct {
@@ -64,6 +69,12 @@ func TestPgcryptoPasswordEntropy(t *testing.T) {
 		{"xdes", 0, false, 1, "", "", 3, "_J9......"},
 		{"xdes", 16777215, false, 1, "", "", 3, "_zzzz...."},
 		{"md5", 1000, false, 1, "", "", 6, "$1$........"},
+		{"sha256crypt", 0, false, 1, "", "", 16, "$5$rounds=5000$................"},
+		{"SHA512CRYPT", 1000, false, 1, "", "", 16, "$6$rounds=1000$................"},
+		{"sha256crypt", 999999999, false, 1, "", "", 16, "$5$rounds=999999999$................"},
+		{"sha512crypt", 999999999, false, 1, "", "", 16, "$6$rounds=999999999$................"},
+		{"sha256crypt", 999, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
+		{"sha512crypt", 1000000000, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
 		{"bf", 3, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
 		{"des", 1, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
 		{"xdes", 2, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
@@ -73,6 +84,8 @@ func TestPgcryptoPasswordEntropy(t *testing.T) {
 		{"des", 1, true, 0, "", "", 0, ""},
 		{"xdes", 2, true, 0, "", "", 0, ""},
 		{"md5", 999, true, 0, "", "", 0, ""},
+		{"sha256crypt", -1, true, 0, "", "", 0, ""},
+		{"sha512crypt", 1000000000, true, 0, "", "", 0, ""},
 	} {
 		count, err := sqltype.Integer(integer, v.count)
 		if err != nil {
@@ -138,5 +151,36 @@ func TestPgcryptoPasswordEntropy(t *testing.T) {
 	ctx := &pgcryptoEntropyUnitContext{Context: context.Background()}
 	if _, err := call.Eval(ctx); !errors.Is(err, failure) || ctx.calls != 0 || !reflect.DeepEqual(ctx.order, []int{0, 1}) {
 		t.Fatal(ctx, err)
+	}
+}
+
+func TestPgcryptoPasswordNotices(t *testing.T) {
+	text := formatUnitTypes()[sqltype.Text]
+	args := []pgcryptoEntropyArgument{
+		{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "p"), index: 0},
+		{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "$5$rounds=10$!"), index: 1},
+	}
+	call, err := NewPgcrypto(expr.Info{Usage: text.Usage()}, "crypt", unitArgs(args))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		ctx := &pgcryptoEntropyUnitContext{Context: context.Background()}
+		got, err := call.Eval(ctx)
+		want := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "22003", Message: "rounds=10 is below supported value (1000), using 1000 instead"}
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" || got.Type() != nil || !reflect.DeepEqual(ctx.notices, []sqlstate.Error{want}) || !reflect.DeepEqual(ctx.order, []int{0, 1}) || ctx.calls != 0 {
+			t.Fatal(got, err, ctx)
+		}
+	}
+	args[0].value = sqltype.Null(text)
+	strict, err := NewPgcrypto(expr.Info{Usage: text.Usage()}, "crypt", unitArgs(args))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &pgcryptoEntropyUnitContext{Context: context.Background()}
+	got, err := strict.Eval(ctx)
+	if err != nil || !got.IsNull() || len(ctx.notices) != 0 || !reflect.DeepEqual(ctx.order, []int{0, 1}) {
+		t.Fatal(got, err, ctx)
 	}
 }

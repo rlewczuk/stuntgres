@@ -33,7 +33,11 @@ func TestReferencePgcryptoPasswordIdentity(t *testing.T) {
 		run(extensionMissing("SELECT crypt('foox','salt')", "crypt", "unknown, unknown"))
 		pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
 		identities := pgcryptoProcedureIDs(t, p, c)
-		for _, v := range []struct{ salt, hash string }{{"NB", "NB53EGGqrrb5E"}, {"_J9..j2zz", "_J9..j2zzAYKMvO2BYRY"}, {"$1$Szzz0yzz", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"}} {
+		for _, v := range []struct{ salt, hash string }{
+			{"NB", "NB53EGGqrrb5E"}, {"_J9..j2zz", "_J9..j2zzAYKMvO2BYRY"}, {"$1$Szzz0yzz", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"},
+			{"$5$Szzz0yzz", "$5$Szzz0yzz$7hI0rUWkO2QdBkzamh.vP.MIPlbZiwSvu2smhSi6064"},
+			{"$6$Szzz0yzz", "$6$Szzz0yzz$KqDw1Y8kze.VFapkvTc9Y5fbqzltjeRz1aPGC/pkHRhFQZ2aM6PmZpXQjcD7AOH88Bq0CSD.VlmymQzcBMEUl0"},
+		} {
 			pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt('foox',$1) AS value", v.hash, v.salt)
 			if !reflect.DeepEqual(identities, pgcryptoProcedureIDs(t, p, c)) {
 				t.Fatal("algorithm changed installed identities")
@@ -53,6 +57,8 @@ func TestReferencePgcryptoPasswordIdentity(t *testing.T) {
 		pgcryptoPasswordText(t, p, c, r, "SELECT crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
 		pgcryptoPasswordGenerated(t, p, c, r, "SELECT gen_salt('bf',4)", "crypt", 4)
 		pgcryptoPasswordText(t, p, c, r, "SELECT crypt('foox','NB') AS value", "NB53EGGqrrb5E")
+		pgcryptoPasswordText(t, p, c, r, "SELECT crypt('Hello world!','$5$saltstring') AS value", pgcryptoSHA256Hello)
+		pgcryptoPasswordText(t, p, c, r, "SELECT crypt('Hello world!','$6$saltstring') AS value", pgcryptoSHA512Hello)
 		pgcryptoPasswordNewSalts(t, p, c, r, "")
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 	})

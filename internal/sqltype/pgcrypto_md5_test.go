@@ -27,7 +27,7 @@ func TestPgcryptoMD5Salt(t *testing.T) {
 	// replacing invalid bytes. The valid eight-byte boundary is public SQL
 	// coverage in TestReferencePgcryptoPasswordVectors.
 	const want = "$1$aaaaaaa\xc3$Gqh2MpAUuRzXvYxuz1frn1"
-	value, err := plan.Evaluate(context.Background(), String(text, "foox"), String(text, "$1$aaaaaaaé"))
+	value, err := plan.Evaluate(context.Background(), nil, String(text, "foox"), String(text, "$1$aaaaaaaé"))
 	if err != nil {
 		t.Fatal(err)
 	}

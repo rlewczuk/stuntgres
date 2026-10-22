@@ -366,6 +366,13 @@ func (c *Context) FunctionPgcryptoEntropy(bytes []byte) error {
 
 func (c *Context) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
+// FunctionPgcryptoNotice borrows only the currently executing statement host.
+func (c *Context) FunctionPgcryptoNotice(notice sqlstate.Error) {
+	if host, ok := c.LiveHost().(interface{ PgcryptoNotice(sqlstate.Error) }); ok {
+		host.PgcryptoNotice(notice)
+	}
+}
+
 func (c *Context) FunctionRandomOwner() (expr.RandomOwner, error) {
 	host := c.LiveHost()
 	if host == nil {

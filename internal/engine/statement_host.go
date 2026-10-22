@@ -132,3 +132,11 @@ func (h *statementHost) TypeNameNotice(level session.NoticeLevel, notice sqlstat
 	}
 	h.op.EmitNotice(level, notice)
 }
+
+// PgcryptoNotice delivers owned diagnostics through the live operation filter.
+func (h *statementHost) PgcryptoNotice(notice sqlstate.Error) {
+	if h == nil || h.op == nil {
+		return
+	}
+	h.op.EmitNotice(session.LevelNotice, notice)
+}

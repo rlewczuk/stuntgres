@@ -41,6 +41,8 @@ func TestPgcryptoSaltParameters(t *testing.T) {
 		{"des", 0, 25, 2}, {"DeS", 25, 25, 2}, {"md5", 0, 1000, 6}, {"MD5", 1000, 1000, 6},
 		{"xdes", 0, 725, 3}, {"xdes", 1, 1, 3}, {"xdes", 3, 3, 3}, {"xdes", 16777215, 16777215, 3},
 		{"bf", 0, 6, 16}, {"BF", 4, 4, 16}, {"bf", 31, 31, 16},
+		{"sha256crypt", 0, 5000, 16}, {"SHA256CRYPT", 1000, 1000, 16},
+		{"sha512crypt", 5000, 5000, 16}, {"SHA512CRYPT", 999999999, 999999999, 16},
 	} {
 		count, err := Integer(integer, v.count)
 		if err != nil {
@@ -51,7 +53,7 @@ func TestPgcryptoSaltParameters(t *testing.T) {
 			t.Fatal(v, parameters, null, err)
 		}
 	}
-	for _, name := range []string{"des", "xdes", "md5", "bf"} {
+	for _, name := range []string{"des", "xdes", "md5", "bf", "sha256crypt", "sha512crypt"} {
 		omitted, text, _ := pgcryptoSaltUnitPlan(t, false)
 		parameters, null, err := omitted.PrepareSalt(String(text, name))
 		if err != nil || null || parameters.rounds == 0 {
@@ -66,6 +68,8 @@ func TestPgcryptoSaltParameters(t *testing.T) {
 		{"md5", []int64{-2147483648, -1, 1, 999, 1001, 2147483647}},
 		{"xdes", []int64{-2147483648, -1, 2, 724, 16777214, 16777216, 2147483647}},
 		{"bf", []int64{-2147483648, -1, 3, 32, 2147483647}},
+		{"sha256crypt", []int64{-2147483648, -1, 1, 999, 1000000000, 2147483647}},
+		{"sha512crypt", []int64{-2147483648, -1, 1, 999, 1000000000, 2147483647}},
 	} {
 		for _, raw := range v.counts {
 			count, _ := Integer(integer, raw)
@@ -76,14 +80,11 @@ func TestPgcryptoSaltParameters(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{" des", "md5 ", "unknown", "sha256crypt", "sha512crypt"} {
+	for _, name := range []string{" des", "md5 ", "unknown", " sha256crypt", "sha512crypt "} {
 		count, _ := Integer(integer, 1)
 		_, _, err := plan.PrepareSalt(String(text, name), count)
 		var diagnostic *sqlstate.Error
 		code, message := "22023", "gen_salt: Unknown salt algorithm"
-		if name == "sha256crypt" || name == "sha512crypt" {
-			code, message = "0A000", "gen_salt: unsupported salt algorithm"
-		}
 		if !errors.As(err, &diagnostic) || diagnostic.Code != code || diagnostic.Message != message {
 			t.Fatal(name, err)
 		}
@@ -111,6 +112,10 @@ func TestPgcryptoSaltEncoding(t *testing.T) {
 		{pgcryptoSaltXDES, 16777215, "_zzzz....", "_zzzzzzzz"},
 		{pgcryptoSaltMD5, 1000, "$1$........", "$1$zzzzzzzz"},
 		{pgcryptoSaltBcrypt, 4, "$2a$04$......................", "$2a$04$999999999999999999999u"},
+		{pgcryptoSaltSHA256, 5000, "$5$rounds=5000$................", "$5$rounds=5000$zzzzzzzzzzzzzzzz"},
+		{pgcryptoSaltSHA512, 1000, "$6$rounds=1000$................", "$6$rounds=1000$zzzzzzzzzzzzzzzz"},
+		{pgcryptoSaltSHA256, 999999999, "$5$rounds=999999999$................", "$5$rounds=999999999$zzzzzzzzzzzzzzzz"},
+		{pgcryptoSaltSHA512, 999999999, "$6$rounds=999999999$................", "$6$rounds=999999999$zzzzzzzzzzzzzzzz"},
 	} {
 		parameters := PgcryptoSaltParameters{kind: v.kind, rounds: v.rounds}
 		if got := PgcryptoSalt(parameters, [16]byte{}); got != v.zero {
@@ -137,9 +142,9 @@ func TestPgcryptoPasswordDispatch(t *testing.T) {
 		{"$2y$04$......................", "$2SXu7evaw9i.", ""},
 		{"_0.......", "_0.......JdXyN0hVWiM", ""},
 		{"$2$", "", "39000"}, {"$2a$", "", "22023"}, {"$2x$", "", "22023"},
-		{"$5$salt", "", "0A000"}, {"$6$salt", "", "0A000"},
+		{"$5$rounds=x$salt", "", "42601"}, {"$6$bad!", "", "22023"},
 	} {
-		got, err := pgcryptoCrypt(context.Background(), "password", v.setting)
+		got, err := pgcryptoCrypt(context.Background(), nil, "password", v.setting)
 		if v.code == "" {
 			if err != nil || got != v.want {
 				t.Fatal(v, got, err)

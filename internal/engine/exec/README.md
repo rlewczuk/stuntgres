@@ -92,6 +92,15 @@ statement scope holds an untyped nil host (`LiveHost` never returns a typed
 nil); the `Context` forwarders keep their prologue first and then the
 nil-host diagnostic, so error order is unchanged.
 
+`FunctionPgcryptoNotice(sqlstate.Error)` is a narrow optional function capability.
+It resolves `LiveHost` for each delivery and invokes optional
+`PgcryptoNotice(sqlstate.Error)` on that host; no host means no observer.
+The engine host appends owned records through the current operation's notice
+filter (`client_min_messages`), never calling user handlers under engine locks.
+Nested/prepared/stored executions retain no bind-time operation or notice sink.
+`TestPgcryptoNoticeCurrentHost` checks host replacement and absent-host behavior;
+public SHA notice scenarios own actual session filtering and handler delivery.
+
 ## Expression preflight
 
 `exec` owns the expression preflight that runs before execution:

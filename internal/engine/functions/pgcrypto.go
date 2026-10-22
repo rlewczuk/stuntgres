@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -190,7 +191,11 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 		}
 		return sqltype.String(e.Usage.Type, sqltype.PgcryptoSalt(parameters, entropy)), nil
 	}
-	return e.Plan.Evaluate(ctx, values[:len(e.Args)]...)
+	var notice func(sqlstate.Error)
+	if sink, ok := any(c).(interface{ FunctionPgcryptoNotice(sqlstate.Error) }); ok {
+		notice = sink.FunctionPgcryptoNotice
+	}
+	return e.Plan.Evaluate(ctx, notice, values[:len(e.Args)]...)
 }
 
 func NewPgcrypto(info expr.Info, name string, args []expr.Expr) (Pgcrypto, error) {

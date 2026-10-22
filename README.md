@@ -40,6 +40,16 @@ See [value contracts](docs/TYPES.md#polygon),
 [native boundaries](docs/DIALECT.md#polygon-scalar) and
 [selected proof and smoke](reference/types/README.md#polygon-scalar-contract).
 
+## SHA password hashing — change note
+
+Installed pgcrypto `crypt` now supports SHA256-crypt (`$5$`) and SHA512-crypt
+(`$6$`), using standard-library SHA with bounded per-call scratch and cooperative
+cancellation. `gen_salt('sha256crypt'|'sha512crypt'[, rounds])` defaults to5000
+and accepts1000..999999999; maximum-round proof generates salts without hashing.
+Direct crypt rounds clamp with PostgreSQL notices, unlike generator errors.
+Existing overload identities, stored consumers and native controls are unchanged.
+See [selected proof and smoke](reference/catalogs/README.md#sha-password-oracle-first-checkpoint).
+
 ## LSEG ordered endpoints — change note
 
 Builtin `lseg` stores two ordered POINT endpoints. The four documented input
@@ -5542,20 +5552,29 @@ catalog/control paths. Old native Rows retain their bytes and metadata; failed
 replay is atomic and named owners must exist in the destination. Selected pgcrypto
 validation rejects mixed crypto/fuzzy provider identities rather than allowing a
 different provider's dispatch branch to admit a crypto member.
-Password hashing supports DES, extended DES (xdes), MD5-crypt and bcrypt using
-only Go's standard library and fixed per-call state. DES uses the first eight
+Password hashing supports DES, extended DES (xdes), MD5-crypt, bcrypt and
+SHA256/SHA512-crypt using only Go's standard library and fixed per-call state.
+DES uses the first eight
 password bytes (discarding their high bits); xdes folds all password bytes.
 MD5-crypt uses at most eight salt bytes, stopping at `$`, including empty salts.
 Stored hashes may be reused as settings; trailing checksum/suffix bytes are ignored.
 Exact `$2a$`/`$2x$` heads retain PostgreSQL bcrypt, costs04..31 and the first72
 password bytes, even within UTF8. `$2b$`/`$2y$` use DES fallback, not new bcrypt
-variants. `$2$` retains39000; SHA-crypt remains unsupported (0A000).
+variants. `$2$` retains39000. Exact `$5$`/`$6$` heads select SHA-crypt, using all
+password UTF8 bytes and up to16 raw salt bytes. Missing rounds means5000 and
+omits the option in output; explicit rounds are normalized and retained.
+Direct crypt clamps outside1000..999999999 with22003 NOTICE, before later salt
+validation; generators reject out-of-range counts with22023. PostgreSQL's raw
+versus decoded salt and signed rounds parsing are preserved.
 gen_salt recognizes case-insensitive names without trimming:
 des defaults to25 and accepts only25; md5 defaults to1000 and accepts only1000;
 xdes defaults to725 and accepts odd1..16777215; bf defaults to6 and accepts4..31.
-Omitted/zero counts select defaults. Entropy requests are respectively2/6/3/16
-bytes, independent of SQL random state; salt lengths are2/11/9/29 characters.
+sha256crypt/sha512crypt default to5000 and accept1000..999999999.
+Omitted/zero counts select defaults. DES/MD5/xdes/bcrypt entropy requests are
+2/6/3/16 bytes, independent of SQL random; their salt lengths are2/11/9/29.
 MD5 salts have no trailing `$`. Validation/strict NULL handling precedes entropy.
+SHA salts consume16 entropy bytes and always print `rounds=N$` plus16 salt
+characters, with no trailing `$` (31 characters at5000,36 at999999999).
 Expensive hashing polls cancellation without imposing a lower iteration ceiling.
 Volatile salts are valid defaults/views, not generated columns or expression
 indexes. Stored salts/hashes and installed identities survive native replay.

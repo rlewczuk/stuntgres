@@ -2529,6 +2529,61 @@ make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceA
 
 ### Pgcrypto hashing, passwords, raw AES/BF and random/FIPS selected proof
 
+#### SHA password oracle-first checkpoint
+
+The `TestReferencePgcryptoPasswordSHA*` definitions now contain permanent shared
+assertions; the PG-only filter and intentional discovery failures are removed.
+Root's pinned18.6 UTF8/C checkpoint established the release vectors, generated
+salt boundaries, complete errors/notices, parser/password-boundary hashes and
+PostgreSQL consumers/cancellation/smoke. Native failing proof preceded the
+implementation; final selected dual-mode proof remains mandatory.
+
+`SHAParserAndPasswordBoundaries` fixes literal oracle hashes for empty and
+leading-dollar salts, raw16-byte salt scanning, ignored ordinary suffixes,
+numeric normalization, UTF8 passwords and digest/block boundaries. `SHANotices`
+asserts observed signed32 narrowing and signed64 overflow saturation, including
+all empty diagnostic fields; it never hashes a potentially enormous selection.
+
+Independent release/Drepper vectors cover both formats at default/explicit5000,
+10000 and1000, empty passwords, truncation and stored-hash verification.
+Generation covers default/zero/minimum/maximum selection and signed invalid
+counts; maximum salts are never passed to successful hashing. Flat parser
+errors assert all logical diagnostic fields, and notices cover clamp-before-error,
+strict NULL, held executions and client_min_messages filtering. Consumers use
+the ordinary installed identities and native control paths; cancellation uses
+the shared admitted-and-joined helper with the native `pgcryptoSHA` frame.
+The implementation uses standard-library SHA, fixed per-call scratch, streamed P
+and cancellation in both DP input work and rounds; generator validation precedes
+its16-byte entropy request. Provider1.4 and the fourteen-member manifest are unchanged.
+
+Selected proof commands, each with an external900-second deadline; run both modes
+for all affected definitions before review/integration.
+
+```sh
+make check RUN='^TestReferencePgcryptoPasswordSHA(Vectors|SaltGeneration|ParserAndPasswordBoundaries)$'
+make check RUN='^TestReferencePgcryptoPasswordSHA(ParsingAndDiagnostics|Notices)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoPasswordSHA(Vectors|SaltGeneration|ParserAndPasswordBoundaries)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoPasswordSHA(ParsingAndDiagnostics|Notices)$'
+make check RUN='^TestReferencePgcryptoPasswordSHA(ConsumersAndControls|Cancellation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoPasswordSHA(ConsumersAndControls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferencePgcryptoPassword(SaltGeneration|Identity|Relocation)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoPassword(SaltGeneration|Identity|Relocation)$'
+```
+
+The feature smoke includes literal hashes, safe generated-salt usability,
+maximum salt shape, strict NULL, clamp notice and native control replay phases.
+Feature smoke:
+
+```sh
+make check RUN='^TestReferencePgcryptoPasswordSHAFeatureSmoke$'
+```
+
+It asserts actual installed SHA direct/prepared hashes, stored-hash validation,
+min/default generated salt usability, max salt shape, lower-clamp public notice,
+NULL TEXT and new execution after native replay with retained old Rows/metadata.
+The standalone public-API companion is session-owned, outside the checkout;
+run `go run "$SESSION_TMP/password-sha-smoke.go"` under the same900-second deadline.
+
 The native registry contains unaccent1.1, the two-wrapper intagg1.1,
 selected-type intarray1.5, selected-function fuzzystrmatch1.2, bounded
 pgcrypto1.4 and selected-function uuid-ossp1.1. Pgcrypto installs fourteen

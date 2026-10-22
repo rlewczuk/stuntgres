@@ -1911,7 +1911,8 @@ owners and executable expressions. Availability includes pgcrypto and the select
 uuid-ossp provider beside unaccent, two-wrapper intagg, pgrowlocks1.2,
 selected-type intarray and selected-function fuzzystrmatch.
 
-Password hashing implements DES, xdes, MD5-crypt and bcrypt with per-call state.
+Password hashing implements DES, xdes, MD5-crypt, bcrypt and SHA256/SHA512-crypt
+with per-call state.
 DES consumes eight password bytes with high bits discarded; xdes folds the full
 byte string. MD5-crypt takes up to eight salt bytes, stopping at `$`; empty and
 nonalphabet salts are accepted. Stored checksum/suffix bytes are ignored.
@@ -1922,12 +1923,25 @@ unrecognized settings use DES fallback, not additional bcrypt variants.
 DES settings require two bytes, xdes nine; invalid alphabet digits decode zero.
 Malformed recognized settings raise22023 `invalid salt`; xdes zero count and
 `$2$` raise39000 `crypt(3) returned NULL`. Nonzero even xdes crypt counts work.
-SHA `$5$`/`$6$` and SHA generators retain native0A000 boundaries.
+Exact SHA `$5$`/`$6$` prefixes hash all password UTF8 octets using standard-library
+SHA256/SHA512. Salt scanning consumes at most16 raw bytes, stops at a dollar
+after nonempty decoded salt, and preserves PostgreSQL's distinct raw prefix for
+hashing leading-dollar salts. Embedded `$5$`/`$6$` or `rounds=` anywhere in the
+salt suffix fails before ordinary character validation, even beyond16 bytes.
+Omitted rounds selects5000 and omits the output option; explicit rounds prints
+the normalized count. Parsing follows pinned64-bit C signed64 saturation then
+int32 narrowing, not SQL INT4 input; signs/leading whitespace are accepted.
+Direct crypt clamps below1000 or above999999999 with exact22003 NOTICE before
+salt validation. Malformed rounds reports42601; bad salt characters report22023
+with the complete offending UTF8 character; reserved suffixes reportXX000.
 gen_salt names are ASCII-case-insensitive without trimming. Omitted/zero counts
-select des25, xdes725, md5 1000, bf6. Explicit counts accept des25, md5 1000,
-xdes odd1..16777215 or bf4..31; invalid counts/names raise22023.
-Strong entropy uses des2/xdes3/md5 6/bf16 bytes, independent of SQL random state.
-Salt lengths are2/9/11/29; MD5 generation has no trailing `$`.
+select des25, xdes725, md5 1000, bf6 and sha256crypt/sha512crypt5000.
+Explicit counts accept des25, md5 1000, xdes odd1..16777215, bf4..31 or SHA
+1000..999999999; invalid counts/names raise22023.
+Strong entropy uses des2/xdes3/md5 6/bf16/SHA16 bytes, independent of SQL random.
+Salt lengths are2/9/11/29 for DES/xdes/MD5/bcrypt. SHA always prints rounds and
+16 salt characters (31 at default5000,36 at999999999), with no trailing dollar;
+MD5 generation also has no trailing `$`.
 NULL/validation precedes entropy; cancellation remains a context error and is
 polled while hashing/folding without an artificial lower cost ceiling.
 crypt is immutable; gen_salt is intrinsically volatile, including after stored

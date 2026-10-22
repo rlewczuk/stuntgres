@@ -130,7 +130,7 @@ func cryptoHash(name string) (func() hash.Hash, int) {
 	return nil, 0
 }
 
-func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, error) {
+func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error), values ...Value) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
@@ -151,7 +151,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 		if err != nil {
 			return Value{}, err
 		}
-		hash, err := pgcryptoCrypt(ctx, password, salt)
+		hash, err := pgcryptoCrypt(ctx, notice, password, salt)
 		if err != nil {
 			return Value{}, err
 		}

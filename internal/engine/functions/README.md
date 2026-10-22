@@ -1160,14 +1160,20 @@ replay identity and narrow strong-entropy/actual-FIPS context capabilities.
 `internal/sqltype/pgcrypto.go` owns admitted signature/result plans, raw digest/HMAC
 and random-byte count bounds. `pgcrypto_password.go` dispatches crypt and validates
 execution-local private-kind/uint32 salt parameters: des25, xdes odd1..16777215
-(default725), md5 1000 or bf4..31 (default6); zero selects the default.
-The carrier requests exactly2/3/6/16 entropy bytes for des/xdes/md5/bf using its
-sixteen-byte buffer. No entropy is requested for NULL or invalid inputs.
+(default725), md5 1000, bf4..31 (default6), or sha256crypt/sha512crypt
+1000..999999999 (default5000); zero selects the default.
+The carrier requests exactly2/3/6/16/16 entropy bytes for des/xdes/md5/bf/SHA using
+its sixteen-byte buffer. No entropy is requested for NULL or invalid inputs.
 The independent salted DES kernel keeps schedules/expansion call-local, truncates
 DES at eight bytes, folds all xdes bytes and polls cancellation. MD5-crypt streams
 passwords through the existing context-aware hash helper, with eight-byte salt
 truncation. Exact2a/2x bcrypt semantics remain unchanged;2b/2y use DES fallback.
-SHA-crypt remains unsupported. Six digest algorithms return raw BYTEA.
+SHA-crypt streams all password bytes with standard-library SHA256/SHA512 and
+fixed scratch. The execution-local `PgcryptoPlan.Evaluate(ctx, notice, values...)`
+sink receives clamp notices before later salt errors; the carrier borrows optional
+`FunctionPgcryptoNotice(sqlstate.Error)` from the current evaluation context.
+No notice callback, password, rounds or salt is retained on the comparable plan.
+Six digest algorithms return raw BYTEA.
 The same four BYTEA-only raw overloads support AES CBC/ECB and BF CBC/ECB/CFB64,
 including four children for `_iv`; unknown raw slots infer BYTEA rather than
 HMAC's TEXT preference. `internal/sqltype/pgcrypto_raw.go` owns the one shared
@@ -1811,7 +1817,7 @@ make check RUN='^(TestSumProviders|TestSumIntegralTransitions|TestSumFloatingTra
 make check RUN='^(TestRandomIntegerSampler|TestRandomRuntimeNullEvaluatesSibling|TestUUIDGenerationPacking|TestUUIDGenerationAscendingClock)$'
 make check RUN='^(TestDatetimeSleepWait|TestDatetimeSleepCleanup|TestQueryAggregateRealAdvanceFailure)$' RACE=1
 make check RUN='^TestPgcrypto(OverloadResolution|RawVectors|StrictDemand|Cancellation)$'
-make check RUN='^TestPgcrypto(Password(Entropy|Volatility)|Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEncoding|Allocations|Cancellation))$'
+make check RUN='^TestPgcrypto(Password(Entropy|Notices|Volatility)|SHA(Vectors|Parsing|Cancellation|Isolation)|NoticeCurrentHost|Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEncoding|Allocations|Cancellation))$'
 make check RUN='^TestPgcryptoAES(Vectors|KeyIV|Padding|Parser|Cancellation|Carrier)$'
 make check RUN='^TestReferencePgcryptoAESFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferencePgcryptoAESFeatureSmoke$'

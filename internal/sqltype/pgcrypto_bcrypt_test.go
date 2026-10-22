@@ -156,7 +156,7 @@ func TestPgcryptoBcryptCancellation(t *testing.T) {
 		}
 		for _, after := range []int{1, 9, 19} {
 			ctx := &pgcryptoBcryptCancelContext{Context: context.Background(), after: after, failure: failure}
-			got, err := plan.Evaluate(ctx, String(text, "password"), String(text, "$2a$04$......................"))
+			got, err := plan.Evaluate(ctx, nil, String(text, "password"), String(text, "$2a$04$......................"))
 			if got.Type() != nil || !errors.Is(err, failure) {
 				t.Fatal("canceled plan published Value", after, got, err)
 			}

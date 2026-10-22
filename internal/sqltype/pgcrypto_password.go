@@ -3,7 +3,10 @@ package sqltype
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+
+	"stuntgres/internal/sqlstate"
 )
 
 const pgcryptoCryptAlphabet = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -15,6 +18,8 @@ const (
 	pgcryptoSaltXDES
 	pgcryptoSaltMD5
 	pgcryptoSaltBcrypt
+	pgcryptoSaltSHA256
+	pgcryptoSaltSHA512
 )
 
 // PgcryptoSaltParameters is a validated, execution-local generator request.
@@ -32,7 +37,7 @@ func (p PgcryptoSaltParameters) EntropySize() int {
 		return 3
 	case pgcryptoSaltMD5:
 		return 6
-	case pgcryptoSaltBcrypt:
+	case pgcryptoSaltBcrypt, pgcryptoSaltSHA256, pgcryptoSaltSHA512:
 		return 16
 	}
 	return 0
@@ -62,8 +67,10 @@ func (p PgcryptoPlan) PrepareSalt(values ...Value) (PgcryptoSaltParameters, bool
 		parameters.kind, defaultRounds = pgcryptoSaltMD5, 1000
 	case pgcryptoSaltAlgorithmEqual(name, "bf"):
 		parameters.kind, defaultRounds = pgcryptoSaltBcrypt, 6
-	case pgcryptoSaltAlgorithmEqual(name, "sha256crypt"), pgcryptoSaltAlgorithmEqual(name, "sha512crypt"):
-		return PgcryptoSaltParameters{}, false, pgcryptoError("0A000", "gen_salt: unsupported salt algorithm")
+	case pgcryptoSaltAlgorithmEqual(name, "sha256crypt"):
+		parameters.kind, defaultRounds = pgcryptoSaltSHA256, 5000
+	case pgcryptoSaltAlgorithmEqual(name, "sha512crypt"):
+		parameters.kind, defaultRounds = pgcryptoSaltSHA512, 5000
 	default:
 		return PgcryptoSaltParameters{}, false, pgcryptoError("22023", "gen_salt: Unknown salt algorithm")
 	}
@@ -83,6 +90,8 @@ func (p PgcryptoPlan) PrepareSalt(values ...Value) (PgcryptoSaltParameters, bool
 		valid = rounds >= 1 && rounds <= 0xffffff && rounds&1 != 0
 	case pgcryptoSaltBcrypt:
 		valid = rounds >= 4 && rounds <= 31
+	case pgcryptoSaltSHA256, pgcryptoSaltSHA512:
+		valid = rounds >= 1000 && rounds <= 999999999
 	}
 	if !valid {
 		return PgcryptoSaltParameters{}, false, pgcryptoError("22023", "gen_salt: Incorrect number of rounds")
@@ -100,7 +109,7 @@ func pgcryptoCryptEncode(dst []byte, value uint32) {
 
 // PgcryptoSalt consumes only parameters returned successfully by PrepareSalt.
 func PgcryptoSalt(parameters PgcryptoSaltParameters, entropy [16]byte) string {
-	var result [29]byte
+	var result [36]byte
 	switch parameters.kind {
 	case pgcryptoSaltDES:
 		result[0], result[1] = pgcryptoCryptAlphabet[entropy[0]&63], pgcryptoCryptAlphabet[entropy[1]&63]
@@ -121,13 +130,26 @@ func PgcryptoSalt(parameters PgcryptoSaltParameters, entropy [16]byte) string {
 		cost := uint8(parameters.rounds)
 		copy(result[:], "$2a$00$")
 		result[4], result[5] = '0'+cost/10, '0'+cost%10
-		pgcryptoBcryptEncode(result[7:], entropy[:])
-		return string(result[:])
+		pgcryptoBcryptEncode(result[7:29], entropy[:])
+		return string(result[:29])
+	case pgcryptoSaltSHA256, pgcryptoSaltSHA512:
+		id := byte('5')
+		if parameters.kind == pgcryptoSaltSHA512 {
+			id = '6'
+		}
+		result[0], result[1], result[2] = '$', id, '$'
+		copy(result[3:], "rounds=")
+		out := strconv.AppendUint(result[:10], uint64(parameters.rounds), 10)
+		out = append(out, '$')
+		for _, b := range entropy {
+			out = append(out, pgcryptoCryptAlphabet[b&63])
+		}
+		return string(out)
 	}
 	panic("unvalidated pgcrypto salt parameters")
 }
 
-func pgcryptoCrypt(ctx context.Context, password, setting string) (string, error) {
+func pgcryptoCrypt(ctx context.Context, notice func(sqlstate.Error), password, setting string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -139,7 +161,7 @@ func pgcryptoCrypt(ctx context.Context, password, setting string) (string, error
 	case strings.HasPrefix(setting, "$1$"):
 		return pgcryptoMD5(ctx, password, setting)
 	case strings.HasPrefix(setting, "$5$"), strings.HasPrefix(setting, "$6$"):
-		return "", pgcryptoError("0A000", "crypt: unsupported salt algorithm")
+		return pgcryptoSHA(ctx, notice, password, setting)
 	default:
 		return pgcryptoDES(ctx, password, setting)
 	}

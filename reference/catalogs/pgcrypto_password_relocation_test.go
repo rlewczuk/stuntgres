@@ -16,7 +16,7 @@ func TestReferencePgcryptoPasswordRelocation(t *testing.T) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		run(fixture.Exec("CREATE SCHEMA pgcrypto_part", 0))
 		run(fixture.Exec("CREATE EXTENSION pgcrypto SCHEMA pgcrypto_part", 0))
-		run(fixture.Exec("CREATE TABLE pgcrypto_password_relocated(id integer,p text DEFAULT 'foox',s text DEFAULT pgcrypto_part.gen_salt('bf',4),g text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,s)) STORED,d text DEFAULT pgcrypto_part.crypt('foox','NB'),x text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,'_J9..j2zz')) STORED,m text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,'$1$Szzz0yzz')) STORED,ms text DEFAULT pgcrypto_part.gen_salt('md5'))", 0))
+		run(fixture.Exec("CREATE TABLE pgcrypto_password_relocated(id integer,p text DEFAULT 'foox',s text DEFAULT pgcrypto_part.gen_salt('bf',4),g text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,s)) STORED,d text DEFAULT pgcrypto_part.crypt('foox','NB'),x text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,'_J9..j2zz')) STORED,m text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,'$1$Szzz0yzz')) STORED,ms text DEFAULT pgcrypto_part.gen_salt('md5'),sha256 text GENERATED ALWAYS AS(pgcrypto_part.crypt('Hello world!','$5$saltstring')) STORED,sha512 text GENERATED ALWAYS AS(pgcrypto_part.crypt('Hello world!','$6$saltstring')) STORED)", 0))
 		run(fixture.Exec("CREATE VIEW pgcrypto_password_relocated_view AS SELECT id,pgcrypto_part.crypt(p,s)=g AS valid FROM pgcrypto_password_relocated", 0))
 		run(fixture.Exec("INSERT INTO pgcrypto_password_relocated(id) VALUES(1)", 1))
 		check := fixture.Select("SELECT id,valid FROM pgcrypto_password_relocated_view ORDER BY id", []string{"id", "valid"}, []string{"INT4", "BOOL"}, [][]any{{int64(1), true}})
@@ -27,7 +27,7 @@ func TestReferencePgcryptoPasswordRelocation(t *testing.T) {
 		}
 		pgcryptoPasswordSaltShape(t, salt, 4)
 		stored := fixture.Select("SELECT s,g FROM pgcrypto_password_relocated WHERE id=1", []string{"s", "g"}, []string{"TEXT", "TEXT"}, [][]any{{salt, hash}})
-		newValues := fixture.Select("SELECT d,x,m FROM pgcrypto_password_relocated WHERE id=1", []string{"d", "x", "m"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"NB53EGGqrrb5E", "_J9..j2zzAYKMvO2BYRY", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"}})
+		newValues := fixture.Select("SELECT d,x,m,sha256,sha512 FROM pgcrypto_password_relocated WHERE id=1", []string{"d", "x", "m", "sha256", "sha512"}, []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"NB53EGGqrrb5E", "_J9..j2zzAYKMvO2BYRY", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1", pgcryptoSHA256Hello, pgcryptoSHA512Hello}})
 		run(newValues)
 		var md5Salt string
 		if err := c.QueryRowContext(p.Ctx, "SELECT ms FROM pgcrypto_password_relocated WHERE id=1").Scan(&md5Salt); err != nil {
@@ -107,13 +107,15 @@ func TestReferencePgcryptoPasswordRelocation(t *testing.T) {
 			for _, call := range held {
 				pgcryptoRunHeldCall(t, p, conn, record, call)
 			}
+			pgcryptoPasswordText(t, p, conn, record, "SELECT pgcrypto_part.crypt('Hello world!','$5$saltstring') AS value", pgcryptoSHA256Hello)
+			pgcryptoPasswordText(t, p, conn, record, "SELECT pgcrypto_part.crypt('Hello world!','$6$saltstring') AS value", pgcryptoSHA512Hello)
 			if !reflect.DeepEqual(destination, pgcryptoProcedureIDs(t, p, conn)) {
 				t.Fatal("password procedure identities changed")
 			}
 			fixture.RunStep(t, p.Ctx, conn, record, fixture.Exec("BEGIN", 0))
 			fixture.RunStep(t, p.Ctx, conn, record, fixture.Exec("INSERT INTO pgcrypto_password_relocated(id) VALUES(2)", 1))
 			fixture.RunStep(t, p.Ctx, conn, record, fixture.Select("SELECT valid FROM pgcrypto_password_relocated_view WHERE id=2", []string{"valid"}, []string{"BOOL"}, [][]any{{true}}))
-			fixture.RunStep(t, p.Ctx, conn, record, fixture.Select("SELECT d,x,m FROM pgcrypto_password_relocated WHERE id=2", []string{"d", "x", "m"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"NB53EGGqrrb5E", "_J9..j2zzAYKMvO2BYRY", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"}}))
+			fixture.RunStep(t, p.Ctx, conn, record, fixture.Select("SELECT d,x,m,sha256,sha512 FROM pgcrypto_password_relocated WHERE id=2", []string{"d", "x", "m", "sha256", "sha512"}, []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"NB53EGGqrrb5E", "_J9..j2zzAYKMvO2BYRY", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1", pgcryptoSHA256Hello, pgcryptoSHA512Hello}}))
 			dependencies(conn, record)
 			fixture.RunStep(t, p.Ctx, conn, record, fixture.Exec("ROLLBACK", 0))
 		}

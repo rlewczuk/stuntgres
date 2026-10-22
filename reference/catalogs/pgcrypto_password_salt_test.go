@@ -194,13 +194,9 @@ func TestReferencePgcryptoPasswordSaltGeneration(t *testing.T) {
 		}
 		for _, name := range []string{"sha256crypt", "sha512crypt"} {
 			q := "SELECT gen_salt($1) IS NOT NULL AS value"
-			if pg {
-				fixture.RunStep(t, p.Ctx, c, r, fixture.Select(q, []string{"value"}, []string{"BOOL"}, [][]any{{true}}, name))
-			} else {
-				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "gen_salt: unsupported salt algorithm"}, name)
-				fixture.RunStep(t, p.Ctx, c, r, s)
-				fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
-			}
+			s := fixture.Select(q, []string{"value"}, []string{"BOOL"}, [][]any{{true}}, name)
+			fixture.RunStep(t, p.Ctx, c, r, s)
+			fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
 		}
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TABLE pgcrypto_entropy(id integer,s text DEFAULT gen_salt('bf',4))", 0))
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_entropy(id) VALUES(1),(2),(3)", 3))
