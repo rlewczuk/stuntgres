@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -462,7 +463,7 @@ func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	}
 	oldRoot, oldChild := f.root.Constraints.Unique[0].OID, f.leaf.Constraints.Unique[0].OID
 	f.e.mu.Lock()
-	err := f.e.remapDefinitionOIDsLocked(&next)
+	err := control.RemapDefinitionOIDs(f.e.catalog.read(&next), f.e.catalog.allocateOIDLocked)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

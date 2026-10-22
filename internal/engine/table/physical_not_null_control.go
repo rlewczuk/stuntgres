@@ -60,7 +60,7 @@ func PhysicalOrdinaryNotNull(table *catalog.Relation) map[int32]bool {
 	return ordinary
 }
 
-// Existing remapDefinitionOIDsLocked has already minted the actual final key
+// Existing control.RemapDefinitionOIDs has already minted the actual final key
 // group. Reissue only the exact captured relation/attribute and that group;
 // neither this helper nor the certificate allocates a constraint or index.
 func RemapPhysicalNotNull(view catalog.Read, previous map[ids.ObjectAddress]catalog.Descriptor) error {

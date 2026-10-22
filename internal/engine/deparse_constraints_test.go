@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -395,7 +396,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 		t.Fatal("duplicate identity accepted")
 	}
 	e.mu.Lock()
-	err := e.remapDefinitionOIDsLocked(bad)
+	err := control.RemapDefinitionOIDs(e.catalog.read(bad), e.catalog.allocateOIDLocked)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

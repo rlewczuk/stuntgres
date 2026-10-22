@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -238,7 +239,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			oldConstraint := oldConflict.Constraint
 			unchanged := catalog.CloneState(e.catalog.state)
 			e.mu.Lock()
-			err := e.remapDefinitionOIDsLocked(unchanged)
+			err := control.RemapDefinitionOIDs(e.catalog.read(unchanged), e.catalog.allocateOIDLocked)
 			e.mu.Unlock()
 			if err != nil || unchanged.Get(event.Address()) != event || unchanged.Get(parent.Address()) != parent {
 				t.Fatal("no-collision import copied unchanged rule/provider owners", err)
@@ -260,7 +261,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			collision.ObjectName = "collision"
 			next.SetDescriptor(collision.Address(), &collision)
 			e.mu.Lock()
-			err = e.remapDefinitionOIDsLocked(next)
+			err = control.RemapDefinitionOIDs(e.catalog.read(next), e.catalog.allocateOIDLocked)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

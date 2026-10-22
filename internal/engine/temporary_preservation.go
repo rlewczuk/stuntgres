@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -596,7 +597,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	for address, descriptor := range next.Descriptors() {
 		previous[address] = descriptor
 	}
-	if err := e.remapViewRuleOIDs(next); err != nil {
+	if err := control.RemapViewRuleOIDs(e.catalog.read(next), e.catalog.allocateOIDLocked); err != nil {
 		return err
 	}
 	if err := table.RemapInheritanceConstraintOrigins(next, previous); err != nil {

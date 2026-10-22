@@ -1,4 +1,4 @@
-package engine
+package control
 
 import (
 	"fmt"
@@ -10,9 +10,17 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-// Replacement retains temporary objects and imports persistent definitions.
-// Reserve the entire candidate before allocating collision replacements.
-func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
+// RemapDefinitionOIDs gives every imported definition (domain checks, rules,
+// policies, constraints, defaults and generations) an OID no other object of
+// the replacement candidate claims. Replacement retains temporary objects and
+// imports persistent definitions, so the entire candidate is reserved before
+// any collision gets a replacement from allocate.
+//
+// view reads the private replacement candidate, which is changed in place.
+// allocate returns the next unused OID; the caller holds the lock that guards
+// it for the whole call.
+func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) error {
+	next := view.State()
 	reserved := make(map[ids.OID]bool)
 	var relations []*catalog.Relation
 	var domains []*catalog.Type
@@ -85,7 +93,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			return id, nil
 		}
 		for {
-			candidate, err := e.catalog.allocateOIDLocked()
+			candidate, err := allocate()
 			if err != nil {
 				return 0, err
 			}
@@ -342,7 +350,6 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 		}
 	}
 	if len(constraintMapping) != 0 {
-		view := e.catalog.read(next)
 		for address, descriptor := range next.Descriptors() {
 			parent, ok := descriptor.(*catalog.Relation)
 			if !ok || len(stored.RulesOf(parent)) == 0 {
