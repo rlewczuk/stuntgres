@@ -2097,6 +2097,12 @@ requires the exact physical worker wait, matching holder grant and actual
 `pg_blocking_pids` blocker in the current database; writes also require the earlier
 small-result grant. The shared helper cancels/joins, rejects published Rows/Result
 and verifies removal of worker requests/grants and the holder's grant.
+The shared observer paces only unsuccessful full-predicate observations with a
+reusable context-aware1ms timer; timer expiry is never admission. Its15-second
+budget still begins before borrowing/PID/holder setup, within the original
+30-second scenario. Failure-only phase brackets distinguish setup, actual API
+callback entry/return, observer-query durations, cancellation, join and cleanup;
+query durations include scheduling and do not identify a latency cause.
 This proves active SQL cancellation after reached selected JSONPath work, not
 interruption inside the later large evaluator. Unchanged
 `TestJSONPathNavigateCancellation` separately covers that private work, including
@@ -2385,22 +2391,33 @@ diagnostic, then independently expected read sum4 and write count2/exact UTF8
 bytes through the same physical connection and same pre-held statements. Owned
 row/recorder assertions remain in force. No sleeps, operation retries, private
 stack sampling, precancel substitution or inflated input supply admission.
+Bounded context-aware1ms waits pace false observations only; the complete real
+lock predicate alone admits cancellation. The15-second admission context still
+starts before borrowing/PID/holder setup and can be truncated by the original
+30-second scenario. Failure-only diagnostics retain deadlines and setup,
+actual callback, observation, cancel/join and cleanup brackets, with unset
+markers for phases not reached. Callback entry is not provider entry, and
+observer duration includes scheduling. Reduced polling pressure is not a
+diagnosis of the historical deadline failure or a guarantee against arbitrary
+scheduler starvation. Workload, cancellation and5-second join/cleanup bounds
+are unchanged.
 
 This proves active SQL cancellation **after conversion output exists**, at the
 aggregate gate or destination validation, not interruption inside a provider.
 Existing provider-checkpoint units and direct/prepared precanceled/expired
 contexts remain separate, unchanged coverage.
 
-The following selected dual-mode and race commands are also the actual feature
-smoke: each executes both admitted cancellations, lock cleanup, sentinel
-atomicity and same-held recovery. Run oracle-first, each under an external
-900-second deadline; gate/oracle/deadline failures are failures, not skips.
+The following complete affected-consumer dual-mode and race commands are also
+feature smoke: they execute admitted cancellations, lock cleanup, sentinel
+atomicity and same-held recovery, including all five JSONPath paths sharing the
+helper. Run oracle-first, each under an external900-second deadline;
+gate/oracle/deadline failures are failures, not skips.
 Whole-project Docker-free verification remains `make quickcheck` under900 seconds.
 
 ```sh
-timeout --signal=KILL 900s make check RUN='^TestReferenceBinaryConversionActiveCancellation$' REFERENCE=1
-timeout --signal=KILL 900s make check RUN='^TestReferenceBinaryConversionActiveCancellation$'
-timeout --signal=KILL 900s make check RUN='^TestReferenceBinaryConversionActiveCancellation$' RACE=1
+timeout --signal=KILL 900s make check RUN='^TestReference(BinaryConversionActiveCancellation|JSONPathNavigateCancellation)$' REFERENCE=1
+timeout --signal=KILL 900s make check RUN='^TestReference(BinaryConversionActiveCancellation|JSONPathNavigateCancellation)$'
+timeout --signal=KILL 900s make check RUN='^TestReference(BinaryConversionActiveCancellation|JSONPathNavigateCancellation)$' RACE=1
 ```
 
 The no-bind direct repeated-parameter witness asserts an explicit inherited

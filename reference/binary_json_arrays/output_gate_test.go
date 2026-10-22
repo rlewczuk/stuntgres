@@ -3,7 +3,7 @@ package reference_test
 import (
 	"context"
 	"database/sql"
-	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,27 +39,89 @@ func outputGatePID(t *testing.T, ctx context.Context, c *sql.Conn) int {
 // This observes active SQL after output, not interruption inside a provider.
 func outputGateCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, requireSmallGrant bool, operation func(context.Context) fixture.RelationOutcome) {
 	t.Helper()
+	start := time.Now()
+	var phases struct {
+		borrow, workerPID, holderPID, begin, acquire [2]time.Time
+		join, cleanup, rollback, released            [2]time.Time
+		launch, admitted, cancelStart, cancelEnd     time.Time
+		firstQuery, lastQueryStart, lastQueryEnd     time.Time
+	}
+	var callbackEntry, callbackReturn atomic.Int64
+	var polls int
+	var queryTotal, queryMax time.Duration
+	var lastAdmitted, queryInFlight bool
+	var lastQueryErr error
+	// Registered first: failure cleanup and joins run before this snapshot.
+	defer func() {
+		if !t.Failed() {
+			return
+		}
+		elapsed := func(at time.Time) any {
+			if at.IsZero() {
+				return "unset"
+			}
+			return at.Sub(start)
+		}
+		bracket := func(pair [2]time.Time) [2]any {
+			return [2]any{elapsed(pair[0]), elapsed(pair[1])}
+		}
+		callback := func(n int64) any {
+			if n == 0 {
+				return "unset"
+			}
+			return time.Duration(n - 1)
+		}
+		parentDeadline, parentBound := p.Ctx.Deadline()
+		t.Logf("output gate phases elapsed=%s parentDeadline=%v bounded=%t parentRemaining=%s borrow=%v workerPID=%v holderPID=%v begin=%v acquire=%v launch=%v callback=[%v %v] admitted=%v cancel=[%v %v] join=%v cleanup=%v rollback=%v released=%v",
+			time.Since(start), parentDeadline, parentBound, time.Until(parentDeadline),
+			bracket(phases.borrow), bracket(phases.workerPID), bracket(phases.holderPID),
+			bracket(phases.begin), bracket(phases.acquire), elapsed(phases.launch),
+			callback(callbackEntry.Load()), callback(callbackReturn.Load()), elapsed(phases.admitted),
+			elapsed(phases.cancelStart), elapsed(phases.cancelEnd), bracket(phases.join),
+			bracket(phases.cleanup), bracket(phases.rollback), bracket(phases.released))
+		t.Logf("output gate observations count=%d first=%v last=[%v %v] total=%s max=%s inFlight=%t lastAdmitted=%t lastError=%v (callback is API entry; query durations include scheduling)",
+			polls, elapsed(phases.firstQuery), elapsed(phases.lastQueryStart),
+			elapsed(phases.lastQueryEnd), queryTotal, queryMax, queryInFlight, lastAdmitted, lastQueryErr)
+	}()
 	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
 	defer cancel()
+	defer func() {
+		if t.Failed() {
+			deadline, _ := ctx.Deadline()
+			t.Logf("output gate admission entry=%s deadline=%v remaining=%s error=%v", start.Format(time.RFC3339Nano), deadline, time.Until(deadline), ctx.Err())
+		}
+	}()
+	phases.borrow[0] = time.Now()
 	holder, observer := fixture.LockConnections(t, p.Ctx, b.DB)
+	phases.borrow[1] = time.Now()
+	phases.workerPID[0] = time.Now()
 	workerPID := outputGatePID(t, ctx, c)
+	phases.workerPID[1] = time.Now()
+	phases.holderPID[0] = time.Now()
 	holderPID := outputGatePID(t, ctx, holder)
+	phases.holderPID[1] = time.Now()
+	phases.begin[0] = time.Now()
 	tx, err := holder.BeginTx(p.Ctx, nil)
+	phases.begin[1] = time.Now()
 	if err != nil {
 		t.Fatal(err)
 	}
 	released := false
 	defer func() {
 		if !released {
+			phases.rollback[0] = time.Now()
 			if err := tx.Rollback(); err != nil {
 				t.Error("output gate holder rollback", err)
 			}
+			phases.rollback[1] = time.Now()
 		}
 	}()
 	var locked any
+	phases.acquire[0] = time.Now()
 	if err := tx.QueryRowContext(ctx, "SELECT pg_advisory_xact_lock(67108864::bigint)").Scan(&locked); err != nil {
 		t.Fatal(err)
 	}
+	phases.acquire[1] = time.Now()
 	done := make(chan fixture.RelationOutcome, 1)
 	joined := false
 	// Registered after holder rollback so even assertion-failure exits cancel
@@ -67,7 +129,10 @@ func outputGateCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 	defer func() {
 		cancel()
 		if !joined {
+			phases.join[0] = time.Now()
 			out := fixture.LockResult(t, done)
+			phases.join[1] = time.Now()
+			joined = true
 			if out.Rows != nil {
 				if err := out.Rows.Close(); err != nil {
 					t.Error("output gate failure cursor close", err)
@@ -75,11 +140,24 @@ func outputGateCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 			}
 		}
 	}()
-	go func() { done <- operation(ctx) }()
+	phases.launch = time.Now()
+	go func() {
+		callbackEntry.Store(time.Since(start).Nanoseconds() + 1)
+		out := operation(ctx)
+		callbackReturn.Store(time.Since(start).Nanoseconds() + 1)
+		done <- out
+	}()
+	var poll *time.Timer
+	defer func() {
+		if poll != nil {
+			poll.Stop()
+		}
+	}()
 	for {
 		select {
 		case out := <-done:
 			joined = true
+			phases.join = [2]time.Time{time.Now(), time.Now()}
 			if out.Rows != nil {
 				if err := out.Rows.Close(); err != nil {
 					t.Error("output gate early cursor close", err)
@@ -91,7 +169,14 @@ func outputGateCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 		// All facts are required together: exact worker wait, actual blocker,
 		// matching holder grant, and (for ordered INSERT) the earlier small grant.
 		var admitted bool
-		if err := observer.QueryRowContext(ctx, `SELECT
+		phases.lastQueryStart = time.Now()
+		phases.lastQueryEnd = time.Time{}
+		if polls == 0 {
+			phases.firstQuery = phases.lastQueryStart
+		}
+		polls++
+		queryInFlight = true
+		err := observer.QueryRowContext(ctx, `SELECT
 			EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='advisory'
 				AND database=(SELECT oid FROM pg_database WHERE datname=current_database())
 				AND classid::bigint=0 AND objid::bigint=67108864 AND objsubid=1
@@ -104,17 +189,47 @@ func outputGateCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 			AND (NOT $3 OR EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='advisory'
 				AND database=(SELECT oid FROM pg_database WHERE datname=current_database())
 				AND classid::bigint=0 AND objid::bigint=2 AND objsubid=1
-				AND mode='ExclusiveLock' AND granted))`, workerPID, holderPID, requireSmallGrant).Scan(&admitted); err != nil {
+				AND mode='ExclusiveLock' AND granted))`, workerPID, holderPID, requireSmallGrant).Scan(&admitted)
+		phases.lastQueryEnd = time.Now()
+		queryInFlight = false
+		duration := phases.lastQueryEnd.Sub(phases.lastQueryStart)
+		queryTotal += duration
+		if duration > queryMax {
+			queryMax = duration
+		}
+		lastAdmitted, lastQueryErr = admitted, err
+		if err != nil {
 			t.Fatal("public output gate admission", err)
 		}
 		if err := ctx.Err(); err != nil {
 			t.Fatal("public output gate deadline", err)
 		}
 		if admitted {
+			phases.admitted = time.Now()
 			break
 		}
-		runtime.Gosched()
+		// Pace misses only; a timer event never supplies admission.
+		if poll == nil {
+			poll = time.NewTimer(time.Millisecond)
+		} else {
+			poll.Reset(time.Millisecond)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("public output gate deadline", ctx.Err())
+		case out := <-done:
+			joined = true
+			phases.join = [2]time.Time{time.Now(), time.Now()}
+			if out.Rows != nil {
+				if err := out.Rows.Close(); err != nil {
+					t.Error("output gate early cursor close", err)
+				}
+			}
+			t.Fatal("operation completed before public output gate", out.Err)
+		case <-poll.C:
+		}
 	}
+	phases.cancelStart = time.Now()
 	if b.PG {
 		var signaled bool
 		if err := observer.QueryRowContext(ctx, "SELECT pg_cancel_backend($1)", workerPID).Scan(&signaled); err != nil || !signaled {
@@ -123,7 +238,10 @@ func outputGateCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 	} else {
 		cancel()
 	}
+	phases.cancelEnd = time.Now()
+	phases.join[0] = time.Now()
 	out := fixture.LockResult(t, done)
+	phases.join[1] = time.Now()
 	joined = true
 	if out.Rows != nil {
 		if err := out.Rows.Close(); err != nil {
@@ -148,14 +266,20 @@ func outputGateCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 		AND database=(SELECT oid FROM pg_database WHERE datname=current_database())
 		AND classid::bigint=0 AND objid::bigint IN (2,67108864) AND objsubid=1`
 	var remaining int64
+	phases.cleanup[0] = time.Now()
 	if err := observer.QueryRowContext(cleanupCtx, gateLocks, workerPID, workerPID).Scan(&remaining); err != nil || remaining != 0 {
 		t.Fatal("canceled worker retained output gate request or grant", remaining, err)
 	}
+	phases.cleanup[1] = time.Now()
+	phases.rollback[0] = time.Now()
 	if err := tx.Rollback(); err != nil {
 		t.Fatal("output gate holder rollback", err)
 	}
+	phases.rollback[1] = time.Now()
 	released = true
+	phases.released[0] = time.Now()
 	if err := observer.QueryRowContext(cleanupCtx, gateLocks, workerPID, holderPID).Scan(&remaining); err != nil || remaining != 0 {
 		t.Fatal("released output gate retained request or grant", remaining, err)
 	}
+	phases.released[1] = time.Now()
 }
