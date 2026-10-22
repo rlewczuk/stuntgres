@@ -256,7 +256,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	if analyze.GuardedCatalogRelation(b.Relation) {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-			err := guardedCatalogMutationError(auth.View, b.Relation, false)
+			err := dml.GuardedCatalogMutationError(auth.View, b.Relation, false)
 			e.mu.Unlock()
 			return Result{}, err
 		}

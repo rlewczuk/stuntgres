@@ -2,13 +2,13 @@ package engine
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 )
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
@@ -91,53 +91,5 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	return auth, authorizeViewSourceSnapshot(auth.View, auth, ref, definition, invoker, mark)
-}
-
-// The source collector and execution fences use the same captured owner/invoker
-// checks; neither substitutes a live role/catalog sample during recursion.
-func authorizeViewSourceSnapshot(a access.View, env access.Environment, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark) error {
-	d, ok := a.Catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != a.Owner.Domain || ref.Epoch != a.Catalog.Epoch() || stored.ViewOf(d) != definition {
-		return ids.ErrCatalogReplaced
-	}
-	principal := d.Owner
-	if definition.Invoker() {
-		principal = invoker
-	}
-	a.State.CurrentUser = principal
-	for _, leaf := range definition.Sources() {
-		source, ok := a.Catalog.Relation(leaf.Ref.Address)
-		if !ok || !stored.ViewReferenceValid(a.Catalog, d, leaf.Ref) {
-			return ids.ErrCatalogReplaced
-		}
-		if leaf.AnalysisOnly {
-			continue
-		}
-		indices := make([]int, 0, len(leaf.Reads))
-		for _, attribute := range leaf.Reads {
-			found := false
-			for slot, live := range source.Attributes {
-				if attribute == live {
-					indices = append(indices, slot)
-					found = true
-					break
-				}
-			}
-			if !found {
-				return fmt.Errorf("stuntgres: missing view source attribute")
-			}
-		}
-		use, err := stored.ViewUseReference(a.Catalog, d, leaf.Ref)
-		if err != nil {
-			return err
-		}
-		if err := a.CheckColumns(env, use, source, authorization.SelectPrivilege, indices); err != nil {
-			return err
-		}
-	}
-	if mark.Mode != 0 || stored.ViewHasRowMarks(d, a.Catalog) {
-		return checkViewRowMarks(a, env, d, mark, invoker)
-	}
-	return nil
+	return auth, view.AuthorizeSource(auth.View, auth, ref, definition, invoker, mark)
 }

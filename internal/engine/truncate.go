@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -17,41 +14,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-func checkTruncate(a access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation, privilege, only bool) error {
-	if analyze.GuardedCatalogRelation(d) {
-		return guardedCatalogMutationError(a, d, true)
-	}
-	if d.RelationKind == catalog.ForeignRelation {
-		server, ok := a.Catalog.Foreign(d.Foreign.Server)
-		if !ok {
-			return ids.ErrCatalogReplaced
-		}
-		wrapper, ok := a.Catalog.Foreign(server.Wrapper)
-		if !ok {
-			return ids.ErrCatalogReplaced
-		}
-		handler, err := fdw.HandlerFor(a.Catalog, wrapper)
-		if err != nil {
-			return err
-		}
-		if _, ok := handler.Wrapper.(catalog.ForeignTruncater); !ok {
-			return sqlError("0A000", fmt.Sprintf("cannot truncate foreign table %q", d.Name()))
-		}
-	}
-	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.ForeignRelation {
-		return sqlError("42809", fmt.Sprintf("%q is not a table", d.Name()))
-	}
-	if privilege {
-		if err := a.Check(env, access.Requirement{Object: ref, Privileges: authorization.TruncatePrivilege}); err != nil {
-			return err
-		}
-	}
-	if only && d.Partition != nil {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot truncate only a partitioned table", Hint: "Do not specify the ONLY keyword, or use TRUNCATE ONLY on the partitions directly."}
-	}
-	return nil
-}
 
 // Explicit targets are opened in user order. Named occurrences always check
 // their own ACL, even when an earlier inheritance expansion already selected them.
@@ -84,7 +46,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 						otherTemporary, err = dml.TruncateOtherTemporary(auth.Catalog, before, s.op.Session.SessionToken)
 					}
 					if err == nil && !otherTemporary {
-						err = checkTruncate(auth.View, auth, ref, before, privilege && !cascade, only)
+						err = dml.CheckTruncate(auth.View, auth, ref, before, privilege && !cascade, only)
 						if err == nil && privilege {
 							err = access.CheckTemporaryStorageAccess(auth.Catalog, before, s.op.Session.SessionToken)
 						}
@@ -147,7 +109,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
 			}
 			if err == nil {
-				err = checkTruncate(auth.View, auth, ref, d, privilege, only)
+				err = dml.CheckTruncate(auth.View, auth, ref, d, privilege, only)
 			}
 			if err == nil {
 				err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE")

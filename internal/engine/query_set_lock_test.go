@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -98,7 +99,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 		auth := catalogAuthorization(e, e.CatalogRead())
 		auth.State.CurrentUser = reader
 		d := e.catalog.state.MustRelation(refs[name].Address)
-		err := checkViewRowMarks(auth.View, auth, d, inherited, reader)
+		err := view.CheckRowMarks(auth.View, auth, d, inherited, reader)
 		if denied == "" {
 			if err != nil {
 				t.Fatal(name, err)

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -97,7 +98,7 @@ func (v AuthorizationView) CheckViewRowMarks(relation *catalog.Relation, mark pl
 	if mark.Mode == 0 && !stored.ViewHasRowMarks(relation, v.Catalog) {
 		return nil
 	}
-	return checkViewRowMarks(v.View, v, relation, mark, v.State.CurrentUser)
+	return view.CheckRowMarks(v.View, v, relation, mark, v.State.CurrentUser)
 }
 
 // TemporaryNamespace implements access.Environment: the session's own TEMP
