@@ -90,6 +90,9 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		query.Root = root
 		e.QueryPlan = &query
 		return e, true, nil
+	case plan.EarthCheckExpr:
+		// VALUE cannot be folded or evaluated before a candidate frame exists.
+		return e, false, nil
 	case plan.DomainValueExpr:
 		return e, false, nil
 	case plan.InstalledSoundexExpr:

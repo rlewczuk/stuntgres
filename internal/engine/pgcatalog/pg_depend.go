@@ -69,6 +69,13 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			}
 		case *catalog.Extension:
 			add(d.Address(), d.TargetNamespace, 'n')
+			prerequisites, err := catalog.ExtensionPrerequisites(view, d)
+			if err != nil {
+				return nil, err
+			}
+			for _, required := range prerequisites {
+				add(d.Address(), required, 'n')
+			}
 		case *catalog.Procedure:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')

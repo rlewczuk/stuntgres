@@ -24,6 +24,8 @@ func ExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		walk(e.Provider)
 	case UpdateOutputExpr:
 		// The first assignment owns the query; later tuple outputs are leaves.
+	case EarthCheckExpr:
+		walk(e.Value)
 	case DomainValueExpr:
 		// Conversion-local VALUE is a lexical leaf, never a query column.
 	case AssignmentValueExpr:

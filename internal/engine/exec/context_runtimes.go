@@ -197,6 +197,8 @@ func PlannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
 		return children(plan.SubscriptChildren(n, &storage)...)
+	case plan.EarthCheckExpr:
+		return children(n.Value)
 	case plan.DomainValueExpr, plan.LiteralExpr, plan.ColumnExpr:
 		return expr.Immutable
 	case plan.CollationExpr:

@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider
-records and control data for the nine bundled extensions (citext, cube,
-fuzzystrmatch, intagg, intarray, pgcrypto, pgrowlocks, unaccent, uuid-ossp), member
+records and control data for the ten bundled extensions (citext, cube,
+earthdistance, fuzzystrmatch, intagg, intarray, pgcrypto, pgrowlocks, unaccent, uuid-ossp), member
 validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner
@@ -137,6 +137,22 @@ wrappers and the `pg_extension_update_paths` node, which move with `plan`;
 the intagg binder and view recipe methods.
 
 ## Testing
+
+Earthdistance1.2 requires the actual installed cube extension. It stages earth
+and its lookup-only companion as genuine type members, with three ordinary
+domain CHECK recipes attached through Stage.EarthChecks. Read-only structural
+recipe inspection preserves this package's no-plan-import boundary; concrete
+tree validation remains the ordinary stored renderer's authority. Registered
+prerequisites share catalog projection, dump ordering and DROP dependency
+traversal. There are no invented callable cube/geographic procedure members.
+Owner metadata records the exact roles `earth` and `earth[]`, resolving the latter
+through the installed domain's actual Array identity. It never assumes the
+companion's physical name is `_earth`; name collisions retain ordinary associated
+array naming. Both owner roles must agree, independent of import record order.
+Selected engine units: `make check RUN='^TestEarthProvider(Identity|Conflicts|Controls)$'`.
+Public both-mode definitions are documented in
+[`reference/types`](../../../reference/types/README.md#earth-domain-contract).
+
 
 The package has no unit tests of its own: every witness needs an engine
 that installs the extension. Engine witnesses:

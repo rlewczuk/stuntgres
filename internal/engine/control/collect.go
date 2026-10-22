@@ -303,6 +303,13 @@ func collectExtensionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 	}
 	text := "CREATE EXTENSION " + catalog.QuoteIdentifier(t.Name()) + " WITH SCHEMA " + catalog.QuoteIdentifier(ns.Name()) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
 	c.Graph[dump.Event{OID: t.Address().ObjectID}] = nil
+	required, err := catalog.ExtensionPrerequisites(c.CatalogView, t)
+	if err != nil {
+		return err
+	}
+	for _, predecessor := range required {
+		c.Graph[dump.Event{OID: t.Address().ObjectID}] = append(c.Graph[dump.Event{OID: t.Address().ObjectID}], dump.Event{OID: predecessor.ObjectID})
+	}
 	c.ViewIndices[t.Address().ObjectID] = len(c.Views)
 	c.Views = append(c.Views, OwnedStatement{principal.Name, text})
 	return nil

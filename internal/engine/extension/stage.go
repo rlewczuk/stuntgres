@@ -25,6 +25,9 @@ type Stage interface {
 	// the whole search path. It checks USAGE on namespace first. The result
 	// has one entry per helper, nil when that helper does not exist.
 	ScriptFunctions(owner authorization.PrincipalRef, namespace ids.ObjectAddress, helpers []ScriptFunction) ([]*catalog.Procedure, error)
+	// EarthChecks attaches the three genuine provider domain recipes using
+	// the engine's ordinary constraint allocator/renderer/dependency authority.
+	EarthChecks(*catalog.Type) error
 }
 
 // ScriptFunction names one helper function an extension script looks up.

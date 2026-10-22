@@ -7,6 +7,51 @@ is the SQL authority. This page describes native value ownership, Go transport
 and implementation limits, not a supported-syntax inventory or a claim of full
 PostgreSQL compatibility.
 
+## Earth domain
+
+The registered, relocatable, untrusted earthdistance1.2 provider requires an
+installed cube extension. Install cube explicitly first; a same-named user type
+does not satisfy the prerequisite. Cube and earthdistance can occupy different
+schemas. Missing cube fails42704 atomically with PostgreSQL's CASCADE hint; this
+does not implement general CASCADE installation.
+
+`DROP EXTENSION cube RESTRICT` fails2BP01 while earthdistance depends on it,
+without replacing installed identities or changing usable consumer rows/metadata.
+The dependent extension subsumes its owned implementation-member lines in error
+DETAIL; graph traversal and removal enforcement retain those member dependencies.
+Ordinary SQL recreation drops consumers, then earthdistance, then cube, before
+installing dependencies and reloading values again. It is tested on both backends
+separately from native Dump/Reset/Restore.
+
+Earth is a genuine nullable domain with the installed cube as its immediate base,
+not TEXT, a new physical scalar, or latitude/longitude. Values retain dimension,
+corner collapse, signed-zero bits, NaN and exact float payloads. Canonical examples
+are `(6378168)`, `(6378168, 0)`, `(6378168, 0, 0)` and `(-6378168, -0)`.
+Missing coordinates are zero for distance, not padded in stored output.
+
+The three genuine CHECK records retain declaration ordinals but execute by name:
+`not_3d`, `not_point`, then `on_surface`. Dimensions **at most three** are allowed.
+Zero-dimensional `()` passes dimension/point checks and fails surface. Surface is
+exactly `abs(distance / 6378168 - 1) < 1e-6` in released binary64 accumulation
+order, not an independently rounded absolute threshold. NaN contributes zero
+under cube's ordered distance comparisons: `(6378168, NaN)` passes, `(NaN)` fails
+surface, and repeated NaN endpoints remain a box and fail point shape. Infinity
+fails surface. NULL passes all three checks; column NOT NULL is separate.
+
+Ordinary declaration/coercion/binding paths enforce these checks; cube parser
+errors remain22P02/22003, domain violations23514 with real domain/constraint
+diagnostics. Native database/sql results use CUBE/string, with declared column
+nullability and unknown Length/DecimalSize. PostgreSQL pq flattens the domain to
+the dynamic cube base (raw bytes and unknown type/nullable metadata).
+
+Dump orders cube before earthdistance before consumers, recreates provider-owned
+types through CREATE EXTENSION, and emits exact values independently of display
+precision. Reset/Restore and fresh-driver imports preserve payloads, remap actual
+domain/cube/CHECK identities, and retain old Rows and copied metadata snapshots.
+These are native logical host controls, not PostgreSQL disk/WAL interfaces.
+Advanced functions/operators, spatial indexes, SQL earth/cube arrays and binary
+codecs are outside this provider; associated array identity remains lookup-only.
+
 ## LSEG
 
 LSEG (OID601, lookup-only companion1018) owns an immutable ordered pair of POINTs,

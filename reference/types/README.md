@@ -123,6 +123,40 @@ exercise same/fresh-engine replay, full precision independent of display GUC,
 defaults/CHECK/view expressions, committed-only capture and failed-restore
 atomicity. PostgreSQL has no native host-control equivalent.
 
+### Earth domain contract
+
+E1–E6 and FeatureSmoke use independently specified literals/binds/NULL, canonical
+cube shapes, strict adjacent binary64 surface witnesses, <=3 dimensions, NaN,
+full domain/cube diagnostics, atomic failures, real metadata and catalog identity.
+Root-observed pinned PostgreSQL18.6 discovery precedes native implementation.
+Controls execute dependency-ordered ordinary SQL removal/recreation/reload on
+both backends before the explicit native-only same/fresh-driver host controls.
+`PrerequisiteRemoval` independently asserts the pinned2BP01 full RESTRICT
+diagnostic, unchanged installed identities, usable ordered values and metadata,
+then successful dependency-ordered SQL recreation. Native controls additionally
+cover retained readers/metadata, exact low-display dumps, failed replacement
+atomicity and actual emitted SQL replay on PostgreSQL. No PostgreSQL host API is
+invented.
+
+```sh
+make check RUN='^TestReferenceEarth(Installation|Values|Assignment|Diagnostics|Metadata|Controls|FeatureSmoke|PrerequisiteRemoval)$'
+make check REFERENCE=1 RUN='^TestReferenceEarth(Installation|Values|Assignment|Diagnostics|Metadata|Controls|FeatureSmoke|PrerequisiteRemoval)$'
+make check RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check RACE=1 RUN='^TestReferenceEarth(Assignment|Diagnostics|Metadata|Controls|PrerequisiteRemoval)$'
+make check RUN='^(TestEarthCubeChecks|TestEarthDomainExpression|TestEarthProvider(Identity|Conflicts|Controls)|TestEarthPrerequisiteRemovalDetail)$'
+```
+
+Use external900-second deadlines. FeatureSmoke expects accepted held bytes/NULL,
+CUBE metadata, ordered canonical values and23514/no prefix on later invalid data.
+The root also runs the separate OMP-session `earth-smoke.go` consumer with
+`go run "$SESSION_TMP/earth-smoke.go"`; it fails on any mismatch and exits quietly
+on success. Source belongs to session artifacts, not committed throwaway files.
+The standalone consumer also requires exact prerequisite-RESTRICT diagnostics and
+unchanged identities/rows, ordinary dependency-ordered SQL recreation and complete
+reloaded value/NULL/metadata checks before exercising native host controls.
+These selectors specify proof obligations, not a claim that checks passed.
+
 ### LINE scalar contract
 
 Independent pinned18.6 oracle-first scenarios cover coefficient preservation,

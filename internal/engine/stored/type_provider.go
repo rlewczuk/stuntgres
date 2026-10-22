@@ -45,6 +45,8 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			err = extension.StockCube.ValidateExtension(view, parent)
 		case parent.Name() == "citext" && t.SQLType.IsCitext():
 			err = extension.StockCitext.ValidateExtension(view, parent)
+		case parent.Name() == "earthdistance" && (t.SQLType.IsDomain() || t.SQLType.IsArray()):
+			err = extension.StockEarthdistance.ValidateExtension(view, parent)
 		default:
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}

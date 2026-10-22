@@ -39,6 +39,11 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 		return "", fmt.Errorf("stuntgres: missing extension target namespace")
 	}
 	record := OwnerRecord{Name: ext.Name(), Schema: ns.Name(), Version: ext.Version, Owner: owner.Name}
+	if ext.Name() == "earthdistance" {
+		if err := StockEarthdistance.ValidateExtension(view, ext); err != nil {
+			return "", err
+		}
+	}
 	for _, a := range ext.Members {
 		d := view.Get(a)
 		var member MemberOwner
@@ -61,6 +66,9 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			principal = d.Owner
 		case *catalog.Type:
 			member = MemberOwner{Kind: "type", Name: d.Name()}
+			if ext.Name() == "earthdistance" && d.SQLType.IsArray() {
+				member.Name = "earth[]"
+			}
 			principal = d.Owner
 		case *catalog.TSTemplate:
 			continue
@@ -158,6 +166,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = 3
 	case record.Name == "citext" && record.Version == "1.8":
 		expectedMembers = 3
+	case record.Name == "earthdistance" && record.Version == "1.2":
+		expectedMembers = 2
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
 		expectedMembers = len(FuzzystrmatchMembers)
 	case record.Name == "fuzzystrmatch" && record.Version == "1.1":
@@ -232,13 +242,16 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") || member.Signature != "" {
+			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") || member.Signature != "" {
 				return invalid()
 			}
 		default:
 			return invalid()
 		}
 		record.Members = append(record.Members, member)
+	}
+	if record.Name == "earthdistance" && record.Members[0].Owner != record.Members[1].Owner {
+		return invalid()
 	}
 	return record, true, nil
 }

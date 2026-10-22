@@ -70,6 +70,8 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			out.WriteString(" value ")
 			out.WriteString(strconv.Quote(text))
 		}
+	case EarthCheckExpr:
+		fmt.Fprintf(out, "EarthCheck %d", n.Kind)
 	case DomainValueExpr:
 		fmt.Fprint(out, "DomainValue")
 	case ColumnExpr:

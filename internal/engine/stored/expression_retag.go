@@ -665,6 +665,30 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 		}
 		n.Info = info
 		rebound = n
+	case plan.EarthCheckExpr:
+		if !n.Valid() {
+			return nil, false, fmt.Errorf("stuntgres: invalid retagged earth CHECK")
+		}
+		mapped := child(n.Value)
+		if err != nil {
+			return nil, false, err
+		}
+		value, ok := mapped.(plan.DomainValueExpr)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: foreign earth CHECK child")
+		}
+		n.Value = value
+		if !changed {
+			return node, false, nil
+		}
+		n.Info = info
+		if !n.Valid() {
+			return nil, false, fmt.Errorf("stuntgres: invalid earth CHECK generation")
+		}
+		if _, err := earthCheckSQL(view, n); err != nil {
+			return nil, false, err
+		}
+		rebound = n
 	case plan.DomainValueExpr:
 		if !changed {
 			return node, false, nil

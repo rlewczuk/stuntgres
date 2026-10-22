@@ -81,6 +81,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 		expected := map[string][]any{
 			"citext":        {"citext", "1.8", nil, "data type for case-insensitive character strings"},
 			"cube":          {"cube", "1.5", nil, "data type for multidimensional cubes"},
+			"earthdistance": {"earthdistance", "1.2", nil, "calculate great-circle distances on the surface of the Earth"},
 			"unaccent":      {"unaccent", "1.1", version, comment},
 			"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
 			"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
@@ -92,6 +93,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 		if oid == 12085 {
 			expected["citext"] = []any{"citext", "1.8", false, true, true, true, nil, nil, "data type for case-insensitive character strings"}
 			expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}
+			expected["earthdistance"] = []any{"earthdistance", "1.2", false, true, false, true, nil, "{cube}", "calculate great-circle distances on the surface of the Earth"}
 			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
 			expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
 			expected["intagg"] = []any{"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}
@@ -133,6 +135,8 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 				var got any
 				if d.Columns[i].Usage.Type.ID() == sqltype.Bool {
 					got, err = v.Boolean()
+				} else if d.Columns[i].Usage.Type.ID() == sqltype.NameArray {
+					got, err = v.NamesOutput()
 				} else {
 					got, err = v.Text()
 				}

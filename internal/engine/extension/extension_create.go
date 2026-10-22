@@ -93,6 +93,11 @@ func StageCreate(host Host, auth ddl.Authority, view access.View, s *parser.Crea
 	if registration.Superuser && !actor.Superuser {
 		memberOwner = host.BootstrapSuperuser()
 	}
+	for _, required := range registration.Requires {
+		if view.Catalog.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: required}) == (ids.ObjectAddress{}) {
+			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: fmt.Sprintf("required extension %q is not installed", required), Hint: "Use CREATE EXTENSION ... CASCADE to install required extensions too."}
+		}
+	}
 	oid, err := host.AllocateOID()
 	if err != nil {
 		return nil, err

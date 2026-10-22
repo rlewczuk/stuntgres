@@ -23,6 +23,25 @@ Native logical Dump/Reset/Restore preserves coordinates and closure but is
 not a PostgreSQL host-control API or physical durability mechanism.
 See [PATH proof](../reference/types/README.md#path-scalar-contract).
 
+## Earthdistance domain boundary
+
+Earthdistance1.2 provides the real nullable earth domain over installed cube,
+its three ordinary CHECK constraints, text transport and exact native logical
+replay. Cube must already be installed; its authentic missing-prerequisite
+diagnostic/hint does not enable general CREATE EXTENSION CASCADE.
+Earth permits point dimensions at most three, uses strict relative1e-6 surface
+tolerance and preserves released cube NaN distance behavior. No coordinate padding
+or global finite-value filter is applied.
+
+The provider does not install the full PostgreSQL procedure/operator manifest:
+earth(), cube_dim/cube_is_point/cube_distance, ll_to_earth, latitude/longitude,
+earth_distance/earth_box, geo_distance/<@>, spatial/index operations, binary
+codecs and SQL earth/cube arrays remain unavailable. Internal truthful CHECK
+rendering is not callable helper authority. Domain catalog input/receive identities
+do not grant binary transport; physical results retain CUBE metadata.
+See [value contract](TYPES.md#earth-domain) and
+[selected proof](../reference/types/README.md#earth-domain-contract).
+
 ## LINE geometric boundary
 
 LINE coefficient/endpoint IO, typed table/bind/result transport and actual scalar

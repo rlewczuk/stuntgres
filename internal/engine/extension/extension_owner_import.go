@@ -34,6 +34,15 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 		if !ok || owner.Ref != ext.Owner {
 			return false, fmt.Errorf("stuntgres: mismatching extension installation owner")
 		}
+		if record.Name == "earthdistance" {
+			if ext.Version != "1.2" || len(record.Members) != 2 || len(ext.Members) != 2 {
+				return false, fmt.Errorf("stuntgres: invalid earthdistance ownership roles")
+			}
+			first, second := record.Members[0], record.Members[1]
+			if first.Kind != "type" || second.Kind != "type" || first.Signature != "" || second.Signature != "" || first.Owner != second.Owner || !(first.Name == "earth" && second.Name == "earth[]" || first.Name == "earth[]" && second.Name == "earth") {
+				return false, fmt.Errorf("stuntgres: inconsistent earthdistance ownership roles")
+			}
+		}
 		for _, member := range record.Members {
 			owner, ok := roles.Lookup(member.Owner)
 			if !ok {
@@ -55,6 +64,17 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				signature = string(QueryIntSignature(base.SQLType.ID()))
 			}
 			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
+			if record.Name == "earthdistance" && member.Name == "earth[]" {
+				domain, ok := candidate.Type(ext.Members[0])
+				if !ok || !domain.SQLType.IsDomain() {
+					return false, fmt.Errorf("stuntgres: missing earth ownership domain")
+				}
+				a = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.Array)}
+				array, ok := candidate.Type(a)
+				if !ok || array.SQLType.Element() != domain.SQLType || array.Namespace() != domain.Namespace() || a != ext.Members[1] {
+					return false, fmt.Errorf("stuntgres: invalid earth ownership companion")
+				}
+			}
 			d := candidate.Get(a)
 			if d == nil || catalog.ExtensionMembership(d) != ext.Address() {
 				return false, fmt.Errorf("stuntgres: invalid extension ownership member")
@@ -65,14 +85,16 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 					n := *d
 					n.Owner = owner.Ref
 					candidate.SetDescriptor(a, &n)
-					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}
-					array, ok := candidate.Type(arrayAddress)
-					if !ok || !array.SQLType.IsArray() || array.SQLType.Element() != d.SQLType {
-						return false, fmt.Errorf("stuntgres: invalid owned intarray array")
+					if d.Array != 0 {
+						arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}
+						array, ok := candidate.Type(arrayAddress)
+						if !ok || !array.SQLType.IsArray() || array.SQLType.Element() != d.SQLType {
+							return false, fmt.Errorf("stuntgres: invalid owned type array")
+						}
+						mapped := *array
+						mapped.Owner = owner.Ref
+						candidate.SetDescriptor(arrayAddress, &mapped)
 					}
-					mapped := *array
-					mapped.Owner = owner.Ref
-					candidate.SetDescriptor(arrayAddress, &mapped)
 					ownersChanged = true
 				}
 			case *catalog.Procedure:

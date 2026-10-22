@@ -50,6 +50,9 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if _, ok := v.Namespace(d.TargetNamespace); !ok {
 			return invalid()
 		}
+		if _, err := catalog.ExtensionPrerequisites(v, d); err != nil {
+			return err
+		}
 		seen := map[ids.ObjectAddress]bool{}
 		for _, a := range d.Members {
 			if seen[a] {

@@ -142,6 +142,20 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case plan.UpdateOutputExpr:
 		next = n
+	case plan.EarthCheckExpr:
+		if !n.Valid() {
+			return nil, fmt.Errorf("stuntgres: invalid remapped earth CHECK")
+		}
+		mapped := child(n.Value)
+		if err != nil {
+			return nil, err
+		}
+		value, ok := mapped.(plan.DomainValueExpr)
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: foreign earth CHECK child")
+		}
+		n.Value = value
+		next = n
 	case plan.DomainValueExpr:
 		next = n
 	case plan.LiteralExpr:

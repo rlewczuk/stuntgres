@@ -157,6 +157,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				if d.TargetNamespace == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
 				}
+				required, err := catalog.ExtensionPrerequisites(base, d)
+				if err != nil {
+					return err
+				}
+				for _, prerequisite := range required {
+					if prerequisite == target {
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+					}
+				}
 			case *catalog.Procedure:
 				if d.SQLBody != nil {
 					for _, dependency := range d.SQLBody.Dependencies() {
@@ -525,9 +534,24 @@ func RestrictError(r DropReader, targets []ids.ObjectAddress, edges []table.Doma
 	if primary != (ids.ObjectAddress{}) {
 		message = "cannot drop " + stored.DependencyObject(base, primary, path) + " because other objects depend on it"
 	}
+	// An extension reported as a dependent subsumes its owned implementation
+	// members in DETAIL. Keep all closure edges for enforcement and retirement;
+	// this changes presentation only, not which objects block or follow DROP.
+	var reportedExtensions map[ids.ObjectAddress]bool
+	for _, edge := range edges {
+		if !edge.Automatic && edge.Address.ClassID == ids.ExtensionClassID {
+			if reportedExtensions == nil {
+				reportedExtensions = make(map[ids.ObjectAddress]bool)
+			}
+			reportedExtensions[edge.Address] = true
+		}
+	}
 	details := make([]string, 0, len(edges))
 	for _, edge := range edges {
 		if !edge.Automatic {
+			if len(reportedExtensions) != 0 && reportedExtensions[catalog.ExtensionMembership(r.RetirementDescriptor(edge.Address))] {
+				continue
+			}
 			target := edge.Target
 			if edge.Address.ClassID == 2606 && edge.Relation != nil {
 				for _, f := range edge.Relation.Constraints.ForeignKeys {

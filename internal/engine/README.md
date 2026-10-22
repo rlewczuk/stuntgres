@@ -64,6 +64,25 @@ producer ownership. Engine code names the moved types directly
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
+Earthdistance installs an ordinary cube-based domain and three real CHECK records.
+`extension_earth.go` attaches bounded internal recipes under the catalog mutex;
+the ordinary renderer/dependency preparation/domain evaluator owns their validity
+and execution. Generation remapping traverses the actual lexical VALUE child.
+
+`RestrictError` suppresses an owned implementation member's redundant DETAIL line
+only when its owning extension is itself reported as a dependent. Closure edges,
+blocking decisions and retirement remain unchanged; a member without a reported
+owner retains its own diagnostic line.
+
+```sh
+make check RUN='^(TestEarthDomainExpression|TestEarthProvider(Identity|Conflicts|Controls)|TestEarthPrerequisiteRemovalDetail)$'
+make check RUN='^(TestAvailableExtensions(Projection|StatementFrontier)|TestExtensionVersionGraph|TestExtensionMembersHoldBareProviders)$'
+```
+
+Use external900-second deadlines. Public proof and standalone consumer instructions
+are in [`reference/types`](../../reference/types/README.md#earth-domain-contract).
+
+
 ### Large-object SQL routine snapshots
 
 VOLATILE SQL body entry captures an immutable command-visible large-object READ

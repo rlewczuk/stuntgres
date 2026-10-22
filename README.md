@@ -50,6 +50,18 @@ Direct crypt rounds clamp with PostgreSQL notices, unlike generator errors.
 Existing overload identities, stored consumers and native controls are unchanged.
 See [selected proof and smoke](reference/catalogs/README.md#sha-password-oracle-first-checkpoint).
 
+## Earth domain storage — change note
+
+`CREATE EXTENSION cube; CREATE EXTENSION earthdistance;` installs the ordinary
+`earth` domain over the actual installed cube identity. Text values, bound
+strings/bytes, nullable columns and native logical replay preserve cube shape,
+signed zero, NaN and full precision. Three genuine ordered domain CHECKs admit
+point dimensions at most three and the strict released relative surface tolerance.
+This does not supply geographic helper functions or spatial operations.
+See [earth values](docs/TYPES.md#earth-domain),
+[native boundary](docs/DIALECT.md#earthdistance-domain-boundary) and
+[selected proof](reference/types/README.md#earth-domain-contract).
+
 ## LSEG ordered endpoints — change note
 
 Builtin `lseg` stores two ordered POINT endpoints. The four documented input

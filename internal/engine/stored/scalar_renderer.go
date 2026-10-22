@@ -89,6 +89,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 	}
 	r.recordStoredReference(view, view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
+	case plan.EarthCheckExpr:
+		return r.earthSQL(ctx, view, n)
 	case plan.DomainValueExpr:
 		if r.DomainValue == nil || *r.DomainValue != n.Usage {
 			return "", fmt.Errorf("stuntgres: foreign stored domain VALUE")

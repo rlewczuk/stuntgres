@@ -421,6 +421,8 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		return "$" + strconv.Itoa(n.Number), nil
 	case plan.MergeActionExpr:
 		return "merge_action()", nil
+	case plan.EarthCheckExpr:
+		return earthCheckSQL(r.View, n)
 	case plan.DomainValueExpr:
 		return "VALUE", nil
 	case plan.ColumnExpr:

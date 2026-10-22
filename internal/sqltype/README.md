@@ -185,6 +185,13 @@ make check RUN='^TestPoint(InputOutput|CoordinateBits|Predicates)$'
 Public SQL expectations and both-mode proof belong to
 [`reference/types`](../../reference/types/README.md#point-oracle-first-contract).
 
+Earth's three bounded payload checks inspect immutable cube coordinates without
+allocating or reparsing text. Released ordered-comparison NaN behavior and
+squared accumulation are intentional; do not substitute Hypot or finite checks.
+`make check RUN='^TestEarthCubeChecks$'` covers shapes, specials and adjacent
+strict surface boundaries. Public domain/NULL/transport proof belongs in
+[`reference/types`](../../reference/types/README.md#earth-domain-contract).
+
 LSEG codec, ordered bits/replay, scalar predicates, strict NULLs, endpoint
 immutability/inline fetch and default-capability/binary-boundary units:
 
