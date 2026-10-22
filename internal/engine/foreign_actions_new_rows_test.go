@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -43,7 +44,7 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 					sql = `UPDATE ONLY "public"."c" SET "pid" = $1 WHERE $2 OPERATOR(pg_catalog.=) "pid"`
 				}
 				scope := foreignActionUnitScope(t, e, reader, q)
-				err = SettleForeignActions(scope.writeHost())
+				err = dml.SettleForeignActions(scope.writeHost())
 				var d *sqlstate.Error
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent update", Context: `SQL statement "` + sql + `"`}
 				if !errors.As(err, &d) || *d != want {

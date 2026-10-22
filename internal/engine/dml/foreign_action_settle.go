@@ -1,11 +1,10 @@
-package engine
+package dml
 
 import (
 	"cmp"
 	"fmt"
 	"slices"
 
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/table"
@@ -17,12 +16,12 @@ import (
 // authority they run with, takes each job's relation locks in OID order, then
 // recaptures the authority and binds every job's comparisons over the current
 // catalog. Without a reached job it takes no lock.
-func PrepareForeignActions(h dml.FinishHost) ([]dml.ForeignKeyJob, dml.Authority, error) {
+func PrepareForeignActions(h FinishHost) ([]ForeignKeyJob, Authority, error) {
 	jobs, modes, auth, err := h.ForeignKeyJobs()
 	if err != nil || jobs == nil {
 		return nil, auth, err
 	}
-	slices.SortFunc(jobs, func(a, b dml.ForeignKeyJob) int { return cmp.Compare(a.Definition.OID, b.Definition.OID) })
+	slices.SortFunc(jobs, func(a, b ForeignKeyJob) int { return cmp.Compare(a.Definition.OID, b.Definition.OID) })
 	refs := make([]ids.ObjectRef, 0, len(modes))
 	for ref := range modes {
 		refs = append(refs, ref)
@@ -37,7 +36,7 @@ func PrepareForeignActions(h dml.FinishHost) ([]dml.ForeignKeyJob, dml.Authority
 	view := auth.Access().Catalog
 	for i := range jobs {
 		job := &jobs[i]
-		if err = dml.RefreshForeignActionJob(view, job); err != nil {
+		if err = RefreshForeignActionJob(view, job); err != nil {
 			return nil, auth, err
 		}
 		job.Comparisons, err = table.BindForeignKeyComparison(view, job.Child, job.Parent, job.Index, job.Definition)
@@ -53,7 +52,7 @@ func PrepareForeignActions(h dml.FinishHost) ([]dml.ForeignKeyJob, dml.Authority
 // parent transitions, including the transitions the actions themselves stage,
 // as the referencing tables' owners. Finish calls it after the first
 // exclusion event check.
-func SettleForeignActions(h dml.FinishHost) error {
+func SettleForeignActions(h FinishHost) error {
 	rows, deletes := h.Staged()
 	if len(rows) == 0 && len(deletes) == 0 {
 		return nil
@@ -85,7 +84,7 @@ func SettleForeignActions(h dml.FinishHost) error {
 			}
 			old, ok := image.Previous(next.Row)
 			if ok {
-				scope.Transitions = append(scope.Transitions, dml.ForeignActionTransition{Relation: a, Old: old, Next: next})
+				scope.Transitions = append(scope.Transitions, ForeignActionTransition{Relation: a, Old: old, Next: next})
 			} else if next.Base != 0 {
 				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
 			}
@@ -111,7 +110,7 @@ func SettleForeignActions(h dml.FinishHost) error {
 				}
 			}
 			if ok {
-				scope.Transitions = append(scope.Transitions, dml.ForeignActionTransition{Relation: a, Old: old})
+				scope.Transitions = append(scope.Transitions, ForeignActionTransition{Relation: a, Old: old})
 			}
 		}
 	}
@@ -129,7 +128,7 @@ func SettleForeignActions(h dml.FinishHost) error {
 			}
 			action := job.Definition.DeleteAction
 			if event.Next.Row != 0 {
-				if dml.ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
+				if ForeignActionSameKey(job.Comparisons, event.Old.Values, event.Next.Values) {
 					continue
 				}
 				action = job.Definition.UpdateAction

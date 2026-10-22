@@ -1,9 +1,8 @@
-package engine
+package dml
 
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -16,7 +15,7 @@ import (
 // a parent, and every changed or deleted parent key must leave no referencing
 // child. A child or parent that an action mutated reports as its owner.
 // Finish calls it last, after the actions and their exclusion events.
-func CheckForeignKeys(h dml.FinishHost) error {
+func CheckForeignKeys(h FinishHost) error {
 	rows, deletes := h.Staged()
 	if len(rows) == 0 && len(deletes) == 0 {
 		return nil
@@ -34,7 +33,7 @@ func CheckForeignKeys(h dml.FinishHost) error {
 	input, output := h.Environments()
 	for i := range jobs {
 		job := &jobs[i]
-		if err = dml.RefreshForeignActionJob(view, job); err != nil {
+		if err = RefreshForeignActionJob(view, job); err != nil {
 			return err
 		}
 		f := job.Definition
@@ -118,7 +117,7 @@ func CheckForeignKeys(h dml.FinishHost) error {
 		for _, row := range parentRows.Staged {
 			old, ok := parentRows.Previous(row.Row)
 			if ok {
-				if dml.ForeignActionSameKey(job.Comparisons, old.Values, row.Values) {
+				if ForeignActionSameKey(job.Comparisons, old.Values, row.Values) {
 					continue
 				}
 				if err := checkOld(old); err != nil {
@@ -151,7 +150,7 @@ func CheckForeignKeys(h dml.FinishHost) error {
 // foreignKeyParentExists probes rows' FK index for child's parent key. With
 // lockParent it takes a key-share grant on an uncommitted-by-us match and
 // rechecks the exact version the index named, retrying on the current index.
-func foreignKeyParentExists(h dml.FinishHost, ref ids.ObjectRef, job dml.ForeignKeyJob, rows *table.ForeignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
+func foreignKeyParentExists(h FinishHost, ref ids.ObjectRef, job ForeignKeyJob, rows *table.ForeignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
 	input, _ := h.Environments()
 	if err := table.PrepareForeignKeyChild(h.Context(), job.Comparisons, child, job.ChildKey, input); err != nil {
 		return false, err

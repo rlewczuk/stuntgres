@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -83,7 +84,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.Mu.Unlock()
 		err = s.checkExclusionEvents(t.State == session.TxImplicit && !t.RetainsTransaction(), nil)
 		if err == nil {
-			err = SettleForeignActions(s.writeHost())
+			err = dml.SettleForeignActions(s.writeHost())
 		}
 		if err == nil && s.foreignActionsOrZero().ExclusionAdded {
 			err = s.checkExclusionEvents(t.State == session.TxImplicit && !t.RetainsTransaction(), nil)
@@ -91,7 +92,7 @@ func (s *StatementScope) Finish(err error) error {
 		// Catalog shape projections replace historical own overlays. They are not
 		// newly issued DML; selected ALTER/catalog validators own their obligations.
 		if err == nil && !s.projectedRoots {
-			err = CheckForeignKeys(s.writeHost())
+			err = dml.CheckForeignKeys(s.writeHost())
 		}
 		t.Mu.Lock()
 	}

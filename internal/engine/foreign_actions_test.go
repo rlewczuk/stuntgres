@@ -140,7 +140,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
 	named, stored, descriptor := scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor
-	jobs, auth, err := PrepareForeignActions(scope.writeHost())
+	jobs, auth, err := dml.PrepareForeignActions(scope.writeHost())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestForeignActionsClosure(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	if err := SettleForeignActions(scope.writeHost()); err != nil {
+	if err := dml.SettleForeignActions(scope.writeHost()); err != nil {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "g")
@@ -265,7 +265,7 @@ func TestForeignActionsDefaults(t *testing.T) {
 			before := e.storage.Relations[ref.Address]
 			versions := slices.Clone(before.Versions)
 			scope := foreignActionUnitScope(t, e, s, "DELETE FROM p WHERE id=10")
-			err := SettleForeignActions(scope.writeHost())
+			err := dml.SettleForeignActions(scope.writeHost())
 			if probe.ordinal != 2 {
 				t.Fatal("default demand was not per physical row", probe.ordinal)
 			}

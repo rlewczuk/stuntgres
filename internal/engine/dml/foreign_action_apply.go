@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"errors"
@@ -8,7 +8,6 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -25,7 +24,7 @@ import (
 // direction: the target slots, the input environment (with SET DEFAULT's
 // bound defaults, from the host), SET NULL's domain inputs and CASCADE's
 // parent slots and coercions.
-func planForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) (*dml.ForeignActionPlan, error) {
+func planForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) (*ForeignActionPlan, error) {
 	cached := job.DeletePlan
 	if event.Next.Row != 0 {
 		cached = job.UpdatePlan
@@ -37,7 +36,7 @@ func planForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKey
 	if event.Next.Row == 0 && len(job.Definition.DeleteAttributes) != 0 {
 		attributes = job.Definition.DeleteAttributes
 	}
-	plan := &dml.ForeignActionPlan{Targets: make([]int, len(attributes))}
+	plan := &ForeignActionPlan{Targets: make([]int, len(attributes))}
 	for i, a := range attributes {
 		plan.Targets[i] = slices.Index(job.Child.Attributes, a)
 		if plan.Targets[i] < 0 {
@@ -92,7 +91,7 @@ func planForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKey
 // transition: RESTRICT reports a still-matching child; CASCADE, SET NULL and
 // SET DEFAULT grant, re-read, revalidate and stage each matching child as the
 // child's owner. SET DEFAULT then rechecks the new keys like NO ACTION.
-func applyForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) error {
+func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) error {
 	view := auth.Access().Catalog
 	ref := view.Domain().Ref(view.Epoch(), job.Child.Address())
 	if err := h.AdmitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
@@ -140,7 +139,7 @@ func applyForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKe
 	previous := h.SwapForeignActionAuthority(ownerAuth)
 	defer h.SwapForeignActionAuthority(previous)
 	deletion := action == parser.ForeignKeyCascade && event.Next.Row == 0
-	var plan *dml.ForeignActionPlan
+	var plan *ForeignActionPlan
 	var err error
 	if !deletion {
 		plan, err = planForeignAction(h, ownerAuth, job, event, action)
@@ -263,10 +262,10 @@ func applyForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKe
 			}
 		}
 		b := analyze.Binding{Ref: ref, Relation: job.Child, Targets: plan.Targets}
-		if err = dml.ValidateMutationRow(h, b, schema, row, &evaluation); err != nil {
+		if err = ValidateMutationRow(h, b, schema, row, &evaluation); err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
-		keyChanged, err := dml.UniqueKeyChanged(h, ref, old.Values, row)
+		keyChanged, err := UniqueKeyChanged(h, ref, old.Values, row)
 		if err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
@@ -275,7 +274,7 @@ func applyForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKe
 				return foreignActionError(h, err, job, event, action, view)
 			}
 		}
-		if err = dml.ClaimUniqueRow(h, ref, old); err != nil {
+		if err = ClaimUniqueRow(h, ref, old); err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -288,13 +287,13 @@ func applyForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKe
 		}
 		predecessor := [1]storage.RowVersion{old}
 		proposal := index.WriteCandidate{Values: row}
-		if err = dml.CheckUniqueRow(h, ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
+		if err = CheckUniqueRow(h, ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
 		replacement := [1][]sqltype.Value{row}
 		batch := index.WriteBatch{Values: replacement[:], ActionMode: actionMode}
 		batch.Set(0, proposal)
-		if err = dml.ReplaceRows(h, ref, predecessor[:], batch, dml.ReplaceMerge); err != nil {
+		if err = ReplaceRows(h, ref, predecessor[:], batch, ReplaceMerge); err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
 	}
@@ -329,14 +328,14 @@ func applyForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKe
 // context of a non-FK error. The context describes the real plan; it is not
 // parsed SQL or a second dispatcher. AFTER-event diagnostics deliberately have
 // no SPI frame.
-func foreignActionError(h dml.FinishHost, err error, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction, view catalog.Read) error {
+func foreignActionError(h FinishHost, err error, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction, view catalog.Read) error {
 	err = h.CommandError(err)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code == "23503" || d.Code == "23001" || d.Code == "23P01" {
 		return err
 	}
 	copy := *d
-	context := `SQL statement "` + dml.ForeignActionQuery(job, event, action, view) + `"`
+	context := `SQL statement "` + ForeignActionQuery(job, event, action, view) + `"`
 	if copy.Context != "" {
 		copy.Context += "\n"
 	}
