@@ -1288,7 +1288,7 @@ Deviations and notes:
 - 27f (from 27e): `query_table_refs.go`, `view_write_authority.go` and
   `checkViewRowMarksExpanded` now call `stored.ViewLeafRowMark` and
   `stored.ViewRowLockLegality`; `view.QueryTableRefs` can use them directly.
-- 24g (from 27e): `inheritanceQueryLeaves` calls `stored.ViewLeafRowMark`.
+- 24g (from 27e, done): `table.InheritanceQueryLeaves` calls `stored.ViewLeafRowMark`.
 - 29e (from 27e): the DML preflights call `view.PreflightQuery`,
   `view.ValidateQueryJoinExecution` and `view.ValidateMutationJoinExecution`
   (`execute_bound.go`, `merge.go`, `update.go`).

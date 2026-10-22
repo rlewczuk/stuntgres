@@ -25,7 +25,8 @@ on an inheritance tree re-enters the ALTER handler once per node, and the
 dump record has emitters for both. Go cannot split one type's methods
 across packages, so one package holds both. Inheritance *query and DML
 expansion* is not DDL: the query scope methods stay with root query
-admission and DML expansion goes to `dml`.
+admission and DML expansion goes to `dml`; the pure query leaf walk and
+pending-grant decision they call live here.
 
 ## What it owns
 
@@ -107,8 +108,11 @@ admission and DML expansion goes to `dml`.
   drops through `DefinitionDelta`, which the root's prepared column and
   identity drops implement), the typed-table propagation
   (`TypedClosure`, `TypedInheritedActions`), and the query-expansion
-  helpers `InheritanceQueryClosure`, `CaptureInheritanceQueryPrefix` and
-  `SourceOnly`. `inheritance_relationship.go` owns compatible ordinary attach
+  helpers `InheritanceQueryClosure`, `CaptureInheritanceQueryPrefix`,
+  `SourceOnly`, `InheritanceQueryLeaves` (the stored-view-aware leaf walk)
+  and `InheritancePendingGrants` (24g: which physical leaves still need a
+  grant and in which row-mark mode; the root fills their storage and
+  waits). `inheritance_relationship.go` owns compatible ordinary attach
   and detach candidates; the root owns exact endpoint grants/admission and the
   existing single ALTER stage. Parent candidates read that stage's complete
   catalog view, including unchanged base descriptors, not its staged-only Get
@@ -176,7 +180,17 @@ admission and DML expansion goes to `dml`.
   `RecordAction`, `RecordChecks`, `NotNullMode` and `OnlyCreatedConstraint`
   (`inheritance_alter_record.go`), `InheritanceDefaultCandidate` and the
   per-member rename cores `RenameInheritanceColumn[Precheck]` and
-  `RenameInheritanceConstraint[Precheck]`. Over `DropDependencyReader`:
+  `RenameInheritanceConstraint[Precheck]`. The prepare side (24g;
+  `inheritance_alter_prepare.go`, `inheritance_prepare_host.go`):
+  `PrepareInheritanceNode` cooks phases 0–6 of one node before the sole
+  stage exists, through the six-method `PrepareHost` (USING INDEX metadata,
+  ADD COLUMN, column, identity and constraint-index drops, added CHECKs),
+  and records `InheritancePreparedNode`/`InheritancePreparedAction`. Prepared
+  drops cross as `PreparedDrop` (a `DefinitionDelta` with `Next`); the
+  root's `inheritancePrepareHost` hands each call's definition reader to the
+  authority and unwraps drops for the stage consumers. Callers hold
+  nothing; the host methods take `Engine.mu` and the drops may wait.
+  Over `DropDependencyReader`:
   `DropConstraintIndexes`, `OwnedSequences` and `DropIdentity`.
   The same plan and engine stage serve the narrow partition CHECK/NOT NULL
   policy (`partition_alter.go`, `partition_alter_check.go`). Membership remains
@@ -276,10 +290,10 @@ functions that stage or wait (`addColumnCandidate`, `alterTypeCandidate`,
 lock admission (`acquireDefinitionProviders`, `admitInheritanceAlter`,
 `acquireInheritanceDefinitions`), the identity sequence waits and staging
 (`stageAlterIdentityTypes`, `alterIdentityTypeSequence`,
-`refreshIdentitySequenceLocked`), the inheritance prepare side
-(`prepareInheritanceNode`, `inheritancePreparedNode`,
-`inheritancePreparedAction`), prepared drops (`preparedDrop`,
-`preparedIdentityDrop`), and Finish. The candidate wrappers
+`refreshIdentitySequenceLocked`), the prepare host
+(`inheritancePrepareHost`) and the prepared-node consumers
+(`consumeInheritancePreparedAction`, the `alterTableLocked` passes),
+prepared drops (`preparedDrop`, `preparedIdentityDrop`), and Finish. The candidate wrappers
 (`addColumnCandidate`, `alterTypeCandidate`, `generationCandidate`,
 `prepareAddedChecks`, `rebindAlterTypeChecks`, `rebindAlterTypeIndexes`,
 `stageAddedUnique`, `stageAddedForeignKey`) take `Engine.mu` across the
@@ -288,9 +302,9 @@ Also in the root: the binder bodies behind the host (`bindCreateDefaults`,
 `bindCreateGenerations`, `ddlHost.BindCheckExpression`), the
 acquire loop of `acquireRelationTarget` around `AdmitTarget`,
 `projectColumnShapeRoots` (catalog 5k moves it to `session` with the storage
-projections), `inheritanceQueryLeaves` (clean; table 24g moves it here once
-`viewLeafRowMark` is in `stored`) and the inheritance query
-scope methods (query admission). Restore keeps its hook bodies in the
+projections) and the inheritance query scope methods (query admission:
+`acquireInheritanceSources` keeps its loop, waits and storage lookup
+around `InheritancePendingGrants`). Restore keeps its hook bodies in the
 root (control reaches them): the context check, authorization, the
 superuser 42501, the `Engine.mu` window, the trust checks
 (`partitionConstraintReplayImport`, the captured roles, the attribute-rank
@@ -332,15 +346,19 @@ naming the moved code as `table.X`; the host seams have
 `TestRelationValidatorsOrder` and the remap capture
 `TestGeneratedRemapCheckCapture`. The 24f decisions have package-local
 tests: `TestTypedSources`, `TestPlanAlterScan`, `TestCheckCreateShape`,
-`TestTableTargetAdmission` and `TestAdmitTargetAsksEachEntry`.
+`TestTableTargetAdmission` and `TestAdmitTargetAsksEachEntry`. The 24g
+prepare side and query grants have package-local tests over a fake host
+and a small catalog: `TestPrepareInheritanceNode(PhaseOrder|StopsAtFailedStep)`
+and `TestInheritancePendingGrants`.
 
 ```sh
 make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost|^TestRelationValidatorsOrder$|^TestGeneratedRemapCheckCapture$'
 make check RUN='^Test(TypedSources|PlanAlterScan|CheckCreateShape|TableTargetAdmission|AdmitTargetAsksEachEntry)$'
+make check RUN='^Test(PrepareInheritanceNode|InheritancePendingGrants)'
 make check RUN='^Test(AlterAdd|AlterGenerated|AlterTablespace|AlterType|AlterDefault|IdentityAlter|ConstraintRename|InheritanceAlter|InheritanceRetired|InheritanceMetadata)'
 make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
 make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'
-make check RACE=1 RUN='^TestNotNullAXWaitCancellationAndEnd$'
+make check RACE=1 RUN='^Test(NotNullAXWaitCancellationAndEnd$|InheritanceAdmission|InheritanceAlterAdmission)'
 make check RUN='^Test(AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit|RestoreInherited|InheritanceForeignKeyForwardReplay|PhysicalNotNull|InheritanceRetiredLocalCheckReconstruction)'
 ```
 

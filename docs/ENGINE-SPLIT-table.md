@@ -1029,7 +1029,10 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   the docs commit) · selected unit (also `RACE=1`) and dual-mode proof and
   quickcheck passed; racecheck/finalcheck skipped at user request; see the
   24f record below
-- [ ] 24g — Inheritance prepare side moved (linear item 125)
+- [x] 24g — Inheritance prepare side moved — linear item 125 (`0124428f1`,
+  `319ad1289`, `35e3d98ae`, then the docs commit) · selected unit (also `RACE=1`) and
+  dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+  user request; see the 24g record below
 
 Outstanding aliases: none (24a and 24b added none).
 
@@ -1482,7 +1485,51 @@ units; no aliases.
   `TestAlterAddColumnSparseCheckOrdinalsAndOwnership`. None moved or
   deleted.
 
+### 24g record
+
+Started at `c40b97c0f` (24f recorded) and rebased onto `38e365e6f` (after partition 25e; no code overlap); names,
+line ranges and callers matched the plan. Three code commits, each green
+on `make build` and its units; no aliases.
+
+- `0124428f1`: `table.InheritanceQueryLeaves` (`table/inheritance_query_leaves.go`,
+  body unchanged) and `table.InheritancePendingGrants`, the pure
+  pending-grant decision of `acquireInheritanceSources` (named-root skip,
+  prior-grant skip, pending row-mark upgrade, lazy map). It returns the
+  map it may allocate and leaves `Storage` empty: the root fills it with
+  `privateStorageLocked` in the same `Engine.mu` window, then waits as
+  before.
+- `319ad1289`: `table.PrepareInheritanceNode` over the six-method
+  `table.PrepareHost`; the records are `table.InheritancePreparedNode` and
+  `InheritancePreparedAction` with exported fields. Prepared drops cross as
+  `table.PreparedDrop` (`DefinitionDelta` plus `Next`; `*preparedDrop` and
+  `*preparedIdentityDrop` gained `Next`). The function keeps setting and
+  restoring `op.Definition`; the root-private `auth.definition` assignment
+  became each host call's `definition` argument (every such call was
+  preceded by that assignment with the same reader).
+  `inheritancePrepareHost` (`inheritance_prepare_host.go`) returns nil
+  interfaces for nil drops and recovers drops with comma-ok assertions;
+  `consumePreparedDrop` and `consumeIdentityDropDefinition` already reject
+  nil with `ErrCatalogReplaced`. `consumeInheritancePreparedAction`,
+  `scope.inheritancePreparedNode()` and the `alterTableLocked` and
+  `stageAddedChecks` consumers stay root.
+- `35e3d98ae`: `lockInheritanceDropClosure` and `inheritanceStageAlterGuard`
+  (`table_inheritance_guards.go`) deleted; their tests call the production
+  `dropProvider.lockInheritanceClosure` (it leaves `stage.Base` unchanged on
+  error, which the cancel case already asserted) and
+  `dropProvider.InheritanceAlterGuard`.
+- Tests: new `TestInheritancePendingGrants` and
+  `TestPrepareInheritanceNode(PhaseOrder|StopsAtFailedStep)` (table, over a
+  small catalog and a fake host; observed failing first). Adapted to the
+  new names, unchanged otherwise: `inheritance_query_test.go`,
+  `inheritance_alter_admission_test.go`, `inheritance_admission_test.go`,
+  `inheritance_dependency_authority_test.go`. None moved or deleted.
+
 ### Notes for later steps
+
+- 24g: step 24 has no planned sub-step left. The root keeps the
+  inheritance waits and stage consumers: `admitInheritanceAlter`,
+  `acquireInheritanceSources`, `consumeInheritancePreparedAction` and the
+  prepared drops. A later move of `preparedDrop` needs the drop provider.
 
 - 24b: the dependency passes need `dropDependencyReader` and
   `domainDependency` (`domain_dependencies.go`) in `table`; the

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `2b3d7a138` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 126 and 127). Steps 8–17 were
+Last verified against `master` at `38e365e6f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126 and 127). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -24,9 +24,9 @@ broad item.
 - **Third round, control:** none; 119 (stored 22e), 120 (control 30d),
   121 (control 30e) and 122 (control 30f) are done, so steps 22 and 30
   have no planned sub-step left.
-- **Third round, table and index:** 125 (table 24g; 123 and 124, table
-  24e and 24f, are done); 126 (index 23e) and 127 (partition 25e) are
-  done, so steps 23 and 25 have no planned sub-step left.
+- **Third round, table and index:** none; 123, 124 and 125 (table
+  24e–24g), 126 (index 23e) and 127 (partition 25e) are done, so steps 23,
+  24 and 25 have no planned sub-step left.
 - **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
   (catalog 5k), 131 (access B7, in place; it changes `AuthorizationView`,
   so rebase other open branches after it lands).
@@ -765,10 +765,14 @@ them); the optional TRUNCATE cores were not needed.
   - [x] 24e — Relation validation and generation remap moved
     ([table](ENGINE-SPLIT-table.md)) (`20e2675f2`, `77e73dff4`,
     `9e28f488c`, then the docs commit)
-  - [ ] 24f — Remaining CREATE and ALTER decisions moved
-    ([table](ENGINE-SPLIT-table.md))
-  - [ ] 24g — Inheritance prepare side moved ([table](ENGINE-SPLIT-table.md))
-  - [ ] 23e — Pure index algorithms moved ([index](ENGINE-SPLIT-index.md))
+  - [x] 24f — Remaining CREATE and ALTER decisions moved
+    ([table](ENGINE-SPLIT-table.md)) (`98a193227`, `479d57f07`,
+    `3e48a8de5`, `8f6d54f40`, `4c97e1cd9`, then the docs commit)
+  - [x] 24g — Inheritance prepare side moved ([table](ENGINE-SPLIT-table.md))
+    (`0124428f1`, `319ad1289`, `35e3d98ae`, then the docs commit)
+  - [x] 23e — Pure index algorithms moved ([index](ENGINE-SPLIT-index.md))
+    (`cde98e8e6`, `bf853e512`, `c0cefcab1`, `459cf5149`, `50c210b8a`, then
+    the docs commit)
   - [ ] 25e — Consumer boundary and hash repair moved
     ([partition](ENGINE-SPLIT-partition.md))
   - [ ] 21d — Object address inquiries moved ([regobj](ENGINE-SPLIT-regobj.md))
@@ -1845,11 +1849,15 @@ branches.
      · targeted units (also `RACE=1`), quickcheck and the quick and
      `REFERENCE=1` table selections passed; racecheck/finalcheck skipped at
      user request
-125. [ ] Table 24g: inheritance prepare side —
-     [table](ENGINE-SPLIT-table.md) 24g · needs 124, 115 ·
-     `prepareInheritanceNode` behind a prepare host,
-     `inheritanceQueryLeaves`, the pending-grant decision (about 0.3k
-     lines)
+125. [x] Table 24g: inheritance prepare side —
+     [table](ENGINE-SPLIT-table.md) 24g · needs 124, 115 (`0124428f1`,
+     `319ad1289`, `35e3d98ae`, then the docs commit) · `table.PrepareInheritanceNode`
+     behind `table.PrepareHost`, `table.InheritancePreparedNode`/`Action`,
+     prepared drops as `table.PreparedDrop`, `table.InheritanceQueryLeaves`,
+     `table.InheritancePendingGrants`; the test-only drop and guard wrappers
+     deleted; no aliases · targeted units (also `RACE=1`), quickcheck and
+     the quick and `REFERENCE=1` inheritance/ALTER selections passed;
+     racecheck/finalcheck skipped at user request
 126. [x] Index 23e: pure index algorithms — [index](ENGINE-SPLIT-index.md)
      23e · needs — (`cde98e8e6`, `bf853e512`, `c0cefcab1`, `459cf5149`,
      `50c210b8a`, then the docs commit) · `index.CaptureSnapshot`,
