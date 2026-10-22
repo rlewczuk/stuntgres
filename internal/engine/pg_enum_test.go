@@ -201,7 +201,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal("invalid shape", rows, err)
 	}
 	invalidOwner := *e.catalog.state
-	invalidOwner.ResetDescriptors(e.catalog.state.DescriptorCount())
+	invalidOwner.ResetDescriptors()
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		invalidOwner.SetDescriptor(address, descriptor)
 	}

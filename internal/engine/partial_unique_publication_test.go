@@ -318,7 +318,6 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 		t.Run(fmt.Sprint(materialize), func(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			next := *f.catalog
-			next.CloneDescriptors()
 			idx := *f.index
 			definition := *idx.SQLIndex
 			predicate := *definition.Predicate

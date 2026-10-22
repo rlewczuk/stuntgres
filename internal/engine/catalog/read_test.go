@@ -10,7 +10,7 @@ import (
 func catalogReadFixture() (*State, *Namespace, *Relation) {
 	ns := &Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 900}, ObjectName: "s", ObjectRevision: 1}
 	rel := &Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 901}, ObjectNamespace: ns.Address(), ObjectName: "t", ObjectRevision: 1}
-	s := &State{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
+	s := NewState(1)
 	for _, d := range []Descriptor{ns, rel} {
 		s.SetDescriptor(d.Address(), d)
 		s.BindName(DescriptorNameKey(d), d.Address())

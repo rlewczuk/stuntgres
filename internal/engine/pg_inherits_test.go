@@ -73,7 +73,6 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 	t.Helper()
 	state := *e.catalog.state
-	state.CloneDescriptors()
 	address := func(id ids.OID) ids.ObjectAddress {
 		return ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 	}
@@ -141,7 +140,6 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	}
 	// Publish a distinct fixture generation without altering the retained read.
 	next := *view.State()
-	next.CloneDescriptors()
 	next.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 41008})
 	child := *next.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 41003})
 	child.Inheritance = nil

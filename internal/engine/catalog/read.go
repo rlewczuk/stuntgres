@@ -26,62 +26,48 @@ import (
 
 // descriptorAs is the comma-ok type assertion of one descriptor entry.
 func descriptorAs[T Descriptor](s *State, a ids.ObjectAddress) (T, bool) {
-	d, ok := s.descriptors[a].(T)
+	d, ok := s.Get(a).(T)
 	return d, ok
 }
 
 // Get returns the descriptor at a, or nil when it is absent.
-func (s *State) Get(a ids.ObjectAddress) Descriptor { return s.descriptors[a] }
+func (s *State) Get(a ids.ObjectAddress) Descriptor {
+	d, _ := s.findDescriptor(a)
+	return d
+}
 
 // Find returns the descriptor at a and whether the entry exists.
-func (s *State) Find(a ids.ObjectAddress) (Descriptor, bool) {
-	d, ok := s.descriptors[a]
-	return d, ok
-}
+func (s *State) Find(a ids.ObjectAddress) (Descriptor, bool) { return s.findDescriptor(a) }
 
-// Descriptors iterates every descriptor in unspecified order.
-func (s *State) Descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for a, d := range s.descriptors {
-			if !yield(a, d) {
-				return
-			}
-		}
-	}
-}
+// Descriptors iterates every descriptor in unspecified order. It visits the
+// descriptors present when it is called, each once, even when the loop body
+// writes to s.
+func (s *State) Descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] { return s.allDescriptors() }
 
 // DescriptorCount returns the number of descriptors.
-func (s *State) DescriptorCount() int { return len(s.descriptors) }
+func (s *State) DescriptorCount() int { return s.descriptorCount() }
 
 // NameAddress returns the address bound to k, or the zero address.
-func (s *State) NameAddress(k ids.NameKey) ids.ObjectAddress { return s.names[k] }
+func (s *State) NameAddress(k ids.NameKey) ids.ObjectAddress {
+	a, _ := s.findName(k)
+	return a
+}
 
 // LookupName returns the address bound to k and whether the binding exists.
-func (s *State) LookupName(k ids.NameKey) (ids.ObjectAddress, bool) {
-	a, ok := s.names[k]
-	return a, ok
-}
+func (s *State) LookupName(k ids.NameKey) (ids.ObjectAddress, bool) { return s.findName(k) }
 
-// Names iterates every name binding in unspecified order.
-func (s *State) Names() iter.Seq2[ids.NameKey, ids.ObjectAddress] {
-	return func(yield func(ids.NameKey, ids.ObjectAddress) bool) {
-		for k, a := range s.names {
-			if !yield(k, a) {
-				return
-			}
-		}
-	}
-}
+// Names iterates every name binding in unspecified order, like Descriptors.
+func (s *State) Names() iter.Seq2[ids.NameKey, ids.ObjectAddress] { return s.allNames() }
 
 // NameCount returns the number of name bindings.
-func (s *State) NameCount() int { return len(s.names) }
+func (s *State) NameCount() int { return s.nameCount() }
 
 func (s *State) Relation(a ids.ObjectAddress) (*Relation, bool) {
 	return descriptorAs[*Relation](s, a)
 }
 
 func (s *State) MustRelation(a ids.ObjectAddress) *Relation {
-	return s.descriptors[a].(*Relation)
+	return s.Get(a).(*Relation)
 }
 
 func (s *State) Namespace(a ids.ObjectAddress) (*Namespace, bool) {
@@ -89,7 +75,7 @@ func (s *State) Namespace(a ids.ObjectAddress) (*Namespace, bool) {
 }
 
 func (s *State) MustNamespace(a ids.ObjectAddress) *Namespace {
-	return s.descriptors[a].(*Namespace)
+	return s.Get(a).(*Namespace)
 }
 
 func (s *State) Type(a ids.ObjectAddress) (*Type, bool) {
@@ -97,7 +83,7 @@ func (s *State) Type(a ids.ObjectAddress) (*Type, bool) {
 }
 
 func (s *State) MustType(a ids.ObjectAddress) *Type {
-	return s.descriptors[a].(*Type)
+	return s.Get(a).(*Type)
 }
 
 func (s *State) Procedure(a ids.ObjectAddress) (*Procedure, bool) {
@@ -105,7 +91,7 @@ func (s *State) Procedure(a ids.ObjectAddress) (*Procedure, bool) {
 }
 
 func (s *State) MustProcedure(a ids.ObjectAddress) *Procedure {
-	return s.descriptors[a].(*Procedure)
+	return s.Get(a).(*Procedure)
 }
 
 func (s *State) Operator(a ids.ObjectAddress) (*Operator, bool) {
@@ -113,7 +99,7 @@ func (s *State) Operator(a ids.ObjectAddress) (*Operator, bool) {
 }
 
 func (s *State) MustOperator(a ids.ObjectAddress) *Operator {
-	return s.descriptors[a].(*Operator)
+	return s.Get(a).(*Operator)
 }
 
 func (s *State) Collation(a ids.ObjectAddress) (*Collation, bool) {
@@ -121,7 +107,7 @@ func (s *State) Collation(a ids.ObjectAddress) (*Collation, bool) {
 }
 
 func (s *State) MustCollation(a ids.ObjectAddress) *Collation {
-	return s.descriptors[a].(*Collation)
+	return s.Get(a).(*Collation)
 }
 
 func (s *State) Conversion(a ids.ObjectAddress) (*Conversion, bool) {
@@ -129,7 +115,7 @@ func (s *State) Conversion(a ids.ObjectAddress) (*Conversion, bool) {
 }
 
 func (s *State) MustConversion(a ids.ObjectAddress) *Conversion {
-	return s.descriptors[a].(*Conversion)
+	return s.Get(a).(*Conversion)
 }
 
 func (s *State) Database(a ids.ObjectAddress) (*Database, bool) {
@@ -137,7 +123,7 @@ func (s *State) Database(a ids.ObjectAddress) (*Database, bool) {
 }
 
 func (s *State) MustDatabase(a ids.ObjectAddress) *Database {
-	return s.descriptors[a].(*Database)
+	return s.Get(a).(*Database)
 }
 
 func (s *State) Extension(a ids.ObjectAddress) (*Extension, bool) {
@@ -145,7 +131,7 @@ func (s *State) Extension(a ids.ObjectAddress) (*Extension, bool) {
 }
 
 func (s *State) MustExtension(a ids.ObjectAddress) *Extension {
-	return s.descriptors[a].(*Extension)
+	return s.Get(a).(*Extension)
 }
 
 func (s *State) Foreign(a ids.ObjectAddress) (*ForeignObject, bool) {
@@ -153,7 +139,7 @@ func (s *State) Foreign(a ids.ObjectAddress) (*ForeignObject, bool) {
 }
 
 func (s *State) MustForeign(a ids.ObjectAddress) *ForeignObject {
-	return s.descriptors[a].(*ForeignObject)
+	return s.Get(a).(*ForeignObject)
 }
 
 func (s *State) Parameter(a ids.ObjectAddress) (*Parameter, bool) {
@@ -161,7 +147,7 @@ func (s *State) Parameter(a ids.ObjectAddress) (*Parameter, bool) {
 }
 
 func (s *State) MustParameter(a ids.ObjectAddress) *Parameter {
-	return s.descriptors[a].(*Parameter)
+	return s.Get(a).(*Parameter)
 }
 
 func (s *State) Tablespace(a ids.ObjectAddress) (*Tablespace, bool) {
@@ -169,7 +155,7 @@ func (s *State) Tablespace(a ids.ObjectAddress) (*Tablespace, bool) {
 }
 
 func (s *State) MustTablespace(a ids.ObjectAddress) *Tablespace {
-	return s.descriptors[a].(*Tablespace)
+	return s.Get(a).(*Tablespace)
 }
 
 func (s *State) TSDictionary(a ids.ObjectAddress) (*TSDictionary, bool) {
@@ -177,7 +163,7 @@ func (s *State) TSDictionary(a ids.ObjectAddress) (*TSDictionary, bool) {
 }
 
 func (s *State) MustTSDictionary(a ids.ObjectAddress) *TSDictionary {
-	return s.descriptors[a].(*TSDictionary)
+	return s.Get(a).(*TSDictionary)
 }
 
 func (s *State) TSTemplate(a ids.ObjectAddress) (*TSTemplate, bool) {

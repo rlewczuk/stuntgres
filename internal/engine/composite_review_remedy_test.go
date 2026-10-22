@@ -60,7 +60,6 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		consumer.RelationKind = catalog.MaterializedViewRelation
 		consumer.Columns = []catalog.Column{{Name: "v", Usage: typ.Usage()}}
 		state := *before.State()
-		state.CloneDescriptors()
 		state.SetDescriptor(tbl.Address(), &consumer)
 		view := e.catalog.read(&state)
 		domainUnitDiagnostic(t, typedef.RowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)

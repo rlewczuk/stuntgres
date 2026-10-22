@@ -151,7 +151,6 @@ func TestPGCastProjection(t *testing.T) {
 	}
 	// Dedicated capture needs type owners only, not generic relation inventory.
 	state := *e.catalog.state
-	state.CloneDescriptors()
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
 			state.RemoveDescriptor(a)

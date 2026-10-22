@@ -222,7 +222,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.Address().ObjectID), 10))
 	state := *view.State()
-	state.ResetDescriptors(view.DescriptorCount() + 1)
+	state.ResetDescriptors()
 	for address, descriptor := range view.Descriptors() {
 		state.SetDescriptor(address, descriptor)
 	}

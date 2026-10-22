@@ -162,7 +162,6 @@ func CaptureCatalog(read catalog.Read, admitted map[ids.ObjectAddress]*catalog.R
 		return read
 	}
 	state := *read.State()
-	state.CloneDescriptors()
 	for address, captured := range admitted {
 		current, _ := read.Relation(address)
 		if current != captured && AppendCompatible(captured, current) {

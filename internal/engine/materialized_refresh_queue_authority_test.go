@@ -67,8 +67,6 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			// is pending. These are package fixtures, not added SQL ALTER capabilities.
 			e.mu.Lock()
 			nextState := *e.catalog.state
-			nextState.CloneDescriptors()
-			nextState.CloneNames()
 			next := *d
 			next.ObjectRevision++
 			expectedAddress := d.Address()

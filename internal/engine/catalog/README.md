@@ -78,10 +78,20 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
 - **Write API** (`state_write.go`, setters in `state_access.go`). Only for a
   state that is still being built: the bootstrap seed, a clone
   (`CloneState`), a candidate's merged state or a replacement before
-  publication. `NewState`, `NewStateSized` (a seed of known size) and
-  `NewRead` construct. `CloneState`, `Candidate.State` and the name-index
-  edits copy whole maps with `maps.Clone`, never by re-inserting entries:
-  every publication copies the full catalog, built-ins included.
+  publication. `NewState` and `NewRead` construct.
+- **Storage** (`state_maps.go`). Descriptors and name bindings live in
+  persistent maps (`util.PersistentMap`). `CloneState` and a plain struct copy
+  share both maps in O(1); `Candidate.State` applies only the candidate's
+  changes, so a stage read or a publication costs the size of the change, not
+  of the catalog. Writing to a copy never changes the original, and
+  `Descriptors`/`Names` iterate the version current when they are called, so
+  a loop may write to the state it iterates and still visits every original
+  entry once. Writers that set most entries (the bootstrap seed, whole-catalog
+  rewrites such as `RemapPrincipals` and the replacement remap) bracket the
+  work with `BeginBulkLoad`/`EndBulkLoad`: entries live in Go maps meanwhile
+  and the persistent maps are built in one pass at the end. A state in a bulk
+  load is private to its writer; copying it panics. The name-index edits still
+  copy their bucket maps with `maps.Clone` on first change.
 - **Owner and providers** (`owner.go`). `Owner` is the identity every `Read`
   of one engine carries: the provenance `ids.Domain`, the principal domain
   and ACL authority that stored values must belong to, the `Provider`
@@ -206,9 +216,10 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
 
 - A published `State` is immutable. Writers use the write API only on states
   they are building; publication swaps the whole state.
-- Copy-on-write sharing: clones and merged states copy the descriptor and
-  name maps and share the rest (default ACL records, operator/procedure indexes) until
-  they change. No deep copies on publication or capture.
+- Structural sharing: clones and merged states share the persistent
+  descriptor and name maps and the rest (default ACL records,
+  operator/procedure indexes) until they change; a change copies only what it
+  touches. No deep copies on publication or capture.
 - The package has no mutex. The engine mutex guards the published state and
   every unpublished state the engine shares between goroutines.
 - Provenance: a `Read` belongs to the engine whose `Owner` it carries;
@@ -293,6 +304,7 @@ external900-second deadline; public dual-mode proof is documented in
 
 
 - Read and write API: `make check RUN='^TestCatalog(ReadTypedAccessors|ReadUntypedAndNameAccessors|ReadAccessorsRequirePopulatedRead|StateWritesStayOnTheirState)$'`.
+- Persistent storage, iteration while writing and bulk loads: `make check RUN='^TestCatalog(CopiesStayIndependent|DescriptorsVisitOnceWhileWriting|BulkLoad)$'`; the shared seed names: `make check RUN='^TestBuiltinSeedNamesMatchUnsharedSeed$'`.
 - Diagnostic names: `make check RUN='^Test(DependencyIdentifierQuotesLikeQuoteIdentifier|IdentifierQuotesOnlyWhenNeeded|TypeDiagnosticNameAtQualifiesHiddenTypes)$'`.
 - Engine-side catalog seams (registry, payload accessors and readers,
   operator index, publication): `make check RUN='^Test(CatalogAllocatorAndProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayload(Accessors|Readers)|UserOperatorIndex)'`.

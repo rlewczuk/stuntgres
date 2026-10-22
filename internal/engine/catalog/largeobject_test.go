@@ -56,7 +56,7 @@ func TestLargeObjectDescriptorAuthority(t *testing.T) {
 func TestLargeObjectPrincipalRemap(t *testing.T) {
 	oldDomain, nextDomain := &authorization.Domain{}, &authorization.Domain{}
 	oldOwner, oldReader := oldDomain.Principal(10), oldDomain.Principal(20)
-	state := &State{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
+	state := NewState(1)
 	content, err := (largeobject.Value{}).Write(4294967296, "\x00z\x00")
 	if err != nil {
 		t.Fatal(err)

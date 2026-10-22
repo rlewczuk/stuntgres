@@ -10,8 +10,8 @@ import (
 func TestCatalogStateWritesStayOnTheirState(t *testing.T) {
 	base, ns, rel := catalogReadFixture()
 
+	// A plain struct copy is independent: its maps are persistent versions.
 	copied := *base
-	copied.CloneDescriptors()
 	copied.RemoveDescriptor(rel.Address())
 	if _, ok := base.Relation(rel.Address()); !ok {
 		t.Fatal("removal from a cloned state changed its source")
@@ -36,7 +36,7 @@ func TestCatalogStateWritesStayOnTheirState(t *testing.T) {
 		t.Fatal("bindName did not bind")
 	}
 
-	previous := maps.Collect(copied.ResetMaps(4))
+	previous := maps.Collect(copied.ResetMaps())
 	if copied.DescriptorCount() != 0 || copied.NameCount() != 0 {
 		t.Fatal("resetMaps left entries")
 	}

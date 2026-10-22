@@ -108,3 +108,32 @@ func sameAddresses(a, b []ids.ObjectAddress) bool {
 	}
 	return slices.Equal(sorted(a), sorted(b))
 }
+
+// Engines share the seed's name map. Every configuration must end with
+// exactly the names its own seed bound: a seed built with a fresh share builds
+// its map from its own bindings, which the shared result must match.
+func TestBuiltinSeedNamesMatchUnsharedSeed(t *testing.T) {
+	setting, err := settings.Validate(settings.Definition{Name: "seedcheck.names", Type: settings.String, BootDefault: "on"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = New()
+	for _, config := range []struct {
+		definitions []settings.Definition
+		database    string
+		commitTimes bool
+	}{
+		{nil, "", false},
+		{[]settings.Definition{setting}, "seed_names", true},
+		{nil, strings.Repeat("n", 80), false},
+	} {
+		shared := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).catalog.state.Names())
+		saved := builtinSeedNames
+		builtinSeedNames = &seedNames{}
+		own := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).catalog.state.Names())
+		builtinSeedNames = saved
+		if !maps.Equal(shared, own) {
+			t.Fatalf("database %q: shared seed has %d names, own seed %d", config.database, len(shared), len(own))
+		}
+	}
+}

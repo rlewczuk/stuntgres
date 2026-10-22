@@ -21,7 +21,6 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			e, _, parent, idx := primaryKeyUnitFixture(t)
 			view := e.CatalogRead()
 			state := *view.State()
-			state.CloneDescriptors()
 			view = view.WithState(&state)
 			next := *parent
 			next.Columns = slices.Clone(parent.Columns)

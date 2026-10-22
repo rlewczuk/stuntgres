@@ -81,7 +81,7 @@ func sqlRoutineIndexIsolation(t *testing.T, e *Engine) {
 		t.Fatal("candidate metadata overlay lost root isolation")
 	}
 	reset := catalog.CloneState(view.State())
-	reset.ResetMaps(0)
+	reset.ResetMaps()
 	if reset.HasSQLProcedureName(key.Name) || len(reset.ProceduresNamed(key.Namespace, key.Name)) != 0 {
 		t.Fatal("reset retained routine name index")
 	}

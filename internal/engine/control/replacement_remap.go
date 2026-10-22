@@ -22,25 +22,34 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 		return nil
 	}
 	catalog.RemapDefaultSchemas(next, mapping)
-	originals := next.ResetMaps(next.DescriptorCount() + len(temporary))
-	for a, d := range originals {
-		target := a
-		if dest, ok := mapping[a]; ok {
-			target = dest
-			priority := a.ObjectID
-			if captured := next.DumpPriority(a); captured != 0 {
-				priority = captured
-				next.RemoveDumpPriority(a)
+	capacity := next.DescriptorCount() + len(temporary)
+	originals := next.ResetMaps()
+	next.BeginBulkLoad(capacity)
+	err := func() error {
+		defer next.EndBulkLoad()
+		for a, d := range originals {
+			target := a
+			if dest, ok := mapping[a]; ok {
+				target = dest
+				priority := a.ObjectID
+				if captured := next.DumpPriority(a); captured != 0 {
+					priority = captured
+					next.RemoveDumpPriority(a)
+				}
+				next.SetDumpPriority(target, priority)
 			}
-			next.SetDumpPriority(target, priority)
+			remapped, err := remapReplacementDescriptor(current, mapping, a, target, d)
+			if err != nil {
+				return err
+			}
+			d = extension.RemapDescriptor(remapped, mapping)
+			next.SetDescriptor(target, d)
+			next.BindName(catalog.DescriptorNameKey(d), target)
 		}
-		remapped, err := remapReplacementDescriptor(current, mapping, a, target, d)
-		if err != nil {
-			return err
-		}
-		d = extension.RemapDescriptor(remapped, mapping)
-		next.SetDescriptor(target, d)
-		next.BindName(catalog.DescriptorNameKey(d), target)
+		return nil
+	}()
+	if err != nil {
+		return err
 	}
 	next.SetOperatorNames(catalog.RebuildOperatorNames(next.Descriptors()))
 	next.SetProcedureNames(catalog.RebuildProcedureNames(next.Descriptors()))

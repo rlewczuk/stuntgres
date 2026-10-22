@@ -139,8 +139,19 @@ per process, five samples measured 845578–1016245 ns/op (four below 0.9 ms),
 5,152–5,159 allocs/op and about 1.66 MB/op. Startup timings on this shared
 machine inflate two to three times while other sessions run test suites, with
 unchanged allocation counts; check `uptime` and compare allocations before
-attributing a timing change to code. Current whole-project commands
-from the repository root (agents apply the external deadlines above) are:
+attributing a timing change to code.
+
+Catalog sharing measurement (2026-10-22, shared machine at load 100-250):
+`reference/tables` had become the slowest package because every stage read,
+publication and private transaction view copied both catalog maps (2,741 seed
+descriptors and as many names), so a DDL statement allocated 1-7 MB. With the
+maps in `util.PersistentMap`, versions share structure: CREATE TABLE allocates
+315 KB instead of 4.8 MB, and the full `reference/tables` run fell from 362 to
+183 CPU seconds. Startup builds the descriptor map in bulk and shares the seed
+name map across engines: 2.83 MB/op and 5,289 allocs/op against 2.29 MB/op and
+5,268 allocs/op before, with timings within the load noise. Current
+whole-project commands from the repository root (agents apply the external
+deadlines above) are:
 
 ```sh
 /usr/bin/time -p make quickcheck
