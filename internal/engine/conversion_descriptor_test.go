@@ -208,10 +208,10 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 	}
 	e.DiscardCatalogStage(stage)
 	procedure := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}
-	if actual := dependencyObject(before, procedure, nil); actual != "function utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)" {
+	if actual := stored.DependencyObject(before, procedure, nil); actual != "function utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)" {
 		t.Fatal("actual conversion procedure signature presentation", actual)
 	}
-	if actual := dependencyObject(before, procedure, []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}); actual != "function pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)" {
+	if actual := stored.DependencyObject(before, procedure, []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}); actual != "function pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)" {
 		t.Fatal("actual conversion procedure qualified presentation", actual)
 	}
 	for _, address := range []ids.ObjectAddress{{ClassID: ids.ConversionClassID, ObjectID: 4519}, {ClassID: ids.ProcedureClassID, ObjectID: 4375}} {

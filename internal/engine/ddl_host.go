@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -104,7 +105,7 @@ func (h ddlHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signatu
 func (h ddlHost) DependencyObject(a ddl.Authority, address ids.ObjectAddress) (string, error) {
 	v := ddlAuthorityOf(a)
 	path, err := h.e.referencePath(v)
-	return dependencyObject(v.Catalog, address, path), err
+	return stored.DependencyObject(v.Catalog, address, path), err
 }
 
 func (h ddlHost) Stage() ddl.Stage        { return h.stage }

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -170,7 +171,7 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 	}
 	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject {
 		path, _ := auth.engine.referencePath(auth)
-		name = strings.TrimPrefix(dependencyObject(view, d.Address(), path), kind)
+		name = strings.TrimPrefix(stored.DependencyObject(view, d.Address(), path), kind)
 	}
 	if relation, ok := d.(*catalog.Relation); ok {
 		kind = catalog.RelationDiagnosticKind(relation) + " "
@@ -199,12 +200,12 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 	if c, ok := d.(*catalog.Collation); ok {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "collation "
-		name = strings.TrimPrefix(dependencyObject(view, c.Address(), path), "collation ")
+		name = strings.TrimPrefix(stored.DependencyObject(view, c.Address(), path), "collation ")
 	}
 	if c, ok := d.(*catalog.Conversion); ok {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "conversion "
-		name = strings.TrimPrefix(dependencyObject(view, c.Address(), path), "conversion ")
+		name = strings.TrimPrefix(stored.DependencyObject(view, c.Address(), path), "conversion ")
 	}
 	prefix := "privileges for "
 	if dep.Kind == 'o' {

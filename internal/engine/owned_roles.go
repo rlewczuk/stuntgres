@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -24,7 +25,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	}
 	plan, err := role.PlanOwned(auth.View, stmt, func(address ids.ObjectAddress) string {
 		path, _ := auth.ReferencePath()
-		return dependencyObject(auth.Catalog, address, path)
+		return stored.DependencyObject(auth.Catalog, address, path)
 	})
 	if err != nil {
 		return fail(err)
@@ -68,7 +69,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		if err = scope.stageExpressionDependents(stage, roots, mode, nil); err != nil {
 			primary := ""
 			if primaryRoot != (ids.ObjectAddress{}) {
-				primary = dependencyObject(stage.Base, primaryRoot, stage.dependencyPath)
+				primary = stored.DependencyObject(stage.Base, primaryRoot, stage.dependencyPath)
 			}
 			return Result{}, role.OwnedDependentsError(err, primary)
 		}

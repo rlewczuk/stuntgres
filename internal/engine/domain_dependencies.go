@@ -135,7 +135,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				continue
 			}
 			if target.ClassID == ids.NamespaceClassID && descriptor.Namespace() == target && access.OwnershipRoot(provider.base, descriptor, routine.OperatorSeeded) {
-				edge := table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)}
+				edge := table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(provider.base, a, provider.path)}
 				edge.Relation, _ = descriptor.(*catalog.Relation)
 				direct = append(direct, edge)
 				continue
@@ -143,7 +143,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 			switch d := descriptor.(type) {
 			case *catalog.Operator:
 				if routine.OperatorDependsOn(provider.base, d, target) {
-					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(provider.base, a, provider.path)})
 				}
 			case *catalog.ForeignObject:
 				for _, dependency := range pgcatalog.ForeignDependencies(d) {
@@ -151,13 +151,13 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						continue
 					}
 					if dependency == target {
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(provider.base, a, provider.path)})
 						break
 					}
 				}
 			case *catalog.Extension:
 				if d.TargetNamespace == target {
-					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(provider.base, a, provider.path)})
 				}
 			case *catalog.Procedure:
 				if d.SQL != nil && target.ClassID == ids.TypeClassID {
@@ -166,7 +166,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						uses = uses || ids.OID(input.Type.ID()) == target.ObjectID
 					}
 					if uses {
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path)})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(provider.base, a, provider.path)})
 					}
 				}
 				if d.Extension == target {
@@ -225,20 +225,20 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					d = replacement
 				}
 				if d.Foreign != nil && d.Foreign.Server == target {
-					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: dependencyObject(provider.base, a, provider.path), Relation: d})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(provider.base, a, provider.path), Relation: d})
 				}
 				if d.RelationKind == catalog.CompositeRelation && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
 					continue
 				}
 				if view.MaterializedExtensionDepends(d, target) {
-					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true, Label: "materialized view " + dependencyRelationName(provider.base, d, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true, Label: "materialized view " + stored.DependencyRelationName(provider.base, d, provider.path)})
 				}
 				if d.Membership != nil && d.Membership.Parent == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
 				}
 				if catalog.PartitionKeyDependsOn(d, target) {
-					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Label: "table " + dependencyRelationName(provider.base, d, provider.path)})
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Label: "table " + stored.DependencyRelationName(provider.base, d, provider.path)})
 					continue
 				}
 				if d.SQLIndex != nil {
@@ -259,7 +259,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						}
 					}
 					if depends && !automatic {
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "index " + dependencyRelationName(provider.base, d, provider.path), Relation: d})
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "index " + stored.DependencyRelationName(provider.base, d, provider.path), Relation: d})
 					}
 					continue
 				}
@@ -267,7 +267,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				for _, rule := range stored.RulesOf(d) {
 					if view.RuleDepends(provider.base, rule, target) {
 						if name == "" {
-							name = dependencyRelationName(provider.base, d, provider.path)
+							name = stored.DependencyRelationName(provider.base, d, provider.path)
 						}
 						direct = append(direct, table.DomainDependency{Address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, Target: target, Root: root, OID: rule.OID, Label: "rule " + catalog.DependencyIdentifier(rule.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
 					}
@@ -288,7 +288,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 						// preempt the real output/source-column owner paths.
 						if !passive {
 							if name == "" {
-								name = dependencyRelationName(provider.base, d, provider.path)
+								name = stored.DependencyRelationName(provider.base, d, provider.path)
 							}
 							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
 						}
@@ -302,7 +302,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 							if typedef.UsageDependsOn(c.Usage, target) {
 								column := a
 								column.SubID = d.Attributes[i]
-								direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + catalog.RelationDiagnosticKind(d) + " " + dependencyRelationName(provider.base, d, provider.path), Relation: d, Column: c.Name})
+								direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + catalog.RelationDiagnosticKind(d) + " " + stored.DependencyRelationName(provider.base, d, provider.path), Relation: d, Column: c.Name})
 							}
 						}
 					}
@@ -312,7 +312,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					continue
 				}
 				if name == "" {
-					name = dependencyRelationName(provider.base, d, provider.path)
+					name = stored.DependencyRelationName(provider.base, d, provider.path)
 				}
 				if d.OfType == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: "table " + name, Relation: d})
@@ -516,7 +516,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 		}
 	}
 	if primary != (ids.ObjectAddress{}) {
-		message = "cannot drop " + dependencyObject(provider.base, primary, provider.path) + " because other objects depend on it"
+		message = "cannot drop " + stored.DependencyObject(provider.base, primary, provider.path) + " because other objects depend on it"
 	}
 	details := make([]string, 0, len(edges))
 	for _, edge := range edges {
@@ -530,9 +530,9 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 					}
 				}
 			}
-			object := dependencyObject(provider.base, target, provider.path)
+			object := stored.DependencyObject(provider.base, target, provider.path)
 			if index, ok := provider.retirementDescriptor(target).(*catalog.Relation); ok && index.SQLIndex != nil {
-				object = "index " + dependencyRelationName(provider.base, index, provider.path)
+				object = "index " + stored.DependencyRelationName(provider.base, index, provider.path)
 			}
 			details = append(details, edge.Label+" depends on "+object)
 		}
@@ -822,7 +822,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *session.Operation, auth Authorizat
 	}
 	var details []string
 	for _, d := range contained {
-		label := dependencyObject(stage.Base, d.Address(), stage.dependencyPath)
+		label := stored.DependencyObject(stage.Base, d.Address(), stage.dependencyPath)
 		namespaceAddress := d.Namespace()
 		if extension, ok := d.(*catalog.Extension); ok {
 			namespaceAddress = extension.TargetNamespace
@@ -836,7 +836,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *session.Operation, auth Authorizat
 				root = root || slices.Contains(extension.Members[:], edge.Root)
 			}
 			if root && !edge.Automatic {
-				details = append(details, edge.Label+" depends on "+dependencyObject(stage.Base, edge.Target, stage.dependencyPath))
+				details = append(details, edge.Label+" depends on "+stored.DependencyObject(stage.Base, edge.Target, stage.dependencyPath))
 			}
 		}
 	}

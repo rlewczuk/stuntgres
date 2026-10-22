@@ -204,7 +204,7 @@ func TestRuleNamedConstraintKinds(t *testing.T) {
 				t.Fatal("recognized named kind lost actual captured constraint", conflict.Constraint, r.References())
 			}
 			view := e.CatalogRead()
-			if got := dependencyObject(view, provider, nil); got != "constraint provider on table sink" {
+			if got := stored.DependencyObject(view, provider, nil); got != "constraint provider on table sink" {
 				t.Fatal("canonical constraint subject lost current parent metadata", got)
 			}
 			err := dml.NewInsertConflictState(conflict.Clone()).SelectArbiters(nil, parent, view)

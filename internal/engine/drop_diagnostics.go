@@ -7,155 +7,17 @@ import (
 	"slices"
 	"strings"
 
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 // Generic drop diagnostics: the dependent labels and RESTRICT/CASCADE
 // messages shared by DROP and ALTER TYPE across every feature.
-
-func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.ObjectAddress) string {
-	base := target
-	base.SubID = 0
-	if parent := stored.ConstraintParent(view, base); parent != nil {
-		return "constraint " + catalog.DependencyIdentifier(stored.ConstraintName(parent, base)) + " on table " + dependencyRelationName(view, parent, path)
-	}
-	if d, ok := view.Namespace(base); ok {
-		return "schema " + catalog.DependencyIdentifier(d.Name())
-	}
-	if d, ok := view.Database(base); ok {
-		return "database " + catalog.DependencyIdentifier(d.Name())
-	}
-	if d, ok := view.Foreign(base); ok {
-		if d.Address().ClassID == ids.ForeignMappingClassID {
-			user := "public"
-			if d.MappedRole != (authorization.PrincipalRef{}) {
-				user = catalog.DependencyIdentifier(d.MappedName)
-			}
-			server := view.Get(d.Server)
-			return "user mapping for " + user + " on server " + catalog.DependencyIdentifier(server.Name())
-		}
-		return catalog.ForeignLabel(d.Address().ClassID) + " " + catalog.DependencyIdentifier(d.Name())
-	}
-	if d, ok := view.Extension(base); ok {
-		return "extension " + catalog.DependencyIdentifier(d.Name())
-	}
-	if _, ok := view.Operator(base); ok {
-		return "operator " + regobj.OperatorSpelling(view, path, regobj.CollectOperatorGroups(view), base.ObjectID, sqltype.Regoperator)
-	}
-	if d, ok := view.Procedure(base); ok {
-		name := catalog.DependencyIdentifier(d.Name())
-		visible := path == nil
-		for _, namespace := range path {
-			if n, ok := view.Namespace(namespace); ok && n.Temporary != (ids.SessionToken{}) {
-				continue
-			}
-			if address, ok := view.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.Name(), Signature: string(d.Signature)}); ok {
-				visible = address == d.Address()
-				break
-			}
-		}
-		if !visible {
-			name = catalog.DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
-		}
-		var text strings.Builder
-		text.WriteString("function ")
-		text.WriteString(name)
-		text.WriteByte('(')
-		regobj.WriteRoutineArguments(&text, view, path, d.Signature, true)
-		text.WriteByte(')')
-		return text.String()
-	}
-	if d, ok := view.TSDictionary(base); ok {
-		name := catalog.DependencyIdentifier(d.Name())
-		visible := path == nil
-		for _, ns := range path {
-			if n, ok := view.Namespace(ns); ok && n.Temporary != (ids.SessionToken{}) {
-				continue
-			}
-			if address, ok := view.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.Name()}); ok {
-				visible = address == d.Address()
-				break
-			}
-		}
-		if !visible {
-			name = catalog.DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
-		}
-		return "text search dictionary " + name
-	}
-	if t, ok := view.Type(base); ok {
-		return "type " + catalog.TypeDiagnosticNameAt(view, t, path)
-	}
-	if d, ok := view.Collation(base); ok {
-		name := catalog.DependencyIdentifier(d.Name())
-		if path != nil {
-			visible := false
-			for _, ns := range path {
-				if namespace, ok := view.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
-					continue
-				}
-				if a, ok := view.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.Name()}); ok {
-					visible = a == d.Address()
-					break
-				}
-			}
-			if !visible {
-				name = catalog.DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
-			}
-		}
-		return "collation " + name
-	}
-	if d, ok := view.Conversion(base); ok {
-		name := catalog.DependencyIdentifier(d.Name())
-		if path != nil {
-			visible := false
-			for _, ns := range path {
-				if namespace, ok := view.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
-					continue
-				}
-				if a, ok := view.LookupName(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.Name()}); ok {
-					visible = a == d.Address()
-					break
-				}
-			}
-			if !visible {
-				name = catalog.DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
-			}
-		}
-		return "conversion " + name
-	}
-	d := view.MustRelation(base)
-	if d.SQLIndex != nil && d.SQLIndex.Constraint != nil {
-		parent := view.MustRelation(d.SQLIndex.Parent)
-		return "constraint " + catalog.DependencyIdentifier(d.SQLIndex.Constraint.Name) + " on table " + dependencyRelationName(view, parent, path)
-	}
-	object := catalog.RelationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)
-	if target.SubID != 0 {
-		for i, attribute := range d.Attributes {
-			if attribute == target.SubID {
-				return "column " + d.Columns[i].Name + " of " + object
-			}
-		}
-	}
-	return object
-}
-
-func dependencyRelationName(catalogView catalog.Read, d *catalog.Relation, path []ids.ObjectAddress) string {
-	// Internal provider stages have no SQL visibility context. SQL utilities
-	// supply their actual lookup path, including an empty effective path.
-	if path == nil {
-		return catalog.DependencyIdentifier(d.Name())
-	}
-	return stored.RelationDiagnosticNameAt(catalogView, d, path)
-}
 
 type supportedDependent struct {
 	oid          ids.OID
@@ -187,15 +49,15 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
-		label := "default value for column " + catalog.DependencyIdentifier(edge.Column) + " of table " + dependencyRelationName(catalogView, edge.Relation, path)
+		label := "default value for column " + catalog.DependencyIdentifier(edge.Column) + " of table " + stored.DependencyRelationName(catalogView, edge.Relation, path)
 		dependents = append(dependents, supportedDependent{oid: edge.Relation.ColumnMeta.Defaults[edge.Attribute].OID, target: edge.Target, label: label})
 	}
 	for _, edge := range checks {
-		label := "constraint " + catalog.DependencyIdentifier(edge.Check.Name) + " on table " + dependencyRelationName(catalogView, edge.Relation, path)
+		label := "constraint " + catalog.DependencyIdentifier(edge.Check.Name) + " on table " + stored.DependencyRelationName(catalogView, edge.Relation, path)
 		dependents = append(dependents, supportedDependent{oid: edge.Check.OID, target: edge.Target, label: label, checkOwner: edge.Relation.Address().ObjectID, checkOrdinal: edge.Check.Ordinal})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, supportedDependent{oid: edge.View.Address().ObjectID, target: edge.Target, view: edge.View.Address(), label: catalog.RelationDiagnosticKind(edge.View) + " " + dependencyRelationName(catalogView, edge.View, path)})
+		dependents = append(dependents, supportedDependent{oid: edge.View.Address().ObjectID, target: edge.Target, view: edge.View.Address(), label: catalog.RelationDiagnosticKind(edge.View) + " " + stored.DependencyRelationName(catalogView, edge.View, path)})
 	}
 	for _, edge := range foreign {
 		if !edge.Automatic {
@@ -245,11 +107,11 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 func supportedRestrictErrorLabels(catalog catalog.Read, views []view.DependencyEdge, path []ids.ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
-		provider := dependencyObject(catalog, dependent.target, path)
+		provider := stored.DependencyObject(catalog, dependent.target, path)
 		// The dependency targets the physical supporting index. Its owning
 		// constraint identifies the requested DROP in Message, not this edge.
 		if index, ok := catalog.Relation(dependent.target); ok && index.SQLIndex != nil {
-			provider = "index " + dependencyRelationName(catalog, index, path)
+			provider = "index " + stored.DependencyRelationName(catalog, index, path)
 		}
 		details[i] = dependent.label + " depends on " + provider
 	}
@@ -263,7 +125,7 @@ func supportedRestrictErrorLabels(catalog catalog.Read, views []view.DependencyE
 				target = views[i].Target
 			}
 		}
-		message = "cannot drop " + dependencyObject(catalog, target, path) + " because other objects depend on it"
+		message = "cannot drop " + stored.DependencyObject(catalog, target, path) + " because other objects depend on it"
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
@@ -297,7 +159,7 @@ func ruleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddre
 					if observe != nil {
 						observe(d.Address())
 					}
-					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + dependencyRelationName(catalogView, d, path)})
+					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + stored.DependencyRelationName(catalogView, d, path)})
 					break
 				}
 			}
@@ -323,7 +185,7 @@ func policyDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAdd
 		for _, p := range d.Security.Policies {
 			for _, target := range targets {
 				if view.PolicyDepends(p, target) {
-					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + dependencyRelationName(catalogView, d, path)})
+					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + stored.DependencyRelationName(catalogView, d, path)})
 					break
 				}
 			}
