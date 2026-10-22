@@ -6,6 +6,58 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### VIEW replacement consumer ownership
+
+`view_replace_atomic_suffix_test.go` retains
+`TestReferenceViewReplaceAtomicSuffixAndCancellation` as the single owner of the
+plain `DB.Exec` Unicode binding errors, invalid-suffix atomicity, precancellation
+and final unchanged-view read. Both `/* café */` vectors preserve complete
+structured ERROR diagnostics: `42703` / `column "missing" does not exist` and
+`42P02` / `there is no parameter $1`, with positions counted in Unicode characters,
+not bytes. Each failure returns no result. The three replacement/rename/drop
+suffix errors and three precanceled `DB.ExecContext` calls also require nil
+results; cancellation must satisfy `errors.Is(err, context.Canceled)`.
+The final actual plain `DB.Query` fully consumes exactly INT4 id7, checking names,
+raw values, complete rows, Rows.Err and explicit Close to prove no failed
+operation published a changed or missing view. Plain-Exec setup retains the
+unsupported LastInsertId assertion.
+
+`TestReferenceViewReplaceBinding` in `view_replace_binding_test.go` remains the
+recorded Context binding companion, including surplus names and duplicate labels.
+`view_replace_boundary_consumer_routes_test.go` keeps
+`TestReferenceViewReplaceCapabilityBoundariesConsumerRoutes` and its independent
+backend-specific expectations; only its redundant
+`TestReferenceViewReplaceBindingAndAtomicSuffixConsumerRoutes` declaration is
+removed after moving the two unique plain-Exec diagnostic vectors.
+
+`view_replace_prepared_lifecycle_routes_test.go` and
+`TestReferenceViewReplacePreparedTargetLifecycle` are unchanged. Existing
+`SchemaReferenceCleanup(t, "s")` registration before scenario construction owns
+nonpublic-schema teardown after fixture handles close. All five held
+Prepare-before-create utility cases remain. A bounded temporary wrapper executed
+the complete lifecycle twice in one pinned PostgreSQL18.6 oracle lifetime and in
+native mode. After each PostgreSQL teardown, an independent administrative
+`pg_namespace` query found count0 for `s`; the next lifecycle's literal
+`CREATE SCHEMA s` succeeded. The wrapper was removed after proof. The existing
+smoke-cycle companion uses `view_smoke_cycle`, not `s`.
+
+Run these exact retained owners and companions in both modes, with an external
+900-second deadline per command:
+
+```sh
+make check REFERENCE=1 RUN='^(TestReferenceViewReplaceAtomicSuffixAndCancellation|TestReferenceViewReplaceBinding|TestReferenceViewReplaceCapabilityBoundariesConsumerRoutes|TestReferenceViewReplacePreparedTargetLifecycle|TestReferenceViewReplaceNativeControls|TestReferenceViewReplaceCollationReplay|TestReferenceViewReplaceSmokeCycleReplayControls)$'
+make check RUN='^(TestReferenceViewReplaceAtomicSuffixAndCancellation|TestReferenceViewReplaceBinding|TestReferenceViewReplaceCapabilityBoundariesConsumerRoutes|TestReferenceViewReplacePreparedTargetLifecycle|TestReferenceViewReplaceNativeControls|TestReferenceViewReplaceCollationReplay|TestReferenceViewReplaceSmokeCycleReplayControls)$'
+make check REFERENCE=1 RACE=1 RUN='^(TestReferenceViewReplaceAtomicSuffixAndCancellation|TestReferenceViewReplacePreparedTargetLifecycle)$'
+make check RACE=1 RUN='^(TestReferenceViewReplaceAtomicSuffixAndCancellation|TestReferenceViewReplacePreparedTargetLifecycle)$'
+```
+
+Public feature smoke selects
+`^TestReferenceViewReplaceAtomicSuffixAndCancellation$` with `make check RUN='...'`,
+first adding `REFERENCE=1`, then without it. Expect both complete Unicode
+diagnostics, all three suffix errors and three precancels with nil results, and
+the complete unchanged id7 read. Whole-project Docker-free verification uses
+`make quickcheck`; it does not replace selected native and pinned PostgreSQL proof.
+
 ### Recursive view contract
 
 The nine `TestReferenceRecursiveView` definitions cover mandatory column lists,

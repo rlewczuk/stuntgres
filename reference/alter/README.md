@@ -6,6 +6,39 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Identity savepoint consumer ownership
+
+`alter_type_identity_savepoints_test.go` is the sole owner of
+`TestReferenceAlterTypeIdentityPrivateSavepoints`; the redundant
+`alter_type_identity_savepoints_source_routes_test.go` host is removed. The retained
+scenario covers cache1/5 × rollback/commit, repeated rollback to the same savepoint,
+and the BIGINT → SMALLINT → rollback-to-BIGINT phase on one borrowed connection.
+Actual SAME `Conn.QueryRowContext(...).Scan` checks independently expect
+`(last_value, currval) = (1, 2)` for cache1 and `(5, 6)` for cache5. Recorded
+`QueryContext` companions still check column names, INT8 types, raw values and
+complete rows. Final rollback returns INT4 `{1}`; commit returns ordered INT8
+`{1, next}`.
+
+The `alterTypeIdentityOldRows` helper stays in that host. Its callers in
+`alter_type_identity_test.go` and `alter_type_identity_source_routes_test.go`
+retain old-cursor INT4/INT8 metadata, known nonnullability, seed Scan, exhaustion,
+Rows.Err and explicit Close assertions. Demand and target companions remain
+separate coverage; they are not replaced by the consolidated savepoint owner.
+
+Run the exact retained owners and companions in both modes, with an external
+900-second deadline per command:
+
+```sh
+make check REFERENCE=1 RUN='^(TestReferenceAlterTypeIdentityPrivateSavepoints|TestReferenceAlterTypeIdentitySavepointDemand|TestReferenceAlterTypeIdentitySavepointDemandSourceConsumerRoutes|TestReferenceAlterTypeIdentityTargets|TestReferenceAlterTypeIdentityTargetsSourceConsumerRoutes)$'
+make check RUN='^(TestReferenceAlterTypeIdentityPrivateSavepoints|TestReferenceAlterTypeIdentitySavepointDemand|TestReferenceAlterTypeIdentitySavepointDemandSourceConsumerRoutes|TestReferenceAlterTypeIdentityTargets|TestReferenceAlterTypeIdentityTargetsSourceConsumerRoutes)$'
+```
+
+Public feature smoke selects `^TestReferenceAlterTypeIdentityPrivateSavepoints$`
+with `make check RUN='...'`, first adding `REFERENCE=1`, then without it.
+Expected observations are all four matrix cells, the actual scalar Scan literals,
+and the unchanged recorded/final-state assertions above. These commands describe
+the current proof contract, not an assertion that the remedy smoke has been run.
+
 ### ALTER TABLE tablespace selected proof
 
 Shared public scenarios exercise validated default placement, exact diagnostics,

@@ -65,7 +65,14 @@ func TestReferenceAlterTypeIdentityPrivateSavepoints(t *testing.T) {
 						}
 						run(fixture.Select("SELECT c FROM t", []string{"c"}, []string{"INT4"}, [][]any{{int64(1)}}))
 						run(fixture.Select("SELECT last_value FROM t_c_seq", []string{"last_value"}, []string{"INT8"}, [][]any{{last}}))
+						var n int64
+						if err := c.QueryRowContext(p.Ctx, "SELECT last_value FROM t_c_seq").Scan(&n); err != nil || n != last {
+							t.Fatal("last_value", n, last, err)
+						}
 						run(fixture.Select("SELECT currval('t_c_seq')", []string{"currval"}, []string{"INT8"}, [][]any{{next}}))
+						if err := c.QueryRowContext(p.Ctx, "SELECT currval('t_c_seq')").Scan(&n); err != nil || n != next {
+							t.Fatal("currval", n, next, err)
+						}
 						for _, q := range []string{"ALTER TABLE t ALTER c TYPE BIGINT", "SAVEPOINT type_again", "ALTER TABLE t ALTER c TYPE SMALLINT", "ROLLBACK TO type_again"} {
 							run(fixture.Exec(q, 0))
 						}
