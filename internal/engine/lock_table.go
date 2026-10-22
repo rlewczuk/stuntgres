@@ -14,56 +14,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func explicitLockMode(mode parser.TableLockMode) lock.Mode {
-	switch mode {
-	case parser.LockAccessShare:
-		return lock.AccessShare
-	case parser.LockRowShare:
-		return lock.RowShare
-	case parser.LockRowExclusive:
-		return lock.RowExclusive
-	case parser.LockShareUpdateExclusive:
-		return lock.ShareUpdateExclusive
-	case parser.LockShare:
-		return lock.Share
-	case parser.LockShareRowExclusive:
-		return lock.ShareRowExclusive
-	case parser.LockExclusive:
-		return lock.Exclusive
-	case parser.LockAccessExclusive:
-		return lock.AccessExclusive
-	}
-	return 0
-}
-
-func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation, mode lock.Mode) error {
-	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.ViewRelation {
-		return analyze.TableKindError(d, "lock")
-	}
-	rights, err := auth.Effective(ref, false)
-	if err != nil {
-		return err
-	}
-	alternatives := authorization.MaintainPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.TruncatePrivilege
-	if mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive {
-		alternatives |= authorization.InsertPrivilege
-	}
-	if mode == lock.AccessShare {
-		alternatives |= authorization.SelectPrivilege
-	}
-	if rights&alternatives != 0 {
-		if catalog.HierarchyRelation(d) {
-			return sqlError("0A000", "locking partition hierarchies is unsupported")
-		}
-		return nil
-	}
-	kind := "table"
-	if d.RelationKind == catalog.ViewRelation {
-		kind = "view"
-	}
-	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, d.Name()))
-}
-
 func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 	s.owner.Mu.Lock()
 	active := s.owner.InBlock()
@@ -72,7 +22,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 		return sqlError("25P01", "LOCK TABLE can only be used in transaction blocks")
 	}
 	e := s.engine()
-	mode := explicitLockMode(stmt.Mode)
+	mode := table.ExplicitLockMode(stmt.Mode)
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, NoWait: stmt.Nowait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	for _, target := range stmt.Targets {
 		e.mu.Lock()
@@ -123,7 +73,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 				return nil, err
 			}
 		}
-		return d, checkExplicitLock(auth, ref, d, mode)
+		return d, table.CheckExplicitLock(auth.View, auth, ref, d, mode)
 	}
 	e.mu.Lock()
 	_, err := inspect()
