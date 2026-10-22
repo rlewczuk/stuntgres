@@ -418,6 +418,11 @@ Diagnostics retain complete independent English records and stages.
 NativeControls and FeatureSmoke share ordinary SQL expectations with PostgreSQL,
 then exercise native-only retained rows and logical Dump/Reset/Restore.
 
+Identity probes apply their existing selective relation/schema predicates at the
+first INNER JOIN, before later attribute/type joins. All relationship checks,
+metadata expectations and direct/prepared routes remain; the shared 30-second
+scenario budget is unchanged and does not depend on optimizer filter pushdown.
+
 Run selected proof in both modes (external 900-second deadlines):
 
 ```sh

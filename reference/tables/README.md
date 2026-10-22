@@ -198,6 +198,9 @@ are not relabeled as PostgreSQL08001. Native callback/control phases are explici
 Native persistence phases require actual Dump/Reset/Restore of the complete
 SQL/MED graph, compatible destination registrations, existing target roles,
 mixed ownership, ordered options and stable column attribute addressing.
+Graph snapshots apply existing namespace/attribute predicates at their INNER
+JOINs, keeping every graph row, relationship and failure-preservation check while
+avoiding repeated database-wide join expansion within the unchanged fixture budget.
 Remote source mutations must be visible after Restore; old finalized results
 remain unchanged. Controls must not import or scan remotely, and failed
 replacement must preserve sentinels and old metadata. Synthetic secret bytes
