@@ -441,6 +441,26 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 		// No callback, allocation or failure remains after this point.
 		e.installNotificationsLocked(notifications)
+		if c != nil {
+			for _, shape := range c.Storage {
+				if shape.Original != nil {
+					shape.Replacement.Maintenance = shape.Original.Maintenance
+					if shape.Truncated {
+						shape.Replacement.Maintenance.FrozenXID = 0
+						shape.Replacement.Maintenance.Live = 0
+						shape.Replacement.Maintenance.Dead = 0
+						shape.Replacement.Maintenance.InsertsSince = 0
+						shape.Replacement.Maintenance.Scanned = false
+						shape.Replacement.Maintenance.Tuples = 0
+					}
+					if shape.Rewritten && shape.Relation.RelationKind == catalog.MaterializedViewRelation {
+						shape.Replacement.Maintenance.FrozenXID = 0
+						shape.Replacement.Maintenance.Live = 0
+						shape.Replacement.Maintenance.Dead = 0
+					}
+				}
+			}
+		}
 		for _, p := range prepared {
 			for i, row := range p.Writes {
 				slot := len(p.Root) + i
@@ -450,7 +470,18 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				if p.SingleSlot >= 0 {
 					slot = p.SingleSlot
 				}
+				if row.Base == 0 {
+					p.Store.Maintenance.Inserts++
+					p.Store.Maintenance.InsertsSince++
+					p.Store.Maintenance.Live++
+				} else {
+					p.Store.Maintenance.Updates++
+				}
+				p.Store.Maintenance.Modifications++
 				row.Born, row.Base = e.visibility.CommitSeq()+1, 0
+				row.InsertFullXID = e.visibility.FullXIDLocked(ref)
+				p.Store.Maintenance.RecordBirth(row.InsertFullXID)
+				row.Frozen, row.ImportFrozen = false, false
 				row.IndexAdmission = nil
 				row.IndexOutputs = nil
 				if row.PendingKeyChange {
@@ -461,12 +492,17 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 			if p.NextEnds != nil {
 				for id, candidate := range p.Deletion.Rows {
+					p.Store.Maintenance.Deletes++
+					p.Store.Maintenance.Modifications++
+					p.Store.Maintenance.Live--
+					p.Store.Maintenance.Dead++
 					p.NextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version, End: e.visibility.CommitSeq() + 1}
 				}
 				p.Store.Ends = p.NextEnds
 			}
 			p.Store.Versions = p.Next
 			p.Store.Generation++
+			e.initializeMaintenanceLocked(p.Store)
 		}
 		if c != nil {
 			for address, shape := range c.Storage {
@@ -480,8 +516,18 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				if shape.Rewritten && shape.Relation.RelationKind == catalog.MaterializedViewRelation {
 					for i := range shape.Replacement.Versions {
 						shape.Replacement.Versions[i].Born = e.visibility.CommitSeq() + 1
+						shape.Replacement.Versions[i].InsertFullXID = e.visibility.FullXIDLocked(ref)
+						shape.Replacement.Maintenance.RecordBirth(shape.Replacement.Versions[i].InsertFullXID)
+						shape.Replacement.Versions[i].Frozen = false
+						shape.Replacement.Versions[i].ImportFrozen = false
 					}
+					n := int64(len(shape.Replacement.Versions))
+					shape.Replacement.Maintenance.Inserts += n
+					shape.Replacement.Maintenance.InsertsSince += n
+					shape.Replacement.Maintenance.Modifications += n
+					shape.Replacement.Maintenance.Live = n
 				}
+				e.initializeMaintenanceLocked(shape.Replacement)
 			}
 			e.storage.ReplaceSequencesLocked(nextSequences)
 			e.storage.ReplaceRelationsLocked(nextStorage)

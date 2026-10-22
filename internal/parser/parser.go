@@ -431,7 +431,7 @@ func (l *lexer) excludePrimaryColumnAddition(add lexeme, column *Column) {
 
 // These are capability boundaries in explicit grammar positions, not lexical
 // classifications. Quoted names never acquire keyword identity.
-var unsupportedCommands = wordSet("truncate drop alter explain vacuum analyze analyse with execute deallocate cluster refresh reset checkpoint")
+var unsupportedCommands = wordSet("truncate drop alter explain analyze analyse with execute deallocate cluster refresh reset checkpoint")
 var unsupportedCreateObjects = wordSet("temporary temp unlogged view index unique database function procedure trigger subscription")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning group having window for using primary unique check references default constraint collate in")
 var unsupportedCommentKinds = wordSet("type database index view collation conversion extension language publication subscription tablespace trigger policy rule statistics")

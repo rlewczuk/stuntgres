@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -27,12 +28,66 @@ func TestReferencePGDatabaseControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := []any{int64(16383), name, int64(10), int64(6), "c", nil, nil, false, nil, nil, nil, nil, "C", "C", nil, nil, nil, nil}
-		step := func() fixture.Step {
-			s := fixture.Select(q, pgDatabaseColumns, pgDatabaseTypes, [][]any{want})
-			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgDatabaseMetadata(t, rows, false) }
-			return s
+		// The logical horizon is real and may advance across replacement.
+		// Keep every other cell/metadata exact, but validate this dynamic XID
+		// independently rather than copying a runtime value into a golden row.
+		validate := func(values, expected []any) uint64 {
+			t.Helper()
+			var horizon uint64
+			for i, value := range values {
+				if pgDatabaseTypes[i] == "XID" && value != nil {
+					raw, ok := value.([]byte)
+					if !ok {
+						t.Fatalf("XID raw column%d: %T", i, value)
+					}
+					n, err := strconv.ParseUint(string(raw), 10, 32)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if i == 9 {
+						if n < 3 {
+							t.Fatal("invalid actual logical horizon", n)
+						}
+						horizon = n
+						continue
+					}
+				} else {
+					fixture.AssertRawValue(t, false, pgDatabaseTypes[i], value)
+				}
+				if !reflect.DeepEqual(fixture.Normalize(value), expected[i]) {
+					t.Fatalf("column%d got%#v want%#v", i, value, expected[i])
+				}
+			}
+			if horizon == 0 {
+				t.Fatal("logical database horizon unavailable")
+			}
+			return horizon
 		}
-		pgDatabaseCheck(t, p, b, held, step())
+		check := func(db fixture.Executor) uint64 {
+			t.Helper()
+			rows, err := db.QueryContext(p.Ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rows.Close()
+			pgDatabaseMetadata(t, rows, false)
+			if !rows.Next() {
+				t.Fatal("current attachment row absent", rows.Err())
+			}
+			values, pointers := make([]any, 18), make([]any, 18)
+			for i := range values {
+				pointers[i] = &values[i]
+			}
+			if err := rows.Scan(pointers...); err != nil {
+				t.Fatal(err)
+			}
+			horizon := validate(values, want)
+			if rows.Next() || rows.Err() != nil {
+				t.Fatal("attachment row multiplicity", rows.Err())
+			}
+			return horizon
+		}
+		originalHorizon := check(held)
 		old, err := b.DB.QueryContext(p.Ctx, q)
 		if err != nil {
 			t.Fatal(err)
@@ -51,28 +106,28 @@ func TestReferencePGDatabaseControls(t *testing.T) {
 		}
 		pgClassExec(t, p, b, b.DB, "GRANT CREATE ON DATABASE \""+escapeDatabaseIdentifier(name)+"\" TO PUBLIC")
 		want[17] = "{=CTc/postgres,postgres=CTc/postgres}"
-		pgDatabaseCheck(t, p, b, held, step())
+		check(held)
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(string(dump)+"CREATE SEQUENCE pgdb18_bad CACHE 0;")); err == nil {
 			t.Fatal("late invalid restore succeeded")
 		} else {
 			want := fixture.ControlsReferenceDiagnostic("22023", "CACHE (0) must be greater than zero")
 			fixture.AssertDiagnostic(t, err, &want)
 		}
-		pgDatabaseCheck(t, p, b, held, step())
+		check(held)
 		canceled, cancel := context.WithCancel(p.Ctx)
 		cancel()
 		if err := stuntgres.Restore(canceled, p.Native, bytes.NewReader(dump)); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		pgDatabaseCheck(t, p, b, held, step())
+		check(held)
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}
-		pgDatabaseCheck(t, p, b, held, step())
+		check(held)
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
 			t.Fatal(err)
 		}
-		pgDatabaseCheck(t, p, b, held, step())
+		check(held)
 		pgDatabaseCheck(t, p, b, b.DB, fixture.Select("SELECT id FROM pgdb18_portable", []string{"id"}, []string{"INT4"}, [][]any{{int64(18)}}))
 		if !old.Next() {
 			t.Fatal("retained row absent", old.Err())
@@ -86,8 +141,8 @@ func TestReferencePGDatabaseControls(t *testing.T) {
 		}
 		original := append([]any(nil), want...)
 		original[17] = nil
-		if !reflect.DeepEqual(values, original) {
-			t.Fatal("retained pre-grant row", values, original)
+		if horizon := validate(values, original); horizon != originalHorizon {
+			t.Fatal("retained pre-grant horizon changed", horizon, originalHorizon)
 		}
 		if old.Next() || old.Err() != nil {
 			t.Fatal("retained row multiplicity", old.Err())

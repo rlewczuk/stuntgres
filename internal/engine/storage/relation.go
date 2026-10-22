@@ -20,6 +20,7 @@ type Relation struct {
 	// Successful concurrent MV publication stamps both incarnations atomically.
 	// It does not share TRUNCATE's current-root/birth-filter semantics.
 	MaterializedLineage *MaterializedLineage
+	Maintenance         Maintenance
 }
 
 // IndexIdentity is the storage an index root was built from: the origin for a
@@ -36,6 +37,11 @@ type RowVersion struct {
 	Row     ids.RowID
 	Version ids.VersionID
 	Born    ids.CommitSeq
+	// Canonical insertion provenance is distinct from the commit frontier.
+	InsertFullXID uint64
+	Frozen        bool
+	// Detached committed imports have no XID in the target identity universe.
+	ImportFrozen bool
 	// The last committed key transition survives key restoration and payload
 	// replacements. Private successors accumulate transitions until commit.
 	KeyChangedAt     ids.CommitSeq

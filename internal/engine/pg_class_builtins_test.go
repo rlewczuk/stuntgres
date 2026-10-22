@@ -37,7 +37,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		roles := e.Roles()
 		project := func(d *catalog.Relation, want bool) {
 			t.Helper()
-			row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: roles, Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{}}, d)
+			row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: roles, Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{engine: e}}, d)
 			if err != nil {
 				t.Fatal(d.Name(), err)
 			}

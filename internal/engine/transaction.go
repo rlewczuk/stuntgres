@@ -479,7 +479,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return s.engine().describeOperation(s, stmt)
 	case *parser.ForeignDDL:
 		return s.engine().describeOperation(s, stmt)
-	case *parser.CreateTablespace, *parser.Load:
+	case *parser.CreateTablespace, *parser.Load, *parser.Vacuum:
 		return s.engine().describeOperation(s, stmt)
 	case *parser.Truncate:
 		return s.engine().describeOperation(s, stmt)
@@ -667,6 +667,10 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	}
 	if constraints, ok := stmt.(*parser.SetConstraints); ok {
 		return s.executeSetConstraints(constraints, count)
+	}
+	// VACUUM owns option-first admission and never takes a data snapshot.
+	if _, ok := stmt.(*parser.Vacuum); ok {
+		return s.engine().executeStatement(s, stmt, count, importFrame)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
 	if queryCreation {

@@ -58,6 +58,9 @@ type Runtime interface {
 	SessionSettings(context.Context) ([]SettingsFact, error)
 	PreparedCount() int
 	VisitPreparedTransactions(context.Context, func(PreparedFact) error) error
+	Maintenance(ids.ObjectAddress) (MaintenanceFact, bool)
+	DatabaseFrozenXID() uint64
+	VisitVacuumProgress(context.Context, func(VacuumProgressFact) error) error
 	TimezoneInput() sqltype.InputEnvironment
 	DatabaseName() string
 	TemporaryOwner() ids.SessionToken

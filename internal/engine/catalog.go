@@ -988,12 +988,29 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 				for _, initial := range s.initialTables {
 					for i := range initial.Versions {
 						initial.Versions[i].Born = frontier
+						initial.Versions[i].InsertFullXID = e.visibility.FullXIDLocked(commitRef)
+						initial.Maintenance.RecordBirth(initial.Versions[i].InsertFullXID)
+						initial.Versions[i].Frozen, initial.Versions[i].ImportFrozen = false, false
 					}
 					initial.Generation = 1
+					e.initializeMaintenanceLocked(initial)
+					initial.Maintenance.Inserts += int64(len(initial.Versions))
+					initial.Maintenance.InsertsSince += int64(len(initial.Versions))
+					initial.Maintenance.Modifications += int64(len(initial.Versions))
+					initial.Maintenance.Live += int64(len(initial.Versions))
 				}
 				if replacement := s.materializedOrZero().Replacement; replacement != nil {
+					// Refresh retains this object's cumulative facts, captured from
+					// the validated current predecessor only inside publication.
+					replacement.Storage.Maintenance = replacement.Predecessor.Maintenance
+					replacement.Storage.Maintenance.FrozenXID = 0
+					replacement.Storage.Maintenance.Live = 0
+					replacement.Storage.Maintenance.Dead = 0
 					for i := range replacement.Storage.Versions {
 						replacement.Storage.Versions[i].Born = frontier
+						replacement.Storage.Versions[i].InsertFullXID = e.visibility.FullXIDLocked(commitRef)
+						replacement.Storage.Maintenance.RecordBirth(replacement.Storage.Versions[i].InsertFullXID)
+						replacement.Storage.Versions[i].Frozen, replacement.Storage.Versions[i].ImportFrozen = false, false
 					}
 					if replacement.Concurrent {
 						lineage := replacement.Predecessor.MaterializedLineage
@@ -1003,8 +1020,16 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 						replacement.Predecessor.MaterializedLineage = lineage
 						replacement.Storage.MaterializedLineage = lineage
 					}
+					e.initializeMaintenanceLocked(replacement.Storage)
+					replacement.Storage.Maintenance.Inserts += int64(len(replacement.Storage.Versions))
+					replacement.Storage.Maintenance.InsertsSince += int64(len(replacement.Storage.Versions))
+					replacement.Storage.Maintenance.Modifications += int64(len(replacement.Storage.Versions))
+					replacement.Storage.Maintenance.Live += int64(len(replacement.Storage.Versions))
 				}
 				e.visibility.AdvanceCommitSeqLocked()
+			}
+			for address := range s.Descriptors() {
+				e.initializeMaintenanceLocked(relations[address])
 			}
 			if s.initialTx != (ids.TxRef{}) {
 				e.visibility.SerializableCommittedLocked(s.initialTx, e.visibility.CommitSeq())
@@ -1196,7 +1221,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 				}
 			}
 		}
-		roots, nextRow, nextVersion, err := e.prepareRemintedStorage(ctx, next, relations, indexes)
+		roots, nextRow, nextVersion, err := e.prepareRemintedStorage(ctx, next, relations, indexes, true)
 		if err != nil {
 			return ChangeSet{}, err
 		}
@@ -1209,6 +1234,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		next.SetEpoch(e.catalog.state.Epoch() + 1)
 		e.catalog.state = next
 		e.storage.ReplaceRelationsLocked(relations)
+		e.databaseFrozenXID = 0
+		e.vacuumProgress = nil
+		for _, store := range relations {
+			e.initializeMaintenanceLocked(store)
+		}
+		e.updateDatabaseMaintenanceLocked()
 		e.exclusions.ResetLocked()
 		e.storage.ReplaceSequencesLocked(sequences)
 		e.clearPersistentSequenceMemoryLocked()
@@ -1311,6 +1342,12 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
 	e.storage.ReplaceRelationsLocked(relations)
+	e.databaseFrozenXID = 0
+	e.vacuumProgress = nil
+	for _, store := range relations {
+		e.initializeMaintenanceLocked(store)
+	}
+	e.updateDatabaseMaintenanceLocked()
 	e.exclusions.ResetLocked()
 	e.storage.ReplaceSequencesLocked(sequences)
 	e.clearPersistentSequenceMemoryLocked()

@@ -92,7 +92,7 @@ func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
 	if relation.SQLIndex != nil {
 		method = uint32(relation.SQLIndex.MethodIdentity())
 	}
-	shared := relation.RelationKind == catalog.CatalogRelation && (relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID)
+	shared := catalog.SharedRelation(relation)
 	tablespace := uint32(0)
 	if shared {
 		tablespace = 1664
@@ -100,6 +100,15 @@ func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
 	tuples := float64(-1)
 	if kind == "S" {
 		tuples = 1
+	}
+	frozenXID := uint32(0)
+	if in.Runtime != nil {
+		if fact, ok := in.Runtime.Maintenance(relation.Address()); ok {
+			if fact.Scanned {
+				tuples = float64(fact.Tuples)
+			}
+			frozenXID = uint32(fact.FrozenXID)
+		}
 	}
 	replica := "n"
 	if relation.RelationKind != catalog.CatalogRelation && (kind == "r" || kind == "m" || kind == "p") {
@@ -135,7 +144,7 @@ func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
 		boolean(20, relation.HasRules() || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.History.HasSubclasses),
 		boolean(23, relation.Security.RLSEnabled), boolean(24, relation.Security.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),
 		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),
-		checked(sqltype.XIDValue(source.Columns[29].Usage.Type, 0)), checked(sqltype.XIDValue(source.Columns[30].Usage.Type, 0)), acl, options, bound,
+		checked(sqltype.XIDValue(source.Columns[29].Usage.Type, frozenXID)), checked(sqltype.XIDValue(source.Columns[30].Usage.Type, 0)), acl, options, bound,
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

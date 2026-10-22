@@ -29,6 +29,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
 
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock. The engine wraps the rows.
+  Successful dynamic captures return a nonnil empty row slice when no rows
+  exist. This denotes an actual empty anonymous source; nil is not a substitute
+  for an absent retained data view. Maintenance progress/statistics follow the
+  same convention without inventing a placeholder row.
 - Rows follow the column order of `Input.Source`, with each cell typed by that
   column's descriptor. Producers check that the source has the expected shape
   and types and fail otherwise.
@@ -64,6 +68,20 @@ make check RUN='^TestCatalogSourceProducerCoverage$'
 ```
 
 
+## Maintenance projections
+
+The released30-column table-statistics views project committed logical DML and
+manual VACUUM facts, not query-time COUNT(*) or physical scan estimates. The
+15-column progress view captures real active phases and authenticated-owner
+visibility under the engine capture lock. Unsupported page/dead-item metrics,
+scan/I/O/duration statistics and absent analyze timestamps remain typed NULL.
+No row is created while waiting for a relation lock or after work completes.
+These four sources use ordinary relation/row/array identities; their generated
+PostgreSQL OIDs are not cross-backend numeric constants.
+`pg_class`/`pg_database` expose genuine logical freezing bounds without changing
+unimplemented physical page/map/MultiXact fields.
+See [maintenance proof](../../../reference/catalogs/README.md#vacuum-oracle-first-contract).
+
 ## Registry
 
 `catalog_source_producers.go` holds one process-initialized array of
@@ -97,6 +115,11 @@ options and policy conditions are read from the catalog payloads directly
 (`Relation.HasRules`, `Relation.VisitRules`, `ViewPayload.Options`,
 `PolicyDefinition.VisitExpressions`), not through `Runtime`.
 
+Maintenance-aware `pg_class`/database/statistics projections require an adapter
+backed by the actual engine, including direct package-seam fixtures. An empty
+adapter is not an initialized maintenance capture; callers supply their owner
+rather than masking missing authority with panic suppression or invented facts.
+
 | Methods | Why they are engine-owned |
 |---|---|
 | `CursorCount`, `VisitCursors` | session cursor registry (`pg_cursors`) |
@@ -108,6 +131,7 @@ options and policy conditions are read from the catalog payloads directly
 | `ValidateACL`, `ObjectACL` | ACL validation and raw object ACLs (`access` is not imported here) |
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
+| `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress` | immutable logical maintenance/statistics facts and authenticated active-work redaction |
 | `ExpressionTree` | native structural `pg_node_tree` output of bound expressions |
 | `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |

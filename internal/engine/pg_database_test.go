@@ -79,10 +79,13 @@ func TestPGDatabaseCapture(t *testing.T) {
 	rows := pgDatabaseUnitCapture(t, e, view)
 	row := rows.Anonymous[0]
 	for i, value := range row {
-		wantNull := i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14 && i <= 17
+		wantNull := i == 5 || i == 6 || i == 8 || i == 10 || i == 11 || i >= 14 && i <= 17
 		if value.Type() != d.Columns[i].Usage.Type || value.IsNull() != wantNull {
 			t.Fatal("concrete carrier/knownness", i, value)
 		}
+	}
+	if xid, err := row[9].XID(); err != nil || xid < 3 {
+		t.Fatal("actual logical database freeze bound", xid, err)
 	}
 	for i, want := range map[int]uint32{0: 16383, 2: 10} {
 		if got, err := row[i].OID(); err != nil || got != want {

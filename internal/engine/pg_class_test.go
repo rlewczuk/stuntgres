@@ -31,7 +31,7 @@ func TestPgClassProjection(t *testing.T) {
 		}
 	}
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.roles.domain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, History: catalog.PublicationHistory{HasIndexes: true, HasSubclasses: true}, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}, Constraints: catalog.RelationConstraints{Check: make([]catalog.CheckConstraint, 2)}}
-	row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{}}, relation)
+	row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{engine: e}}, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
 	}
@@ -77,7 +77,7 @@ func TestPgClassProjection(t *testing.T) {
 	}
 	for _, oid := range []ids.OID{1213, 1262, 2396} {
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-		row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{}}, d)
+		row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: source, Runtime: engineCatalogRuntime{engine: e}}, d)
 		if err != nil {
 			t.Fatal(err)
 		}

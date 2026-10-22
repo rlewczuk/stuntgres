@@ -114,10 +114,11 @@ type RelationSecurity struct {
 	RLSForced  bool
 }
 
-// PublicationHistory records sticky facts about a relation's earlier
-// publications. Replacement may set them but never clear them.
+// PublicationHistory retains lazy catalog facts. Ordinary descriptor replacement
+// preserves them; applicable VACUUM alone may clear HasIndexes after the final
+// attached index is gone.
 type PublicationHistory struct {
-	HasIndexes          bool      // Removing an index does not clear it.
+	HasIndexes          bool      // DROP retains it until applicable VACUUM.
 	HasSubclasses       bool      // Inheritance, table or index partition publication.
 	SubclassPredecessor *Relation // Exact first-subclass marker publication only.
 	SubclassPublication ids.DefinitionRevision

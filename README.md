@@ -26,6 +26,26 @@ Native logical replay uses a closed constructor recipe for those values.
 See [type semantics](docs/TYPES.md#geometric-constructors-and-conversions) and
 [selected proof](reference/types/README.md#geometric-constructor-conversion-contract).
 
+## Ordinary VACUUM — change note
+
+Ordinary `VACUUM` now performs snapshot-safe logical dead-version retirement,
+canonical-XID freezing bookkeeping and attached-index position maintenance.
+Direct and held commands use MAINTAIN/ownership checks, real relation locks,
+cancellation, logical statistics and authenticated progress visibility.
+`pg_stat_all_tables`, `pg_stat_sys_tables`, `pg_stat_user_tables` and
+`pg_stat_progress_vacuum` expose their PostgreSQL 18 column contracts.
+SKIP_LOCKED applies both to explicit-target selection and maintenance locking.
+Diagnostics follow selection then work phases; descendants retain captured
+identities and receive fresh maintenance checks after their actual work lock.
+Database and new-table freezing bounds account for already-assigned older
+publishers, including tables created after a database-only pass. Logical import
+initializes current live cardinality independently of reset scan, vacuum and
+cumulative activity history.
+Enabled FULL and ANALYZE remain explicit native capability errors; physical
+pages, WAL, TOAST, buffer work and parallel workers are not fabricated.
+See [native boundaries](docs/DIALECT.md#ordinary-vacuum) and
+[selected proof and feature smoke](reference/catalogs/README.md#vacuum-oracle-first-contract).
+
 ## Domain default and nullability changes — change note
 
 `ALTER DOMAIN SET/DROP DEFAULT` and `SET/DROP NOT NULL` update real domain

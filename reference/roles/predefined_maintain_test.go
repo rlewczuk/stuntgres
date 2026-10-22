@@ -68,7 +68,8 @@ func TestReferencePredefinedMaintain(t *testing.T) {
 		s.actor("pdef_actor")
 		s.exec("REINDEX TABLE pdef_private.t")
 		s.exec("REINDEX INDEX pdef_private.ix")
-		for _, q := range []string{"VACUUM pdef_private.t", "ANALYZE pdef_private.t", "CLUSTER pdef_private.t USING ix"} {
+		s.exec("VACUUM pdef_private.t")
+		for _, q := range []string{"ANALYZE pdef_private.t", "CLUSTER pdef_private.t USING ix"} {
 			if !s.backend.PG {
 				predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
 			}

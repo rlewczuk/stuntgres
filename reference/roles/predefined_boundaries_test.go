@@ -20,7 +20,7 @@ func predefinedMissingFunction(s *membershipScenario, q, signature string) {
 
 func predefinedNativeBoundaries(s *membershipScenario) {
 	s.t.Helper()
-	for _, q := range []string{"CHECKPOINT", "VACUUM t", "ANALYZE t", "CLUSTER t"} {
+	for _, q := range []string{"CHECKPOINT", "ANALYZE t", "CLUSTER t"} {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
 	}
 	for _, q := range []string{"COPY t FROM '/nonexistent'", "COPY t TO '/nonexistent'"} {

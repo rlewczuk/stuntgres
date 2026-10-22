@@ -15,16 +15,17 @@ func pgDatabaseFacts(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixtur
 	pgDatabaseCheck(t, p, b, db, s)
 	pgDatabaseCheck(t, p, b, db, fixture.Prepared(s))
 	q = "SELECT datistemplate,datallowconn,datconnlimit,datfrozenxid IS NULL AS no_freeze,datminmxid IS NULL AS no_multixact,dattablespace FROM pg_database WHERE datname=current_database()"
-	want := [][]any{{nil, nil, nil, true, true, nil}}
+	want := [][]any{{nil, nil, nil, false, true, nil}}
 	if b.PG {
 		want = [][]any{{false, true, int64(-1), false, false, int64(1663)}}
 	}
 	s = fixture.Select(q, []string{"datistemplate", "datallowconn", "datconnlimit", "no_freeze", "no_multixact", "dattablespace"}, []string{"BOOL", "BOOL", "INT4", "BOOL", "BOOL", "OID"}, want)
 	pgDatabaseCheck(t, p, b, db, s)
 	pgDatabaseCheck(t, p, b, fixture.ViewHold(t, p, b, q), s)
-	for _, column := range []string{"datistemplate", "datallowconn", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace"} {
+	for _, column := range []string{"datistemplate", "datallowconn", "datconnlimit", "datminmxid", "dattablespace"} {
 		pgDatabaseCheck(t, p, b, db, fixture.Select("SELECT "+column+" IS NULL AS unavailable FROM pg_database WHERE datname=current_database()", []string{"unavailable"}, []string{"BOOL"}, [][]any{{!b.PG}}))
 	}
+	pgDatabaseCheck(t, p, b, db, fixture.Select("SELECT datfrozenxid::text::bigint>=3 AS valid_freeze FROM pg_database WHERE datname=current_database()", []string{"valid_freeze"}, []string{"BOOL"}, [][]any{{true}}))
 	var equal any
 	var filtered [][]any
 	if b.PG {
@@ -65,13 +66,11 @@ func TestReferencePGDatabaseMetadata(t *testing.T) {
 		if err := rows.Scan(ptrs...); err != nil {
 			t.Fatal(err)
 		}
-		for _, i := range []int{9, 10} {
-			if b.PG {
-				// Physical horizons vary with initdb; only their genuine XID carrier is prescribed.
-				pgDatabaseXID(t, cells[i])
-			} else if cells[i] != nil {
-				t.Fatal("fabricated native horizon", cells[i])
-			}
+		pgDatabaseXID(t, cells[9])
+		if b.PG {
+			pgDatabaseXID(t, cells[10])
+		} else if cells[10] != nil {
+			t.Fatal("fabricated native physical MultiXact horizon", cells[10])
 		}
 		if rows.Next() || rows.Err() != nil {
 			t.Fatal("current row multiplicity", rows.Err())

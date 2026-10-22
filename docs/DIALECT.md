@@ -8,6 +8,132 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## Ordinary VACUUM
+
+Ordinary `VACUUM` accepts the released legacy form and parenthesized option
+form, qualified/quoted target lists, ONLY and descendant selection. Duplicate
+targets do real repeated work. Options are converted in source order; final
+effective values control execution, but an invalid earlier value is not hidden.
+Quiet Describe/Prepare does not lock, resolve targets or perform maintenance.
+Execution rejects transaction blocks with25001, preserving aborted25P02;
+an idle read-only session may perform maintenance. MAINTAIN, effective relation
+ownership, superuser and database ownership use ordinary role/ACL authority.
+Database ownership does not grant maintenance of shared relations.
+
+Native enabled FULL and ANALYZE report0A000 at Execute; their disabled forms
+are accepted. Valid PARALLEL values0..1024 may execute serially. INDEX_CLEANUP,
+TRUNCATE, DISABLE_PAGE_SKIPPING, PROCESS_TOAST and BUFFER_USAGE_LIMIT retain
+released parsing/validation, but physical page, TOAST, buffer-ring, visibility-map,
+FSM, WAL and worker behavior is inapplicable to logical storage. PROCESS_MAIN
+false performs no native heap work. ONLY_DATABASE_STATS and SKIP_DATABASE_STATS
+control real database-horizon refresh independently of per-relation work.
+SKIP_LOCKED also governs the transient selection lock on explicit targets:
+an unavailable lock emits warning55P03 and omits that target without waiting or
+publishing work/progress. Cancellation and timeout errors are not skip warnings.
+All explicit expansions finish before any work. Root permission, ONLY-partition
+and selection-lock warnings retain encounter order, including earlier selection
+warnings when a later target fails. Nonheap warnings instead occur during work,
+after the actual maintenance lock and fresh permission check; they cannot precede
+a later selection error. Delivery remains outside engine/manager mutex regions.
+
+Each root expands breadth-first with direct children OID-ordered and deduplicated
+only within that expansion. Denied roots still expand descendants; descendants
+are not prematurely filtered by ACL or namespace name lookup. Repeated or
+overlapping textual roots may maintain a relation repeatedly.
+At work, captured identity is opened without resolving its old name, then current
+ACL, kind, foreign-TEMP and partition gates precede PROCESS_MAIN. Authorized
+nonheaps/partition parents need no heap store simply to survive selection.
+Explicit-root unavailable/gone work emits55P03/42P01; anonymous descendants and
+omitted-list candidates silently skip unavailable/gone work. Root selection-AS
+skip omits its subtree, but a later root-work skip retains queued descendants.
+Current same-identity storage/shape is bound only after admission; real native
+epoch/replacement and detached-publication fences remain.
+
+Qualified peer-TEMP maintenance lookup checks actual namespace USAGE, not data
+access. VACUUM's private path policy also permits an explicitly configured peer
+TEMP schema with USAGE, sharing ordinary $user/pg_temp/catalog precedence and
+deduplication. Missing USAGE silently omits a configured path entry (normal
+fallback or42P01), whereas an explicit qualified lookup reports schema42501.
+Authorized foreign-TEMP work silently skips after lock/ACL/kind.
+Ordinary native SELECT/DML retains its foreign-TEMP schema denial; no generic
+data-access guard is relaxed. Native public LOCK partition setup remains0A000;
+VACUUM's partition work-lock/current-ACL behavior is distinct from that utility.
+
+Maintenance retains immutable historical roots and never changes row payload,
+row/version identity or Born/End visibility. Other registered same-epoch
+snapshots, builders, writers or live lock owners conservatively retain dead
+heads. A quiescent pass removes committed matching dead heads and remaps existing
+index entries without evaluating expressions or constraints. Freezing records
+actual insertion/publisher FullXID provenance, not CommitSeq comparisons.
+Foreign logical imports explicitly carry frozen/no-source-XID provenance;
+self-replacement preserves ordinary provenance. This is logical bookkeeping,
+not physical anti-wraparound/autovacuum or durability.
+Even an empty new relation starts at the canonical safe cutoff, including an
+older assigned transaction that may later insert under READ COMMITTED.
+Every ordinary, prepared and rewritten unfrozen birth keeps the full-width
+relation bound no later than its real publisher; low32 wrap is not ordering.
+Database-bound calculation starts from that same safe active-publisher cutoff
+before minimizing installed relation bounds. It therefore accounts for relations
+that can be created after a database-only pass, not just currently installed
+heaps. Unknown relation bounds or exhausted canonical cutoff do not publish a
+new database bound; SKIP_DATABASE_STATS and database-only no-main-work remain
+independent controls.
+
+Heap/MV `relfrozenxid` and database `datfrozenxid` expose actual low32-bit XID
+bounds. A completed native heap scan supplies `reltuples`; other unknown estimates
+remain -1. Native manual statistics preserve committed DML counters and unchanged
+`n_mod_since_analyze`; VACUUM updates live/dead counts, timestamp/count and clears
+inserts-since-vacuum. Replacement/import resets scan, vacuum and cumulative
+activity history, but initializes current live rows from its committed visible
+capture (and current dead rows to zero). Later committed DML applies deltas to
+that actual baseline before any VACUUM; imported rows are not invented inserts.
+Same-object storage rewrites retain cumulative manual history and committed
+counters. Committed-table TRUNCATE resets the current tuple estimate to unknown
+(-1), not inferred0 or a stale VACUUM count, and resets live/dead/inserts-since;
+actual post-truncate births count once. Refreshed materialized contents get actual
+new publisher provenance, not an obsolete freezing bound or fabricated completion.
+The three table-statistics views have the released30 columns. Unsupported
+scan/I/O/duration/analyze timestamps are typed NULL, not manufactured counters.
+
+Table-statistics per-column native capability (all three projections):
+
+| Columns | Native fact |
+|---|---|
+| relid, schemaname, relname | Actual catalog identities/names |
+| seq_scan, last_seq_scan, seq_tup_read, idx_scan, last_idx_scan, idx_tup_fetch | NULL; no scan/I/O statistics subsystem |
+| n_tup_ins, n_tup_upd, n_tup_del | Committed logical publication deltas, not PostgreSQL process-local attempted-work counters |
+| n_tup_hot_upd, n_tup_newpage_upd | Zero; no physical HOT/new-page updates |
+| n_live_tup, n_dead_tup | Actual current logical live/retained-ended heads |
+| n_mod_since_analyze, n_ins_since_vacuum | Committed modification/insert deltas; ordinary VACUUM preserves the former and clears the latter |
+| last_vacuum, vacuum_count | Actual successful main-work completion timestamp/count; timestamp NULL before first completion |
+| last_autovacuum, last_analyze, last_autoanalyze | NULL; these operations are absent |
+| autovacuum_count, analyze_count, autoanalyze_count | Zero; no such event occurs |
+| total_vacuum_time, total_autovacuum_time, total_analyze_time, total_autoanalyze_time | NULL; no invented duration accounting |
+
+Progress per-column native capability:
+
+| Columns | Native fact |
+|---|---|
+| pid, datid, datname | Actual active physical-session/database identity; visible even when details are redacted |
+| relid, phase | Actual current target and entered maintenance phase |
+| heap_blks_total, heap_blks_scanned, heap_blks_vacuumed | NULL; no physical heap blocks |
+| index_vacuum_count, max_dead_tuple_bytes, dead_tuple_bytes, num_dead_item_ids | NULL; no physical index-vacuum cycles/dead-item buffer |
+| indexes_total, indexes_processed | Actual attached published logical roots and completed remaps, not workers |
+| delay_time | Zero; native work uses no vacuum cost-delay mechanism |
+
+All progress columns except pid/datid/datname are NULL for an unauthorized viewer.
+
+The15-column progress view describes actual synchronous work only, never a
+queued lock wait or completed operation. Backend startup authenticated identity,
+inherited role visibility and pg_read_all_stats control redaction: unauthorized
+readers retain pid/dat id/name but see columns relid through delay_time as NULL.
+Phases and processed-index counts describe real work; physical heap/dead-item
+metrics are NULL. Logical VERBOSE emits INFO00000 with the existing
+QuoteIdentifier convention: each qualified component is always SQL-quoted.
+`vacuuming "public"."t" (native logical storage): ... live rows, ... retained dead versions, ... dead versions removed, ... versions frozen`.
+It does not emit fabricated pages, duration, DETAIL, HINT or CONTEXT.
+See [reference contracts](../reference/catalogs/README.md#vacuum-oracle-first-contract).
+
 ## PATH geometric boundary
 
 PATH provides nonempty ordered point-list IO, open/closed identity, typed
@@ -1830,13 +1956,16 @@ NULL values, rather than invented cluster/disk facts:
 
 - `datistemplate BOOL`, `datallowconn BOOL`, `datconnlimit INT4`: no database-owned
   template, mutable admission or connection-limit metadata.
-- `datfrozenxid XID`, `datminmxid XID`: no physical freezing/multixact horizons.
+- `datminmxid XID`: no physical multixact horizon.
 - `dattablespace OID`: no physical database placement.
 - `datlocale TEXT`, `daticurules TEXT`, `datcollversion TEXT`: inapplicable to
   native C semantics, not fabricated ICU locales/rules or host version strings.
 
-These NULL fields and `datacl` are nullable in native result metadata; the other
-known facts are nonnullable. NULL comparisons retain ordinary SQL three-valued
+`datfrozenxid XID` instead exposes the actual logical database freezing bound.
+It retains its nullable column contract; it is not a physical cluster horizon.
+
+These NULL fields, `datfrozenxid` and `datacl` are nullable in native result
+metadata; the other known facts are nonnullable. NULL comparisons retain ordinary SQL three-valued
 semantics. The relation's shared pg_global metadata does not imply a database
 placement. No template rows, backing indexes or TOAST relations are fabricated.
 Already returned native Rows retain their captured owner/ACL and types; fresh
@@ -1858,14 +1987,15 @@ Discovery is database-wide, not restricted to search_path or table privileges.
 The native physical fields are explicit boundaries, not approximated storage:
 
 - `relfilenode`, `relpages`, `relallvisible`, `relallfrozen`, `reltoastrelid`,
-  `relrewrite`, `relfrozenxid` and `relminmxid` are typed zero sentinels: native
-  relation files, page/maps, TOAST, transient rewrites and freezing/multixact
-  horizons do not exist. Zero filenode does not claim PostgreSQL mapped storage.
-- `reltuples` is -1 (unknown) for every nonsequence kind, including indexes;
-  sequence 1 is fixed logical singleton-generator metadata, with zero native
-  pages. Estimates never become count(*), historical version counts or sizes.
-  Real PostgreSQL sequence pages and partitioned-index initialization can differ;
-  catalog reads do not implement ANALYZE/VACUUM.
+  `relrewrite` and `relminmxid` are typed zero sentinels: native relation files,
+  page/maps, TOAST, transient physical rewrites and multixact do not exist.
+  Zero filenode does not claim PostgreSQL mapped storage. Heap/MV
+  `relfrozenxid` instead carries genuine logical freezing bounds.
+- `reltuples` is -1 (unknown) until an ordinary heap/MV VACUUM scan supplies
+  its logical live-row estimate; other nonsequence kinds remain unknown.
+  Sequence1 is fixed logical singleton metadata with zero native pages.
+  Neither unknown estimates nor physical pages are synthesized from count(*).
+  Enabled ANALYZE remains an explicit native capability boundary.
 - `relam` exposes logical heap=2, btree=403, hash=405 and bounded GiST=783
   compatibility identities, not PostgreSQL physical heap/index storage. Default
   partition roots and sequence/view/composite relations have method zero.
@@ -1877,8 +2007,9 @@ The native physical fields are explicit boundaries, not approximated storage:
   internal trigger machinery. `relhasrules` describes installed user rules and
   view `_RETURN` definitions; query rewriting does not introduce a trigger catalog.
 
-`relhasindex` and `relhassubclass` are immutable lazy publication histories;
-removing the last actual index/child does not clear them. All nineteen represented
+`relhasindex` and `relhassubclass` are lazy publication histories; ordinary
+index/child removal preserves them. VACUUM may clear `relhasindex` only when
+no attached indexes remain. All nineteen represented
 table catalogs initialize exact released indexed-table facts on their descriptors,
 independently of the bounded table-summary inventory. Represented views retain
 false. These facts survive Reset/Restore; they do not fabricate physical

@@ -70,6 +70,80 @@ separate from exact SQL MethodOID. Native Heap resolves through captured method/
 handler validation to concrete `visibility.HeapOperations`; ordinary source
 selection consumes its real existing liveness rule without custom TABLE syntax.
 
+## Ordinary maintenance ownership
+
+`vacuum.go` owns normal command selection/admission. One StatementScope owns
+one canonical transaction/ticket; target-added transient AS and work SUE holds
+are restored to manager checkpoints outside engine/session locks between targets.
+It never invents per-target registry owners or workers. Lock waits have no
+progress row and retain genuine cancel/timeout/replacement errors.
+Effective SKIP_LOCKED is passed to both explicit selection AS and work SUE.
+Only genuine manager ErrUnavailable becomes the exact55P03 warning/omission,
+after restoring that target's checkpoint; cancellation/timeouts remain errors.
+Genuine selection warnings (root ACL, ONLY-partition, root-AS unavailable) share
+one lazy encounter-ordered code/message slice, delivered after checkpoints and
+metadata mutexes leave. Nonheap and descendant ACL warnings are work-phase,
+never appended during expansion or emitted before a later selection error.
+
+The queue holds only ObjectRef plus original explicit name (empty for anonymous
+descendants/omitted candidates). Root ACL does not suppress traversal. Expansion
+is BFS/direct-child OID order, dedup per root, never globally across target lists.
+SUE/current descriptor/current ACL precede kind, foreign TEMP, partition and
+PROCESS_MAIN gates. Missing/unavailable work uses origin-aware diagnostics;
+whole-epoch/owner failures remain genuine errors, not blanket replacement skips.
+Only admitted heap work binds a separate descriptor/store target; compatible
+same-identity rename/TRUNCATE before admission is not a stale-selection fence.
+Final detached publication retains the existing strict shape/store/root/index/
+authority/epoch/gate checks. Sequence/nonheap inherited ownership is real role
+closure authority, not an assumption that every kind has a MAINTAIN ACL bit.
+The VACUUM-only peer-TEMP resolver uses paired namespace/object ACLs. The private
+explicitPathForPolicy body is shared with ordinary explicitPathFor(false);
+only VACUUM opts in(true) using RelationLookup. Existing effectivePath and shared
+object lookup/diagnostics/own-TEMP admission retain one implementation. Generic
+namespace/searchpath/SELECT/DML boundaries are not relaxed, and there is no
+InstalledFunctionLookup shortcut or second configured-path resolver.
+
+`vacuum_publication.go` inspects/materializes detached immutable candidates,
+remaps existing logical indexes without evaluating keys and rechecks current
+root/storage/shape/authority/gate tokens before atomic installation. Compatible
+peer DML causes candidate recapture, never SQL replay; metadata-only changes are
+preserved. No failure remains inside the install region after its first write.
+`vacuum_metadata.go` keeps full-XID bounds, committed logical statistics and
+actual phase records under Engine.mu; selective pgcatalog Runtime captures expose
+only values. Progress visibility uses backend startup authentication authority,
+not table ownership or the maintenance session's current SET ROLE.
+The canonical active-publisher cutoff initializes even empty incarnations.
+Every actual ordinary/prepared/journal/MV birth reconciles existing bounds in
+constant time; no full-root rescan is added to steady-state DML. Visible-only
+remint initializes current Live separately from reset historical counters.
+Database refresh seeds from the same safe canonical cutoff before minimizing
+installed bounds, including the empty-engine interval before a future relation
+exists. ONLY/main completion and both catalog-replacement install paths share
+that calculation; no later table-create repair or alternate horizon registry.
+
+Snapshot safety definitions retain both independently prescribed index generations:
+three keys before DELETE and one live key after DELETE's existing exact-version
+filter. They compare owned header/provenance/payload/end/key baselines through
+snapshot-gated freezing, quiescent compaction and the no-change repeat.
+Materialized-maintenance commit/discard definitions use retained **implicit**
+messages without BEGIN, matching the existing batch publication route.
+Fresh REFRESH after explicit BEGIN remains native0A000 even with command
+admission; separate ordinary/concurrent cases assert full0A000/25P02 and unchanged
+published facts. Existing implicit-refresh→later-BEGIN promotion is retained.
+No adjacent utility policy is relaxed.
+
+Selected definitions, to be exercised by the root with external900-second deadlines:
+
+```sh
+make check RUN='^TestVacuum(Options|SnapshotSafety|CompactionIndexes|PublicationFences|FreezeProvenance|ImportHorizons|AuthorizationLocks|MetadataStatistics|ProgressLifecycle)$'
+make check RUN='^TestVacuumGrammar$'
+make check RUN='^TestVacuum(SnapshotSafety|PublicationFences|AuthorizationLocks|ProgressLifecycle)$' RACE=1
+```
+
+Public proof and actual feature smoke are in
+[`reference/catalogs`](../../reference/catalogs/README.md#vacuum-oracle-first-contract);
+changed reference definitions require selected native and REFERENCE=1 runs.
+
 ## Testing
 
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and

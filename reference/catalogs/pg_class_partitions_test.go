@@ -155,7 +155,7 @@ func pgClassRetained(t *testing.T, rows *sql.Rows, types []*sql.ColumnType, name
 func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_phys_heap(id integer,note text)", "CREATE INDEX pc18_phys_idx ON pc18_phys_heap(id)", "CREATE SEQUENCE pc18_phys_seq", "CREATE VIEW pc18_phys_view AS SELECT id FROM pc18_phys_heap", "CREATE MATERIALIZED VIEW pc18_phys_mv AS SELECT id FROM pc18_phys_heap WITH NO DATA", "CREATE TYPE pc18_phys_pair AS(id integer)", "CREATE TABLE pc18_phys_root(id integer PRIMARY KEY) PARTITION BY RANGE(id)")
-		q := "SELECT relfilenode,relpages,reltuples,relallvisible,relallfrozen,reltoastrelid,relrewrite,relfrozenxid,relminmxid FROM pg_class WHERE relname=$1"
+		q := "SELECT relfilenode,relpages,reltuples,relallvisible,relallfrozen,reltoastrelid,relrewrite,CASE WHEN relkind IN ('r','m') THEN relfrozenxid::text::bigint>=3 ELSE relfrozenxid='0'::xid END AS valid_freeze,relminmxid FROM pg_class WHERE relname=$1"
 		held := fixture.ViewHold(t, p, b, q)
 		check := func() {
 			for _, name := range []string{"pc18_phys_heap", "pc18_phys_idx", "pc18_phys_seq", "pc18_phys_view", "pc18_phys_mv", "pc18_phys_pair", "pc18_phys_root", "pc18_phys_root_pkey"} {
@@ -175,7 +175,7 @@ func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 					if b.PG && name == "pc18_phys_root_pkey" {
 						tuples = 0
 					}
-					s := fixture.Select(q, []string{"relfilenode", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relrewrite", "relfrozenxid", "relminmxid"}, []string{"OID", "INT4", "FLOAT4", "INT4", "INT4", "OID", "OID", "XID", "XID"}, [][]any{{int64(0), pages, tuples, int64(0), int64(0), int64(0), int64(0), "0", "0"}}, name)
+					s := fixture.Select(q, []string{"relfilenode", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relrewrite", "valid_freeze", "relminmxid"}, []string{"OID", "INT4", "FLOAT4", "INT4", "INT4", "OID", "OID", "BOOL", "XID"}, [][]any{{int64(0), pages, tuples, int64(0), int64(0), int64(0), int64(0), true, "0"}}, name)
 					// A real sequence has a physical file. Compare its other fields,
 					// while independently asserting the file is actually present.
 					if b.PG && name == "pc18_phys_seq" {

@@ -34,6 +34,14 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	runtime := engineCatalogRuntime{engine: e}
 	unlockBefore := false
 	switch oid {
+	case pgcatalog.ProgressVacuumOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID:
+		auth, err := e.authorizationLocked(scope.op)
+		if err != nil {
+			e.mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		runtime.auth = auth
 	case pgcatalog.SettingsOID:
 		runtime.settings = scope.op.Session.Settings
 		runtime.registry = e.settings

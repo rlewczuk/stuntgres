@@ -61,6 +61,27 @@ and never the engine.
   from the transactional sequence options in the catalog and from the
   per-session currval/lastval memories of [`sequence`](../sequence/README.md). Never add live catalog
   undo or per-CACHE arrays for it.
+- **Maintenance provenance.** `RowVersion.InsertFullXID` is actual canonical
+  committed publisher identity, independent of Born CommitSeq. Frozen headers
+  retain it. `ImportFrozen` explicitly denotes an atomically committed detached
+  foreign import without fictional source/target XID; ordinary self replacement
+  preserves provenance. `Relation.Maintenance` holds coherent logical facts.
+  Same-object storage rewrites copy cumulative maintenance from the validated
+  current predecessor inside publication, not stale prepare-time facts.
+  `Maintenance.RecordBirth` clamps an existing full-width bound against each
+  actual unfrozen publisher without rescanning old versions. Unknown bounds
+  remain unknown until engine initialization against the canonical safe cutoff.
+  Remint initializes current Live from committed visible capture cardinality,
+  Dead0, and independently resets scan/vacuum/cumulative history; transport is
+  not counted as native committed INSERT activity.
+- **VACUUM roots.** `InspectVacuum` counts and chooses exact committed matching
+  end/version retirement; `MaterializeVacuum` copies headers only when changed,
+  preserving survivor payloads and old roots. The engine owns the conservative
+  snapshot gate and final fence. `RemapVacuumIndex` preserves keys and existing
+  index state, remaps positions/membership/RowEntries and rebuilds hash pointers
+  against new buckets. Hash prefix coverage is preserved, never upgraded to a
+  complete index; freeze-only work rebinds hash generation without needless
+  B-tree remapping. No-change passes retain roots; no row/version IDs are minted.
 
 ## What stays in the engine
 
@@ -84,6 +105,7 @@ make check RUN='^Test(StoreAllocateRowVersionsInOrder|StoreAllocateRowVersionsEx
 make check RUN='^Test(MaterializedViewSnapshotImport|MaterializedViewPublication|GeneratedReplacementStaleAuthority|GeneratedReplacementLateCancellation|ControlTransactionsReplacementCancellationBoundary|CommitTimePublication)$'
 make check RUN='^Test(UniqueIndexPublicationStreaming|UniqueIndexPublicationCancellation|TruncateGeneration|TruncateIndexes|MaterializedRefreshPublicationFences|TemporaryTableCleanupPublication)$'
 make check RACE=1 RUN='^Test(ConcurrentIndexU1RootPhasesAndVersions|ConcurrentIndexU6ReadyCancellationReleasesSUE|UniqueIndexPublicationCancellation|GeneratedReplacementStaleAuthority|GeneratedReplacementLateCancellation|TemporaryTableCleanupPublication)$'
+make check RUN='^TestVacuum(SnapshotSafety|CompactionIndexes|PublicationFences|FreezeProvenance|ImportHorizons|MetadataStatistics)$'
 ```
 
 Public sequence and replacement witnesses retain independent expectations:

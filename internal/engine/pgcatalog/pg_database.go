@@ -81,6 +81,9 @@ func capturePGDatabase(in Input) ([][]sqltype.Value, error) {
 		sqltype.Boolean(source.Columns[7].Usage.Type, false), null(8), null(9), null(10), null(11),
 		text(12, nativeDatabaseLocale), text(13, nativeDatabaseLocale), null(14), null(15), null(16), acl,
 	}
+	if in.Runtime != nil && in.Runtime.DatabaseFrozenXID() != 0 {
+		row[9] = checked(sqltype.XIDValue(source.Columns[9].Usage.Type, uint32(in.Runtime.DatabaseFrozenXID())))
+	}
 	if failure != nil {
 		return nil, failure
 	}

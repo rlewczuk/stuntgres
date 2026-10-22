@@ -5,6 +5,26 @@ import "strings"
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
+// Vacuum retains ordered controls for execution-time validation.
+type Vacuum struct {
+	Options []VacuumOption
+	Targets []VacuumTarget
+	Pos     Position
+}
+type VacuumOption struct {
+	Name     Identifier
+	Value    Value
+	HasValue bool
+}
+type VacuumTarget struct {
+	Name    ObjectName
+	Only    bool
+	Star    bool
+	Columns []Identifier
+}
+
+func (*Vacuum) statement() {}
+
 // Load retains a decoded filename; native library loading is external.
 type Load struct {
 	Filename string

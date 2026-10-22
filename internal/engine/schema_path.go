@@ -20,6 +20,13 @@ func explicitPath(auth AuthorizationView) ([]ids.ObjectAddress, bool, error) {
 	return explicitPathFor(auth, analyze.RelationLookup)
 }
 func explicitPathFor(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAddress, bool, error) {
+	return explicitPathForPolicy(auth, kind, false)
+}
+
+// Only VACUUM opts into peer-TEMP namespace lookup. Parsing, $user/pg_temp,
+// pending creation, deduplication and USAGE omission retain one implementation;
+// ordinary data/type/function callers keep the existing stricter policy.
+func explicitPathForPolicy(auth AuthorizationView, kind analyze.LookupKind, allowForeignTemporary bool) ([]ids.ObjectAddress, bool, error) {
 	var entries []string
 	restricted := [2]string{"pg_catalog", "pg_temp"}
 	switch {
@@ -72,7 +79,7 @@ func explicitPathFor(auth AuthorizationView, kind analyze.LookupKind) ([]ids.Obj
 		if !ok {
 			continue
 		}
-		if ns, ok := auth.definitionNamespace(a); ok && ns.Temporary != (ids.SessionToken{}) && !access.OwnTemporaryNamespace(temporaryNamespace(auth), ns) && kind != analyze.InstalledFunctionLookup {
+		if ns, ok := auth.definitionNamespace(a); ok && ns.Temporary != (ids.SessionToken{}) && !access.OwnTemporaryNamespace(temporaryNamespace(auth), ns) && kind != analyze.InstalledFunctionLookup && !allowForeignTemporary {
 			continue
 		}
 		duplicate := false

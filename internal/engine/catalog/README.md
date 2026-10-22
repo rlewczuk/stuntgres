@@ -209,6 +209,10 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   `HasIndexes` flags in a replacement candidate's private state without
   mutating retained source descriptors or clearing a true flag. The stage
   markers that allocate revisions stay in the engine.
+  These are ordinary replacement rules: VACUUM has an explicit separate
+  publication that may clear `HasIndexes` after confirming no attached indexes,
+  while retaining old descriptors unchanged. `SharedRelation` centralizes actual
+  shared catalog identities for both pg_class and maintenance authorization.
 - **Principal remap** (`principal_remap.go`). `RemapPrincipals` rewrites the
   owners, ACLs, policy roles and default ACL records of an unpublished
   private candidate through a `PrincipalRemap` (principal and seeded-owner

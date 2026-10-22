@@ -19,6 +19,7 @@ type RemintBase struct {
 	Roots                map[ids.ObjectAddress]*storage.IndexRoot
 	NextRow, NextVersion uint64 // The row and version allocator frontiers.
 	Frontier             ids.CommitSeq
+	PreserveProvenance   bool // Self replacement stays in the same XID universe.
 }
 
 // RemintStorage gives the imported storage of next fresh row and version
@@ -72,10 +73,17 @@ func RemintStorage(ctx context.Context, next *catalog.State, base RemintBase, re
 			selected[identity] = i
 			row.Row, row.Version = ids.RowID(rowID), ids.VersionID(versionID)
 			row.Base, row.Born = 0, base.Frontier+1
+			if !base.PreserveProvenance {
+				row.InsertFullXID, row.Frozen, row.ImportFrozen = 0, true, true
+			}
 			row.KeyChangedAt, row.PendingKeyChange = 0, false
 			row.IndexAdmission = nil
 			row.IndexOutputs = nil
 		}
+		// Capture/remint contains only committed visible rows. Current
+		// cardinality survives transport; scan history and cumulative activity
+		// belong to the replaced incarnation and must not be inherited.
+		relation.Maintenance = storage.Maintenance{Live: int64(len(relation.Versions))}
 	}
 	roots, err := snapshot.Transport(ctx, next, relations, positions)
 	if err != nil {

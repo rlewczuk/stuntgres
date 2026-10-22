@@ -63,6 +63,214 @@ physical leaves, and unchanged logical rows `(1,'one')`, `(11,'eleven')` through
 native restoration and PostgreSQL replay. These are proof commands, not claims
 that verification has already run.
 
+### VACUUM oracle-first contract
+
+The nine `TestReferenceVacuum` definitions cover selection/options, complete
+direct/held-execute diagnostics, quiet preparation and fresh search paths,
+retained snapshots/results, MAINTAIN/effective ownership, logical metadata and
+statistics, real lock compatibility/skips/timeouts/cancellation, released progress
+and table-statistics descriptors, and an actual middleware-backed feature smoke.
+Their expectations are independently specified from PostgreSQL18 documentation
+and REL_18_6 source; pinned runtime execution, not this text, establishes evidence.
+
+Native capability expectations are intentionally separate: enabled FULL and
+ANALYZE fail at Execute with native0A000; disabled forms work. Native logical
+storage has no physical heap pages, visibility map, TOAST store, buffer ring,
+MultiXact or vacuum workers. Its page counters/relminmxid are unavailable zero,
+not logical row counts; valid PARALLEL requests may execute serially. VERBOSE
+reports exact native logical counts, while PostgreSQL INFO records describe real
+physical work and have volatile primary/detail text.
+Native qualified components use the existing always-quoted QuoteIdentifier
+convention (`"public"."vacuum_progress"`), not an additional quoting helper
+or a PostgreSQL physical INFO-text parity assertion.
+Reset/Dump/Restore phases are native controls, never fabricated PostgreSQL
+counterparts. Native deterministic
+in-flight progress/redaction and actual retired-root witnesses belong to the
+complementary engine tests; empty-after SQL checks do not prove those invariants.
+
+All nine definitions run both available backends; the discovery-only filter has
+been removed. Full PostgreSQL diagnostics are oracle-owned expectations; native
+capability messages and truthful logical INFO are independently specified.
+Selected native and real runs are required after any definition changes.
+
+```sh
+timeout 900s make check RUN='^TestReferenceVacuum(Selection|Diagnostics|Prepared)$' REFERENCE=1
+timeout 900s make check RUN='^TestReferenceVacuum(Visibility|Permissions|Metadata)$' REFERENCE=1
+timeout 900s make check RUN='^TestReferenceVacuum(Locks|Progress|FeatureSmoke)$' REFERENCE=1
+# Repeat each group without REFERENCE=1 for selected native proof.
+timeout 900s make check RUN='^TestReferenceVacuumFeatureSmoke$' REFERENCE=1
+timeout 900s make check RUN='^TestReferenceVacuumFeatureSmoke$'
+```
+
+Smoke expects survivors1,3; reltuples2; manual count2 after direct+held work,
+denied-role count unchanged, granted same-held count3; valid XID bounds; no
+completed progress; exact25001; observed queued-lock cancellation with no effects
+and healthy count4 after lock release and retry. The same held statement and
+physical worker survive cancellation. Native replay/retained-row coverage uses an
+independent ACL-free fixture: permission coverage intentionally leaves explicit
+ACLs, which remain outside Dump's supported serialization boundary.
+PostgreSQL cumulative statistics use bounded
+fresh-read polling; the metadata witness explicitly flushes its writer's pending
+DML statistics and establishes the independent modification baseline4 before
+VACUUM, then verifies that VACUUM leaves that baseline unchanged. Database-owner
+coverage restores the actual captured original owner, not an assumed role name.
+R6 flushes its known fourth base INSERT before TRUNCATE and independently observes
+inserts4/modifications5/inserts-since1. Released pgstat truncate resets shared
+inserts-since but then adds the backend's pending tuples_inserted batch; flushing
+only after TRUNCATE legitimately re-adds that pending1 permanently. This is not
+transient lag. The preflush makes the prescribed post-TRUNCATE live/dead/inserts-since0
+invariant genuine. Polling retains its bounded deadline and exact equality.
+
+R6 additionally preserves actual same-object MV vacuum count/time across a held
+REFRESH, proves refreshed rows1,3,4 and next real scan count2/estimate3, and tests
+committed-table VACUUM→TRUNCATE→VACUUM. Released TRUNCATE installs unknown
+`reltuples=-1`, not inferred0 or stale2; committed live/dead/inserts-since reset0,
+old manual count/time survive, then actual empty VACUUM establishes estimate0.
+Rollback preserves the original table; a real post-truncate insert/vacuum
+recovers estimate1. Native U8 subcases cover both publication paths,
+ordinary/concurrent MV refresh, empty refresh, fresh publication-time predecessor
+facts, final preflight cancellation, and truncate rollback/rollback-to/new-object
+lifetime. Exact native committed deltas/last-scan MV estimates are not asserted
+as PostgreSQL physical-refresh bookkeeping. These changed definitions require
+fresh selected native and real execution; source grounding is not a pass.
+
+#### Review regression contract (F1–F3)
+
+`vacuum_review_regressions_test.go` adds independent F1 AX-held transient
+selection/direct-and-held SKIP_LOCKED witnesses, including a blocked/unblocked
+target list and real postrelease recovery. F2 assigns an actual older publisher
+before a peer creates its table, checks safe age relationships before repair,
+and commits that same publisher's new row. Native engine counterparts also
+check full-width provenance across wrap. F3 exercises actual foreign/self
+replacement and Restore before any maintenance can conceal an incorrect current
+live baseline, then independently prescribes DELETE and INSERT deltas.
+`vacuum_import_review_test.go` supplies the consumer-visible native
+Dump/Reset/Restore, retained-result, DML, and eventual real maintenance witness.
+These host controls have no fabricated PostgreSQL counterpart.
+
+All three new reference definitions are unfiltered. Root removed the isolated
+F1/F2 discovery helper after real oracle observations and before native-red
+proof. The F3 controls fixture is always native in either selected mode because
+PostgreSQL has no corresponding host control API; that is not a discovery skip.
+Original nine reference definitions remain unchanged.
+
+```sh
+# Every new reference definition requires selected native and real proof.
+make check RUN='^TestVacuumF[123]'
+make check RUN='^TestReferenceVacuumF[123]' REFERENCE=1
+make check RUN='^TestReferenceVacuumF[123]'
+make check RUN='^TestVacuumF[123]' RACE=1
+# Actual original feature smoke plus all three review feature witnesses.
+make check RUN='^TestReferenceVacuum(FeatureSmoke|F1SelectionSkipLocked|F2OlderPublisherHorizon|F3ImportedStatistics)$' REFERENCE=1
+make check RUN='^TestReferenceVacuum(FeatureSmoke|F1SelectionSkipLocked|F2OlderPublisherHorizon|F3ImportedStatistics)$'
+```
+
+Expected final observations: exact warning55P03/success0 without target work or
+progress while AX remains held; the unlocked target is maintained once and the
+same held consumer later recovers. Older-publisher bounds remain justified
+before row repair, with no allocator equality across servers. Imported current
+live/dead is2/0, then1/1 after DELETE1, then2/1 after INSERT7; reset historical
+counts/time/scanning remain separate from those current facts, and subsequent
+real maintenance establishes2/0/count1. These are source-derived expectations,
+not claims that any command has been run.
+
+#### Second-review regression contract (F4–F5)
+
+`vacuum_second_review_test.go` adds public direct/actual-held F4 witnesses
+where an older READ COMMITTED transaction assigns its real XID before
+ONLY_DATABASE_STATS runs **before table creation**. Separate database-only,
+new-empty-table and committed-older-birth phases prescribe safe database and
+relation age relationships without a later maintenance call masking the seed.
+PostgreSQL has physical system heaps; the shared witness does not pretend its
+inventory is an empty native engine or pin cross-server allocator values.
+Native `TestVacuumF4FutureRelationDatabaseHorizon` separately proves full-width
+bounds/provenance across ordinary and wrap-adjacent assignment.
+
+F5 uses a genuinely unprivileged target and a second MAINTAIN-granted target
+held AX by another connection, both list orders and direct/same-held execution.
+The complete ordered diagnostic stream must follow target encounter order:
+permission01000 then lock55P03, or the reverse for the reversed list, with all
+other portable fields absent. Both targets preserve their independently seeded
+real-vacuum count/time/live/dead/estimate, unchanged data and empty progress.
+Native `TestVacuumF5SelectionNoticeOrder` additionally retains exact storage
+roots/facts and checks no queued request remains.
+Its native nonheap matrix is corrected by the released phase contract: all
+selection warnings precede nonheap work warnings, and a later selection42P01
+prevents any nonheap work warning. Permission/ONLY-partition selection ordering
+and complete records/root/facts/queue assertions remain unchanged.
+F4 performs real FREEZE/unchanged row7/count1 only after all pre-repair proofs.
+
+Both F4/F5 public definitions are unfiltered. Root removed their isolated
+discovery helper after the real oracle and before native-red proof. All
+original definitions and F1–F3 remain unfiltered and unchanged. These native
+remedies use the canonical safe database seed and a single ordered selection
+warning sequence, not later repair maintenance or name-specific exceptions.
+
+```sh
+# Selected native and both-mode reference proof after remedies:
+make check RUN='^TestVacuumF[45]'
+make check RUN='^TestReferenceVacuumF[45]' REFERENCE=1
+make check RUN='^TestReferenceVacuumF[45]'
+make check RUN='^TestVacuumF[45]' RACE=1
+# Composed actual feature smoke:
+make check RUN='^TestReferenceVacuum(FeatureSmoke|F[1-5].*)$' REFERENCE=1
+make check RUN='^TestReferenceVacuum(FeatureSmoke|F[1-5].*)$'
+```
+
+Root observed the independent real oracle and pre-fix native failures before
+authorizing remedies. Those observations do not verify the changed production
+code: fresh selected native/real/race proof and actual smoke remain required.
+
+#### Third-review phase/origin contract (F6–F7)
+
+`vacuum_third_review_test.go` and `vacuum_expansion_review_test.go` prescribe
+complete direct/held chronological diagnostics, not a global textual-warning
+sort: explicit expansions finish first, then each work lock/fresh ACL/kind gate.
+The real backend's independent observer checks the exact parent pending SUE and
+original SHARE holder/blocking edge before late child grants/revokes. Native
+manager witnesses supplement, not replace, public lifecycle proof.
+Descendant/omitted unavailable/gone targets are silent; named gone targets warn
+with their original name and never retarget a same-name recreation. Denied roots
+still traverse; root AS skip omits a subtree, root work skip does not.
+The matrix includes MAINfalse admission, partition/ONLY, cross-schema children,
+BFS diamonds/repeated/overlapping roots, current renamed/truncated identities,
+real unchanged rows1,2,3/new11 and phase-correct peer-TEMP authority.
+
+Native LOCK partition hierarchy setup remains the existing full0A000. Its public
+PG counterpart retains the actual SHARE holder; native
+`TestVacuumF7PartitionWorkAdmission` uses the canonical manager's real holder to
+prove partition SUE/current ACL/MAINfalse/ONLY skip and cleanup, without extending
+the adjacent LOCK utility. Ordinary native qualified SELECT on peer TEMP remains
+full42501 even when namespace USAGE and MAINTAIN authorize maintenance lookup.
+
+Root observed F6/F7's real oracle and native red before authorizing remedies.
+Their original discovery helper and all seven callsites are now unfiltered.
+`TestReferenceVacuumF7ForeignTempSearchPath` separately proves actual configured
+peer-TEMP path authority (USAGE omission versus qualified42501, selection denial
+versus authorized silent TEMP skip, public fallback). Root observed its real
+oracle and native red before authorizing shared private path-policy extraction,
+then removed its entire inline guard/tracking/skip. ALL public/native definitions
+are unfiltered; no discovery scaffolding remains. Ordinary native peer-TEMP
+SELECT42501 remains independently asserted.
+
+```sh
+# Selected path-policy native/real proof after final shared helper edits:
+make check RUN='^TestReferenceVacuumF7ForeignTempSearchPath$' REFERENCE=1
+make check RUN='^TestReferenceVacuumF7ForeignTempSearchPath$'
+# Every changed/new reference definition requires both modes after final edits.
+make check RUN='^TestReferenceVacuumF[67]' REFERENCE=1
+make check RUN='^TestReferenceVacuumF[67]'
+make check RUN='^TestVacuumF[5-7]'
+make check RUN='^TestVacuumF[5-7]' RACE=1
+make check RUN='^TestReferenceVacuum(FeatureSmoke|F[1-7].*)$' REFERENCE=1
+make check RUN='^TestReferenceVacuum(FeatureSmoke|F[1-7].*)$'
+```
+
+Expected smoke retains original real maintenance/rights/25001/active-cancel
+recovery plus F1–F5, adds actual late-grant/revoke effects, phased full warnings,
+captured-identity/BFS/current-storage counts and no fabricated progress. Native
+physical/FULL/ANALYZE/control differences remain explicit; source completion or
+pre-fix oracle evidence is not post-remedy verification.
 
 ### Independently owned pg_attribute shape matrices
 
@@ -2199,6 +2407,9 @@ small-peer empty cursor while asserting that honest native storage exclusion.
 The shared `TestReferencePGNamespaceViewStoragePrecedence` and
 `TestReferencePGNamespaceCopyStoragePrecedence` (in `reference/dml`) preserve
 source/table/schema42501 and COPY read-only25006 ahead of physical admission.
+The stored-view witness observes full `0A000` foreign-TEMP storage rejection on
+both backends after those authority checks; it does not generalize the separate
+small-peer direct-scan empty-cursor observation to stored views.
 Actual revocation, nested owner/invoker views, paired snapshots, storage roots,
 TEMP footprint and denied stream I/O are supplemented by
 `TestPGNamespaceViewStoragePrecedence` and `TestPGNamespaceCopyStoragePrecedence`.
@@ -2249,9 +2460,13 @@ UTF8/C facts, owner and stored database ACL publication, ordinary-role visibilit
 search-path shadowing, complete diagnostics and native-only attachment/control
 lifetime boundaries. The initial NULL ACL means owner CREATE/TEMPORARY/CONNECT
 and PUBLIC TEMPORARY/CONNECT; explicit empty and existing explicit policies remain
-distinct. Unavailable native template/admission metadata/limit/horizon/placement
-properties are typed NULL, not copied PostgreSQL physical values. Physical oracle
-XIDs and generated database OIDs are checked by carrier and identity relationships,
+distinct. Unavailable native template/admission metadata/limit, MultiXact horizon
+and placement properties are typed NULL, not copied PostgreSQL physical values.
+`datfrozenxid` instead carries a real logical XID horizon. Controls validate its
+unsigned32-bit raw carrier/range independently at each boundary, without pinning
+allocator3, while keeping all other17 cells and full18-column metadata exact.
+Retained rows also preserve their independently validated original horizon.
+Physical oracle XIDs and generated database OIDs use identity relationships,
 not allocator goldens.
 Unconstrained TEXT columns expose `ColumnType.Length()=(math.MaxInt64,true)` on
 both native and pq adapters, including empty and NULL-only results. The other

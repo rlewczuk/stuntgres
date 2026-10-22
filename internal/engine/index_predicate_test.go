@@ -544,7 +544,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.catalog.state, map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): destination}, snapshot)
+	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.catalog.state, map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): destination}, snapshot, true)
 	if err != nil || rows != 105 || versions != 205 {
 		t.Fatal(rows, versions, err)
 	}

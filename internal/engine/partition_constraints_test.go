@@ -963,7 +963,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, _, _, err := e.prepareRemintedStorage(context.Background(), e.catalog.state, copiedStorage(), snapshot)
+	roots, _, _, err := e.prepareRemintedStorage(context.Background(), e.catalog.state, copiedStorage(), snapshot, true)
 	if err != nil {
 		t.Fatal("representable nested incomplete topology rejected", err)
 	}
@@ -995,7 +995,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 				definition.Live = false
 			}
 			next.SetDescriptor(address, &copy)
-			if _, _, _, err := e.prepareRemintedStorage(context.Background(), &next, copiedStorage(), snapshot); err == nil {
+			if _, _, _, err := e.prepareRemintedStorage(context.Background(), &next, copiedStorage(), snapshot, true); err == nil {
 				t.Fatal("unrepresentable publication state imported", flag)
 			}
 			indexMaintenanceUnchanged(t, e, before)

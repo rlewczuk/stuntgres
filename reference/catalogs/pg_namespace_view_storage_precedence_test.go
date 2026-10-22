@@ -36,17 +36,9 @@ func TestReferencePGNamespaceViewStoragePrecedence(t *testing.T) {
 		physical := func(view string) {
 			for _, prepared := range []bool{false, true} {
 				query := "SELECT v FROM " + name + "." + view
-				if b.PG {
-					// Keep the independent small foreign-buffer witness, not a
-					// fictitious copy of native physical-storage exclusion.
-					step := fixture.Select(query, []string{"v"}, []string{"INT4"}, nil)
-					step.Prepared = prepared
-					fixture.RunStep(t, p.Ctx, peer, b.Recorder, step)
-				} else {
-					denied := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "cannot access temporary tables of other sessions"})
-					denied.SelectRows, denied.Prepared, denied.ErrorStage = true, prepared, "execute"
-					fixture.RunStep(t, p.Ctx, peer, b.Recorder, denied)
-				}
+				denied := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "cannot access temporary tables of other sessions"})
+				denied.SelectRows, denied.Prepared, denied.ErrorStage = true, prepared, "execute"
+				fixture.RunStep(t, p.Ctx, peer, b.Recorder, denied)
 			}
 		}
 		// Original bootstrap invoker has source access even while the definer

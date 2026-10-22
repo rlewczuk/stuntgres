@@ -90,6 +90,25 @@ standard library. It never imports the root engine. Layering is in
   `Release` ends only its own handle, and a forged or copied handle can
   neither retain, release nor read (`Data` panics; `Load` returns the raw
   pointer).
+- **VACUUM retention and freezing.** The engine excludes its own canonical
+  maintenance owner and conservatively gates current dead-head retirement on
+  any other same-epoch registered snapshot/builder/writer/live ticket. It
+  rechecks that gate before installation. Detached owned roots survive current
+  compaction independently; old headers, values and end maps are never mutated.
+  Freezing cutoff instead uses next canonical FullXID clamped by actual
+  in-progress assigned FullXIDs. CommitSeq, writer order and low32 XIDs are not
+  interchangeable ordering domains; special low32 values are skipped by the
+  existing canonical allocator. Ticket liveness reads atomics only, not manager
+  metadata under Engine.mu.
+  The same safe cutoff initializes empty relation incarnations: an already
+  assigned older READ COMMITTED publisher may later see and insert into a newly
+  created relation. Ordinary/prepared and rewrite publication additionally
+  retain each real full-width birth in its relation bound; no low32 comparison
+  or read-only-BEGIN inference substitutes for canonical assignment.
+  Database calculation also starts from that cutoff before minimizing installed
+  relation bounds: future peer-created relations must already be protected
+  during a database-only pass. Exhaustion and unknown relation bounds retain
+  no-publication behavior; no repair pass is needed to justify the earlier seed.
 - **Runtime-named lock observations.** Before the first data capture, the
   engine checks the outer analyzed dependencies and executable stored-view
   source manifests recursively for the installed pgrowlocks provider.
@@ -148,6 +167,8 @@ Package seam tests:
 
 ```sh
 make check RACE=1 RUN='^Test(Registry|NextFullXID|LiveVersion|SafeSnapshot|View|SerializableGraph|SerializablePrecommit)'
+make check RUN='^TestVacuum(SnapshotSafety|FreezeProvenance|ImportHorizons)$'
+make check RUN='^TestVacuum(SnapshotSafety|PublicationFences)$' RACE=1
 make check RUN='^TestWriteSetMerges'
 ```
 

@@ -51,6 +51,8 @@ type Engine struct {
 	roles             roleStore
 	importTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
 	foreign           fdw.Registry
+	databaseFrozenXID uint64
+	vacuumProgress    map[ids.TxRef]vacuumProgress // Engine.mu; only actual work.
 }
 type Result struct {
 	CommandTag string
@@ -93,6 +95,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	e.mu.Unlock()
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.domain, &e.roles.aclAuthority
 	e.visibility = visibility.NewRegistry(trackCommitTimestamp)
+	e.databaseFrozenXID = 3
 	e.locks = lock.New(e.catalog.Domain)
 	e.mu.Lock()
 	e.storage.ReplaceSequencesLocked(make(map[ids.ObjectAddress]*storage.SequenceGenerator))
@@ -265,7 +268,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil
-	case *parser.CreateTablespace, *parser.Load:
+	case *parser.CreateTablespace, *parser.Load, *parser.Vacuum:
 		return StatementDescription{}, nil
 	case *parser.Truncate:
 		return StatementDescription{}, nil
@@ -479,9 +482,6 @@ func resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, uti
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
 	}
-	relname := name.Parts[len(name.Parts)-1].Text
-	var a ids.ObjectAddress
-	var ok bool
 	if utility && len(name.Parts) == 2 {
 		ns := auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
@@ -500,6 +500,16 @@ func resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, uti
 		}
 		return ids.ObjectRef{}, err
 	}
+	return resolveRelationPathSnapshot(auth, name, path)
+}
+
+// Namespace authority is decided by the caller's lookup policy. Object lookup,
+// diagnostics and own-TEMP admission remain identical for ordinary and VACUUM
+// consumers; maintenance never changes the data-access policy.
+func resolveRelationPathSnapshot(auth AuthorizationView, name parser.ObjectName, path analyze.NamespaceSelection) (ids.ObjectRef, error) {
+	relname := name.Parts[len(name.Parts)-1].Text
+	var a ids.ObjectAddress
+	var ok bool
 	for i := range path.Count() {
 		a = auth.definitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: path.At(i), Name: relname})
 		ok = a != (ids.ObjectAddress{})

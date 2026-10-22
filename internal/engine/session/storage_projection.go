@@ -160,7 +160,7 @@ func ProjectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 	if err != nil {
 		return shape, nil, nil, err
 	}
-	shape.Replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
+	shape.Replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1, Maintenance: store.Maintenance}
 	shape.Truncated = false
 	writes, err = projection.Versions(ctx, writes)
 	if err != nil {

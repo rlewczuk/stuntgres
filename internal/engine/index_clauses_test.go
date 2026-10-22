@@ -348,7 +348,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, rows, versions, err := e.prepareRemintedStorage(ctx, catalog, map[ids.ObjectAddress]*storage.Relation{parent.Address(): destination}, snapshot)
+	roots, rows, versions, err := e.prepareRemintedStorage(ctx, catalog, map[ids.ObjectAddress]*storage.Relation{parent.Address(): destination}, snapshot, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,7 +360,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, _, _, err := e.prepareRemintedStorage(canceled, catalog, map[ids.ObjectAddress]*storage.Relation{parent.Address(): destination}, snapshot); !errors.Is(err, context.Canceled) {
+	if _, _, _, err := e.prepareRemintedStorage(canceled, catalog, map[ids.ObjectAddress]*storage.Relation{parent.Address(): destination}, snapshot, true); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.storage.RowFrontier() != 100 || e.storage.VersionFrontier() != 200 {

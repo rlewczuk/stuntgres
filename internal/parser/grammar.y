@@ -194,6 +194,10 @@ package parser
  alterFamily *AlterOperatorFamily
  createClass *CreateOperatorClass
  alterClass *AlterOperatorClass
+ vacuumOptions []VacuumOption
+ vacuumOption VacuumOption
+ vacuumTargets []VacuumTarget
+ vacuumTarget VacuumTarget
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -290,6 +294,7 @@ package parser
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
 %token <tok> ROLE_PASSWORD ROLE_CONNECTION ROLE_VALID ROLE_ENCRYPTED ROLE_UNENCRYPTED
 %token <tok> INDEX REINDEX
+%token <tok> VACUUM FREEZE VERBOSE ANALYZE
 %token <tok> CONCURRENTLY
 %token <tok> INCLUDE TABLESPACE
 %token <tok> EXCLUDE
@@ -298,7 +303,7 @@ package parser
 %token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
-%nonassoc INTO KW_R UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
+%nonassoc INTO KW_R ANALYZE UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
 /* Predicate continuations reduce a completed cast type before consuming IS,
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
@@ -341,7 +346,7 @@ package parser
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE likewise retains KW_U's contextual identifier/type-tail precedence. */
 /* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
 /* These words previously used KW_U. Preserve its type-tail and COPY-WITH
  * decisions rather than adding implicit zero-precedence conflicts. */
 %nonassoc RETURN_BODY ATOMIC_BODY
@@ -353,7 +358,7 @@ package parser
 %nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC CURRENT_DATETIME_FUNC CURRENT_DATETIME_KEYWORD_FUNC
 %nonassoc STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD
 %nonassoc '('
-%nonassoc KW_T CROSS INNER JOIN NATURAL LEFT RIGHT FULL OUTER LIKE ILIKE WITH WITHOUT
+%nonassoc KW_T FREEZE VERBOSE CROSS INNER JOIN NATURAL LEFT RIGHT FULL OUTER LIKE ILIKE WITH WITHOUT
 %nonassoc '='
 %left COLLATE
 %left TYPECAST
@@ -531,6 +536,13 @@ package parser
 %type <indexOption> maintenance_index_option reindex_option
 %type <tok> index_option_name reindex_kind maintenance_concurrent
 %type <indexValue> maintenance_index_option_value
+%type <stmt> vacuum
+%type <vacuumOptions> vacuum_options vacuum_option_list vacuum_legacy
+%type <vacuumOption> vacuum_option
+%type <vacuumTargets> vacuum_targets vacuum_target_list
+%type <vacuumTarget> vacuum_target
+%type <tok> vacuum_full vacuum_freeze vacuum_verbose vacuum_analyze
+%type <desc> vacuum_star
 %type <identifiers> view_columns view_names
 %type <viewOptions> view_options view_option_list view_check_option
 %type <viewOption> view_option
@@ -586,6 +598,7 @@ package parser
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
 %type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
+%type <tok> generic_statement_word generic_word_base_without_vacuum
 %type <tok> predicate_suffix where_predicate_suffix
 %type <tok> role_selection_target role_selection_assignment
 %type <tok> cast_function
@@ -788,6 +801,7 @@ accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqll
 statement: nontransaction_statement | transaction_control ;
 nontransaction_statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment
  | with_mutation
+ | vacuum
  | truncate_table
  | alter_default_privileges
  | alter_owner | reassign_owned | drop_owned
@@ -812,7 +826,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | create_rule | alter_rule | drop_rule
  | alter_composite | drop_composite | alter_table_of
  | foreign_statement
- | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
+ | generic_statement_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | notify | listen | unlisten | load
  | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -1608,6 +1622,22 @@ reindex_option: col_label {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.po
  | col_label maintenance_index_option_value {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2,HasValue:true}} ;
 reindex_kind: name | TABLE ;
 reindex: REINDEX reindex_options reindex_kind maintenance_concurrent relation_name {if $3.text!="index"&&$3.text!="table"&&$3.text!="schema"&&$3.text!="database"&&$3.text!="system"{sqllex.(*lexer).syntax($3);return 1};$$=&Reindex{Name:$5,Kind:Identifier{Text:$3.text,Pos:$3.pos},Options:$2,Concurrent:$4.pos,Pos:$1.pos}} ;
+
+vacuum: VACUUM vacuum_options vacuum_targets {$$=&Vacuum{Options:$2,Targets:$3,Pos:$1.pos}} ;
+vacuum_options: '(' vacuum_option_list ')' {$$=$2} | vacuum_legacy ;
+vacuum_option_list: vacuum_option {$$=[]VacuumOption{$1}} | vacuum_option_list ',' vacuum_option {$$=append($1,$3)} ;
+vacuum_option: col_label {$$=VacuumOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
+ | col_label maintenance_index_option_value {$$=VacuumOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2,HasValue:true}} ;
+vacuum_legacy: vacuum_full vacuum_freeze vacuum_verbose vacuum_analyze {$$=nil;for _,t:=range []lexeme{$1,$2,$3,$4} {if t.pos.Character!=0 {$$=append($$,VacuumOption{Name:Identifier{Text:t.text,Pos:t.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:t.pos}})}}} ;
+vacuum_full: /* empty */ {$$=lexeme{}} | FULL ;
+vacuum_freeze: /* empty */ {$$=lexeme{}} | FREEZE ;
+vacuum_verbose: /* empty */ {$$=lexeme{}} | VERBOSE ;
+vacuum_analyze: /* empty */ {$$=lexeme{}} | ANALYZE ;
+vacuum_targets: /* empty */ {$$=nil} | vacuum_target_list ;
+vacuum_target_list: vacuum_target {$$=[]VacuumTarget{$1}} | vacuum_target_list ',' vacuum_target {$$=append($1,$3)} ;
+vacuum_target: relation_name vacuum_star view_columns {$$=VacuumTarget{Name:$1,Star:$2,Columns:$3}}
+ | ONLY relation_name vacuum_star view_columns {$$=VacuumTarget{Name:$2,Only:true,Star:$3,Columns:$4}} ;
+vacuum_star: /* empty */ {$$=false} | '*' {$$=true} ;
 
 index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos} }
  | CREATE INDEX name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Pos:$1.pos} }
@@ -2862,6 +2892,7 @@ setting_word: setting_word_without_between | BETWEEN ;
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
 non_between_name: window_name | PARTITION | FRAME_UNIT | MATCH | PERIOD ;
 window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD
+ | VACUUM
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
@@ -2882,6 +2913,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | SQLJSON_PARSE
  | CONVERSION
  | RECURSIVE
+ | VACUUM
  | routine_name_word
  | grant_external_name_word
  | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | BIT_TYPE | VARYING_TYPE
@@ -2898,6 +2930,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
+ | FREEZE | VERBOSE
  | SIMILAR
  | COLLATION
  | EXCLUDE
@@ -2908,10 +2941,16 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | GROUPING | SETS | ROLLUP | CUBE ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
-generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
+/* Bare VACUUM is a complete native command, not an unsupported one-word
+ * statement. Preserve its generic-word use in other syntax without letting
+ * that fallback compete with the empty legacy VACUUM option prefix. */
+generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
+generic_word_base: generic_word_base_without_vacuum | VACUUM ;
+generic_word_base_without_vacuum: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | CONVERSION
  | RECURSIVE
+ | FREEZE | VERBOSE | ANALYZE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | routine_name_word
  | grant_external_name_word
@@ -2942,6 +2981,9 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | COLLATION { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
+ | FREEZE {if !$1.keyword.label(){sqllex.(*lexer).syntax($1);return 1};$$=$1}
+ | VERBOSE {if !$1.keyword.label(){sqllex.(*lexer).syntax($1);return 1};$$=$1}
+ | ANALYZE {if !$1.keyword.label(){sqllex.(*lexer).syntax($1);return 1};$$=$1}
  | UNIQUE { if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | PRIMARY {$$=$1}
  | FOREIGN | REFERENCES | INITIALLY
@@ -2954,6 +2996,7 @@ bare_label: non_between_name { if $1.keyword!=nil && $1.text=="filter" {$$=$1} e
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
 col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
  | SIMILAR
+ | FREEZE | VERBOSE | ANALYZE
  | FOREIGN | REFERENCES | INITIALLY
  | LATERAL
  | UNION | INTERSECT | EXCEPT | OVERLAPS | WINDOW | DO | GRANT | PRIMARY | COLLATION ;
