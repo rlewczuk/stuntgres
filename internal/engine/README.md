@@ -617,6 +617,78 @@ Run `make check RUN='^TestNodeRuntimePrologue$'` for the prologue seam; public
 evaluation proof is the existing query, CTE, RETURNING, MERGE, window,
 grouping, domain and generated-column reference selections.
 
+### Advisory timer scheduling and shared result waits
+
+`TestAdvisorySessionQueueTimersDeadlock` keeps its queue, cycle, caller-cancel
+and detached-owner assertions. Its `current_lock_timer` and
+`current_statement_timer` subtests each run `boundary` and `delayed_consumer`
+schedules inside `testing/synctest`. These use actual `context.WithDeadline`,
+`context.AfterFunc` and manager lock timers, not manual expiration or a second
+timer authority. The original70ms/1s budgets are unchanged. The exact request
+and provenance must be queued before virtual time advances; after69ms and
+`synctest.Wait` it is incomplete with no grant, and at70ms the earlier timer
+must complete. The delayed consumer handshakes before blocking on a release
+channel, consumes only at1100ms (after both nominal deadlines), and is joined
+on success and failure paths. This proves delayed consumption, not delayed
+callback delivery or wall-clock performance.
+
+Full location-free ERROR55P03 `canceling statement due to lock timeout` versus
+ERROR57014 `canceling statement due to statement timeout` remains exact,
+including empty Position and unrelated fields. Timeout leaves no failed-key
+grant, pending request or target journal entry; the blocker and independent
+prior session hold survive. After blocker release the SAME owner acquires and
+unlocks once, without losing its prior hold. Ordinary cancellation stays an
+ordinary context error. The unchanged lock-package
+`TestAdvisoryExpiredSourceWinsDelayedCallback` separately holds the actual
+manager mutex across a70ms source deadline and proves delayed callback safety;
+`TestRelationLockWaitsDelayedDeadlines` supplies modeled both-due arbitration.
+
+The test-only `deadlockResult` awaits authoritative Done, never Terminal alone,
+and reads Err only after Done. It checks completion before allocating its
+single stopped one-second failure guard and rechecks completion when that
+guard wins. A genuinely unfinished request still fails; the deadline is never
+refreshed. `TestDeadlockResultScheduling` deterministically checks guard
+resolution for closed/open completion, completion-first behavior without
+consuming an already-ready guard, a blocked waiter/release/join handshake, nil
+requests and exact stored error identity for actual grants, cancellation and
+timeout. The completed guard-resolution regression was observed failing before
+the repair; it does not rely on randomly selecting between ready channels.
+
+All fourteen original top-level consumers were audited and retained: the three
+session advisory queue/cohort/soft-cycle tests, advisory transaction terminal
+races, three blocking-PID tests, enum deadlock retirement, three pg_locks tests
+and three relation deadlock tests. Their caller bodies remain unchanged except
+for the advisory timer cases above. Exact40P01 victim/survivor diagnostics,
+retained counts, blocker identity, owned snapshots and lifecycle cleanup remain
+obligations, not merely successful waits.
+
+```sh
+C='^Test(AdvisorySession(CompatibleCohortTerminalOrder|PhysicalSoftCycle|QueueTimersDeadlock)|AdvisoryXactTerminalRaces|BlockingPids(AdvisorySafeSnapshot|BindingAndIdentity|OrdinaryAuthority)|EnumTypeDeadlockRetirement|PGLocks(TransactionLifetime|WaitDependencies|SnapshotOwnership)|RelationDeadlock(LifecycleCanceledPredecessor|HardCycles|SoftQueues)|DeadlockResultScheduling|AdvisoryExpiredSourceWinsDelayedCallback|RelationLockWaitsDelayedDeadlines)$'
+make check RACE=1 RUN='^TestAdvisorySessionQueueTimersDeadlock$'
+make check RUN="$C"
+make check RACE=1 RUN="$C"
+```
+
+Root's2026-10-22 selected proof passed the target race run and both C modes,
+then C race under exactly two cancellable, ready-handshaken integer contenders.
+The contention run exited0 in26.06s including launcher overhead and reported
+workers2/ready2/joined2, Go1.27.1 and GOMAXPROCS32. The temporary wrapper used one
+840s cooperative deadline, child process-group termination/reaping and joined
+workers under an unchanged outer900s deadline. It did not change affinity,
+GOMAXPROCS or suite concurrency. For the archived source setup and actual
+public wall-clock smoke, see the
+[advisory runtime proof](../../reference/locking_transactions/README.md#advisory-timer-runtime-proof-and-standalone-smoke);
+with that SESSION and C above, the contention command was:
+
+```sh
+timeout --signal=KILL 900s go run "$SESSION/advisory-contention-main.go" -workers 2 -deadline 840s -- make check RACE=1 RUN="$C"
+```
+
+Use external900s deadlines for selected checks. This is bounded competing-work
+evidence, not saturation or arbitrary-load tolerance. The historical finalcheck
+guard failure does not identify whether callback delivery, notification or
+ready-channel selection was delayed; no production timer defect is claimed.
+
 ### Relation lock timeout mechanics
 
 Relation-lock timeout units observe completion and lock state together in short

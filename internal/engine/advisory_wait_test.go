@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -114,33 +115,112 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 	})
 	for _, statementFirst := range []bool{false, true} {
 		t.Run(map[bool]string{false: "current lock timer", true: "current statement timer"}[statementFirst], func(t *testing.T) {
-			e := New()
-			a, ra := advisoryUnitOwner(t, e)
-			b, rb := advisoryUnitOwner(t, e)
-			key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 4}
-			advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
-			policy := lock.Policy{Provenance: rb, Timeout: 70 * time.Millisecond, StatementDeadline: time.Now().Add(time.Second)}
-			code, message := "55P03", "canceling statement due to lock timeout"
-			if statementFirst {
-				policy.Timeout = time.Second
-				policy.StatementDeadline = time.Now().Add(70 * time.Millisecond)
-				code, message = "57014", "canceling statement due to statement timeout"
-			}
-			// Statement expiration is delivered by the admitted command's
-			// context; the canonical manager itself schedules only lock_timeout.
-			clock, cancel := context.WithDeadline(context.Background(), policy.StatementDeadline)
-			t.Cleanup(cancel)
-			policy.Source = context.Background()
-			r, err := e.locks.StartAcquire(clock, b.Advisory.Ticket, key, lock.AdvisoryExclusive, policy)
-			if err == nil {
-				if r == nil {
-					t.Fatal("blocked request absent")
-				}
-				err = deadlockResult(t, r)
-			}
-			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != code || diagnostic.Message != message || diagnostic.Position != "" || advisoryUnitHold(b, key) != (lock.Hold{}) {
-				t.Fatal("current timer provenance", err)
+			for _, delayed := range []bool{false, true} {
+				t.Run(map[bool]string{false: "boundary", true: "delayed_consumer"}[delayed], func(t *testing.T) {
+					synctest.Test(t, func(t *testing.T) {
+						e := New()
+						a, ra := advisoryUnitOwner(t, e)
+						b, rb := advisoryUnitOwner(t, e)
+						key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 4}
+						prior := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 98}
+						advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
+						advisoryUnitGrant(t, b, rb, prior, lock.AdvisoryExclusive)
+						blockerHold, priorHold := advisoryUnitHold(a, key), advisoryUnitHold(b, prior)
+						policy := lock.Policy{Provenance: rb, Timeout: 70 * time.Millisecond, StatementDeadline: time.Now().Add(time.Second), Source: context.Background()}
+						code, message := "55P03", "canceling statement due to lock timeout"
+						if statementFirst {
+							policy.Timeout = time.Second
+							policy.StatementDeadline = time.Now().Add(70 * time.Millisecond)
+							code, message = "57014", "canceling statement due to statement timeout"
+						}
+						// These are actual context and manager timer callbacks,
+						// with the original budgets and one controlled clock.
+						clock, cancel := context.WithDeadline(context.Background(), policy.StatementDeadline)
+						defer cancel()
+						r, err := e.locks.StartAcquire(clock, b.Advisory.Ticket, key, lock.AdvisoryExclusive, policy)
+						if err != nil || r == nil {
+							t.Fatal("blocked request absent", r, err)
+						}
+						state := e.locks.Inspect(b.Advisory.Ticket)
+						if queue := state.Resources[key].Pending; len(queue) != 1 || queue[0].Request != r || queue[0].Provenance != rb {
+							t.Fatal("exact timed request not queued", queue)
+						}
+						ready, release, joined := make(chan struct{}), make(chan struct{}), make(chan struct{})
+						result := make(chan error, 1)
+						worker, stopWorker := context.WithCancel(context.Background())
+						if delayed {
+							go func() {
+								defer close(joined)
+								close(ready)
+								select {
+								case <-release:
+									result <- deadlockResult(t, r)
+								case <-worker.Done():
+								}
+							}()
+							defer func() {
+								stopWorker()
+								guard := time.NewTimer(time.Second)
+								defer guard.Stop()
+								select {
+								case <-joined:
+								case <-guard.C:
+									t.Error("delayed consumer did not join")
+								}
+							}()
+							<-ready
+						} else {
+							defer stopWorker()
+						}
+						time.Sleep(69 * time.Millisecond)
+						synctest.Wait()
+						select {
+						case <-r.Done():
+							t.Fatal("timer completed before earlier deadline")
+						default:
+						}
+						if advisoryUnitHold(b, key) != (lock.Hold{}) {
+							t.Fatal("pending timer acquired target")
+						}
+						time.Sleep(time.Millisecond)
+						synctest.Wait()
+						select {
+						case <-r.Done():
+						default:
+							t.Fatal("actual earlier timer did not complete")
+						}
+						if delayed {
+							time.Sleep(1030 * time.Millisecond)
+							synctest.Wait()
+							close(release)
+							<-joined
+							select {
+							case err = <-result:
+							default:
+								t.Fatal("delayed consumer returned no outcome")
+							}
+						} else {
+							err = deadlockResult(t, r)
+						}
+						var diagnostic *sqlstate.Error
+						want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
+						if !errors.As(err, &diagnostic) || *diagnostic != want {
+							t.Fatal("current timer provenance", err)
+						}
+						state = e.locks.Inspect(b.Advisory.Ticket)
+						_, journaled := state.Journals[b.Advisory.Ticket][key]
+						if advisoryUnitHold(b, key) != (lock.Hold{}) || len(state.Resources[key].Pending) != 0 || journaled || advisoryUnitHold(a, key) != blockerHold || advisoryUnitHold(b, prior) != priorHold {
+							t.Fatal("timeout leaked request or changed prior grants", state)
+						}
+						advisoryUnitUnlock(t, a, key, lock.AdvisoryExclusive, true)
+						advisoryUnitGrant(t, b, rb, key, lock.AdvisoryExclusive)
+						advisoryUnitUnlock(t, b, key, lock.AdvisoryExclusive, true)
+						if advisoryUnitHold(b, key) != (lock.Hold{}) || advisoryUnitHold(b, prior) != priorHold {
+							t.Fatal("same owner recovery leaked count or erased prior")
+						}
+						advisoryUnitUnlock(t, b, prior, lock.AdvisoryExclusive, true)
+					})
+				})
 			}
 		})
 	}

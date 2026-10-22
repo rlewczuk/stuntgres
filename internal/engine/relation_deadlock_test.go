@@ -28,12 +28,35 @@ func deadlockResult(t *testing.T, r *lock.Request) error {
 	if r == nil {
 		return nil
 	}
-	select {
-	case <-r.Done():
+	if deadlockGuardCompleted(r.Done()) {
 		return r.Err()
-	case <-time.After(time.Second):
+	}
+	guard := time.NewTimer(time.Second)
+	defer guard.Stop()
+	if !deadlockAwait(r.Done(), guard.C) {
 		t.Fatal("request did not terminate before failure guard")
-		return nil
+	}
+	return r.Err()
+}
+
+func deadlockAwait(done <-chan struct{}, guard <-chan time.Time) bool {
+	if deadlockGuardCompleted(done) {
+		return true
+	}
+	select {
+	case <-done:
+		return true
+	case <-guard:
+		return deadlockGuardCompleted(done)
+	}
+}
+
+func deadlockGuardCompleted(done <-chan struct{}) bool {
+	select {
+	case <-done:
+		return true
+	default:
+		return false
 	}
 }
 func deadlockDiagnostic(t *testing.T, err error, tickets []*lock.Ticket, resources []lock.Resource) {

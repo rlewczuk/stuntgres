@@ -587,6 +587,80 @@ through actual controls. Private ownership/graph/binding/parser tests supplement
 not replace, the identical public contract. Finalcheck runs only after merge
 under one1800second deadline.
 
+#### Advisory timer runtime proof and standalone smoke
+
+`TestReferenceAdvisorySessionCancelTimeout` remains unchanged: bigint and pair
+overloads, direct and SAME-held prepared routes, real wall-clock40ms/2s timeout
+inversions and equal configured40ms budgets retain exact55P03/57014 English
+diagnostics and empty Position. It checks25P02, rollback/disarming, prior key98,
+no acquired count on failure, ordinary native caller cancellation/deadline and
+SAME-owner recovery. PostgreSQL cancellation requires actual admitted work and
+exact57014 `canceling statement due to user request`, not native context-error
+parity. Controlled private70ms/1s schedules and the complete fourteen-consumer
+audit are documented in the
+[engine Testing section](../../internal/engine/README.md#advisory-timer-scheduling-and-shared-result-waits).
+
+The2026-10-22 load-resilience proof consumed the completed ordered-set and
+timestamp repairs unchanged, rather than duplicating their implementation.
+The SAME three public definitions passed native, pinned PostgreSQL18.6,
+native race and pinned race selections:
+
+```sh
+P='^(TestReferenceOrderedSetAggregateActiveCancellation|TestReferenceTimestampDiagnosticsAndAtomicity|TestReferenceAdvisorySessionCancelTimeout)$'
+make check REFERENCE=1 RUN="$P"
+make check RUN="$P"
+make check RACE=1 RUN="$P"
+make check REFERENCE=1 RACE=1 RUN="$P"
+make check RACE=1 RUN='^TestOrderedSetWorkerSorting$'
+```
+
+Ordered-set proof retains direct/prepared real relevant sort admission,
+nil canceled output, ordinary native cancellation versus complete PostgreSQL
+user-request diagnostics, source count64 and SAME-held FLOAT8 median4.5
+recovery. Timestamp retains the full bad-input corpus, all direct/prepared/
+parameter/empty-table routes, exact Unicode positions and portal Context, and
+epoch-only state after failed writes; fixtures belong to each input and
+assertions to each backend child. Their owning sources and documentation were
+not changed by the advisory repair.
+
+A throwaway public consumer additionally exercised bigint/pair × direct/
+SAME-held QueryContext routes through one Driver and exact opaque DSN, with
+separate pinned holder, waiter and observer connections. It asserted actual
+40ms/2s lock/statement timeouts, complete public diagnostics and nil error
+Rows,25P02 then rollback, surviving prior key98, SAME-held recovery, exactly
+one decrement and no leaked count. For actual ordinary cancellation it derived
+truthful native physical identity from each TEMP namespace, observed the exact
+key/space/waiter PID/ExclusiveLock/ungranted/non-null waitstart in public
+pg_locks, and checked the holder in pg_blocking_pids before canceling.
+Admission used one absolute30s scenario context and a reused5ms
+context-aware miss timer, with immediate worker-completion/cancellation exits,
+authoritative outcome recheck at deadline and cancellation/join before handle
+cleanup. Worker start, elapsed sleep and precancel were not admission evidence.
+
+The archived sources are OMP session evidence, not installed repository tools.
+Root ran these argv from the assigned worktree with this actual source path:
+
+```sh
+SESSION='/home/rlew/.omp/agent/sessions/-projects-stuntgres-stuntgres/2026-10-22T13-10-35-761Z_01a163bc-1ff1-72aa-968d-6eb4906963a2/local'
+timeout --signal=KILL 900s go run "$SESSION/advisory-timer-smoke-main.go" -deadline 30s
+timeout --signal=KILL 900s go run -race "$SESSION/advisory-timer-smoke-main.go" -deadline 30s
+timeout --signal=KILL 900s go run "$SESSION/advisory-contention-main.go" -workers 2 -deadline 840s -- go run -race "$SESSION/advisory-timer-smoke-main.go" -deadline 30s
+timeout --signal=KILL 900s go run "$SESSION/advisory-contention-main.go" -workers 2 -deadline 840s -- make check RACE=1 RUN="$P"
+```
+
+All four exited0: public smoke ordinary2.86s, race6.39s, contended race6.99s;
+P race under contention34.96s (launcher-inclusive wall times). Smoke reported
+the checked timeout/cancellation/prior-hold/recovery/count outcomes, joined
+workers and closed handles. The two contended runs each reported exactly
+workers2/ready2/joined2, Go1.27.1/GOMAXPROCS32; the wrapper preserved child exit
+status, canceled its bounded integer workers and reaped its child process
+group under one840s cooperative deadline inside the outer900s deadline.
+No repository scaffold or production hook was added. These finite competing
+schedules are not arbitrary-load guarantees or proof of historical starvation.
+Native standalone smoke does not claim PostgreSQL observations; the pinned
+shared definitions provide those. Selected proof does not replace whole-project
+quickcheck before review or postmerge finalcheck.
+
 ### Transaction advisory lock reference contract
 
 The four transaction advisory functions support bigint and integer-pair overloads,
