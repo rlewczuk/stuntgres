@@ -156,6 +156,41 @@ integration. Receive/send catalog identities do not grant executable codecs.
 See [polygon values](TYPES.md#polygon) and
 [reference proof](../reference/types/README.md#polygon-scalar-contract).
 
+## Partition navigation
+
+The sole signatures are `pg_partition_tree(regclass) -> setof record`,
+`pg_partition_ancestors(regclass) -> setof regclass`, and
+`pg_partition_root(regclass) -> regclass`. Tree fields are exactly `relid
+REGCLASS`, `parentrelid REGCLASS`, `isleaf BOOL`, and `level INT4`; ancestors'
+FROM output is named `relid`. Tree accepts `rootrelid` and ancestors accepts
+`partitionid` as named arguments; root has no named formal. Ordinary REGCLASS
+coercion includes explicit TEXT names, without an alternate relation resolver.
+
+Trees include the input, reset levels to zero at that input, and retain its
+actual immediate parent. Only a genuine hierarchy root has a NULL parent.
+Leaf status follows relation kind, so a childless partitioned table or index is
+not a leaf. Ancestors include self; root follows parents to the true root.
+Index ancestry uses actual attached-index edges, not the indexed table edge.
+Existing UNIQUE/PRIMARY and manual UNIQUE ONLY/ATTACH indexes supply these
+hierarchies, including incomplete partitioned indexes.
+
+Ordinary standalone tables/indexes, ordinary inheritance, views, materialized
+views, sequences and missing numeric OIDs yield empty tree/ancestors and NULL
+root. SQL NULL retains typed empty sets or a typed scalar NULL. Missing textual
+names instead fail ordinary REGCLASS input. No SRF traversal order is promised.
+No table SELECT privilege is required; ordinary function EXECUTE authority
+applies. Pinned PostgreSQL 18.6 eliminates scalar root NULL before EXECUTE
+admission (constant and parameterized, direct and held), but not SRF NULL calls.
+
+Each execution uses its retained catalog generation, including transactional
+attachments and savepoint rollback. Held statements do not cache topology;
+already opened native results retain their captured values. Detaching a
+partitioned subtree creates a new root; detaching a physical leaf makes that
+leaf ineligible. Logical Dump/Restore preserves actual table/index edges and
+symbolic stored inquiries, not serialized function results. This does not
+extend partition DDL or add nonunique partitioned indexes or physical storage.
+See [selected proof and smoke](../reference/catalogs/README.md#partition-navigation).
+
 ## Tablespace inquiries
 
 The sole signatures are `pg_tablespace_location(oid) -> text` and
@@ -943,7 +978,7 @@ It works on represented ordinary/partitioned tables, indexes and materialized
 views without demanding storage for a partitioned parent; it never moves children
 or table indexes. Supported mixed actions use existing atomic staged ALTER;
 mixed partition hierarchy alterations retain their existing 0A000 boundary.
-Partitioned-index creation remains unsupported, not a new ALTER prerequisite.
+Nonunique partitioned-index creation remains unsupported, not a new ALTER prerequisite.
 Action-kind and original-column TYPE preparation follow written action order,
 including destination lookup/CREATE before duplicate-action detection and the
 database-default CREATE exemption. Nonshared pg_global assignment fails 22023

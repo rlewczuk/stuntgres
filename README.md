@@ -184,6 +184,18 @@ non-engine boundary, not an invented path or cluster database inventory.
 See [native limits](docs/DIALECT.md#tablespace-inquiries) and
 [selected proof](reference/catalogs/README.md#tablespace-inquiry-selected-proof).
 
+## Partition navigation — change note
+
+`pg_partition_tree(regclass)`, `pg_partition_ancestors(regclass)` and
+`pg_partition_root(regclass)` navigate the captured table or attached-index
+hierarchy through the ordinary typed SQL path. Subtrees retain their actual
+immediate parent while resetting levels; childless partitioned objects are not
+leaves. Held statements see fresh attachment/detachment state, and logical
+Dump/Restore preserves the hierarchy rather than cached inquiry results.
+See [semantics](docs/DIALECT.md#partition-navigation) and
+[selected proof and smoke](reference/catalogs/README.md#partition-navigation).
+
+
 ## Partition pruning and constraint exclusion — change note
 
 Source-local filters conservatively omit irrelevant RANGE/LIST/HASH physical

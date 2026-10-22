@@ -6,6 +6,64 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Partition navigation
+
+`partition_info_*_test.go` independently specifies the sole PostgreSQL 18
+REGCLASS signatures for tree, ancestors and root. Table and UNIQUE index
+fixtures assert levels 0/1/2, actual subtree parents, childless partitioned kind,
+self-inclusive ancestry, true roots, invalid/incomplete index parents and
+unattached local indexes. Nonpartitioned objects, NULL and missing numeric
+identities have separate empty/NULL witnesses. Sets are bags or explicitly
+ordered; dynamic OIDs are not cross-server allocator goldens.
+
+The shared scenarios retain direct/prepared and actual held consumers,
+complete metadata/raw REGCLASS transport, named arguments, typed joins,
+LATERAL/ordinality, LEFT NULL-extension, full diagnostics and Unicode positions.
+Nullability distinguishes native stored-view columns (`true`, known) from
+direct inquiry expressions (unknown); pq reports unknown in both cases. Other
+descriptor and raw-cell expectations remain independently exact.
+The 13 feature tests include `NamedCompetition`, which keeps the builtin's
+declared names eligible alongside visible same-name SQL overloads, and
+`TextParameters`, which uses actual held `$1::text` consumers for all three
+routines across NULL, missing-name errors, recovery, attach and detach.
+Missing TEXT input has no literal position or parameter-decoding Context;
+explicit REGCLASS literals and REGCLASS parameters retain those respective
+diagnostics. Each route asserts its own complete independently pinned fields.
+Held table/index calls refresh after attach/detach and savepoint rollback;
+native opened rows keep their original snapshot. Privilege cases isolate
+routine/route/input shape: pinned18.6 accepts scalar root NULL before EXECUTE,
+while tree/ancestors NULL calls still require EXECUTE. Cancellation checks use
+ordinary native context failures and admitted active shared-query cancellation.
+
+Controls and smoke both run the portable hierarchy/detach assertions. Explicit
+native phases exercise real Dump/Reset/Restore, fresh destination restore,
+failed/canceled restore atomicity and retained rows. In real dual mode the
+PostgreSQL phase replays the actual unedited native-emitted bytes and repeats
+the same restored table/index/data checks; stored views remain symbolic.
+
+```sh
+make check RUN='^TestReferencePartitionInfo(Tree|AncestorsRoot|Indexes|Boundaries|Composition|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferencePartitionInfo(Tree|AncestorsRoot|Indexes|Boundaries|Composition|Diagnostics)$'
+make check RUN='^TestReferencePartitionInfo(Prepared|Privileges|Lifecycle|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePartitionInfo(Prepared|Privileges|Lifecycle|Controls|FeatureSmoke)$'
+make check RUN='^TestReferencePartitionInfo(NamedCompetition|TextParameters)$'
+make check REFERENCE=1 RUN='^TestReferencePartitionInfo(NamedCompetition|TextParameters)$'
+make check RACE=1 RUN='^TestReferencePartitionInfo(Prepared|Privileges|Lifecycle|Controls|TextParameters)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferencePartitionInfo(Prepared|Privileges|Lifecycle|Controls|TextParameters)$'
+make check RUN='^TestPartitionInfo(Binding|Protocol|Traversal|CaptureOwnership|Cancellation|RoutineIdentity)$'
+# Feature smoke: exact nested table/index rows, detach freshness and real replay.
+make check RUN='^TestReferencePartitionInfoFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePartitionInfoFeatureSmoke$'
+```
+
+Expected smoke observations are the full five-object table and index trees,
+subtree level0 with its actual parent, false leaf flags on empty partitioned
+objects, changed roots after intermediate detach, empty/empty/NULL for detached
+physical leaves, and unchanged logical rows `(1,'one')`, `(11,'eleven')` through
+native restoration and PostgreSQL replay. These are proof commands, not claims
+that verification has already run.
+
+
 ### Independently owned pg_attribute shape matrices
 
 `TestReferencePGAttributeShape` owns ten fixtures, created before backend work:

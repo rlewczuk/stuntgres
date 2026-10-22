@@ -1101,7 +1101,8 @@ binding.
 ### Catalog inquiry and session identity
 
 The immutable catalog/session owners live here: CatalogUserName, CatalogForeignKeys,
-TablespaceLocation, TablespaceDatabases, ObjectAddress, NamespaceInquiry,
+TablespaceLocation, TablespaceDatabases, PartitionTree, PartitionAncestors,
+PartitionRoot, ObjectAddress, NamespaceInquiry,
 CurrentSchemas, VisibilityInquiry, IndexProperty, CommentInquiry, Deparse and
 Identity. Function-specific binding,
 validation, properties, child evaluation, strictness, grouping, substitution,
@@ -1115,6 +1116,23 @@ keep their parser predicate, namespace inquiries additionally own spelling, and
 current_schemas, visibility, index, comment and deparse retain exact shared gates.
 `parser.IdentityExpr` uses `BindIdentity`, not ordinary lookup. Keyword identity
 captures `CaptureIdentity`; ordinary-call identity captures `CaptureFunction`.
+
+Partition inquiries own ordinary REGCLASS argument coercion and declaration
+labels (`rootrelid`, `partitionid`, or unnamed root). Tree builds the four-field
+typed RECORD; ancestors exposes its declared `relid` OUT name through the scalar
+source-name protocol. Their complete expression protocols retain symbolic
+render/replay, physical children, capture, source occurrence and snapshot demand.
+Tree/ancestors are VOLATILE; root retains its released IMMUTABLE identity but
+`FoldNever` prevents topology computation into reusable plans. Root's
+`StrictAfter`/`PreflightSimplify` uses the common scalar NULL and source-pruning
+owners; SRFs retain ordinary EXECUTE admission even for NULL. Runtime methods
+borrow only the captured statement catalog through `CatalogInquiryRuntime`.
+Formal REGCLASS input first uses `CaptureTypeInput`, as index-property inquiries
+do, so ordinary TEXT I/O coercions borrow captured catalog input authority.
+The pure `NamedCall` applicability hook and binder share the same one-formal
+label/slot mapping, so unrelated visible SQL overloads cannot hide valid named
+tree/ancestors calls. Root's unnamed formal never accepts either named label.
+
 Folded view literals retain their original typed written-operand pairing.
 The adjacent pg_extension_update_paths binder/provider stays in the engine.
 
@@ -1294,6 +1312,20 @@ without allocating code strings, so two empty/no-letter inputs agree4.
 There is no input-length limit, Unicode normalization or transliteration.
 
 ## Testing
+
+### Partition navigation
+
+Direct helper units exercise record binding, released identities, expression
+reconstruction, real descriptor traversal, distinct table/index ancestry,
+retained ownership and cancellation during traversal/cursor advancement.
+Public SQL assertions live only in the shared dual-mode
+[`reference/catalogs`](../../../reference/catalogs/README.md#partition-navigation)
+scenarios.
+
+```sh
+make check RUN='^TestPartitionInfo(Binding|Protocol|Traversal|CaptureOwnership|Cancellation|RoutineIdentity)$'
+```
+
 
 ### SQL/JSON query protocol
 

@@ -30,21 +30,21 @@ func (h *statementHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) 
 
 // Read only the retained statement root. Comparing its immutable owner does not
 // consult the live catalog frontier, which may already have been replaced.
-func (h *statementHost) tablespaceInquiryCatalog() (catalog.Read, error) {
+func (h *statementHost) catalogInquiryCatalog() (catalog.Read, error) {
 	scope := h.scope()
 	view := scope.inquiry.commentCatalog
 	if view.State() == nil {
-		return catalog.Read{}, fmt.Errorf("stuntgres: missing tablespace inquiry snapshot")
+		return catalog.Read{}, fmt.Errorf("stuntgres: missing catalog inquiry snapshot")
 	}
 	engine := scope.engine()
 	if view.Owner() != engine.catalog.owner() || !scope.inquiry.commentRoles.BelongsTo(&engine.roles.domain) {
-		return catalog.Read{}, fmt.Errorf("stuntgres: foreign tablespace inquiry snapshot")
+		return catalog.Read{}, fmt.Errorf("stuntgres: foreign catalog inquiry snapshot")
 	}
 	return view, nil
 }
 
 func (h *statementHost) TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	view, err := h.tablespaceInquiryCatalog()
+	view, err := h.catalogInquiryCatalog()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -62,7 +62,7 @@ func (h *statementHost) TablespaceLocation(oid uint32, result *sqltype.Descripto
 }
 
 func (h *statementHost) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error) {
-	view, err := h.tablespaceInquiryCatalog()
+	view, err := h.catalogInquiryCatalog()
 	if err != nil {
 		return sqltype.Value{}, false, err
 	}
