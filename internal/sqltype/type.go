@@ -138,6 +138,7 @@ type Descriptor struct {
 	networkBoolean                  *Descriptor
 	geometryPoint                   *Descriptor
 	circleBoolean, circleFloat      *Descriptor
+	pointBoolean, pointFloat        *Descriptor
 	lookupOnly                      bool
 	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
 	namespace                       string
@@ -335,6 +336,9 @@ func Builtins() []*Descriptor {
 		}
 		if d.id == Circle {
 			d.circleBoolean, d.circleFloat = networkBoolean, circleFloat
+		}
+		if d.id == Point {
+			d.pointBoolean, d.pointFloat = networkBoolean, circleFloat
 		}
 	}
 	for _, family := range []struct {
@@ -717,7 +721,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.lineInput(text, env)
 	case Lseg:
 		return d.lsegInput(text)
-	case Box, Point:
+	case Point:
+		return d.pointInput(text)
+	case Box:
 		return d.geometryInput(text, env)
 	case TSVector, TSQuery:
 		return d.ftsInput(ctx, text, env)
@@ -2612,6 +2618,7 @@ type ComparisonPredicate struct {
 	operator ComparisonOperator
 	// Circle's scalar area predicates have no default comparator or hash law.
 	circle CirclePlan
+	point  PointPlan
 }
 
 func (p ComparisonPredicate) SessionDependent() bool { return p.operands.SessionDependent() }
@@ -2656,6 +2663,16 @@ func BindComparisonPredicate(operator ComparisonOperator, left, right, result *D
 	}
 	if err := CheckComparisonOperator(operator, left, right); err != nil {
 		return ComparisonPredicate{}, err
+	}
+	if left.id == Point && right.id == Point {
+		if collation != (CollationRef{}) || indeterminate {
+			return ComparisonPredicate{}, fmt.Errorf("invalid point comparison collation")
+		}
+		provider, err := BindPoint(PointNotEqual, result.Usage(), left.Usage(), right.Usage())
+		if err != nil {
+			return ComparisonPredicate{}, err
+		}
+		return ComparisonPredicate{operands: Comparison{left: left, right: right}, result: result, operator: operator, point: provider}, nil
 	}
 	if left.id == Circle && right.id == Circle {
 		if collation != (CollationRef{}) || indeterminate {
@@ -2715,6 +2732,9 @@ func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value, input Inp
 	}
 	if p.circle.input != nil {
 		return p.circle.Evaluate(ctx, [2]Value{a, b})
+	}
+	if p.point.input != nil {
+		return p.point.Evaluate(ctx, [2]Value{a, b})
 	}
 	if p.operator == CompareEqual || p.operator == CompareNotEqual {
 		equal, err := p.operands.EqualValues(ctx, a, b, input)

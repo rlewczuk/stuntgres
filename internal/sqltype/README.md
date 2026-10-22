@@ -18,6 +18,16 @@ own CHECK/NOT NULL, builtin inventory provenance and associated identities while
 recomputing inherited flags. Catalog namespace, ownership, recipes and atomic
 publication remain with the existing catalog/type staging owners.
 
+POINT retains inline X/Y binary64 bits, with type-set-owned FLOAT8 coordinate
+and BOOL predicate result descriptors. Its optional-parenthesis pair decoder
+shares `geometryScanner.number` with LSEG/CIRCLE, leaving BOX grammar unchanged.
+`PointPlan` owns the eight real strict predicates; LSEG endpoint sameness uses
+the shared `pointSame` kernel, including per-point exact NaN behavior.
+Coordinate fetch and immutable replacement allocate no payload and preserve
+the other coordinate's bits. Fixed-length subscripting retains ordinary NULL,
+range, dimensional and slice precedence. Genuine scalar inequality does not
+grant default equality/order/group/hash/index capabilities.
+
 LSEG reuses the immutable four-coordinate geometry payload and allocation-free
 inline POINT endpoints. Its path decoder preserves endpoint order and shares
 the strtod-prefix scanner with CIRCLE without changing BOX's cube-scanner
@@ -165,6 +175,16 @@ comparisons are not blanket mutable.
 
 
 ## Testing
+POINT scanner, bit-preserving immutable components, predicate kernels,
+descriptor ownership, cancellation and absent default capabilities:
+
+```sh
+make check RUN='^TestPoint(InputOutput|CoordinateBits|Predicates)$'
+```
+
+Public SQL expectations and both-mode proof belong to
+[`reference/types`](../../reference/types/README.md#point-oracle-first-contract).
+
 LSEG codec, ordered bits/replay, scalar predicates, strict NULLs, endpoint
 immutability/inline fetch and default-capability/binary-boundary units:
 

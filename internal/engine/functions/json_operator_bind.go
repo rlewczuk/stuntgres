@@ -171,6 +171,13 @@ func BindJSONBExistence(b Binder, raw parser.OperatorExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
+	return BindJSONBExistenceOperands(b, raw, operands)
+}
+
+// BindJSONBExistenceOperands retains the existing coercion contract after shared
+// spelling dispatch has analyzed each operand once.
+func BindJSONBExistenceOperands(b Binder, raw parser.OperatorExpr, operands [2]Argument) (expr.Expr, error) {
+	var err error
 	left, right := operands[0].Usage.Type, operands[1].Usage.Type
 	visible, err := b.BuiltinOperatorVisible(raw.Name)
 	if err != nil {

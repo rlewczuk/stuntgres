@@ -14,6 +14,17 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## POINT coordinates and predicates — change note
+
+Builtin `point` accepts `(x,y)` and `x,y`, preserves binary64 coordinates and
+displays `(x,y)` through the existing typed bind/result paths. Eight geometric
+predicates include genuine `<>`/`!=`, but do not invent `=` or default ordering.
+Zero-based coordinates return FLOAT8; immutable coordinate updates, exact
+metadata and full-precision native logical replay use the shared engine seams.
+See [type contracts](docs/TYPES.md#point),
+[native boundaries](docs/DIALECT.md#point-geometric-boundary) and
+[selected proof and smoke](reference/types/README.md#point-oracle-first-contract).
+
 ## LSEG ordered endpoints — change note
 
 Builtin `lseg` stores two ordered POINT endpoints. The four documented input
@@ -93,7 +104,7 @@ Its five scalar comparisons compare area with PostgreSQL's geometric tolerance;
 `~=` compares coordinates. These operators do not grant generic ordering,
 grouping, indexing, or `<>`/`!=`. Component assignment retains raw pair order
 without renormalization, including through native Dump/Reset/Restore.
-See [typed transport](docs/TYPES.md#box-and-minimal-point-transport),
+See [typed transport](docs/TYPES.md#box-and-point-transport),
 [native boundaries](docs/DIALECT.md#box-geometric-boundary), and
 [selected proof and smoke](reference/types/README.md#box-scalar-contract).
 

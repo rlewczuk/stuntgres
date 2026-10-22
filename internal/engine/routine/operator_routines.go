@@ -9,6 +9,16 @@ var builtinOperatorRoutineAssociations = [...]struct {
 	operator ids.OID
 	routine  ids.OID
 }{
+	{506, 131},  // point >^ (deprecated above alias)
+	{507, 132},  // point <<
+	{508, 133},  // point >>
+	{509, 134},  // point <^ (deprecated below alias)
+	{510, 135},  // point ~=
+	{713, 988},  // point <> (SQL != normalizes to <>)
+	{808, 990},  // point ?-
+	{809, 989},  // point ?|
+	{4161, 131}, // point |>>
+	{4162, 134}, // point <<|
 	{1535, 999}, // lseg =
 	{1586, 1482},
 	{1587, 1483},

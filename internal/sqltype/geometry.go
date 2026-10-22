@@ -25,6 +25,9 @@ func (d *Descriptor) SubscriptElement() *Descriptor {
 	if d.id == Box || d.id == Lseg {
 		return d.geometryPoint
 	}
+	if d.id == Point {
+		return d.pointFloat
+	}
 	return d.element
 }
 
@@ -113,9 +116,6 @@ func (d *Descriptor) geometryInput(text string, env InputEnvironment) (Value, er
 	s.whitespace()
 	if s.pos != len(text) {
 		return Value{}, invalid()
-	}
-	if d.id == Point {
-		return pointValue(d, coordinates[0], coordinates[1]), nil
 	}
 	if d.id == Line {
 		return d.lineFromPoints(coordinates)

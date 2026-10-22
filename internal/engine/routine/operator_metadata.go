@@ -14,6 +14,8 @@ type OperatorMetadata struct {
 	Commutator, Negator, Procedure, Restriction, Join uint32
 }
 
+// POINT predicate rows use REL_18_6 pg_operator.dat, including released
+// commutators, negators and estimator identities; none grants hash/merge use.
 var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{15, 16, "b", true, true, 416, 36, 852, 101, 105},
 	{36, 16, "b", false, false, 417, 15, 853, 102, 106},
@@ -72,6 +74,11 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{503, 16, "b", false, false, 503, 0, 128, 101, 105},
 	{504, 16, "b", false, false, 502, 501, 129, 139, 140},
 	{505, 16, "b", false, false, 501, 502, 130, 139, 140},
+	{506, 16, "b", false, false, 0, 0, 131, 1300, 1301},
+	{507, 16, "b", false, false, 0, 0, 132, 1300, 1301},
+	{508, 16, "b", false, false, 0, 0, 133, 1300, 1301},
+	{509, 16, "b", false, false, 0, 0, 134, 1300, 1301},
+	{510, 16, "b", false, false, 510, 713, 135, 101, 105},
 	{514, 23, "b", false, false, 514, 0, 141, 0, 0},
 	{518, 16, "b", false, false, 518, 96, 144, 102, 106},
 	{519, 16, "b", false, false, 519, 94, 145, 102, 106},
@@ -172,12 +179,15 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{693, 20, "b", false, false, 0, 0, 1279, 0, 0},
 	{694, 20, "b", false, false, 690, 0, 1280, 0, 0},
 	{695, 20, "b", false, false, 0, 0, 1281, 0, 0},
+	{713, 16, "b", false, false, 713, 510, 988, 102, 106},
 	// REL_18_6 path predicates have no merge/hash or negator authority.
 	{792, 16, "b", false, false, 792, 0, 984, 101, 105},
 	{793, 16, "b", false, false, 794, 0, 982, 0, 0},
 	{794, 16, "b", false, false, 793, 0, 983, 0, 0},
 	{795, 16, "b", false, false, 796, 0, 985, 0, 0},
 	{796, 16, "b", false, false, 795, 0, 986, 0, 0},
+	{808, 16, "b", false, false, 808, 0, 990, 0, 0},
+	{809, 16, "b", false, false, 809, 0, 989, 0, 0},
 	{818, 20, "b", false, false, 822, 0, 837, 0, 0},
 	{819, 20, "b", false, false, 0, 0, 838, 0, 0},
 	{820, 20, "b", false, false, 824, 0, 839, 0, 0},
@@ -601,6 +611,8 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{4013, 16, "b", false, false, 0, 0, 4011, 5040, 5041},
 	{4035, 16, "b", false, false, 0, 0, 4268, 4243, 108},
 	{4142, 16, "b", false, false, 0, 0, 4269, 4243, 108},
+	{4161, 16, "b", false, false, 0, 0, 131, 1300, 1301},
+	{4162, 16, "b", false, false, 0, 0, 134, 1300, 1301},
 	{4179, 16, "b", false, false, 4180, 0, 4255, 5040, 5041},
 	{4180, 16, "b", false, false, 4179, 0, 4257, 5040, 5041},
 	{4198, 16, "b", false, false, 4198, 0, 4256, 5040, 5041},

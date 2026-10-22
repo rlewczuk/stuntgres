@@ -154,6 +154,26 @@ The Emit entry `emitDumpOperatorLinks`, the `control.Presenter` and
 
 ## Testing
 
+POINT's ten released operator identities (eight predicates plus deprecated
+vertical aliases) are explicitly associated with their eight genuine callable
+routine declarations. SQL `!=` normalizes to `<>`; no ordinary equality or
+ordering association is invented. These associations retain selected EXECUTE
+authority rather than relying on lookup-only catalog metadata.
+Their real seeded descriptors also carry released BOOL result, implementation,
+commutator/negator and estimator metadata through `SupportedOperatorMetadata`.
+This existing metadata seam controls ordinary `pg_operator` publication;
+lookup-only zero-function identities remain hidden rather than being fabricated
+by the catalog projection.
+
+```sh
+make check RUN='^Test(OperatorRoutineLookup|PointOperatorMetadata)$'
+```
+
+The units check exact POINT routine identity/pointer ownership, actual seeded
+descriptor fields and absent ordinary equality/order associations. End-to-end
+predicate, catalog-row and authorization proof remains in the shared
+[POINT reference definitions](../../../reference/types/README.md#point-oracle-first-contract).
+
 Package seams and option validation:
 
 ```sh

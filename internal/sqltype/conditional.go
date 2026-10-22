@@ -12,6 +12,7 @@ var equalitySignatures = [...]EqualitySignature{
 	{Line, Line},
 	{Lseg, Lseg},
 	{Path, Path},
+	{Point, Point},
 	{Xid, Xid}, {Xid, Int4}, {Cid, Cid}, {Xid8, Xid8},
 	{Int2, Int2}, {Int2, Int4}, {Int2, Int8}, {Int4, Int2}, {Int4, Int4}, {Int4, Int8}, {Int8, Int2}, {Int8, Int4}, {Int8, Int8},
 	{Float4, Float4}, {Float4, Float8}, {Float8, Float4}, {Float8, Float8}, {Numeric, Numeric}, {Bool, Bool},
@@ -287,6 +288,8 @@ func ResolveComparison(operator ComparisonOperator, left, right *Descriptor) (Eq
 
 func comparisonSignatureAvailable(operator ComparisonOperator, s EqualitySignature) bool {
 	switch s.Left {
+	case Point:
+		return operator == CompareNotEqual
 	case Box, Path:
 		return operator != CompareNotEqual
 	case Line, ACLItem, Cid:

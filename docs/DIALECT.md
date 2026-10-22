@@ -71,17 +71,31 @@ BOX has no `<>`/`!=` operator and no default B-tree/hash comparison authority:
 ORDER BY, DISTINCT/GROUP BY and reached composite comparison leaves cannot
 invent serialized-text comparisons or index classes.
 
-POINT provides the real coordinate codec and scalar identity required by BOX
-components and assignment. This does not enable POINT equality/order, POINT
-coordinate subscripting, constructors, spatial operators/functions, companion
-SQL arrays, binary receive/send, physical geometric indexes or a native ABI.
-Released catalog identities alone are not callable implementations.
+POINT's coordinate/predicate boundary is documented separately below.
 
 Native Dump/Restore is logical host-authorized replacement, not PostgreSQL
 physical storage, WAL or crash durability. Its isolated INSERT replay preserves
 raw inverted BOX pairs; replaying those same textual literals as ordinary
 PostgreSQL INSERT input normalizes them. No PostgreSQL Reset/Dump/Restore API is
 invented by the reference scenarios. See [BOX proof](../reference/types/README.md#box-scalar-contract).
+
+## POINT geometric boundary
+
+POINT provides binary64 coordinate IO, typed columns/binds/results, eight
+point–point predicates with their aliases and callable routines, and zero-based
+FLOAT8 coordinate reads/writes. `<>`/`!=` is genuine inequality; it does not
+provide ordinary equality `=` or `< <= > >=`, default ordering/grouping/hash
+authority or an index class. Unsupported calls fail rather than comparing
+serialized text. Geometric tolerance is not exact datum identity.
+
+Constructors, arithmetic/distance, cross-geometry operations, companion SQL
+arrays, binary receive/send, physical geometric indexes/storage, WAL and a
+native PostgreSQL ABI are outside this provider. Released catalog identities
+alone do not make those mechanisms callable. Native Dump/Reset/Restore is
+logical host replacement, not an invented PostgreSQL control API.
+See [type contracts](TYPES.md#point) and
+[reference proof](../reference/types/README.md#point-oracle-first-contract).
+
 
 ## Circle scalar
 

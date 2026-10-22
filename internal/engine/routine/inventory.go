@@ -14,6 +14,15 @@ import (
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
+	// REL_18_6 POINT predicates; no default equality or ordering authority.
+	{catalog.RoutineIdentity{131, ids.PGCatalogNamespaceOID, "point_above", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{132, ids.PGCatalogNamespaceOID, "point_left", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{133, ids.PGCatalogNamespaceOID, "point_right", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{134, ids.PGCatalogNamespaceOID, "point_below", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{135, ids.PGCatalogNamespaceOID, "point_eq", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{988, ids.PGCatalogNamespaceOID, "point_ne", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{989, ids.PGCatalogNamespaceOID, "point_vert", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{990, ids.PGCatalogNamespaceOID, "point_horiz", "600,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	// PostgreSQL REL_18_6 BOX scalar operators; no default comparison class.
 	{catalog.RoutineIdentity{126, ids.PGCatalogNamespaceOID, "box_ge", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{127, ids.PGCatalogNamespaceOID, "box_gt", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

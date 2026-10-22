@@ -158,7 +158,7 @@ func (b *Binder) BindSubscript(raw parser.SubscriptExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	usage := base.ResultUsage().BaseUsage()
-	if !usage.Type.IsArray() && usage.Type.ID() != sqltype.Box && usage.Type.ID() != sqltype.Lseg {
+	if !usage.Type.IsArray() && usage.Type.ID() != sqltype.Box && usage.Type.ID() != sqltype.Lseg && usage.Type.ID() != sqltype.Point {
 		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", usage.Type.DiagnosticName()), parser.ExpressionStart(raw.Base))
 	}
 	subs, slice, err := b.bindArrayBounds(raw.Subscripts)

@@ -24,6 +24,11 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 		return b.bindSubquery(subquery)
 	}
 	name := r.Name.Parts[len(r.Name.Parts)-1].Text
+	if _, point := sqltype.PointKind(name); point && len(b.Clause.SelectedOperatorArgs) == 2 &&
+		b.Clause.SelectedOperatorArgs[0].ResultUsage().Type.ID() == sqltype.Point &&
+		b.Clause.SelectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.Point {
+		return b.pointOperator(r, [2]expr.Expr{b.Clause.SelectedOperatorArgs[0], b.Clause.SelectedOperatorArgs[1]})
+	}
 	if _, circle := sqltype.CircleKind(name); circle && len(b.Clause.SelectedOperatorArgs) == 2 &&
 		b.Clause.SelectedOperatorArgs[0].ResultUsage().Type.ID() == sqltype.Circle &&
 		b.Clause.SelectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.Circle {
@@ -48,6 +53,8 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 		return b.bindArrayMembership(r)
 	case functions.JSONExtractionName(name):
 		return functions.BindJSONExtraction(b, r)
+	case name == "?|" && len(r.Args) == 2:
+		return b.bindPointOrJSONBExistence(r)
 	case functions.JSONBExistenceName(name):
 		return functions.BindJSONBExistence(b, r)
 	case functions.JSONBPathOperatorName(name) && len(b.Clause.SelectedOperatorArgs) == 2 &&
@@ -68,7 +75,7 @@ func builtinOperatorSpelling(name string) bool {
 	// These geometric spellings contain bitwise characters but require actual
 	// catalog signature selection before dispatching their selected provider.
 	switch name {
-	case "~=", "<<|", "|>>", "&<|", "|&>":
+	case "~=", "<<|", "|>>", "&<|", "|&>", "?-", "<^", ">^":
 		return false
 	}
 	_, comparison := ComparisonOperator(name)

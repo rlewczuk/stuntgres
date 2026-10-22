@@ -19,14 +19,35 @@ interprets it. The only remaining type parameter is the private
 `randomInteger` sampler source, a numeric kernel detail rather than part of the
 expression contract.
 
+## POINT predicate provider
+
+`Point` owns a fixed pair of operands, selected predicate/routine authority and
+operator/function syntax. Rebuild, substitution, stored validation, rendering
+and capture preserve descriptor ownership and immutable provider identity.
+Only the eight point predicate routines are callable; this does not supply
+constructors, arithmetic, distance or default comparison authority.
+Ordinary `<>`/`!=` retains `plan.ComparisonExpr` with a dedicated `PointPlan`
+predicate payload for existing scalar-subquery consumers; selected geometric
+operators and callable routines use `Point`. Both preserve the selected routine.
+
+### Testing
+
+```sh
+make check RUN='^TestPointProviderLifecycle$'
+```
+
+Units exercise evaluation order, strict NULL, cancellation, foreign-result
+rejection and reconstruction/render/capture. Shared public SQL and native replay
+proof belong to [`reference/types`](../../../reference/types/README.md#point-oracle-first-contract).
+
 ## Circle scalar provider
 
 `Circle` retains one fixed operand array and the selected routine authority for
 the circle-only operators and `radius(circle)`. Rebuild, stored validation,
 capture, rendering and group-expression identity preserve operation/syntax and
 catalog ownership. This is not default datum equality/order/grouping authority.
-Its registry admits only actual circle routine signatures; POINT and other
-geometry function identities remain nonexecutable.
+Its registry admits only actual circle routine signatures; adjacent geometry
+uses its own bounded provider rather than circle dispatch.
 Sameness (`~=`) and vertical predicates (`<<|`, `|>>`, `&<|`, `|&>`)
 select their catalog signatures before provider dispatch, rather than entering
 the generic bitwise spelling fast path.
@@ -571,6 +592,13 @@ operands: `SelectJSONBConcat` (jsonb `||`, from the string `||` selector),
 SQL and index inquiry. They build `Binary` nodes with the operator's routine
 identity (`BuiltinOperatorRoutineInfo`) and need no `Binder` method beyond the
 existing set.
+The builtin-only `?|` shared path analyzes both operands once, dispatches a
+known POINT signature through catalog selection, and otherwise calls
+`BindJSONBExistenceOperands` with the analyzed arguments. JSONB retains its
+existing text-array element coercion (including varchar/character arrays) and
+unknown/unknown ambiguity. Custom operator and namespace competition stays
+with the engine's outer catalog selector; this is not a generic array-resolution
+expansion.
 
 `BindJSONBPathOperator` (`@?`/`@@`, recognized by `JSONBPathOperatorName`) is
 reached only after catalog overload selection supplies JSONB/jsonpath formals.

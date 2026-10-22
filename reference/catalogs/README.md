@@ -958,6 +958,32 @@ LSEG scalar admission adds OID601 to the native complete pg_type inventory.
 lookup-only companion1018 on both backends alongside BOX/POINT. This does not
 grant SQL LSEG arrays or default ordering/grouping authority.
 
+POINT predicate admission adds ten independent15-field rows:
+506–510/713/808/809/4161/4162. These cover eight predicates plus deprecated
+vertical aliases; SQL `!=` shares713 rather than adding a catalog identity.
+The rows retain released routine/estimator identities, commutator/negator
+relationships and false merge/hash flags. They are source-grounded expectations,
+not records copied from native output. The native complete inventory remains
+unfiltered, and PostgreSQL independently validates the admitted rows.
+
+After this shared inventory changes, use these bounded selectors in both modes:
+
+```sh
+make check RUN='^TestReferencePGOperator(Inventory|Permissions|References)$' REFERENCE=1
+make check RUN='^TestReferencePGOperator(Lifecycle|PolymorphicRelationships|PolymorphicIdentity)$' REFERENCE=1
+make check RUN='^TestReferencePGOperator(FeatureSmoke|ResolverAgreement)$' REFERENCE=1
+make check RUN='^TestReferenceLsegOperatorCatalog$' REFERENCE=1
+# Repeat each selector without REFERENCE=1 for native proof.
+make check RUN='^TestPGOperator(CaptureOwnership|PolymorphicRelationships)$'
+```
+
+The shared facts reach Inventory, Permissions, Lifecycle, FeatureSmoke,
+PolymorphicRelationships, PolymorphicIdentity and References with the expanded
+complete expected bag. ResolverAgreement and LsegOperatorCatalog also read the
+file but deliberately select unchanged signatures. Native package-function
+capture/relationship units consume it independently; no public SQL witness is
+moved outside reference.
+
 ```sh
 make check RUN='^TestReferencePGTypeAdmission$'
 make check RUN='^TestReferencePGTypeAdmission$' REFERENCE=1

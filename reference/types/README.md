@@ -88,6 +88,41 @@ and temporary helpers have been removed. Standalone smoke additionally exercises
 the two-stage wrapper and constrained-domain cast/check/replay boundaries while
 retaining the original seven-row main table.
 
+### POINT oracle-first contract
+
+`TestReferencePointValues`, `Comparisons`, `Components`, `Diagnostics`,
+`Metadata`, `Authorization`, `Controls` and `FeatureSmoke` define the bounded
+POINT contract independently of native output: two input forms, binary64 IO,
+eight point predicates and their aliases/routines, FLOAT8 coordinate reads and
+updates, exact diagnostics/authority, and native logical replay. They do not
+grant ordinary equality, sorting/grouping/index classes or adjacent geometry.
+BOX/LSEG component scenarios retain multidimensional NULL reads and additionally
+assert parenthesized nested coordinate access.
+
+Stage A used a temporary PostgreSQL-only discovery filter in `pointScenario`.
+The filter is now removed: all definitions use the same assertions on every
+available backend. Oracle discovery does not itself claim native compatibility;
+observe the native regression before implementing production behavior.
+
+```sh
+make check RUN='^TestReferencePoint(Values|Comparisons|Components|Metadata)$' REFERENCE=1
+make check RUN='^TestReferencePoint(Diagnostics|Authorization|Controls|FeatureSmoke)$' REFERENCE=1
+# Stage B: observe the native regression before production edits.
+make check RUN='^TestReferencePoint(Comparisons|Components)$'
+# Completed implementation: repeat both POINT groups with and without REFERENCE=1.
+make check RUN='^TestReference(Box|Lseg)Components$'
+make check RUN='^TestReference(Box|Lseg)Components$' REFERENCE=1
+make check RUN='^TestReferencePointFeatureSmoke$'
+```
+
+The smoke expects `(1,2)` from both forms and held string/byte inputs, typed NULL,
+all eleven spellings' explicit Boolean outcomes, FLOAT8 coordinates, update to
+`(-5,2)`, exact22P02 location and held recovery. Its native-only phase checks
+Dump/Reset/Restore and an unchanged pre-update cursor. Controls additionally
+exercise same/fresh-engine replay, full precision independent of display GUC,
+defaults/CHECK/view expressions, committed-only capture and failed-restore
+atomicity. PostgreSQL has no native host-control equivalent.
+
 ### LINE scalar contract
 
 Independent pinned18.6 oracle-first scenarios cover coefficient preservation,

@@ -24,6 +24,9 @@ func TestReferenceBoxComponents(t *testing.T) {
 				s.Prepared = prepared
 				run(s)
 			}
+			nested := fixture.Select("SELECT (b[0])[0] AS x FROM box_components ORDER BY id", []string{"x"}, []string{"FLOAT8"}, [][]any{{float64(3)}, {nil}})
+			nested.Prepared = prepared
+			run(nested)
 			s := boxSelect(b, "SELECT b[0] AS p FROM box_components WHERE FALSE", []string{"p"}, []string{"POINT"}, nil)
 			s.Prepared = prepared
 			run(s)

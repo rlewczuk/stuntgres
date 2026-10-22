@@ -15,6 +15,32 @@ No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### POINT predicate admission
+
+PG18-TYPE-GEOM-POINT adds exactly ten released POINT×POINT operator records:
+506–510,713,808,809,4161 and4162. SQL `!=` normalizes to713 (`<>`) and
+does not create an eleventh catalog identity. The independent15-field rows
+are transcribed from
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+with routine/estimator OIDs resolved from
+[REL_18_6 pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat).
+Namespace11, owner10, binary kind, POINT600 operands, BOOL16 result and false
+merge/hash flags are fixed release facts. Sameness510 and inequality713 are
+self-commutators and mutual negators, using135/988 and equality/inequality
+estimators101/105 and102/106. Alignment808/809 are self-commutators with
+procedures990/989 and zero estimators. Directional predicates, including the
+deprecated506/509 aliases, have zero commutator/negator fields, procedures
+131–134 and positionsel1300/positionjoinsel1301. No inferred geometric
+symmetry, native query output or production metadata generated these rows.
+
+The ten records extend the pre-POINT601-record inventory to611. All799
+lookup/alias identities remain unchanged. Existing complete inventory,
+permissions, lifecycle, polymorphic and symbolic-reference scenarios consume
+this same file; filtered resolver/LSEG consumers retain their existing rows.
+Neither genuine inequality nor publication grants absent ordinary equality,
+ordering/grouping or default index classes. Root owns fresh selected dual-mode
+proof for all inventory consumers; this source provenance is not passing evidence.
+
 ### BOX geometric operator admission
 
 PG18-TYPE-GEOM-BOX adds only the six released BOX scalar operators:

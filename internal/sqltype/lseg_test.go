@@ -114,7 +114,7 @@ func TestLsegComparison(t *testing.T) {
 	// Probe both binary64 neighbors of epsilon rather than assuming a decimal
 	// boundary is exact after addition/subtraction.
 	for _, n := range []float64{math.Nextafter(1e-6, 0), math.Nextafter(1e-6, math.Inf(1))} {
-		if got := lsegPointEqual(0, 0, n, 0); got != (n <= 1e-6) {
+		if got := pointSame(0, 0, n, 0); got != (n <= 1e-6) {
 			t.Fatal("epsilon neighbor", n, got)
 		}
 	}

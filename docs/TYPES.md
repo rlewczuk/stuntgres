@@ -159,7 +159,7 @@ ordinary replay SQL for typed tables/defaults/CHECKs/views. Raw catalog typelem
 and IO routine identities do not enable coordinate subscripts, companion arrays,
 binary codecs or native ABI transport.
 
-## BOX and minimal POINT transport
+## BOX and POINT transport
 
 BOX (OID603) and POINT (OID600) are concrete scalar datums with immutable
 fixed-size binary64 payloads. Ordinary BOX input normalizes each coordinate
@@ -186,8 +186,7 @@ BOX `=`, `<`, `<=`, `>`, `>=` compare area with the released1e-6 tolerance.
 `~=` compares all four stored coordinates with that tolerance. NaN fuzzy
 predicates are false, and checked area arithmetic can fail22003. Approximate
 scalar equality is not exact datum identity or default grouping/sort authority.
-BOX and POINT remain scalars despite raw catalog `typelem`/subscripting facts;
-their companion SQL arrays are lookup-only.
+BOX and POINT remain scalars; their companion SQL arrays are lookup-only.
 
 BOX components are zero-based POINTs: `b[0]` and `b[1]`. Missing/out-of-range,
 NULL or multidimensional reads yield POINT NULL. Element assignment replaces a
@@ -202,6 +201,40 @@ literals and execution-time coercions receive the same operation-local policy.
 Ordinary SQL input after Restore continues to normalize. Exact snapshot import
 also preserves raw pairs. Copies/retags never format or reparse coordinates;
 datum identity compares bits, retaining signed-zero differences.
+
+### POINT
+
+POINT (OID600) accepts `(x,y)` and `x,y`, with ASCII whitespace and float8
+coordinates, including signed zero, subnormals, infinities and NaN. Output is
+canonical `(x,y)`. Invalid syntax reports22P02; coordinate range errors report
+22003 before subsequent punctuation errors. Literal diagnostics retain quote
+character positions; bound conversion errors retain parameter context.
+
+Strict point–point Boolean predicates are `~=` (sameness), `<>`/`!=` (its
+complement), `<<`/`>>` (left/right), `<<|`/`|>>` (below/above, also deprecated
+`<^`/`>^`), `?-` (same Y) and `?|` (same X). Their associated `point_eq`,
+`point_ne`, `point_left`, `point_right`, `point_below`, `point_above`,
+`point_horiz` and `point_vert` routines use the same EXECUTE authority.
+Sameness uses1e-6 coordinate tolerance; if either point contains any NaN,
+both coordinates instead use exact PostgreSQL float equality (NaN equals NaN).
+Alignment/directional predicates inspect only their respective axes. Sameness
+is nontransitive and distinct from bitwise datum identity. There is no ordinary
+`= < <= > >=`, default sorting/grouping/hash/index class or text fallback.
+
+`p[0]` and `p[1]` return FLOAT8 X/Y. Out-of-range, NULL-index, NULL-base and
+multidimensional reads return typed FLOAT8 NULL. Parentheses permit nested
+geometry access such as `(b[0])[0]` and `(s[0])[1]`; `b[0][0]` remains a
+single multidimensional endpoint read and returns POINT NULL.
+Coordinate assignment changes only the selected coordinate. NULL RHS leaves
+the point unchanged; NULL base stays NULL. A NULL assignment index always
+fails22004, including with NULL base/RHS. Otherwise NULL base/RHS short circuit
+before dimensional, range or slice errors. Nonnull out-of-range writes fail
+2202E `array subscript out of range`; multidimensional writes fail2202E
+`wrong number of array subscripts`. Fixed-length slices fail0A000 except
+the existing NULL short circuits. Native logical replay preserves declared
+POINT columns, stored predicate/subscript expressions and full precision
+independently of display settings; it is not PostgreSQL physical persistence.
+
 
 ## Installed cube transport
 

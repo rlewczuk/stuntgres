@@ -2,17 +2,7 @@ package sqltype
 
 import (
 	"fmt"
-	"math"
 )
-
-// A NaN in either POINT switches both coordinates of that POINT to exact
-// PostgreSQL float equality. The other endpoint retains its own comparison rule.
-func lsegPointEqual(ax, ay, bx, by float64) bool {
-	if math.IsNaN(ax) || math.IsNaN(ay) || math.IsNaN(bx) || math.IsNaN(by) {
-		return compareFloats(ax, bx) == 0 && compareFloats(ay, by) == 0
-	}
-	return boxFuzzyEqual(ax, bx) && boxFuzzyEqual(ay, by)
-}
 
 func lsegPredicate(op ComparisonOperator, a, b Value) (bool, error) {
 	if a.geometry == nil || b.geometry == nil {
@@ -20,7 +10,7 @@ func lsegPredicate(op ComparisonOperator, a, b Value) (bool, error) {
 	}
 	x, y := &a.geometry.coordinates, &b.geometry.coordinates
 	if op == CompareEqual || op == CompareNotEqual {
-		equal := lsegPointEqual(x[0], x[1], y[0], y[1]) && lsegPointEqual(x[2], x[3], y[2], y[3])
+		equal := pointSame(x[0], x[1], y[0], y[1]) && pointSame(x[2], x[3], y[2], y[3])
 		if op == CompareNotEqual {
 			equal = !equal
 		}

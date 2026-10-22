@@ -22,6 +22,9 @@ func TestReferenceLsegComponents(t *testing.T) {
 				s.Prepared = prepared
 				run(s)
 			}
+			nested := fixture.Select("SELECT (s[0])[1] AS y FROM lseg_components ORDER BY id", []string{"y"}, []string{"FLOAT8"}, [][]any{{float64(4)}, {nil}})
+			nested.Prepared = prepared
+			run(nested)
 			s := boxSelect(b, "SELECT s[0] AS p FROM lseg_components WHERE FALSE", []string{"p"}, []string{"POINT"}, nil)
 			s.Prepared = prepared
 			run(s)

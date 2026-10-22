@@ -22,7 +22,7 @@ func (p Comparison) Equal(other Comparison) bool {
 }
 
 func (p ComparisonPredicate) Equal(other ComparisonPredicate) bool {
-	return p.result == other.result && p.operator == other.operator && p.circle == other.circle && p.operands.Equal(other.operands)
+	return p.result == other.result && p.operator == other.operator && p.circle == other.circle && p.point == other.point && p.operands.Equal(other.operands)
 }
 
 func bindArrayComparisonElement(array *Descriptor, collation CollationRef, conflict bool) (*Comparison, error) {
