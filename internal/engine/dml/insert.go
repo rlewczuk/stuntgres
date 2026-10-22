@@ -1,11 +1,10 @@
-package engine
+package dml
 
 import (
 	"context"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -37,16 +36,16 @@ type InsertInput struct {
 // ExecuteInsert runs a captured INSERT VALUES or INSERT ... SELECT with the
 // caller holding nothing: it evaluates, validates and admits every row, then
 // stages the batch or finishes RETURNING.
-func ExecuteInsert(h dml.Host, in InsertInput) (dml.Outcome, error) {
+func ExecuteInsert(h Host, in InsertInput) (Outcome, error) {
 	ctx, b := in.Context, in.Binding
 	if in.Query != nil {
 		input, output := h.Environments()
 		rows, err := EvaluateInsertQuery(ctx, b, in.Query, in.Parameters, in.Schema, input, output, h)
 		if err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		if err := ctx.Err(); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		return finishInsert(h, b.Ref, rows)
 	}
@@ -59,7 +58,7 @@ func ExecuteInsert(h dml.Host, in InsertInput) (dml.Outcome, error) {
 	}
 	for i, source := range b.Insert.Rows {
 		if err = ctx.Err(); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		row := make([]sqltype.Value, len(b.Relation.Columns))
 		for j, c := range b.Relation.Columns {
@@ -67,20 +66,20 @@ func ExecuteInsert(h dml.Host, in InsertInput) (dml.Outcome, error) {
 		}
 		if len(b.Insert.Projection) != 0 {
 			if err = EvaluateInsertValuesRow(in.Catalog, &b, in.Expressions[i], source, row, len(b.Insert.Rows) > 1, evaluation); err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			schema := in.Catalog.Get(b.Relation.Namespace()).Name()
 			if err = ValidateInsertRow(h, b, schema, row, evaluation); err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			candidate := index.WriteCandidate{Values: row}
 			admitted, admitErr := AdmitInsertProducer(h, b, &candidate, rows, evaluation)
 			if admitErr != nil {
-				return dml.Outcome{}, admitErr
+				return Outcome{}, admitErr
 			}
 			if admitted {
 				if err := CheckViewRow(h, &b, row, evaluation); err != nil {
-					return dml.Outcome{}, err
+					return Outcome{}, err
 				}
 				rows.Append(candidate)
 			}
@@ -97,7 +96,7 @@ func ExecuteInsert(h dml.Host, in InsertInput) (dml.Outcome, error) {
 				if expression != nil && row[j].Type() != nil {
 					row[j], err = view.EvalBindingDefault(&b, evaluation, j, expression)
 					if err != nil {
-						return dml.Outcome{}, err
+						return Outcome{}, err
 					}
 				}
 			}
@@ -118,39 +117,39 @@ func ExecuteInsert(h dml.Host, in InsertInput) (dml.Outcome, error) {
 				row[target] = value
 			}
 			if err != nil {
-				return dml.Outcome{}, analyze.InsertValueError(in.Catalog, err, c, v, nil)
+				return Outcome{}, analyze.InsertValueError(in.Catalog, err, c, v, nil)
 			}
 		}
 		schema := in.Catalog.Get(b.Relation.Namespace()).Name()
 		if err = ValidateInsertRow(h, b, schema, row, evaluation); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		candidate := index.WriteCandidate{Values: row}
 		admitted, admitErr := AdmitInsertProducer(h, b, &candidate, rows, evaluation)
 		if admitErr != nil {
-			return dml.Outcome{}, admitErr
+			return Outcome{}, admitErr
 		}
 		if admitted {
 			if err := CheckViewRow(h, &b, row, evaluation); err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			rows.Append(candidate)
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	return finishInsert(h, b.Ref, rows)
 }
 
 // finishInsert finishes RETURNING, or stages the validated batch.
-func finishInsert(h dml.Host, ref ids.ObjectRef, rows index.WriteBatch) (dml.Outcome, error) {
+func finishInsert(h Host, ref ids.ObjectRef, rows index.WriteBatch) (Outcome, error) {
 	if h.Command().InsertReturning != nil {
 		return finishInsertReturning(h)
 	}
 	count, err := ApplyInsertValidated(h, ref, rows)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
-	return dml.Outcome{Count: int64(count)}, nil
+	return Outcome{Count: int64(count)}, nil
 }

@@ -1,9 +1,8 @@
-package engine
+package dml
 
 import (
 	"errors"
 
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -15,7 +14,7 @@ import (
 
 // Each proposal is already projected and constrained. Only arbitration is
 // restarted after a row wait; defaults, the source and SET are never replayed.
-func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.WriteCandidate, proposalEvaluation *exec.Context) error {
+func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, proposalEvaluation *exec.Context) error {
 	proposal := candidate.Values
 	command := h.Command()
 	c := command.InsertConflict
@@ -31,25 +30,25 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 		if err := evaluation.Context.Err(); err != nil {
 			return err
 		}
-		hit, err := dml.ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
+		hit, err := ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if hit.Index == nil {
-			other, err := dml.ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, nil, index.ProbeRuntime)
+			other, err := ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, nil, index.ProbeRuntime)
 			if err != nil {
 				return err
 			}
 			if c.Catalog != command.UniqueBinding.Catalog {
 				journal.RestoreDelta()
-				dml.DiscardExclusion(h, candidate)
+				DiscardExclusion(h, candidate)
 				continue
 			}
 			if other.Index != nil {
 				return other.Diagnostic(h, ref)
 			}
 			if command.ViewWrite != nil {
-				b := dml.BindingForConflict(ref, command.ViewWrite.BaseRelation, c)
+				b := BindingForConflict(ref, command.ViewWrite.BaseRelation, c)
 				b.ViewWrite = view.ViewWriteSlotOf(command.ViewWrite)
 				b.Targets = c.Targets
 				if err := CheckViewRow(h, &b, proposal, &evaluation); err != nil {
@@ -63,13 +62,13 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 				}
 				if retry {
 					journal.RestoreDelta()
-					dml.DiscardExclusion(h, candidate)
+					DiscardExclusion(h, candidate)
 					continue
 				}
 			} else {
 				var batch index.WriteBatch
 				batch.Append(*candidate)
-				if err := dml.ApplyValidated(h, ref, batch); err != nil {
+				if err := ApplyValidated(h, ref, batch); err != nil {
 					return err
 				}
 			}
@@ -80,7 +79,7 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 		// A speculative key must never be held while queuing for the selected row.
 		// Restore only this candidate's newly granted keys, preserving prior claims.
 		journal.RestoreDelta()
-		dml.DiscardExclusion(h, candidate)
+		DiscardExclusion(h, candidate)
 		mode := lock.ForNoKeyUpdate
 		for _, target := range c.UpdateTargets {
 			for _, key := range command.UniqueBinding.KeySlots {
@@ -101,17 +100,17 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 			continue
 		}
 		// Reacquire row -> key, and demand the same physical identity under both.
-		checked, err := dml.ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
+		checked, err := ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if checked.Index == nil || checked.Row.Row != old.Row || checked.Row.Version != old.Version {
 			journal.RestoreDelta()
-			dml.DiscardExclusion(h, candidate)
+			DiscardExclusion(h, candidate)
 			continue
 		}
 		if _, duplicate := c.AffectedRows[old.Row]; duplicate {
-			return dml.ConflictUpdateCardinalityError()
+			return ConflictUpdateCardinalityError()
 		}
 		lockMode, err := lock.MultiLockMode(mode)
 		if err != nil {
@@ -132,20 +131,20 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 		}
 		if !matches {
 			journal.RestoreDelta()
-			dml.DiscardExclusion(h, candidate)
+			DiscardExclusion(h, candidate)
 			return nil
 		}
 		row, err := EvaluateUpdateAssignments(&evaluation, c.Update, c.UpdateTargets, old.Values)
 		if err != nil {
 			return err
 		}
-		b := dml.BindingForConflict(ref, parent, c)
+		b := BindingForConflict(ref, parent, c)
 		// Constraint Detail can disclose SET outputs, not unread carried target data.
 		b.Targets = c.UpdateTargets
 		if err := validatePhysicalInsertRow(h, b, &b, schema, row, &evaluation); err != nil {
 			return err
 		}
-		keyChanged, err := dml.UniqueKeyChanged(h, ref, old.Values, row)
+		keyChanged, err := UniqueKeyChanged(h, ref, old.Values, row)
 		if err != nil {
 			return err
 		}
@@ -162,7 +161,7 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 				return errors.New("stuntgres: conflict update predecessor changed under row lock")
 			}
 		}
-		if err := dml.ClaimUniqueRow(h, ref, old); err != nil {
+		if err := ClaimUniqueRow(h, ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -174,7 +173,7 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 			return err
 		}
 		replacement := index.WriteCandidate{Values: row}
-		if err := dml.CheckUniqueRow(h, ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
+		if err := CheckUniqueRow(h, ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
 			return err
 		}
 		b.ViewWrite = view.ViewWriteSlotOf(command.ViewWrite)
@@ -184,7 +183,7 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 		var batch index.WriteBatch
 		batch.ActionMode = actionMode
 		batch.Append(replacement)
-		if err := dml.ReplaceRows(h, ref, []storage.RowVersion{old}, batch, dml.ReplaceConflict); err != nil {
+		if err := ReplaceRows(h, ref, []storage.RowVersion{old}, batch, ReplaceConflict); err != nil {
 			return err
 		}
 		c.MarkAffected(old.Row, len(h.PrivateRows(ref.Address).Staged)-1)
@@ -193,6 +192,6 @@ func admitInsertConflictUpdate(h dml.Host, ref ids.ObjectRef, candidate *index.W
 }
 
 // conflictRowRequest is the RowConflictUpdate request of a unique conflict.
-func conflictRowRequest(ref ids.ObjectRef, c dml.UniqueConflict) dml.RowRequest {
-	return dml.RowRequest{Kind: dml.RowConflictUpdate, Ref: ref, Row: c.Row.Row, Own: !c.Committed, Hint: c.Position, Parent: c.Parent}
+func conflictRowRequest(ref ids.ObjectRef, c UniqueConflict) RowRequest {
+	return RowRequest{Kind: RowConflictUpdate, Ref: ref, Row: c.Row.Row, Own: !c.Committed, Hint: c.Position, Parent: c.Parent}
 }

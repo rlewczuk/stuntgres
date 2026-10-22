@@ -54,7 +54,7 @@ func TestRangePartitionPublicationCancelAtMultiLeafApply(t *testing.T) {
 	}
 	underlying, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ctx := &rangePartitionPhaseContext{Context: underlying, target: "engine.ApplyInsertValidated", effect: cancel}
+	ctx := &rangePartitionPhaseContext{Context: underlying, target: "dml.ApplyInsertValidated", effect: cancel}
 	op, err := session.Acquire(ctx.Context)
 	if err != nil {
 		t.Fatal(err)

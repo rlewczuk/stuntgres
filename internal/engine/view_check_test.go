@@ -181,7 +181,7 @@ func TestViewCheckPredicate(t *testing.T) {
 	for _, value := range []sqltype.Value{sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)} {
 		b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(&view.Write{Checks: []view.CheckGroup{{Relation: &catalog.Relation{ObjectName: "outer"}, Predicates: []expr.Expr{pass}}, {Relation: f.view, Predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: value}}}}})}
 		eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
-		err := CheckViewRow(scope.writeHost(), &b, row, &eval)
+		err := dml.CheckViewRow(scope.writeHost(), &b, row, &eval)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "44000" || d.Message != `new row violates check option for view "logical"` || d.Detail != "Failing row contains (1, 10, 42)." || calls != 0 || len(eval.Row) != 1 {
 			t.Fatal(err, calls, eval.Row)
@@ -189,7 +189,7 @@ func TestViewCheckPredicate(t *testing.T) {
 	}
 	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(&view.Write{Checks: []view.CheckGroup{{Relation: f.view, Predicates: []expr.Expr{pass}}}})}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
-	if err := CheckViewRow(scope.writeHost(), &b, row, &eval); err != nil || calls != 1 || len(eval.Row) != 1 {
+	if err := dml.CheckViewRow(scope.writeHost(), &b, row, &eval); err != nil || calls != 1 || len(eval.Row) != 1 {
 		t.Fatal("produced NEW check skipped or OLD frame replaced", err, calls, eval.Row)
 	}
 }
@@ -210,7 +210,7 @@ func TestViewCheckAdmission(t *testing.T) {
 		if closeFailure {
 			cursor.closeError = failure
 		}
-		rows, err := AssembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), false, nil, nil)
+		rows, err := dml.AssembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), false, nil, nil)
 		if closeFailure {
 			if !errors.Is(err, failure) {
 				t.Fatal(err)
@@ -245,7 +245,7 @@ func TestViewCheckCancellation(t *testing.T) {
 	guard := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) { cancel(); return sqltype.Boolean(f.boolean, true), nil })
 	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(&view.Write{Checks: []view.CheckGroup{{Relation: f.view, Predicates: []expr.Expr{guard}}}})}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Output: scope.output}}
-	err := CheckViewRow(scope.writeHost(), &b, row, &eval)
+	err := dml.CheckViewRow(scope.writeHost(), &b, row, &eval)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestViewCheckFinish(t *testing.T) {
 	w.Checks = []view.CheckGroup{{Relation: f.view, Predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}}}}
 	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(w)}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Output: scope.output}}
-	if err := CheckViewRow(scope.writeHost(), &b, row, &eval); err != nil {
+	if err := dml.CheckViewRow(scope.writeHost(), &b, row, &eval); err != nil {
 		t.Fatal(err)
 	}
 	if err := dml.ReplaceRows(scope.writeHost(), f.baseRef, []storage.RowVersion{originals[0]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {

@@ -239,9 +239,9 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		Diagnostic(error) error
 	}
 	if options.Format == copyfmt.Binary {
-		cursor = NewCopyBinaryCursor(h, b, copyfmt.NewBinaryReader(bufio.NewReader(copyReader{s, source})))
+		cursor = dml.NewCopyBinaryCursor(h, b, copyfmt.NewBinaryReader(bufio.NewReader(copyReader{s, source})))
 	} else {
-		cursor = NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(copyReader{s, source}), dml.CopyLineTargets(b)))
+		cursor = dml.NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(copyReader{s, source}), dml.CopyLineTargets(b)))
 	}
 	rows, err := func() (index.WriteBatch, error) {
 		if s.protocolOrZero().command || s.protocolOrZero().simple {
@@ -254,7 +254,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err := s.startProtocolCopy(hooks, true, options, len(b.Targets)); err != nil {
 			return index.WriteBatch{}, err
 		}
-		rows, err := AssembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, h, len(unique.Keys) != 0 || unique.Checked, nil, nil)
+		rows, err := dml.AssembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, h, len(unique.Keys) != 0 || unique.Checked, nil, nil)
 		if err == nil {
 			err = s.op.PendingCopyInputError()
 		}
@@ -283,7 +283,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		return n, nil
 	}
-	n, err := ApplyInsertValidated(h, b.Ref, rows)
+	n, err := dml.ApplyInsertValidated(h, b.Ref, rows)
 	if err != nil {
 		return 0, cursor.Diagnostic(err)
 	}

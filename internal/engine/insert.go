@@ -24,7 +24,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		return Result{}, err
 	}
 	h := scope.writeHost()
-	BeginInsertReturning(h, b)
+	dml.BeginInsertReturning(h, b)
 	keepReturning := false
 	if scope.InsertReturning != nil {
 		defer func() {
@@ -33,7 +33,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			}
 		}()
 	}
-	in := InsertInput{Context: ctx, Catalog: auth.Catalog}
+	in := dml.InsertInput{Context: ctx, Catalog: auth.Catalog}
 	if b.CommandQuery {
 		source, sourceErr := e.captureQuerySourcesLocked(scope, b.QuerySources, len(b.QuerySources) == 0)
 		if sourceErr != nil {
@@ -75,7 +75,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		in.Evaluation, in.Expressions = &evaluation, execution.expressions
 	}
 	in.Binding = b
-	outcome, err := ExecuteInsert(h, in)
+	outcome, err := dml.ExecuteInsert(h, in)
 	if err != nil {
 		return Result{}, err
 	}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/copyfmt"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -126,7 +127,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			if present, err := in.ReadLine(); !present || err != nil {
 				t.Fatal("line reader setup", present, err)
 			}
-			cursor := NewCopyCursor(scope.writeHost(), analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in)
+			cursor := dml.NewCopyCursor(scope.writeHost(), analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in)
 			got := cursor.Diagnostic(context.Canceled)
 			if !wire {
 				if got != context.Canceled {

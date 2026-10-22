@@ -318,7 +318,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		}
 		// RHS and bounds see the unchanged old frame; partial writes compose
 		// only in this private replacement. Losing FROM pairs still demand SET.
-		row, err := EvaluateUpdateAssignments(&eval, b.Update, b.Targets, oldValues)
+		row, err := dml.EvaluateUpdateAssignments(&eval, b.Update, b.Targets, oldValues)
 		if err != nil {
 			return Result{}, err
 		}
@@ -367,7 +367,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := dml.CheckUniqueRow(s.writeHost(), ref, &proposal, batch.old, batch.rows); err != nil {
 			return Result{}, err
 		}
-		if err := CheckViewRow(s.writeHost(), &b, row, &eval); err != nil {
+		if err := dml.CheckViewRow(s.writeHost(), &b, row, &eval); err != nil {
 			return Result{}, err
 		}
 		if candidate.Physical.Segment != nil && candidate.Physical.Segment.Layout != nil {
@@ -454,7 +454,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schem
 			return err
 		}
 		if value.IsNull() {
-			return RowConstraintError(s.writeHost(), b, schema, column.Name, "", row)
+			return dml.RowConstraintError(s.writeHost(), b, schema, column.Name, "", row)
 		}
 	}
 	if len(b.Relation.Constraints.Check) != 0 {
@@ -463,7 +463,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schem
 			return err
 		}
 		if constraint != nil {
-			return RowConstraintError(s.writeHost(), b, schema, "", constraint.Name, row)
+			return dml.RowConstraintError(s.writeHost(), b, schema, "", constraint.Name, row)
 		}
 	}
 	return nil

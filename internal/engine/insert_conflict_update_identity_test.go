@@ -41,7 +41,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		}
 		old := hit.Row
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if admitted, err := AdmitInsertRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
+		if admitted, err := dml.AdmitInsertRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
 		stage := scope.stage.rows[b.Ref.Address]
@@ -67,7 +67,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}
 		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op2.Context(), Input: scope2.input, Output: scope2.output, Host: hostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if admitted, err := AdmitInsertRow(scope2.writeHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, index.WriteBatch{}, &nextEvaluation); admitted || err != nil {
+		if admitted, err := dml.AdmitInsertRow(scope2.writeHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, index.WriteBatch{}, &nextEvaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
 		changed := scope2.stage.rows[b2.Ref.Address][0]

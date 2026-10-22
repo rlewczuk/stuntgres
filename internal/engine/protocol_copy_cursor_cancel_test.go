@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/copyfmt"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -103,7 +104,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 				Relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
 				Targets:  []int{0},
 			}
-			cursor = NewCopyCursor(scope.writeHost(), binding, copyfmt.NewLineReader(
+			cursor = dml.NewCopyCursor(scope.writeHost(), binding, copyfmt.NewLineReader(
 				copyfmt.Options{Delimiter: '\t', Null: "\\N"},
 				bufio.NewReader(strings.NewReader(tc.input)),
 				[]copyfmt.Target{{Name: "v"}},
@@ -116,7 +117,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 				if err := in.ReadHeader(); err != nil {
 					t.Fatal("binary header setup", err)
 				}
-				cursor = NewCopyBinaryCursor(scope.writeHost(), binding, in)
+				cursor = dml.NewCopyBinaryCursor(scope.writeHost(), binding, in)
 			}
 			op.CopyInput.Active.Store(true)
 			op.CopyInput.Decoding.Store(true)

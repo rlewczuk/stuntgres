@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -194,7 +195,7 @@ func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 		}
 		return original.Finalize(ctx, s)
 	}}
-	rows, err := EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+	rows, err := dml.EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	if rows.Values != nil || err != sentinel || calls != 2 || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, err, calls, source)
 	}

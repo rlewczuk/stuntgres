@@ -1,10 +1,9 @@
-package engine
+package dml
 
 import (
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -17,7 +16,7 @@ import (
 // validatePartitionInsert routes row to its leaf partition, locking a newly
 // used leaf, and validates it against the leaf and the target's partition
 // constraint, in that order.
-func validatePartitionInsert(h dml.Host, b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
+func validatePartitionInsert(h Host, b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
 	state := h.Command().PartitionInsert
 	state.NamedRow = row
 	if state.Target.Partition != nil {
@@ -53,7 +52,7 @@ func validatePartitionInsert(h dml.Host, b analyze.Binding, row []sqltype.Value,
 	return nil
 }
 
-func validateTargetPartitionConstraint(h dml.Host, b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
+func validateTargetPartitionConstraint(h Host, b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
 	state := h.Command().PartitionInsert
 	for child := state.Target; child.Membership != nil; {
 		parent := state.Catalog.MustRelation(child.Membership.Parent)
@@ -66,7 +65,7 @@ func validateTargetPartitionConstraint(h dml.Host, b analyze.Binding, row []sqlt
 			err.Schema, err.Table = state.Catalog.Get(state.Target.Namespace()).Name(), state.Target.Name()
 			// Copy the binding so only this failure path allocates it.
 			detailBinding := b
-			detail, detailErr := h.RowDetail(&detailBinding, row, dml.DetailConstraint)
+			detail, detailErr := h.RowDetail(&detailBinding, row, DetailConstraint)
 			if detailErr != nil {
 				return detailErr
 			}
@@ -78,15 +77,15 @@ func validateTargetPartitionConstraint(h dml.Host, b analyze.Binding, row []sqlt
 	return nil
 }
 
-func checkInsertUniqueRow(h dml.Host, ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch) error {
+func checkInsertUniqueRow(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch) error {
 	command := h.Command()
 	if command.PartitionInsert == nil {
-		return dml.CheckUniqueRow(h, ref, candidate, nil, prefix)
+		return CheckUniqueRow(h, ref, candidate, nil, prefix)
 	}
-	group := command.PartitionInsertionGroup(ref)
+	group := command.partitionInsertionGroup(ref)
 	command.UniqueBinding = group.Unique
 	candidate.Values = command.PartitionStoredRow(candidate.Values)
-	if err := dml.CheckUniqueRow(h, group.Ref, candidate, nil, group.Rows); err != nil {
+	if err := CheckUniqueRow(h, group.Ref, candidate, nil, group.Rows); err != nil {
 		return err
 	}
 	group.Unique = command.UniqueBinding
@@ -97,7 +96,7 @@ func checkInsertUniqueRow(h dml.Host, ref ids.ObjectRef, candidate *index.WriteC
 // ApplyInsertValidated stages a validated INSERT batch: an unpartitioned
 // batch whole, a routed one per leaf group in first-use order. It reports
 // the inserted row count.
-func ApplyInsertValidated(h dml.Host, ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
+func ApplyInsertValidated(h Host, ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
 	command := h.Command()
 	if command.PartitionInsert == nil {
 		return ApplyInsertBatch(h, ref, rows)
@@ -105,7 +104,7 @@ func ApplyInsertValidated(h dml.Host, ref ids.ObjectRef, rows index.WriteBatch) 
 	count := 0
 	for _, group := range command.PartitionInsert.Order {
 		command.UniqueBinding = group.Unique
-		if err := dml.ApplyValidated(h, group.Ref, group.Rows); err != nil {
+		if err := ApplyValidated(h, group.Ref, group.Rows); err != nil {
 			return 0, err
 		}
 		count += len(group.Rows.Values)

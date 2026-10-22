@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -39,7 +40,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		prior := []sqltype.Value{old[0]}
 		c.UpdateOutputs, c.UpdateOutputsReady = prior, true
 		for _, want := range []int64{10, 20, 30} {
-			row, err := EvaluateUpdateAssignments(&c, action, []int{0, 1}, old)
+			row, err := dml.EvaluateUpdateAssignments(&c, action, []int{0, 1}, old)
 			if err != nil || testExport(row[0]) != want || testExport(row[1]) != int64(102) || testExport(old[0]) != int64(1) || testExport(old[1]) != int64(2) {
 				t.Fatal(row, old, err)
 			}
@@ -60,7 +61,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 			typ := q.Root.Schema()[0].Usage.Type
 			old := []sqltype.Value{subqueryTestInteger(t, typ, 7), subqueryTestInteger(t, typ, 8)}
 			c.Row = old
-			row, err := EvaluateUpdateAssignments(&c, action, []int{0, 1}, old)
+			row, err := dml.EvaluateUpdateAssignments(&c, action, []int{0, 1}, old)
 			if predicate == "k=1" {
 				if row != nil {
 					t.Fatal("cardinality returned tuple", row)
@@ -96,7 +97,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		// Simulate a live outer tuple using the exact same context scratch.
 		outer := []sqltype.Value{old[0], old[1]}
 		c.UpdateOutputs, c.UpdateOutputScratch, c.UpdateOutputsReady = outer, outer, true
-		row, err := EvaluateUpdateAssignments(&c, action, []int{0, 1, 2, 3}, old)
+		row, err := dml.EvaluateUpdateAssignments(&c, action, []int{0, 1, 2, 3}, old)
 		if err != nil || calls != 2 || testExport(row[0]) != int64(10) || testExport(row[1]) != int64(102) || testExport(row[2]) != int64(20) || testExport(row[3]) != int64(102) {
 			t.Fatal(row, calls, err)
 		}
@@ -114,7 +115,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 			queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls[0]++; return c.Row[1], nil }),
 			queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls[1]++; return c.Row[0], nil }),
 		}}
-		row, err := EvaluateUpdateAssignments(&c, action, []int{0, 1}, old)
+		row, err := dml.EvaluateUpdateAssignments(&c, action, []int{0, 1}, old)
 		if err != nil || testExport(row[0]) != int64(20) || testExport(row[1]) != int64(10) || calls != [2]int{1, 1} {
 			t.Fatal(row, calls, err)
 		}

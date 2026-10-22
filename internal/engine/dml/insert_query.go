@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
@@ -20,7 +19,7 @@ import (
 // EvaluateInsertQuery owns the source pin and all destination rows. Evaluation
 // runs unlocked; only the complete, constrained batch reaches the write stage.
 // A nil h evaluates without statement authority.
-func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h dml.Host) (index.WriteBatch, error) {
+func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h Host) (index.WriteBatch, error) {
 	defer source.Close()
 	project, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
@@ -31,7 +30,7 @@ func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 	// its epoch is still checked when the completed batch reaches Apply.
 	unique := len(b.Relation.Constraints.Unique) != 0
 	if h != nil && h.Command().PartitionInsert == nil && b.Relation.RelationKind != catalog.ForeignRelation {
-		bound, err := dml.BindUniqueWrite(h, b.Ref)
+		bound, err := BindUniqueWrite(h, b.Ref)
 		if err != nil {
 			return index.WriteBatch{}, err
 		}
@@ -49,7 +48,7 @@ func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 // AssembleInsertRows produces, validates and admits the destination rows of
 // cursor (count rows, or until EOF when count is negative). A nil h
 // assembles without statement authority.
-func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h dml.Host, unique bool, parameters []sqltype.Value, query *exec.State) (rows index.WriteBatch, err error) {
+func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h Host, unique bool, parameters []sqltype.Value, query *exec.State) (rows index.WriteBatch, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -64,7 +63,7 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 	}()
-	var command *dml.Command
+	var command *Command
 	var op *session.Operation
 	var runtime exec.Host
 	if h != nil {
@@ -79,9 +78,9 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	}
 	scratch := make([]sqltype.Value, len(b.Targets))
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
-	var copyInsert *dml.CopyInsertionState
-	if producer, ok := cursor.(dml.CopyInsertionCursor); ok && command != nil && (unique || command.PartitionInsert != nil) {
-		copyInsert = dml.NewCopyInsertionState(producer, b)
+	var copyInsert *CopyInsertionState
+	if producer, ok := cursor.(CopyInsertionCursor); ok && command != nil && (unique || command.PartitionInsert != nil) {
+		copyInsert = NewCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: runtime}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}

@@ -1,11 +1,10 @@
-package engine
+package dml
 
 import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
@@ -17,7 +16,7 @@ import (
 // CheckViewRow checks the view CHECK OPTIONs of b's view write against row.
 // Called only for admitted, finalized rows, after base constraints/uniqueness.
 // A stack copy separates NEW from UPDATE FROM's OLD/source/RETURNING frame.
-func CheckViewRow(h dml.Host, b *analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
+func CheckViewRow(h Host, b *analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
 	if b.ViewWrite == nil || len(view.ViewWriteOf(b.ViewWrite).Checks) == 0 {
 		return nil
 	}
@@ -41,7 +40,7 @@ func CheckViewRow(h dml.Host, b *analyze.Binding, row []sqltype.Value, evaluatio
 			if truth != plan.True {
 				// Copy the binding so only this failure path allocates it.
 				detailBinding := *b
-				detail, err := h.RowDetail(&detailBinding, row, dml.DetailViewCheck)
+				detail, err := h.RowDetail(&detailBinding, row, DetailViewCheck)
 				if err != nil {
 					return err
 				}
@@ -54,13 +53,13 @@ func CheckViewRow(h dml.Host, b *analyze.Binding, row []sqltype.Value, evaluatio
 
 // ValidateInsertRow routes a partitioned INSERT row, or validates row against
 // b's own relation.
-func ValidateInsertRow(h dml.Host, b analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
+func ValidateInsertRow(h Host, b analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
 	if h.Command().PartitionInsert != nil {
 		return validatePartitionInsert(h, b, row, evaluation)
 	}
 	return validatePhysicalInsertRow(h, b, &b, schema, row, evaluation)
 }
-func validatePhysicalInsertRow(h dml.Host, b analyze.Binding, named *analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
+func validatePhysicalInsertRow(h Host, b analyze.Binding, named *analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
 	if err := evaluation.Context.Err(); err != nil {
 		return err
 	}
@@ -77,7 +76,7 @@ func validatePhysicalInsertRow(h dml.Host, b analyze.Binding, named *analyze.Bin
 	}
 	// Copy the binding so only this failure path allocates it.
 	detailBinding := *named
-	detail, err := h.RowDetail(&detailBinding, row, dml.DetailConstraint)
+	detail, err := h.RowDetail(&detailBinding, row, DetailConstraint)
 	if err != nil {
 		return err
 	}
@@ -86,8 +85,8 @@ func validatePhysicalInsertRow(h dml.Host, b analyze.Binding, named *analyze.Bin
 
 // RowConstraintError is the NOT NULL (column) or CHECK (check) violation of
 // row in b's relation, with the failing-row detail the actor may see.
-func RowConstraintError(h dml.Host, b analyze.Binding, schema, column, check string, row []sqltype.Value) error {
-	detail, err := h.RowDetail(&b, row, dml.DetailConstraint)
+func RowConstraintError(h Host, b analyze.Binding, schema, column, check string, row []sqltype.Value) error {
+	detail, err := h.RowDetail(&b, row, DetailConstraint)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -174,7 +175,7 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 			if phase == "sorting" {
 				evaluationContext = &queryCountingContext{Context: ctx, remaining: 16}
 			}
-			rows, err := EvaluateInsertQuery(evaluationContext, b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+			rows, err := dml.EvaluateInsertQuery(evaluationContext, b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 			want := error(context.Canceled)
 			if phase == "late source" {
 				want = sentinel
@@ -218,7 +219,7 @@ func TestInsertSelectRequiredClose(t *testing.T) {
 			cancel()
 			ctx = cancelled
 		}
-		rows, err := AssembleInsertRows(ctx, b, cursor, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
+		rows, err := dml.AssembleInsertRows(ctx, b, cursor, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
 		want := error(closeErr)
 		if primary {
 			want = context.Canceled
@@ -240,7 +241,7 @@ func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	closing := &insertCloseCursor{RowCursor: &stage, cancel: cancel}
-	rows, err := AssembleInsertRows(ctx, b, closing, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
+	rows, err := dml.AssembleInsertRows(ctx, b, closing, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
 	if !errors.Is(err, context.Canceled) || rows.Values != nil || closing.closes != 1 {
 		t.Fatal(rows, err, closing.closes)
 	}

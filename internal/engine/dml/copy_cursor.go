@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/copyfmt"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -20,7 +19,7 @@ import (
 // every use, as the rows arrive.
 type CopyCursor struct {
 	op                *session.Operation
-	host              dml.Host
+	host              Host
 	binding           analyze.Binding
 	in                copyfmt.LineReader
 	defaults, omitted []bool
@@ -29,7 +28,7 @@ type CopyCursor struct {
 }
 
 // NewCopyCursor is the text or CSV COPY FROM cursor of b over in.
-func NewCopyCursor(h dml.Host, b analyze.Binding, in copyfmt.LineReader) *CopyCursor {
+func NewCopyCursor(h Host, b analyze.Binding, in copyfmt.LineReader) *CopyCursor {
 	// One backing array for both row flags offsets the targets allocation.
 	n := len(b.Relation.Columns)
 	flags := make([]bool, 2*n)

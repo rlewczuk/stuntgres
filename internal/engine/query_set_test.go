@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -366,7 +367,7 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	for i, expression := range project.Expressions {
 		project.Expressions[i] = plan.ColumnExpr{Info: expr.InfoOf(expression), Scope: 1, Frame: project.Frame, Slot: i}
 	}
-	rows, err := EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+	rows, err := dml.EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	if rows.Values != nil || err != sentinel || source.View != nil || source.Anonymous != nil {
 		t.Fatal("set INSERT published partial batch", rows, err, source)
 	}

@@ -92,7 +92,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		var rows [][]sqltype.Value
 		if b.CommandQuery {
 			b.Query = &plan.Query{Root: execution.queryRoot}
-			batch, err := EvaluateInsertQuery(s.op.Context(), b, inputs, parameters, execution.auth.Catalog.Get(b.Relation.Namespace()).Name(), s.input, s.output, s.writeHost())
+			batch, err := dml.EvaluateInsertQuery(s.op.Context(), b, inputs, parameters, execution.auth.Catalog.Get(b.Relation.Namespace()).Name(), s.input, s.output, s.writeHost())
 			if err != nil {
 				return Result{}, err
 			}
@@ -105,7 +105,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 					row[j] = sqltype.Null(c.Usage.Type)
 				}
 				if len(b.Insert.Projection) != 0 {
-					if err := EvaluateInsertValuesRow(execution.auth.Catalog, &b, execution.expressions[i], raw, row, len(b.Insert.Rows) > 1, &evaluation); err != nil {
+					if err := dml.EvaluateInsertValuesRow(execution.auth.Catalog, &b, execution.expressions[i], raw, row, len(b.Insert.Rows) > 1, &evaluation); err != nil {
 						return Result{}, err
 					}
 				} else {
@@ -161,7 +161,7 @@ func (s *StatementScope) foreignInsertResult(m *fdw.Modification, b analyze.Bind
 	}
 	rowByRow := b.Returning != nil || b.ViewWrite != nil && len(view.ViewWriteOf(b.ViewWrite).Checks) != 0
 	count, err := m.InsertRows(s.op.Context(), s.foreignWrites(), rows, rowByRow, func(row []sqltype.Value) error {
-		if err := CheckViewRow(s.writeHost(), &b, row, evaluation); err != nil {
+		if err := dml.CheckViewRow(s.writeHost(), &b, row, evaluation); err != nil {
 			return err
 		}
 		return dml.ProjectForeignReturning(b, output, row, nil, evaluation)
@@ -332,7 +332,7 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 			var returned catalog.ForeignRow
 			var present bool
 			if b.Update != nil {
-				row, err := EvaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.Row)
+				row, err := dml.EvaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.Row)
 				if err != nil {
 					return Result{}, err
 				}
@@ -365,7 +365,7 @@ func (s *StatementScope) executeForeignRowMutation(m *fdw.Modification, b analyz
 				return Result{}, err
 			}
 			if b.Update != nil {
-				if err := CheckViewRow(s.writeHost(), &b, actual, evaluation); err != nil {
+				if err := dml.CheckViewRow(s.writeHost(), &b, actual, evaluation); err != nil {
 					return Result{}, err
 				}
 			}

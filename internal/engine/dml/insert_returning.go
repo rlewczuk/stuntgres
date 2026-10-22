@@ -1,10 +1,9 @@
-package engine
+package dml
 
 import (
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -13,15 +12,15 @@ import (
 
 // BeginInsertReturning installs the active command's RETURNING output for b,
 // if b has RETURNING.
-func BeginInsertReturning(h dml.Host, b analyze.Binding) {
+func BeginInsertReturning(h Host, b analyze.Binding) {
 	if b.Returning == nil {
 		return
 	}
 	rows := exec.NewFinalRows(b.Returning.Schema, 0)
 	_, rows.Output = h.Environments()
-	h.Command().InsertReturning = &dml.InsertReturningOutput{Binding: b, Rows: rows}
+	h.Command().InsertReturning = &InsertReturningOutput{Binding: b, Rows: rows}
 }
-func projectInsertReturning(h dml.Host, row, old []sqltype.Value, c *exec.Context) error {
+func projectInsertReturning(h Host, row, old []sqltype.Value, c *exec.Context) error {
 	output := h.Command().InsertReturning
 	if output == nil {
 		return nil
@@ -42,21 +41,21 @@ func projectInsertReturning(h dml.Host, row, old []sqltype.Value, c *exec.Contex
 	output.Rows.Count++
 	return nil
 }
-func finishInsertReturning(h dml.Host) (dml.Outcome, error) {
+func finishInsertReturning(h Host) (Outcome, error) {
 	output := h.Command().InsertReturning
 	if output.Binding.Returning.RegclassOutput && output.Rows.Count != 0 {
 		if err := h.CaptureRegclassOutput(output.Rows); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 	}
 	if err := h.Context().Err(); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
-	return dml.Outcome{Count: int64(output.Rows.Count), Rows: output.Rows}, nil
+	return Outcome{Count: int64(output.Rows.Count), Rows: output.Rows}, nil
 }
 
 // Revalidate the proposal before output, never output before possible filtering.
-func acceptInsertReturning(h dml.Host, ref ids.ObjectRef, candidate *index.WriteCandidate, evaluation *exec.Context) (bool, error) {
+func acceptInsertReturning(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, evaluation *exec.Context) (bool, error) {
 	command := h.Command()
 	row := candidate.Values
 	if command.InsertConflict != nil && command.InsertConflict.Update != nil {
@@ -64,7 +63,7 @@ func acceptInsertReturning(h dml.Host, ref ids.ObjectRef, candidate *index.Write
 	}
 	proposal := *candidate
 	if command.PartitionInsert != nil {
-		group := command.PartitionReturningGroup(ref)
+		group := command.partitionReturningGroup(ref)
 		ref = group.Ref
 		proposal.Values = command.PartitionStoredRow(row)
 		defer func() { group.Unique = command.UniqueBinding }()
@@ -73,7 +72,7 @@ func acceptInsertReturning(h dml.Host, ref ids.ObjectRef, candidate *index.Write
 		admitted := true
 		var err error
 		if command.PartitionInsert != nil {
-			err = dml.CheckUniqueRow(h, ref, &proposal, nil, index.WriteBatch{})
+			err = CheckUniqueRow(h, ref, &proposal, nil, index.WriteBatch{})
 		} else {
 			admitted, err = AdmitInsertRow(h, ref, &proposal, index.WriteBatch{}, evaluation)
 		}
@@ -95,7 +94,7 @@ func acceptInsertReturning(h dml.Host, ref ids.ObjectRef, candidate *index.Write
 // catalog and index authority as canonical batch staging, which performs
 // the final gate. stale reports a moved unique binding: the caller
 // revalidates and retries.
-func AppendAcceptedInsert(h dml.Host, ref ids.ObjectRef, candidate *index.WriteCandidate) (accepted, stale bool, err error) {
+func AppendAcceptedInsert(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate) (accepted, stale bool, err error) {
 	row := candidate.Values
 	if err := h.Active(); err != nil {
 		return false, false, err
@@ -106,7 +105,7 @@ func AppendAcceptedInsert(h dml.Host, ref ids.ObjectRef, candidate *index.WriteC
 	if candidate.Indexes != nil || candidate.Precheck != nil || candidate.Exclusion != nil {
 		batch.States = states[:]
 	}
-	if err := dml.ValidateIndexCandidates(h, ref, &batch); err != nil {
+	if err := ValidateIndexCandidates(h, ref, &batch); err != nil {
 		return false, false, err
 	}
 	*candidate = batch.Candidate(0)
@@ -117,7 +116,7 @@ func AppendAcceptedInsert(h dml.Host, ref ids.ObjectRef, candidate *index.WriteC
 // their immutable payload in the write stage, so callers must not retain a
 // duplicate producer prefix (it reports false); upsert projects at its action
 // seam.
-func AdmitInsertProducer(h dml.Host, b analyze.Binding, candidate *index.WriteCandidate, prefix index.WriteBatch, c *exec.Context) (bool, error) {
+func AdmitInsertProducer(h Host, b analyze.Binding, candidate *index.WriteCandidate, prefix index.WriteBatch, c *exec.Context) (bool, error) {
 	command := h.Command()
 	row := candidate.Values
 	if command.InsertReturning == nil {

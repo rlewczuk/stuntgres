@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -79,7 +80,7 @@ func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 		}
 		return original.Eval(c)
 	})
-	rows, err := EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+	rows, err := dml.EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	if rows.Values != nil || err != sentinel || calls != 3 || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, err, calls, source)
 	}

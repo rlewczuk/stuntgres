@@ -145,9 +145,9 @@ func (c *Command) PartitionStoredRow(row []sqltype.Value) []sqltype.Value {
 	return row
 }
 
-// PartitionInsertionGroup is the insertion group of the routed destination,
+// partitionInsertionGroup is the insertion group of the routed destination,
 // created in first-use order.
-func (c *Command) PartitionInsertionGroup(ref ids.ObjectRef) *partition.InsertGroup {
+func (c *Command) partitionInsertionGroup(ref ids.ObjectRef) *partition.InsertGroup {
 	state := c.PartitionInsert
 	address := state.Destination.Address()
 	group := state.Groups[address]
@@ -162,10 +162,10 @@ func (c *Command) PartitionInsertionGroup(ref ids.ObjectRef) *partition.InsertGr
 	return group
 }
 
-// PartitionReturningGroup is PartitionInsertionGroup with the group's unique
+// partitionReturningGroup is partitionInsertionGroup with the group's unique
 // binding made active, for a RETURNING row.
-func (c *Command) PartitionReturningGroup(ref ids.ObjectRef) *partition.InsertGroup {
-	group := c.PartitionInsertionGroup(ref)
+func (c *Command) partitionReturningGroup(ref ids.ObjectRef) *partition.InsertGroup {
+	group := c.partitionInsertionGroup(ref)
 	c.UniqueBinding = group.Unique
 	return group
 }

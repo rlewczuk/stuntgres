@@ -68,7 +68,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q
 			t.Fatal(err)
 		}
 	}
-	BeginInsertReturning(scope.writeHost(), b)
+	dml.BeginInsertReturning(scope.writeHost(), b)
 	return op, scope, b
 }
 
@@ -184,7 +184,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 					}
 					return c.Row[1], nil
 				})
-				rows, err := AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
+				rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
 				if rows.Values != nil || calls != 2 || cursor.closes != 1 {
 					t.Fatal(rows, calls, cursor.closes)
 				}
@@ -218,7 +218,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		ten, _ := sqltype.Integer(b.Relation.Columns[1].Usage.Type, 10)
 		row := []sqltype.Value{one, ten}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		admitted, err := AdmitInsertRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation)
+		admitted, err := dml.AdmitInsertRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation)
 		if err != nil || !admitted {
 			t.Fatal(admitted, err)
 		}
@@ -241,13 +241,13 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
-		accepted, retry, err := AppendAcceptedInsert(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: row})
+		accepted, retry, err := dml.AppendAcceptedInsert(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: row})
 		if err != nil || accepted || !retry || len(scope.stage.rows[b.Ref.Address]) != 0 || scope.InsertReturning.Rows.Count != 0 {
 			t.Fatal("stale provider admitted output", accepted, retry, err, scope.stage.rows)
 		}
 		calls := 0
 		b.Returning.Expressions[0] = queryProbe(b.Relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[1], nil })
-		if _, err := AdmitInsertProducer(scope.writeHost(), b, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation); err != nil {
+		if _, err := dml.AdmitInsertProducer(scope.writeHost(), b, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation); err != nil {
 			t.Fatal(err)
 		}
 		if scope.UniqueBinding == prior || calls != 1 || scope.InsertReturning.Rows.Count != 1 || len(scope.stage.rows[b.Ref.Address]) != 1 {
@@ -281,7 +281,7 @@ func TestInsertReturningProducerClose(t *testing.T) {
 			if primary {
 				cursor.nextError = nextErr
 			}
-			rows, err := AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
+			rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
 			want, count := closeErr, 2
 			if primary {
 				want, count = nextErr, 1

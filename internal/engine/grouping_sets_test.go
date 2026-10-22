@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -274,7 +275,7 @@ func TestGroupingSetsInsertLateFailureAndActiveCancellation(t *testing.T) {
 					return provider.Finalize(ctx, s)
 				},
 			}
-			rows, err := EvaluateInsertQuery(ctx, b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+			rows, err := dml.EvaluateInsertQuery(ctx, b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 			want := error(sentinel)
 			if phase == "fanout_cancel" {
 				want = context.Canceled

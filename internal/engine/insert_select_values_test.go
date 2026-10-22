@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -47,7 +48,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		sorted := &plan.SortNode{QuerySchema: schema, Child: values, Keys: []plan.SortKey{{Expression: projection, Slot: 0, Cache: -1, Comparison: comparison}}}
 		query := &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: sorted, Expressions: []expr.Expr{projection}}}
 		source := &exec.Source{}
-		rows, err := EvaluateInsertQuery(context.Background(), analyze.Binding{Relation: relation, Ref: ref, Targets: []int{0}, Query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+		rows, err := dml.EvaluateInsertQuery(context.Background(), analyze.Binding{Relation: relation, Ref: ref, Targets: []int{0}, Query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 		if err != nil || len(rows.Values) != count || source.Anonymous != nil {
 			t.Fatal(rows, err, source.Anonymous)
 		}

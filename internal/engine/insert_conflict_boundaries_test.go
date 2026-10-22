@@ -53,7 +53,7 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 			if failure == "close" {
 				cursor.closeError = injected
 			}
-			rows, err := AssembleInsertRows(scope.op.Context(), b, cursor, count, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
+			rows, err := dml.AssembleInsertRows(scope.op.Context(), b, cursor, count, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
 			if failure == "none" {
 				if err != nil || len(rows.Values) != 2 || cursor.position != 3 {
 					t.Fatal("consumed vs admitted", count, len(rows.Values), cursor.position, err)
@@ -79,7 +79,7 @@ func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	}
 	// The mark is deliberately unique-only. Real row/relation/completion ownership
 	// must survive even though a new unique-key reservation is discarded.
-	admitted, err := AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+	admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
@@ -170,10 +170,10 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	}
 	manager.RestoreUnique(session.Advisory.Ticket, mark)
 	row := insertConflictUnitRow(t, f, 20)
-	if admitted, err := AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, nil); err != nil || !admitted {
+	if admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	if admitted, err := AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
+	if admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
 	if got := advisoryUnitHold(session, key); got != want {

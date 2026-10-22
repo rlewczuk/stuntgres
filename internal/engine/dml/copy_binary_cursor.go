@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/copyfmt"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +20,7 @@ import (
 // every use, as the rows arrive.
 type CopyBinaryCursor struct {
 	op                *session.Operation
-	host              dml.Host
+	host              Host
 	binding           analyze.Binding
 	in                copyfmt.BinaryReader
 	defaults, omitted []bool
@@ -29,7 +28,7 @@ type CopyBinaryCursor struct {
 }
 
 // NewCopyBinaryCursor is the binary COPY FROM cursor of b over in.
-func NewCopyBinaryCursor(h dml.Host, b analyze.Binding, in copyfmt.BinaryReader) *CopyBinaryCursor {
+func NewCopyBinaryCursor(h Host, b analyze.Binding, in copyfmt.BinaryReader) *CopyBinaryCursor {
 	c := &CopyBinaryCursor{op: h.Operation(), host: h, binding: b, in: in, defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true

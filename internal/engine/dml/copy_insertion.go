@@ -1,14 +1,13 @@
-package engine
+package dml
 
 import (
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 )
 
-func recordCopyInsertion(state *dml.CopyInsertionState, h dml.Host, b analyze.Binding, candidate *index.WriteCandidate, position int) {
+func recordCopyInsertion(state *CopyInsertionState, h Host, b analyze.Binding, candidate *index.WriteCandidate, position int) {
 	line, size := state.Cursor.InsertionOrigin()
 	state.Lines = append(state.Lines, line)
 	state.Bytes += size
@@ -16,7 +15,7 @@ func recordCopyInsertion(state *dml.CopyInsertionState, h dml.Host, b analyze.Bi
 	if command.PartitionInsert == nil {
 		return
 	}
-	group := command.PartitionInsertionGroup(b.Ref)
+	group := command.partitionInsertionGroup(b.Ref)
 	// Freeze the already-validated physical destination before the next input
 	// overwrites the current partition projection. No second generation Eval.
 	candidate.Values = command.PartitionStoredRow(candidate.Values)
@@ -27,12 +26,12 @@ func recordCopyInsertion(state *dml.CopyInsertionState, h dml.Host, b analyze.Bi
 	if !exists {
 		at = len(state.Buffers)
 		state.Groups[group] = at
-		state.Buffers = append(state.Buffers, dml.CopyInsertionBuffer{Group: group})
+		state.Buffers = append(state.Buffers, CopyInsertionBuffer{Group: group})
 	}
 	state.Buffers[at].Positions = append(state.Buffers[at].Positions, position)
 }
 
-func flushCopyInsertion(state *dml.CopyInsertionState, h dml.Host, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
+func flushCopyInsertion(state *CopyInsertionState, h Host, b analyze.Binding, rows *index.WriteBatch, evaluation *exec.Context) error {
 	command := h.Command()
 	insert := func(position int, group *partition.InsertGroup) error {
 		candidate := rows.Candidate(position)
@@ -41,14 +40,14 @@ func flushCopyInsertion(state *dml.CopyInsertionState, h dml.Host, b analyze.Bin
 			_, err = AdmitInsertProducer(h, b, &candidate, rows.Prefix(position), evaluation)
 		} else {
 			command.UniqueBinding = group.Unique
-			err = dml.CheckUniqueRow(h, group.Ref, &candidate, nil, group.Rows)
+			err = CheckUniqueRow(h, group.Ref, &candidate, nil, group.Rows)
 			group.Unique = command.UniqueBinding
 			if err == nil {
 				group.Rows.Append(candidate)
 			}
 		}
 		if err != nil {
-			return dml.CopyInsertionDiagnostic(h.CopyCommandError(err), b.Relation.Name(), state.Lines[position-state.First])
+			return CopyInsertionDiagnostic(h.CopyCommandError(err), b.Relation.Name(), state.Lines[position-state.First])
 		}
 		rows.Set(position, candidate)
 		return nil
@@ -81,6 +80,6 @@ func (c *CopyCursor) InsertionOrigin() (int64, int)       { return c.in.Number()
 func (c *CopyBinaryCursor) InsertionOrigin() (int64, int) { return c.in.Number(), 0 }
 
 var (
-	_ dml.CopyInsertionCursor = (*CopyCursor)(nil)
-	_ dml.CopyInsertionCursor = (*CopyBinaryCursor)(nil)
+	_ CopyInsertionCursor = (*CopyCursor)(nil)
+	_ CopyInsertionCursor = (*CopyBinaryCursor)(nil)
 )
