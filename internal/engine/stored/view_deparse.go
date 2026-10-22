@@ -915,6 +915,17 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
+		if !v.Presentation.Deparse && usage.Type.BaseType().ID() == sqltype.Path {
+			switch e.Child.(type) {
+			case parser.LiteralExpr, parser.TypedLiteralExpr:
+				if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
+					// Exact PATH literals already own this leaf's type annotation,
+					// including a domain's own cast. Preserve all outer casts,
+					// conversions and different domain/typmod usages.
+					return text, nil
+				}
+			}
+		}
 		if !v.Presentation.Deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.ID() == sqltype.Macaddr || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB || usage.Type.ID() == sqltype.JSONPath || sqltype.IsFTS(usage.Type.ID())) {
 			switch e.Child.(type) {
 			case parser.LiteralExpr, parser.TypedLiteralExpr:

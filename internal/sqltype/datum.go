@@ -59,6 +59,8 @@ func SameDatum(a, b Value) bool {
 		return math.Float64bits(a.floating) == math.Float64bits(b.floating) && a.integer == b.integer
 	case Box, Line, Lseg:
 		return a.geometry != nil && b.geometry != nil && a.sameGeometry(b)
+	case Path:
+		return samePath(a, b)
 	case Circle:
 		return math.Float64bits(a.circle.x) == math.Float64bits(b.circle.x) &&
 			math.Float64bits(a.circle.y) == math.Float64bits(b.circle.y) &&

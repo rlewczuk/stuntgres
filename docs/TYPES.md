@@ -93,6 +93,40 @@ Dump recreates the extension before its consumers and restores fresh identities,
 without changing retained result metadata or values. Associated _citext remains
 lookup-only. Binary codecs, case-insensitive operators and arrays are excluded.
 
+## PATH transport
+
+PATH (OID602, variable length) retains a nonempty ordered sequence of binary64
+coordinate pairs and a separate closure flag. `[(1,2),(3,4)]` is open;
+`((1,2),(3,4))` is closed. Alternate flat and unwrapped released forms canonicalize
+to those forms. A singleton is valid; empty lists and arbitrary nesting are not.
+Order, repeated points and explicitly repeated endpoints are preserved; closing
+a path never appends a point. The scanner preserves two separate shallow wrapper
+stages: a single leading-parenthesis wrapper may enclose the decoder's open
+bracket list, so `([1,2])` displays as `[(1,2)]`. Both closing obligations are
+required; this is not arbitrary recursive nesting. Released decoding also
+accepts `)` as the outer closer of an open bracket list.
+
+Columns, typed literals, explicit character casts and inferred/explicit parameter
+bindings share descriptor IO. Strings, bytes and driver.Valuer results use
+ordinary transport. Nil and typed-nil bytes are SQL NULL, not empty nonnull input.
+Native raw cells and ScanType are string; pq exposes textual bytes with interface
+ScanType. DatabaseTypeName is PATH; Length/DecimalSize are unknown and physical
+source nullability follows the existing column contract. Explicit VARCHAR/CHAR
+casts truncate/pad normally; assignment still checks length.
+
+The five scalar predicates `=`, `<`, `>`, `<=`, `>=` compare point counts only,
+ignoring coordinates and closure, and are strict on NULL. There is no PATH
+`<>`/`!=` or `~=` signature. Exact representation identity instead compares
+closure, order and every coordinate's IEEE bits. No generic sorting/grouping,
+hashing or default index authority follows from scalar count equality.
+Companion1019 `_path`, binary IO and broader geometric providers remain excluded.
+
+Output honors extra_float_digits and canonically displays either NaN sign as
+`NaN`, matching PostgreSQL. Native logical persistence instead retains accepted
+negative-NaN coordinates as `-NaN`, alongside exact finite coordinates, closure,
+signed zeros, subnormals and NULL. Row literals and stored defaults/CHECKs/views
+share that exact SQLLiteral route through same/fresh-driver replay.
+
 ## LINE transport
 
 LINE (OID628,24-byte PostgreSQL datum) stores immutable binary64 A/B/C for

@@ -148,6 +148,11 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{6424, ids.PGCatalogNamespaceOID, "hashcidextended", "29,20"}, catalog.FunctionRoutine, 20, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider},
 	{catalog.RoutineIdentity{6425, ids.PGCatalogNamespaceOID, "timestamptz_hash", "1184"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider},
 	{catalog.RoutineIdentity{6426, ids.PGCatalogNamespaceOID, "timestamptz_hash_extended", "1184,20"}, catalog.FunctionRoutine, 20, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider},
+	{catalog.RoutineIdentity{982, ids.PGCatalogNamespaceOID, "path_n_lt", "602,602"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{983, ids.PGCatalogNamespaceOID, "path_n_gt", "602,602"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{984, ids.PGCatalogNamespaceOID, "path_n_eq", "602,602"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{985, ids.PGCatalogNamespaceOID, "path_n_le", "602,602"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{986, ids.PGCatalogNamespaceOID, "path_n_ge", "602,602"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	// PostgreSQL REL_18_6 selected SQL large-object wrappers.
 	{catalog.RoutineIdentity{715, ids.PGCatalogNamespaceOID, "lo_create", "26"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
 	{catalog.RoutineIdentity{957, ids.PGCatalogNamespaceOID, "lo_creat", "23"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},

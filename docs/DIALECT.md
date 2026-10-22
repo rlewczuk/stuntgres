@@ -8,6 +8,21 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## PATH geometric boundary
+
+PATH provides nonempty ordered point-list IO, open/closed identity, typed
+transport and five scalar point-count predicates (`=`, `<`, `>`, `<=`, `>=`).
+Coordinates and closure do not affect these predicates. There is no PATH
+`<>`/`!=` or `~=` signature; unsupported calls report42883.
+Scalar equality does not establish default sorting/grouping/hash/index classes.
+Companion `_path` is lookup-only, not an admitted POINT array or subscript
+provider. Published receive/send identities do not enable binary codecs.
+Other PostgreSQL geometric functions/operators, arrays and physical geometric
+indexes remain native provider boundaries, not claims of PostgreSQL absence.
+Native logical Dump/Reset/Restore preserves coordinates and closure but is
+not a PostgreSQL host-control API or physical durability mechanism.
+See [PATH proof](../reference/types/README.md#path-scalar-contract).
+
 ## LINE geometric boundary
 
 LINE coefficient/endpoint IO, typed table/bind/result transport and actual scalar

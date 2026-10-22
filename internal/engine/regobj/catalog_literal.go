@@ -240,7 +240,7 @@ func ConstantLiteral(ctx context.Context, n plan.LiteralExpr) (string, error) {
 		return "NULL::unknown", nil
 	}
 	literal, err := u.Type.SQLLiteral(ctx, n.Value)
-	if err == nil && (u.Type.ID() == sqltype.Circle || sqltype.IsFTS(u.Type.ID())) {
+	if err == nil && (u.Type.ID() == sqltype.Circle || u.Type.ID() == sqltype.Path || sqltype.IsFTS(u.Type.ID())) {
 		return "CAST(" + literal + " AS " + u.Type.SQLName() + ")", nil
 	}
 	if err == nil && (sqltype.IsOperatorAlias(u.Type.ID()) || sqltype.IsRegTS(u.Type.ID())) {

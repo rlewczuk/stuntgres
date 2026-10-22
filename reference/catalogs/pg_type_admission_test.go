@@ -54,6 +54,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		expected[718], expected[719] = true, true
 		// LINE's scalar admission exposes metadata, not companion array execution.
 		expected[628], expected[629] = true, true
+		// PATH is concrete, but its companion is catalog identity only.
+		expected[602], expected[1019] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")

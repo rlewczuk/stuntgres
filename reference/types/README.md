@@ -35,6 +35,59 @@ bytes on the same attachment and an independent Driver, observe fresh18 writes,
 and verify failed23502/canceled Restore preserves sentinel42/no bad_restore plus
 a subsequent valid default write. Selected companion proof retains full v22/p52.
 
+### PATH scalar contract
+
+Shared PATH scenarios independently specify open/closed and singleton IO,
+ordered/repeated coordinates, released scanner edges, direct/new-prepared/held
+string/byte/Valuer/NULL transport, raw metadata, complete diagnostics and stages,
+statement atomicity and recovery, five point-count comparisons and absent
+generic sorting/grouping/index capabilities. Controls add stored defaults,
+count-predicate CHECKs/views and explicit native same/fresh-driver exact replay.
+Pinned18.6 oracle-first discovery validated the independent expectations before
+native implementation; native regression proof exposed unsupported PATH columns.
+
+```sh
+make check RUN='^TestReferencePath(Values|Scanner|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferencePath(Transport|Metadata|Comparison)$' REFERENCE=1
+make check RUN='^TestReferencePath(Controls|FeatureSmoke)$' REFERENCE=1
+```
+
+Use external900-second deadlines. Repeat these exact selectors without
+`REFERENCE=1` for native proof; completed definitions require both modes before
+review. Private `TestPath(Datum|Comparison|Descriptor|ExactReplay)` covers
+immutable payload ownership, bit identity and scalar-versus-generic authority.
+`TestRegtypeInventoryCapability` retains lookup-only companion1019.
+Parser `TestPathParserAdmission` checks keyword/quoted/qualified typed-literal
+ASTs, source positions and retained domain-only authority outside pg_catalog:
+`make check RUN='^TestPathParserAdmission$'`.
+FeatureSmoke is a permanent shared integration witness, not the separate
+standalone public-API program required after implementation. The latter must
+observe held inserts, metadata, NULL, comparisons, atomic failure/recovery and
+public Dump/Reset/Restore outside the tracked tree.
+
+Signed-special regression `TestReferencePathSignedSpecialReplay` independently
+asserts PostgreSQL's signed-NaN/Infinity input and canonical display. Native
+host-control phases inspect actual public Dump bytes for signed NaN coordinates
+in rows, defaults and stored view constants across same/fresh-driver replay.
+`TestPathExactReplay` separately requires bit-exact negative-NaN reinput.
+Initial regression discovery selects the PostgreSQL subtest before the expected
+native failure; completed proof uses the whole shared definition in both modes:
+`make check RUN='^TestReferencePathSignedSpecialReplay$'` and the same command
+with `REFERENCE=1`.
+
+Review-boundary regressions `TestReferencePathWrapperStages` and
+`TestReferencePathDomainReplay` cover the two released shallow wrapper stages
+and constrained-domain stored-cast authority. They assert literal/bound wrapper
+IO and complete rejection diagnostics, signed-special/NULL domain values,
+catalog-owned domain identities, required outer-domain checks, distinct TEXT
+conversion, and stable native same/fresh-driver logical replay.
+Select `make check RUN='^TestReferencePath(WrapperStages|DomainReplay)$'`
+in both modes. Pinned-oracle discovery confirmed all independently specified
+wrapper/domain expectations before native regression proof; discovery filters
+and temporary helpers have been removed. Standalone smoke additionally exercises
+the two-stage wrapper and constrained-domain cast/check/replay boundaries while
+retaining the original seven-row main table.
+
 ### LINE scalar contract
 
 Independent pinned18.6 oracle-first scenarios cover coefficient preservation,

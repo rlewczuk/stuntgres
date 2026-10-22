@@ -131,6 +131,15 @@ func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 		}
 		return "NULL::" + typ, nil
 	}
+	if v.Type().BaseType().ID() == sqltype.Path {
+		// Use the same exact persistence route as row dumps, not NaN-canonical
+		// SQL display. PATH coordinate text contains no quoting metacharacters.
+		literal, err := v.Type().SQLLiteral(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return literal + "::" + typ, nil
+	}
 	output := r.Output
 	// Persisted literal text must remain lossless even when SQL presentation
 	// requests rounded floats, including nested array and domain leaves.

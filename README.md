@@ -37,6 +37,18 @@ CREATE does not evaluate the body. Recursive CHECK OPTION suffixes are rejected.
 See [query contracts](docs/QUERIES.md#recursive-views) and
 [selected proof and smoke](reference/views/README.md#recursive-view-contract).
 
+## PATH geometric scalar — change note
+
+PATH columns, typed literals, casts and held string/byte/NULL binds retain an
+immutable nonempty ordered point sequence and its open/closed flag. Canonical
+output uses square brackets for open paths and parentheses for closed paths.
+The five released scalar comparisons compare point counts only; they do not
+grant generic sorting, grouping or indexes. Native logical Dump/Restore retains
+full coordinate precision independently of display settings.
+See [value contracts](docs/TYPES.md#path-transport),
+[native limits](docs/DIALECT.md#path-geometric-boundary) and
+[selected proof](reference/types/README.md#path-scalar-contract).
+
 ## Circle scalar — change note
 
 Builtin `circle` columns, casts, string/byte binds, typed NULL, metadata and

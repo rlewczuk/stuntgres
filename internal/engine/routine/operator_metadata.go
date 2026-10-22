@@ -172,6 +172,12 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{693, 20, "b", false, false, 0, 0, 1279, 0, 0},
 	{694, 20, "b", false, false, 690, 0, 1280, 0, 0},
 	{695, 20, "b", false, false, 0, 0, 1281, 0, 0},
+	// REL_18_6 path predicates have no merge/hash or negator authority.
+	{792, 16, "b", false, false, 792, 0, 984, 101, 105},
+	{793, 16, "b", false, false, 794, 0, 982, 0, 0},
+	{794, 16, "b", false, false, 793, 0, 983, 0, 0},
+	{795, 16, "b", false, false, 796, 0, 985, 0, 0},
+	{796, 16, "b", false, false, 795, 0, 986, 0, 0},
 	{818, 20, "b", false, false, 822, 0, 837, 0, 0},
 	{819, 20, "b", false, false, 0, 0, 838, 0, 0},
 	{820, 20, "b", false, false, 824, 0, 839, 0, 0},

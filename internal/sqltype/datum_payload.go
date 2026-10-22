@@ -26,6 +26,12 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		return false, nil
 	}
 	v.geometry, other.geometry = nil, nil
+	if v.path != nil || other.path != nil {
+		if !samePath(v, other) {
+			return false, nil
+		}
+		v.path, other.path = nil, nil
+	}
 	if v.ftsVector != nil || other.ftsVector != nil || v.ftsQuery != nil || other.ftsQuery != nil {
 		same, err := v.sameFTS(ctx, other)
 		if err != nil || !same {

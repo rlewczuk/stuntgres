@@ -29,6 +29,25 @@ fetch/copy-on-write assignment is shared with BOX. Scalar comparisons grant no
 default ordering/grouping/hash/index authority; `_lseg` remains lookup-only.
 Binary provider declaration/demand guards fail0A000 without adding a codec.
 
+PATH owns one immutable nonempty point slice and a closure flag through a
+pointer payload, so copying Value neither duplicates coordinates nor exposes
+mutable storage. SameDatum compares closure, order and IEEE coordinate bits;
+the five scalar predicates compare only point counts. PATH never grants
+generic comparison/grouping/hash/index authority or companion-array admission.
+Exact SQLLiteral output is independent of extra_float_digits display precision.
+Its private formatter distinguishes canonical display (`NaN` for either sign)
+from exact persistence (`-NaN` for accepted negative-NaN coordinates).
+Stored PATH constants reuse SQLLiteral, including domain delegation, rather
+than passing through lossy display output. Both presentation deparsing and
+captured catalog/view recipes retain an explicit PATH cast, including typed
+NULL, so exact literal text cannot silently become a TEXT result.
+Replayed catalog/view recipes elide only an identical captured literal's
+duplicate PATH/domain leaf annotation; outer casts, conversions and differing
+domain or typmod usages retain their original checks.
+Input keeps path_in's optional single-parenthesis wrapper separate from
+path_decode's open/closed wrapper and consumes their closing obligations in
+order. This admits `([1,2])` without introducing recursive list parsing.
+
 Circle owns a fixed inline center/radius datum and shared text/binary codecs.
 `CirclePlan` evaluates only actual circle scalar signatures and strict radius;
 it never grants `ComparisonCapabilities`, grouping or default index authority.

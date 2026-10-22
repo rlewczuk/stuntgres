@@ -27,6 +27,28 @@ Use external900-second deadlines. Standalone public smoke should inspect actual
 empty raw metadata, scalar/LEFT JOIN ANYARRAY NULL,0/true and rejected CTAS
 absence, not infer them from source structure or backend parity.
 
+### PATH catalog admission
+
+PATH scalar602 and lookup-only companion1019 join the complete independent
+type-admission bag. The supported-operator TSV includes released OIDs792–796:
+five point-count comparisons with no negators or merge/hash authority. Procedure
+identities are984/982/983/985/986; only equality has eqsel/eqjoinsel estimators.
+These facts come from REL_18_6 pg_operator.dat, not native capture output.
+Existing capture, inventory, references, polymorphic, permission and lifecycle
+assertions retain complete bags and consume these additional released rows.
+The datum-carrier unit matrix includes open/closed paths, repeats, precise
+coordinates, signed zero, subnormals and nonfinite values; ordering admission
+continues to reject PATH.
+
+```sh
+make check RUN='^(TestReferencePGOperator.*|TestReferencePGTypeAdmission)$'
+make check RUN='^(TestReferencePGOperator.*|TestReferencePGTypeAdmission)$' REFERENCE=1
+make check RUN='^(TestPGOperator(CaptureOwnership|ProviderAgreement)|TestAnyValueProviderDatums|TestOrderingUsage)$'
+```
+
+Use external900-second deadlines. Every public definition consuming the changed
+shared TSV requires both modes; complete bags are not narrowed to PATH rows.
+
 ### LINE catalog admission
 
 LINE scalar628 and lookup-only companion629 join the independent type-admission
