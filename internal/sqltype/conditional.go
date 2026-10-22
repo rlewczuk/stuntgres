@@ -10,6 +10,7 @@ var equalitySignatures = [...]EqualitySignature{
 	{Macaddr, Macaddr},
 	{Box, Box},
 	{Line, Line},
+	{Lseg, Lseg},
 	{Xid, Xid}, {Xid, Int4}, {Cid, Cid}, {Xid8, Xid8},
 	{Int2, Int2}, {Int2, Int4}, {Int2, Int8}, {Int4, Int2}, {Int4, Int4}, {Int4, Int8}, {Int8, Int2}, {Int8, Int4}, {Int8, Int8},
 	{Float4, Float4}, {Float4, Float8}, {Float8, Float4}, {Float8, Float8}, {Numeric, Numeric}, {Bool, Bool},

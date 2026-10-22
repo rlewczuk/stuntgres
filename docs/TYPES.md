@@ -7,6 +7,40 @@ is the SQL authority. This page describes native value ownership, Go transport
 and implementation limits, not a supported-syntax inventory or a claim of full
 PostgreSQL compatibility.
 
+## LSEG
+
+LSEG (OID601, lookup-only companion1018) owns an immutable ordered pair of POINTs,
+four binary64 coordinates. Inputs `[(1,4),(3,2)]`, `((1,4),(3,2))`,
+`(1,4),(3,2)` and `1,4,3,2` all display as `[(1,4),(3,2)]`. Reversing endpoints
+preserves the reversed order; coincident endpoints are valid. Released optional
+delimiters, whitespace and strtod-style numeric prefixes are accepted. Malformed
+input fails22P02 naming the whole input; numeric overflow/true underflow fails
+22003 naming the consumed component token before subsequent punctuation checks.
+
+`=` compares endpoint0 with endpoint0 and endpoint1 with endpoint1 using1e-6
+coordinate tolerance; `<>`/`!=` is its complement. A NaN in either compared POINT
+switches both coordinates of that POINT to exact float equality, including
+NaN=NaN. `< <= > >=` compare Euclidean lengths with geometric epsilon1e-6 and
+checked subtraction/scaled hypotenuse arithmetic. Their NaN predicates are
+false. Equality does not calculate length. Every operator is strict.
+
+`s[0]`/`s[1]` read POINT endpoints and assignment replaces only that endpoint.
+Out-of-range, NULL or multidimensional reads return POINT NULL. NULL POINT
+assignment leaves the segment unchanged; assignment into NULL remains NULL.
+NULL assignment indices error even with NULL base/RHS. Fixed-length slices
+remain unsupported except existing NULL short circuits.
+
+Native text results and ScanType are string, DatabaseTypeName LSEG; pq returns
+bytes with interface ScanType. Length/DecimalSize are unknown, while physical
+column nullability follows the usual adapter contract. String/owned-byte/Valuer
+bindings share the codec; nil and typed-nil bytes are NULL, nonnil empty bytes
+are malformed. Display honors extra_float_digits, but persisted literals and
+native Dump/Reset/Restore retain exact coordinate precision and endpoint order.
+There is no binary codec: native binary input/output fails0A000 before row
+demand. Receive/send catalog identities do not grant transport implementations.
+No spatial operators, constructors, companion arrays, default sorting,
+grouping, hashing or index operator classes are supplied.
+
 ## Circle
 
 Builtin CIRCLE (OID718, lookup-only companion719) stores three inline binary64
@@ -196,7 +230,7 @@ use the catalog array name for copied rank-zero declarations.
 | FLOAT4, FLOAT8 | `float64` |
 | NAME, TEXT, BPCHAR, VARCHAR | `string` |
 | Exact NUMERIC, MONEY | `string` |
-| UUID, TID, MACADDR, INET, CIDR, CIRCLE, BIT, VARBIT | Canonical `string` |
+| UUID, TID, MACADDR, INET, CIDR, CIRCLE, LSEG, BIT, VARBIT | Canonical `string` |
 | JSON | Exact source `string` |
 | JSONB, JSONPath | Canonical `string` |
 | TSVECTOR, TSQUERY | Cached canonical `string` |

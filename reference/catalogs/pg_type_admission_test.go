@@ -24,9 +24,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.typtype,t.typbasetype::integer AS base,t.typtypmod,t.typcollation::integer AS collation,(a.typelem=t.oid AND a.typnamespace=t.typnamespace) AS companion FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE n.nspname='information_schema' AND t.typname='cardinal_number'", []string{"typtype", "base", "typtypmod", "collation", "companion"}, []string{"CHAR", "INT4", "INT4", "INT4", "BOOL"}, [][]any{{"d", int64(23), int64(-1), int64(0), true}}))
 		// Raw geometric typelem facts are distinct from companion SQL-array
 		// metadata. Native companions remain lookup-only, not executable arrays.
-		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid,typelem,typarray FROM pg_type WHERE oid IN (600,603,1017,1020) ORDER BY oid", []string{"oid", "typelem", "typarray"}, []string{"OID", "OID", "OID"}, [][]any{
-			{int64(600), int64(701), int64(1017)}, {int64(603), int64(600), int64(1020)},
-			{int64(1017), int64(600), int64(0)}, {int64(1020), int64(603), int64(0)},
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid,typelem,typarray FROM pg_type WHERE oid IN (600,601,603,1017,1018,1020) ORDER BY oid", []string{"oid", "typelem", "typarray"}, []string{"OID", "OID", "OID"}, [][]any{
+			{int64(600), int64(701), int64(1017)}, {int64(601), int64(600), int64(1018)}, {int64(603), int64(600), int64(1020)},
+			{int64(1017), int64(600), int64(0)}, {int64(1018), int64(601), int64(0)}, {int64(1020), int64(603), int64(0)},
 		}))
 		// A released canonical companion is metadata even when native array
 		// datums remain lookup-only. Scalar circle admission must preserve it.
@@ -47,6 +47,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// catalog presence does not make the companion an executable array.
 		expected[829], expected[1040] = true, true
 		expected[600], expected[603], expected[1017], expected[1020] = true, true, true, true
+		// LSEG is concrete; its canonical companion remains metadata-only.
+		expected[601], expected[1018] = true, true
 		// Circle's executable scalar metadata exposes its canonical companion;
 		// this catalog identity does not admit circle array values.
 		expected[718], expected[719] = true, true
@@ -99,7 +101,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type ORDER BY oid", []string{"oid"}, []string{"OID"}, want))
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (22,30,142,143,1006,1013,1790,2201,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
 		// Lookup identity is deliberately broader than SQL catalog/codec admission.
-		for _, id := range []int64{142, 601, 4533} {
+		for _, id := range []int64{142, 4533} {
 			literal := fmt.Sprint(id)
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT '"+literal+"'::regtype::bigint AS identity", []string{"identity"}, []string{"INT8"}, [][]any{{id}}))
 		}

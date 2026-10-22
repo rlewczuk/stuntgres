@@ -8,9 +8,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// BOX payloads are immutable and retain raw pairs, including the deliberately
-// noncanonical result of component writes. POINT is inline: x is floating and
-// y's unmodified binary64 bits occupy integer, avoiding allocation on fetch.
+// BOX and LSEG payloads are immutable ordered pairs. BOX input alone normalizes
+// corners. POINT is inline: x is floating and y's unmodified binary64 bits
+// occupy integer, avoiding allocation on fetch.
 type geometryPayload struct{ coordinates [4]float64 }
 
 func pointValue(d *Descriptor, x, y float64) Value {
@@ -22,8 +22,8 @@ func pointCoordinates(v Value) (float64, float64) {
 }
 
 func (d *Descriptor) SubscriptElement() *Descriptor {
-	if d.id == Box {
-		return d.boxPoint
+	if d.id == Box || d.id == Lseg {
+		return d.geometryPoint
 	}
 	return d.element
 }
@@ -146,8 +146,9 @@ func (d *Descriptor) geometryOutput(v Value, env OutputEnvironment) (string, err
 		return "(" + floatOutputWithEnvironment(c[i], Float8, env) + "," + floatOutputWithEnvironment(c[i+1], Float8, env) + ")"
 	}
 	out := pair(0)
-	if d.id == Box {
-		out += "," + pair(2)
+	out += "," + pair(2)
+	if d.id == Lseg {
+		out = "[" + out + "]"
 	}
 	return out, nil
 }
@@ -209,19 +210,19 @@ func boxSame(a, b Value) (bool, error) {
 	return true, nil
 }
 
-func boxFetch(v Value, bounds []ArraySubscriptValue) (Value, error) {
+func geometryPairFetch(v Value, bounds []ArraySubscriptValue) (Value, error) {
 	d := v.Type().BaseType()
 	if v.null || len(bounds) != 1 || bounds[0].UpperNull || bounds[0].Upper < 0 || bounds[0].Upper > 1 {
-		return Null(d.boxPoint), nil
+		return Null(d.geometryPoint), nil
 	}
 	if v.geometry == nil {
-		return Value{}, fmt.Errorf("missing BOX payload")
+		return Value{}, fmt.Errorf("missing geometry payload")
 	}
 	i := int(bounds[0].Upper) * 2
-	return pointValue(d.boxPoint, v.geometry.coordinates[i], v.geometry.coordinates[i+1]), nil
+	return pointValue(d.geometryPoint, v.geometry.coordinates[i], v.geometry.coordinates[i+1]), nil
 }
 
-func boxSet(v Value, bounds []ArraySubscriptValue, rhs Value, slice bool) (Value, error) {
+func geometryPairSet(v Value, bounds []ArraySubscriptValue, rhs Value, slice bool) (Value, error) {
 	if v.null || rhs.null {
 		v.typ = v.typ.BaseType()
 		return v, nil
@@ -237,7 +238,7 @@ func boxSet(v Value, bounds []ArraySubscriptValue, rhs Value, slice bool) (Value
 		return Value{}, failure("2202E", "array subscript out of range")
 	}
 	if v.geometry == nil || rhs.typ.BaseType().id != Point {
-		return Value{}, fmt.Errorf("invalid BOX component assignment")
+		return Value{}, fmt.Errorf("invalid geometry component assignment")
 	}
 	payload := *v.geometry
 	payload.coordinates[i*2], payload.coordinates[i*2+1] = pointCoordinates(rhs)

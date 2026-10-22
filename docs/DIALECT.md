@@ -31,6 +31,22 @@ identities alone do not make routines callable. Native Reset/Dump/Restore is
 logical host replacement, not a fabricated PostgreSQL control API.
 See [LINE proof](../reference/types/README.md#line-scalar-contract).
 
+## LSEG scalar boundary
+
+`lseg` provides ordered endpoint-pair storage/IO, six genuine strict scalar
+comparisons and zero-based POINT endpoint reads/writes. Equality compares
+corresponding endpoints; the four inequalities compare epsilon-adjusted lengths.
+These scalar operators do not enable ORDER BY, DISTINCT/GROUP BY, default
+B-tree/hash indexes or serialized-text fallback comparisons.
+`_lseg` remains lookup-only. Spatial operators/functions, constructors,
+adjacent geometry conversions and SQL LSEG arrays are outside this provider.
+In particular `~=` and `&&` have no LSEG overload and report42883.
+Public database/sql text bindings/results and native logical Dump/Reset/Restore
+use the existing value and control paths. Binary input/output is explicitly
+unsupported (0A000); catalog receive/send identities are not codec authority.
+See [type semantics](TYPES.md#lseg) and
+[reference proof](../reference/types/README.md#lseg-oracle-first-contract).
+
 ## BOX geometric boundary
 
 BOX storage/IO, five area comparisons (`=`, `<`, `<=`, `>`, `>=`), coordinate
@@ -3355,7 +3371,7 @@ uses current authority. This metadata composition adds no codec or SQL capabilit
 
 This inventory is deliberately narrower than REGTYPE lookup. Remaining
 unimplemented xml/geometry/full-text/refcursor/vector/pseudo families and unrelated
-lookup-only relation identities are absent. BOX/POINT and circle718 scalar and
+lookup-only relation identities are absent. BOX/POINT, LSEG601 and circle718 scalar and
 companion metadata are admitted; companion catalog visibility does not enable
 their SQL array codecs. Temporal multiranges4533/4534/4535
 and arrays6152/6153/6155 remain absent even though pg_range preserves their

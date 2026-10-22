@@ -21,6 +21,13 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{129, ids.PGCatalogNamespaceOID, "box_lt", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{130, ids.PGCatalogNamespaceOID, "box_le", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{186, ids.PGCatalogNamespaceOID, "box_same", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	// REL_18_6 LSEG scalar comparisons, without a default operator class.
+	{catalog.RoutineIdentity{999, ids.PGCatalogNamespaceOID, "lseg_eq", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1482, ids.PGCatalogNamespaceOID, "lseg_ne", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1483, ids.PGCatalogNamespaceOID, "lseg_lt", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1484, ids.PGCatalogNamespaceOID, "lseg_le", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1485, ids.PGCatalogNamespaceOID, "lseg_gt", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1486, ids.PGCatalogNamespaceOID, "lseg_ge", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	// Circle-only scalar signatures, REL_18_6; no default comparison class.
 	{catalog.RoutineIdentity{1452, ids.PGCatalogNamespaceOID, "circle_same", "718,718"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{1453, ids.PGCatalogNamespaceOID, "circle_contain", "718,718"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

@@ -18,6 +18,17 @@ own CHECK/NOT NULL, builtin inventory provenance and associated identities while
 recomputing inherited flags. Catalog namespace, ownership, recipes and atomic
 publication remain with the existing catalog/type staging owners.
 
+LSEG reuses the immutable four-coordinate geometry payload and allocation-free
+inline POINT endpoints. Its path decoder preserves endpoint order and shares
+the strtod-prefix scanner with CIRCLE without changing BOX's cube-scanner
+grammar. `ComparisonPredicate` dispatches the six LSEG operators separately:
+endpoint equality never calculates length; inequalities share checked coordinate
+distance/scaled hypot with CIRCLE. Exact datum/payload identity retains all
+coordinate bits, independently of geometric epsilon equality. Fixed-pair
+fetch/copy-on-write assignment is shared with BOX. Scalar comparisons grant no
+default ordering/grouping/hash/index authority; `_lseg` remains lookup-only.
+Binary provider declaration/demand guards fail0A000 without adding a codec.
+
 Circle owns a fixed inline center/radius datum and shared text/binary codecs.
 `CirclePlan` evaluates only actual circle scalar signatures and strict radius;
 it never grants `ComparisonCapabilities`, grouping or default index authority.
@@ -135,6 +146,16 @@ comparisons are not blanket mutable.
 
 
 ## Testing
+LSEG codec, ordered bits/replay, scalar predicates, strict NULLs, endpoint
+immutability/inline fetch and default-capability/binary-boundary units:
+
+```sh
+make check RUN='^TestLseg(InputOutput|Comparison|Components|ExactReplay|Capabilities)$'
+```
+
+Public SQL and both-mode smoke are in
+[`reference/types`](../../reference/types/README.md#lseg-oracle-first-contract).
+
 
 `TestSimilarActualMatcherCancellation` translates `(a|aa)*`, compiles outside the
 cancellation phase, and uses the real matcher on finite20,000-character input.

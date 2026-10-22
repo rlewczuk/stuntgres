@@ -34,6 +34,7 @@ const (
 	JSON             ID = 114
 	PgNodeTree       ID = 194
 	Point            ID = 600
+	Lseg             ID = 601
 	Box              ID = 603
 	Line             ID = 628
 	Cidr             ID = 650
@@ -134,7 +135,7 @@ type Descriptor struct {
 	networkCIDR                     *Descriptor
 	networkMasklen                  *Descriptor
 	networkBoolean                  *Descriptor
-	boxPoint                        *Descriptor
+	geometryPoint                   *Descriptor
 	circleBoolean, circleFloat      *Descriptor
 	lookupOnly                      bool
 	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
@@ -270,6 +271,7 @@ func Builtins() []*Descriptor {
 		{id: TSVector, name: "tsvector", sql: "TSVECTOR", database: "TSVECTOR", associatedArray: 3643},
 		{id: TSQuery, name: "tsquery", sql: "TSQUERY", database: "TSQUERY", associatedArray: 3645},
 		{id: Point, name: "point", sql: "POINT", database: "POINT", associatedArray: 1017},
+		{id: Lseg, name: "lseg", sql: "LSEG", database: "LSEG", associatedArray: 1018},
 		{id: Box, name: "box", sql: "BOX", database: "BOX", associatedArray: 1020, delimiter: ';'},
 		{id: Line, name: "line", sql: "LINE", database: "LINE", associatedArray: 629},
 		{id: PgNodeTree, name: "pg_node_tree", sql: "PG_NODE_TREE", database: "PG_NODE_TREE"},
@@ -322,8 +324,8 @@ func Builtins() []*Descriptor {
 		}
 	}
 	for _, d := range types {
-		if d.id == Box {
-			d.boxPoint = geometryPoint
+		if d.id == Box || d.id == Lseg {
+			d.geometryPoint = geometryPoint
 		}
 		if IsNetwork(d.id) {
 			d.networkCIDR, d.networkMasklen = networkCIDR, networkMasklen
@@ -448,7 +450,7 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if !v.null && IsFTS(d.BaseType().id) && !v.validFTS() {
 		return Value{}, fmt.Errorf("missing FTS payload")
 	}
-	if !v.null && (d.BaseType().id == Box || d.BaseType().id == Line) && v.geometry == nil {
+	if !v.null && (d.BaseType().id == Box || d.BaseType().id == Line || d.BaseType().id == Lseg) && v.geometry == nil {
 		return Value{}, fmt.Errorf("missing geometry payload")
 	}
 	if !v.null && isRange(d.BaseType().id) && !v.validRange() {
@@ -705,6 +707,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	switch d.id {
 	case Line:
 		return d.lineInput(text, env)
+	case Lseg:
+		return d.lsegInput(text)
 	case Box, Point:
 		return d.geometryInput(text, env)
 	case TSVector, TSQuery:
@@ -987,7 +991,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return v.text, nil
 	}
 	switch d.id {
-	case Box, Point, Line:
+	case Box, Point, Line, Lseg:
 		return d.geometryOutput(v, env)
 	case Circle:
 		return circleOutput(v.circle, env), nil
@@ -1196,7 +1200,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	}
 	switch d.id {
-	case Box, Point, Line:
+	case Box, Point, Line, Lseg:
 		text, err := d.geometryOutput(v, OutputEnvironment{})
 		if err != nil {
 			return "", err
@@ -1621,7 +1625,7 @@ func BaselineCastType(id ID) bool {
 // Admission of a type does not add conversion edges to PlanCoercion.
 func StoredScalarCastType(id ID) bool {
 	switch id {
-	case TSVector, TSQuery, Box, Point, Circle, Line:
+	case TSVector, TSQuery, Box, Point, Lseg, Circle, Line:
 		return true
 	case Bool, Int2, Int4, Int8, Oid, Tid, Macaddr, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
@@ -1684,12 +1688,12 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	if source.Type.IsCitext() || target.Type.IsCitext() {
 		return p.planCitext()
 	}
-	if source.Type.id == Box || source.Type.id == Point || source.Type.id == Line || target.Type.id == Box || target.Type.id == Point || target.Type.id == Line {
+	if source.Type.id == Box || source.Type.id == Point || source.Type.id == Line || source.Type.id == Lseg || target.Type.id == Box || target.Type.id == Point || target.Type.id == Line || target.Type.id == Lseg {
 		if source.Type == target.Type {
 			return p, nil
 		}
 		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
-			context == Assignment && (source.Type.id == Box || source.Type.id == Point || source.Type.id == Line) && IsCharacter(target.Type.id) {
+			context == Assignment && (source.Type.id == Box || source.Type.id == Point || source.Type.id == Line || source.Type.id == Lseg) && IsCharacter(target.Type.id) {
 			p.method = viaIO
 			return p, nil
 		}
@@ -2161,7 +2165,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 			// Explicit character casts size the captured output with cast semantics.
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
 		}
-		if (p.source.Type.id == Box || p.source.Type.id == Point || p.source.Type.id == Line || p.source.Type.id == Tid || p.source.Type.id == Macaddr || p.source.Type.id == JSONPath || p.source.Type.id == ACLItem) && IsCharacter(p.target.Type.id) {
+		if (p.source.Type.id == Box || p.source.Type.id == Point || p.source.Type.id == Line || p.source.Type.id == Lseg || p.source.Type.id == Tid || p.source.Type.id == Macaddr || p.source.Type.id == JSONPath || p.source.Type.id == ACLItem) && IsCharacter(p.target.Type.id) {
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, p.context == Explicit)
 		}
 		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
@@ -2215,7 +2219,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		p.orderingBound = true
 		return p, nil
 	}
-	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == Box || u.Type.BaseType().id == Point || u.Type.BaseType().id == Line || u.Type.BaseType().id == JSON || u.Type.BaseType().id == JSONPath || u.Type.BaseType().id == Xid || u.Type.BaseType().id == Cid {
+	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == Box || u.Type.BaseType().id == Point || u.Type.BaseType().id == Line || u.Type.BaseType().id == Lseg || u.Type.BaseType().id == JSON || u.Type.BaseType().id == JSONPath || u.Type.BaseType().id == Xid || u.Type.BaseType().id == Cid {
 		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
 	}
 	if !u.Type.BaseType().IsEnum() {
@@ -2344,7 +2348,7 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 	if (isFloat(left.id) && numericFloatOperand(right.id)) || (isFloat(right.id) && numericFloatOperand(left.id)) {
 		return p, nil
 	}
-	if left.id == Box && right.id == Box {
+	if left.id == Box && right.id == Box || left.id == Lseg && right.id == Lseg {
 		return p, nil
 	}
 	if left == right {
@@ -2599,7 +2603,7 @@ func (p ComparisonPredicate) SessionDependent() bool { return p.operands.Session
 // EqualityFor proves the owned strict same-type predicate used by hash probes.
 func (p ComparisonPredicate) EqualityFor(u Usage) bool {
 	t := u.Type
-	return p.circle.input == nil && t.Concrete() && u.validCollation() && !p.operands.collationIndeterminate && p.operands.inputCollation == u.Collation && p.operator == CompareEqual && p.operands.left == t && p.operands.right == t && p.result.Concrete() && p.result.id == Bool
+	return p.circle.input == nil && t.Concrete() && t.BaseType().id != Lseg && u.validCollation() && !p.operands.collationIndeterminate && p.operands.inputCollation == u.Collation && p.operator == CompareEqual && p.operands.left == t && p.operands.right == t && p.result.Concrete() && p.result.id == Bool
 }
 
 func (p ComparisonPredicate) InputCollation() (CollationRef, bool) {
@@ -2668,6 +2672,13 @@ func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value, input Inp
 	}
 	if a.typ.BaseType().id == Box && b.typ.BaseType().id == Box {
 		truth, err := boxPredicate(p.operator, a, b)
+		if err != nil {
+			return Value{}, err
+		}
+		return Boolean(p.result, truth), nil
+	}
+	if a.typ.BaseType().id == Lseg && b.typ.BaseType().id == Lseg {
+		truth, err := lsegPredicate(p.operator, a, b)
 		if err != nil {
 			return Value{}, err
 		}

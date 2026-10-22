@@ -15,17 +15,17 @@ func circleOutput(v circleDatum, env OutputEnvironment) string {
 	return "<(" + floatOutputWithEnvironment(v.x, Float8, env) + "," + floatOutputWithEnvironment(v.y, Float8, env) + ")," + floatOutputWithEnvironment(v.radius, Float8, env) + ">"
 }
 
-type circleScanner struct {
+type geometryScanner struct {
 	text string
 	pos  int
 }
 
-func (s *circleScanner) whitespace() {
+func (s *geometryScanner) whitespace() {
 	for s.pos < len(s.text) && space(s.text[s.pos]) {
 		s.pos++
 	}
 }
-func (s *circleScanner) take(c byte) bool {
+func (s *geometryScanner) take(c byte) bool {
 	if s.pos < len(s.text) && s.text[s.pos] == c {
 		s.pos++
 		return true
@@ -39,7 +39,7 @@ func circleSyntax(text string) error {
 // number consumes a strtod-style prefix, including its following ASCII space.
 // Conversion precedes the caller's punctuation checks, preserving range-error
 // precedence. The ordinary complete-scalar float8 input contract is unchanged.
-func (s *circleScanner) number() (float64, error) {
+func (s *geometryScanner) number(syntax func(string) error) (float64, error) {
 	s.whitespace()
 	start := s.pos
 	i := start
@@ -102,7 +102,7 @@ func (s *circleScanner) number() (float64, error) {
 		scan()
 	}
 	if digits == 0 {
-		return 0, circleSyntax(s.text)
+		return 0, syntax(s.text)
 	}
 	exponent := false
 	if i < len(s.text) && (!hex && (s.text[i] == 'e' || s.text[i] == 'E') || hex && (s.text[i] == 'p' || s.text[i] == 'P')) {
@@ -131,7 +131,7 @@ func (s *circleScanner) number() (float64, error) {
 		return 0, failure("22003", fmt.Sprintf("\"%s\" is out of range for type double precision", token))
 	}
 	if err != nil {
-		return 0, circleSyntax(s.text)
+		return 0, syntax(s.text)
 	}
 	s.pos = i
 	s.whitespace()
@@ -139,7 +139,7 @@ func (s *circleScanner) number() (float64, error) {
 }
 
 func (d *Descriptor) circleInput(text string) (Value, error) {
-	s := circleScanner{text: text}
+	s := geometryScanner{text: text}
 	s.whitespace()
 	outer := s.take('<')
 	if !outer && s.pos < len(text) && text[s.pos] == '(' {
@@ -154,14 +154,14 @@ func (d *Descriptor) circleInput(text string) (Value, error) {
 	}
 	s.whitespace()
 	pair := s.take('(')
-	x, err := s.number()
+	x, err := s.number(circleSyntax)
 	if err != nil {
 		return Value{}, err
 	}
 	if !s.take(',') {
 		return Value{}, circleSyntax(text)
 	}
-	y, err := s.number()
+	y, err := s.number(circleSyntax)
 	if err != nil {
 		return Value{}, err
 	}
@@ -172,7 +172,7 @@ func (d *Descriptor) circleInput(text string) (Value, error) {
 		s.whitespace()
 	}
 	s.take(',')
-	radius, err := s.number()
+	radius, err := s.number(circleSyntax)
 	if err != nil {
 		return Value{}, err
 	}

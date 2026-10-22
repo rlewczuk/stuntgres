@@ -90,8 +90,8 @@ func ArrayFetch(ctx context.Context, v Value, indices []ArraySubscriptValue) (Va
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
-	if v.Type().BaseType().id == Box {
-		return boxFetch(v, indices)
+	if v.Type().BaseType().id == Box || v.Type().BaseType().id == Lseg {
+		return geometryPairFetch(v, indices)
 	}
 	null := Null(v.Type().BaseType().Element())
 	if v.IsNull() || v.array == nil {
@@ -196,7 +196,7 @@ func ArraySlice(ctx context.Context, v Value, bounds []ArraySubscriptValue) (Val
 	if v.IsNull() {
 		return Null(d), nil
 	}
-	if d.id == Box {
+	if d.id == Box || d.id == Lseg {
 		return Value{}, failure("0A000", "slices of fixed-length arrays not implemented")
 	}
 	if v.ArrayLen() == 0 || len(bounds) > len(v.array.dimensions) {
@@ -250,8 +250,8 @@ func ArraySetElement(ctx context.Context, v Value, bounds []ArraySubscriptValue,
 		return Value{}, err
 	}
 	d := v.Type().BaseType()
-	if d.id == Box {
-		return boxSet(v, bounds, rhs, false)
+	if d.id == Box || d.id == Lseg {
+		return geometryPairSet(v, bounds, rhs, false)
 	}
 	if v.ArrayLen() == 0 {
 		dims := make([]ArrayDimension, len(bounds))
@@ -323,8 +323,8 @@ func ArraySetSlice(ctx context.Context, v Value, bounds []ArraySubscriptValue, r
 		return Value{}, err
 	}
 	d := v.Type().BaseType()
-	if d.id == Box {
-		return boxSet(v, bounds, rhs, true)
+	if d.id == Box || d.id == Lseg {
+		return geometryPairSet(v, bounds, rhs, true)
 	}
 	if rhs.IsNull() {
 		if v.IsNull() {

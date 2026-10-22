@@ -39,7 +39,7 @@ func (v boxValuer) Value() (driver.Value, error) { return v.value, v.err }
 func boxSelect(b fixture.Backend, query string, columns, types []string, values [][]any, args ...any) fixture.Step {
 	s := fixture.Select(query, columns, types, values, args...)
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
-		if types[column] != "BOX" && types[column] != "POINT" {
+		if types[column] != "BOX" && types[column] != "POINT" && types[column] != "LSEG" {
 			return false
 		}
 		if value != nil {
@@ -77,7 +77,7 @@ func boxMetadata(t *testing.T, pg bool, rows *sql.Rows, types []string, declared
 		if c.DatabaseTypeName() != types[i] {
 			t.Fatalf("column %d type %s want %s", i, c.DatabaseTypeName(), types[i])
 		}
-		if types[i] == "BOX" || types[i] == "POINT" {
+		if types[i] == "BOX" || types[i] == "POINT" || types[i] == "LSEG" {
 			want := reflect.TypeFor[string]()
 			if pg {
 				want = reflect.TypeFor[any]()

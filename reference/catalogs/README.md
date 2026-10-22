@@ -910,6 +910,17 @@ them; no merge/hash flag or default comparison class is implied.
 metadata in both modes. Companion catalog presence remains independent of
 native array-datum admission, which stays lookup-only.
 
+LSEG scalar admission adds OID601 to the native complete pg_type inventory.
+`TestReferencePGTypeAdmission` checks its POINT typelem600 and reciprocal
+lookup-only companion1018 on both backends alongside BOX/POINT. This does not
+grant SQL LSEG arrays or default ordering/grouping authority.
+
+```sh
+make check RUN='^TestReferencePGTypeAdmission$'
+make check RUN='^TestReferencePGTypeAdmission$' REFERENCE=1
+```
+
+
 Root completed pinned PostgreSQL18.0 discovery and observed genuine native
 missing-source failure before production. Temporary discovery filters are gone.
 CHAR/REGPROC metadata and English diagnostic contracts are independently fixed;
@@ -918,8 +929,26 @@ OID, while native retains INT4MULTIRANGE. Declared anymultirange4537 is unchange
 Lifecycle retains actual native Rows and saved metadata across failed/canceled/
 successful replacement, verifies the user view and sentinel, and replays actual
 native dump bytes on PostgreSQL. No fake PostgreSQL control API is supplied.
-Private ownership/cancellation and complete799-candidate actual-binder agreement
-units supplement, not replace, the public scenarios.
+Private capture ownership/cancellation, standalone polymorphic binding and
+actual exclusion-predicate units supplement, not replace, the public scenarios.
+The former complete799-candidate provider-partition audit is historical, not
+current coverage. `TestReferenceLsegOperatorCatalog` checks the focused consumer
+contract: all six released LSEG operator records, symbolic procedures/estimators,
+and typed-column evaluations joined to their corresponding real catalog rows.
+The four length predicates have zero estimator OIDs; equality/inequality retain
+their released estimator links. Merge/hash flags remain false.
+
+Independent LSEG catalog/evaluation expectations passed pinned PostgreSQL oracle
+discovery, then exposed the empty native six-row catalog. Discovery filters are
+removed. Fresh both-mode proof is required after publication changes.
+
+```sh
+make check RUN='^TestReferenceLsegOperatorCatalog$'
+make check RUN='^TestReferenceLsegOperatorCatalog$' REFERENCE=1
+make check RUN='^TestReferencePGOperator.*$'
+make check RUN='^TestReferencePGOperator.*$' REFERENCE=1
+```
+
 
 Range/multirange and BIT/VARBIT witnesses use supported typed-column input and
 raw results, not unavailable scalar casts. Genuine enum and builtin range

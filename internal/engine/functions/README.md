@@ -1899,7 +1899,7 @@ they do not by themselves register a callable function provider.
 
 ```sh
 make check RUN='^TestNetworkSubnetProviderLifecycle$'
-make check RUN='^(TestINETSubnetRoutineAuthority|TestPGOperatorProviderAgreement)$'
+make check RUN='^(TestINETSubnetRoutineAuthority|TestPGOperatorExclusionPredicate|TestPGOperatorPolymorphicRelationships)$'
 make check RUN='^(TestReferenceINETSubnet(CatalogPaths|Controls|FeatureSmoke)|TestReferenceObjectGrantINETSubnetAuthority)$'
 make check RUN='^(TestReferenceINETSubnet(CatalogPaths|Controls|FeatureSmoke)|TestReferenceObjectGrantINETSubnetAuthority)$' REFERENCE=1
 ```

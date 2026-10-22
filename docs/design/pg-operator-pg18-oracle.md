@@ -402,11 +402,14 @@ and actual native user-dump replay on PG. Those new phases need fresh root proof
 The feature smoke selects `^TestReferencePGOperatorFeatureSmoke$` in both modes
 and reuses permanent scenario entrypoints for actual metadata, signatures,
 references, boundaries, permissions, held queries, diagnostics and native
-control/replay assertions. Private TestPGOperatorProviderAgreement enumerates
-all799 independent released identities through the **actual binder routing**,
-using typed column operands and physical polymorphic witnesses; it inspects
-selected/coerced child and result usages rather than treating binding success
-as exact admission. No helper extraction or parallel resolver was needed.
+control/replay assertions. At the original checkpoint, private
+`TestPGOperatorProviderAgreement` enumerated all799 released identities through
+actual binder routing and inspected selected/coerced operand and result usages.
+That historical inventory-partition audit has been removed, not repinned.
+Current `TestReferenceLsegOperatorCatalog` instead checks six independently
+specified LSEG catalog rows and real typed-column operator results together,
+including direct, prepared and held consumers. It detects a provider that
+executes while its catalog row is unpublished without asserting internal wiring.
 Capture contains no provider discovery/binding and preserves existing alias
 identity ownership. The expected TSV is not parsed at runtime.
 No build, test, formatter or smoke was run by the implementer.
@@ -449,8 +452,8 @@ homogeneous polymorphic substitution did not prove compatible promotion or
 invalid authority relationships, and several public operator families lacked
 actual reused-held execution with uncast result metadata.
 
-The supplemental private relationship proof now runs from
-`TestPGOperatorProviderAgreement`. Real typed-column binder calls cover
+The supplemental private relationship proof runs independently as
+`TestPGOperatorPolymorphicRelationships`. Real typed-column binder calls cover
 SMALLINT[]/INTEGER[] concatenation in both orders, promotion of the array and
 element in append/prepend, selected/coerced child usages and INTEGER[] results.
 Fixed released declarations remain5078/5077 rather than concrete signatures.
@@ -458,7 +461,9 @@ TEXT/INTEGER nonarray concatenation is distinguished from TEXT/TEXT[] array
 prepend and the reversed append boundary by actual bound-node family and
 selected operand/result types. Invalid simple-array element families, distinct
 genuine enums, incompatible range-element and unrelated range-family authorities
-must be rejected. The original full799-candidate partition remains intact.
+must be rejected. The full799-candidate partition was historical checkpoint
+coverage, not a currently retained test. Public operator inventories and focused
+catalog/evaluation consumers provide the current publication contract.
 
 The new shared `TestReferencePGOperatorPolymorphicRelationships` independently
 checks those nonnull mixed/common-type and dispatch results, catalog pseudo IDs
@@ -576,8 +581,8 @@ callable network routines nor general scalar INET overlap admission.
 
 This adds one bounded exclusion-provider record to the preceding545 scalar
 records; historical partition audits below describe their original snapshots.
-`TestPGOperatorProviderAgreement` exercises the actual exclusion binder and
-predicate for3552 separately from the scalar binder. The shared partition
+`TestPGOperatorExclusionPredicate` exercises actual exclusion overlap evaluation
+for3552 without maintaining another provider inventory. The shared partition
 exclusion Metadata scenario exercises persistent ordinary INET-overlap metadata
 and conflicts. New definitions require fresh selected native and pinned proof;
 no verification is claimed by this implementation note.
@@ -834,4 +839,29 @@ loop was removed in favor of already complete shared
 `TestReferenceInsertSelectValuesDiagnostics`; its pure common-type matrix remains.
 Fresh dual-mode proof, full quickcheck, smoke and complete cumulative review
 remain root-owned.
+
+
+## LSEG scalar publication consumer contract
+
+The six genuine ordered-endpoint/length comparison providers require their
+released pg_operator rows, not merely REGOPERATOR lookup identities:
+1535 (`=`),1586 (`<>`),1587 (`<`),1588 (`<=`),1589 (`>`),1590 (`>=`).
+All are binary601×601→BOOL, nonmerge and nonhash. Equality/inequality use
+procedures999/1482 and estimators101/105 and102/106. The four length comparisons
+use procedures1483–1486 and **zero** restriction/join estimators; no ordinary
+scalar inequality estimator is invented. Commutators/negators remain the exact
+released links in the independently maintained expected TSV.
+Source: [REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat).
+
+`TestReferenceLsegOperatorCatalog` checks every exposed numeric field, symbolic
+procedure/estimator rendering, and direct/prepared/held typed-column evaluations
+joined to the corresponding real catalog row. Existing unfiltered native
+`TestReferencePGOperatorInventory` and its lifecycle/permission/reference
+consumers use the extended independent expected TSV. These are behavior
+contracts, not counts of implementation declarations or a parallel resolver.
+Root observed the new regression pass pinned PostgreSQL oracle discovery and
+then fail natively with six missing catalog rows. Its temporary filter is
+removed. Earlier discovery/baseline observations do not establish post-fix proof;
+fresh native and real-mode selected checks remain required.
 

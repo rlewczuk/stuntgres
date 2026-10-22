@@ -206,11 +206,15 @@ func circleArea(radius float64) (float64, error) {
 	return checkedFloatingBinary(ArithmeticMultiply, Float8, n, math.Pi)
 }
 func circleCenterDistance(a, b circleDatum) (float64, error) {
-	x, err := checkedFloatingBinary(ArithmeticSubtract, Float8, a.x, b.x)
+	return geometryDistance(a.x, a.y, b.x, b.y)
+}
+
+func geometryDistance(ax, ay, bx, by float64) (float64, error) {
+	x, err := checkedFloatingBinary(ArithmeticSubtract, Float8, ax, bx)
 	if err != nil {
 		return 0, err
 	}
-	y, err := checkedFloatingBinary(ArithmeticSubtract, Float8, a.y, b.y)
+	y, err := checkedFloatingBinary(ArithmeticSubtract, Float8, ay, by)
 	if err != nil {
 		return 0, err
 	}

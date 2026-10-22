@@ -14,6 +14,19 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## LSEG ordered endpoints — change note
+
+Builtin `lseg` stores two ordered POINT endpoints. The four documented input
+forms display as `[(x0,y0),(x1,y1)]` without sorting or BOX normalization.
+Six strict scalar comparisons distinguish endpoint equality from epsilon-length
+comparison; zero-based endpoint reads and writes retain ordinary NULL behavior.
+Text binds/results, exact metadata and native logical replay share existing
+typed-value paths. Spatial operators, default sort/hash/index authority,
+companion arrays and binary codecs are not supplied.
+See [value contracts](docs/TYPES.md#lseg),
+[native boundaries](docs/DIALECT.md#lseg-scalar-boundary) and
+[selected proof and smoke](reference/types/README.md#lseg-oracle-first-contract).
+
 ## Circle scalar — change note
 
 Builtin `circle` columns, casts, string/byte binds, typed NULL, metadata and

@@ -26,7 +26,7 @@ func pgOperatorRelationshipBind(t *testing.T, e *Engine, name string, left, righ
 	return b.Bind(parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{column("l"), column("r")}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 }
 
-func pgOperatorPolymorphicRelationships(t *testing.T) {
+func TestPGOperatorPolymorphicRelationships(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TYPE operator_left_enum AS ENUM('a','b')")
 	run(t, e, "CREATE TYPE operator_right_enum AS ENUM('a','b')")

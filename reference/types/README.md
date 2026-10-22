@@ -2190,3 +2190,66 @@ equal FTFTT, disjoint FFFFF; IPv4/IPv6 partial-byte boundaries and unchanged hos
 bits; mapped-family FFFFF and NULL vectors; BOOL/bool empty/all-NULL metadata;
 22P02 held-input diagnostics with valid recovery and three unchanged rows;
 default/generated/view recomputation after same/fresh-Driver native replay.
+
+### LSEG oracle-first contract
+
+`TestReferenceLsegValues`, `Comparison`, `Components`, `Diagnostics`, `Metadata`,
+`Controls` and `FeatureSmoke` share the public fixture and geometry raw-adapter
+checks. They specify ordered endpoints, documented and historical input forms,
+six scalar comparisons (endpoint equality versus epsilon-length predicates),
+strict NULLs, zero-based POINT subscripts, exact metadata, full English error
+records, statement atomicity and native text/literal replay.
+
+The independent release-source expectations were checked against the pinned
+PostgreSQL 18.6 oracle before production editing. Historical delimiter forms,
+NaN/infinite-length comparisons, diagnostics and default-capability rejection
+remain explicit contracts. Default-opclass utility errors occur at execution,
+including after successful Prepare; expression-resolution errors fail Prepare.
+Both backends execute these original definitions without discovery filters.
+PostgreSQL does not exercise native host Dump/Reset/Restore phases.
+
+```sh
+make check RUN='^TestReferenceLseg(Values|Comparison|Components|Diagnostics|Metadata|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceLseg(Values|Comparison|Components|Diagnostics|Metadata|Controls|FeatureSmoke)$' REFERENCE=1
+```
+
+Use external 900-second deadlines. The smoke creates and inserts all four
+documented forms plus reversed endpoints, binds NULL through a held statement,
+checks six comparisons, updates endpoint0, checks literal and held-bind errors
+with recovery, and checks native replay with retained old rows. The shared
+geometry helper also serves BOX/POINT: run affected BOX scenarios in both modes
+after helper changes. These tests do not request spatial operators, companion
+arrays, default sort/hash authority or a binary codec.
+
+Supplemental private provider units cover exact coordinate-bit identity versus
+epsilon SQL equality, copy-on-write endpoints, allocation-free POINT fetch,
+scaled distance/range boundaries, strict NULL and unavailable default/binary
+capabilities:
+
+```sh
+make check RUN='^TestLseg(InputOutput|Comparison|Components|ExactReplay|Capabilities)$'
+```
+
+Typed literal parser regression covers unqualified, quoted and pg_catalog LSEG
+heads with exact literal positions, while other schemas retain domain-only
+syntax authority. Existing parser classification admits LSEG alongside
+BOX/POINT; type resolution and input diagnostics remain analyzer-owned.
+
+```sh
+make check RUN='^TestLsegParserAdmission$'
+```
+
+Review regression `TestReferenceLsegDelimiterBoundary` distinguishes permitted
+ordinary whitespace/immediate trailing commas from rejected whitespace after
+the final optional comma. It specifies complete22P02 messages, literal quote
+positions, bind execution context, direct/prepared/held routes and recovery.
+The independent release-source boundary expectations passed pinned PostgreSQL
+oracle discovery, then exposed the native malformed-input regression. Discovery
+filters are removed. Both modes must pass after decoder changes; earlier
+oracle/baseline evidence is not post-fix proof.
+
+```sh
+make check RUN='^TestReferenceLsegDelimiterBoundary$'
+make check RUN='^TestReferenceLsegDelimiterBoundary$' REFERENCE=1
+```
+

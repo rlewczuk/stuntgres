@@ -356,7 +356,7 @@ func (d *Descriptor) unavailableBinaryProvider(output bool) error {
 	if d.id == ACLItem || d.IsQueryInt() || d.IsCube() || d.IsCitext() {
 		return failure("42883", fmt.Sprintf("no binary %s function available for type %s", direction, d.name))
 	}
-	if d.id == Tid || d.id == Macaddr {
+	if d.id == Tid || d.id == Macaddr || d.id == Lseg {
 		return d.unsupportedBinaryProvider(output)
 	}
 	return nil

@@ -29,6 +29,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Tid:     {"(0,0)", "(1,2)", "(4294967295,65535)", "(-1,0)"},
 		sqltype.Macaddr: {"00:00:00:00:00:00", "08002b010203", "80:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"},
 		sqltype.Box:     {"(1,4),(3,2)", "(1.0000005,1),(0,0)", "(-0,-0),(-0,-0)", "(5e-324,1),(0,0)", "(NaN,Infinity),(-Infinity,0)"},
+		sqltype.Lseg:    {"[(1,4),(3,2)]", "[(3,2),(1,4)]", "[(0,0),(1.0000005,0)]", "[(-0,-0),(-0,-0)]", "[(5e-324,1),(0,0)]", "[(NaN,Infinity),(-Infinity,0)]"},
 		sqltype.Point:   {"(1,2)", "(1.0000005,2)", "(-0,-0)", "(5e-324,0)", "(NaN,Infinity)"},
 		sqltype.Circle:  {"<(1,2),3>", "<(-0,0),-0>", "<(NaN,Infinity),NaN>"},
 		sqltype.Line:    {"{1,2,3}", "{2,4,6}", "{1,-0,-0}", "{1,2,5e-324}", "{NaN,Infinity,0}"},

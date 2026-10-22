@@ -9,6 +9,12 @@ var builtinOperatorRoutineAssociations = [...]struct {
 	operator ids.OID
 	routine  ids.OID
 }{
+	{1535, 999}, // lseg =
+	{1586, 1482},
+	{1587, 1483},
+	{1588, 1484},
+	{1589, 1485},
+	{1590, 1486},
 	{1500, 1462}, // circle area =
 	{1501, 1463},
 	{1502, 1464},
