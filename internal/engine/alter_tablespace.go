@@ -4,28 +4,8 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ddl"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
-
-func validateAlterTablespaceMove(destination ids.ObjectRef) error {
-	if destination.Address.ObjectID == 1664 {
-		return sqlError("22023", "only shared relations can be placed in pg_global tablespace")
-	}
-	return nil
-}
-
-func tablespaceOnlyActions(actions []parser.AlterTableAction) bool {
-	if len(actions) == 0 {
-		return false
-	}
-	for _, action := range actions {
-		if action.Action != parser.SetTablespace {
-			return false
-		}
-	}
-	return true
-}
 
 // Bulk same-space assignment returns before relation selection or locking. With
 // builtin-only identities every distinct pair includes forbidden pg_global.

@@ -52,7 +52,7 @@ func TestAlterTablespacePreparation(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(work, []parser.AlterTableAction{add}) || original[0].Action != parser.SetTablespace {
 		t.Fatal(work, err, original)
 	}
-	if err := validateAlterTablespaceMove(destination); err != nil {
+	if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = prepare([]parser.AlterTableAction{action("pg_global"), add})
@@ -61,7 +61,7 @@ func TestAlterTablespacePreparation(t *testing.T) {
 		t.Fatal("movement was not deferred", work, err)
 	}
 	var movement *sqlstate.Error
-	if err := validateAlterTablespaceMove(destination); !errors.As(err, &movement) || movement.Code != "22023" || movement.Message != "only shared relations can be placed in pg_global tablespace" {
+	if err := table.ValidateAlterTablespaceMove(destination); !errors.As(err, &movement) || movement.Code != "22023" || movement.Message != "only shared relations can be placed in pg_global tablespace" {
 		t.Fatal(err)
 	}
 	// An earlier ADD must not invent a TYPE target in the original descriptor.
@@ -83,10 +83,10 @@ func TestAlterTablespaceNoop(t *testing.T) {
 	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles.published != roles || e.storage.Relations[old.Address()] != store || old.Revision() != revision || e.catalog.state.Epoch() != epoch {
 		t.Fatal("default preparation changed authority/storage", work, err)
 	}
-	if err := validateAlterTablespaceMove(destination); err != nil {
+	if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 		t.Fatal(err)
 	}
-	if table.InheritanceRecursiveAction(old, actions[0], false) || !tablespaceOnlyActions(actions) {
+	if table.InheritanceRecursiveAction(old, actions[0], false) || !table.TablespaceOnlyActions(actions) {
 		t.Fatal("assignment propagated to descendants")
 	}
 	// A successful no-work utility must still pass the ordinary completion gate.

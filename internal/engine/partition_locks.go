@@ -48,7 +48,7 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 		if table.RelationshipOnly(s.Actions) {
 			return nil // Detach rejects actual partitions at its misc action.
 		}
-		if access.RowSecurityActions(s.Actions) || tablespaceOnlyActions(s.Actions) {
+		if access.RowSecurityActions(s.Actions) || table.TablespaceOnlyActions(s.Actions) {
 			return nil
 		}
 		if partition.ExclusionAddActions(s) {

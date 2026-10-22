@@ -99,7 +99,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	work, destination, prepared := preparation.Actions, preparation.Destination, preparation.Types
 	if len(work) == 0 {
-		if err := validateAlterTablespaceMove(destination); err != nil {
+		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 			return fail(err)
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
@@ -123,7 +123,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return fail(err)
 	}
 	if access.RowSecurityActions(s.Actions) {
-		if err := validateAlterTablespaceMove(destination); err != nil {
+		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 			return fail(err)
 		}
 		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, access.RowSecurityFlags(old, s.Actions))
@@ -438,7 +438,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return Result{}, nil
 	}
 	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.sequence.StagedGenerators()) == 0) {
-		if err := validateAlterTablespaceMove(destination); err != nil {
+		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 			return Result{}, err
 		}
 		return Result{}, nil
@@ -670,7 +670,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	if rewrite {
 		// A rewrite creates the destination heap before evaluating old rows.
-		if err := validateAlterTablespaceMove(destination); err != nil {
+		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 			return Result{}, err
 		}
 		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, storageOwner, next, store, frontier, transformations, additions, storedReplacements, validator)
@@ -761,7 +761,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		}
 	}
 	// Without a rewrite, old-row CHECK/NOT NULL validation precedes movement.
-	if err := validateAlterTablespaceMove(destination); err != nil {
+	if err := table.ValidateAlterTablespaceMove(destination); err != nil {
 		return Result{}, err
 	}
 	dependencyTargets := table.DependencyTargets(ref.Address, old, next, transformations, replacements)
