@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -12,7 +11,6 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -596,36 +594,4 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	// precede executor ACLs, without Engine.mu or a data view. Checked
 	// domain truth remains runtime consumer demand, not a folded value.
 	return e.executeCTECommandsLocked(scope, stmt, b, auth, canonical, evaluation, creationStage, creationDescriptor)
-}
-
-// A complete projected row is constrained before another identity source row
-// is demanded. This does not publish rows: the caller still stages one batch.
-func (e *Engine) validateInsertRow(scope *StatementScope, b analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
-	if scope.PartitionInsert != nil {
-		return scope.validatePartitionInsert(b, row, evaluation)
-	}
-	return e.validatePhysicalInsertRow(scope, b, &b, schema, row, evaluation)
-}
-
-// Physical constraints own evaluation and error identity; the original named
-// target owns disclosure authority. The named binding is read-only.
-func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b analyze.Binding, named *analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
-	if err := evaluation.Context.Err(); err != nil {
-		return err
-	}
-	if err := table.EvaluateGenerations(evaluation.Context, b.Relation, row, evaluation); err != nil {
-		return err
-	}
-	if err := access.RowSecurityProposal(scope.RLS.Proposal, scope.RLS.ProposalTable); err != nil {
-		return err
-	}
-	violation, err := table.PhysicalRowViolation(b.Relation, row, evaluation)
-	if err != nil || violation == nil {
-		return err
-	}
-	detail, err := e.rowConstraintDetail(scope, named, row)
-	if err != nil {
-		return err
-	}
-	return violation.Diagnostic(schema, detail)
 }

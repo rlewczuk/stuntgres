@@ -384,7 +384,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		for i, column := range b.Relation.Columns {
 			row[i] = sqltype.Null(column.Usage.Type)
 		}
-		if err := evaluateInsertValuesRow(scope.inquiry.commentCatalog, &arm.Input, arm.Input.Expressions[0], arm.Syntax, row, false, evaluation); err != nil {
+		if err := EvaluateInsertValuesRow(scope.inquiry.commentCatalog, &arm.Input, arm.Input.Expressions[0], arm.Syntax, row, false, evaluation); err != nil {
 			return err
 		}
 	}
@@ -393,7 +393,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 	if arm.Action == parser.MergeUpdateAction {
 		scope.RLS.Proposal = scope.RLS.MergeUpdate
 	}
-	if err := e.validateInsertRow(scope, b, schema, row, &rowContext); err != nil {
+	if err := ValidateInsertRow(scope.writeHost(), b, schema, row, &rowContext); err != nil {
 		return err
 	}
 	predecessor := storage.RowVersion{}

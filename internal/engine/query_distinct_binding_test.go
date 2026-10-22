@@ -164,7 +164,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				original := expressions[0]
 				calls := 0
 				expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return original.Eval(c) })
-				rows, err := evaluateInsertQuery(op.Ctx, b, source, nil, "public", scope.input, scope.output, scope)
+				rows, err := EvaluateInsertQuery(op.Ctx, b, source, nil, "public", scope.input, scope.output, scope.writeHost())
 				if err != nil || len(rows.Values) != 2 || calls != 4 || source.View != nil {
 					t.Fatal(rows, calls, err, source.View)
 				}

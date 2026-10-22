@@ -99,20 +99,15 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 			scope.protocol().command = true
 			defer scope.Finish(context.Canceled)
 			var cursor exec.RowCursor
-			text := &copyCursor{
-				scope: scope,
-				binding: analyze.Binding{
-					Relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
-					Targets:  []int{0},
-				},
-				in: copyfmt.NewLineReader(
-					copyfmt.Options{Delimiter: '\t', Null: "\\N"},
-					bufio.NewReader(strings.NewReader(tc.input)),
-					[]copyfmt.Target{{Name: "v"}},
-				),
-				defaults: make([]bool, 1), omitted: make([]bool, 1),
+			binding := analyze.Binding{
+				Relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
+				Targets:  []int{0},
 			}
-			cursor = text
+			cursor = NewCopyCursor(scope.writeHost(), binding, copyfmt.NewLineReader(
+				copyfmt.Options{Delimiter: '\t', Null: "\\N"},
+				bufio.NewReader(strings.NewReader(tc.input)),
+				[]copyfmt.Target{{Name: "v"}},
+			))
 			if binaryInput {
 				// Consume a valid file header (no flags, no extension) before
 				// Next, so the cursor starts at the tuple with its header done.
@@ -121,10 +116,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 				if err := in.ReadHeader(); err != nil {
 					t.Fatal("binary header setup", err)
 				}
-				cursor = &copyBinaryCursor{
-					scope: scope, binding: text.binding, in: in,
-					defaults: make([]bool, 1), omitted: make([]bool, 1),
-				}
+				cursor = NewCopyBinaryCursor(scope.writeHost(), binding, in)
 			}
 			op.CopyInput.Active.Store(true)
 			op.CopyInput.Decoding.Store(true)

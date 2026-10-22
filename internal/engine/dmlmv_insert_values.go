@@ -13,7 +13,7 @@ import (
 // Ordinary single VALUES is a destination-attribute projection. Multirow VALUES
 // first demands the complete source row, like the shared query source cursor.
 // Bound expressions and imported parameters survive USER pruning in both cases.
-func evaluateInsertValuesRow(read catalog.Read, b *analyze.Binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *exec.Context) error {
+func EvaluateInsertValuesRow(read catalog.Read, b *analyze.Binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *exec.Context) error {
 	if sourceFirst {
 		for i, expression := range supplied {
 			if expression == nil {

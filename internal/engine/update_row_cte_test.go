@@ -66,7 +66,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	for i, id := range []int64{1, 2, 1} {
 		old := []sqltype.Value{subqueryTestInteger(t, typ, id), subqueryTestInteger(t, typ, 7), subqueryTestInteger(t, typ, 8)}
 		eval.Row = old
-		row, err := evaluateUpdateAssignments(&eval, b.Update, b.Targets, old)
+		row, err := EvaluateUpdateAssignments(&eval, b.Update, b.Targets, old)
 		want := id + int64((i+1)*10)
 		if err != nil || testExport(row[0]) != id || testExport(row[1]) != want || testExport(row[2]) != want+100 || draws != i+1 {
 			t.Fatal("producer tuple was stale, rebound or duplicated", row, draws, err)

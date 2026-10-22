@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bufio"
 	"errors"
 	"io"
 	"stuntgres/internal/engine/copyfmt"
@@ -232,15 +233,15 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err = s.reserveCopy(); err != nil {
 		return
 	}
+	h := s.writeHost()
 	var cursor interface {
 		exec.RowCursor
-		rowDefaults() []bool
-		diagnostic(error) error
+		Diagnostic(error) error
 	}
 	if options.Format == copyfmt.Binary {
-		cursor = newCopyBinaryCursor(s, b, source)
+		cursor = NewCopyBinaryCursor(h, b, copyfmt.NewBinaryReader(bufio.NewReader(copyReader{s, source})))
 	} else {
-		cursor = newCopyCursor(s, b, options, source)
+		cursor = NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(copyReader{s, source}), dml.CopyLineTargets(b)))
 	}
 	rows, err := func() (index.WriteBatch, error) {
 		if s.protocolOrZero().command || s.protocolOrZero().simple {
@@ -253,12 +254,12 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err := s.startProtocolCopy(hooks, true, options, len(b.Targets)); err != nil {
 			return index.WriteBatch{}, err
 		}
-		rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.Keys) != 0 || unique.Checked, nil, nil)
+		rows, err := AssembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, h, len(unique.Keys) != 0 || unique.Checked, nil, nil)
 		if err == nil {
 			err = s.op.PendingCopyInputError()
 		}
 		if err != nil {
-			err = cursor.diagnostic(err)
+			err = cursor.Diagnostic(err)
 		}
 		return rows, err
 	}()
@@ -268,7 +269,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if hooks.FinishInput != nil {
 		_, err = s.copyIO(func() (int, error) { return 0, hooks.FinishInput() })
 		if err != nil {
-			return 0, cursor.diagnostic(err)
+			return 0, cursor.Diagnostic(err)
 		}
 	}
 	if foreign != nil {
@@ -278,13 +279,13 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		n, err := foreign.InsertRows(s.op.Context(), s.foreignWrites(), rows.Values, false, nil)
 		if err != nil {
-			return 0, cursor.diagnostic(err)
+			return 0, cursor.Diagnostic(err)
 		}
 		return n, nil
 	}
-	n, err := s.applyInsertValidated(b.Ref, rows)
+	n, err := ApplyInsertValidated(h, b.Ref, rows)
 	if err != nil {
-		return 0, cursor.diagnostic(err)
+		return 0, cursor.Diagnostic(err)
 	}
 	return int64(n), nil
 }

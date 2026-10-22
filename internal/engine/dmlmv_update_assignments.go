@@ -8,7 +8,7 @@ import (
 
 // All RHS expressions read the unchanged action frame. Partial assignments
 // compose only in the replacement, never in the frame seen by the next RHS.
-func evaluateUpdateAssignments(eval *exec.Context, action *analyze.UpdateBinding, targets []int, old []sqltype.Value) ([]sqltype.Value, error) {
+func EvaluateUpdateAssignments(eval *exec.Context, action *analyze.UpdateBinding, targets []int, old []sqltype.Value) ([]sqltype.Value, error) {
 	row := make([]sqltype.Value, len(old))
 	copy(row, old)
 	oldOutputs, oldReady := eval.UpdateOutputs, eval.UpdateOutputsReady

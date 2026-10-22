@@ -91,7 +91,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				}
 				bound := analyze.Binding{Ref: ref, Relation: relation, Targets: []int{1}}
 				for repeat := 0; repeat != 2; repeat++ {
-					err = e.rowConstraintError(scope, bound, "public", "", "rr_diag_bound", row)
+					err = RowConstraintError(scope.writeHost(), bound, "public", "", "rr_diag_bound", row)
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "rr_diag" violates check constraint "rr_diag_bound"`, Detail: detail, Schema: "public", Table: "rr_diag", Constraint: "rr_diag_bound"})
 				}
 				if len(e.storage.Relations[ref.Address].Versions) != 0 {

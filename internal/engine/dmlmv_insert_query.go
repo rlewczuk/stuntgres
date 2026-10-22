@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -10,14 +11,16 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
-// evaluateInsertQuery owns the source pin and all destination rows. Evaluation
-// runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
-func evaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (index.WriteBatch, error) {
+// EvaluateInsertQuery owns the source pin and all destination rows. Evaluation
+// runs unlocked; only the complete, constrained batch reaches the write stage.
+// A nil h evaluates without statement authority.
+func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h dml.Host) (index.WriteBatch, error) {
 	defer source.Close()
 	project, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
@@ -27,8 +30,8 @@ func evaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 	// rows. A target without unique indexes needs no per-row catalog recapture;
 	// its epoch is still checked when the completed batch reaches Apply.
 	unique := len(b.Relation.Constraints.Unique) != 0
-	if scope != nil && scope.PartitionInsert == nil && b.Relation.RelationKind != catalog.ForeignRelation {
-		bound, err := dml.BindUniqueWrite(scope.writeHost(), b.Ref)
+	if h != nil && h.Command().PartitionInsert == nil && b.Relation.RelationKind != catalog.ForeignRelation {
+		bound, err := dml.BindUniqueWrite(h, b.Ref)
 		if err != nil {
 			return index.WriteBatch{}, err
 		}
@@ -40,10 +43,13 @@ func evaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 	if err != nil {
 		return index.WriteBatch{}, err
 	}
-	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope, unique, parameters, state)
+	return AssembleInsertRows(ctx, b, &stage, -1, schema, input, output, h, unique, parameters, state)
 }
 
-func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool, parameters []sqltype.Value, query *exec.State) (rows index.WriteBatch, err error) {
+// AssembleInsertRows produces, validates and admits the destination rows of
+// cursor (count rows, or until EOF when count is negative). A nil h
+// assembles without statement authority.
+func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, h dml.Host, unique bool, parameters []sqltype.Value, query *exec.State) (rows index.WriteBatch, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -58,7 +64,13 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 	}()
-	if scope == nil || scope.InsertReturning == nil {
+	var command *dml.Command
+	var op *session.Operation
+	var runtime exec.Host
+	if h != nil {
+		command, op, runtime = h.Command(), h.Operation(), h
+	}
+	if command == nil || command.InsertReturning == nil {
 		if count >= 0 {
 			rows.Values = make([][]sqltype.Value, 0, count)
 		} else {
@@ -68,23 +80,23 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	scratch := make([]sqltype.Value, len(b.Targets))
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
 	var copyInsert *dml.CopyInsertionState
-	if producer, ok := cursor.(dml.CopyInsertionCursor); ok && scope != nil && (unique || scope.PartitionInsert != nil) {
+	if producer, ok := cursor.(dml.CopyInsertionCursor); ok && command != nil && (unique || command.PartitionInsert != nil) {
 		copyInsert = dml.NewCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}
-	copyInput := scope != nil && scope.op.CopyInput.Active.Load()
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: runtime}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}
+	copyInput := op != nil && op.CopyInput.Active.Load()
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if copyInput {
-			scope.op.CopyInput.Decoding.Store(true)
-			ctx = scope.op.Context()
+			op.CopyInput.Decoding.Store(true)
+			ctx = op.Context()
 		} else if err := ctx.Err(); err != nil {
 			return index.WriteBatch{}, err
 		}
 		present, err := cursor.Next(ctx, scratch)
 		if copyInput {
-			scope.op.CopyInput.Decoding.Store(false)
-			ctx = scope.op.Context()
+			op.CopyInput.Decoding.Store(false)
+			ctx = op.Context()
 			evaluation.Context = ctx
 		}
 		if err != nil {
@@ -119,27 +131,27 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 		candidate := index.WriteCandidate{Values: row}
-		if scope != nil && scope.PartitionInsert != nil {
-			if err := scope.engine().validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
+		if command != nil && command.PartitionInsert != nil {
+			if err := ValidateInsertRow(h, b, schema, row, &evaluation); err != nil {
 				return index.WriteBatch{}, err
 			}
 			if copyInsert != nil {
-				recordCopyInsertion(copyInsert, scope, b, &candidate, len(rows.Values))
+				recordCopyInsertion(copyInsert, h, b, &candidate, len(rows.Values))
 				rows.Append(candidate)
 				if copyInsert.Full() {
-					if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
+					if err := flushCopyInsertion(copyInsert, h, b, &rows, &evaluation); err != nil {
 						return index.WriteBatch{}, err
 					}
 				}
 				continue
 			}
-			if scope.InsertReturning != nil {
-				if _, err := scope.admitInsertProducer(b, &candidate, index.WriteBatch{}, &evaluation); err != nil {
+			if command.InsertReturning != nil {
+				if _, err := AdmitInsertProducer(h, b, &candidate, index.WriteBatch{}, &evaluation); err != nil {
 					return index.WriteBatch{}, err
 				}
 				continue
 			}
-			if err := scope.checkInsertUniqueRow(b.Ref, &candidate, rows); err != nil {
+			if err := checkInsertUniqueRow(h, b.Ref, &candidate, rows); err != nil {
 				return index.WriteBatch{}, err
 			}
 			rows.Append(candidate)
@@ -152,8 +164,8 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			rows.Append(candidate)
 			continue
 		}
-		if scope != nil {
-			if err := access.RowSecurityProposal(scope.RLS.Proposal, scope.RLS.ProposalTable); err != nil {
+		if command != nil {
+			if err := access.RowSecurityProposal(command.RLS.Proposal, command.RLS.ProposalTable); err != nil {
 				return index.WriteBatch{}, err
 			}
 		}
@@ -169,10 +181,10 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				return index.WriteBatch{}, err
 			}
 			if value.IsNull() {
-				if scope == nil {
+				if h == nil {
 					return index.WriteBatch{}, fmt.Errorf("stuntgres: NOT NULL disclosure requires statement authority")
 				}
-				return index.WriteBatch{}, scope.engine().rowConstraintError(scope, b, schema, c.Name, "", row)
+				return index.WriteBatch{}, RowConstraintError(h, b, schema, c.Name, "", row)
 			}
 		}
 		if len(b.Relation.Constraints.Check) != 0 {
@@ -181,17 +193,17 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				return index.WriteBatch{}, checkErr
 			}
 			if constraint != nil {
-				if scope == nil {
+				if h == nil {
 					return index.WriteBatch{}, fmt.Errorf("stuntgres: CHECK disclosure requires statement authority")
 				}
-				return index.WriteBatch{}, scope.engine().rowConstraintError(scope, b, schema, "", constraint.Name, row)
+				return index.WriteBatch{}, RowConstraintError(h, b, schema, "", constraint.Name, row)
 			}
 		}
-		if unique || scope != nil && scope.InsertReturning != nil {
-			if scope == nil {
+		if unique || command != nil && command.InsertReturning != nil {
+			if h == nil {
 				return index.WriteBatch{}, fmt.Errorf("stuntgres: uniqueness requires statement authority")
 			}
-			admitted, err := scope.admitInsertProducer(b, &candidate, rows, &evaluation)
+			admitted, err := AdmitInsertProducer(h, b, &candidate, rows, &evaluation)
 			if err != nil {
 				return index.WriteBatch{}, err
 			}
@@ -200,22 +212,22 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 		if b.ViewWrite != nil {
-			if err := scope.engine().checkViewRow(scope, &b, row, &evaluation); err != nil {
+			if err := CheckViewRow(h, &b, row, &evaluation); err != nil {
 				return index.WriteBatch{}, err
 			}
 		}
 		if copyInsert != nil {
-			recordCopyInsertion(copyInsert, scope, b, &candidate, len(rows.Values))
+			recordCopyInsertion(copyInsert, h, b, &candidate, len(rows.Values))
 		}
 		rows.Append(candidate)
 		if copyInsert != nil && copyInsert.Full() {
-			if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
+			if err := flushCopyInsertion(copyInsert, h, b, &rows, &evaluation); err != nil {
 				return index.WriteBatch{}, err
 			}
 		}
 	}
 	if copyInsert != nil && len(copyInsert.Lines) != 0 {
-		if err := flushCopyInsertion(copyInsert, scope, b, &rows, &evaluation); err != nil {
+		if err := flushCopyInsertion(copyInsert, h, b, &rows, &evaluation); err != nil {
 			return index.WriteBatch{}, err
 		}
 	}

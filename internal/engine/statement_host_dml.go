@@ -122,3 +122,8 @@ func (h *statementHost) CaptureRegclassOutput(rows *exec.FinalRows) error {
 	s := h.scope()
 	return s.engine().captureRegclassOutput(s.op, rows)
 }
+
+// uniqueJournal is the statement ticket's unique-key journal.
+func (s *StatementScope) uniqueJournal() lock.UniqueJournal {
+	return s.engine().locks.UniqueJournal(s.ticket)
+}

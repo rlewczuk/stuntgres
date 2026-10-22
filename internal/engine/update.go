@@ -318,7 +318,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		}
 		// RHS and bounds see the unchanged old frame; partial writes compose
 		// only in this private replacement. Losing FROM pairs still demand SET.
-		row, err := evaluateUpdateAssignments(&eval, b.Update, b.Targets, oldValues)
+		row, err := EvaluateUpdateAssignments(&eval, b.Update, b.Targets, oldValues)
 		if err != nil {
 			return Result{}, err
 		}
@@ -367,7 +367,7 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 		if err := dml.CheckUniqueRow(s.writeHost(), ref, &proposal, batch.old, batch.rows); err != nil {
 			return Result{}, err
 		}
-		if err := e.checkViewRow(s, &b, row, &eval); err != nil {
+		if err := CheckViewRow(s.writeHost(), &b, row, &eval); err != nil {
 			return Result{}, err
 		}
 		if candidate.Physical.Segment != nil && candidate.Physical.Segment.Layout != nil {
@@ -439,17 +439,6 @@ func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, so
 	return Result{Count: count}, nil
 }
 
-func (e *Engine) rowConstraintError(s *StatementScope, b analyze.Binding, schema, column, check string, row []sqltype.Value) error {
-	detail, err := e.rowConstraintDetail(s, &b, row)
-	if err != nil {
-		return err
-	}
-	if check != "" {
-		return table.CheckDetailError(schema, b.Relation.Name(), check, detail)
-	}
-	return table.NotNullDetailError(schema, b.Relation.Name(), column, detail)
-}
-
 // Public UPDATE and admitted RI assignment share generation and local checks.
 func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schema string, row []sqltype.Value, eval *exec.Context) error {
 	generationEval := *eval
@@ -465,7 +454,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schem
 			return err
 		}
 		if value.IsNull() {
-			return e.rowConstraintError(s, b, schema, column.Name, "", row)
+			return RowConstraintError(s.writeHost(), b, schema, column.Name, "", row)
 		}
 	}
 	if len(b.Relation.Constraints.Check) != 0 {
@@ -474,7 +463,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schem
 			return err
 		}
 		if constraint != nil {
-			return e.rowConstraintError(s, b, schema, "", constraint.Name, row)
+			return RowConstraintError(s.writeHost(), b, schema, "", constraint.Name, row)
 		}
 	}
 	return nil

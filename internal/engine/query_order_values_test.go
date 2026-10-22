@@ -30,7 +30,7 @@ func TestQueryOrderValuesSourceOrder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := evaluateInsertQuery(context.Background(), bound, &exec.Source{}, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+		rows, err := EvaluateInsertQuery(context.Background(), bound, &exec.Source{}, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 		if err != nil || len(rows.Values) != 4 {
 			t.Fatal(rows, err)
 		}

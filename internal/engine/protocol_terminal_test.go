@@ -126,8 +126,8 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			if present, err := in.ReadLine(); !present || err != nil {
 				t.Fatal("line reader setup", present, err)
 			}
-			cursor := &copyCursor{scope: scope, binding: analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in: in}
-			got := cursor.diagnostic(context.Canceled)
+			cursor := NewCopyCursor(scope.writeHost(), analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in)
+			got := cursor.Diagnostic(context.Canceled)
 			if !wire {
 				if got != context.Canceled {
 					t.Fatal("embedded caller cancellation changed identity", got)
@@ -140,7 +140,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			}
 			primary := &sqlstate.Error{Code: "22012", Message: "division by zero", Context: "existing primary"}
 			joined := errors.Join(primary, context.Canceled)
-			if got := cursor.diagnostic(joined); got != joined || primary.Context != "existing primary" || cause.Context != "" {
+			if got := cursor.Diagnostic(joined); got != joined || primary.Context != "existing primary" || cause.Context != "" {
 				t.Fatal("pending cancellation replaced or mutated primary diagnostic", got)
 			}
 		})

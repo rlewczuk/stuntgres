@@ -3,6 +3,7 @@ package dml
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -126,4 +127,45 @@ func (c *Command) WriteOverlay() *InsertWriteOverlay {
 		return &c.InsertReturning.Overlay
 	}
 	return nil
+}
+
+// PartitionStoredRow is the row to store for the routed partition row. Input
+// tuples already own their payload, and identity layouts borrow them. A
+// reordered tuple can reuse that payload when there is no logical RETURNING
+// consumer; otherwise storage must own a separate immutable physical tuple.
+func (c *Command) PartitionStoredRow(row []sqltype.Value) []sqltype.Value {
+	state := c.PartitionInsert
+	if state.Layouts[state.Destination.Address()] == nil {
+		return row
+	}
+	if c.InsertReturning != nil {
+		return slices.Clone(state.PhysicalRow)
+	}
+	copy(row, state.PhysicalRow)
+	return row
+}
+
+// PartitionInsertionGroup is the insertion group of the routed destination,
+// created in first-use order.
+func (c *Command) PartitionInsertionGroup(ref ids.ObjectRef) *partition.InsertGroup {
+	state := c.PartitionInsert
+	address := state.Destination.Address()
+	group := state.Groups[address]
+	if group == nil {
+		group = &partition.InsertGroup{Ref: ref.Domain().Ref(ref.Epoch, address)}
+		if state.Groups == nil {
+			state.Groups = make(map[ids.ObjectAddress]*partition.InsertGroup)
+		}
+		state.Groups[address] = group
+		state.Order = append(state.Order, group)
+	}
+	return group
+}
+
+// PartitionReturningGroup is PartitionInsertionGroup with the group's unique
+// binding made active, for a RETURNING row.
+func (c *Command) PartitionReturningGroup(ref ids.ObjectRef) *partition.InsertGroup {
+	group := c.PartitionInsertionGroup(ref)
+	c.UniqueBinding = group.Unique
+	return group
 }

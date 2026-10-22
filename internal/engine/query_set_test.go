@@ -366,7 +366,7 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	for i, expression := range project.Expressions {
 		project.Expressions[i] = plan.ColumnExpr{Info: expr.InfoOf(expression), Scope: 1, Frame: project.Frame, Slot: i}
 	}
-	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+	rows, err := EvaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	if rows.Values != nil || err != sentinel || source.View != nil || source.Anonymous != nil {
 		t.Fatal("set INSERT published partial batch", rows, err, source)
 	}

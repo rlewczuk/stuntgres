@@ -79,7 +79,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	}
 	old := []sqltype.Value{integer(10), integer(1)}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{old[0], old[1], integer(10), integer(2)}}}
-	values, err := evaluateUpdateAssignments(&eval, c.Update, c.UpdateTargets, old)
+	values, err := EvaluateUpdateAssignments(&eval, c.Update, c.UpdateTargets, old)
 	if err != nil || testExport(values[1]) != int64(3) || testExport(old[1]) != int64(1) {
 		t.Fatal("target/excluded slots and immutable RHS", values, old, err)
 	}
@@ -319,7 +319,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		if failure == "primary_and_close" {
 			cursor.closeError = secondary
 		}
-		rows, err := assembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope, true, nil, nil)
+		rows, err := AssembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
 		if !errors.Is(err, injected) || rows.Values != nil || cursor.closes != 1 || len(scope.stage.rows[b.Ref.Address]) == 0 {
 			t.Fatal("cursor failure after actual mixed-stage prefix", rows, err, cursor.closes, scope.stage.rows)
 		}
