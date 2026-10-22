@@ -125,7 +125,7 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 		if !found {
 			continue
 		}
-		if err := s.repeatableConflict(row, stored.Ends); err != nil {
+		if err := visibility.RepeatableConflict(s.owner.Isolation.Stable(), s.owner.Frontier, row, stored.Ends); err != nil {
 			return storage.RowVersion{}, false, err
 		}
 		return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), stored.Ends, nil), nil

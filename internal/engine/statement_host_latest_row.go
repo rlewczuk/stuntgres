@@ -54,7 +54,7 @@ func (s *StatementScope) latestUpdateRowLocked(e *Engine, r dml.RowRequest) (dml
 	if !found {
 		return dml.LatestRow{}, errors.New("stuntgres: invalid update predecessor")
 	}
-	if err := s.repeatableConflict(row, store.Ends); err != nil {
+	if err := visibility.RepeatableConflict(s.owner.Isolation.Stable(), s.owner.Frontier, row, store.Ends); err != nil {
 		return dml.LatestRow{}, err
 	}
 	return dml.LatestRow{Version: row, Live: visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[r.Ref.Address])}, nil
@@ -74,7 +74,7 @@ func (s *StatementScope) latestDeleteRowLocked(e *Engine, r dml.RowRequest) (dml
 	if !found {
 		return dml.LatestRow{}, errors.New("stuntgres: invalid deletion predecessor")
 	}
-	if err := s.repeatableConflict(row, store.Ends); err != nil {
+	if err := visibility.RepeatableConflict(s.owner.Isolation.Stable(), s.owner.Frontier, row, store.Ends); err != nil {
 		return dml.LatestRow{}, err
 	}
 	return dml.LatestRow{Version: row, Live: visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[r.Ref.Address])}, nil
@@ -148,7 +148,7 @@ func (s *StatementScope) latestConflictUpdateRowLocked(e *Engine, r dml.RowReque
 	if !found {
 		return dml.LatestRow{}, errors.New("stuntgres: invalid conflict update predecessor")
 	}
-	if err := s.repeatableConflict(row, store.Ends); err != nil {
+	if err := visibility.RepeatableConflict(s.owner.Isolation.Stable(), s.owner.Frontier, row, store.Ends); err != nil {
 		return dml.LatestRow{}, err
 	}
 	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]) && !index.UniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])

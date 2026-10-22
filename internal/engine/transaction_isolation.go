@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -290,22 +289,6 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	}
 	if t.State == session.TxActive {
 		return sqlError("0A000", "statement is unsupported in an explicit transaction")
-	}
-	return nil
-}
-func (s *StatementScope) repeatableConflict(head storage.RowVersion, end *storage.DeletionRoot) error {
-	if !s.owner.Isolation.Stable() || head.Born == 0 {
-		return nil
-	}
-	// The snapshot's predecessor was replaced before its successor was deleted.
-	// PostgreSQL reports that first update, rather than the successor's tombstone.
-	if head.Born > s.owner.Frontier {
-		return sqlError("40001", "could not serialize access due to concurrent update")
-	}
-	if end != nil {
-		if tombstone, ok := end.Rows[head.Row]; ok && tombstone.Version == head.Version && tombstone.End > s.owner.Frontier {
-			return sqlError("40001", "could not serialize access due to concurrent delete")
-		}
 	}
 	return nil
 }
