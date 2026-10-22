@@ -146,26 +146,6 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	return nil
 }
 
-func (s *CatalogStage) validateInitialTables() error {
-	for address, storage := range s.initialTables {
-		d, ok := s.Get(address).(*catalog.Relation)
-		if !ok || !d.RelationKind.Stored() || d.RelationKind == catalog.MaterializedViewRelation && !d.Populated || s.Base.Get(address) != nil || storage == nil || len(storage.Versions) == 0 || storage.Ends != nil || storage.Generation != 0 {
-			return errors.New("stuntgres: invalid initial table storage")
-		}
-		for _, row := range storage.Versions {
-			if row.Row == 0 || row.Version == 0 || row.Born != 0 || len(row.Values) != len(d.Columns) {
-				return errors.New("stuntgres: invalid initial table row")
-			}
-			for i, value := range row.Values {
-				if value.Type() != d.Columns[i].Usage.Type {
-					return errors.New("stuntgres: invalid initial table value type")
-				}
-			}
-		}
-	}
-	return nil
-}
-
 func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) error {
 	op := scope.op
 	if err := scope.acquireDefinitionProviders(stage); err != nil {

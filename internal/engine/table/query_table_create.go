@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -107,4 +108,29 @@ func QueryTableColumns(view access.View, env access.Environment, s *parser.Creat
 		columns[i] = column
 	}
 	return columns, names, bases, nil
+}
+
+// ValidateInitialTables checks the rows CREATE TABLE AS or a materialized
+// view staged with its new relation: each address must be a new stored (and,
+// for a materialized view, populated) relation of the stage (staged), absent
+// from base, whose fresh storage holds only unborn row versions of the
+// relation's column types.
+func ValidateInitialTables(initial map[ids.ObjectAddress]*storage.Relation, staged func(ids.ObjectAddress) catalog.Descriptor, base catalog.Read) error {
+	for address, storage := range initial {
+		d, ok := staged(address).(*catalog.Relation)
+		if !ok || !d.RelationKind.Stored() || d.RelationKind == catalog.MaterializedViewRelation && !d.Populated || base.Get(address) != nil || storage == nil || len(storage.Versions) == 0 || storage.Ends != nil || storage.Generation != 0 {
+			return errors.New("stuntgres: invalid initial table storage")
+		}
+		for _, row := range storage.Versions {
+			if row.Row == 0 || row.Version == 0 || row.Born != 0 || len(row.Values) != len(d.Columns) {
+				return errors.New("stuntgres: invalid initial table row")
+			}
+			for i, value := range row.Values {
+				if value.Type() != d.Columns[i].Usage.Type {
+					return errors.New("stuntgres: invalid initial table value type")
+				}
+			}
+		}
+	}
+	return nil
 }

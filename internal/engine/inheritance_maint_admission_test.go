@@ -210,12 +210,9 @@ func TestInheritanceMaintDropMultiplicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				scope := &StatementScope{}
-				scope.inheritance.alter = &inheritanceAlterState{InheritanceAlterPlan: plan}
-				provider := &dropProvider{base: e.CatalogRead(), scope: scope}
 				target := p.Address()
 				target.SubID = p.Attributes[0]
-				if got, want := provider.inheritanceColumnDropMultiple(target), !local && !only; got != want {
+				if got, want := plan.ColumnDropMultiple(e.CatalogRead(), target), !local && !only; got != want {
 					t.Fatal("origin decrement was confused with physical deletion", local, only, got, want)
 				}
 			}

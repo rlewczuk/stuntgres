@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -95,15 +96,15 @@ func TestMaterializedViewInitialStore(t *testing.T) {
 	if &store.Versions[0].Values[0] != &rows[0][0] {
 		t.Fatal("finalized row buffer copied")
 	}
-	if err := stage.validateInitialTables(); err != nil {
+	if err := table.ValidateInitialTables(stage.initialTables, stage.Get, stage.Base); err != nil {
 		t.Fatal(err)
 	}
 	d.Populated = false
-	if err := stage.validateInitialTables(); err == nil {
+	if err := table.ValidateInitialTables(stage.initialTables, stage.Get, stage.Base); err == nil {
 		t.Fatal("unpopulated store accepted rows")
 	}
 	d.Populated, d.RelationKind = false, catalog.ViewRelation
-	if err := stage.validateInitialTables(); err == nil {
+	if err := table.ValidateInitialTables(stage.initialTables, stage.Get, stage.Base); err == nil {
 		t.Fatal("dynamic view accepted physical rows")
 	}
 }

@@ -370,7 +370,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err := s.validateInitialTables(); err != nil {
+	if err := table.ValidateInitialTables(s.initialTables, s.Get, s.Base); err != nil {
 		return nil, err
 	}
 	if err := s.validateMaterializedReplacement(); err != nil {

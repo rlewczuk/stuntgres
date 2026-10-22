@@ -2,7 +2,7 @@ package engine
 
 import (
 	"iter"
-	"slices"
+	"stuntgres/internal/engine/table"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -20,7 +20,7 @@ func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots
 	// an inheritance edge actually requires fencing the closure.
 	participates := false
 	for _, root := range roots {
-		if table, ok := view.Relation(root); ok && root.SubID == 0 && catalog.InheritanceParticipant(view, table) {
+		if relation, ok := view.Relation(root); ok && root.SubID == 0 && catalog.InheritanceParticipant(view, relation) {
 			participates = true
 			break
 		}
@@ -30,35 +30,7 @@ func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots
 	}
 	locked := make(map[ids.ObjectAddress]bool)
 	for {
-		var tables []ids.ObjectAddress
-		seen := make(map[ids.ObjectAddress]bool)
-		var visit func(ids.ObjectAddress)
-		visit = func(address ids.ObjectAddress) {
-			if seen[address] {
-				return
-			}
-			seen[address] = true
-			table, ok := view.Relation(address)
-			if !ok || table.RelationKind != catalog.TableRelation || address.SubID != 0 {
-				return
-			}
-			tables = append(tables, address)
-			for _, child := range catalog.InheritanceChildren(view, address) {
-				visit(child.Address())
-			}
-		}
-		for _, root := range roots {
-			visit(root)
-		}
-		slices.SortFunc(tables, func(a, b ids.ObjectAddress) int {
-			if a.ObjectID < b.ObjectID {
-				return -1
-			}
-			if a.ObjectID > b.ObjectID {
-				return 1
-			}
-			return 0
-		})
+		tables := table.InheritanceDropClosure(view, roots)
 		grew := false
 		for _, address := range tables {
 			if locked[address] {
@@ -77,8 +49,8 @@ func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots
 		// staged objects must not be replaced by the global generation.
 		private := false
 		for _, address := range tables {
-			table := view.MustRelation(address)
-			if view.MustNamespace(table.Namespace()).Temporary != (ids.SessionToken{}) {
+			relation := view.MustRelation(address)
+			if view.MustNamespace(relation.Namespace()).Temporary != (ids.SessionToken{}) {
 				private = true
 				break
 			}

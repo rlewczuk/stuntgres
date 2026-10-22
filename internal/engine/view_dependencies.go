@@ -41,7 +41,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		labels := view.DependentLabelsWithPolicies(provider.base, targets, checks, edges, defaults, provider.path, policies, foreign...)
 		multipleDeletion := provider.scope != nil && provider.scope.inheritance.alter != nil
 		if multipleDeletion && len(targets) == 1 && targets[0].ClassID == ids.RelationClassID && targets[0].SubID != 0 {
-			multipleDeletion = provider.inheritanceColumnDropMultiple(targets[0])
+			multipleDeletion = provider.scope.inheritance.alter.ColumnDropMultiple(provider.base, targets[0])
 		}
 		return view.DependentsRestrictError(provider.base, edges, provider.path, labels, multipleDeletion)
 	}
@@ -69,43 +69,4 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		provider.cascadeNotice("drop cascades to " + dependent.Label)
 	}
 	return nil
-}
-
-// A recursive DROP can remove an origin without deleting the child's column.
-// The root is one physical deletion; a second exists exactly when an immediate
-// child loses its sole nonlocal origin. Without that first deletion no deeper
-// column can disappear, so this threshold needs neither a simulated graph nor
-// a count of descendants which merely retain/localize their columns.
-func (provider *dropProvider) inheritanceColumnDropMultiple(target ids.ObjectAddress) bool {
-	state := provider.scope.inheritance.alter
-	if state.Only {
-		return false
-	}
-	address := target
-	address.SubID = 0
-	source := provider.base.MustRelation(address)
-	slot := source.IndexForAttribute(target.SubID)
-	if slot < 0 {
-		return false
-	}
-	name := source.Columns[slot].Name
-	rootSlot, exists := state.Root.Index[name]
-	if !exists {
-		return false
-	}
-	attribute := state.Root.Attributes[rootSlot]
-	for _, child := range state.Targets {
-		if child.Inheritance == nil {
-			continue
-		}
-		childSlot, exists := child.Index[name]
-		if !exists {
-			continue
-		}
-		fact := child.Inheritance.Columns[child.Attributes[childSlot]]
-		if !fact.Local && len(fact.Origins) == 1 && fact.Origins[0].Parent == state.Root.Address() && fact.Origins[0].Attribute == attribute {
-			return true
-		}
-	}
-	return false
 }
