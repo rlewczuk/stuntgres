@@ -2,7 +2,6 @@ package engine
 
 import (
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -42,23 +41,4 @@ func temporaryDataTarget(auth AuthorizationView, b *analyze.Binding, stmt parser
 		}
 	}
 	return false
-}
-
-// Namespace lookup and role privileges precede physical storage admission.
-// Identity/metadata providers do not acquire another session's stored TEMP data.
-func checkTemporaryStorageAccess(catalog catalog.Read, relation *catalog.Relation, token ids.SessionToken) error {
-	if relation == nil {
-		return ids.ErrCatalogReplaced
-	}
-	if !relation.RelationKind.Stored() {
-		return nil
-	}
-	namespace, ok := catalog.Namespace(relation.Namespace())
-	if !ok {
-		return ids.ErrCatalogReplaced
-	}
-	if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != token {
-		return sqlError("0A000", "cannot access temporary tables of other sessions")
-	}
-	return nil
 }

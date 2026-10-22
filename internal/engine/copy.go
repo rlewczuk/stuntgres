@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/fdw"
@@ -96,7 +97,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	} else if err = dml.CopyRelationKind(b.Relation, false); err != nil {
 		return 0, err
 	}
-	if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.Session.SessionToken); err != nil {
+	if err := access.CheckTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.Session.SessionToken); err != nil {
 		return 0, err
 	}
 	options, err = copyfmt.ParseOptions(syntax)

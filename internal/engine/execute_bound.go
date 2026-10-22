@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
@@ -343,7 +344,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-		if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, op.Session.SessionToken); err != nil {
+		if err := access.CheckTemporaryStorageAccess(auth.Catalog, b.Relation, op.Session.SessionToken); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

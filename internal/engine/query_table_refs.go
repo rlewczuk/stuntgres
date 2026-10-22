@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -73,7 +74,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if err := checkTemporaryStorageAccess(view, relation, token); err != nil {
+		if err := access.CheckTemporaryStorageAccess(view, relation, token); err != nil {
 			return nil, err
 		}
 	}
@@ -124,7 +125,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			})
 		}
 		if relation.RelationKind.Stored() {
-			if err := checkTemporaryStorageAccess(view, relation, token); err != nil {
+			if err := access.CheckTemporaryStorageAccess(view, relation, token); err != nil {
 				return err
 			}
 			for _, prior := range refs {
