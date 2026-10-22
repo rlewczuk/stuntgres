@@ -263,7 +263,7 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 		return err
 	}
 	if s.owner.ReadOnly {
-		mode, err := e.firstQueryRowModeLocked(s, nil, binding.QuerySources)
+		mode, err := view.FirstQueryRowMode(e.privateCatalogLocked(s.owner.Catalog), nil, binding.QuerySources)
 		if err != nil {
 			return err
 		}

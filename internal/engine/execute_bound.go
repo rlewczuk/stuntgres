@@ -332,7 +332,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		}
 	}
 	if selecting && tag == "" && scope.owner.ReadOnly && b.Query != nil {
-		mode, modeErr := e.firstQueryRowModeLocked(scope, b.Query.Root, b.QuerySources)
+		mode, modeErr := view.FirstQueryRowMode(e.privateCatalogLocked(scope.owner.Catalog), b.Query.Root, b.QuerySources)
 		if modeErr != nil {
 			e.mu.Unlock()
 			return Result{}, modeErr

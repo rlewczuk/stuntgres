@@ -58,24 +58,10 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission analyze.LockAdm
 	return nil
 }
 
-// Validate exact admission identity without resolving SQL names again. Metadata
-// revisions may refresh authority before binding, never an already bound layout.
+// currentQuerySourceLocked validates an admitted leaf against catalogView and
+// the storage journal changes sees (view.CurrentQuerySource).
 func currentQuerySourceLocked(e *Engine, catalogView catalog.Read, changes *session.Journal, source exec.Leaf) (*catalog.Relation, error) {
-	current, ok := catalogView.Relation(source.Ref.Address)
-	if !ok || source.Relation == nil || source.Ref.Domain() != e.catalog.Domain || source.Ref.Epoch != e.catalog.state.Epoch() || source.Ref.Address.SubID != 0 ||
-		current.Address() != source.Relation.Address() || current.Namespace() != source.Relation.Namespace() || current.Name() != source.Relation.Name() || current.RelationKind != source.Relation.RelationKind ||
-		!index.SameRelationRowShape(current, source.Relation) {
-		return nil, ids.ErrCatalogReplaced
-	}
-	if current.RelationKind == catalog.SequenceRelation {
-		if current.Sequence == nil || source.Storage != nil || current.SequencePlanStamp != source.Relation.SequencePlanStamp {
-			return nil, ids.ErrCatalogReplaced
-		}
-	} else if storage := e.privateStorageLocked(changes, source.Ref.Address); storage != source.Storage &&
-		!view.SameMaterializedLineage(source.Relation, current, source.Storage, storage) {
-		return nil, ids.ErrCatalogReplaced
-	}
-	return current, nil
+	return view.CurrentQuerySource(catalogView, e.catalog.Domain, e.catalog.state.Epoch(), e.privateStorageLocked(changes, source.Ref.Address), source)
 }
 
 func (s *StatementScope) validateQuerySources(leaves []exec.Leaf) error {

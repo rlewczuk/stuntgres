@@ -1,120 +1,22 @@
 package engine
 
 import (
-	"fmt"
-	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 )
 
-func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) (lock.Mode, error) {
-	view := e.privateCatalogLocked(scope.owner.Catalog)
-	if _, err := stored.ValidateViewReadGraph(view, leaves); err != nil {
-		return 0, err
-	}
-	if mode := analyze.QueryRootRowMode(root); mode != 0 {
-		return mode, nil
-	}
-	var visit func(*catalog.Relation, plan.RowMark, lock.Mode) (lock.Mode, error)
-	visit = func(d *catalog.Relation, inherited plan.RowMark, diagnostic lock.Mode) (lock.Mode, error) {
-		if d.RelationKind != catalog.ViewRelation {
-			if inherited.Mode == 0 {
-				return 0, nil
-			}
-			if diagnostic != 0 {
-				return diagnostic, nil
-			}
-			return inherited.Mode, nil
-		}
-		if inherited.Mode != 0 {
-			return analyze.RowLockDiagnostic(inherited), nil
-		}
-		if diagnostic == 0 {
-			diagnostic = analyze.QueryRootRowMode(stored.ViewOf(d).Query().Root)
-		}
-		for i, leaf := range stored.ViewOf(d).Sources() {
-			child, ok := view.Relation(leaf.Ref.Address)
-			if !ok || !stored.ViewReferenceValid(view, d, leaf.Ref) {
-				return 0, ids.ErrCatalogReplaced
-			}
-			first, err := visit(child, stored.ViewLeafRowMark(stored.ViewOf(d), i, inherited), diagnostic)
-			if err != nil || first != 0 {
-				return first, err
-			}
-		}
-		return 0, nil
-	}
-	for _, leaf := range leaves {
-		first, err := visit(leaf.Relation, leaf.Mark, analyze.RowLockDiagnostic(leaf.Mark))
-		if err != nil || first != 0 {
-			return first, err
-		}
-	}
-	return 0, nil
-}
-
-// Called before any source expression is opened. Inherited rowmark legality,
-// kind and authorization checks remain Execute-only.
+// initializeQueryLocksLocked validates the query's row-lock legality over the
+// statement's private catalog (view.QueryLocks) and records its demand: the
+// visibility snapshot demand, and a query lock context when rows are locked.
+// Called before any source expression is opened.
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) error {
-	marked := analyze.QueryRootRowMode(root) != 0
-	view := e.privateCatalogLocked(scope.owner.Catalog)
-	visibilityDemand, err := stored.ValidateViewReadGraph(view, leaves)
+	demand, err := view.QueryLocks(e.privateCatalogLocked(scope.owner.Catalog), root, leaves)
+	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || demand.Visibility
 	if err != nil {
 		return err
 	}
-	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || visibilityDemand
-	var visit func(*catalog.Relation, plan.RowMark, bool) error
-	visit = func(d *catalog.Relation, inherited plan.RowMark, referenceMarked bool) error {
-		if d.RelationKind == catalog.ViewRelation {
-			if analyze.QueryHasSetOutput(stored.ViewOf(d).Query().Root) {
-				referenceMarked = false
-			}
-			referenceMarked = referenceMarked || analyze.QueryRootRowMode(stored.ViewOf(d).Query().Root) != 0
-			marked = marked || analyze.QueryRootRowMode(stored.ViewOf(d).Query().Root) != 0
-			if err := stored.ViewRowLockLegality(stored.ViewOf(d), analyze.RowLockDiagnostic(inherited)); err != nil {
-				return err
-			}
-			for i, leaf := range stored.ViewOf(d).Sources() {
-				child, ok := view.Relation(leaf.Ref.Address)
-				if !ok || !stored.ViewReferenceValid(view, d, leaf.Ref) {
-					return ids.ErrCatalogReplaced
-				}
-				if err := visit(child, stored.ViewLeafRowMark(stored.ViewOf(d), i, inherited), referenceMarked); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-		if exec.IsPGSequencesRelation(d) {
-			return nil // Expanded catalog view: no represented physical tuple input.
-		}
-		if (referenceMarked || inherited.Mode != 0) && d.RelationKind == catalog.MaterializedViewRelation {
-			return sqlError("42809", fmt.Sprintf("cannot lock rows in materialized view %q", d.Name()))
-		}
-		// PostgreSQL validates reference rowmark kinds even for an unselected
-		// sequence sibling. This does not confer UPDATE ACLs or tuple grants.
-		if referenceMarked && d.RelationKind == catalog.SequenceRelation {
-			return sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", d.Name()))
-		}
-		if inherited.Mode == 0 {
-			return nil
-		}
-		marked = true
-		if d.RelationKind == catalog.CatalogRelation {
-			return sqlError("0A000", "row locking is not supported for virtual catalog relations")
-		}
-		return nil
-	}
-	for _, leaf := range leaves {
-		if err := visit(leaf.Relation, leaf.Mark, leaf.DeleteReference || leaf.Query != nil && len(leaf.Query.Locking) != 0); err != nil {
-			return err
-		}
-	}
-	if marked {
+	if demand.Marked {
 		if scope.queryLocks == nil {
 			scope.queryLocks = &exec.LockContext{}
 		} else {
