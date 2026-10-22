@@ -37,6 +37,7 @@ const (
 	Lseg             ID = 601
 	Path             ID = 602
 	Box              ID = 603
+	Polygon          ID = 604
 	Line             ID = 628
 	Cidr             ID = 650
 	Float4           ID = 700
@@ -139,6 +140,7 @@ type Descriptor struct {
 	geometryPoint                   *Descriptor
 	circleBoolean, circleFloat      *Descriptor
 	pointBoolean, pointFloat        *Descriptor
+	polygonBoolean, polygonPoint    *Descriptor
 	lookupOnly                      bool
 	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
 	namespace                       string
@@ -276,6 +278,7 @@ func Builtins() []*Descriptor {
 		{id: Lseg, name: "lseg", sql: "LSEG", database: "LSEG", associatedArray: 1018},
 		{id: Path, name: "path", sql: "PATH", database: "PATH", associatedArray: 1019},
 		{id: Box, name: "box", sql: "BOX", database: "BOX", associatedArray: 1020, delimiter: ';'},
+		{id: Polygon, name: "polygon", sql: "POLYGON", database: "POLYGON", associatedArray: 1027},
 		{id: Line, name: "line", sql: "LINE", database: "LINE", associatedArray: 629},
 		{id: PgNodeTree, name: "pg_node_tree", sql: "PG_NODE_TREE", database: "PG_NODE_TREE"},
 		{id: BPChar, name: "bpchar", sql: "BPCHAR", database: "BPCHAR", associatedArray: 1014},
@@ -339,6 +342,9 @@ func Builtins() []*Descriptor {
 		}
 		if d.id == Point {
 			d.pointBoolean, d.pointFloat = networkBoolean, circleFloat
+		}
+		if d.id == Polygon {
+			d.polygonBoolean, d.polygonPoint = networkBoolean, geometryPoint
 		}
 	}
 	for _, family := range []struct {
@@ -407,6 +413,7 @@ type Value struct {
 	geometry        *geometryPayload
 	path            *pathPayload
 	circle          circleDatum
+	polygon         *polygonPayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -462,6 +469,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if !v.null && d.BaseType().id == Path && (v.path == nil || len(v.path.points) == 0) {
 		return Value{}, fmt.Errorf("missing PATH payload")
+	}
+	if !v.null && d.BaseType().id == Polygon && !v.validPolygon() {
+		return Value{}, fmt.Errorf("missing polygon payload")
 	}
 	if !v.null && isRange(d.BaseType().id) && !v.validRange() {
 		return Value{}, fmt.Errorf("invalid range datum")
@@ -717,6 +727,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	switch d.id {
 	case Path:
 		return d.pathInput(text)
+	case Polygon:
+		return d.polygonInput(ctx, text)
 	case Line:
 		return d.lineInput(text, env)
 	case Lseg:
@@ -1007,6 +1019,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	switch d.id {
 	case Path:
 		return pathOutput(v, env)
+	case Polygon:
+		return d.polygonOutput(ctx, v, env)
 	case Box, Point, Line, Lseg:
 		return d.geometryOutput(v, env)
 	case Circle:
@@ -1218,6 +1232,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	switch d.id {
 	case Path:
 		text, err := formatPath(v, OutputEnvironment{}, true)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
+	case Polygon:
+		text, err := d.formatPolygon(ctx, v, OutputEnvironment{}, true)
 		if err != nil {
 			return "", err
 		}
@@ -1647,7 +1667,7 @@ func BaselineCastType(id ID) bool {
 // Admission of a type does not add conversion edges to PlanCoercion.
 func StoredScalarCastType(id ID) bool {
 	switch id {
-	case TSVector, TSQuery, Box, Point, Lseg, Circle, Line, Path:
+	case TSVector, TSQuery, Box, Point, Lseg, Circle, Line, Path, Polygon:
 		return true
 	case Bool, Int2, Int4, Int8, Oid, Tid, Macaddr, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:

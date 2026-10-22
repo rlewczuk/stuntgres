@@ -44,6 +44,7 @@ var definitions = [...]Definition{
 	{Names: []string{"line_eq"}, ExactSpelling: true, SharedGates: true, Bind: bindLineEquality},
 	{Names: []string{"radius", "circle_eq", "circle_ne", "circle_lt", "circle_gt", "circle_le", "circle_ge", "circle_same", "circle_left", "circle_right", "circle_overleft", "circle_overright", "circle_below", "circle_above", "circle_overbelow", "circle_overabove", "circle_contain", "circle_contained", "circle_overlap", "circle_distance"}, ExactSpelling: true, SharedGates: true, Bind: bindCircle},
 	{Names: []string{"point_eq", "point_ne", "point_left", "point_right", "point_below", "point_above", "point_horiz", "point_vert"}, ExactSpelling: true, SharedGates: true, Bind: bindPoint},
+	{Names: []string{"poly_same", "poly_contain_pt", "pt_contained_poly"}, ExactSpelling: true, SharedGates: true, Bind: bindPolygon},
 	{Names: []string{"network_sub", "network_subeq", "network_sup", "network_supeq", "network_overlap"}, ExactSpelling: true, SharedGates: true, Bind: bindNetworkSubnet},
 	{Names: []string{"btint4cmp", "hashint4", "hashint4extended"}, ExactSpelling: true, SharedGates: true, Bind: bindIntegerIndexSupport},
 	{Names: []string{"lo_create", "lo_creat", "lo_from_bytea", "lo_get", "lo_put", "lo_unlink"}, ExactSpelling: true, SharedGates: true, Bind: bindLargeObject},

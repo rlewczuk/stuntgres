@@ -984,6 +984,22 @@ file but deliberately select unchanged signatures. Native package-function
 capture/relationship units consume it independently; no public SQL witness is
 moved outside reference.
 
+Polygon admission adds only491 (`polygon ~= polygon`),756 (`point <@ polygon`)
+and757 (`polygon @> point`) to the independent15-field operator inventory.
+Released PostgreSQL18.6 catalog facts specify their procedures339/1429/1428,
+self/reciprocal commutators, zero negators and nonmerge/nonhash flags.
+`TestReferencePGTypeAdmission` checks scalar604, zero typelem and reciprocal
+companion1027; path remains distinct and polygon arrays remain lookup-only.
+The shared-inventory consumers and metadata admission require both selected modes:
+
+```sh
+make check RUN='^TestReference(PGOperator(Inventory|Permissions|Lifecycle|FeatureSmoke|PolymorphicRelationships|PolymorphicIdentity|References|ResolverAgreement)|LsegOperatorCatalog|PGTypeAdmission)$'
+make check RUN='^TestReference(PGOperator(Inventory|Permissions|Lifecycle|FeatureSmoke|PolymorphicRelationships|PolymorphicIdentity|References|ResolverAgreement)|LsegOperatorCatalog|PGTypeAdmission)$' REFERENCE=1
+```
+
+Use external900-second deadlines. These are verification obligations, not a
+claim that the extended definitions have passed.
+
 ```sh
 make check RUN='^TestReferencePGTypeAdmission$'
 make check RUN='^TestReferencePGTypeAdmission$' REFERENCE=1

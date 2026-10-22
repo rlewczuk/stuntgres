@@ -37,6 +37,10 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{1484, ids.PGCatalogNamespaceOID, "lseg_le", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{1485, ids.PGCatalogNamespaceOID, "lseg_gt", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{1486, ids.PGCatalogNamespaceOID, "lseg_ge", "601,601"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	// Selected polygon signatures only; polygon has no ordinary comparisons.
+	{catalog.RoutineIdentity{339, ids.PGCatalogNamespaceOID, "poly_same", "604,604"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1428, ids.PGCatalogNamespaceOID, "poly_contain_pt", "604,600"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1429, ids.PGCatalogNamespaceOID, "pt_contained_poly", "600,604"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	// Circle-only scalar signatures, REL_18_6; no default comparison class.
 	{catalog.RoutineIdentity{1452, ids.PGCatalogNamespaceOID, "circle_same", "718,718"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{1453, ids.PGCatalogNamespaceOID, "circle_contain", "718,718"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

@@ -102,6 +102,8 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		f = PGTypeMetadata{Kind: "b", Category: "G", Element: Point, Subscript: 6180, Input: 119, Output: 120, Receive: 2480, Send: 2481}
 	case Circle:
 		f = PGTypeMetadata{Kind: "b", Category: "G", Input: 1450, Output: 1451, Receive: 2490, Send: 2491}
+	case Polygon:
+		f = PGTypeMetadata{Kind: "b", Category: "G", Input: 347, Output: 348, Receive: 2486, Send: 2487}
 	case Line:
 		f = PGTypeMetadata{Kind: "b", Category: "G", Element: Float8, Subscript: 6180, Input: 1490, Output: 1491, Receive: 2488, Send: 2489}
 	case Path:

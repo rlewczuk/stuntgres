@@ -891,3 +891,22 @@ then fail natively with six missing catalog rows. Its temporary filter is
 removed. Earlier discovery/baseline observations do not establish post-fix proof;
 fresh native and real-mode selected checks remain required.
 
+
+## Polygon scalar publication consumer contract
+
+PG18-TYPE-GEOM-POLYGON admits exactly three released operator metadata rows:
+491 (`~=(polygon,polygon)`),756 (`<@(point,polygon)`) and757
+(`@>(polygon,point)`). Their independent15-field expectations come from
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat),
+not native capture output. Namespace11, owner10, binary kind, BOOL16 and false
+merge/hash flags apply to all three. Sameness is self-commuting, has no negator,
+uses procedure339 and eqsel101/eqjoinsel105. Containment commutators756/757 are
+reciprocal, have no negators, use procedures1429/1428 and contsel1302/contjoinsel1303.
+
+The expected TSV extends existing unfiltered native inventory/capture and
+shared direct/prepared PostgreSQL inventory, permissions, lifecycle, polymorphic
+and reference-link witnesses. Polygon does not acquire ordinary equality/order,
+hash/index classes, polygon arrays or other documented spatial providers.
+Fresh selected dual-mode proof remains root-owned; these source facts are not
+an assertion of passing verification.

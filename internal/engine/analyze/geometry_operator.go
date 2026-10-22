@@ -22,6 +22,9 @@ func (b *Binder) bindBoxSame(raw parser.OperatorExpr) (expr.Expr, error) {
 			right = o.descriptor()
 		}
 	}
+	if len(operands) == 2 && (polygonOperand(left) || polygonOperand(right)) {
+		return b.finishPolygonOperator(raw, [2]ComparisonOperand{operands[0], operands[1]})
+	}
 	if len(operands) != 2 || left != nil && left.BaseType().ID() != sqltype.Box || right != nil && right.BaseType().ID() != sqltype.Box {
 		return nil, functions.OperatorError(sqlError("42883", "incompatible operands"), left, right, raw)
 	}

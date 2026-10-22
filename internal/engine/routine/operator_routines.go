@@ -19,6 +19,9 @@ var builtinOperatorRoutineAssociations = [...]struct {
 	{809, 989},  // point ?|
 	{4161, 131}, // point |>>
 	{4162, 134}, // point <<|
+	{491, 339},  // polygon ~= polygon
+	{756, 1429}, // point <@ polygon
+	{757, 1428}, // polygon @> point
 	{1535, 999}, // lseg =
 	{1586, 1482},
 	{1587, 1483},

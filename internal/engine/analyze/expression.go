@@ -1383,7 +1383,7 @@ func (b *Binder) InputConstant(text string, u sqltype.Usage, pos parser.Position
 		}
 		return node.(plan.LiteralExpr).Value, nil
 	}
-	if u.Type.BaseType().ID() == sqltype.Circle || sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsCube() || u.Type.BaseType().IsQueryInt() || u.Type.BaseType().IsCitext() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().ID() == sqltype.DateRange || u.Type.BaseType().ID() == sqltype.TimestampRange || u.Type.BaseType().ID() == sqltype.TimestamptzRange {
+	if u.Type.BaseType().ID() == sqltype.Polygon || u.Type.BaseType().ID() == sqltype.Circle || sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsCube() || u.Type.BaseType().IsQueryInt() || u.Type.BaseType().IsCitext() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().ID() == sqltype.DateRange || u.Type.BaseType().ID() == sqltype.TimestampRange || u.Type.BaseType().ID() == sqltype.TimestamptzRange {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}

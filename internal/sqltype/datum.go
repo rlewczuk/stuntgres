@@ -61,6 +61,8 @@ func SameDatum(a, b Value) bool {
 		return a.geometry != nil && b.geometry != nil && a.sameGeometry(b)
 	case Path:
 		return samePath(a, b)
+	case Polygon:
+		return a.samePolygon(b)
 	case Circle:
 		return math.Float64bits(a.circle.x) == math.Float64bits(b.circle.x) &&
 			math.Float64bits(a.circle.y) == math.Float64bits(b.circle.y) &&

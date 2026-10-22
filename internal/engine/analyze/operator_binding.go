@@ -29,6 +29,12 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 		b.Clause.SelectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.Point {
 		return b.pointOperator(r, [2]expr.Expr{b.Clause.SelectedOperatorArgs[0], b.Clause.SelectedOperatorArgs[1]})
 	}
+	if _, polygon := sqltype.PolygonKind(name); polygon && len(b.Clause.SelectedOperatorArgs) == 2 {
+		args := [2]expr.Expr{b.Clause.SelectedOperatorArgs[0], b.Clause.SelectedOperatorArgs[1]}
+		if args[0].ResultUsage().Type.ID() == sqltype.Polygon || args[1].ResultUsage().Type.ID() == sqltype.Polygon {
+			return b.polygonOperator(r, args)
+		}
+	}
 	if _, circle := sqltype.CircleKind(name); circle && len(b.Clause.SelectedOperatorArgs) == 2 &&
 		b.Clause.SelectedOperatorArgs[0].ResultUsage().Type.ID() == sqltype.Circle &&
 		b.Clause.SelectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.Circle {

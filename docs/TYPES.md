@@ -69,6 +69,53 @@ capabilities. Circle arrays, POINT/adjacent geometry, center, transformations
 and additional geometry functions remain unavailable. See
 [circle reference proof](../reference/types/README.md#circle-scalar-contract).
 
+## Polygon
+
+Builtin POLYGON (OID604, lookup-only companion1027) owns an immutable nonempty
+sequence of float8 coordinate pairs, distinct from path602. These documented
+inputs all display as `((0,0),(4,0),(0,4))`:
+
+```text
+((0,0),(4,0),(0,4))
+(0,0),(4,0),(0,4)
+(0,0,4,0,0,4)
+0,0,4,0,0,4
+```
+
+Output preserves the supplied vertex sequence, including rotation, reversal
+and repeated vertices. One-/two-point and zero-area polygons are valid; input
+does not impose convexity or simplicity. Coordinates preserve signed zero,
+nonzero subnormals, NaN and infinities. Released comma-count validation precedes
+coordinate conversion; malformed input fails22P02 naming the complete input,
+and numeric overflow/true underflow fails22003 naming the component token.
+
+Direct/prepared strings and textual bytes use the same input path; nil and
+typed-nil bytes mean SQL NULL, while empty nonnil text/bytes are invalid.
+Native non-NULL output and ScanType are string; DatabaseTypeName is POLYGON.
+PostgreSQL's pq adapter returns bytes and interface ScanType. Neither adapter
+reports Length or DecimalSize. Presentation honors extra_float_digits, while
+logical dump literals retain full precision independently of display settings,
+including accepted negative NaN coordinate signs. Canonical display renders
+either NaN sign as `NaN`; display-text equality does not prove exact datum
+preservation. SQL-literal re-input preserves coordinate bits for accepted input,
+separately from geometric sameness.
+
+Exactly three strict BOOL signatures execute: `~=(polygon,polygon)`,
+`@>(polygon,point)` and `<@(point,polygon)`, with their released selected routines.
+Sameness accepts cyclic rotation and reverse traversal of equal-length vertex
+lists using PostgreSQL geometric point tolerance; it is not unordered-set or
+equal-area comparison. Containment includes boundary points, uses the released
+crossing algorithm, and propagates checked float arithmetic errors.
+
+PostgreSQL has no polygon `= <> != < <= > >=` overloads or `area(polygon)`.
+No default sorting/grouping/hash/index capability is invented. Polygon encloses
+area conceptually unlike path, but closed PostgreSQL paths can also test interior
+containment; this implementation adds no path execution. Other documented
+polygon spatial signatures, conversions/constructors, subscripting, polygon
+arrays and binary codecs remain unimplemented. I/O receive/send catalog
+identities are metadata, not binary transport authority.
+See [polygon reference proof](../reference/types/README.md#polygon-scalar-contract).
+
 ## Installed citext transport
 
 `CREATE EXTENSION citext` creates a generation-owned, collatable scalar, not a
@@ -297,7 +344,7 @@ use the catalog array name for copied rank-zero declarations.
 | FLOAT4, FLOAT8 | `float64` |
 | NAME, TEXT, BPCHAR, VARCHAR | `string` |
 | Exact NUMERIC, MONEY | `string` |
-| UUID, TID, MACADDR, INET, CIDR, CIRCLE, LSEG, BIT, VARBIT | Canonical `string` |
+| UUID, TID, MACADDR, INET, CIDR, CIRCLE, LSEG, POLYGON, BIT, VARBIT | Canonical `string` |
 | JSON | Exact source `string` |
 | JSONB, JSONPath | Canonical `string` |
 | TSVECTOR, TSQUERY | Cached canonical `string` |

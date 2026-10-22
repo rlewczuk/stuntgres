@@ -257,6 +257,50 @@ error and unchanged count; native Dump/Reset/Restore repeats those expectations.
 Use external900-second deadlines. Commands are verification obligations, not
 claims of observed success. Whole-project Docker-free verification is quickcheck.
 
+### Polygon scalar contract
+
+The six shared `TestReferencePolygon` scenarios specify ordered vertex-list
+input/output, the four documented forms, one/two/repeated vertices, strict NULL
+behavior, cyclic/reverse `~=` rather than area equality, and polygon/point
+containment including boundaries and a bounding-box false positive control.
+Bindings inspect raw native string versus PostgreSQL byte cells before logical
+normalization, held statement recovery, owned input, and empty/all-NULL metadata.
+Diagnostics include eager absent ordinary comparisons and sorting/grouping,
+malformed values, numeric range errors, positions and statement atomicity.
+Diagnostic expectations were exercised against the pinned PostgreSQL18.6 fixture
+during oracle-first discovery; none are derived from native results.
+
+`Controls` and `FeatureSmoke` exercise defaults, CHECK and a view. The stored view
+contains all three selected signatures, including `point <@ polygon`, and typed
+NULL constants in the left, right and both operand positions of each signature.
+Independent BOOL values, NULLs and column metadata are checked through direct and
+prepared queries before and after replay, including new rows from default and
+explicit inserts. Their explicit native-only Dump/Reset/Restore phase retains an
+old cursor, preserves full float precision under low display precision, and rejects
+a failed staged restore atomically. Real mode also replays the actual emitted
+native dump SQL on PostgreSQL and checks the same stored expressions and new-row
+outcomes. PostgreSQL has no native-control API.
+Polygon OID604 differs from path602; no path execution is asserted. In particular,
+closed PostgreSQL paths can also contain interior points. These scenarios do not
+request arrays, binary codecs, other documented spatial operations or physical
+storage/index/network/native-ABI mechanisms.
+
+Selected proof and executable runtime smoke (external900-second deadlines):
+
+```sh
+make check RUN='^TestReferencePolygon(Values|Operators|Diagnostics|BindingsMetadata|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferencePolygon(Values|Operators|Diagnostics|BindingsMetadata|Controls|FeatureSmoke)$'
+make check RUN='^TestPolygon(InputOutput|DatumIdentity|Operators|ProviderLifecycle)$'
+make check RUN='^TestReferencePolygonFeatureSmoke$'
+make check RUN='^TestReferencePolygonFeatureSmoke$' REFERENCE=1
+```
+
+Expected smoke: six ordered rows (four canonical triangles, a rotated vertex
+sequence, NULL), BOOL row `true,false,true,true,false,NULL`, malformed held input
+with unchanged count6, then persistent-object replay and successful default insert.
+Commands state obligations, not observed passing evidence. Whole-project
+Docker-free verification uses `make quickcheck`.
+
 ### MACADDR scalar contract
 
 The eight shared scenarios cover documented forms and scanf edges, full

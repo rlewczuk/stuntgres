@@ -68,6 +68,8 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{430, 16, "b", false, false, 80, 418, 479, 337, 398},
 	{439, 20, "b", false, false, 0, 0, 945, 0, 0},
 	{484, 20, "l", false, false, 0, 0, 462, 0, 0},
+	// Polygon scalar providers: REL_18_6 pg_operator.dat and pg_proc.dat.
+	{491, 16, "b", false, false, 491, 0, 339, 101, 105},
 	{499, 16, "b", false, false, 499, 0, 186, 101, 105},
 	{501, 16, "b", false, false, 505, 504, 126, 139, 140},
 	{502, 16, "b", false, false, 504, 505, 127, 139, 140},
@@ -180,6 +182,8 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{694, 20, "b", false, false, 690, 0, 1280, 0, 0},
 	{695, 20, "b", false, false, 0, 0, 1281, 0, 0},
 	{713, 16, "b", false, false, 713, 510, 988, 102, 106},
+	{756, 16, "b", false, false, 757, 0, 1429, 1302, 1303},
+	{757, 16, "b", false, false, 756, 0, 1428, 1302, 1303},
 	// REL_18_6 path predicates have no merge/hash or negator authority.
 	{792, 16, "b", false, false, 792, 0, 984, 101, 105},
 	{793, 16, "b", false, false, 794, 0, 982, 0, 0},

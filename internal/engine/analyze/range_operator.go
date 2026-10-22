@@ -39,6 +39,9 @@ func (b *Binder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, error) {
 	if _, point := sqltype.PointKind(name); point && (pointOperand(left) || pointOperand(right)) {
 		return b.finishPointOperator(raw, operands)
 	}
+	if _, polygon := sqltype.PolygonKind(name); polygon && (polygonOperand(left) || polygonOperand(right)) {
+		return b.finishPolygonOperator(raw, operands)
+	}
 	if op, circle := sqltype.CircleKind(name); circle && op != sqltype.CircleRadius &&
 		(circleOperand(left) || circleOperand(right)) {
 		return b.finishCircleOperator(raw, operands)

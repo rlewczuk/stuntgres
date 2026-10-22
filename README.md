@@ -25,6 +25,21 @@ See [type contracts](docs/TYPES.md#point),
 [native boundaries](docs/DIALECT.md#point-geometric-boundary) and
 [selected proof and smoke](reference/types/README.md#point-oracle-first-contract).
 
+## Polygon vertex lists — change note
+
+Builtin `polygon` now has immutable ordered float8 vertices, four documented
+input forms, closed `((x,y),...)` output, typed NULL, string/byte binds and exact
+metadata. `polygon ~= polygon` tests cyclic/reverse vertex sameness, not equal
+area; `polygon @> point` and `point <@ polygon` include interior and boundary.
+Unlike circle, PostgreSQL polygon has no ordinary equality/ordering predicates
+or `area(polygon)` overload. Path remains a distinct concrete scalar; polygon
+adds no path functionality.
+Native logical Dump/Restore preserves values, defaults, CHECKs and views; this
+does not implement physical storage, spatial indexes, arrays or binary codecs.
+See [value contracts](docs/TYPES.md#polygon),
+[native boundaries](docs/DIALECT.md#polygon-scalar) and
+[selected proof and smoke](reference/types/README.md#polygon-scalar-contract).
+
 ## LSEG ordered endpoints — change note
 
 Builtin `lseg` stores two ordered POINT endpoints. The four documented input

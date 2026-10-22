@@ -112,6 +112,31 @@ boundary above is unchanged.
 Text and 24-byte binary codecs, metadata and native logical controls share the
 [type-owned circle contract](TYPES.md#circle).
 
+## Polygon scalar
+
+Builtin `polygon`604 is concrete and distinct from `path`602;
+`_polygon`1027 remains lookup-only. Ordered vertex input/output and exactly
+`polygon ~= polygon`, `polygon @> point`, `point <@ polygon` execute, including
+strict typed NULL and selected routine authority. `~=` is cyclic/reverse vertex
+sameness, not area equality; containment includes interior and boundary points.
+Closed PostgreSQL paths also support interior containment: no contrary path
+behavior or new path execution is asserted here.
+
+PostgreSQL itself has no ordinary polygon `= <> != < <= > >=` overloads and no
+`area(polygon)`. Such calls fail rather than comparing serialized strings;
+ORDER BY, DISTINCT/GROUP BY and default equality/order/hash/index classes are
+unavailable. Other PostgreSQL polygon spatial operators/functions and conversions
+exist but are not implemented here. Polygon arrays, subscripting and binary
+codecs are also outside this bounded provider.
+
+Defaults, CHECKs, views and typed data survive native logical Dump/Reset/Restore,
+including full float precision despite low display precision. This is in-engine
+logical replacement, not PostgreSQL physical disk/WAL/crash durability, spatial
+index access, network/wire binary transport, replication or native ABI/process
+integration. Receive/send catalog identities do not grant executable codecs.
+See [polygon values](TYPES.md#polygon) and
+[reference proof](../reference/types/README.md#polygon-scalar-contract).
+
 ## Tablespace inquiries
 
 The sole signatures are `pg_tablespace_location(oid) -> text` and
@@ -3387,7 +3412,7 @@ empty/custom ACLs and actual owner principals. Zero REGPROC displays `-`.
 PUBLIC reads expose the inventory independently of schema/type USAGE grants.
 
 Families deliberately opt into metadata: implemented scalar/alias/temporal/
-JSON/numeric/network/bit/UUID/ACL families, circle718, the six executable ranges and three
+JSON/numeric/network/bit/UUID/ACL families, circle718, polygon604, the six executable ranges and three
 executable integer/numeric multiranges, unknown/void/record/anyarray, actual
 enum/domain/composite/installed-query_int definitions, and real represented
 catalog/user-relation rowtypes. Every admitted element retains its genuine
@@ -3406,7 +3431,7 @@ uses current authority. This metadata composition adds no codec or SQL capabilit
 
 This inventory is deliberately narrower than REGTYPE lookup. Remaining
 unimplemented xml/geometry/full-text/refcursor/vector/pseudo families and unrelated
-lookup-only relation identities are absent. BOX/POINT, LSEG601 and circle718 scalar and
+lookup-only relation identities are absent. BOX/POINT, LSEG601, circle718 and polygon604 scalar and
 companion metadata are admitted; companion catalog visibility does not enable
 their SQL array codecs. Temporal multiranges4533/4534/4535
 and arrays6152/6153/6155 remain absent even though pg_range preserves their

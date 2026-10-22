@@ -32,6 +32,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// datums remain lookup-only. Scalar circle admission must preserve it.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=718", []string{"oid", "typname", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "NAME", "OID"}, [][]any{{int64(718), "circle", int64(719), int64(719), "_circle", int64(718)}}))
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=628", []string{"oid", "typname", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "NAME", "OID"}, [][]any{{int64(628), "line", int64(629), int64(629), "_line", int64(628)}}))
+		// Polygon has no typelem/subscript authority; its companion remains
+		// visible metadata without admitting executable polygon arrays.
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typelem,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=604", []string{"oid", "typname", "typelem", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "OID", "NAME", "OID"}, [][]any{{int64(604), "polygon", int64(0), int64(1027), int64(1027), "_polygon", int64(604)}}))
 		if b.PG {
 			return
 		} // PostgreSQL genuinely implements additional families.
@@ -56,6 +59,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		expected[628], expected[629] = true, true
 		// PATH is concrete, but its companion is catalog identity only.
 		expected[602], expected[1019] = true, true
+		// Polygon604 is concrete; companion1027 has metadata but no codec.
+		expected[604], expected[1027] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")
