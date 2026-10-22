@@ -352,6 +352,49 @@ Use `RACE=1` on selected Controls proof when needed; whole-project Docker-free
 verification is `make quickcheck`. These commands document proof obligations,
 not a claim that this implementation round has already passed them.
 
+### Geometric constructor/conversion contract
+
+Nine shared definitions cover exactly nine signatures, independently expected
+values and BOX/CIRCLE/LINE metadata; all typed parameter signatures; full
+diagnostics; fixed routine facts; constructor consumers/default/CHECK/view and
+native replay through existing carriers. Ordinary negative CIRCLE text/binary
+input remains invalid while `circle(point,float8)` accepts negative radii.
+The tests use existing `::circle` input syntax and circle-only containment,
+not unsupported CIRCLE introducers or cross-type spatial operators.
+
+```sh
+make check RUN='^TestReferenceGeometryConversion(Values|BindingsMetadata|Diagnostics|Routines|Controls|CarrierShape|Resolution|StoredRecipes|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceGeometryConversion(Values|BindingsMetadata|Diagnostics|Routines|Controls|CarrierShape|Resolution|StoredRecipes|FeatureSmoke)$'
+make check RUN='^(TestGeometryConversion(Kernel|LineErrors|ProviderLifecycle|Declarations|ReplayShapes|MixedReplayProvenance)|TestCircleConstructorReplay)$'
+make check RUN='^TestReferenceGeometryConversionFeatureSmoke$'
+make check RUN='^TestReferenceGeometryConversionFeatureSmoke$' REFERENCE=1
+```
+
+Use external900-second deadlines. Feature smoke expects an inscribed BOX,
+enclosing CIRCLE, slope/intercept LINE, valid negative radius and a held INSERT's
+22023 coincidence/no-publication/recovery, plus multirow atomicity. Controls
+exercise same/fresh native replay and actual emitted SQL on PostgreSQL.
+Low-precision redump/re-restore compares exact consumer values, not byte-identical
+definition text: the precise constructor leaf retains center
+`(0.10000000000000002,5e-324)` and radius `-1.0000000000000002`.
+`CarrierShape` checks nonuniform two-dimensional composite arrays with bounds
+`[-2:-1][3:4]` and exact indexed radii through same/fresh native restoration,
+including a populated materialized snapshot read before any refresh.
+Private native array metadata corresponds to explicit SQL NULL placeholders on
+PostgreSQL; tests assert that boundary. PostgreSQL materialized definitions are
+explicitly checked unpopulated before REFRESH verifies their constructor recipe.
+Raw native inverted BOX persistence does not promise that PostgreSQL's ordinary
+BOX text input retains inversion; stored conversion views recompute it.
+`Resolution` checks domain relabels/typed NULL, visible SQL competition and exact
+TEXT overload precedence, without equating unknown constants to external params.
+`StoredRecipes` executes retained ARRAY/ROW/constructor defaults and view recipes
+before/after same/fresh native replay and actual PostgreSQL definition replay/
+materialized refresh. Its typed values retain `[1:2]`, centers `(1,2)`/`(3,4)`
+and radii -1/-2. The mixed-provenance unit combines authentic stored-domain NULL
+and negative-array provenance in one carrier cell with exact identity/leaves.
+Root runs both selected modes and whole-project Docker-free `make quickcheck`;
+readiness is not verification.
+
 ### Circle scalar contract
 
 The eight shared `TestReferenceCircle` scenarios cover input/output (including

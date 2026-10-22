@@ -25,8 +25,18 @@ type domainReplayCapture struct {
 	cells     map[int]plan.LiteralExpr // actual explicit VALUES slot, not raw SQL offsets
 }
 
-func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, int, error) {
-	bad := func() (sqltype.Value, int, error) {
+// Provenance is accumulated only after destination-owned reconstruction.
+// Negative-circle provenance authorizes only an affected array carrier cell;
+// it never grants a general scalar sidecar or negative text-input exception.
+type domainReplayProvenance uint8
+
+const (
+	domainReplayDomainNull domainReplayProvenance = 1 << iota
+	domainReplayNegativeCircle
+)
+
+func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, domainReplayProvenance, error) {
+	bad := func() (sqltype.Value, domainReplayProvenance, error) {
 		return sqltype.Value{}, 0, fmt.Errorf("stuntgres: invalid native domain replay value")
 	}
 	if n == nil || !u.Valid() {
@@ -47,7 +57,7 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 			// CHECK recipes may be replayed after data (including NOT VALID).
 			// The authentic declared domain identity, not today's partial
 			// constraint set, owns this already-domain NULL provenance.
-			return sqltype.Null(u.Type), 1, nil
+			return sqltype.Null(u.Type), domainReplayDomainNull, nil
 		}
 		base, count, err := restoreDomainReplayNode(c, e, op, auth, u.BaseUsage(), n.Base)
 		if err != nil {
@@ -80,14 +90,14 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 		element := u
 		element.Type = u.Type.Element()
 		elements := make([]sqltype.Value, len(*n.Elements))
-		count := 0
+		count := domainReplayProvenance(0)
 		for i := range elements {
 			value, found, err := restoreDomainReplayNode(c, e, op, auth, element, &(*n.Elements)[i])
 			if err != nil {
 				return sqltype.Value{}, 0, err
 			}
 			elements[i] = value
-			count += found
+			count |= found
 		}
 		dims := make([]sqltype.ArrayDimension, len(*n.Dimensions))
 		for i, dimension := range *n.Dimensions {
@@ -105,7 +115,7 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 			return bad()
 		}
 		members := make([]sqltype.Value, len(*n.Members))
-		count := 0
+		count := domainReplayProvenance(0)
 		for i := range members {
 			member := u.Type.CompositeMember(i)
 			captured := (*n.Members)[i]
@@ -117,7 +127,7 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 				return sqltype.Value{}, 0, err
 			}
 			members[i] = value
-			count += found
+			count |= found
 		}
 		value, err := sqltype.OwnedCompositeValue(u.Type, members)
 		return value, count, err
@@ -170,6 +180,9 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, 
 	}
 	if value.IsNull() || value.Type() != u.Type {
 		return bad()
+	}
+	if value.RequiresCircleConstructorReplay() {
+		return value, domainReplayNegativeCircle, nil
 	}
 	return value, 0, nil
 }
@@ -249,8 +262,9 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 		if err != nil {
 			return nil, err
 		}
-		if count == 0 || value.Type() != usage.Type {
-			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted domain NULL")
+		admitted := count&domainReplayDomainNull != 0 || count&domainReplayNegativeCircle != 0 && value.RequiresCircleArrayReplay()
+		if !admitted || value.Type() != usage.Type {
+			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted domain NULL or constructor array")
 		}
 		capture.cells[position] = plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: raw.SourcePosition()}, Value: value}
 	}

@@ -223,6 +223,15 @@ done), and the closure walks and materialized checks (27h, done). See
   authority, so its caller (and `NormalizeRuleCTEsLocked`'s) holds
   `Engine.mu`.
 
+Materialized snapshot scalars admit the closed qualified negative-circle codec
+through the ordinary typed binder, never arbitrary function execution. Typed
+composite ROW members remain under a destination-owned qualified cast. Existing
+array carriers reuse table capture plus exact dimensions/elements transport;
+negative provenance is granted only after ordinary constructor evaluation.
+Native snapshots preserve captured values without REFRESH. PostgreSQL ignores
+native snapshot comments, so emitted WITH NO DATA definitions require REFRESH;
+this is recomputation, not PostgreSQL restoration of native captured rows.
+
 ## Testing
 
 `binding_slots_test.go` covers the slot helpers. Every other view, rule,

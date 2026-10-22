@@ -112,9 +112,6 @@ func (p CirclePlan) Evaluate(ctx context.Context, values [2]Value) (Value, error
 		if v.null {
 			return Null(p.result), nil
 		}
-		if v.circle.radius < 0 {
-			return Value{}, fmt.Errorf("invalid circle datum")
-		}
 	}
 	a, b := values[0].circle, values[1].circle
 	if p.operation == CircleRadius {

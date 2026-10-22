@@ -400,6 +400,13 @@ and its callers hold nothing; its comment marks the methods that wait
 - The package holds no engine state and no mutex. Functions here never
   wait; callers in the root own `Engine.mu` and lock waits.
 
+Negative constructor CIRCLE leaves stay on ordinary qualified constructor SQL.
+Only existing array-containing cells that need those leaves use the existing
+native captured-cell metadata alongside SQL NULL, preserving exact dimensions
+and recursive typed members. The engine authenticates destination, owner,
+placeholder and operation lifetime; ordinary inputs and scalar sidecars gain
+no bypass. PostgreSQL ignores that private metadata and receives SQL NULL.
+
 ## Testing
 
 Package-local tests cover pure helpers (`TestOwnedSequenceNameTruncatesToValidUTF8`).

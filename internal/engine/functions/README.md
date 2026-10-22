@@ -96,6 +96,34 @@ strict NULL, cancellation, reconstruction and replay. Public SQL and selected
 dual-mode smoke belong to
 [`reference/types`](../../../reference/types/README.md#circle-scalar-contract).
 
+## Geometric constructor/conversion provider
+
+`GeometryConversion` owns the nine selected `box`, `bound_box`, `circle` and
+`line` signatures with fixed operands and captured routine authority. Binding
+analyzes operands once, probes coercions without evaluating, selects a bounded
+formal signature, then coerces only the winner. Unary typename calls retain
+identity/string/unknown-Const precedence, including domain-to-base relabels,
+through the existing explicit plan's `FunctionCastShortcut()` policy rather
+than type-ID approximations. Unresolved parameters are not Const.
+`TypeNameCastArgument` shares the existing explicit coercion assembly and
+provenance, without parser introducer syntax or cross-geometry cast edges. Known
+TEXT-to-CIRCLE uses only the explicit directional input route and ordinary
+circle codec, not implicit/assignment or reverse conversion admission. With visible SQL
+overloads, the analyzer applies the same policy after exact declarations and
+before implicit/unknown ranking, retaining the already analyzed operand.
+Stored reconstruction, render, capture and group identity retain the selected
+operation/formal types. Circle replay admission accepts only the emitted
+qualified two-literal codec shape, not arbitrary executable calls.
+
+### Testing
+
+```sh
+make check RUN='^TestGeometryConversion(ProviderLifecycle|ReplayShapes)$'
+```
+
+Public SQL, full diagnostics and native control proof live in
+[`reference/types`](../../../reference/types/README.md#geometric-constructor-conversion-contract).
+
 ## Callable competition with SQL overloads
 
 The engine's shared selector keeps existing builtin and installed providers in

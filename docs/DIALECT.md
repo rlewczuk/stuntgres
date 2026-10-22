@@ -57,9 +57,10 @@ to a generic plan and reports42501 even for NULL parameters; native folds strict
 NULL each execution and returns NULL. All nonnull callable/operator executions,
 including the same held handles, enforce revocation and recover after grant.
 
-PostgreSQL also supplies spatial line operators/constructors; these are native
-implementation limits, not PostgreSQL-absent features. This part does not enable
-those families, coordinate subscripting, companion arrays, binary receive/send,
+PostgreSQL also supplies spatial line operators and other constructors; these
+remain native implementation limits, not PostgreSQL-absent features.
+`line(point,point)` is admitted by the bounded geometric conversion family;
+it does not enable coordinate subscripting, companion arrays, binary receive/send,
 native ABI, physical geometric indexes/storage or WAL. Published catalog IO
 identities alone do not make routines callable. Native Reset/Dump/Restore is
 logical host replacement, not a fabricated PostgreSQL control API.
@@ -107,9 +108,11 @@ provide ordinary equality `=` or `< <= > >=`, default ordering/grouping/hash
 authority or an index class. Unsupported calls fail rather than comparing
 serialized text. Geometric tolerance is not exact datum identity.
 
-Constructors, arithmetic/distance, cross-geometry operations, companion SQL
-arrays, binary receive/send, physical geometric indexes/storage, WAL and a
-native PostgreSQL ABI are outside this provider. Released catalog identities
+The [nine selected geometric constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
+are explicit exceptions to the remaining constructor/cross-geometry limits.
+Other arithmetic/distance and cross-geometry operations, companion SQL arrays,
+binary receive/send, physical geometric indexes/storage, WAL and a native
+PostgreSQL ABI remain outside this provider. Released catalog identities
 alone do not make those mechanisms callable. Native Dump/Reset/Restore is
 logical host replacement, not an invented PostgreSQL control API.
 See [type contracts](TYPES.md#point) and
@@ -124,10 +127,11 @@ Builtin `circle` is concrete; `_circle` remains lookup-only. Circle-only
 The six ordinary predicates compare fuzzy areas and do not provide default
 equality/ordering capabilities: ORDER BY, DISTINCT/GROUP BY and default
 B-tree/hash operator classes remain unavailable. NaN area predicates are all
-false, including `<>`. Circle adds no center-returning operation,
-constructor/conversion involving adjacent geometry, transformations, area or
-diameter function, circle array or spatial index; the independent BOX/POINT
-boundary above is unchanged.
+false, including `<>`. The
+[nine selected constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
+are admitted separately. Center-returning operations, other adjacent-geometry
+constructors/conversions, transformations, area/diameter functions, circle arrays
+and spatial indexes remain unavailable.
 Text and 24-byte binary codecs, metadata and native logical controls share the
 [type-owned circle contract](TYPES.md#circle).
 
@@ -144,9 +148,11 @@ behavior or new path execution is asserted here.
 PostgreSQL itself has no ordinary polygon `= <> != < <= > >=` overloads and no
 `area(polygon)`. Such calls fail rather than comparing serialized strings;
 ORDER BY, DISTINCT/GROUP BY and default equality/order/hash/index classes are
-unavailable. Other PostgreSQL polygon spatial operators/functions and conversions
-exist but are not implemented here. Polygon arrays, subscripting and binary
-codecs are also outside this bounded provider.
+unavailable. `box(polygon)` and `circle(polygon)` are the selected conversion
+exceptions in the [nine-signature family](TYPES.md#geometric-constructors-and-conversions).
+Other polygon spatial operators/functions and conversions exist in PostgreSQL
+but remain unimplemented. Polygon arrays, subscripting and binary codecs remain
+outside this bounded provider.
 
 Defaults, CHECKs, views and typed data survive native logical Dump/Reset/Restore,
 including full float precision despite low display precision. This is in-engine

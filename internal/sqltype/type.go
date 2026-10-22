@@ -333,7 +333,7 @@ func Builtins() []*Descriptor {
 		}
 	}
 	for _, d := range types {
-		if d.id == Box || d.id == Lseg {
+		if d.id == Box || d.id == Lseg || d.id == Line {
 			d.geometryPoint = geometryPoint
 		}
 		if IsNetwork(d.id) {
@@ -1259,6 +1259,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		}
 		return "'" + text + "'", nil
 	case Circle:
+		if v.circle.radius < 0 {
+			return circleConstructorLiteral(v.circle), nil
+		}
 		return "'" + circleOutput(v.circle, OutputEnvironment{}) + "'", nil
 	case TSVector, TSQuery:
 		text, err := d.ftsOutput(v)
@@ -1745,6 +1748,13 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	p := CoercionPlan{source: source, target: target, context: context}
 	if source.Type.IsCitext() || target.Type.IsCitext() {
 		return p.planCitext()
+	}
+	// Selected circle typename calls with known TEXT use the ordinary input
+	// codec. Keep this directional and explicit: no reverse, assignment or
+	// cross-geometry admission follows from constructor availability.
+	if context == Explicit && source.Type.id == Text && target.Type.id == Circle {
+		p.method = viaIO
+		return p, nil
 	}
 	if source.Type.id == Box || source.Type.id == Point || source.Type.id == Line || source.Type.id == Lseg || source.Type.id == Path || target.Type.id == Box || target.Type.id == Point || target.Type.id == Line || target.Type.id == Lseg || target.Type.id == Path {
 		if source.Type == target.Type {

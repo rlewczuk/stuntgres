@@ -173,7 +173,7 @@ func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 	if v.Type().ContainsACLItem() && output.ACLItem == nil {
 		output.ACLItem = regobj.ACLItemContextFormatter(ctx)
 	}
-	if regobj.ContainsEmptyACL(v) {
+	if regobj.ContainsEmptyACL(v) || v.RequiresCircleConstructorReplay() {
 		return regobj.LiteralWithACL(ctx, r.View, n, output.ACLItem)
 	}
 	if sqltype.IsRoutineAlias(v.Type().BaseType().ID()) {

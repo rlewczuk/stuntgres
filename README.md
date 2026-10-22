@@ -14,6 +14,16 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Geometric constructors and conversions — change note
+
+Nine selected BOX/CIRCLE/LINE signatures now execute through typed providers,
+including inscribed circle-to-box, enclosing box-to-circle, vertex-mean polygon
+conversion and two-point infinite-line construction. Negative constructor radii
+are valid typed CIRCLE values; ordinary negative text/binary input stays invalid.
+Native logical replay uses a closed constructor recipe for those values.
+See [type semantics](docs/TYPES.md#geometric-constructors-and-conversions) and
+[selected proof](reference/types/README.md#geometric-constructor-conversion-contract).
+
 ## Domain default and nullability changes — change note
 
 `ALTER DOMAIN SET/DROP DEFAULT` and `SET/DROP NOT NULL` update real domain

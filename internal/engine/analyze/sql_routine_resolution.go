@@ -29,6 +29,11 @@ type sqlCallableSelection struct {
 	auth       Authority
 	args       []expr.Expr
 	properties expr.Properties
+	// Ordinary selected typename calls retain their target and analyzed operand,
+	// not a synthetic parser FunctionCast or a speculative routine winner.
+	typeNameTarget  sqltype.Usage
+	typeNamePlan    sqltype.CoercionPlan
+	typeNameOperand ComparisonOperand
 }
 
 func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, error) {
@@ -164,9 +169,20 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	if exact >= 0 {
 		selection.SQLCallable = candidates[exact]
 	} else {
-		if cast != nil && b.sqlFunctionCastShortcut(*cast, operands[0]) {
-			selection.args = []expr.Expr{operands[0].Node}
-			return selection, true, nil
+		if cast != nil {
+			if _, _, ok := b.sqlFunctionCastTarget(cast.TypeName, operands[0]); ok {
+				selection.args = []expr.Expr{operands[0].Node}
+				return selection, true, nil
+			}
+		} else if len(operands) == 1 && (name == "box" || name == "circle") && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
+			annotation := parser.TypeName{Name: name, Pos: raw.Pos}
+			if len(raw.Name.Parts) == 2 {
+				annotation.Schema = &raw.Name.Parts[0]
+			}
+			if target, coercion, ok := b.sqlFunctionCastTarget(annotation, operands[0]); ok {
+				selection.typeNameTarget, selection.typeNamePlan, selection.typeNameOperand = target, coercion, operands[0]
+				return selection, true, nil
+			}
 		}
 		assumed := false
 		candidates = SelectSQLCallables(candidates, operands, func(candidate SQLCallable, known *sqltype.Descriptor) bool {
@@ -364,6 +380,21 @@ func SelectSQLCallables(candidates []SQLCallable, operands []ComparisonOperand, 
 }
 
 func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallableSelection, original parser.Expr, policy ExpressionPolicy) (expr.Expr, error) {
+	if selected.typeNameTarget.Type != nil {
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
+			return nil, err
+		}
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
+		}
+		operand, target := selected.typeNameOperand, selected.typeNameTarget
+		arg := functions.Argument{Expression: operand.Node, Raw: operand.raw}
+		if operand.descriptor() == nil {
+			return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: target})
+		}
+		arg.Usage = operand.Node.ResultUsage()
+		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true})
+	}
 	d := selected.Procedure
 	if d != nil && d.SQL != nil {
 		if d.RoutineKind == catalog.ProcedureRoutine {

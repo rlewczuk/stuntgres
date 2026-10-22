@@ -156,6 +156,9 @@ const (
 	// conversion (Plan, Planned) to the bound Expression, as an explicit cast
 	// to Target.
 	JSONFormattedArgument
+	// TypeNameCastArgument applies the selected type-name conversion through
+	// the existing explicit cast node, with planned coercion and provenance.
+	TypeNameCastArgument
 	// BareFormalArgument applies the planned implicit conversion (Plan,
 	// Planned) to an already finalized Expression, positioned at the raw
 	// argument and without a cast routine identity, as pg_get_acl and the

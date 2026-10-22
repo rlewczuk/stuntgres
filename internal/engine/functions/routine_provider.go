@@ -37,4 +37,5 @@ const (
 	CircleRoutineProvider
 	IndexSupportRoutineProvider
 	FTSRoutineProvider
+	GeometryConversionRoutineProvider
 )

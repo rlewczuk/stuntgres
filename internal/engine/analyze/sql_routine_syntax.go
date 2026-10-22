@@ -48,22 +48,22 @@ func (b *Binder) BindSQLRoutineSyntax(raw parser.Expr, policy ExpressionPolicy) 
 	return node, true, err
 }
 
-func (b *Binder) sqlFunctionCastShortcut(raw parser.CastExpr, operand ComparisonOperand) bool {
+func (b *Binder) sqlFunctionCastTarget(raw parser.TypeName, operand ComparisonOperand) (sqltype.Usage, sqltype.CoercionPlan, bool) {
 	// An unresolved external Param does not take the unknown-literal shortcut.
 	// Exact typed functions won already; literal/IO/relabel casts precede the
 	// ordinary implicit/unknown best-match phase (PostgreSQL10.3 step3).
-	target, err := b.Host.ResolveAnnotationType(raw.TypeName, false)
+	target, err := b.Host.ResolveAnnotationType(raw, false)
 	if err != nil {
-		return false
+		return sqltype.Usage{}, sqltype.CoercionPlan{}, false
 	}
 	if literal, ok := operand.raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-		return true
+		return target, sqltype.CoercionPlan{}, true
 	}
 	if operand.descriptor() == nil {
-		return false
+		return sqltype.Usage{}, sqltype.CoercionPlan{}, false
 	}
 	plan, err := sqltype.PlanCoercion(operand.Node.ResultUsage(), target, sqltype.Explicit)
-	return err == nil && plan.FunctionCastShortcut()
+	return target, plan, err == nil && plan.FunctionCastShortcut()
 }
 
 func legacyFunctionCastPredicate(raw parser.Expr) bool {

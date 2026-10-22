@@ -46,12 +46,17 @@ func lineArithmetic(op ArithmeticOperator, x, y float64) (float64, error) {
 }
 
 func (d *Descriptor) lineFromPoints(p [4]float64) (Value, error) {
+	return d.lineFromPointsWithCode(p, "22P02")
+}
+
+// The text codec and SQL constructor share arithmetic, not coincidence SQLSTATE.
+func (d *Descriptor) lineFromPointsWithCode(p [4]float64, code string) (Value, error) {
 	equal := boxFuzzyEqual(p[0], p[2]) && boxFuzzyEqual(p[1], p[3])
 	if math.IsNaN(p[0]) || math.IsNaN(p[1]) || math.IsNaN(p[2]) || math.IsNaN(p[3]) {
 		equal = compareFloats(p[0], p[2]) == 0 && compareFloats(p[1], p[3]) == 0
 	}
 	if equal {
-		return Value{}, failure("22P02", "invalid line specification: must be two distinct points")
+		return Value{}, failure(code, "invalid line specification: must be two distinct points")
 	}
 	var c [4]float64
 	switch {

@@ -52,6 +52,10 @@ func RestoreScalar(raw parser.Expr, stored bool) error {
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
+			case "circle":
+				if !functions.CircleConstructorReplay(r) {
+					return fmt.Errorf("stuntgres: invalid restore scalar")
+				}
 			case "split_part", "string_to_array", "parse_ident":
 			case "acldefault", "makeaclitem":
 				// These typed scalar constructors are also emitted by the

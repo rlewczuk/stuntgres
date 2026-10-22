@@ -169,6 +169,13 @@ domain default and CHECK validators and `stored.ReownScalarTypes`. It never
 reached the binder; it sits in `stored` because it renders stored domain
 recipes through `stored.ScalarRenderer`.
 
+The existing native captured-cell record also transports negative constructor
+CIRCLE leaves beneath already-supported array carriers. Its wire shape remains
+unchanged: exact dimensions plus recursive typed elements. The engine admits
+new provenance only after closed constructor binding/evaluation and only for an
+affected array-containing cell; ordinary payloads and scalar negative sidecars
+remain rejected. Authentic domain-null provenance retains its original rules.
+
 ## Testing
 
 Package seams:

@@ -93,9 +93,10 @@ components, not a text or POINT value. Documented `<(x,y),r>`, `((x,y),r)`,
 `(x,y),r` and `x,y,r` forms normalize to `<(x,y),r>`. Released optional radius
 commas and outer closers, ASCII whitespace and strtod-style special/hexadecimal
 prefixes use one scanner. Numeric conversion precedes later delimiter checks.
-Negative radii fail22P02 naming the complete input; -0, NaN and positive
-infinity are accepted. Numeric overflow/true underflow fail22003 naming the
-component token and double precision; nonzero subnormals are retained.
+Negative text-input radii fail22P02 naming the complete input; -0, NaN and positive
+infinity are accepted. The constructor distinction is documented below. Numeric
+overflow/true underflow fail22003 naming the component token and double precision;
+nonzero subnormals are retained.
 
 Native non-NULL output and ScanType are string, DatabaseTypeName is CIRCLE;
 string and textual-byte binds use the same codec, including typed nil byte NULL.
@@ -110,9 +111,49 @@ area, including inequality. `~=` compares center/radius; directional,
 containment, overlap and distance signatures operate only on circles.
 `radius(circle)` returns FLOAT8; every operation is strict.
 Scalar predicates do not confer default equality/order/hash/group/index
-capabilities. Circle arrays, POINT/adjacent geometry, center, transformations
-and additional geometry functions remain unavailable. See
-[circle reference proof](../reference/types/README.md#circle-scalar-contract).
+capabilities. Circle arrays, cross-type spatial operators, center and transformations
+remain unavailable. The nine selected constructors/conversions below are separate
+from these operators. See [circle reference proof](../reference/types/README.md#circle-scalar-contract).
+
+## Geometric constructors and conversions
+
+Exactly nine strict signatures execute: `box(circle)`, `box(point)`,
+`box(point,point)`, `box(polygon)`, `bound_box(box,box)`, `circle(box)`,
+`circle(point,float8)`, `circle(polygon)` and `line(point,point)`.
+Results retain BOX603, CIRCLE718 or LINE628 metadata through direct, prepared,
+stored and native logical replay paths. Typed NULL at any formal returns typed NULL.
+
+`box(circle)` is inscribed (radius/sqrt(2) on each axis); `circle(box)` encloses
+the corners with midpoint center and half-diagonal radius. Two-point BOX normalizes
+each axis independently; one-point BOX is degenerate; polygon BOX bounds all
+vertices; `bound_box` unions raw bounds. Polygon CIRCLE uses the arithmetic mean
+of vertices, counting duplicates, then their mean distance from that center:
+it need not enclose every vertex. Float8 checks retain released operation order.
+LINE uses fuzzy vertical/horizontal detection and slope/intercept construction;
+coincident endpoints fail22023, while coincident text-input endpoints retain22P02.
+
+`circle(point,float8)` copies the radius, including negative finite values,
+-Infinity, NaN and signed zero. Existing circle consumers accept these typed
+datums; ordinary text/binary input still rejects negative radii. Negative circles
+replay through a closed qualified constructor expression, never invalid circle
+text. Supported domain/composite carriers retain their type checks and identity.
+Existing array carriers containing negative constructor circles retain exact
+dimensions, bounds and typed leaves through native destination-owned snapshot
+metadata and a SQL NULL placeholder. That private metadata is not PostgreSQL
+array reconstruction; PostgreSQL sees the placeholder. Scalar/domain/composite
+constructor SQL remains replayable on PostgreSQL. Native materialized snapshots
+retain their captured values; emitted PostgreSQL definitions start WITH NO DATA
+and require REFRESH to recompute them.
+`box` of a negative circle can expose inverted raw corners: native replay keeps
+them; ordinary PostgreSQL BOX text input normalizes corners. Stored conversion
+views recompute the original conversion rather than reparsing its display.
+
+Unary typename calls preserve existing identity/string/NULL-constant conversion
+precedence; unresolved external parameters can remain ambiguous. CIRCLE input
+examples use existing `'<(0,0),2>'::circle` syntax, not new introducer grammar.
+No companion arrays, adjacent constructors/casts or default comparison classes
+are added. See [selected proof](../reference/types/README.md#geometric-constructor-conversion-contract).
+
 
 ## Polygon
 
@@ -156,8 +197,9 @@ PostgreSQL has no polygon `= <> != < <= > >=` overloads or `area(polygon)`.
 No default sorting/grouping/hash/index capability is invented. Polygon encloses
 area conceptually unlike path, but closed PostgreSQL paths can also test interior
 containment; this implementation adds no path execution. Other documented
-polygon spatial signatures, conversions/constructors, subscripting, polygon
-arrays and binary codecs remain unimplemented. I/O receive/send catalog
+polygon spatial signatures, conversions/constructors other than `box(polygon)`
+and `circle(polygon)`, subscripting, polygon arrays and binary codecs remain
+unimplemented. I/O receive/send catalog
 identities are metadata, not binary transport authority.
 See [polygon reference proof](../reference/types/README.md#polygon-scalar-contract).
 

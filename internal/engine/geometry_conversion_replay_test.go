@@ -1,0 +1,95 @@
+package engine
+
+import (
+	"testing"
+
+	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/parser"
+)
+
+func TestGeometryConversionReplayShapes(t *testing.T) {
+	e := New().restoreStage()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	domainUnitTable(t, e, op, "CREATE TABLE public.conversion_replay_member(c circle)")
+	relation := domainUnitTable(t, e, op, "CREATE TABLE public.conversion_replay_array(a public.conversion_replay_member[],c circle)")
+	source := statement(t, "INSERT INTO public.conversion_replay_array VALUES(NULL,NULL)").(*parser.Insert)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := scope.Finish(nil); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if err := scope.gate(source); err != nil {
+		t.Fatal(err)
+	}
+	auth, err := operationAuthorization(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scalar := func(text string) typedef.DomainReplayNode {
+		return typedef.DomainReplayNode{Kind: "scalar", Scalar: &text}
+	}
+	negative := scalar("pg_catalog.circle('(0,0)'::pg_catalog.point,'-1'::pg_catalog.float8)")
+	positive := scalar("CAST('<(0,0),1>' AS circle)")
+	member := func(n typedef.DomainReplayNode) typedef.DomainReplayNode {
+		members := []typedef.DomainReplayMember{{Name: "c", Value: &n}}
+		return typedef.DomainReplayNode{Kind: "composite", Members: &members}
+	}
+	dimensions := []typedef.DomainReplayDimension{{Lower: -2, Length: 2}, {Lower: 3, Length: 2}}
+	elements := []typedef.DomainReplayNode{member(negative), member(positive), {Kind: "null"}, member(typedef.DomainReplayNode{Kind: "null"})}
+	array := typedef.DomainReplayNode{Kind: "array", Dimensions: &dimensions, Elements: &elements}
+	record := func(column string, node *typedef.DomainReplayNode) typedef.DomainReplayRecord {
+		return typedef.DomainReplayRecord{Schema: "public", Table: "conversion_replay_array", Cells: []typedef.DomainReplayCell{{Column: column, Value: node}}}
+	}
+	capture, err := e.captureDomainReplay(scope, source, record("a", &array), auth, relation)
+	if err != nil {
+		t.Fatal("authentic negative constructor array rejected", err)
+	}
+	value := capture.cells[0].Value
+	if value.ArrayRank() != 2 || value.ArrayDimension(0).Lower != -2 || value.ArrayDimension(1).Lower != 3 || value.ArrayLen() != 4 {
+		t.Fatal("shape lost", value)
+	}
+	if value.ArrayElement(0).CompositeField(0).RequiresCircleConstructorReplay() != true || value.ArrayElement(1).CompositeField(0).RequiresCircleConstructorReplay() || !value.ArrayElement(2).IsNull() || value.ArrayElement(3).IsNull() || !value.ArrayElement(3).CompositeField(0).IsNull() {
+		t.Fatal("leaf or NULL identity lost")
+	}
+	if _, err := e.captureDomainReplay(scope, source, record("c", &negative), auth, relation); err == nil {
+		t.Fatal("standalone negative acquired array provenance")
+	}
+	ordinaryElements := []typedef.DomainReplayNode{member(positive), member(positive), {Kind: "null"}, member(typedef.DomainReplayNode{Kind: "null"})}
+	ordinary := array
+	ordinary.Elements = &ordinaryElements
+	if _, err := e.captureDomainReplay(scope, source, record("a", &ordinary), auth, relation); err == nil {
+		t.Fatal("ordinary array acquired private provenance")
+	}
+	badDims := []typedef.DomainReplayDimension{{Lower: -2, Length: 5}}
+	malformed := array
+	malformed.Dimensions = &badDims
+	if _, err := e.captureDomainReplay(scope, source, record("a", &malformed), auth, relation); err == nil {
+		t.Fatal("inconsistent shape accepted")
+	}
+	wrongMembers := []typedef.DomainReplayMember{{Name: "other", Value: &negative}}
+	wrongElements := append([]typedef.DomainReplayNode(nil), elements...)
+	wrongElements[0] = typedef.DomainReplayNode{Kind: "composite", Members: &wrongMembers}
+	malformed = array
+	malformed.Elements = &wrongElements
+	if _, err := e.captureDomainReplay(scope, source, record("a", &malformed), auth, relation); err == nil {
+		t.Fatal("wrong member name accepted")
+	}
+	for _, text := range []string{"CAST('<(0,0),-1>' AS circle)", "circle('(0,0)'::pg_catalog.point,'-1'::pg_catalog.float8)", "pg_catalog.circle($1::pg_catalog.point,'-1'::pg_catalog.float8)", "pg_catalog.circle('(0,0)'::pg_catalog.point,(random())::pg_catalog.float8)"} {
+		badElements := append([]typedef.DomainReplayNode(nil), elements...)
+		badElements[0] = member(scalar(text))
+		bad := array
+		bad.Elements = &badElements
+		if _, err := e.captureDomainReplay(scope, source, record("a", &bad), auth, relation); err == nil {
+			t.Fatal("invalid constructor leaf accepted", text)
+		}
+	}
+	wrongPlaceholder := statement(t, "INSERT INTO public.conversion_replay_array VALUES(ARRAY[]::public.conversion_replay_member[],NULL)").(*parser.Insert)
+	if _, err := e.captureDomainReplay(scope, wrongPlaceholder, record("a", &array), auth, relation); err == nil {
+		t.Fatal("nonNULL placeholder accepted")
+	}
+}

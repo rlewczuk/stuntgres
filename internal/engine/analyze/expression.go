@@ -1638,7 +1638,7 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 		return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}, nil
 	case functions.ConditionalArgument:
 		return b.CoerceConditional(operand, request.Target, request.Label)
-	case functions.JSONFormattedArgument:
+	case functions.JSONFormattedArgument, functions.TypeNameCastArgument:
 		node := argument.Expression
 		info, err := b.coercionInfo(b.Info(request.Target, node.SourcePosition(), CoercionProperties(node, request.Plan)), node)
 		if err != nil {

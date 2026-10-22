@@ -36,6 +36,16 @@ Closed body formals still use input-only names and slots. Stored capture sees
 written occurrences only, while generic traversal also sees hidden defaults.
 See [parameter proof](../../../reference/operators/README.md#routine-parameter-binding).
 
+Ordinary unary `box`/`circle` typename calls with visible SQL competitors share
+the existing explicit relabel/I/O shortcut after exact declaration lookup and
+before implicit/unknown best matching. The private selection retains resolved
+target Usage and the already analyzed operand, then finishes through ordinary
+argument finalization/explicit coercion—not a synthetic parser FunctionCast.
+Known TEXT exact SQL declarations still win; unknown string/NULL constants are
+not unresolved external parameters. Legacy parser-lowered casts keep their
+existing finish route, and selected routines retain normal authority/dependencies.
+
+
 Standard SQL/JSON query syntax dispatches to the functions binder. Unlike
 constructor RETURNING, its result conversion stays in the query node's ON ERROR
 boundary. Literal capture records RETURNING usage and every document/path,

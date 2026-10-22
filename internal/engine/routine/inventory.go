@@ -14,6 +14,16 @@ import (
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
+	// Selected REL_18_6 geometric constructors/conversions only.
+	{catalog.RoutineIdentity{1421, ids.PGCatalogNamespaceOID, "box", "600,600"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1446, ids.PGCatalogNamespaceOID, "box", "604"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1473, ids.PGCatalogNamespaceOID, "circle", "600,701"}, catalog.FunctionRoutine, 718, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1474, ids.PGCatalogNamespaceOID, "circle", "604"}, catalog.FunctionRoutine, 718, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1479, ids.PGCatalogNamespaceOID, "circle", "603"}, catalog.FunctionRoutine, 718, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1480, ids.PGCatalogNamespaceOID, "box", "718"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{1493, ids.PGCatalogNamespaceOID, "line", "600,600"}, catalog.FunctionRoutine, 628, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{4067, ids.PGCatalogNamespaceOID, "bound_box", "603,603"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
+	{catalog.RoutineIdentity{4091, ids.PGCatalogNamespaceOID, "box", "600"}, catalog.FunctionRoutine, 603, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider},
 	// Selected REL_18_6 text-search routines; adjacent FTS remains lookup-only.
 	{catalog.RoutineIdentity{3625, ids.PGCatalogNamespaceOID, "tsvector_concat", "3614,3614"}, catalog.FunctionRoutine, 3614, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{3669, ids.PGCatalogNamespaceOID, "tsquery_and", "3615,3615"}, catalog.FunctionRoutine, 3615, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

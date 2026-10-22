@@ -129,9 +129,9 @@ func LiteralWithACLAt(ctx context.Context, view catalog.Read, reader catalog.Def
 	if !n.Value.IsNull() && u.Type.ID() == sqltype.ACLItemArray && n.Value.ArrayRank() == 1 && n.Value.ArrayDimension(0) == (sqltype.ArrayDimension{Lower: 1, Length: 0}) {
 		return `pg_catalog.acldefault('c'::"char",0::oid)`, nil
 	}
-	// Composite text input discards the special empty ACL shape. Retain typed
-	// member expressions instead, including domain wrappers at every depth.
-	if !n.Value.IsNull() && u.Type.IsComposite() && ContainsEmptyACL(n.Value) {
+	// Composite text cannot reconstruct empty ACL shape or constructor-only
+	// negative circles. Retain typed member expressions and domain wrappers.
+	if !n.Value.IsNull() && u.Type.IsComposite() && (ContainsEmptyACL(n.Value) || n.Value.RequiresCircleConstructorReplay()) {
 		declaration, err := TypeDeclarationAt(view, reader, u)
 		if err != nil {
 			return "", err

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -174,6 +175,20 @@ func MaterializedSnapshotScalar(raw parser.Expr) error {
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		return nil
 	case parser.CastExpr:
+		if row, ok := r.Child.(parser.RowExpr); ok {
+			// Lossless composite literals use a destination-owned qualified cast
+			// over closed typed members. The ordinary binder verifies that the
+			// target is a real composite and checks each member's usage.
+			if r.TypeName.Schema == nil || len(r.TypeName.Modifiers) != 0 || len(r.TypeName.ArrayBounds) != 0 || r.TypeName.Setof {
+				return invalid()
+			}
+			for _, child := range row.Fields {
+				if err := MaterializedSnapshotScalar(child); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		return MaterializedSnapshotScalar(r.Child)
 	case parser.RegclassExpr:
 		return MaterializedSnapshotScalar(r.Child)
@@ -200,7 +215,10 @@ func MaterializedSnapshotScalar(raw parser.Expr) error {
 		}
 		return MaterializedSnapshotScalar(r.Args[0])
 	case parser.FunctionExpr:
-		// The exact TIMETZ endpoint codec is the only emitted function form.
+		if functions.CircleConstructorReplay(r) {
+			return nil
+		}
+		// Preserve the existing exact TIMETZ endpoint codec below.
 		if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || r.Name.Parts[1].Text != "timezone" || len(r.Args) != 2 || r.Variadic {
 			return invalid()
 		}
