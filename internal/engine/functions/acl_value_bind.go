@@ -77,7 +77,7 @@ func bindACLValue(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		}
 	}
 	if !valid {
-		return nil, ResolutionError(raw.Name, raw.Pos, names, false)
+		return nil, UnnotedResolutionError(b, raw.Name, raw.Pos, names, false)
 	}
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err

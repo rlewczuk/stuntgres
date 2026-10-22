@@ -187,6 +187,26 @@ PL/pgSQL, security/other attributes and set/composite returns are not supported.
 CREATE retains the existing native read-only and autocommit-only schema-DDL
 boundaries. This is not a general language runtime, external ABI or full
 `pg_proc`/`pg_language` projection.
+
+`DROP FUNCTION`, `DROP PROCEDURE` and `DROP ROUTINE` support qualified names,
+overload input identity, omitted versus empty signatures, grouped targets,
+`IF EXISTS`, `RESTRICT` (default) and `CASCADE`. DROP argument names are noise;
+IN/INOUT/VARIADIC types identify inputs and OUT types are ignored without lookup.
+Selection never applies call-site coercion/default expansion. Generic routine
+selection includes installed aggregate/window/procedure kinds; FUNCTION rejects
+aggregates and PROCEDURE rejects explicit function signatures. System and
+extension members retain their protection even with CASCADE/IF EXISTS.
+
+Deletion resolves and authorizes every root before one atomic publication.
+Existing dependency owners remove the smallest dependent object; a dependent
+default/check does not remove its table or rows. Quoted SQL bodies create no hard
+callee edges: surviving callers can fail until the callee is recreated.
+Native replay retains those unresolved bodies only for a structured terminal
+missing callable; other errors still abort replacement, and deferred semantic
+checks run at invocation once resolution succeeds. Closed formals always validate.
+DROP retains read-only-first admission and the native autocommit-only schema-DDL
+boundary. This adds no CREATE PROCEDURE/CALL, OUT declarations, trigger provider,
+SQL-standard parsed body, aggregate creator or external language execution.
 See [logical replay](FIXTURES.md#sql-routine-declarations-and-callers) and
 [selected evidence and smoke](../reference/query_core/README.md#scalar-sql-routine-contract).
 

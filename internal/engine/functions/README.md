@@ -116,9 +116,12 @@ query scheduling remain in the engine, not this package.
   functions. There are no engine-local provider aliases.
 - `DiagnosticTypeName`: PostgreSQL's diagnostic spelling, including qualified
   user-defined types.
-- `SignatureError`: the 42883 missing-function error. The engine also notes it
-  to decide whether `f(x)` may fall back to composite field selection, so bind
-  code must report missing signatures through it.
+- `SignatureError`: the missing-function diagnostic for families whose existing
+  composite-field recovery policy notes the missing signature.
+- `RecordUnresolvedCallable`: records only the exact diagnostic identity of an
+  explicitly missing callable. It does not note composite-field recovery or
+  change/wrap/copy diagnostics. Final private replay can defer only when that
+  recorded identity is the terminal propagated error, never from its SQLSTATE.
 - `AnalyzeFilter` (added beyond the initial set for the UUID pilot; 27 glue
   files analyze FILTER this way): analyzes and discards a scalar call's FILTER
   so its errors precede the decoration rejection.
@@ -583,19 +586,23 @@ label part alone, for families that analyze no FILTER), `CallDecorationError`
 `ArgumentTypeNames` (projection analysis of every argument spelled for a
 42883, as the engine's `functionArgumentTypeNames`; the clock functions use
 it).
-`resolution_error.go` holds `ResolutionError` (the pure 42883/42725 builder;
-it notes nothing, so missing signatures still go through `SignatureError`),
-`DirectResolutionError` (overload failure over `AnalyzeDirectArguments`
-results; random and deparse inquiry use it too), `ArrayTypeName` (array
-signature spelling by leaf name), `NotedResolutionError` (42883 through
-`SignatureError`, 42725 unnoted) and `DiagnosticNameOrUnknown` (the
-unqualified argument spelling, `unknown` for deferred literals).
-The engine also calls `ResolutionError` and `SignatureHint` directly, without
-the former package-level math aliases. Its distinct
-`analyze.Binder.functionResolutionErrorForTypes` method remains: it notes
-only missing signatures (`!ambiguous`), preserving composite-projection
-fallback. Actual `SignatureError` adapters and deliberately unnoted builder
-paths retain their existing responsibilities.
+`resolution_error.go` holds `ResolutionError` (the pure missing/ambiguous
+diagnostic builder), `UnnotedResolutionError` (records an explicitly missing
+callable without a composite-recovery note), `DirectResolutionError` (overload
+failure over `AnalyzeDirectArguments`; random/deparse inquiry use it too),
+`ArrayTypeName` (signature spelling by leaf name), `NotedResolutionError`
+(missing through `SignatureError`, ambiguity unnoted) and
+`DiagnosticNameOrUnknown` (unqualified spelling, `unknown` for deferred literals).
+The analyzer's `functionResolutionErrorForTypes` preserves its existing
+missing-signature composite note and also records exact missing-call identity.
+Null-count and formerly direct regexp/string/ACL/sleep/range/network/sequence
+and aggregate/window missing-signature producers use the unnoted identity seam.
+Ambiguity, operators, namespace/type permission, unsupported provider capability
+and specialized ordered/hypothetical aggregate shape errors are not missing
+callables. SUM's misplaced-ORDER-BY diagnostic likewise remains unclassified.
+No public diagnostic fields, alternate taxonomy, registry or executable binding
+are added. A speculative miss recovered by analysis cannot defer a different
+terminal error; successful binding does not publish a missing-call outcome.
 `operator_error.go`'s `OperatorError` is the operator form of both
 diagnostics; `ComparisonError` respells its 42883 with qualified diagnostic
 type names, and `ArrayOperatorError` with element names and `[]` for array
@@ -705,9 +712,10 @@ To add or port a builtin family:
    (and `ExactSpelling` if it sat in the final switch, `OwnsLabels` if the
    label gate exempted it), because `Lookup` runs first. Check that no
    earlier chain predicate claims its names.
-4. Some engine 42883 paths used the unnoted builder (regexp, string
-   variadics). Keep them on `ResolutionError(..., false)`; noting them would
-   change the composite fallback decision.
+4. Some engine paths deliberately avoid composite-recovery notes (regexp,
+   string variadics). Keep them unnoted: use `UnnotedResolutionError` for genuine
+   callable absence, not `SignatureError`. The identity marker is orthogonal to
+   recovery; numeric42883, capability and operator diagnostics do not authorize it.
 5. An installed extension family resolves its procedure through
    `InstalledRoutine` (add its `Extension` and the engine's handle). The
    engine's wrapper node and its validation stay in the engine; switches keep
@@ -1849,3 +1857,22 @@ This component selection covers evaluation order, row-NULL versus literal-NULL
 demand, cancellation, separate input/result descriptor ownership, reconstruction
 and render/capture identity. Public dual-mode subnet selectors and executable
 smoke instructions live in `reference/types/README.md`.
+
+### Routine DROP replay classification proof
+
+Use external900-second deadlines:
+
+```sh
+make check RUN='^TestRoutineDrop(UnnotedResolution|ReplayClassification)$' RACE=1
+make check RUN='^TestCompositeExprFieldAndNull$' RACE=1
+make check RUN='^TestReferenceRoutineDrop(BuiltinFamilyQuotedBody|ReplayDiagnostics|Persistence|FeatureSmoke)$'
+make check RUN='^TestReferenceRoutineDrop(BuiltinFamilyQuotedBody|ReplayDiagnostics|Persistence|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceCompositeExpr(FunctionalNotation|ControlsAndLifetime)$'
+make check RUN='^TestReferenceCompositeExpr(FunctionalNotation|ControlsAndLifetime)$' REFERENCE=1
+```
+
+The builtin-family witness independently requires7/INT4 before deletion, an
+installed but unresolved caller through native replay/exact PostgreSQL stream,
+and17/INT4 after recreation. Full negative Restore records and byte-equivalent
+failed replacement protect permission/ambiguity/operator/type/formal boundaries.
+These selections are proof requirements, not a claim of author-run checks.

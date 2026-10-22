@@ -76,7 +76,7 @@ func rowNumberSignature(b AggregateBinder, raw parser.AggregateExpr, name parser
 		return WindowSignature{}, err
 	}
 	if !visible || len(raw.Args) != 0 || raw.Star {
-		return WindowSignature{}, ResolutionError(name, raw.Pos, types, false)
+		return WindowSignature{}, UnnotedResolutionError(b, name, raw.Pos, types, false)
 	}
 	return WindowSignature{Usage: b.Type(sqltype.Int8).Usage()}, nil
 }
@@ -93,7 +93,7 @@ func rankingSignature(b AggregateBinder, raw parser.AggregateExpr, name parser.O
 		return WindowSignature{}, err
 	}
 	if !visible {
-		return WindowSignature{}, ResolutionError(name, raw.Pos, nil, false)
+		return WindowSignature{}, UnnotedResolutionError(b, name, raw.Pos, nil, false)
 	}
 	usage := b.Type(sqltype.Int8).Usage()
 	if raw.Name == "percent_rank" || raw.Name == "cume_dist" {
@@ -155,7 +155,7 @@ func resolveNtileSignature(b AggregateBinder, raw parser.AggregateExpr, name par
 	integer := b.Type(sqltype.Int4).Usage()
 	decision, plan := ResolveNtile(visible, raw.Star, len(arguments), usage, integer)
 	if decision == Missing {
-		return nil, ResolutionError(name, raw.Pos, types, false)
+		return nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
 	}
 	return b.CoerceArgument(arguments[0], CoercionRequest{Intent: ExactFormalArgument, Target: integer, AtRaw: true, Plan: plan, Planned: usage.Type != nil})
 }
@@ -197,7 +197,7 @@ func resolveWindowOffsetSignature(b AggregateBinder, raw parser.AggregateExpr, n
 	var offsetPlan sqltype.CoercionPlan
 	usage, offsetPlan, decision = windowOffsetTargets(b, arguments, visible, raw.Star)
 	if decision == Missing {
-		err = ResolutionError(name, raw.Pos, types, false)
+		err = UnnotedResolutionError(b, name, raw.Pos, types, false)
 		return
 	}
 	if decision == UnknownPolymorphic {
@@ -273,7 +273,7 @@ func resolveWindowValueSignature(b AggregateBinder, raw parser.AggregateExpr, na
 	decision, plan := ResolveWindowValue(visible, raw.Star, raw.Name == "nth_value", len(arguments), valueUsage, ordinalUsage, integer)
 	switch decision {
 	case Missing:
-		err = ResolutionError(name, raw.Pos, types, false)
+		err = UnnotedResolutionError(b, name, raw.Pos, types, false)
 		return
 	case UnknownPolymorphic:
 		err = sqlError("42804", "could not determine polymorphic type because input has type unknown")

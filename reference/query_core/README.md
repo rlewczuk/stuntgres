@@ -85,6 +85,80 @@ See [native scope](../../docs/DIALECT.md#scalar-sql-routines),
 [replay contract](../../docs/FIXTURES.md#sql-routine-declarations-and-callers) and
 [proc ownership](../../internal/engine/proc/README.md).
 
+### Routine deletion contract
+
+`TestReferenceRoutineDrop*` exercises exact input identity rather than call
+coercion, bare-name ambiguity and namespace masking, domain/base distinction,
+mode/name/OUT target syntax, complete notices/errors and quiet utility Prepare.
+Direct/new/held prepared survivors retain independently expected104/INT8; a
+deleted/recreated integer target yields14/INT4 instead of executing stale code.
+Default/explicit RESTRICT keeps views, defaults, checks and data live; CASCADE
+removes precisely their dependent components, leaving table row7 and the unrelated
+overload/view. Grouped errors publish no early deletion. Operator dependencies
+use real SQL routine identities, not kernel aliases.
+
+Owner/schema-owner checks, EXECUTE-only denial, seeded/extension protection,
+read-only-first admission and the native explicit-transaction boundary are
+independently asserted. Procedure/trigger creation and SQL-standard parsed bodies
+remain outside native scope; descriptor selector units cover incumbent kinds.
+Quoted callers survive callee deletion without invented body edges. Native
+Dump/Reset/Restore and exact emitted PostgreSQL replay preserve unresolved callers;
+callee recreation restores14/INT4. Missing operator/table/type, ambiguity,
+denied namespace/type lookup, malformed/result mismatch and closed-formal failures
+must not be mistaken for replay-deferrable missing calls. The permission negative
+uses an existing private function namespace denied to the routine owner, so42501
+precedes missing-call resolution. CREATE/Restore binding does not check source
+SELECT ACLs; execution retains those live invoker checks.
+
+Missing quoted-body callees retain the inherited routine diagnostic coordinate
+boundary: native reports body-relative Position8 and statement1 Context;
+PostgreSQL reports empty outer Position, InternalPosition8, the original body
+InternalQuery and its actual inlining Context. Both full records independently
+retain42883, the missing-callee message and the explicit-cast Hint. Routine DROP
+does not change the prerequisite's general SQL-body coordinate mapping.
+
+`TestReferenceRoutineDropBuiltinFamilyQuotedBody` covers deleted zero-argument
+`public.num_nulls` and `public.num_nonnulls` overloads:7/INT4 before deletion,
+full missing-call diagnostics and an installed caller through native replay and
+exact emitted PostgreSQL replay, then17/INT4 after recreation. Structured
+missing-call recording is independent of the builtin family's existing
+composite-field recovery policy; no operator/ambiguity/capability diagnostic is
+classified by numeric SQLSTATE.
+
+Held calls reuse the same complete scalar metadata callback as direct/new
+prepared calls, including nullability/length/decimal flags. Native negative
+Restore controls assert complete independently specified diagnostics, not only
+SQLSTATE, plus byte-equivalent target preservation. The corresponding
+`TestReferenceRoutineDropReplayDiagnostics` SQL witnesses ground real CREATE
+diagnostics while explicitly preserving native final-binding coordinates and
+Context, including retained LOWR6 rather than weakening fields.
+
+Selected proof (each under an external 900-second deadline):
+
+```sh
+make check RUN='^TestReferenceRoutineDrop(Identity|Diagnostics|Dependencies|Atomicity|OperatorDependency)$'
+make check RUN='^TestReferenceRoutineDrop(Identity|Diagnostics|Dependencies|Atomicity|OperatorDependency)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineDrop(AuthorityAndAdmission|QuotedBody|Persistence|FeatureSmoke)$'
+make check RUN='^TestReferenceRoutineDrop(AuthorityAndAdmission|QuotedBody|Persistence|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineDrop(BuiltinFamilyQuotedBody|ReplayDiagnostics)$'
+make check RUN='^TestReferenceRoutineDrop(BuiltinFamilyQuotedBody|ReplayDiagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineReviewClosedFormals$'
+make check RUN='^TestReferenceRoutineReviewClosedFormals$' REFERENCE=1
+make check RUN='^TestRoutineDrop(Parser|Selection|CatalogIsolation|ReplayClassification|UnnotedResolution)$' RACE=1
+```
+
+Permanent public feature smoke:
+
+```sh
+make check RUN='^TestReferenceRoutineDropFeatureSmoke$'
+make check RUN='^TestReferenceRoutineDropFeatureSmoke$' REFERENCE=1
+```
+
+Expect RESTRICT2BP01, precise CASCADE, missing NOTICE00000, procedure wrong-kind
+42809, surviving held104/INT8, dangling-caller replay and recreation14/INT4.
+These are proof requirements, not a claim that an author ran them.
+
+
 ### Internal char conditional equality
 
 Change note: simple CASE now resolves existing catalog-owned internal `"char"`

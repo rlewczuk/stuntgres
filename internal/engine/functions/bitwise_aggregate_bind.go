@@ -78,7 +78,7 @@ func resolveBitwiseAggregateSignature(b Binder, raw parser.AggregateExpr, name p
 		return nil, err
 	}
 	if !visible || raw.Star || len(raw.Args) != 1 {
-		return nil, sumSignatureError(name, raw.Pos, types, len(raw.Order))
+		return nil, sumSignatureError(b, name, raw.Pos, types, len(raw.Order))
 	}
 	typ := operand.Usage.Type
 	if typ == nil {
@@ -90,7 +90,7 @@ func resolveBitwiseAggregateSignature(b Binder, raw parser.AggregateExpr, name p
 	case sqltype.VarBit:
 		typ = b.Type(sqltype.Bit)
 	default:
-		return nil, sumSignatureError(name, raw.Pos, types, len(raw.Order))
+		return nil, sumSignatureError(b, name, raw.Pos, types, len(raw.Order))
 	}
 	return coerceConditional(b, operand, typ.Usage(), raw.Name)
 }

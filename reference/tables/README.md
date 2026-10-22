@@ -328,8 +328,9 @@ explicit native metadata/value checks.
 Registered handler/validator procedures participate in schema retirement through
 the existing dependency closure. Native controls move a real foreign table outside
 its handler's schema, then assert CASCADE removes the callable, wrapper, server,
-mapping and external table without invoking application callbacks. This does not
-introduce generic SQL CREATE/DROP FUNCTION support.
+mapping and external table without invoking application callbacks. Generic routine
+DROP now has its own catalog/dependency owner; this does not expand foreign
+language declarations or execute external functions.
 The RESTRICT companion freezes the complete dependency diagnostic and preserves
 namespace/callable/wrapper/server/mapping/table/view identities plus row/array type
 edges and actual rows. Finalized rows remain consumable after CASCADE. Warmed

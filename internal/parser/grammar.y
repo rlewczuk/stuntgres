@@ -423,7 +423,7 @@ package parser
 %type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
-%type <stmt> create_function
+%type <stmt> create_function drop_routine
 %type <tok> returns_word
 %type <grantRoutineArguments> function_arguments function_declaration_argument_list
 %type <alterConversion> conversion_alter_head
@@ -759,6 +759,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
  | alter_operator | drop_operator
+ | drop_routine
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
@@ -1444,6 +1445,8 @@ alter_operator: operator_alter_head OWNER TO schema_owner {$1.Action="owner";$1.
  | operator_alter_head SET '(' operator_options ')' {$1.Action="options";$1.Options=$4;$$=$1} ;
 drop_operator: DROP OPERATOR operator_signatures drop_mode {$$=&DropOperator{Signatures:$3,Mode:$4,Pos:$1.pos}}
  | DROP OPERATOR IF EXISTS operator_signatures drop_mode {$$=&DropOperator{Signatures:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
+drop_routine: DROP grant_routine_kind grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($3),Mode:$4,Pos:$1.pos}}
+ | DROP grant_routine_kind IF EXISTS grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($5),IfExists:true,Mode:$6,Pos:$1.pos}} ;
 /* Index reloptions use '='; REINDEX controls use whitespace. Keep them separate
  * so malformed option syntax fails before any earlier statement can execute. */
 maintenance_concurrent: /* empty */ {$$=lexeme{}} | CONCURRENTLY ;

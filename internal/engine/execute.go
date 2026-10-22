@@ -133,7 +133,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
+	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine:
 		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true

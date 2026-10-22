@@ -64,7 +64,7 @@ func resolveArrayAggregateSignature(b Binder, raw parser.AggregateExpr, name par
 		return nil, sqltype.Usage{}, false, err
 	}
 	if !visible || raw.Star || len(raw.Args) != 1 {
-		return nil, sqltype.Usage{}, false, ResolutionError(name, raw.Pos, types, false)
+		return nil, sqltype.Usage{}, false, UnnotedResolutionError(b, name, raw.Pos, types, false)
 	}
 	if !operand.Usage.Type.Concrete() {
 		return nil, sqltype.Usage{}, false, ResolutionError(name, raw.Pos, types, true)

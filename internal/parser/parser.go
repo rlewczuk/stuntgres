@@ -23,6 +23,10 @@ type Options struct {
 	StandardConformingStrings bool
 	Context                   context.Context
 	Notice                    func(sqlstate.Error)
+	// ClosedRoutineFormals bounds SQL body parameters during complete parsing,
+	// including parameters after a semantically unresolved call.
+	ClosedRoutineFormals bool
+	FormalCount          int
 	// LineComment is a trusted import hook; ordinary SQL leaves it nil.
 	// Position identifies the first byte/character after the -- opener.
 	LineComment func(string, Position) error

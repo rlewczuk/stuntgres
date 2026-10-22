@@ -53,7 +53,7 @@ func ResolveAnyValueSignature(b Binder, raw parser.AggregateExpr, name parser.Ob
 	}
 	switch ResolveAnyValue(visible, raw.Star, len(raw.Args), usage) {
 	case Missing:
-		return nil, ResolutionError(name, raw.Pos, types, false)
+		return nil, UnnotedResolutionError(b, name, raw.Pos, types, false)
 	case UnknownPolymorphic:
 		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
 	}

@@ -65,7 +65,7 @@ func FinishRangeInspect(b Binder, raw parser.FunctionExpr, visible bool, operand
 			}
 			names[i] = NamedArgumentType(raw, i, names[i])
 		}
-		return nil, ResolutionError(raw.Name, raw.Pos, names, resolution == Ambiguous)
+		return nil, UnnotedResolutionError(b, raw.Name, raw.Pos, names, resolution == Ambiguous)
 	}
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err

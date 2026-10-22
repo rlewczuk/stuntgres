@@ -36,7 +36,7 @@ func bindDatetimeSleep(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		for i, operand := range operands {
 			names[i] = NamedArgumentType(raw, i, DiagnosticNameOrUnknown(operand.Usage.Type))
 		}
-		return ResolutionError(raw.Name, raw.Pos, names, false)
+		return UnnotedResolutionError(b, raw.Name, raw.Pos, names, false)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind, id := DatetimeSleepDefinition(name)

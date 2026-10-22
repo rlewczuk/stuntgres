@@ -20,7 +20,7 @@ type Definition struct {
 }
 
 func New(source string, position parser.Position, inputs []sqltype.Usage, result sqltype.Usage) (*Definition, error) {
-	statements, err := parser.Parse(source)
+	statements, err := parser.ParseWithOptions(source, parser.Options{StandardConformingStrings: true, ClosedRoutineFormals: true, FormalCount: len(inputs)})
 	if err != nil {
 		return nil, err
 	}

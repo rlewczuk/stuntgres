@@ -54,6 +54,8 @@ type Binder struct {
 	Expected     Expected
 	Input        sqltype.InputEnvironment
 	Dependencies []catalog.ExpressionDependency
+	// Identity of the actual missing-call diagnostic, not a SQLSTATE heuristic.
+	unresolvedCallable error
 
 	Target   targetContext
 	Params   parameterState

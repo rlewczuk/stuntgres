@@ -10,9 +10,13 @@ are immutable. CREATE validation belongs to engine's ordinary query binder and
 never opens producers or evaluates providers. Text-body object names are runtime
 analysis facts, not permanent CREATE-time dependencies.
 
-The shared binder treats declared body formals as a closed namespace, including
-zero inputs: an out-of-range `$n` is rejected at its occurrence, before public
-parameter inference. Unused declared slots remain valid. Runtime binding checks
+Complete body parsing and the shared binder treat declared formals as a closed
+namespace, including zero inputs: out-of-range `$n` fails even after an unresolved
+call that would stop semantic binding. Quoted strings/comments are not formals.
+Unused declared slots remain valid. Private Restore may defer only a structured
+terminal missing callable, preserving original syntax. Other errors abort;
+semantic checks blocked by that missing call run at invocation once resolvable.
+Runtime binding checks
 the current terminal SELECT width and Assignment result plan before producers
 or modifying CTEs open, including empty input and dependency reanalysis. Internal
 body output changes may remain valid through assignment conversion without

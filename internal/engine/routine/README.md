@@ -1,7 +1,7 @@
 # internal/engine/routine
 
 Builtin routine and operator inventories, their lookups and validation, the
-operator and CREATE FUNCTION DDL handlers, and the operator and SQL routine
+operator and CREATE/DROP routine DDL handlers, and the operator and SQL routine
 dump statements. The package sits at layer L9
 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `access`, `authorization`, `catalog`, `ddl`, `dump`, `expr`,
@@ -52,6 +52,11 @@ or the engine. Step 14 of the split moves it here; see
 - **CREATE FUNCTION** (`function_ddl.go`): `StageCreateFunction` for
   LANGUAGE SQL functions. `function_restore.go` holds the pure Restore
   helpers `RestoreDirective`, `ReplayDirective` and `RebindSQLDefinitions`.
+- **Routine deletion** (`drop.go`): exact descriptor signatures through the
+  catalog name index, kind-before-masking for bare names, owner/schema-owner
+  authorization and system/extension fences. All roots are recorded before the
+  engine's shared dependency closure and single publication; no second registry
+  or call-coercion selector exists. Quoted SQL bodies do not create hard edges.
 - **Dumps** (`operator_dump.go`, `function_dump.go`): what native Dump
   writes for user operators and SQL functions. `OperatorDumped` is the
   operator Collect decision; `OperatorDumpDependencies`, `OperatorDumpEvents`
@@ -154,3 +159,19 @@ Public behavior is covered by `reference/operators` and the regproc,
 regoperator and `pg_proc` selections listed in the step 14 prompt file.
 Dump output must stay byte-identical: also run the Dump, Restore and Control
 selections in the [`dump` README](../dump/README.md#testing).
+
+Routine deletion selectors and private replay boundaries:
+
+```sh
+make check RUN='^TestRoutineDrop(Parser|Selection|CatalogIsolation|ReplayClassification)$' RACE=1
+make check RUN='^TestReferenceRoutineDrop(Identity|Diagnostics|Dependencies|Atomicity|OperatorDependency)$'
+make check RUN='^TestReferenceRoutineDrop(Identity|Diagnostics|Dependencies|Atomicity|OperatorDependency)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineDrop(AuthorityAndAdmission|QuotedBody|Persistence|FeatureSmoke)$'
+make check RUN='^TestReferenceRoutineDrop(AuthorityAndAdmission|QuotedBody|Persistence|FeatureSmoke)$' REFERENCE=1
+```
+
+Use an external 900-second deadline. The selected public feature smoke is
+`make check RUN='^TestReferenceRoutineDropFeatureSmoke$'`, also with `REFERENCE=1`.
+Expect preserved text overload104/INT8, precise view/default/check cascade,
+RESTRICT2BP01, missing NOTICE00000, wrong-kind42809 and a dangling caller that
+survives native replay and returns14/INT4 after callee recreation.

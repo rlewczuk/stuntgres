@@ -44,6 +44,10 @@ func (b *Binder) SignatureError(name parser.ObjectName, pos parser.Position, typ
 	return b.functionSignatureErrorForTypes(name, pos, types)
 }
 
+func (b *Binder) RecordUnresolvedCallable(err error) {
+	b.unresolvedCallable = err
+}
+
 func (b *Binder) AnalyzeFilter(filter parser.Expr) error {
 	_, err := b.BindAggregateFilter(parser.AggregateExpr{Filter: filter})
 	return err

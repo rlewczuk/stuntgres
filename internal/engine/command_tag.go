@@ -118,6 +118,8 @@ func classifyCommandTag(stmt parser.Statement, before session.TxState) (base str
 		base = "DROP CONVERSION"
 	case *parser.CreateFunction:
 		base = "CREATE FUNCTION"
+	case *parser.DropRoutine:
+		base = routineDropCommandTag(s.Kind)
 	case *parser.CreateOperator:
 		base = "CREATE OPERATOR"
 	case *parser.AlterOperator:
@@ -275,4 +277,15 @@ func queryCreationUtilityTag(form parser.QueryTableForm) string {
 		return "CREATE MATERIALIZED VIEW"
 	}
 	return "CREATE TABLE AS"
+}
+
+func routineDropCommandTag(kind string) string {
+	switch kind {
+	case "function":
+		return "DROP FUNCTION"
+	case "procedure":
+		return "DROP PROCEDURE"
+	default:
+		return "DROP ROUTINE"
+	}
 }

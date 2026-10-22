@@ -232,7 +232,7 @@ func windowSQLJSONObjectAggregate(b AggregateBinder, raw parser.AggregateExpr, n
 		if err != nil {
 			return nil, sqltype.Usage{}, err
 		}
-		return nil, sqltype.Usage{}, ResolutionError(name, raw.Pos, types, false)
+		return nil, sqltype.Usage{}, UnnotedResolutionError(b, name, raw.Pos, types, false)
 	}
 	_, usage, returning, err := resolveSQLJSONObjectAggregate(b, raw, name)
 	if err != nil {

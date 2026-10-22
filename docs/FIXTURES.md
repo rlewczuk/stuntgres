@@ -43,8 +43,21 @@ default calls that routine without inventing a dump dependency cycle.
 A dump containing SQL routines includes `SET check_function_bodies = false;`.
 This is PostgreSQL-compatible replay SQL. Native Restore recognizes only its
 exact private replay form, stages declarations/data through existing owners,
-then validates all imported bodies before atomic replacement. Invalid bodies,
-read failures and cancellation leave the target and retained rows unchanged.
+then binds imported bodies before atomic replacement. A structured terminal
+missing callable alone may defer binding: legal callee deletion must not prevent
+replaying the surviving quoted caller. Complete parsing and closed formal bounds
+still validate. Width/result and other semantic checks prevented by the missing
+call are deferred until invocation can resolve it; no executable binding or fake
+success result is retained. Ambiguity, missing operators/tables/types, denied
+namespace/type lookup, malformed bodies and resolvable incompatible results still
+abort. Final binding does not add executable-source SELECT ACL checks to CREATE
+or Restore: those remain live invoker checks at execution, as before.
+Missing-call identity recording is orthogonal to builtin-family composite-field
+recovery. Deleted user overloads with builtin-family spellings (including
+`num_nulls`/`num_nonnulls`) retain the same dangling-caller replay contract.
+Specialized family-shape errors are not callable absence merely because their
+SQLSTATE is42883.
+Read failures and cancellation leave the target and retained rows unchanged.
 The directive does not add a public live SQL setting or arbitrary script replay;
 function-free dumps retain their existing bytes.
 

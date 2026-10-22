@@ -587,6 +587,10 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.fail("42P02", "there is no parameter $0")
 			return 0
 		}
+		if l.options.ClosedRoutineFormals && n > int64(l.options.FormalCount) {
+			l.fail("42P02", fmt.Sprintf("there is no parameter $%d", n))
+			return 0
+		}
 		l.current.text = s
 		token = PARAM
 	case c == '.' && start+1 < len(l.input) && digit(l.input[start+1]):

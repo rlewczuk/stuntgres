@@ -74,7 +74,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	definition, err := proc.New(s.Body, s.BodyPos, inputs, result)
 	if err != nil {
 		var diagnostic *sqlstate.Error
-		if errors.As(err, &diagnostic) && diagnostic.Code == "42601" {
+		if errors.As(err, &diagnostic) && (diagnostic.Code == "42601" || diagnostic.Code == "42P02") {
 			copy := *diagnostic
 			// Dollar-quoted bodies retain their source span; parser positions are
 			// Unicode characters. Ordinary string bodies use their enclosing span.

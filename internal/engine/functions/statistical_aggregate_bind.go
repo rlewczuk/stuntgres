@@ -108,7 +108,7 @@ func resolveStatisticalSignature(b Binder, raw parser.AggregateExpr, name parser
 		arity = 2
 	}
 	if !visible || raw.Star || len(operands) != arity {
-		return args, sqltype.Usage{}, ResolutionError(name, raw.Pos, types, false)
+		return args, sqltype.Usage{}, UnnotedResolutionError(b, name, raw.Pos, types, false)
 	}
 	result := b.Type(sqltype.Float8)
 	if raw.Name == "regr_count" {
@@ -120,7 +120,7 @@ func resolveStatisticalSignature(b Binder, raw parser.AggregateExpr, name parser
 			target := b.Type(sqltype.Float8).Usage()
 			if typ != nil {
 				if _, err := sqltype.PlanCoercion(o.Usage, target, sqltype.Implicit); err != nil {
-					return args, sqltype.Usage{}, ResolutionError(name, raw.Pos, types, false)
+					return args, sqltype.Usage{}, UnnotedResolutionError(b, name, raw.Pos, types, false)
 				}
 			}
 			args[i], err = coerceConditional(b, o, target, raw.Name)
@@ -134,7 +134,7 @@ func resolveStatisticalSignature(b Binder, raw parser.AggregateExpr, name parser
 				result = b.Type(sqltype.Numeric)
 			case b.Type(sqltype.Float4), b.Type(sqltype.Float8):
 			default:
-				return args, sqltype.Usage{}, ResolutionError(name, raw.Pos, types, false)
+				return args, sqltype.Usage{}, UnnotedResolutionError(b, name, raw.Pos, types, false)
 			}
 			args[i], err = finalizeOperand(b, o, typ)
 		}

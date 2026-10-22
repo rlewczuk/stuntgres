@@ -32,7 +32,7 @@ func ResolveCountSignature(b Binder, raw parser.AggregateExpr, name parser.Objec
 			syntax, _ := OriginalArgument(b, raw.Args[i])
 			types[i] = ArgumentTypeName(syntax, arg)
 		}
-		return ResolutionError(name, raw.Pos, types, false)
+		return UnnotedResolutionError(b, name, raw.Pos, types, false)
 	}
 	if fact == CountRequiresStar {
 		return expr.ErrorAt("42809", qualifiedName(name)+"(*) must be used to call a parameterless aggregate function", raw.Pos)

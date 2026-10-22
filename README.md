@@ -173,6 +173,19 @@ SELECT capabilities, including modifying CTEs under the caller's atomic statemen
 owner. The first result row is assignment-converted to the declared type; no row
 returns typed NULL. CREATE validates without executing the body.
 
+`DROP FUNCTION`, `DROP PROCEDURE` and generic `DROP ROUTINE` select exact catalog
+input signatures (or an unambiguous bare name), with grouped atomic deletion,
+`IF EXISTS` notices and default `RESTRICT` / explicit `CASCADE`. Dependency
+removal preserves unrelated overloads, rows and containing tables while removing
+dependent views, defaults and constraints. DROP authority is routine or schema
+ownership, not EXECUTE. Procedure creation/CALL remain excluded.
+
+Quoted-body callers do not acquire hard dependencies on callees: dropping a
+callee leaves the caller installed but unresolved until recreation. Dump/Restore
+preserves that state; private replay defers only a structured terminal missing
+call, never arbitrary SQLSTATE 42883. Parsing and closed formal bounds still
+validate; checks prevented by the missing call run when invocation can bind it.
+
 Native Dump/Restore preserves declarations, nested calls, views, defaults and
 ordinary data, including text-body/table-default cycles. Actual emitted SQL also
 replays on pinned PostgreSQL18.6. Named/mode/default/variadic declarations,

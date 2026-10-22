@@ -192,5 +192,5 @@ func sequenceSignatureError(b Binder, r parser.CallExpr) error {
 			}
 		}
 	}
-	return ResolutionError(r.Name, r.SourcePosition(), names, false)
+	return UnnotedResolutionError(b, r.Name, r.SourcePosition(), names, false)
 }

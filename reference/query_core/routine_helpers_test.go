@@ -38,7 +38,13 @@ func routineValue(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 func routineValueWithNativeNullability(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, q, name, typ string, value any, nativeNullable, nativeNullableKnown bool, args ...any) {
 	t.Helper()
 	s := fixture.Select(q, []string{name}, []string{typ}, [][]any{{value}}, args...)
-	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
+	s.CheckMetadata = routineScalarMetadata(b, name, typ, nativeNullable, nativeNullableKnown)
+	fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
+	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
+}
+
+func routineScalarMetadata(b fixture.Backend, name, typ string, nativeNullable, nativeNullableKnown bool) func(*testing.T, *sql.Rows) {
+	return func(t *testing.T, rows *sql.Rows) {
 		columns, err := rows.ColumnTypes()
 		if err != nil {
 			t.Fatal(err)
@@ -70,8 +76,8 @@ func routineValueWithNativeNullability(t *testing.T, p *fixture.Pair, b fixture.
 				t.Fatal("routine oracle metadata", col)
 			}
 		} else {
-			// Native scalar driver codecs export integers as int64. Computed
-			// routine expressions do not claim source-column nullability.
+			// Native scalar calls retain unknown nullability; stored view
+			// columns use the caller's explicit source-column expectation.
 			wantScan := reflect.TypeFor[int64]()
 			if typ == "FLOAT8" {
 				wantScan = reflect.TypeFor[float64]()
@@ -84,8 +90,6 @@ func routineValueWithNativeNullability(t *testing.T, p *fixture.Pair, b fixture.
 			}
 		}
 	}
-	fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 }
 
 func routineDiagnostic(t *testing.T, p *fixture.Pair, c *sql.Conn, q, code, message, detail string, query bool) {

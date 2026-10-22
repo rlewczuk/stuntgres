@@ -7,8 +7,9 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-// validateRestoredSQLRoutines binds every restored SQL routine body as its
-// owner once Restore has replayed the whole script.
+// validateRestoredSQLRoutines binds restored bodies as their owners after the
+// whole replay. Only a terminal structured missing callable may defer binding;
+// invocation must bind and check the declared result before opening producers.
 
 func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *session.Operation) error {
 	e.mu.Lock()
@@ -27,8 +28,9 @@ func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *session.Op
 		}
 		if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil {
 			auth.State.CurrentUser = d.Owner
-			if _, _, err = e.bindSQLRoutineLocked(op, auth, d, input, nil); err != nil {
-				return err
+			binding, _, bindErr := e.bindSQLRoutineLocked(op, auth, d, input, nil)
+			if bindErr != nil && !binding.UnresolvedCallable {
+				return bindErr
 			}
 		}
 	}

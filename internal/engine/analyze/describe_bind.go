@@ -16,9 +16,12 @@ import (
 // Describe binds one statement: the single entry point behind the root
 // wrappers describe, describeWithRule and describeScoped. closed marks SQL
 // routine bodies whose formals are fixed; initial seeds parameter types.
-func Describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, initial ...[]sqltype.Usage) (Binding, error) {
+func Describe(ctx context.Context, host Host, stmt parser.Statement, auth Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected Expected, admission *LockAdmission, rule *RuleNamespace, closed bool, initial ...[]sqltype.Usage) (binding Binding, failure error) {
 	b := Binding{}
 	binder := NewBinder(ctx, host, input, expected)
+	defer func() {
+		binding.UnresolvedCallable = failure != nil && failure == binder.unresolvedCallable
+	}()
 	binder.Target.RuleNamespace = rule
 	binder.Params.NoParameters = rule != nil
 	binder.Params.ClosedRoutineFormals = closed

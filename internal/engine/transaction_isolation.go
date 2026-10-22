@@ -374,6 +374,8 @@ func modifyingTag(stmt parser.Statement) string {
 		return "DROP CONVERSION"
 	case *parser.CreateFunction:
 		return "CREATE FUNCTION"
+	case *parser.DropRoutine:
+		return routineDropCommandTag(stmt.(*parser.DropRoutine).Kind)
 	case *parser.CreateOperator:
 		return "CREATE OPERATOR"
 	case *parser.AlterOperator:
@@ -487,7 +489,7 @@ func explicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
-	case *parser.CreateFunction, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
+	case *parser.CreateFunction, *parser.DropRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true

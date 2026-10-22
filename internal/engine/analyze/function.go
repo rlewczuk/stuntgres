@@ -5,13 +5,11 @@ import (
 	"slices"
 	"strings"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -149,9 +147,7 @@ func (b *Binder) BindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error
 				types[i] = arg.ResultUsage().Type.DiagnosticName()
 			}
 		}
-		d := expr.ErrorAt("42883", fmt.Sprintf("function %s(%s) does not exist", catalog.ObjectNameText(raw.Name), strings.Join(types, ", ")), raw.Pos).(*sqlstate.Error)
-		d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-		return nil, d
+		return nil, functions.UnnotedResolutionError(b, raw.Name, raw.Pos, types, false)
 	}
 	// Ordinary arguments count whole-value nullness, including arrays. Explicit
 	// VARIADIC array expansion remains outside this provider's capability.
@@ -262,11 +258,6 @@ func functionArgumentTypeName(raw parser.Expr, arg expr.Expr) string {
 	return "unknown"
 }
 
-// Reuse transformed argument names when a diagnostic producer already bound them.
-func functionSignatureErrorForTypes(name parser.ObjectName, pos parser.Position, names []string) error {
-	return functions.ResolutionError(name, pos, names, false)
-}
-
 func (b *Binder) functionSignatureErrorForTypes(name parser.ObjectName, pos parser.Position, names []string) error {
 	return b.functionResolutionErrorForTypes(name, pos, names, false)
 }
@@ -275,6 +266,7 @@ func (b *Binder) functionResolutionErrorForTypes(name parser.ObjectName, pos par
 	err := functions.ResolutionError(name, pos, names, ambiguous)
 	if !ambiguous {
 		b.Clause.noteFunctionSignature(name, pos, err)
+		b.RecordUnresolvedCallable(err)
 	}
 	return err
 }
