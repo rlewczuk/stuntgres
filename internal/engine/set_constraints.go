@@ -5,7 +5,6 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -106,76 +105,11 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 				return Result{}, index.SemanticError(err)
 			}
 			label := name.Parts[len(name.Parts)-1].Text
-			found := false
-			for i := range path.Count() {
-				namespace := path.At(i)
-				matched := false
-				for _, descriptor := range auth.Catalog.Descriptors() {
-					parent, ok := descriptor.(*catalog.Relation)
-					if !ok || parent.Namespace() != namespace || parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation {
-						continue
-					}
-					for _, c := range parent.Constraints.Exclusion {
-						if c.Name != label {
-							continue
-						}
-						matched = true
-						if raw.Deferred && !c.Deferrable {
-							return Result{}, sqlError("42809", fmt.Sprintf(`constraint "%s" is not deferrable`, label))
-						}
-						if c.Deferrable {
-							selected[c.OID] = true
-						}
-					}
-					nondeferrable := false
-					for _, c := range parent.Constraints.Unique {
-						if c.Name == label {
-							nondeferrable = true
-						}
-					}
-					for _, c := range parent.Constraints.Check {
-						if c.Name == label {
-							nondeferrable = true
-						}
-					}
-					for _, c := range parent.Constraints.NotNull {
-						if c.Name == label {
-							nondeferrable = true
-						}
-					}
-					if nondeferrable {
-						matched = true
-						if raw.Deferred {
-							return Result{}, sqlError("42809", fmt.Sprintf(`constraint "%s" is not deferrable`, label))
-						}
-					}
-				}
-				if matched {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return Result{}, sqlError("42704", fmt.Sprintf(`constraint "%s" does not exist`, label))
+			if err := index.SelectConstraintName(auth.Catalog, path, label, raw.Deferred, selected); err != nil {
+				return Result{}, err
 			}
 		}
-		// Names select their inherited provider subtree, not similarly named
-		// independent local declarations. Catalog iteration has no tree order.
-		for changed := true; changed; {
-			changed = false
-			for _, descriptor := range auth.Catalog.Descriptors() {
-				parent, ok := descriptor.(*catalog.Relation)
-				if !ok {
-					continue
-				}
-				for _, c := range parent.Constraints.Exclusion {
-					if c.Parent != 0 && selected[c.Parent] && !selected[c.OID] {
-						selected[c.OID] = true
-						changed = true
-					}
-				}
-			}
-		}
+		index.SelectInheritedExclusions(auth.Catalog, selected)
 		if candidate.ByConstraint == nil {
 			candidate.ByConstraint = make(map[ids.OID]bool, len(selected))
 		}

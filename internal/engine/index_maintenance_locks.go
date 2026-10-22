@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"cmp"
-	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -10,29 +8,13 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	e := s.engine()
-	var names []parser.ObjectName
-	var ifExists, drop bool
-	switch v := stmt.(type) {
-	case *parser.DropIndex:
-		names = v.Names
-		ifExists = v.IfExists
-		drop = true
-	case *parser.AlterIndex:
-		names = []parser.ObjectName{v.Name}
-		ifExists = v.IfExists
-	case *parser.Reindex:
-		if err := index.ValidateReindexOptions(v); err != nil {
-			return err
-		}
-		if v.Kind.Text != "index" && v.Kind.Text != "table" {
-			return index.ReindexControlError(v)
-		}
-		names = []parser.ObjectName{v.Name}
+	names, ifExists, drop, err := index.MaintenanceNames(stmt)
+	if err != nil {
+		return err
 	}
 	g := &index.MaintenanceGrant{Descriptors: make(map[ids.ObjectAddress]*catalog.Relation)}
 	e.mu.Lock()
@@ -46,110 +28,24 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	}
 	for _, name := range names {
 		ref, err := e.resolveRelationReference(auth, name, true)
-		if err != nil {
-			if !table.RenameMissing(err) {
-				return fail(err)
-			}
-			kind, missing := "relation", name.Parts[len(name.Parts)-1].Text
-			diagnostic := err.(*sqlstate.Error)
-			if diagnostic.Code == "3F000" {
-				kind, missing = "schema", name.Parts[0].Text
-			} else if drop {
-				kind = "index"
-				err = sqlError("42704", fmt.Sprintf(`index "%s" does not exist`, missing))
-			}
-			if !ifExists {
-				return fail(err)
-			}
-			g.Notices = append(g.Notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`%s "%s" does not exist, skipping`, kind, missing)})
-			continue
+		if err := g.AddTarget(auth.Catalog, name, ref, err, err != nil && table.RenameMissing(err), drop, ifExists); err != nil {
+			return fail(err)
 		}
-		if g.Descriptors[ref.Address] != nil {
-			continue
-		}
-		d := auth.Catalog.MustRelation(ref.Address)
-		g.Targets = append(g.Targets, ref)
-		g.Descriptors[ref.Address] = d
 	}
-	// Check the entire requested group before collecting parents or waiting.
-	// Wrong-kind targets must never reach a sqlIndex dereference.
-	if err := g.Check(auth.View, auth, stmt, false); err != nil {
+	if err := g.CollectGroup(auth.View, auth, auth.Catalog, stmt); err != nil {
 		return fail(err)
 	}
-	for _, ref := range g.Targets {
-		d := g.Descriptors[ref.Address]
-		switch v := stmt.(type) {
-		case *parser.DropIndex:
-			g.Indexes = append(g.Indexes, ref)
-			parent := d.SQLIndex.Parent
-			if g.Descriptors[parent] == nil {
-				g.Parents = append(g.Parents, ref.Domain().Ref(ref.Epoch, parent))
-				g.Descriptors[parent] = auth.Catalog.MustRelation(parent)
-			}
-		case *parser.Reindex:
-			parent := d.Address()
-			if v.Kind.Text == "index" {
-				parent = d.SQLIndex.Parent
-				g.Indexes = append(g.Indexes, ref)
-			}
-			g.Parents = append(g.Parents, ref.Domain().Ref(ref.Epoch, parent))
-			g.Descriptors[parent] = auth.Catalog.MustRelation(parent)
-			if v.Kind.Text == "table" {
-				g.IndexSets = map[ids.ObjectAddress]int{parent: 0}
-				for address, descriptor := range auth.Catalog.Descriptors() {
-					index, ok := descriptor.(*catalog.Relation)
-					if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent {
-						continue
-					}
-					g.Indexes = append(g.Indexes, ref.Domain().Ref(ref.Epoch, address))
-					g.Descriptors[address] = index
-					g.IndexSets[parent]++
-				}
-			}
-		}
-	}
-	if v, ok := stmt.(*parser.AlterIndex); ok && v.Action == "attach" && len(g.Targets) > 0 {
+	if v, ok := g.NeedsAttach(stmt); ok {
 		ref, err := e.resolveRelationReference(auth, v.Partition, true)
 		if err != nil {
 			return fail(err)
 		}
-		child := auth.Catalog.MustRelation(ref.Address)
-		if child.SQLIndex == nil {
-			diagnostic := index.WrongKind(child, false).(*sqlstate.Error)
-			diagnostic.Code = "42P17"
-			return fail(diagnostic)
-		}
-		g.Attach = ref
-		g.Descriptors[ref.Address] = child
-		g.Indexes = append(g.Indexes, ref)
-		parent := g.Descriptors[g.Targets[0].Address]
-		if err := index.PartitionIndexAttachCheck(s.op.Context(), auth.Catalog, parent, child); err != nil {
+		if err := g.AddAttach(s.op.Context(), auth.Catalog, ref); err != nil {
 			return fail(err)
 		}
 	}
-	if err := g.CollectPartitionIndexes(auth.View, stmt); err != nil {
+	if err := g.FinishPlan(auth.View, stmt); err != nil {
 		return fail(err)
-	}
-	if len(g.Targets) > 0 {
-		switch v := stmt.(type) {
-		case *parser.DropIndex:
-			if v.Concurrent.Character > 0 {
-				return fail(index.Capability("concurrent index operations are unsupported", v.Concurrent))
-			}
-		case *parser.AlterIndex:
-			switch v.Action {
-			case "set", "reset":
-				return fail(index.ValidateIndexOptions(v, g.Descriptors[g.Targets[0].Address].SQLIndex.Method))
-			case "tablespace":
-				return fail(index.Capability("index tablespaces are unsupported", v.ActionPos))
-			case "statistics":
-				return fail(index.Capability("index statistics are unsupported", v.ActionPos))
-			}
-		case *parser.Reindex:
-			if err := index.ReindexControlError(v); err != nil {
-				return fail(err)
-			}
-		}
 	}
 	s.indexes().Maintenance = g
 	e.mu.Unlock()
@@ -157,8 +53,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
 	}
-	slices.SortFunc(g.Parents, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
-	slices.SortFunc(g.Indexes, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	g.SortLockOrder()
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	acquire := func(ref ids.ObjectRef, mode lock.Mode) error {
 		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
@@ -189,10 +84,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		}
 		return nil
 	}
-	parentMode := lock.Share
-	if drop || g.Attach != (ids.ObjectRef{}) {
-		parentMode = lock.AccessExclusive
-	}
+	parentMode := g.ParentMode(drop)
 	for _, ref := range g.Parents {
 		if err := acquire(ref, parentMode); err != nil {
 			return err
@@ -203,12 +95,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			return err
 		}
 	}
-	if _, alter := stmt.(*parser.AlterIndex); alter && len(g.Targets) > 0 {
-		ref := g.Targets[0]
-		mode := lock.AccessExclusive
-		if g.Descriptors[ref.Address].RelationKind == catalog.IndexRelation {
-			mode = lock.ShareUpdateExclusive
-		}
+	if ref, mode, ok := g.AlterTarget(stmt); ok {
 		if !slices.Contains(g.Indexes, ref) {
 			if err := acquire(ref, mode); err != nil {
 				return err
