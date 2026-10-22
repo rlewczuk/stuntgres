@@ -1397,8 +1397,10 @@ alter_domain: ALTER DOMAIN relation_name ADD domain_alter_check {$$=&AlterDomain
  | ALTER DOMAIN relation_name domain_validate_word CONSTRAINT name {$$=&AlterDomain{Name:$3,Action:DomainValidateCheck,Constraint:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER DOMAIN relation_name RENAME TO name {$$=&AlterDomain{Name:$3,Action:DomainRename,Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER DOMAIN relation_name SET SCHEMA name {$$=&AlterDomain{Name:$3,Action:DomainSetSchema,Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
- | ALTER DOMAIN relation_name SET DEFAULT {sqllex.(*lexer).syntax($4);return 1}
- | ALTER DOMAIN relation_name SET NOT {sqllex.(*lexer).syntax($4);return 1} ;
+ | ALTER DOMAIN relation_name SET DEFAULT target_or {$$=&AlterDomain{Name:$3,Action:DomainSetDefault,Default:$6,Pos:$1.pos}}
+ | ALTER DOMAIN relation_name DROP DEFAULT {$$=&AlterDomain{Name:$3,Action:DomainDropDefault,Pos:$1.pos}}
+ | ALTER DOMAIN relation_name SET NOT NULL {$$=&AlterDomain{Name:$3,Action:DomainSetNotNull,Pos:$1.pos}}
+ | ALTER DOMAIN relation_name DROP NOT NULL {$$=&AlterDomain{Name:$3,Action:DomainDropNotNull,Pos:$1.pos}} ;
 domain_alter_check: check_constraint {$$=$1}
  | domain_alter_check NOT nn_modifier {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};$1.NotValid=true;$$=$1}
  | domain_alter_check NO nn_inherit {$1.NoInherit=true;$$=$1} ;

@@ -49,6 +49,9 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 		found := false
 		for _, descriptor := range view.Descriptors() {
 			if domain, ok := descriptor.(*catalog.Type); ok {
+				if domain.DomainNotNull != nil && domain.DomainNotNull.OID == ids.OID(id) {
+					found, text = true, "NOT NULL"
+				}
 				for _, def := range domain.DomainChecks {
 					if def.OID != ids.OID(id) {
 						continue

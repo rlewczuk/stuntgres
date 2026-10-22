@@ -14,6 +14,21 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Domain default and nullability changes — change note
+
+`ALTER DOMAIN SET/DROP DEFAULT` and `SET/DROP NOT NULL` update real domain
+metadata in autocommit. Old child defaults remain independent creation-copied
+snapshots; DROP clears the target rather than inheriting its parent's current
+default. New NOT NULL validates stored NULLness atomically and owns a genuine
+constraint identity, also used by CREATE and native replay. Repeated own SET
+does not rescan legal already-domain NULLs.
+Native logical replay preserves copied/cleared recipes and NN identities/names
+with reminted OIDs. PostgreSQL's retained rewritten defaults and eliminated
+child-view coercions are not native executable-cache semantics.
+See [type contracts](docs/TYPES.md),
+[prepared boundaries](docs/DRIVER.md#prepared-catalog-and-path-invalidation) and
+[selected proof](reference/types/README.md#domain-default-and-nullability-alterations).
+
 ## POINT coordinates and predicates — change note
 
 Builtin `point` accepts `(x,y)` and `x,y`, preserves binary64 coordinates and

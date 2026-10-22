@@ -169,8 +169,12 @@ func (f *DomainValidationFence) Current(view catalog.Read, relations map[ids.Obj
 	return true
 }
 
-func DomainHistoricalViolation(view catalog.Read, relation *catalog.Relation, column int) error {
+func DomainHistoricalViolation(view catalog.Read, relation *catalog.Relation, column int, validation DomainValidation) error {
 	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.Columns[column].Name, relation.Name())).(*sqlstate.Error)
+	if validation == DomainValidateNulls {
+		diagnostic.Code = "23502"
+		diagnostic.Message = fmt.Sprintf("column %q of table %q contains null values", relation.Columns[column].Name, relation.Name())
+	}
 	diagnostic.Schema = view.Get(relation.Namespace()).Name()
 	diagnostic.Table, diagnostic.Column = relation.Name(), relation.Columns[column].Name
 	return diagnostic

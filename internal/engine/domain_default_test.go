@@ -109,11 +109,6 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	if err := stored.ValidateDomainDefault(view, &badPresentation); err == nil {
 		t.Fatal("presentation accepted absent recipe")
 	}
-	badPresentation = *child
-	badPresentation.DomainDefaultText = "22"
-	if err := stored.ValidateDomainDefault(view, &badPresentation); err == nil {
-		t.Fatal("inherited presentation diverged from captured parent")
-	}
 	bad := *parent
 	definition := *parent.DomainDefault
 	definition.OID = 1

@@ -27,10 +27,12 @@ type restoreRun struct {
 	statements []parser.Statement
 
 	// Records decoded from the script's line comments.
-	domainReplays     []typedef.PositionedDomainReplay
-	domainReplayPairs map[*parser.Insert]typedef.DomainReplayRecord
-	extensionOwners   []extension.OwnerRecord
-	snapshots         []view.MaterializedSnapshot
+	domainReplays      []typedef.PositionedDomainReplay
+	domainReplayPairs  map[*parser.Insert]typedef.DomainReplayRecord
+	domainDefaults     []typedef.PositionedDomainDefault
+	domainDefaultPairs map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
+	extensionOwners    []extension.OwnerRecord
+	snapshots          []view.MaterializedSnapshot
 
 	// Table, NOT NULL and foreign key captures.
 	pendingForeignKeys      []table.RestoredForeignKeys
@@ -99,6 +101,10 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 	r.source, r.statements = source, statements
 	var err error
 	r.domainReplayPairs, err = typedef.PairDomainReplay(r.source, r.statements, r.domainReplays)
+	if err != nil {
+		return err
+	}
+	r.domainDefaultPairs, err = typedef.PairDomainDefaults(r.source, r.statements, r.domainDefaults)
 	return err
 }
 
@@ -154,6 +160,12 @@ func (h *restoreHost) Publish(ctx context.Context, op *session.Operation) error 
 func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (control.Outcome, error) {
 	var err error
 	var result Result
+	if domain, ok := stmt.(*parser.CreateDomain); ok {
+		if record, paired := r.domainDefaultPairs[domain]; paired {
+			operationReplay(op).domainDefault = &domainDefaultReplayCapture{Statement: domain, Record: record}
+			defer func() { operationReplay(op).domainDefault = nil }()
+		}
+	}
 	if insertion, ok := stmt.(*parser.Insert); ok {
 		if record, paired := r.domainReplayPairs[insertion]; paired {
 			result, err = r.stage.executeDomainReplayInsert(op, insertion, record)

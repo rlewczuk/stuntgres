@@ -5,16 +5,13 @@ import (
 	"fmt"
 	"slices"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
-// ValidateDomainDefault checks a type's domain default recipe: its
-// presentation, inheritance from the base domain, destination usage and the
-// providers it records.
+// ValidateDomainDefault checks an independent creation-copied default snapshot,
+// its presentation, assignment destination and authentic provider manifest.
 func ValidateDomainDefault(view catalog.Read, d *catalog.Type) error {
 	if !d.SQLType.IsDomain() {
 		if d.DomainDefault != nil || d.DomainDefaultOwn || d.DomainDefaultText != "" {
@@ -28,18 +25,7 @@ func ValidateDomainDefault(view catalog.Read, d *catalog.Type) error {
 	if d.DomainDefault != nil && (d.DomainDefault.Expression == nil || d.DomainDefault.OID != 0) {
 		return fmt.Errorf("stuntgres: invalid domain default destination")
 	}
-	if !d.DomainDefaultOwn {
-		parent := typedef.TypeDefault(view, d.SQLType.DomainBase().Type)
-		if (parent == nil) != (d.DomainDefault == nil) {
-			return fmt.Errorf("stuntgres: inconsistent inherited domain default")
-		}
-		if parent != nil && (!analyze.SameGroupExpression(parent.Expression, d.DomainDefault.Expression) || !slices.Equal(parent.Dependencies, d.DomainDefault.Dependencies)) {
-			return fmt.Errorf("stuntgres: inconsistent inherited domain default recipe")
-		}
-		if parent != nil && d.DomainDefaultText != view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}).DomainDefaultText {
-			return fmt.Errorf("stuntgres: inconsistent inherited domain default presentation")
-		}
-	} else if d.DomainDefault == nil {
+	if d.DomainDefaultOwn && d.DomainDefault == nil {
 		return fmt.Errorf("stuntgres: missing own domain default")
 	}
 	if d.DomainDefault == nil {

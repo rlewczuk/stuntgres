@@ -23,9 +23,9 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
   as `Stage...Locked(h, auth, statement)`.
   The ALTER staging cores `StageAlterEnumLabelLocked`
   (`enum_label_stage.go`, returning an `EnumLabelEdit`) and
-  `StageAlterDomainConstraintLocked` (`domain_constraint_stage.go`,
-  returning a `DomainConstraintEdit`) stage one ALTER TYPE ... VALUE or
-  ALTER DOMAIN constraint action; their executors stay in the engine.
+  `StageAlterDomainLocked` (`domain_edit_stage.go`, returning a
+  `DomainEdit` with explicit none/CHECK/NULLness validation) stage one
+  ALTER TYPE ... VALUE or ALTER DOMAIN action; executors stay in the engine.
   Pure domain identity staging uses `StageHost.ReplaceDomainIdentity` to preserve
   the existing executable analysis stamp while advancing descriptor revisions.
   Ordinary replacement invalidates by default; OWNER stays with the role owner.
@@ -50,6 +50,16 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
   `ReownDomainDatum`; `domain_reown.go`); `TypeDefault`, `DefaultDomainACL`,
   captured input providers (`domain_input.go`) and
   the restored-owner record (`domain_owner_restore.go`).
+  Real own NOT NULL records share CREATE/ALTER construction (`domain_not_null.go`).
+  `StageHost.BindDomainConstraints` installs CHECK/NN definitions in declaration
+  order; generated names see only earlier installed names, never future explicit
+  reservations. CHECK raw-list ordinals and final alphabetical evaluation sorting
+  remain separate from installation order. Default snapshot records
+  (`domain_default_snapshot.go`) pair with ordinary CREATE SQL and carry genuine
+  qualified result usage/typmod/collation, own/absence masks, never source OIDs.
+  The engine's authenticated import host performs the ordinary binding, without
+  recooking copied defaults into extra ancestor conversions. This is distinct
+  from the legal-NULL data codec paired to INSERT.
 - **Enums**: the PostgreSQL sort-order insertion rule (`enum_order.go`) and
   `EnumSafety`.
 - **Composites and typed tables**: `CompositeOpenError`, `ContainsRowType`,
@@ -101,8 +111,8 @@ type methods. The engine implements it on its one staging adapter,
   `DropTarget`, `RecordDependencyPath`) and `RemoveDomainCheck` are host
   methods because they write engine-private stage state.
 - Name and type resolution (`SearchNamespaces`, `LookupFunction`,
-  `NamedType`, `FindCollation`, `Resolve*`) and domain default and check
-  binding stay in the engine behind the host, because they need `analyze`.
+  `NamedType`, `FindCollation`, `Resolve*`) and domain default/constraint
+  binding stay in the engine behind the host, because CHECKs need `analyze`.
   OIDs, revisions and enum members come from `AllocateOID`, `Revision` and
   `AllocateEnumMember` in the order the handlers ask.
 - **Lock contract.** Every host method runs with `Engine.mu` held; none
@@ -124,9 +134,11 @@ type methods. The engine implements it on its one staging adapter,
 - **Pure seeds.** `BuiltinConversionProcedures`, `BuiltinDomainCheckSeeds`
   and `BuiltinDomainDefaultSeeds` return fresh values. The engine installs
   them in `newEngine`'s order, so OIDs are unchanged.
-- **Byte-identical output.** Type OIDs, array names, enum sort orders,
-  domain check order and messages, replay wire format and seed dump text
-  match PostgreSQL 18 and the previous engine output exactly.
+- **Stable SQL semantics, bounded native replay.** CHECK order and diagnostics
+  retain their existing contract. ALTER keeps logical domain/array IDs while
+  own NN definitions reserve real additional identities. Dump preserves names
+  and exact effective default snapshots through versioned host records; physical
+  OIDs and byte-identical historical default spelling are not portable promises.
 
 ## What stays in the engine
 
@@ -165,6 +177,22 @@ Package seams:
 make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds|TestDomainDefaultReplayPairingInternal|TestPGEnumSortInsertion|TestCatalogTypeJournalSlotsCopyOnWrite)$'
 ```
 
+The selected default/nullability stage, snapshot, NN-only remap and publication
+invariants supplement the public dual-mode bodies:
+
+```sh
+make check RUN='^TestDomainAlter(DefaultSnapshotsInternal|NotNullMetadataInternal|DefaultReplayInternal|DefaultNullabilityPublication|ConstraintPublication)$' RACE=1
+```
+
+New validating NN uses the existing discovery/physical Share lock fence and
+checks only stored NULLness, not CHECK/default truth. Defaults, DROP and repeated
+own SET skip historical scanning. Relevant graph/storage/provider/owner/epoch
+observations gate one immutable publication; cancellation before install does
+not mutate roots. Host methods still never wait on locks or acquire Engine.mu.
+Prepared native analysis retains identities/current descriptors, not PostgreSQL's
+rewritten omitted defaults or eliminated child-view executable coercions.
+
+
 The engine side of the stage host (`ddlHost`):
 
 ```sh
@@ -191,7 +219,7 @@ presenter methods the domain statements use):
 make check RUN='^(TestCollationDumpLosslessBootstrapSelection|TestDumpPresenterDomainExpressions)$'
 ```
 
-Public behavior is covered by the domain, enum, composite, range,
-collation, conversion, typed-table and Dump/Restore selections in
-`reference/` that the step 15 prompt file lists; dump output must stay
-byte-identical (the Dump/Restore selectors in the `dump` README).
+Public behavior and explicit prepared boundaries are covered by the domain,
+enum, composite, range, collation, conversion, typed-table and Dump/Restore
+selections in `reference/`. See the owning type README's domain default and
+nullability alterations section for selected dual-mode proof and feature smoke.

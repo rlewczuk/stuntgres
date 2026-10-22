@@ -328,20 +328,25 @@ type DropDomain struct {
 
 func (*DropDomain) statement() {}
 
-type DomainConstraintAction uint8
+type DomainAction uint8
 
 const (
-	DomainAddCheck DomainConstraintAction = iota + 1
+	DomainAddCheck DomainAction = iota + 1
 	DomainDropCheck
 	DomainValidateCheck
 	DomainRename
 	DomainSetSchema
+	DomainSetDefault
+	DomainDropDefault
+	DomainSetNotNull
+	DomainDropNotNull
 )
 
 type AlterDomain struct {
 	Name       ObjectName
-	Action     DomainConstraintAction
+	Action     DomainAction
 	Check      *CheckConstraint
+	Default    Expr
 	Constraint Identifier
 	Target     Identifier
 	IfExists   bool

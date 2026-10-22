@@ -327,6 +327,10 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 	case 2606:
 		if kind == "domain constraint" {
 			if domain, ok := view.Type(ids.ObjectAddress{ClassID: 1247, ObjectID: ids.OID(typeID)}); ok {
+				if domain.DomainNotNull != nil && domain.DomainNotNull.Name == args[0] {
+					a.ObjectID = domain.DomainNotNull.OID
+					return a, nil
+				}
 				for _, check := range domain.DomainChecks {
 					if check.Name == args[0] {
 						a.ObjectID = check.OID

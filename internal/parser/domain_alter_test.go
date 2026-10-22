@@ -9,7 +9,7 @@ import (
 func TestDomainAlterConstraintGrammar(t *testing.T) {
 	for _, tc := range []struct {
 		sql                          string
-		action                       DomainConstraintAction
+		action                       DomainAction
 		name                         string
 		invalid, noInherit, ifExists bool
 		mode                         DropMode
@@ -44,8 +44,8 @@ func TestDomainAlterConstraintGrammar(t *testing.T) {
 		"ALTER DOMAIN domain_s.d ADD CONSTRAINT positive CHECK(VALUE>)",
 		"ALTER DOMAIN domain_s.d ADD CHECK(VALUE>0), DROP CONSTRAINT positive",
 		"ALTER DOMAIN domain_s.d VALIDATE CONSTRAINT positive nonsense",
-		"ALTER DOMAIN domain_s.d SET DEFAULT 7",
-		"ALTER DOMAIN domain_s.d SET NOT NULL",
+		"ALTER DOMAIN domain_s.d SET DEFAULT",
+		"ALTER DOMAIN domain_s.d SET NOT NULL nonsense",
 		"CREATE DOMAIN domain_s.d AS integer CHECK(VALUE>0) NOT VALID",
 		"ALTER DOMAIN domain_s.d ADD CHECK(VALUE>0); ALTER DOMAIN domain_s.d VALIDATE CONSTRAINT",
 	} {
@@ -55,10 +55,48 @@ func TestDomainAlterConstraintGrammar(t *testing.T) {
 	}
 }
 
+func TestDomainAlterDefaultNullabilityGrammar(t *testing.T) {
+	for _, tc := range []struct {
+		suffix string
+		action DomainAction
+	}{
+		{"SET DEFAULT 7", DomainSetDefault},
+		{"DROP DEFAULT", DomainDropDefault},
+		{"SET NOT NULL", DomainSetNotNull},
+		{"DROP NOT NULL", DomainDropNotNull},
+	} {
+		q := `/*é*/ ALTER DOMAIN domain_s."Δ Domain" ` + tc.suffix
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		raw := statements[0].(*AlterDomain)
+		if raw.Action != tc.action || raw.Check != nil || raw.Constraint.Text != "" || raw.Target.Text != "" || raw.IfExists || raw.Mode != DropRestrict {
+			t.Fatal("lost selected action facts", raw)
+		}
+		if raw.Name.Parts[1].Text != "Δ Domain" || raw.Pos.Character != utf8.RuneCountInString("/*é*/ ")+1 {
+			t.Fatal("lost target/statement position", raw)
+		}
+		if tc.action == DomainSetDefault {
+			offset := strings.LastIndex(q, "7")
+			if raw.Default == nil || ExpressionStart(raw.Default).Offset != offset || ExpressionStart(raw.Default).Character != utf8.RuneCountInString(q[:offset])+1 {
+				t.Fatal("lost default expression position", raw.Default)
+			}
+		} else if raw.Default != nil {
+			t.Fatal("non-SET acquired default expression")
+		}
+	}
+	for _, q := range []string{"ALTER DOMAIN public.d DROP DEFAULT nonsense", "ALTER DOMAIN public.d DROP NOT NULL CASCADE", "ALTER DOMAIN public.d SET DEFAULT 7, DROP DEFAULT", "ALTER DOMAIN public.d ADD NOT NULL", "ALTER DOMAIN public.d SET NOT NULL, DROP NOT NULL"} {
+		if statements, err := Parse(q); err == nil || statements != nil {
+			t.Fatal("adjacent/malformed action admitted", q, statements, err)
+		}
+	}
+}
+
 func TestDomainIdentityGrammar(t *testing.T) {
 	for _, tc := range []struct {
 		sql    string
-		action DomainConstraintAction
+		action DomainAction
 		target string
 	}{
 		{`ALTER DOMAIN /* é */ domain_s."Δ Domain" RENAME TO "Renamed Domain"`, DomainRename, "Renamed Domain"},

@@ -1515,14 +1515,18 @@ outer join or empty scalar subquery can bypass conversion. Native Dump/Restore
 preserves explicit/generated names and expression providers; CHECK-only provider
 CASCADE removes the dependent CHECK, not its containing domain or stored data.
 CREATE DOMAIN supports variable-free DEFAULT, NULL and named/unnamed NOT NULL.
+CHECK and NOT NULL definitions acquire names in declaration order. A generated
+name considers only already installed definitions; a later explicit collision
+is42710, not a reason to rename an earlier generated definition. This naming
+order is distinct from alphabetical CHECK evaluation and retained raw ordinals.
 Column defaults override domain/base defaults; explicit DEFAULT NULL masks
 inherited recipes. Supplied NULL, casts and already-domain values never request a
 default. An explicit child NULL does not waive inherited NOT NULL. Domain23502
 reports the actual conversion target with empty Constraint/Table/Column/Detail,
 even when named; CHECK initialization still precedes candidate truth.
 `pg_type.typnotnull` reports only the own declaration, not inherited enforcement
-or driver Nullable knowledge. `typdefault` is presentation captured once from the
-cooked recipe at declaration, using the actual creation-time visibility. Child
+or driver Nullable knowledge. `typdefault` is presentation captured when the
+cooked recipe is installed by CREATE or ALTER, using the actual visibility. Child
 domains copy the parent's text exactly; later search-path changes or provider
 renames do not rewrite it. This text is not executable authority: the typed
 expression, real dependencies and native replay remain independent.
@@ -1559,7 +1563,33 @@ then reconstructs those NULL leaves with their existing domain provenance.
 Non-NULL domain values still undergo ordinary conversions/CHECKs, and ordinary
 row enforcement remains active. The record is not public SQL, a session setting
 or a general constraint bypass; malformed replay cannot replace the destination.
-ALTER DOMAIN default/nullability changes remain unsupported.
+ALTER DOMAIN supports SET/DROP DEFAULT and SET/DROP NOT NULL in autocommit.
+Changing a parent default affects future default requests, not stored rows or
+previously created children's independent recipe/text snapshots. Later children
+copy the new recipe; DROP clears the target even over a defaulted parent.
+SET cooks against the immediate base; bare builtin NULL clears the recipe while
+real domain/typmod NULL conversions remain executable masks.
+New own NOT NULL validates historical direct/derived physical NULLness only.
+Unrelated NOT VALID CHECK violations are not re-evaluated. Physical writers are
+blocked by Share admission while readers can continue; relevant graph/storage,
+provider, owner and epoch observations fence one catalog/storage publication.
+Failure/cancellation before installation changes nothing. Repeated own SET
+preserves the real NN OID/name and does not rescan; DROP then SET does.
+Own NN definitions, including CREATE's existing named/unnamed form, now have
+genuine pg_constraint identity, automatic owner dependency and NOT NULL deparse.
+DROP removes only own nullability; ancestors and column constraints remain.
+Native Dump/Restore pairs ordinary CREATE SQL with a strict host-only default
+snapshot containing genuine qualified result usage and own/absence state. Under
+the existing authenticated isolated import, normal binding reconstructs authentic
+recipes/manifests without adding ancestor conversion/CHECK demand. Logical
+constraint names survive; physical definition OIDs are reminted, not transported.
+Ordinary third-party replay ignores these comments and may add conversions.
+Native prepared analysis does not cache rewritten recipes or executable plans:
+held omitted INSERTs use current defaults and held child-view conversions check
+current ancestry. PostgreSQL can retain old rewritten omitted defaults or an
+eliminated coercion after an ancestor-only edit. Direct/newly prepared Go and SQL
+routes and an own-parent view retain the exact fresh behavior on both backends;
+see [prepared analysis boundaries](DRIVER.md#prepared-catalog-and-path-invalidation).
 Changed type/domain ACLs make Dump fail rather than lose
 rights. Ownership transfer follows canonical root/array/backing associations
 without rebuilding codecs or value signatures; typed-table owners remain

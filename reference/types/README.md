@@ -6,6 +6,73 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Domain default and nullability alterations
+
+The shared `TestReferenceDomainAlterDefault{Lifecycle,Prepared,Diagnostics,
+NativeControls}` and `TestReferenceDomainAlterNotNull{Lifecycle,Edges,Metadata,
+Prepared,Diagnostics,Atomicity,NativeControls}` bodies specify the four ALTER
+actions. Expectations precede backend comparison: copied defaults7 versus
+parent11/cleared NULL, real own NN identities, NULL-only historical validation,
+domain-NULL edges, exact English/fields, cancellation and native replacement.
+The owning fixture uses actual statement counts, rows and raw metadata on empty
+and nonempty results, not catalog allocator parity.
+
+Pinned18.6 oracle discovery distinguishes held omission recipes (PG7 versus
+native current11/NULL) and a warmed child-view coercion after ancestor SET
+(PGNULL versus native23502). Fresh direct/Go/SQL preparations and an own-parent
+view agree; no native executable or rewritten-query cache is claimed. Explicit
+held DEFAULT-keyword retention is not inferred from omission evidence.
+
+`TestReferenceDomainAlterNotNullCreateNamesOrder` covers both generated-first,
+explicit-later CHECK/NN collisions with exact42710 and no published domain,
+array or constraint. Reversed successful controls retain the explicit name and
+suffix only the later generated name. Names/installations follow declaration
+order; CHECK evaluation stays alphabetical and raw-list ordinals stay intact.
+
+Run each small group in both modes, using an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceDomainAlterNotNullCreateNamesOrder$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterNotNullCreateNamesOrder$'
+make check RUN='^TestReferenceDomainCheck(NamesOrder|Truth)$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheck(NamesOrder|Truth)$'
+make check RUN='^TestReferenceDomainAlterDefault(Lifecycle|Prepared|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterDefault(Lifecycle|Prepared|Diagnostics)$'
+make check RUN='^TestReferenceDomainAlterNotNull(Lifecycle|Edges|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterNotNull(Lifecycle|Edges|Metadata)$'
+make check RUN='^TestReferenceDomainAlterNotNull(Prepared|Diagnostics|Atomicity)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterNotNull(Prepared|Diagnostics|Atomicity)$'
+make check RUN='^TestReferenceDomainAlter(DefaultNativeControls|NotNullNativeControls)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlter(DefaultNativeControls|NotNullNativeControls)$'
+make check RUN='^TestReferenceDomain(AlterConstraintBoundaries|Diagnostics|DefaultNullMetadata)$' REFERENCE=1
+make check RUN='^TestReferenceDomain(AlterConstraintBoundaries|Diagnostics|DefaultNullMetadata)$'
+make check RUN='^TestReferenceDomainAlterConstraint(Metadata|Prepared|NativeControls)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterConstraint(Metadata|Prepared|NativeControls)$'
+make check RUN='^TestDomain(AlterDefaultNullabilityGrammar|AlterConstraintGrammar|ConstraintASTAndCompleteSuffixes)$'
+make check RUN='^TestDomainAlter(DefaultSnapshotsInternal|NotNullMetadataInternal|DefaultReplayInternal|DefaultNullabilityPublication|ConstraintPublication)$' RACE=1
+make check RUN='^TestReferenceDomainAlterNotNullAtomicity$' RACE=1
+```
+
+Native replay phases use actual Dump bytes on the same attachment after Reset
+and an independent Driver. They preserve old/cleared snapshots, immediate-domain
+and typmod NULL recipes, current-shape composite-field presentation, CHECK demand,
+legal domain NULL rows and genuine NN-only/CHECK+NN definitions with reminted OIDs.
+Failed malformed/invalid/canceled Restore preserves the sentinel and later writes.
+The default snapshot comment is paired to CREATE under the existing authenticated
+isolated importer; it is not ordinary SQL authority or third-party pg_dump support.
+The separate legal-NULL data codec remains paired to INSERT.
+
+Standalone feature smoke uses public driver/controls, with defaults and
+nullability cases checking held execution, historical/future rows, actual
+catalog metadata, atomic23502 repair, domain-NULL edges and same/fresh-driver
+replay. The root-owned temporary program is run as `go run <session-file>
+-case=defaults` and `go run <session-file> -case=nullability`; no throwaway
+program is committed here. Expected compact observations are:
+`defaults: historical=7/7/NULL/99 future=11/7/NULL/99 cleared=NULL late=11 replay=ok metadata=INT4`
+and
+`nullability: historical=23502 atomic=ok fresh=23502 repeat-identity=ok domain-null=ok replay=ok drop=NULL`.
+
+
 ### MACADDR8 scalar oracle contract
 
 MACADDR8 scenarios specify documented six/eight-octet input spellings,

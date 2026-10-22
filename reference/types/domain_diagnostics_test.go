@@ -84,14 +84,10 @@ func TestReferenceDomainDiagnostics(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			run(domainDefaultFailure("INSERT INTO domain_s.positive(r) VALUES(NULL)", domainNotNullDiagnostic("domain_s", "required"), prepared, false))
 		}
-		if backend.PG {
-			run(fixture.Exec("CREATE DOMAIN domain_s.altered AS integer", 0))
-			run(fixture.Exec("ALTER DOMAIN domain_s.altered SET DEFAULT 7", 0))
-			run(fixture.Select("SELECT 9::domain_s.altered AS v FROM public.one", []string{"v"}, []string{"INT4"}, [][]any{{int64(9)}}))
-		} else {
-			run(fixture.ImplicitError("ALTER DOMAIN domain_s.di SET DEFAULT 7", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "SET"`, Position: "26"}))
-			run(fixture.Select("SELECT NULL::domain_s.di AS v FROM public.one", []string{"v"}, []string{"INT4"}, [][]any{{nil}}))
-		}
+		run(fixture.Exec("CREATE DOMAIN domain_s.altered AS integer", 0))
+		run(fixture.Exec("ALTER DOMAIN domain_s.altered SET DEFAULT 7", 0))
+		run(fixture.Select("SELECT 9::domain_s.altered AS v FROM public.one", []string{"v"}, []string{"INT4"}, [][]any{{int64(9)}}))
+		run(fixture.Select("SELECT NULL::domain_s.di AS v FROM public.one", []string{"v"}, []string{"INT4"}, [][]any{{nil}}))
 		// The parser must not publish a valid prefix when a suffix is malformed.
 		want := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "nonsense"`)
 		want.Position = "44"

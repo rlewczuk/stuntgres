@@ -21,6 +21,9 @@ func DefinitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 			}
 		}
 		if domain, ok := descriptor.(*Type); ok {
+			if domain.DomainNotNull != nil && domain.DomainNotNull.OID == id {
+				return true
+			}
 			for _, check := range domain.DomainChecks {
 				if check.OID == id {
 					return true
@@ -94,6 +97,9 @@ func ReserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 			}
 		}
 		if domain, ok := descriptor.(*Type); ok {
+			if domain.DomainNotNull != nil {
+				reserved[domain.DomainNotNull.OID] = true
+			}
 			for _, check := range domain.DomainChecks {
 				reserved[check.OID] = true
 			}
@@ -158,6 +164,11 @@ func ValidateDefinitionOIDs(view Read) error {
 			}
 		}
 		if domain, ok := descriptor.(*Type); ok {
+			if domain.DomainNotNull != nil {
+				if err := claim(domain.DomainNotNull.OID); err != nil {
+					return err
+				}
+			}
 			for _, check := range domain.DomainChecks {
 				if err := claim(check.OID); err != nil {
 					return err

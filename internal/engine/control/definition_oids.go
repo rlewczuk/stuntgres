@@ -29,7 +29,7 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			catalog.ReserveDefinitionOIDs(reserved, proc)
 		}
-		if domain, ok := descriptor.(*catalog.Type); ok && len(domain.DomainChecks) != 0 {
+		if domain, ok := descriptor.(*catalog.Type); ok && (len(domain.DomainChecks) != 0 || domain.DomainNotNull != nil) {
 			domains = append(domains, domain)
 			catalog.ReserveDefinitionOIDs(reserved, domain)
 		}
@@ -106,6 +106,18 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 	sort.Slice(domains, func(i, j int) bool { return domains[i].Address().ObjectID < domains[j].Address().ObjectID })
 	for _, domain := range domains {
 		copy := *domain
+		changed := false
+		if nn := domain.DomainNotNull; nn != nil {
+			id, err := remint(nn.OID)
+			if err != nil {
+				return err
+			}
+			if id != nn.OID {
+				record := *nn
+				record.OID = id
+				copy.DomainNotNull, changed = &record, true
+			}
+		}
 		var checks []catalog.DomainCheckConstraint
 		for i, check := range domain.DomainChecks {
 			id, err := remint(check.OID)
@@ -119,8 +131,10 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 				checks[i].OID = id
 			}
 		}
-		if checks != nil {
-			copy.DomainChecks = checks
+		if checks != nil || changed {
+			if checks != nil {
+				copy.DomainChecks = checks
+			}
 			next.SetDescriptor(domain.Address(), &copy)
 		}
 	}

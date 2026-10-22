@@ -50,6 +50,9 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 		}
 		if domain, ok := descriptor.(*catalog.Type); ok {
 			count += len(domain.DomainChecks)
+			if domain.DomainNotNull != nil {
+				count++
+			}
 		}
 	}
 	rows := make([][]sqltype.Value, count)
@@ -61,6 +64,16 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		if domain, ok := descriptor.(*catalog.Type); ok {
+			if nn := domain.DomainNotNull; nn != nil {
+				row := values[at*28 : (at+1)*28 : (at+1)*28]
+				rows[at] = row
+				at++
+				builder.initialize(row, domain.Namespace().ObjectID, 0, nn.OID, nn.Name, "n")
+				builder.oid(row, 9, domain.Address().ObjectID)
+				if builder.err != nil {
+					return nil, builder.err
+				}
+			}
 			for _, check := range domain.DomainChecks {
 				row := values[at*28 : (at+1)*28 : (at+1)*28]
 				rows[at] = row

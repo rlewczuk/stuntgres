@@ -37,7 +37,7 @@ type StageHost interface {
 	ResolveColumnCollation(sqltype.Usage, *parser.ObjectName) (sqltype.Usage, error)
 
 	BindDomainDefault(auth ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error
-	BindDomainChecks(auth ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error
+	BindDomainConstraints(auth ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error
 
 	NewCompositeRelation(namespace ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []catalog.Column, index map[string]int) (*catalog.Relation, error)
 	StageRowType(*catalog.Relation) error

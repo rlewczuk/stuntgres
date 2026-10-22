@@ -2300,7 +2300,31 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   those dependencies without pruning a surviving sibling's written value.
   Native domain-default replay projects retired constructor fields away; restored
   deparse normalizes to the current row shape, not the source's historical arity.
-  ALTER DOMAIN default/nullability changes remain unsupported.
+  ALTER DOMAIN SET/DROP DEFAULT changes only the target's effective recipe.
+  Previously created children retain their copied recipe/text, even after the
+  parent's recipe changes or disappears; DROP clears, never re-inherits.
+  SET/DROP NOT NULL changes own nullability, not ancestor or column constraints.
+  New own SET validates existing direct/derived physical uses by NULLness only,
+  without recasting or executing unrelated CHECK/default recipes. Failed,
+  canceled or conflicted publication installs no partial metadata/storage roots.
+  It uses the existing TypeExclusive/physical Share lock admission outside the
+  engine mutex; readers remain admitted. Repeated own SET is a no-op/no rescan;
+  DROP then SET rescans. Stored array/composite carriers block validating SET
+  even when empty, but do not block default edits, DROP or repeated own SET.
+  Real named NOT NULL definitions participate in pg_constraint, dependencies,
+  deparse, object addresses, naming/OID reservations and native replay.
+  CREATE's existing own NOT NULL syntax now constructs the same real metadata.
+  Native dump pairs each domain declaration with a strict authenticated default
+  snapshot record, preserving independent recipes/result usages without extra
+  ancestor conversions. Ordinary external replay ignores these host records and
+  is not promised identical CHECK demand or third-party pg_dump compatibility.
+  Native held analysis uses current recipes/coercions; PostgreSQL may retain a
+  rewritten old omitted default or an eliminated child-domain view coercion.
+  These precise prepared-cache boundaries do not weaken direct/fresh behavior.
+  All four forms retain the read-only and explicit-transaction utility boundary.
+  Native Restore reconstructs these states with CREATE and paired snapshots;
+  its ALTER DOMAIN allow-list remains limited to captured named NOT VALID CHECK
+  additions, not arbitrary default/nullability utilities in input dump scripts.
 - Domain CHECK uses the admitted shared expression providers and conversion
   routes, including existing nested members; subqueries and non-VALUE variables
   are rejected. TRUE/UNKNOWN pass, FALSE reports domain 23514. Fresh NULL is

@@ -12,7 +12,7 @@ func TestReferenceDomainAlterConstraintBoundaries(t *testing.T) {
 	domainAlterScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder, _ *[]fixture.Diagnostic) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		run(fixture.Exec("CREATE DOMAIN domain_s.d AS integer CONSTRAINT keep CHECK(VALUE<10)", 0))
-		for _, q := range []string{"ALTER DOMAIN domain_s.d ADD CONSTRAINT positive CHECK(VALUE>0) NOT VALID", "ALTER DOMAIN domain_s.d VALIDATE CONSTRAINT keep", "ALTER DOMAIN domain_s.d DROP CONSTRAINT keep"} {
+		for _, q := range []string{"ALTER DOMAIN domain_s.d ADD CONSTRAINT positive CHECK(VALUE>0) NOT VALID", "ALTER DOMAIN domain_s.d VALIDATE CONSTRAINT keep", "ALTER DOMAIN domain_s.d DROP CONSTRAINT keep", "ALTER DOMAIN domain_s.d SET DEFAULT 7", "ALTER DOMAIN domain_s.d DROP DEFAULT", "ALTER DOMAIN domain_s.d SET NOT NULL", "ALTER DOMAIN domain_s.d DROP NOT NULL"} {
 			t.Run(q, func(t *testing.T) {
 				tx, err := c.BeginTx(p.Ctx, nil)
 				if err != nil {
@@ -52,31 +52,6 @@ func TestReferenceDomainAlterConstraintBoundaries(t *testing.T) {
 			}
 		})
 		run(domainAlterFlags("d", [][]any{{"keep", true}}))
-		// These adjacent operations remain an explicit native parser boundary;
-		// PostgreSQL's legal transactional forms are executed and rolled back.
-		for _, tc := range []struct{ suffix, token string }{
-			{"SET DEFAULT 7", "SET"}, {"SET NOT NULL", "SET"}, {"DROP NOT NULL", "NOT"},
-		} {
-			t.Run(tc.suffix, func(t *testing.T) {
-				q := "ALTER DOMAIN domain_s.d " + tc.suffix
-				if b.PG {
-					tx, err := c.BeginTx(p.Ctx, nil)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer tx.Rollback()
-					fixture.RunStep(t, p.Ctx, tx, r, fixture.Exec(q, 0))
-					if err := tx.Rollback(); err != nil {
-						t.Fatal(err)
-					}
-				} else {
-					want := fixture.ControlsReferenceDiagnostic("42601", "syntax error at or near \""+tc.token+"\"")
-					want.Position = fixture.Position(strings.Index(q, tc.token) + 1)
-					fixture.RunStep(t, p.Ctx, c, r, fixture.ErrorDiagnostic(q, want))
-				}
-				fixture.RunStep(t, p.Ctx, c, r, domainAlterFlags("d", [][]any{{"keep", true}}))
-			})
-		}
 		q := "ALTER DOMAIN domain_s.d ADD CONSTRAINT rejected CHECK(VALUE>0), DROP CONSTRAINT keep"
 		want := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near ","`)
 		want.Position = fixture.Position(strings.Index(q, ",") + 1)

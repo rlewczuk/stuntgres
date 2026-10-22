@@ -46,7 +46,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			next := *d
 			next.DomainChecks = slices.Clone(d.DomainChecks)
 			if err == nil {
-				err = e.bindDomainChecks(op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
+				err = e.bindDomainConstraints(op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
 			}
 			if err == nil {
 				next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), true)

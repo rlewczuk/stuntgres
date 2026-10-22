@@ -328,6 +328,16 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity) ObjectIdentity {
 	for _, descriptor := range view.Descriptors() {
 		if domain, ok := descriptor.(*catalog.Type); ok && a.ClassID == 2606 {
+			if nn := domain.DomainNotNull; nn != nil && nn.OID == a.ObjectID {
+				r.Found, r.Kind = true, "domain constraint"
+				ns, _ := objectNamespace(view, domain.Namespace())
+				r.Schema = catalog.Identifier(ns)
+				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()))
+				r.Identity = catalog.Identifier(nn.Name) + " on " + typeName
+				r.Names, r.Args = []string{typeName}, []string{nn.Name}
+				r.Description = "constraint " + nn.Name
+				return r
+			}
 			for _, check := range domain.DomainChecks {
 				if check.OID != a.ObjectID {
 					continue

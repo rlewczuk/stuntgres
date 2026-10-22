@@ -169,7 +169,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	next := *d
 	if err == nil {
-		err = e.bindDomainChecks(op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
+		err = e.bindDomainConstraints(op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
 	}
 	if err == nil {
 		next.DomainChecks[0].NotValid = true

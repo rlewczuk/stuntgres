@@ -36,6 +36,7 @@ type Type struct {
 	Array               sqltype.ID
 	OwningRelation      ids.ObjectAddress
 	DomainChecks        []DomainCheckConstraint
+	DomainNotNull       *DomainNotNullConstraint
 	// DomainDefault is the immutable effective recipe copied at creation.
 	// A nonnil NULL recipe masks an inherited default; it has no pg_attrdef OID.
 	DomainDefault    *ColumnDefault
@@ -43,6 +44,13 @@ type Type struct {
 	// DomainDefaultText is creation-time presentation, copied with inheritance.
 	// It is not executable SQL or a provider/visibility capability.
 	DomainDefaultText string
+}
+
+// DomainNotNullConstraint is a genuine domain-owned definition. Its namespace
+// is always the current namespace of its domain; identity edits retain the OID.
+type DomainNotNullConstraint struct {
+	OID  ids.OID
+	Name string
 }
 
 func (d *Type) Address() ids.ObjectAddress {

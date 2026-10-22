@@ -25,6 +25,9 @@ func ConstraintNames(read Read, namespace ids.ObjectAddress, candidate *Relation
 			descriptor = candidate
 		}
 		if domain, ok := descriptor.(*Type); ok && domain.ObjectNamespace == namespace {
+			if domain.DomainNotNull != nil {
+				names[domain.DomainNotNull.Name] = true
+			}
 			for _, constraint := range domain.DomainChecks {
 				names[constraint.Name] = true
 			}

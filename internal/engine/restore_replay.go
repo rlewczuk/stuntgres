@@ -26,6 +26,7 @@ type restoreReplay struct {
 	partitionUsingIndex    *partition.UsingIndexReplay // Exact leased private-import physical target/index.
 	partitionUnique        *partition.UniqueReplay     // Exact private virtual definition/subtree lease.
 	domainReplay           *domainReplayCapture        // Exact private native INSERT's immutable captured cells.
+	domainDefault          *domainDefaultReplayCapture // Paired CREATE only; no ordinary SQL authority.
 }
 
 func (*restoreReplay) ReplaySlot() {}

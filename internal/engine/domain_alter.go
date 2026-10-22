@@ -91,13 +91,14 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	scope.routineAuth = auth
 	scope.domains.inputCatalog = auth.Catalog
 	stage.domainBases = append(stage.domainBases, old)
-	edit, err := typedef.StageAlterDomainConstraintLocked(ddlHost{e: e, op: op, stage: stage}, auth, old, raw, scope.input)
+	edit, err := typedef.StageAlterDomainLocked(ddlHost{e: e, op: op, stage: stage}, auth, old, raw, scope.input, scope.output)
 	if err == nil && edit.Skipped {
 		e.mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		return Result{}, nil
 	}
-	next, selected, validating := edit.Next, edit.Selected, edit.Validating
+	next, selected, validation := edit.Next, edit.Selected, edit.Validation
+	validating := validation != typedef.DomainValidateNone
 	var diagnosticPath []ids.ObjectAddress
 	if err == nil && validating {
 		diagnosticPath, err = referencePath(auth)
@@ -109,15 +110,19 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	}
 	if validating {
 		chosen := next
-		chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
-		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		evaluation.Input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
-		if err != nil {
-			return Result{}, err
+		if validation == typedef.DomainValidateValues {
+			chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
+			scope.routineDependencies = chosen.DomainChecks[0].Dependencies
 		}
-		if err := prepareOwnDomainChecks(&evaluation, &chosen); err != nil {
-			return Result{}, err
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		if validation == typedef.DomainValidateValues {
+			evaluation.Input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
+			if err != nil {
+				return Result{}, err
+			}
+			if err := prepareOwnDomainChecks(&evaluation, &chosen); err != nil {
+				return Result{}, err
+			}
 		}
 		fence, discoveryErr := typedef.DomainUsesAt(auth.Catalog, ref.Address, diagnosticPath)
 		if fence != nil {
@@ -173,7 +178,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		stage.domainAlterState().Validation = fence
 		for _, use := range fence.Uses {
 			writes, deletes := scope.columnProjectionRoots(use.Relation.Address())
-			if err := validateSelectedDomainRows(&evaluation, auth.Catalog, &chosen, use, frontier, writes, deletes); err != nil {
+			if err := validateSelectedDomainRows(&evaluation, auth.Catalog, &chosen, use, frontier, writes, deletes, validation); err != nil {
 				return Result{}, err
 			}
 		}
@@ -190,10 +195,10 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	return Result{}, err
 }
 
-func validateSelectedDomainRows(c *exec.Context, view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
+func validateSelectedDomainRows(c *exec.Context, view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, validation typedef.DomainValidation) error {
 	violations := make([]error, len(use.Columns))
 	for i, column := range use.Columns {
-		violations[i] = typedef.DomainHistoricalViolation(view, use.Relation, column)
+		violations[i] = typedef.DomainHistoricalViolation(view, use.Relation, column, validation)
 	}
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
@@ -213,7 +218,11 @@ func validateSelectedDomainRows(c *exec.Context, view catalog.Read, selected *ca
 				continue
 			}
 			for i, column := range use.Columns {
-				if err := c.EvaluateSelectedDomainCheck(view, selected, row.Values[column], violations[i]); err != nil {
+				if validation == typedef.DomainValidateNulls {
+					if row.Values[column].IsNull() {
+						return violations[i]
+					}
+				} else if err := c.EvaluateSelectedDomainCheck(view, selected, row.Values[column], violations[i]); err != nil {
 					return err
 				}
 			}

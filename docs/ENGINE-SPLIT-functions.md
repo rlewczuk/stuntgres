@@ -2237,8 +2237,10 @@ master:
 - `ORDER BY` over json or a multirange column fails ("could not identify an
   ordering operator for type json"; "invalid ordering type" with no
   SQLSTATE).
-- `ALTER DOMAIN … RENAME TO`, `ALTER DOMAIN … SET DEFAULT` and
-  `ALTER TYPE … RENAME TO` are syntax errors.
+- At F6, ALTER DOMAIN RENAME/SET DEFAULT and ALTER TYPE RENAME were syntax
+  errors. Domain identity and the four default/nullability ALTER actions have
+  since acquired their own implementation/reference contracts; this historical
+  observation is not a current domain capability boundary.
 - After `ALTER COLLATION mycoll RENAME TO mycoll2`, `COLLATE mycoll2` reports
   42704 "collation … for encoding "UTF8" does not exist".
 

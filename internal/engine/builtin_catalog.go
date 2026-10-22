@@ -58,7 +58,7 @@ func (e *Engine) installBuiltinDomainChecks() error {
 	}
 	for _, seed := range checks {
 		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
-		if err := e.bindDomainCheckRecipes(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Constraints, sqltype.InputEnvironment{}); err != nil {
+		if err := e.bindDomainConstraintDefinitions(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Constraints, sqltype.InputEnvironment{}); err != nil {
 			return err
 		}
 	}

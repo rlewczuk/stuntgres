@@ -72,7 +72,7 @@ func TestDomainConstraintASTAndCompleteSuffixes(t *testing.T) {
 			t.Fatal(tc.q, ss, err)
 		}
 	}
-	for _, q := range []string{"CREATE DOMAIN public.a AS integer(3)", "CREATE DOMAIN public.a AS integer NULL nonsense", "DROP DOMAIN public.a CASCADE nonsense", "ALTER DOMAIN public.a SET NOT NULL", "CREATE DOMAIN public.a AS integer; DROP DOMAIN public.a CASCADE nonsense"} {
+	for _, q := range []string{"CREATE DOMAIN public.a AS integer(3)", "CREATE DOMAIN public.a AS integer NULL nonsense", "DROP DOMAIN public.a CASCADE nonsense", "ALTER DOMAIN public.a SET NOT NULL nonsense", "CREATE DOMAIN public.a AS integer; DROP DOMAIN public.a CASCADE nonsense"} {
 		ss, err := Parse(q)
 		if err == nil || ss != nil {
 			t.Fatal("unsupported suffix accepted", q, ss, err)

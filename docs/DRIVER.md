@@ -739,6 +739,22 @@ table in an already existing schema alone does not invalidate a held query or DM
 target. Direct queries and fresh preparation still use current name resolution.
 Ordinary data changes and unrelated relation creation do not invalidate analysis.
 
+Domain default/nullability edits preserve this current-descriptor contract.
+After parent DEFAULT7 becomes11 and then is dropped, SAME held omitted INSERTs
+(Go and SQL PREPARE) use11 and then NULL natively; existing child defaults stay7.
+PostgreSQL18.6 can retain7 in those already rewritten queries, even if SQL
+PREPARE's first EXECUTE follows the edit. Fresh direct/Go Prepare/SQL PREPARE
+routes use11/NULL on both. This witness concerns omission, not an inferred held
+explicit-DEFAULT-keyword contract.
+A warmed PostgreSQL plan of a view containing NULL::child may also retain NULL
+after parent SET NOT NULL: its eliminated executable coercion records child,
+not ancestor, identity. Native held analysis checks current ancestry and reports
+23502 instead. Fresh/late-created child-view queries and a warmed view coercing
+to the altered parent itself report23502 on both; DROP admits NULL again.
+These are exact rewritten-query/executable-cache boundaries, not permission to
+cache stale native recipes, invalidate on unrelated DDL, or weaken the separate
+outer-join/empty-scalar already-domain-NULL exemption.
+
 That shadow-retention rule is a statement-boundary rule. Native admission retains
 its existing limitation if original-name resolution changes during a lock wait:
 direct execution, fresh preparation and retained handles all return

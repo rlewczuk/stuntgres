@@ -14,27 +14,41 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindDomainChecks(op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	return e.bindDomainCheckRecipes(op.Context(), op, auth, stage, d, raw, input)
+func (e *Engine) bindDomainConstraints(op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+	return e.bindDomainConstraintDefinitions(op.Context(), op, auth, stage, d, raw, input)
 }
 
-func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+func (e *Engine) bindDomainConstraintDefinitions(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	used := catalog.ConstraintNames(auth.Catalog, d.ObjectNamespace, nil)
 	installed := make(map[string]bool)
 	for _, check := range d.DomainChecks {
 		installed[check.Name] = true
+	}
+	if d.DomainNotNull != nil {
+		installed[d.DomainNotNull.Name], used[d.DomainNotNull.Name] = true, true
 	}
 	firstOrdinal := len(d.DomainChecks)
 	for _, check := range d.DomainChecks {
 		firstOrdinal = max(firstOrdinal, check.Ordinal+1)
 	}
 	for ordinal, column := range raw {
+		// Naming observes only definitions installed so far in declaration
+		// order. CHECK ordinals still use the original raw-list positions;
+		// alphabetical evaluation order is applied after all binding.
+		if column.NotNull {
+			if err := typedef.BindDomainNotNull(ddlHost{e: e, op: op, stage: stage}, auth, d, column.Name.Text); err != nil {
+				return err
+			}
+			installed[d.DomainNotNull.Name], used[d.DomainNotNull.Name] = true, true
+			continue
+		}
 		check := column.Check
 		if check == nil {
 			continue

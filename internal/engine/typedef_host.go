@@ -75,11 +75,14 @@ func (h ddlHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName)
 }
 
 func (h ddlHost) BindDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+	if restored, err := h.bindRestoredDomainDefault(a, d, raw, input, output); restored || err != nil {
+		return err
+	}
 	return h.e.bindDomainDefault(h.op.Context(), h.op, ddlAuthorityOf(a), h.stage, d, raw, input, output)
 }
 
-func (h ddlHost) BindDomainChecks(a ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	return h.e.bindDomainChecks(h.op, ddlAuthorityOf(a), h.stage, d, raw, input)
+func (h ddlHost) BindDomainConstraints(a ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+	return h.e.bindDomainConstraints(h.op, ddlAuthorityOf(a), h.stage, d, raw, input)
 }
 
 func (h ddlHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {

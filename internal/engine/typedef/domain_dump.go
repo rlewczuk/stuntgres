@@ -61,15 +61,21 @@ func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Rea
 		collation = " COLLATE " + name
 	}
 	var checks strings.Builder
-	if d.DomainDefaultOwn {
+	if d.DomainDefault != nil {
 		text, err := p.DomainDefault(ctx, view, d.DomainDefault.Expression)
 		if err != nil {
 			return dump.Statement{}, err
 		}
 		checks.WriteString(" DEFAULT " + text)
+	} else {
+		// Explicit absence must not re-inherit the present-day parent's default.
+		checks.WriteString(" DEFAULT NULL")
 	}
 	if d.SQLType.OwnDomainNotNull() {
-		checks.WriteString(" NOT NULL")
+		if d.DomainNotNull == nil {
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing owned domain NOT NULL definition")
+		}
+		checks.WriteString(" CONSTRAINT " + catalog.Identifier(d.DomainNotNull.Name) + " NOT NULL")
 	}
 	for _, check := range d.DomainChecks {
 		if check.NotValid {
@@ -81,7 +87,15 @@ func domainDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Rea
 		}
 		checks.WriteString(" CONSTRAINT " + catalog.Identifier(check.Name) + " CHECK (" + text + ")")
 	}
-	return dump.Statement{Owner: owner.Name, SQL: "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
+	record, err := CaptureDomainDefault(view, d)
+	if err != nil {
+		return dump.Statement{}, err
+	}
+	prefix, err := EncodeDomainDefault(record)
+	if err != nil {
+		return dump.Statement{}, err
+	}
+	return dump.Statement{Owner: owner.Name, SQL: prefix + "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
 }
 
 func DomainInvalidDumpStatement(ctx context.Context, p dump.Presenter, view catalog.Read, domain *catalog.Type) (string, error) {

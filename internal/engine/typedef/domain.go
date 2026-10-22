@@ -126,7 +126,7 @@ func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDo
 	if err := h.BindDomainDefault(auth, domain, defaultRaw, input, output); err != nil {
 		return err
 	}
-	if err := h.BindDomainChecks(auth, domain, s.Constraints, input); err != nil {
+	if err := h.BindDomainConstraints(auth, domain, s.Constraints, input); err != nil {
 		return err
 	}
 	if err = h.Stage().Create(domain); err != nil {

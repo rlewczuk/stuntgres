@@ -15,6 +15,7 @@ import (
 var restoreHooks = []control.Hook[*restoreRun]{
 	// Line comment decoders.
 	{Name: "typedef: domain replay records", Decode: decodeRestoreDomainReplay},
+	{Name: "typedef: domain default snapshots", Decode: decodeRestoreDomainDefault},
 	{Name: "extension: owner records", Decode: decodeRestoreExtensionOwners},
 	{Name: "view: materialized snapshot records", Decode: decodeRestoreMaterializedSnapshot},
 

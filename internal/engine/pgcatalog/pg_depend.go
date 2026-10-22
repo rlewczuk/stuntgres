@@ -145,6 +145,9 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 					}
 				}
 			}
+			if d.DomainNotNull != nil {
+				add(ids.ObjectAddress{ClassID: 2606, ObjectID: d.DomainNotNull.OID}, d.Address(), 'a')
+			}
 			for _, check := range d.DomainChecks {
 				if err := ctx.Err(); err != nil {
 					return nil, err

@@ -28,6 +28,15 @@ func decodeRestoreDomainReplay(r *restoreRun, comment string, position parser.Po
 	return true, nil
 }
 
+func decodeRestoreDomainDefault(r *restoreRun, comment string, position parser.Position) (bool, error) {
+	record, recognized, err := typedef.DecodeDomainDefault(comment)
+	if err != nil || !recognized {
+		return false, err
+	}
+	r.domainDefaults = append(r.domainDefaults, typedef.PositionedDomainDefault{Record: record, End: position.Offset + len(comment)})
+	return true, nil
+}
+
 // decodeRestoreExtensionOwners collects an extension owner record.
 func decodeRestoreExtensionOwners(r *restoreRun, comment string, _ parser.Position) (bool, error) {
 	record, recognized, err := extension.DecodeOwners(comment)
