@@ -691,4 +691,15 @@ var Specs = [...]Spec{
 		{"ordinal_position", 13243, true, 0, 0, -1},
 		{"position_in_unique_constraint", 13243, true, 0, 0, -1},
 	}, true, false, false, false, "stuntgres: missing key column usage domain"},
+	{InfoRoutineSequenceUsageOID, 13229, "routine_sequence_usage", []ColumnSpec{
+		{"specific_catalog", 13248, true, 950, 0, -1},
+		{"specific_schema", 13248, true, 950, 0, -1},
+		{"specific_name", 13248, true, 950, 0, -1},
+		{"routine_catalog", 13248, true, 950, 0, -1},
+		{"routine_schema", 13248, true, 950, 0, -1},
+		{"routine_name", 13248, true, 950, 0, -1},
+		{"sequence_catalog", 13248, true, 950, 0, -1},
+		{"sequence_schema", 13248, true, 950, 0, -1},
+		{"sequence_name", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing routine sequence identifier domain"},
 }

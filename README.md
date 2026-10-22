@@ -245,6 +245,23 @@ See [native limits](docs/DIALECT.md#transactional-large-object-bytes),
 [replay](docs/FIXTURES.md#large-object-snapshots), and
 [selected proof/smoke](reference/object_grants/README.md#transactional-large-object-byte-storage).
 
+## Routine sequence usage — change note
+
+`information_schema.routine_sequence_usage` exposes one row per actual direct
+SQL-standard routine/sequence dependency, with nine nullable `sql_identifier`
+columns and no NULL placeholder rows. Repeated references, multiple sequence
+columns and mixed direct calls/column reads collapse to one containing-sequence
+pair; quoted SQL bodies and transitive calls do not manufacture hard sequence
+edges. Rows use current routine/sequence names and suffix-preserving specific
+identities.
+Visibility follows enabled sequence-owner roles only, not routine EXECUTE,
+schema USAGE or sequence ACLs. Fresh direct and prepared executions reflect
+rename, schema move, ownership and dependency retirement through existing catalog
+and role captures. This adds no adjacent usage views, parameter defaults,
+OR REPLACE or ALTER routine support.
+See [native boundaries](docs/DIALECT.md#routine-sequence-usage) and
+[selected proof](reference/catalogs/README.md#routine-sequence-usage).
+
 ## Information-schema user mappings — change note
 
 `information_schema.user_mappings` exposes actual SQL/MED mapping identities

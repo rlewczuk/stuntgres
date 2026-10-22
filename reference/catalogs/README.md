@@ -371,6 +371,48 @@ make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$'
 make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
 ```
 
+### Routine sequence usage
+
+The seven `TestReferenceInfoRoutineSequenceUsage` definitions prescribe the exact
+nine-column identifier-domain/NAME projection, nullable metadata, empty and
+populated direct/prepared routes, actual direct hard sequence edges, duplicate
+collapse, overload/procedure identities and UTF8 specific-name clipping.
+Direct sequence-column references (including `last_value` and `is_called`) and
+mixed direct calls/column reads yield one pair per containing sequence; unrelated
+filtered queries remain usable. Quoted bodies (including after execution),
+ordinary-table/column-only bodies, text, NULLs and transitive calls are exclusion
+controls, not adjacent usage-view work.
+Typed formal NULL input avoids the existing constant-folded-call capture boundary.
+Expected membership comes from declared fixtures, never pg_depend or the view;
+specific suffixes use independently resolved regprocedure identities.
+
+Visibility follows enabled sequence-owner roles, not routine EXECUTE, schema
+USAGE or sequence ACL grants. Held reads exercise inheritance, SET-only routes,
+grant/revoke and owner changes. Lifecycle covers rename/schema move,
+drop/recreate, complete RESTRICT diagnostics with unchanged rows, CASCADE and
+unrelated survivors. Native-only controls add Dump/Reset/Restore, retained
+rows/metadata and failed/canceled replacement; the shared SQL contract still
+runs on pinned PostgreSQL 18.6. No discovery filters remain.
+
+Run each selected command with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$'
+make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$' REFERENCE=1
+make check RUN='^TestInfoRoutineSequenceUsage(Producer|SpecificName)$'
+```
+
+Expected exit zero with quiet package summaries after implementation. The actual
+feature smoke is a throwaway Go program using only the public driver and
+database/sql APIs, kept in the orchestration session rather than committed as a
+duplicate test. It creates a sequence and SQL-standard function combining
+`nextval`, `last_value` and `is_called`, checks exactly one nine-NAME pair through
+direct and held-prepared reads and an unrelated filtered empty result, renames
+the sequence and checks updated names with the same routine identity, then drops
+the routine and checks an empty result with unchanged metadata. Record its four
+observed `created`, `unrelated []`, `renamed`, `dropped []` lines before removing
+the session program.
+
 ### Extension removal
 
 The nine new removal definitions independently specify PostgreSQL18.6

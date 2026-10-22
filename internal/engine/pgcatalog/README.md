@@ -2,7 +2,7 @@
 
 Row producers for the system relations: the `pg_catalog` tables and views and
 the `information_schema` views `table_privileges`, `data_type_privileges`,
-`user_mappings` and `key_column_usage`.
+`user_mappings`, `key_column_usage` and `routine_sequence_usage`.
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
@@ -222,6 +222,28 @@ make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
 ```
 
 
+
+`info_routine_sequence_usage.go` reads direct stored SQLBody relation references
+from the captured procedure descriptors, resolves only real sequences in the
+same catalog root, and validates nonzero sequence attributes with the captured
+relation's `HasAttribute` authority. Distinct stored attribute ObjectRefs may
+refer to one sequence, so a lazy per-routine sequence-identity set implements
+distinct pairs. Every reference is validated before duplicate suppression;
+invalid attributes and foreign-domain/stale-epoch refs remain errors.
+Its sole visibility predicate is enabled sequence-owner role inheritance;
+routine/schema/sequence ACL checks
+are deliberately absent. Current descriptor names and a UTF8 prefix-clipped,
+OID-suffix-preserving specific name form nine genuine `sql_identifier` values.
+The engine supplies paired catalog/role provenance and the session database name.
+Empty captures are nonnil; cancellation and invalid capture/dependency identities
+return no prefix rows. No SQL-body parsing, recursive expansion, pg_depend
+materialization or second lifecycle registry is involved.
+
+```sh
+make check RUN='^TestInfoRoutineSequenceUsage(Producer|SpecificName)$'
+make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$'
+make check RUN='^TestReferenceInfoRoutineSequenceUsage(Shape|Population|SequenceColumns|Visibility|Lifecycle|Diagnostics|Controls)$' REFERENCE=1
+```
 
 Package units run without an engine:
 

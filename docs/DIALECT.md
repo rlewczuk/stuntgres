@@ -941,6 +941,43 @@ Restore has a restricted parameter-free replay boundary, not general script
 execution. It does not import temporary objects, transaction controls, shared
 role effects or arbitrary CTE/RETURNING history. See [fixture contracts](FIXTURES.md).
 
+## Routine sequence usage
+
+`information_schema.routine_sequence_usage` has nine ordered nullable
+`information_schema.sql_identifier` domain columns over NAME:
+`specific_catalog`, `specific_schema`, `specific_name`, `routine_catalog`,
+`routine_schema`, `routine_name`, `sequence_catalog`, `sequence_schema`,
+`sequence_name`. The PostgreSQL 18 manual's `schema_catalog` spelling is a typo;
+the released SQL and pinned 18.6 runtime use `sequence_catalog`. No alias is
+provided. All three catalog fields identify the current database.
+
+Rows represent distinct direct stored routine/sequence identity pairs.
+SQL-standard RETURN/ATOMIC functions and procedures retain genuine hard edges.
+Whole-sequence references and valid sequence-column references contribute the
+same containing sequence identity; multiple columns or mixed direct calls/column
+reads produce only one pair. Quoted bodies do not gain edges even after
+invocation. Ordinary tables and their columns, callees, text resembling a sequence
+name, NULLs and transitive sequence use do not produce sequence rows.
+No dependencies yields zero rows with full metadata,
+never a NULL placeholder. Specific names preserve the full decimal OID suffix,
+clipping the routine-name prefix on a UTF8 boundary to fit 63 bytes.
+
+Only immediately enabled sequence-owner roles control visibility: self,
+superuser and inheritable owner membership qualify. A sequence ACL grant alone
+does not; SET-only membership qualifies only after SET ROLE. Routine ownership,
+routine EXECUTE, schema USAGE and search-path visibility are not additional
+filters. Each execution uses the paired immutable catalog/role capture, including
+held prepared reads. Existing rename/move/owner/drop and native logical replay
+determine current dependency identities and names; retained native rows stay
+unchanged. No separate dependency registry or recursive expansion is introduced.
+
+Parameter-default declarations, OR REPLACE and ALTER routine lifecycle remain
+unsupported as described under [scalar SQL routines](#scalar-sql-routines).
+The constant-folded `nextval(NULL::regclass)` standard-body capture boundary is
+unchanged; a typed formal invoked with NULL exercises NULL sequence input without
+requiring that unrelated binder extension.
+See [selected proof and actual API smoke](../reference/catalogs/README.md#routine-sequence-usage).
+
 ## Information-schema user mappings
 
 `information_schema.user_mappings` has exactly `authorization_identifier`,
