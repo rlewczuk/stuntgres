@@ -259,7 +259,7 @@ func TestDomainDeclarationClausesAtomicInternal(t *testing.T) {
 	auth := catalogAuthorization(e, e.CatalogRead())
 	var dependencies []access.RoleDependency
 	access.DescriptorRoleDependencies(d, d.Owner, &dependencies)
-	if len(dependencies) == 0 || dependencyDescription(auth, dependencies[0]) != "owner of type nullable" {
+	if len(dependencies) == 0 || (ddlHost{e: e}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
 		t.Fatal("domain role dependency", dependencies)
 	}
 }

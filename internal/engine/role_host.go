@@ -48,7 +48,9 @@ func (h ddlHost) ReferencingFeatures(ref authorization.PrincipalRef) []string {
 }
 
 func (h ddlHost) DescribeRoleDependency(a ddl.Authority, dep access.RoleDependency) string {
-	return dependencyDescription(ddlAuthorityOf(a), dep)
+	auth := ddlAuthorityOf(a)
+	path, _ := h.e.referencePath(auth)
+	return role.DependencyDescription(auth.View, path, dep)
 }
 
 func (h ddlHost) OwnerStage() role.OwnedCleanupStage { return h.stage }

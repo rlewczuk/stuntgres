@@ -222,7 +222,7 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	e.mu.Unlock()
-	if err != nil || dependencyDescription(auth, dependencies[0]) != "owner of table grant_unit" {
+	if err != nil || (ddlHost{e: e}).DescribeRoleDependency(auth, dependencies[0]) != "owner of table grant_unit" {
 		t.Fatal("parent ownership diagnostic", dependencies, err)
 	}
 }

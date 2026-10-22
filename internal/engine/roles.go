@@ -3,16 +3,11 @@ package engine
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -125,93 +120,6 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		return e.publishDroppedRolesLocked(op, plan)
 	}
 	return Result{}, fmt.Errorf("stuntgres: invalid role statement")
-}
-
-func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) string {
-	view := auth.Catalog
-	if dep.Kind == 'r' {
-		relation := view.MustRelation(dep.PolicyTable)
-		return "target of policy " + catalog.DependencyIdentifier(dep.PolicyName) + " on table " + relationDiagnosticName(auth, relation)
-	}
-	if dep.Description != "" {
-		return dep.Description
-	}
-	address := dep.Address
-	address.SubID = 0
-	d := view.Get(address)
-	name := catalog.DependencyIdentifier(d.Name())
-	if _, ok := d.(*catalog.Namespace); ok {
-		name = d.Name()
-	}
-	kind := "schema "
-	switch d.(type) {
-	case *catalog.Database:
-		kind = "database "
-	case *catalog.Parameter:
-		kind = "parameter "
-		name = d.Name()
-	case *catalog.Tablespace:
-		kind = "tablespace "
-	case *catalog.LargeObject:
-		kind, name = "large object ", d.Name()
-	case *catalog.Extension:
-		kind = "extension "
-	case *catalog.Procedure:
-		kind = "function "
-	case *catalog.TSDictionary:
-		kind = "text search dictionary "
-	}
-	if foreign, ok := d.(*catalog.ForeignObject); ok {
-		kind = catalog.ForeignLabel(foreign.Address().ClassID) + " "
-		if foreign.Address().ClassID == ids.ForeignMappingClassID {
-			kind = "user mapping for "
-			mapped, _ := auth.Roles.Descriptor(foreign.MappedRole)
-			name = catalog.DependencyIdentifier(mapped.Name) + " on server " + catalog.DependencyIdentifier(view.Get(foreign.Server).Name())
-		}
-	}
-	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject {
-		path, _ := auth.engine.referencePath(auth)
-		name = strings.TrimPrefix(stored.DependencyObject(view, d.Address(), path), kind)
-	}
-	if relation, ok := d.(*catalog.Relation); ok {
-		kind = catalog.RelationDiagnosticKind(relation) + " "
-		name = relationDiagnosticName(auth, relation)
-		if dep.Address.SubID != 0 {
-			// getObjectDescription interpolates the raw attribute name; only
-			// getRelationDescription applies diagnostic identifier quoting.
-			for slot, attribute := range relation.Attributes {
-				if attribute == dep.Address.SubID {
-					kind = "column " + relation.Columns[slot].Name + " of table "
-					break
-				}
-			}
-		}
-		if relation.RelationKind == catalog.CompositeRelation {
-			path, _ := auth.engine.referencePath(auth)
-			typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-			kind, name = "type ", catalog.TypeDiagnosticNameAt(view, typ, path)
-		}
-	}
-	if typ, ok := d.(*catalog.Type); ok && (typ.SQLType.IsUserDefined() || typ.SQLType.IsArray() && typ.SQLType.Element().IsDomain()) {
-		path, _ := auth.engine.referencePath(auth)
-		kind = "type "
-		name = catalog.TypeDiagnosticNameAt(view, typ, path)
-	}
-	if c, ok := d.(*catalog.Collation); ok {
-		path, _ := auth.engine.referencePath(auth)
-		kind = "collation "
-		name = strings.TrimPrefix(stored.DependencyObject(view, c.Address(), path), "collation ")
-	}
-	if c, ok := d.(*catalog.Conversion); ok {
-		path, _ := auth.engine.referencePath(auth)
-		kind = "conversion "
-		name = strings.TrimPrefix(stored.DependencyObject(view, c.Address(), path), "conversion ")
-	}
-	prefix := "privileges for "
-	if dep.Kind == 'o' {
-		prefix = "owner of "
-	}
-	return prefix + kind + name
 }
 
 // publishDroppedRolesLocked installs a decided DROP ROLE: the role record
