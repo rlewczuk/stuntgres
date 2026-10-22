@@ -135,12 +135,7 @@ func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 	auth.Catalog = current
 	auth.Recapture(auth.Catalog)
 	namespace, _ := current.Namespace(parent.Namespace())
-	root := e.storage.IndexRoots[idx.Address()]
-	if changes := s.owner.Catalog; changes != nil {
-		if private := index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()]; private != nil {
-			root = private
-		}
-	}
+	root := index.EffectiveRoot(e.storage.IndexRoots, s.owner.Catalog, idx.Address())
 	var versions []storage.RowVersion
 	if heads {
 		if stored := e.privateStorageLocked(s.owner.Catalog, ref.Address); stored != nil {
@@ -167,11 +162,7 @@ func (h *statementHost) ExistingIndexRoot(idx *catalog.Relation) (*storage.Index
 	if !ok || !index.SameIndexKeySemantics(idx, currentIndex) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	root := e.storage.IndexRoots[idx.Address()]
-	if changes := s.owner.Catalog; changes != nil && index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()] != nil {
-		root = index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()]
-	}
-	return root, nil
+	return index.EffectiveRoot(e.storage.IndexRoots, s.owner.Catalog, idx.Address()), nil
 }
 
 // CaptureExclusionScan captures the scan and its write authority in one
@@ -194,12 +185,7 @@ func (h *statementHost) CaptureExclusionScan(ref ids.ObjectRef, b *index.UniqueW
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	root := e.storage.IndexRoots[idx.Address()]
-	if s.owner.Catalog != nil {
-		if private, ok := index.JournalIndexesOrZero(s.owner.Catalog).UniqueRoots[idx.Address()]; ok {
-			root = private
-		}
-	}
+	root := index.EffectiveRoot(e.storage.IndexRoots, s.owner.Catalog, idx.Address())
 	ns, ok := view.Namespace(b.Parent.Namespace())
 	if !ok {
 		return index.ExclusionScan{}, fmt.Errorf("stuntgres: missing exclusion namespace")
@@ -217,12 +203,7 @@ func (h *statementHost) ExclusionScanCurrent(scan index.ExclusionScan, idx ids.O
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	root := e.storage.IndexRoots[idx]
-	if s.owner.Catalog != nil {
-		if private, ok := index.JournalIndexesOrZero(s.owner.Catalog).UniqueRoots[idx]; ok {
-			root = private
-		}
-	}
+	root := index.EffectiveRoot(e.storage.IndexRoots, s.owner.Catalog, idx)
 	store := e.privateStorageLocked(s.owner.Catalog, scan.Parent)
 	return e.exclusions.CurrentLocked(scan.Generation) && scan.View.State() == e.privateCatalogLocked(s.owner.Catalog).State() && scan.Root == root && store == scan.Store && store.Generation == scan.StoreGeneration && len(store.Versions) == len(scan.Versions) && store.Ends == scan.Ends
 }

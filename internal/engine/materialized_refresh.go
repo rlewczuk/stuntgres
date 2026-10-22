@@ -113,10 +113,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		previous = *scope.lockedStorage
 		var root *storage.IndexRoot
 		if len(indices) != 0 {
-			root = e.storage.IndexRoots[indices[0].Address()]
-			if scope.owner.Catalog != nil && index.JournalIndexesOrZero(scope.owner.Catalog).UniqueRoots[indices[0].Address()] != nil {
-				root = index.JournalIndexesOrZero(scope.owner.Catalog).UniqueRoots[indices[0].Address()]
-			}
+			root = index.EffectiveRoot(e.storage.IndexRoots, scope.owner.Catalog, indices[0].Address())
 		}
 		if root == nil {
 			e.mu.Unlock()

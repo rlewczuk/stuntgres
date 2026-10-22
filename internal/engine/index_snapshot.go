@@ -27,12 +27,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 		authority = e.privateCatalogLocked(private).State()
 	}
 	actualRoot := func(address ids.ObjectAddress) *storage.IndexRoot {
-		if private != nil {
-			if root := index.JournalIndexesOrZero(private).UniqueRoots[address]; root != nil {
-				return root
-			}
-		}
-		return e.storage.IndexRoots[address]
+		return index.EffectiveRoot(e.storage.IndexRoots, private, address)
 	}
 	snapshot := &index.Snapshot{Sources: make(map[ids.ObjectAddress]index.SnapshotSource)}
 	for address, descriptor := range view.Descriptors() {

@@ -31,10 +31,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, idx ids.Object
 	r := table.ForeignKeyRows{Storage: storage, Committed: storage.Versions, Ends: storage.Ends, Own: s.ownWrites[ref.Address], Staged: s.stage.rows[ref.Address], PriorDeletes: s.ownDeletes[ref.Address], CurrentDeletes: s.stage.deletes[ref.Address], Frontier: e.visibility.CommitSeq()}
 	r.Index = idx
 	if idx != (ids.ObjectAddress{}) {
-		r.Root = e.storage.IndexRoots[idx]
-		if changes != nil && index.JournalIndexesOrZero(changes).UniqueRoots[idx] != nil {
-			r.Root = index.JournalIndexesOrZero(changes).UniqueRoots[idx]
-		}
+		r.Root = index.EffectiveRoot(e.storage.IndexRoots, changes, idx)
 		if r.Root == nil {
 			return table.ForeignKeyRows{}, fmt.Errorf("stuntgres: ready foreign-key index root is missing")
 		}
@@ -188,10 +185,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *table.Fo
 		return ids.ErrCatalogReplaced
 	}
 	rows.Committed, rows.Ends, rows.Frontier = storage.Versions, storage.Ends, e.visibility.CommitSeq()
-	rows.Root = e.storage.IndexRoots[rows.Index]
-	if changes != nil && index.JournalIndexesOrZero(changes).UniqueRoots[rows.Index] != nil {
-		rows.Root = index.JournalIndexesOrZero(changes).UniqueRoots[rows.Index]
-	}
+	rows.Root = index.EffectiveRoot(e.storage.IndexRoots, changes, rows.Index)
 	if rows.Root == nil {
 		return fmt.Errorf("stuntgres: ready foreign-key index root is missing")
 	}

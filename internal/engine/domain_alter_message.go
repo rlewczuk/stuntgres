@@ -59,14 +59,11 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 }
 
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
+	var changes *session.Journal
 	if stage.authSession != nil && stage.authSession.Transactions.RetainsTransaction() {
-		if changes := stage.authSession.Transactions.Catalog; changes != nil {
-			if root := index.JournalIndexesOrZero(changes).UniqueRoots[address]; root != nil {
-				return root
-			}
-		}
+		changes = stage.authSession.Transactions.Catalog
 	}
-	return e.storage.IndexRoots[address]
+	return index.EffectiveRoot(e.storage.IndexRoots, changes, address)
 }
 
 func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes *session.Journal) error {
