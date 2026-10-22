@@ -6,6 +6,17 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Recursive view lowering
+
+`make check RUN='^TestCreateRecursiveView(Lowering|SyntheticPositions)$'`
+checks the private AST contract: original body pointer/WITH/set shape and hidden
+tuple width survive, the wrapper explicitly projects aliases from an unqualified
+lexical self, synthetic positions are zero, and destination alias storage remains
+independent. Public grammar combinations, mandatory-list, suffix and INTO
+diagnostics belong to `TestReferenceRecursiveViewBoundaries` and Columns in
+[the owning dual-mode suite](../../reference/views/README.md#recursive-view-contract).
+Generation belongs to the normal make targets; never edit `grammar_gen.go`.
+
 ### SQL/JSON query syntax
 
 `SQLJSONQueryExpr` retains document/path, ordered PASSING and lazy DEFAULT

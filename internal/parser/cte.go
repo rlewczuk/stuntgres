@@ -71,3 +71,35 @@ func VisitMutationTargets(statement Statement, visit func(Statement) error) erro
 	}
 	return nil
 }
+
+// recursiveViewQuery lowers syntax sugar before source admission. Generated
+// names have no source position; the user's body and destination aliases retain
+// theirs. In particular, short lists project rather than truncate CTE tuples.
+func (l *lexer) recursiveViewQuery(name ObjectName, columns []Identifier, body Statement, suffix []ViewOption, pos Position) (*Select, bool) {
+	if len(suffix) != 0 {
+		l.failAt("0A000", "WITH CHECK OPTION not supported on recursive views", suffix[0].Name.Pos.Offset)
+		return nil, false
+	}
+	query, ok := body.(*Select)
+	if !ok {
+		l.failAt("0A000", "view body requires an ordinary SELECT", pos.Offset)
+		return nil, false
+	}
+	return recursiveViewSelect(name, columns, query), true
+}
+
+func recursiveViewSelect(name ObjectName, columns []Identifier, body *Select) *Select {
+	self := Identifier{Text: name.Parts[len(name.Parts)-1].Text}
+	aliases := make([]Identifier, len(columns))
+	targets := make([]Expr, len(columns))
+	for i, column := range columns {
+		aliases[i] = Identifier{Text: column.Text}
+		targets[i] = ColumnExpr{Name: ObjectName{Parts: []Identifier{aliases[i]}}}
+	}
+	return &Select{
+		WithRecursive: true,
+		With:          []CommonTableExpression{{Name: self, Columns: aliases, Query: body}},
+		Targets:       targets,
+		From:          &TableReference{Name: ObjectName{Parts: []Identifier{self}}},
+	}
+}

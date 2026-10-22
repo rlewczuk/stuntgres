@@ -2916,6 +2916,12 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   epoch `to_timestamp`.
   General named-function resolution and custom/generic optimizer-plan switching
   are not implemented.
+- `CREATE RECURSIVE VIEW` requires explicit nonempty output aliases and an
+  admitted SELECT body. It is syntax sugar over ordinary stored views and
+  recursive CTEs, not a new executor or materialized relation. Short lists
+  project outputs while retaining hidden recursive keys and dependencies.
+  Existing TEMP/OR REPLACE combinations retain ordinary view rules; recursive
+  CHECK OPTION suffixes are rejected. See [recursive views](QUERIES.md#recursive-views).
 - Recursive SELECT CTEs support UNION/UNION ALL worktable iteration and parent
   demand with existing type/equality providers. SEARCH supplies typed breadth
   RECORD or depth _RECORD sort values, without controlling evaluation order.

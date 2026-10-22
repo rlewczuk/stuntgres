@@ -27,6 +27,16 @@ See [value contracts](docs/TYPES.md#lseg),
 [native boundaries](docs/DIALECT.md#lseg-scalar-boundary) and
 [selected proof and smoke](reference/types/README.md#lseg-oracle-first-contract).
 
+## Recursive views — change note
+
+`CREATE RECURSIVE VIEW v(columns) AS SELECT ...` uses the existing recursive
+CTE engine and ordinary stored-view lifecycle. The explicit nonempty column
+list projects public outputs without removing hidden recursive UNION keys.
+Definitions retain live physical dependencies across renames and native replay;
+CREATE does not evaluate the body. Recursive CHECK OPTION suffixes are rejected.
+See [query contracts](docs/QUERIES.md#recursive-views) and
+[selected proof and smoke](reference/views/README.md#recursive-view-contract).
+
 ## Circle scalar — change note
 
 Builtin `circle` columns, casts, string/byte binds, typed NULL, metadata and

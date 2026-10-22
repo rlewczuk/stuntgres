@@ -6,6 +6,50 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Recursive view contract
+
+The nine `TestReferenceRecursiveView` definitions cover mandatory column lists,
+finite direct/prepared/held reads and empty metadata, full hidden recursive UNION
+keys, complete positioned and synthetic diagnostics, suffix/SELECT INTO boundaries,
+physical dependencies and canonical reconstruction, native owned replay, current
+owner/original-invoker authority, active cancellation and failure publication.
+Expectations are independently reasoned from PostgreSQL18 release semantics;
+the pinned18.6 oracle groups passed before authorized production implementation.
+Native Dump/Reset/Restore phases are explicit, not invented PostgreSQL APIs.
+
+Diagnostic subtests name the exact SQL and direct/prepared route. Both backends
+analyze CREATE VIEW utility bodies at execution. Native lexical recursion and
+recursive-body INTO checks instead fail during preparation; PostgreSQL defers
+those checks until execution. Raw grammar failures, including recursive
+CHECK OPTION suffixes, fail preparation on both backends. INTO body errors use
+the target relation's position; ordinary CREATE VIEW INTO is unpositioned
+`0A000`. These diagnostic contracts were observed on pinned18.6 and native.
+Authority subtests also identify the grant/revoke phase and retain
+the SAME role-switched connection for preparation and held execution, never the
+administrative pool. Denials remain required for empty/limited reads.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRecursiveView(Core|Columns|Boundaries|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceRecursiveView(Dependencies|Replay|Authority|Atomicity|FeatureSmoke)$'
+make check RUN='^TestReferenceRecursiveView(Core|Columns|Boundaries|Diagnostics)$'
+make check RUN='^TestReferenceRecursiveView(Dependencies|Replay|Authority|Atomicity|FeatureSmoke)$'
+make check RACE=1 RUN='^TestReferenceRecursiveView(Atomicity|Authority|Replay)$'
+```
+
+Each selected command has an external900-second deadline. The feature-smoke
+definition is a compact independent SQL/API witness; it does not replace the
+outside-repository public consumer smoke or whole-project verification.
+
+The outside-repository session consumer `recursive-view-smoke.go` uses only
+public driver/connector and native controls. From the repository root run
+`timeout 900s go run /absolute/session/local/recursive-view-smoke.go`, substituting
+the actual session path supplied in the living plan. Exit0 quietly means finite
+direct/held rows and metadata, hidden UNION keys, exact diagnostics, renamed
+dynamic dependencies, executable canonical definition, same/fresh-owner replay,
+joined blocking-read cancellation/recovery and atomic late-error INSERT passed.
+The worker must report cancellation, not merely exhaust the command deadline.
+
+
 ### Deparse identity control fixture lifecycle
 
 `TestReferenceDeparseConstraintsReviewIdentityControls` retains all 25 identity

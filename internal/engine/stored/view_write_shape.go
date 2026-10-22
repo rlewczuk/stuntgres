@@ -27,6 +27,9 @@ func ViewWriteShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, [
 	if q.Bounds != nil {
 		return nil, nil, nil, "Views containing LIMIT or OFFSET are not automatically updatable."
 	}
+	if len(q.With) != 0 {
+		return nil, nil, nil, "Views containing WITH are not automatically updatable."
+	}
 	p, ok := ViewOf(d).query.Root.(*plan.ProjectNode)
 	if !ok {
 		return nil, nil, nil, "Views that do not select from a single table or view are not automatically updatable."

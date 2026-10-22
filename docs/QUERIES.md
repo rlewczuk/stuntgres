@@ -937,6 +937,26 @@ RECORD/_RECORD result identity across key-field reanalysis. Internal occurrence
 shapes and parameter/catalog fences remain exact.
 See [SEARCH design](design/PG18-QUERY-CTE-RECURSIVE-SEARCH.md).
 
+### Recursive views
+
+`CREATE RECURSIVE VIEW [schema.]v(c1,...) AS body` requires a nonempty
+column list and lowers to ordinary view storage over
+`WITH RECURSIVE v(c1,...) AS (body) SELECT c1,... FROM v`.
+Only the final destination identifier names the lexical CTE; qualified body
+references remain physical relations. A short list exposes only those columns,
+but hidden body columns still bind, reconcile types, retain dependencies and
+participate in complete-tuple UNION equality.
+
+CREATE analyzes and freezes the definition without running it. Each read uses
+the installed recursive executor, current view authority and invocation-local
+worktables. Canonical definitions and native dumps use ordinary CREATE VIEW
+with symbolic WITH RECURSIVE, not persisted frontiers or results. Physical
+renames retain dependency identity without renaming the symbolic self name.
+Recursive syntax rejects all CHECK OPTION suffixes; analyzed `check_option`
+options follow ordinary non-updatable-WITH diagnostics.
+See [selected proof](../reference/views/README.md#recursive-view-contract).
+
+
 
 
 Modifying definitions are separate mandatory execution roots, not lazy SELECT
