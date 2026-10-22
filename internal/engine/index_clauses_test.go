@@ -472,7 +472,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 					t.Fatal(err)
 				}
 				e.mu.Lock()
-				definition, columns, attributes, labels, err := e.bindIndexAttributes(scope.op, scope.input, auth, parent, raw[0].(*parser.CreateIndex))
+				definition, columns, attributes, labels, err := index.BindAttributes(ddlHost{e: e, op: scope.op}, auth, scope.input, parent, raw[0].(*parser.CreateIndex))
 				e.mu.Unlock()
 				if err != nil {
 					t.Fatal(err)

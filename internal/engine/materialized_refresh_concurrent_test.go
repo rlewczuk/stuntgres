@@ -101,7 +101,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *catalog.Re
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, columns, attributes, lookup, err := e.bindIndexAttributes(op, input, auth, parent, stmt)
+	definition, columns, attributes, lookup, err := index.BindAttributes(ddlHost{e: e, op: op}, auth, input, parent, stmt)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

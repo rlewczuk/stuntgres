@@ -10,12 +10,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// stagePartitionIndexDrop and stagePartitionConstraintDrop serve ALTER
-// TABLE and the partition constraint tests; neither needs Engine.mu.
-func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, idx *catalog.Relation) error {
-	return index.StagePartitionIndexDrop(stage, idx)
-}
-
+// stagePartitionConstraintDrop serves ALTER TABLE and the partition
+// constraint tests; it does not need Engine.mu.
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
 	return index.StagePartitionConstraintDrop(stage, oid)
 }

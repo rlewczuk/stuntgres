@@ -292,12 +292,12 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		auth.Recapture(auth.Catalog)
 	}
 	raw := statement(t, "CREATE INDEX private_partial ON private_source(k) WHERE active AND ('anchor'::regclass IS NOT NULL)").(*parser.CreateIndex)
-	var index *catalog.Relation
+	var created *catalog.Relation
 	if err == nil {
 		var predicate *catalog.IndexPredicate
 		predicate, err = e.bindIndexPredicate(op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
 		if err == nil {
-			definition, columns, attributes, lookup, bindErr := e.bindIndexAttributes(op, sqltype.InputEnvironment{}, auth, source, raw)
+			definition, columns, attributes, lookup, bindErr := index.BindAttributes(ddlHost{e: e, op: op}, auth, sqltype.InputEnvironment{}, source, raw)
 			err = bindErr
 			if err == nil {
 				definition.Predicate = predicate
@@ -311,8 +311,8 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 							columns[i].OriginTable = uint32(oid)
 							columns[i].OriginAttribute = int16(i + 1)
 						}
-						index = &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: source.Namespace(), ObjectName: "private_partial", ObjectRevision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
-						err = stage.Create(index)
+						created = &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: source.Namespace(), ObjectName: "private_partial", ObjectRevision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
+						err = stage.Create(created)
 					}
 				}
 			}
@@ -343,7 +343,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if !current.History.HasIndexes || current.Revision() != source.Revision() || current == source {
 		t.Fatal("private normalization invariant", current)
 	}
-	if e.storage.IndexRoots[index.Address()] == nil {
+	if e.storage.IndexRoots[created.Address()] == nil {
 		t.Fatal("private predicate index root absent")
 	}
 }

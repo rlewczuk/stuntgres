@@ -235,7 +235,7 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 	defer done()
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	if err := f.e.stagePartitionIndexAttach(op, stage, f.parent, f.child); err != nil {
+	if err := index.StagePartitionIndexAttach(ddlHost{e: f.e, op: op, stage: stage}, f.parent, f.child); err != nil {
 		t.Fatal(err)
 	}
 	next := f.e.stageRead(stage)
@@ -438,7 +438,7 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 	if err := f.e.stagePartitionConstraintDrop(stage, f.root.Constraints.Unique[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.e.stagePartitionIndexDrop(stage, f.parent); err != nil {
+	if err := index.StagePartitionIndexDrop(stage, f.parent); err != nil {
 		t.Fatal(err)
 	}
 	candidate := f.e.stageRead(stage)
@@ -784,7 +784,7 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *session.Operati
 	op.Session.Mu.Unlock()
 	e.mu.Lock()
 	stage.roleRevision = e.roles.published.Revision
-	err := e.stagePartitionIndexAttach(op, stage, parent, child)
+	err := index.StagePartitionIndexAttach(ddlHost{e: e, op: op, stage: stage}, parent, child)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -1189,13 +1189,13 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 		if err := e.stagePartitionConstraintDrop(stage, root.SQLIndex.Constraint.OID); err != nil {
 			t.Fatal(err)
 		}
-		if err := e.stagePartitionIndexDrop(stage, root); err != nil {
+		if err := index.StagePartitionIndexDrop(stage, root); err != nil {
 			t.Fatal(err)
 		}
 	} else {
 		for _, name := range names {
-			index := base.MustRelation(roleTableRef(t, e, name).Address)
-			if err := e.stagePartitionIndexDrop(stage, index); err != nil {
+			idx := base.MustRelation(roleTableRef(t, e, name).Address)
+			if err := index.StagePartitionIndexDrop(stage, idx); err != nil {
 				t.Fatal(err)
 			}
 		}
