@@ -36,7 +36,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 			t.Fatal(err)
 		}
 		eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
-		private, err := preflightUpdate(&eval, original)
+		private, err := dml.PreflightUpdate(&eval, original)
 		if input == "bad" {
 			state(t, err, "22P02")
 			if private != nil {
@@ -74,7 +74,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 	}
 	unchanged := &analyze.UpdateBinding{Assignments: []expr.Expr{output.Expressions[1]}, From: join.Left}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	same, err := preflightUpdate(&eval, unchanged)
+	same, err := dml.PreflightUpdate(&eval, unchanged)
 	if err != nil || same != unchanged {
 		t.Fatal("unchanged tree replaced", same, err)
 	}

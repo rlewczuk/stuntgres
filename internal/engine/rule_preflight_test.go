@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -169,7 +170,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			}
 			original := analyze.Binding{Relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}},
 				Update: &analyze.UpdateBinding{From: derived, SourceWidth: 1, Assignments: []expr.Expr{expression}}}
-			private, err := preflightUpdate(&evaluation, original.Update, func(prepared *analyze.UpdateBinding) (plan.Node, error) {
+			private, err := dml.PreflightUpdate(&evaluation, original.Update, func(prepared *analyze.UpdateBinding) (plan.Node, error) {
 				current := original
 				current.Update = prepared
 				demanded, err := view.RuleMutationProducerDemand(current)

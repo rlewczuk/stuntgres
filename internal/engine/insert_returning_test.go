@@ -64,7 +64,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q
 		if err := conflict.SelectArbiters(&c, b.Relation, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		if err := preflightConflictUpdate(conflict, &c); err != nil {
+		if err := dml.PreflightConflictUpdate(conflict, &c); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -195,3 +195,17 @@ func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.Write
 func conflictRowRequest(ref ids.ObjectRef, c UniqueConflict) RowRequest {
 	return RowRequest{Kind: RowConflictUpdate, Ref: ref, Row: c.Row.Row, Own: !c.Committed, Hint: c.Position, Parent: c.Parent}
 }
+
+// PreflightConflictUpdate preflights the ON CONFLICT DO UPDATE action of the
+// private conflict state.
+func PreflightConflictUpdate(c *InsertConflictState, evaluation *exec.Context) error {
+	if c.Update == nil {
+		return nil
+	}
+	action, err := PreflightUpdateWithPlanning(evaluation, c.Update, true)
+	if err != nil {
+		return err
+	}
+	c.Update = action
+	return nil
+}

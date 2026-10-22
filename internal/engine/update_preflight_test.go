@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -57,7 +58,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 			}
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
-		private, err := preflightUpdate(&evaluation, original)
+		private, err := dml.PreflightUpdate(&evaluation, original)
 		if input == "oops" {
 			state(t, err, "22P02")
 			if private != nil {
@@ -117,21 +118,21 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	whereEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{bad}}}
-	failed, err := preflightUpdate(&whereEvaluation, &whereOnly)
+	failed, err := dml.PreflightUpdate(&whereEvaluation, &whereOnly)
 	state(t, err, "22P02")
 	if failed != nil {
 		t.Fatal("failed WHERE preflight returned a partially prepared update")
 	}
 	unchanged := &analyze.UpdateBinding{Assignments: []expr.Expr{column}}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	same, err := preflightUpdate(&evaluation, unchanged)
+	same, err := dml.PreflightUpdate(&evaluation, unchanged)
 	if err != nil || same != unchanged {
 		t.Fatal("unchanged update allocated/replaced", same, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	evaluation.Context = canceled
-	private, err := preflightUpdate(&evaluation, original)
+	private, err := dml.PreflightUpdate(&evaluation, original)
 	if !errors.Is(err, context.Canceled) || private != nil {
 		t.Fatal(private, err)
 	}

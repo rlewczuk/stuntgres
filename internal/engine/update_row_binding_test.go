@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -109,7 +110,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 		t.Fatal("lost marker or mutated template", err)
 	}
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	prepared, err := preflightUpdateWithPlanning(&ctx, u, false)
+	prepared, err := dml.PreflightUpdateWithPlanning(&ctx, u, false)
 	if err != nil || prepared != u {
 		t.Fatal("unchanged preflight replaced immutable source", prepared, err)
 	}

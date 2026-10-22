@@ -58,7 +58,7 @@ func TestMergeNothingPreflight(t *testing.T) {
 				t.Fatal("no-op mutation schedule", b.Merge)
 			}
 			c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Catalog: scope.inquiry.commentCatalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			if err := preflightMerge(&c, b.Merge, scope.inquiry.commentCatalog); err != nil {
+			if err := dml.PreflightMerge(&c, b.Merge, scope.inquiry.commentCatalog); err != nil {
 				t.Fatal("no-op preflight indexed mutation input", err)
 			}
 			if condition != "TRUE" {

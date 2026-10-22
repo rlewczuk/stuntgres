@@ -80,7 +80,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				return Result{}, err
 			}
 			scope.InsertConflict = conflict
-			if err := preflightConflictUpdate(conflict, &evaluation); err != nil {
+			if err := dml.PreflightConflictUpdate(conflict, &evaluation); err != nil {
 				return Result{}, err
 			}
 		}
@@ -123,10 +123,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 		if b.Merge != nil {
-			err = preflightMerge(&evaluation, b.Merge, auth.Catalog)
+			err = dml.PreflightMerge(&evaluation, b.Merge, auth.Catalog)
 		} else if b.Update != nil {
 			if evaluation.PlanStaticOperators {
-				b.Update, err = preflightUpdate(&evaluation, b.Update, func(prepared *analyze.UpdateBinding) (plan.Node, error) {
+				b.Update, err = dml.PreflightUpdate(&evaluation, b.Update, func(prepared *analyze.UpdateBinding) (plan.Node, error) {
 					demandBinding := b
 					demandBinding.Update = prepared
 					demanded, err := view.RuleMutationProducerDemand(demandBinding)
@@ -136,7 +136,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					return demanded.Update.From, nil
 				})
 			} else {
-				b.Update, err = preflightUpdate(&evaluation, b.Update)
+				b.Update, err = dml.PreflightUpdate(&evaluation, b.Update)
 			}
 			if err == nil && b.Update.From != nil {
 				err = view.ValidateQueryJoinExecution(&evaluation, b.Update.From, auth.Catalog, 0)
