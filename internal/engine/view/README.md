@@ -5,11 +5,11 @@ rule programs, the lowering of writes through auto-updatable views,
 stored-projection demand, view options, concurrent materialized refresh and
 the materialized snapshot codec, policy validation and RLS layer selection,
 and the view, rule and policy dependency checks, the view, rule and policy
-DDL decisions behind `Host` and `StageHost`, and the execution-time query
-preflight and join legality. Step 27 of the engine split created it (27b
-moved the clean set, 27d the handler decisions, 27e the query preflight). It
-is an
-upper feature in
+DDL decisions behind `Host` and `StageHost`, the execution-time query
+preflight and join legality, and the privilege walkers over view
+definitions and view writes. Step 27 of the engine split created it (27b
+moved the clean set, 27d the handler decisions, 27e the query preflight,
+27f the privilege walkers and query table refs). It is an upper feature in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (types and pure functions only),
 `authorization`, `catalog`, `ddl`, `exec`, `expr`, `functions`, `ids`, `index`,
@@ -58,6 +58,19 @@ never imports `view`.
   `ValidateMarkedQueryJoin`. They run on execution-owned parameters, never
   at Prepare. The root's `exec` preparation forwarders (`PreflightQuery`,
   `AdmitExpression` in `exec_preparation.go`) call them.
+- **Privilege walkers** (`write_authority.go`, `source_authority.go`,
+  `query_table_refs.go`): `CheckWrite` (a write through a view: the logical
+  target through `analyze.CheckBinding`, then each layer under its owner or
+  the original invoker), `AuthorizeSource` (SELECT on a stored view's
+  source leaves, then its row marks), `CheckRowMarks` (stored and inherited
+  row marks under each nested view's principal) and `QueryTableRefs` (every
+  executable view occurrence authorized, then view bases, partitions and
+  inheritance children expanded into the stored relations to capture).
+  They take the captured `access.View` and its `access.Environment`; the
+  root's `AuthorizationView.CheckViewWrite`, `CheckViewRowMarks` and
+  `queryTableRefsLocked` (which keeps the engine and catalog owner check)
+  forward to them. They check only relations and columns, so the
+  caller's environment serves every nested principal.
 - **Rule rewriting** (`rule_rewrite.go`, `rule_frames.go`,
   `rule_producer_demand.go`, `rule_query_*.go`, `rule_parameter_preflight.go`,
   `rule_update_output.go`): `RuleRewriter` (`ExpandLocked`, the INSTEAD,
@@ -135,18 +148,20 @@ AccessExclusive waits and dependents of DROP VIEW, and publication; RENAME
 and SET SCHEMA dispatch to the root's table handlers. The host bodies
 (`view_host.go`; `BindPolicyExpression` in `policy_expression.go`), rule
 program execution and admission (they run DML), `prepareStoredQueryLocked`
-(it opens the sources under `Engine.mu`), view source opening and
-authorization (`view_source.go`), refresh row production and
+(it opens the sources under `Engine.mu`), view source opening and the
+authorization capture around `AuthorizeSource` (`view_source.go`), refresh
+row production and
 staging (`refreshMaterializedLocked`, `materializedRefreshRowsLocked`,
 `stageMaterializedRows`), the `CatalogStage` replacement wrappers, the
 materialized source fence and its kind, `importMaterializedSnapshots`,
 `stageRowSecurityFlagsLocked`, `configureRowSecurityLocked` and
-`rowSecurityInputLocked` as authority wrappers, `ruleActionScope`, the
-privilege walkers (`CheckViewWrite`, `row_security_setting.go`), the drop
+`rowSecurityInputLocked` as authority wrappers, `ruleActionScope`, the RLS
+setting walkers (`row_security_setting.go`), the drop
 diagnostics and `dropProvider` (it collects the live descriptors and stages
 the dependents), and the slot accessors on `CatalogStage` and
 `StatementScope`. The third round moves the clean parts here: query
-preflight (27e, done), the privilege walkers over `access.View` (27f), the drop
+preflight (27e, done), the privilege walkers over `access.View` (27f,
+done), the drop
 diagnostics and `dropProvider`'s read side behind a reader (27g), and the
 closure walks and materialized checks (27h). See
 [ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md) 27d.

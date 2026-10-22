@@ -895,7 +895,10 @@ in the root. The checks in §8.3 pass.
   `ad9c2b8ac`, then the docs commit) · selected unit and dual-mode proof and
   quickcheck passed; racecheck/finalcheck skipped at user request; see the
   27e record below
-- [ ] 27f — Privilege walkers and query table refs moved (linear item 116)
+- [x] 27f — Privilege walkers and query table refs moved (linear item 116)
+  (`e7c4722fd`, `00d76479e`, `789f3b430`, `435f5c29f`, then the docs commit)
+  · selected unit and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 27f record below
 - [ ] 27g — DROP read side moved (linear item 117)
 - [ ] 27h — Lock walks and materialized checks moved (linear item 118)
 
@@ -1077,7 +1080,71 @@ Deviations and notes:
   racecheck, finalcheck and bench skipped at user request (no startup
   change).
 
+### 27f record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-VIEW-PRIVILEGE-WALKERS`, started
+at `fb324a87f`. After the cut, `reach` reports `checkViewWrite`,
+`checkViewRowMarks`, `checkViewRowMarksExpanded`,
+`authorizeViewSourceSnapshot`, `checkTruncate` and
+`guardedCatalogMutationError` clean. No reference cancellation fixture
+matches a moved frame name.
+
+| Commit | Change |
+|---|---|
+| `e7c4722fd` | `checkTemporaryStorageAccess` to `access.CheckTemporaryStorageAccess` (`namespace.go`); five root callers renamed |
+| `00d76479e` | Cut in place: the walkers, `checkTruncate` and `guardedCatalogMutationError` take `access.View` and `access.Environment`; `AuthorizationView.CheckViewWrite` becomes the one-line `analyze.Privileges` entry point |
+| `789f3b430` | `view.CheckWrite` (`write_authority.go`), `view.AuthorizeSource`, `view.CheckRowMarks` with `checkRowMarksExpanded` (`source_authority.go`); `dml.CheckTruncate` and `dml.GuardedCatalogMutationError` (`truncate_check.go`); `catalog_mutation.go` removed |
+| `435f5c29f` | `view.QueryTableRefs` (`query_table_refs.go`); `Engine.queryTableRefsLocked` keeps its signature and the engine and catalog owner check, then forwards |
+
+Deviations and notes:
+
+- **Environment.** The walkers used to pass the user-switched
+  `AuthorizationView` as the environment; they now pass the caller's. The
+  environment matters only for namespace objects (own TEMP namespace, not
+  user-dependent) and type diagnostic names (`ReferencePath`). The walkers
+  check relations and columns only, so no check or message changes.
+- **`CheckWrite`** takes an `analyze.Privileges` as well as the view and
+  environment, for the first `analyze.CheckBinding` on the logical target
+  (it recurses through `WithCurrentUser` and `CheckViewRowMarks`). The
+  root passes the `AuthorizationView` three times:
+  `view.CheckWrite(v, v.View, v, b, stmt)`.
+- **No authorize callback.** The plan gave `QueryTableRefs` an authorize
+  callback; `AuthorizeSource` moved to `view` with it, so it calls it
+  directly. The domain comes from the checked catalog owner, which is the
+  engine's (`e.catalog.Domain` is `e.catalog.owner().Domain`).
+- **TRUNCATE.** `checkTruncate` calls `fdw.HandlerFor` and `view` does not
+  import `fdw`, so it went to `dml` with `guardedCatalogMutationError`
+  (also used by the INSERT/UPDATE/DELETE/MERGE guard in `execute_bound.go`).
+  A new file keeps it clear of the 29d.4–29d.6 moves.
+- **Names.** Inside `view` the stutter goes: `CheckWrite`, `AuthorizeSource`,
+  `CheckRowMarks`. The local `view` in the query table refs walk became
+  `read`.
+- **Tests.** `query_set_lock_test.go` calls `view.CheckRowMarks`. The
+  `queryTableRefsLocked` tests are unchanged (same wrapper). None moved or
+  deleted.
+- **Checks.** Every commit builds and vets with the master warning set; the
+  string-literal multiset of the touched and new files is unchanged
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-PRIVILEGE-WALKERS/lits-*.txt`).
+  The view, rule, materialized, policy, RLS, query set and lock, truncate,
+  inheritance query, temporary storage, CTE, COPY and UPDATE FROM units
+  passed; quickcheck passed at `435f5c29f`. `REFERENCE=1` on
+  `^TestReference(View|Rule|Materialized|RLSBase|AccessRoleRLS|InheritanceQueryRLS|InheritanceDMLRLS|DriverBatchPolicy|DumpRoundTrip$|RowLock|QueryLock|QuerySet|Truncate|FDWWriteTruncate|InheritanceQueryTemporary|PredefinedViewWrites|TemporaryTable|P[Gg][A-Za-z]*Diagnostics|PGNamespaceViewStoragePrecedence)`
+  passed except `PGNamespaceViewStoragePrecedence` and
+  `TemporaryTableDiagnostics`, whose `/postgres` oracle subtests fail with
+  the real server's `cannot access temporary tables of other sessions`
+  (known drift; the stuntgres subtests pass). racecheck, finalcheck and
+  bench skipped at user request (no startup change).
+
 ### Notes for later steps
+
+- 27g, 27h (from 27f): `view_locks.go` still calls the root
+  `queryTableRefsLocked` (now a forwarder to `view.QueryTableRefs`); a
+  `view` closure walk can call `view.QueryTableRefs` directly with the
+  access view and environment. `row_security_setting.go` keeps the RLS
+  setting walkers in the root.
+- 29d.6 (from 27f): `dml.CheckTruncate` and
+  `dml.GuardedCatalogMutationError` are in `dml/truncate_check.go`; the
+  optional TRUNCATE cores can call them.
 
 - 27f (from 27e): `query_table_refs.go`, `view_write_authority.go` and
   `checkViewRowMarksExpanded` now call `stored.ViewLeafRowMark` and

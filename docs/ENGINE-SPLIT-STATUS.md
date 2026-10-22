@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `a388cf01f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 111, 112, 113 and 114). Steps 8–17 were
+Last verified against `master` at `435f5c29f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 111, 112, 113, 114, 115 and 116). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -18,8 +18,8 @@ as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
 - **DML, executors:** 110d (dml 29d.4); 110e and 110f follow in order.
-- **Third round, view:** 116 (27f, privilege walkers and query table
-  refs; 115 is done), 117 (27g, DROP read side), 118 (27h, lock walks).
+- **Third round, view:** 117 (27g, DROP read side), 118 (27h, lock
+  walks); 115 and 116 are done.
   125 (table 24g) still waits for 124, and 132 (dml 29e) for 110f.
 - **Third round, stored and control:** 119 (22e, type provider
   validation; then 120), 121 (30e, definition OID remap; then 122).
@@ -170,6 +170,12 @@ row validation and the COPY FROM cursors and insertion live in `dml` over
 `dml.Host`, so 110d (29d.4) is ready. `RowConstraintError`,
 `EvaluateUpdateAssignments` and `CheckViewRow` moved early (DO UPDATE needs
 them), so 110d's move set is smaller.
+Item 116 (view 27f) is done: the privilege walkers over view definitions
+and view writes (`view.CheckWrite`, `AuthorizeSource`, `CheckRowMarks`) and
+`view.QueryTableRefs` take `access.View` and its `access.Environment`; the
+TRUNCATE target checks are `dml.CheckTruncate` and
+`dml.GuardedCatalogMutationError`; `access.CheckTemporaryStorageAccess`
+moved down. 117 and 118 never needed 116; no item waits only for it.
 
 ## Task tree
 
@@ -1680,10 +1686,17 @@ branches.
      view/query selections passed (four MERGE REPEATABLE READ oracle
      failures also fail on master); racecheck/finalcheck skipped at user
      request
-116. [ ] View 27f: privilege walkers and query table refs —
-     [view](ENGINE-SPLIT-view.md) 27f · needs 115 · `CheckViewWrite`,
-     `checkViewRowMarks*`, `authorizeViewSourceSnapshot`, `checkTruncate`
-     over `access.View`; `view.QueryTableRefs` (about 0.4k lines)
+116. [x] View 27f: privilege walkers and query table refs —
+     [view](ENGINE-SPLIT-view.md) 27f · needs 115 (`e7c4722fd`,
+     `00d76479e`, `789f3b430`, `435f5c29f`, then the docs commit) ·
+     `view.CheckWrite`, `view.AuthorizeSource`, `view.CheckRowMarks` and
+     `view.QueryTableRefs` over `access.View` and `access.Environment`;
+     `dml.CheckTruncate`, `dml.GuardedCatalogMutationError` (`view` does not
+     import `fdw`); `access.CheckTemporaryStorageAccess`; root forwarders
+     `AuthorizationView.CheckViewWrite` and `queryTableRefsLocked` (the owner
+     check); no aliases · targeted units, quickcheck and the quick and
+     `REFERENCE=1` view/query/truncate selections passed; racecheck/finalcheck
+     skipped at user request
 117. [ ] View 27g: DROP read side (pattern 6) —
      [view](ENGINE-SPLIT-view.md) 27g · needs — · `DependencyClosure`,
      `restrictError`, the view, rule and policy dependents and

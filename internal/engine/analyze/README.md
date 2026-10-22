@@ -213,17 +213,18 @@ defaults, index and partition expressions); the authority adapters (`analysis_au
 `bindingAuthorityView`, `authorityOf`, `authorizationOf`), `expectedOf`
 (`expected_inputs.go`), `signatureOf`/`checkStatementSignature` (the
 `StatementDescription` wrappers of `CheckSignature`), the host forwarders to
-the `stored` retag walker (`MapBoundExpression`, `MapBoundQueryExpression`),
-query preflight (`query_preflight.go`; expression preflight is in `exec`)
+the `stored` retag walker (`MapBoundExpression`, `MapBoundQueryExpression`)
 and the captured input constructors (`captured_input.go`; the resolvers and
 their retarget methods are in `regobj`); the host forwarders through which
 the binder reads stored view definitions (`stored`): `StoredViewVolatile`,
-`CaptureRetainedViewInput` and `ValidateViewReadGraph`; query set preflight
-(`preflightQuerySet`, `query_set_preflight.go`); rule program execution and
+`CaptureRetainedViewInput` and `ValidateViewReadGraph` (query and query
+set preflight are in `view` since 27e, expression preflight in `exec`); rule
+program execution and
 admission (rule rewriting, its CTE commands and view-write lowering are in
-[`view`](../view/README.md)); the privilege walkers over view
-definitions, view writes and rule programs (`AuthorizationView.CheckViewWrite`,
-`checkViewRowMarks*`, the `row_security_setting.go` walkers); and the
+[`view`](../view/README.md)); the RLS setting walkers
+(`row_security_setting.go`; the view-definition and view-write walkers
+behind `AuthorizationView.CheckViewWrite` and `CheckViewRowMarks` are in
+`view`); and the
 execution-side helper `capturedDomainReplayCell` over the binding types
 (the default evaluators are here: `ApplyDefaultOrigin` and `EvalDefault`
 in `default_eval.go`; `dml` has the ON

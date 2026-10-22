@@ -44,7 +44,9 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
   seeded-operator predicate as a value (`routine.OperatorSeeded` in the
   engine), because `routine` imports `access`.
 - **Namespaces** (`namespace.go`): `CheckPersistentCreationNamespace`, the
-  TEMP capability boundary of non-table creation and namespace moves.
+  TEMP capability boundary of non-table creation and namespace moves, and
+  `CheckTemporaryStorageAccess`, which rejects another session's stored
+  TEMP relation before storage admission.
 - **Row security** (`rls.go`): `RowSecurityApplies`, `RowSecurityDecision`,
   `RowSecurityGroups` (returning an `RLSDisposition`), `RowSecurityProposal`,
   `RowSecurityExpressionError` and `RowSecurityPrincipal` over the view
@@ -91,10 +93,12 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
   `SetRoleReferences`. Their decisions are in [`role`](../role/README.md),
   which calls this package over the captured `View`.
 - Search path resolution and `temporaryNamespace`, RLS configuration and the
-  walkers over view definitions, view writes and rule programs
-  (`CheckViewWrite`, `checkViewRowMarks*`, the `row_security_setting.go`
-  walkers), which call `access` for each object. The binding walkers
-  (`CheckBinding`, `CheckQuerySources`) are in `analyze`.
+  `row_security_setting.go` walkers, which call `access` for each object.
+  The binding walkers (`CheckBinding`, `CheckQuerySources`) are in
+  `analyze`; the walkers over view definitions and view writes
+  (`CheckWrite`, `AuthorizeSource`, `CheckRowMarks`, `QueryTableRefs`) are
+  in [`view`](../view/README.md), over the captured `View` and the
+  engine's `AuthorizationView` as the `Environment`.
 
 ## Testing
 

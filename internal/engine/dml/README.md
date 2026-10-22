@@ -111,7 +111,10 @@ it, it never imports the engine, and it never builds a binder. See
 - **TRUNCATE** (`truncate.go`): `TruncateScope`, `TruncateRelation`,
   `TruncateName`, `TruncateSequence`, `TruncateReferencer(s)`,
   `CompareTruncateAddress`, `TruncateForeignKeyError`,
-  `TruncateOtherTemporary`, `TruncateOwnsSequence`.
+  `TruncateOtherTemporary`, `TruncateOwnsSequence`; the target checks
+  (`truncate_check.go`) `CheckTruncate` and `GuardedCatalogMutationError`
+  (also the error of INSERT, UPDATE, DELETE and MERGE on a guarded system
+  catalog), over `access.View`.
 - **Foreign-key actions** (`foreign_actions.go`): `ForeignKeyJob`,
   `ForeignActionScope`, `ForeignActionAdmission`, `ForeignActionTransition`,
   `ForeignActionPlan`, `ForeignActionQuery`, `ForeignActionSameKey`,
