@@ -91,7 +91,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if sqltype.IsFTS(target.Type.ID()) {
 			return sqltype.Null(target.Type), nil
 		}
-		if target.Type.ID() == sqltype.Box || target.Type.ID() == sqltype.Point || target.Type.ID() == sqltype.Circle || target.Type.ID() == sqltype.Tid || target.Type.ID() == sqltype.Macaddr {
+		if target.Type.ID() == sqltype.Box || target.Type.ID() == sqltype.Point || target.Type.ID() == sqltype.Circle || target.Type.ID() == sqltype.Line || target.Type.ID() == sqltype.Tid || target.Type.ID() == sqltype.Macaddr {
 			return sqltype.Null(target.Type), nil
 		}
 		if target.Type.IsCitext() || target.Type.IsCube() || target.Type.IsQueryInt() || sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) || sqltype.IsRegObjectAlias(target.Type.ID()) || sqltype.IsRegTS(target.Type.ID()) {
@@ -222,7 +222,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
-	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point:
+	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point, sqltype.Line:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.ACLItem:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
@@ -286,7 +286,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {
-	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point:
+	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point, sqltype.Line:
 		return reflect.TypeFor[string]()
 	case sqltype.ACLItem:
 		return reflect.TypeFor[string]()

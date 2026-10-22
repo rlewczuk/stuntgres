@@ -59,6 +59,38 @@ Dump recreates the extension before its consumers and restores fresh identities,
 without changing retained result metadata or values. Associated _citext remains
 lookup-only. Binary codecs, case-insensitive operators and arrays are excluded.
 
+## LINE transport
+
+LINE (OID628,24-byte PostgreSQL datum) stores immutable binary64 A/B/C for
+`Ax+By+C=0`. Coefficient input `{2,4,6}` stays `{2,4,6}`, not `{1,2,3}`;
+all four documented endpoint forms for `(1,2)`/`(3,4)` yield `{1,-1,1}`.
+Both normal coefficients within1e-6 of zero, or endpoints equal within geometric
+tolerance, fail22P02 with PostgreSQL English diagnostics. NaN uses released
+float8 equality for point distinctness. Arithmetic overflow/underflow fails22003.
+
+Direct and held bindings accept strings/owned bytes and ordinary Valuers.
+Nil/typed-nil bytes are typed NULL; empty nonnil input is malformed. Native
+nonnull cells and ScanType are string, pq cells are textual bytes with interface
+ScanType. LINE has no Length/DecimalSize; declared nullability is preserved.
+Explicit character casts truncate/pad through the existing sizing seam;
+assignment retains length errors and statement atomicity.
+
+Released scalar `=` compares proportional coefficients with1e-6 tolerance;
+NaN requires per-coefficient float8 equality. Exact datum/payload identity still
+compares bits. LINE has no default B-tree/hash authority, ORDER BY or grouping,
+nor scalar `<`, `>`, `<=`, `>=`, `<>`/`!=`, or `~=` operators. This implementation
+does not enable the separate PostgreSQL spatial families.
+Callable line_eq and symbolic equality share EXECUTE authority. Nonnull held
+calls observe revoke/grant without replacement. Strict-NULL execution follows
+the existing per-execution native folding contract, not PostgreSQL's eventual
+generic-plan authority demand; see the [native boundary](DIALECT.md#line-geometric-boundary).
+
+Display honors extra_float_digits. Native Dump/Restore preserves full-precision
+coefficients, signed zeros, subnormals and NULL independently of display, using
+ordinary replay SQL for typed tables/defaults/CHECKs/views. Raw catalog typelem
+and IO routine identities do not enable coordinate subscripts, companion arrays,
+binary codecs or native ABI transport.
+
 ## BOX and minimal POINT transport
 
 BOX (OID603) and POINT (OID600) are concrete scalar datums with immutable

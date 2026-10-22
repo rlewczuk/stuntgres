@@ -6,6 +6,24 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### LINE catalog admission
+
+LINE scalar628 and lookup-only companion629 join the independent type-admission
+expectations. Released equality operator1616 uses routine1492, self-commutation,
+no negator, and no merge/hash class flags. The independent supported-operator
+TSV includes that released row; provider/capture and public inventory, reference,
+polymorphic, permission and lifecycle assertions consume it without deriving
+expected facts from production metadata.
+
+```sh
+make check RUN='^(TestReferencePGOperator.*|TestReferencePGTypeAdmission)$'
+make check RUN='^(TestReferencePGOperator.*|TestReferencePGTypeAdmission)$' REFERENCE=1
+make check RUN='^(TestPGOperator(ProviderAgreement|CaptureOwnership)|TestAnyValueProviderDatums|TestOrderingUsage)$'
+```
+
+Use external900-second deadlines; both public modes are required after changing
+the independent shared release inventory.
+
 ### LOAD native-library boundary
 
 The six shared `TestReferenceLoad` definitions cover syntax/string decoding,

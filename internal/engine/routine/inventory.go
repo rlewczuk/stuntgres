@@ -42,6 +42,7 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{1471, ids.PGCatalogNamespaceOID, "circle_distance", "718,718"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{2587, ids.PGCatalogNamespaceOID, "circle_overbelow", "718,718"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{2588, ids.PGCatalogNamespaceOID, "circle_overabove", "718,718"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{1492, ids.PGCatalogNamespaceOID, "line_eq", "628,628"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	// PostgreSQL REL_18_6 selected SQL large-object wrappers.
 	{catalog.RoutineIdentity{715, ids.PGCatalogNamespaceOID, "lo_create", "26"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
 	{catalog.RoutineIdentity{957, ids.PGCatalogNamespaceOID, "lo_creat", "23"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},

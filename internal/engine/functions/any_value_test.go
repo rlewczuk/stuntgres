@@ -31,6 +31,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Box:     {"(1,4),(3,2)", "(1.0000005,1),(0,0)", "(-0,-0),(-0,-0)", "(5e-324,1),(0,0)", "(NaN,Infinity),(-Infinity,0)"},
 		sqltype.Point:   {"(1,2)", "(1.0000005,2)", "(-0,-0)", "(5e-324,0)", "(NaN,Infinity)"},
 		sqltype.Circle:  {"<(1,2),3>", "<(-0,0),-0>", "<(NaN,Infinity),NaN>"},
+		sqltype.Line:    {"{1,2,3}", "{2,4,6}", "{1,-0,-0}", "{1,2,5e-324}", "{NaN,Infinity,0}"},
 		sqltype.Money:   {"-92233720368547758.08", "92233720368547758.07", "0", "1.235"},
 		sqltype.Date:    {"2000-02-29", "infinity"}, sqltype.Time: {"24:00:00", "12:34:56.123456"}, sqltype.Timetz: {"12:34:56.123456+02"},
 		sqltype.Timestamp: {"2000-02-29 12:34:56.123456", "-infinity"}, sqltype.Timestamptz: {"2000-02-29 12:34:56.123456+02", "infinity"},

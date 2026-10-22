@@ -38,6 +38,18 @@ This does not implement case-insensitive operators, indexes or citext arrays.
 See [native limits](docs/DIALECT.md#citext-extension-type) and
 [selected proof and smoke](reference/types/README.md#citext-storage-and-value-round-trips).
 
+## LINE geometric scalar — change note
+
+LINE retains binary64 coefficients `{A,B,C}` or constructs them from two
+distinct points through the ordinary typed SQL/bind/result pipeline. Coefficient
+input preserves scale and signed zero; endpoint input uses PostgreSQL's slope
+construction. Real scalar `=` compares proportional coefficients with released
+geometric tolerance, without granting generic sort/group/index authority.
+Typed NULL, LINE metadata and full-precision native logical Dump/Restore share
+the existing adapters and storage. See [typed transport](docs/TYPES.md#line-transport),
+[native limits](docs/DIALECT.md#line-geometric-boundary) and
+[selected proof](reference/types/README.md#line-scalar-contract).
+
 ## BOX geometric scalar — change note
 
 BOX stores real binary64 opposite corners, normalizes ordinary input to

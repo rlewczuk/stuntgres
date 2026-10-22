@@ -8,6 +8,29 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## LINE geometric boundary
+
+LINE coefficient/endpoint IO, typed table/bind/result transport and actual scalar
+`=` use ordinary type and routine authority. Equality does not supply default
+sort/group/index classes or absent scalar comparison operators. Coefficients
+retain scale; endpoint input uses released slope construction and tolerance.
+
+Ordinary native prepared statements retain analysis identity, not PostgreSQL's
+custom/generic executable-plan cache. In the pinned LINE routine-authority
+scenario, direct/new-prepared strict-NULL inputs fold to BOOL NULL on both
+backends despite revoked EXECUTE. Repeated PostgreSQL held execution transitions
+to a generic plan and reports42501 even for NULL parameters; native folds strict
+NULL each execution and returns NULL. All nonnull callable/operator executions,
+including the same held handles, enforce revocation and recover after grant.
+
+PostgreSQL also supplies spatial line operators/constructors; these are native
+implementation limits, not PostgreSQL-absent features. This part does not enable
+those families, coordinate subscripting, companion arrays, binary receive/send,
+native ABI, physical geometric indexes/storage or WAL. Published catalog IO
+identities alone do not make routines callable. Native Reset/Dump/Restore is
+logical host replacement, not a fabricated PostgreSQL control API.
+See [LINE proof](../reference/types/README.md#line-scalar-contract).
+
 ## BOX geometric boundary
 
 BOX storage/IO, five area comparisons (`=`, `<`, `<=`, `>`, `>=`), coordinate

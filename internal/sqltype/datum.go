@@ -57,7 +57,7 @@ func SameDatum(a, b Value) bool {
 	switch a.typ.BaseType().id {
 	case Point:
 		return math.Float64bits(a.floating) == math.Float64bits(b.floating) && a.integer == b.integer
-	case Box:
+	case Box, Line:
 		return a.geometry != nil && b.geometry != nil && a.sameGeometry(b)
 	case Circle:
 		return math.Float64bits(a.circle.x) == math.Float64bits(b.circle.x) &&

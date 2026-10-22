@@ -22,7 +22,7 @@ func TestRegtypeInventoryCapability(t *testing.T) {
 			}
 		}
 	}
-	for _, id := range []ID{1002, 2287, 1041, 143, 6155, 1017, 1020} {
+	for _, id := range []ID{1002, 2287, 1041, 143, 6155, 1017, 1020, 629} {
 		d := types[id]
 		if d == nil || d.Concrete() || d.Usage().Valid() || d.IsUserDefined() {
 			t.Fatal("lookup identity became executable", id, d)
@@ -34,7 +34,7 @@ func TestRegtypeInventoryCapability(t *testing.T) {
 	if types[603].Delimiter() != ';' || types[1020].Delimiter() != ';' {
 		t.Fatal("BOX array delimiter")
 	}
-	for _, id := range []ID{Box, Point} {
+	for _, id := range []ID{Box, Point, Line} {
 		if !types[id].Concrete() || types[id].IsArray() {
 			t.Fatal("geometry scalar/raw typelem confused with SQL array", id)
 		}

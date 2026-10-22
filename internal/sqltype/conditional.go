@@ -9,6 +9,7 @@ var equalitySignatures = [...]EqualitySignature{
 	{Tid, Tid},
 	{Macaddr, Macaddr},
 	{Box, Box},
+	{Line, Line},
 	{Xid, Xid}, {Xid, Int4}, {Cid, Cid}, {Xid8, Xid8},
 	{Int2, Int2}, {Int2, Int4}, {Int2, Int8}, {Int4, Int2}, {Int4, Int4}, {Int4, Int8}, {Int8, Int2}, {Int8, Int4}, {Int8, Int8},
 	{Float4, Float4}, {Float4, Float8}, {Float8, Float4}, {Float8, Float8}, {Numeric, Numeric}, {Bool, Bool},
@@ -286,7 +287,7 @@ func comparisonSignatureAvailable(operator ComparisonOperator, s EqualitySignatu
 	switch s.Left {
 	case Box:
 		return operator != CompareNotEqual
-	case ACLItem, Cid:
+	case Line, ACLItem, Cid:
 		return operator == CompareEqual
 	case Xid:
 		return operator == CompareEqual || operator == CompareNotEqual

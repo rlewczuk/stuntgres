@@ -31,6 +31,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// A released canonical companion is metadata even when native array
 		// datums remain lookup-only. Scalar circle admission must preserve it.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=718", []string{"oid", "typname", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "NAME", "OID"}, [][]any{{int64(718), "circle", int64(719), int64(719), "_circle", int64(718)}}))
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=628", []string{"oid", "typname", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "NAME", "OID"}, [][]any{{int64(628), "line", int64(629), int64(629), "_line", int64(628)}}))
 		if b.PG {
 			return
 		} // PostgreSQL genuinely implements additional families.
@@ -49,6 +50,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// Circle's executable scalar metadata exposes its canonical companion;
 		// this catalog identity does not admit circle array values.
 		expected[718], expected[719] = true, true
+		// LINE's scalar admission exposes metadata, not companion array execution.
+		expected[628], expected[629] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")

@@ -80,9 +80,12 @@ func (d *Descriptor) geometryInput(text string, env InputEnvironment) (Value, er
 		return nil
 	}
 	outer := false
-	if d.id == Box {
+	open := false
+	if d.id == Box || d.id == Line {
 		s.whitespace()
-		if s.pos < len(text) && text[s.pos] == '(' {
+		if d.id == Line && s.take('[') {
+			outer, open = true, true
+		} else if s.pos < len(text) && text[s.pos] == '(' {
 			next := s.pos + 1
 			for next < len(text) && space(text[next]) {
 				next++
@@ -95,13 +98,15 @@ func (d *Descriptor) geometryInput(text string, env InputEnvironment) (Value, er
 	if err := pair(0); err != nil {
 		return Value{}, err
 	}
-	if d.id == Box {
+	if d.id == Box || d.id == Line {
 		s.take(',')
 		if err := pair(2); err != nil {
 			return Value{}, err
 		}
 		s.take(',')
-		if outer && !s.take(')') {
+		// Released path_decode accepts ')' at any outer depth, including
+		// an open '[' path; ']' is admitted only for that open path.
+		if outer && !s.take(')') && !(open && s.take(']')) {
 			return Value{}, invalid()
 		}
 	}
@@ -111,6 +116,9 @@ func (d *Descriptor) geometryInput(text string, env InputEnvironment) (Value, er
 	}
 	if d.id == Point {
 		return pointValue(d, coordinates[0], coordinates[1]), nil
+	}
+	if d.id == Line {
+		return d.lineFromPoints(coordinates)
 	}
 	if d.id == Box && !env.RawBoxReplay && !env.ExactSnapshot {
 		for i := range 2 {
@@ -131,6 +139,9 @@ func (d *Descriptor) geometryOutput(v Value, env OutputEnvironment) (string, err
 		return "", fmt.Errorf("missing geometry payload")
 	}
 	c := v.geometry.coordinates
+	if d.id == Line {
+		return "{" + floatOutputWithEnvironment(c[0], Float8, env) + "," + floatOutputWithEnvironment(c[1], Float8, env) + "," + floatOutputWithEnvironment(c[2], Float8, env) + "}", nil
+	}
 	pair := func(i int) string {
 		return "(" + floatOutputWithEnvironment(c[i], Float8, env) + "," + floatOutputWithEnvironment(c[i+1], Float8, env) + ")"
 	}

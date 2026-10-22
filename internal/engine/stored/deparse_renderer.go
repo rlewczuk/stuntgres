@@ -207,7 +207,7 @@ func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 		return quote(text) + "::" + typ, nil
 	}
 	switch u.Type.ID() {
-	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point:
+	case sqltype.TSVector, sqltype.TSQuery, sqltype.Box, sqltype.Point, sqltype.Line:
 		return quote(text) + "::" + typ, nil
 	case sqltype.Bool:
 		value, err := v.Boolean()

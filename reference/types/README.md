@@ -6,6 +6,49 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### LINE scalar contract
+
+Independent pinned18.6 oracle-first scenarios cover coefficient preservation,
+all endpoint forms and permissive scanner edges, range/semantic/full-field
+diagnostics and stages, direct/new-prepared/held bytes/NULL/Valuer bindings,
+metadata, proportional scalar equality versus absent generic comparison,
+character sizing, atomicity and same/fresh-driver persistent-object replay.
+Native host-control phases are explicit; actual emitted SQL is replayed on
+PostgreSQL in real mode without inventing a PostgreSQL control API.
+Review regressions additionally cover released bracket-branch/legacy closing
+rules, callable line_eq direct/prepared/held/qualified NULL/error recovery,
+nonempty bytes/NaN inputs, and complete arity/type rejection diagnostics.
+The same callable/operator handles cross authorized/revoke/denied/grant reuse
+with true/false/strict-NULL inputs, and recover after equality arithmetic
+overflow/underflow. Stored callable views return true/false/NULL through direct
+and prepared reads before and after same/fresh-driver and PostgreSQL replay.
+Rollback probes execute restored defaults and both accepting/rejecting equality
+CHECK branches without changing redump contents.
+The oracle-observed denied strict-NULL matrix is route-specific: direct and
+new-prepared calls return NULL on both backends; the repeatedly held PostgreSQL
+statements demand EXECUTE after generic-plan transition and report42501, while
+native's analysis-identity-only statements still fold NULL per execution.
+These are independently asserted backend outcomes, not a permission exemption
+for nonnull inputs or an implementation of PostgreSQL executable-plan caching.
+
+```sh
+make check RUN='^TestReferenceLine(Values|Scanner|Diagnostics)$'
+make check RUN='^TestReferenceLine(Values|Scanner|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceLine(Transport|Metadata|CharacterCasts)$'
+make check RUN='^TestReferenceLine(Transport|Metadata|CharacterCasts)$' REFERENCE=1
+make check RUN='^TestReferenceLine(Comparison|Callable|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceLine(Comparison|Callable|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestLine(InputOutput|Scanner|Comparison|Datum|Descriptor|ExactReplay)$'
+make check RUN='^TestRegtypeInventoryCapability$'
+make check RUN='^TestReferenceLine(Transport|Controls)$' RACE=1
+```
+
+Use external900-second deadlines. FeatureSmoke independently checks a held
+insert's semantic-failure/no-publication/recovery boundary with typed nullable
+rows. Actual standalone consumer smoke additionally checks public metadata and
+Dump/Reset/Restore. Whole-project Docker-free verification is `make quickcheck`;
+the commands above specify proof obligations, not passing evidence.
+
 ### BOX scalar contract
 
 Eight bounded shared scenarios cover independently expected canonical IO,

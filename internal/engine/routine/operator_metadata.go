@@ -333,6 +333,7 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{1583, 1186, "b", false, false, 1584, 0, 1618, 0, 0},
 	{1584, 1186, "b", false, false, 1583, 0, 1624, 0, 0},
 	{1585, 1186, "b", false, false, 0, 0, 1326, 0, 0},
+	{1616, 16, "b", false, false, 1616, 0, 1492, 101, 105},
 	{1625, 16, "b", false, false, 0, 1626, 1635, 1814, 1816},
 	{1626, 16, "b", false, false, 0, 1625, 1636, 1815, 1817},
 	{1627, 16, "b", false, false, 0, 1628, 1633, 1814, 1816},
