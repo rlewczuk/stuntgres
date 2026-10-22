@@ -207,8 +207,22 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 	}
 	nullSyntax := *syntax
 	nullSyntax.Elements = make([]parser.TableElement, 0, len(parent.Constraints.NotNull)+len(syntax.Elements))
+	localNotNull := make(map[string]bool)
+	for slot, declaration := range declarations {
+		if declaration.ColumnNotNull {
+			localNotNull[d.Columns[slot].Name] = true
+		}
+	}
+	for _, element := range syntax.Elements {
+		if element.NotNull != nil {
+			localNotNull[element.NotNull.Column.Text] = true
+		}
+	}
 	for _, constraint := range parent.Constraints.NotNull {
 		slot := parent.IndexForAttribute(constraint.Attribute)
+		if localNotNull[d.Columns[slot].Name] {
+			continue // CREATE's local declaration owns the name, even when unnamed.
+		}
 		nullSyntax.Elements = append(nullSyntax.Elements, parser.TableElement{NotNull: &parser.NotNullConstraint{Column: parser.Identifier{Text: d.Columns[slot].Name}, Name: parser.Identifier{Text: constraint.Name}}})
 	}
 	nullSyntax.Elements = append(nullSyntax.Elements, syntax.Elements...)
@@ -222,10 +236,10 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 	for i := range d.Constraints.NotNull {
 		constraint := &d.Constraints.NotNull[i]
 		slot := d.IndexForAttribute(constraint.Attribute)
-		constraint.PartitionLocal = declarations[slot].ColumnNotNull
-		for _, element := range syntax.Elements {
-			if element.NotNull != nil && element.NotNull.Column.Text == d.Columns[slot].Name {
-				constraint.PartitionLocal = true
+		for _, source := range parent.Constraints.NotNull {
+			if parent.IndexForAttribute(source.Attribute) == slot {
+				constraint.PartitionOrigin = &catalog.InheritedConstraint{Local: localNotNull[d.Columns[slot].Name], Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: source.Attribute, Constraint: source.OID}}}
+				break
 			}
 		}
 	}
@@ -279,6 +293,7 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 			}
 			definition := original
 			definition.OID = 0
+			definition.PartitionOrigin = &catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Constraint: original.OID}}}
 			definition.Expression, err = stored.RemapExpressionWithQuery(original.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots, nil, rowRef)
 			if err != nil {
 				return nil, err

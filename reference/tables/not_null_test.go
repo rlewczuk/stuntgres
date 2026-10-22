@@ -1,14 +1,12 @@
 package reference_test
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
-	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -35,20 +33,16 @@ func TestReferenceNotNullFormsAndAlter(t *testing.T) {
 				run(fixture.ImplicitError(q, insert))
 			}
 			run(fixture.Select("SELECT * FROM t", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), nil}}))
-			run(fixture.Exec("ALTER TABLE t ADD CONSTRAINT other NOT NULL a", 0))
+			run(fixture.ImplicitError("ALTER TABLE t ADD CONSTRAINT other NOT NULL a", fixture.Diagnostic{Code: "55000", Message: `cannot create not-null constraint "other" on column "a" of table "t"`, Detail: `A not-null constraint named "nn" already exists for this column.`}))
 			run(fixture.ImplicitError("ALTER TABLE t DROP CONSTRAINT other", fixture.Diagnostic{Code: "42704", Message: `constraint "other" of relation "t" does not exist`}))
 			run(fixture.Exec("CREATE TABLE clone(LIKE t)", 0))
 			run(fixture.Exec("ALTER TABLE ONLY(t) DROP CONSTRAINT nn", 0))
 			run(fixture.Exec("INSERT INTO t VALUES(NULL,'keep')", 1))
-			var before bytes.Buffer
-			if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
-				t.Fatal(err)
-			}
 			for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ADD CONSTRAINT nn NOT NULL a"} {
 				run(fixture.ImplicitError(q, fixture.Diagnostic{Code: "23502", Message: `column "a" of relation "t" contains null values`, Schema: "public", Table: "t", Column: "a"}))
-				var after bytes.Buffer
-				if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil || before.String() != after.String() {
-					t.Fatal("failed ALTER changed canonical target", err)
+				run(fixture.Select("SELECT * FROM t ORDER BY a", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), nil}, {nil, "keep"}}))
+				for _, b := range p.Backends() {
+					fixture.TableDDLMetadata(t, p.Ctx, b.DB, b.PG, prepared, "SELECT * FROM t", []string{"a", "b"}, []string{"INT4", "TEXT"}, []bool{true, true}, 2)
 				}
 			}
 			run(fixture.Exec("ALTER TABLE clone DROP CONSTRAINT nn", 0))
@@ -241,8 +235,6 @@ func TestReferenceNotNullCurrentCommandNamesAndCompatibleReuse(t *testing.T) {
 				"ALTER TABLE t DROP CONSTRAINT t_a_not_null1", "ALTER TABLE t DROP CONSTRAINT t_a_not_null", "DROP TABLE t",
 				"CREATE TABLE t(a INT NOT NULL,b INT CONSTRAINT t_a_not_null NOT NULL,CONSTRAINT nn NOT NULL a)",
 				"ALTER TABLE t DROP CONSTRAINT nn", "ALTER TABLE t DROP CONSTRAINT t_a_not_null", "DROP TABLE t",
-				"CREATE TABLE compatible(a INT CONSTRAINT x NOT NULL,b INT CONSTRAINT y NOT NULL)",
-				"ALTER TABLE compatible ADD CONSTRAINT y NOT NULL a", "ALTER TABLE compatible DROP CONSTRAINT x",
 				"CREATE SCHEMA s CREATE TABLE named(a INT NOT NULL)", "CREATE TABLE named(a INT NOT NULL)",
 				"ALTER SCHEMA s RENAME TO renamed", "ALTER TABLE renamed.named DROP CONSTRAINT named_a_not_null",
 				"ALTER TABLE named DROP CONSTRAINT named_a_not_null",
@@ -251,6 +243,14 @@ func TestReferenceNotNullCurrentCommandNamesAndCompatibleReuse(t *testing.T) {
 			} {
 				run(fixture.Exec(q, 0))
 			}
+			run(fixture.Exec("CREATE TABLE compatible(a INT CONSTRAINT x NOT NULL,b INT CONSTRAINT y NOT NULL)", 0))
+			step := fixture.ImplicitError("ALTER TABLE compatible ADD CONSTRAINT y NOT NULL a", fixture.Diagnostic{Code: "55000", Message: `cannot create not-null constraint "y" on column "a" of table "compatible"`, Detail: `A not-null constraint named "x" already exists for this column.`})
+			step.ErrorStage = "execute"
+			run(step)
+			for _, b := range p.Backends() {
+				fixture.TableDDLMetadata(t, p.Ctx, b.DB, b.PG, prepared, "SELECT * FROM compatible", []string{"a", "b"}, []string{"INT4", "INT4"}, []bool{false, false}, 0)
+			}
+			run(fixture.Exec("ALTER TABLE compatible DROP CONSTRAINT x", 0))
 			run(fixture.Exec("INSERT INTO compatible VALUES(NULL,7)", 1))
 			run(fixture.Exec("INSERT INTO clone VALUES('fresh',NULL)", 1))
 			run(fixture.Select("SELECT * FROM clone", []string{"lead", "a"}, []string{"TEXT", "INT4"}, [][]any{{"fresh", nil}}))

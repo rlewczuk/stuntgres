@@ -63,9 +63,6 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 		t.Fatal("virtual CHECK granted")
 	}
 	operationReplay(op).partitionCheck = nil
-	if err := partitionConsumerBoundary(op, auth, raw, child); err == nil {
-		t.Fatal("public hierarchy ADD CHECK admitted")
-	}
 	publicOp, publicDone := roleOperation(t, source, "postgres")
 	defer publicDone()
 	if err := source.beginPartitionCheckReplay(publicOp, raw); err == nil {

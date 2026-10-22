@@ -30,17 +30,23 @@ func TestReferenceAlterNullabilityNames(t *testing.T) {
 			p := fixture.NewScenario(t)
 			p.Step(t, fixture.Exec("CREATE TABLE t(a INT,b INT)", 0))
 			p.Step(t, fixture.Exec("INSERT INTO t VALUES(7,9)", 1))
-			step := fixture.Exec("ALTER TABLE t ADD CONSTRAINT nn NOT NULL a, ADD CONSTRAINT other NOT NULL a", 0)
+			step := fixture.ImplicitError("ALTER TABLE t ADD CONSTRAINT nn NOT NULL a, ADD CONSTRAINT other NOT NULL a", fixture.Diagnostic{Code: "55000", Message: `cannot create not-null constraint "other" on column "a" of table "t"`, Detail: `A not-null constraint named "nn" already exists for this column.`})
+			step.ErrorStage = "execute"
 			step.Prepared = prepared
 			p.Step(t, step)
 			p.Step(t, fixture.ImplicitError("ALTER TABLE t DROP CONSTRAINT other", fixture.Diagnostic{Code: "42704", Message: `constraint "other" of relation "t" does not exist`}))
+			p.Step(t, fixture.ImplicitError("ALTER TABLE t DROP CONSTRAINT nn", fixture.Diagnostic{Code: "42704", Message: `constraint "nn" of relation "t" does not exist`}))
+			p.Step(t, fixture.Exec("ALTER TABLE t ADD CONSTRAINT nn NOT NULL a", 0))
 			p.Step(t, fixture.Exec("ALTER TABLE t DROP CONSTRAINT nn, ADD CONSTRAINT nn NOT NULL a", 0))
 			step = fixture.Exec("ALTER TABLE t DROP CONSTRAINT nn CASCADE, ADD CONSTRAINT nn NOT NULL b", 0)
 			step.Prepared = prepared
 			p.Step(t, step)
-			p.Step(t, fixture.Exec("ALTER TABLE t ALTER a SET NOT NULL, ADD CONSTRAINT nn NOT NULL a", 0))
-			// SET supplies a compatible identity before the transformed ADD pass.
-			p.Step(t, fixture.Exec("ALTER TABLE t DROP CONSTRAINT t_a_not_null", 0))
+			step = fixture.ImplicitError("ALTER TABLE t ALTER a SET NOT NULL, ADD CONSTRAINT nn NOT NULL a", fixture.Diagnostic{Code: "55000", Message: `cannot create not-null constraint "nn" on column "a" of table "t"`, Detail: `A not-null constraint named "t_a_not_null" already exists for this column.`})
+			step.Prepared = prepared
+			step.ErrorStage = "execute"
+			p.Step(t, step)
+			// The failed transformed ADD rolls back the preceding SET identity.
+			p.Step(t, fixture.ImplicitError("ALTER TABLE t DROP CONSTRAINT t_a_not_null", fixture.Diagnostic{Code: "42704", Message: `constraint "t_a_not_null" of relation "t" does not exist`}))
 			p.Step(t, fixture.ImplicitError("ALTER TABLE t ADD CONSTRAINT nn NOT NULL a", fixture.Diagnostic{Code: "42710", Message: `constraint "nn" for relation "t" already exists`}))
 			step = fixture.Exec("INSERT INTO t VALUES(NULL,10)", 1)
 			step.Prepared = prepared

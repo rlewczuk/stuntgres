@@ -177,6 +177,14 @@ admission and DML expansion goes to `dml`.
   per-member rename cores `RenameInheritanceColumn[Precheck]` and
   `RenameInheritanceConstraint[Precheck]`. Over `DropDependencyReader`:
   `DropConstraintIndexes`, `OwnedSequences` and `DropIdentity`.
+  The same plan and engine stage serve the narrow partition CHECK/NOT NULL
+  policy (`partition_alter.go`, `partition_alter_check.go`). Membership remains
+  partition topology; `AlterGraph` is statement-owned constraint scratch only.
+  Root CHECKs are cooked once and remapped to descendant row identities, with
+  structural merge checks and per-action stop events. Final descriptors carry
+  exact `PartitionOrigin`, never synthetic ordinary parents. NOT NULL keeps
+  column identity, operation-specific naming and local survival; ONLY removal
+  localizes immediate child contributions without changing grandchildren.
 - **Other table DDL cores** (pure, no stage): `DropTargets` (DROP TABLE
   resolution, kinds and ownership over `Resolver`), the SET SCHEMA cores
   `SetSchemaOwned`, `SetSchemaGroup`, `SetSchemaCandidates` and

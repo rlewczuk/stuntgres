@@ -18,4 +18,7 @@ type CheckConstraint struct {
 	Dependencies       []ExpressionDependency
 	CommentSnapshot    bool
 	VisibilitySnapshot bool
+	// PartitionOrigin records exact immediate-parent provenance, independently
+	// of ordinary inheritance topology. Nil denotes a standalone local fact.
+	PartitionOrigin *InheritedConstraint
 }

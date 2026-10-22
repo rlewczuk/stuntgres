@@ -2,7 +2,6 @@ package engine
 
 import (
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -84,7 +83,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 			}
 			state.Definition.Base = actualCatalog
 			state.Descendant = index != 0
-			state.Graph = catalog.CloneInheritance(actual.Inheritance)
+			state.Graph = table.AlterGraph(actual)
 			planned := state.Actions
 			if state.Descendant {
 				planned, state.Graph, err = e.inheritedAlterActions(state, actual)

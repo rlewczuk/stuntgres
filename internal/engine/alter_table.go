@@ -56,7 +56,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*catalog.Relation)
-	if s.Only && scope.inheritance.alter == nil {
+	if s.Only && scope.inheritance.alter == nil && !catalog.HierarchyRelation(old) {
 		s = table.OnlySetNotNull(auth.Catalog, old, s)
 	}
 	if partitionUniqueReplayAllowed(op, auth, s, old) {
@@ -111,7 +111,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		command.Actions = work
 		s = &command
 	}
-	if scope.inheritance.alter == nil && !access.RowSecurityActions(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions)) {
+	if scope.inheritance.alter == nil && !access.RowSecurityActions(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
 		return e.alterInheritanceLocked(scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.inheritance.alter == nil || !scope.inheritance.alter.Descendant {
@@ -133,6 +133,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		changes = scope.inheritance.alter.changes
 	}
 	relationshipOnly := table.RelationshipOnly(s.Actions)
+	// Virtual partition nodes share the candidate/provider/publication pipeline,
+	// but have no heap. The inheritance plan visits physical descendants with
+	// their own storage, validators and journal fences.
+	physicalRows := old.Partition == nil
 	var original, store *storage.Relation
 	var shape session.StorageChange
 	var versions []storage.RowVersion
@@ -140,9 +144,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	var frontier ids.CommitSeq
 	var snapshot visibility.Root
 	var snapshotExists bool
-	var grantCatalog *catalog.State
-	var schema string
-	if !relationshipOnly {
+	grantCatalog := e.catalog.state
+	schema := auth.Catalog.Get(old.Namespace()).Name()
+	if !relationshipOnly && physicalRows {
 		original = e.storage.Relations[ref.Address]
 		store = e.privateStorageLocked(changes, ref.Address)
 		if store == nil {
@@ -157,8 +161,6 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		}
 		versions, ends, frontier = store.Versions, store.Ends, e.visibility.CommitSeq()
 		snapshot, snapshotExists = scope.owner.Roots[ref.Address]
-		grantCatalog = e.catalog.state
-		schema = auth.Catalog.Get(old.Namespace()).Name()
 	}
 	var stage *CatalogStage
 	if scope.inheritance.alter == nil || !scope.inheritance.alter.Descendant {
@@ -626,7 +628,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		}
 	}
 	storageOwner := old
-	if accumulated, exists := changes.Storage[ref.Address]; exists {
+	if accumulated, exists := changes.Storage[ref.Address]; physicalRows && exists {
 		shape = accumulated
 		store = accumulated.Replacement
 		storageOwner = accumulated.Relation
@@ -735,7 +737,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			}
 		}
 	}
-	if len(scanChecks) != 0 || !rewrite && (table.NeedsNotNullScan(old, next) || virtualNotNullScan) {
+	if physicalRows && (len(scanChecks) != 0 || !rewrite && (table.NeedsNotNullScan(old, next) || virtualNotNullScan)) {
 		scanValidator := table.NewAlterRowValidator(next, schema)
 		if rewrite {
 			scanValidator.NotNull = nil
@@ -833,11 +835,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	metadataOnly := !changedValues && len(additions) == 0 && slices.Equal(old.Attributes, next.Attributes)
 	// A storage entry requests index reconstruction at publication. Attachment
 	// metadata needs none; retain any earlier private shape without restamping it.
-	if !hasAttachments || !metadataOnly {
+	if physicalRows && (!hasAttachments || !metadataOnly) {
 		changes.Storage[ref.Address] = shape
 	}
 	e.mu.Unlock()
-	if !rewrite {
+	if physicalRows && !rewrite {
 		sourceWrites, _ := scope.columnProjectionRoots(ref.Address)
 		var transported bool
 		projectedWrites, transported, err = transportIndexLayouts(&indexEvaluation, stage, changes, next, store, replacement, sourceWrites, projectedWrites)

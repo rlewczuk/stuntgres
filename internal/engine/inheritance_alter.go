@@ -87,7 +87,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 		ref := original.lockedRef
 		ref.Address = old.Address()
 		state.Descendant = index != 0
-		state.Graph = catalog.CloneInheritance(old.Inheritance)
+		state.Graph = table.AlterGraph(old)
 		planned := actions
 		if cached := state.prepared[old.Address()]; cached != nil {
 			planned = cached.actions
@@ -180,7 +180,7 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 
 func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.Relation) (*catalog.Relation, error) {
 	state := scope.inheritance.alter
-	if state == nil || old.Inheritance == nil {
+	if state == nil || old.Inheritance == nil && !state.Partition {
 		return next, nil
 	}
 	return table.FinishInheritanceAlterCandidate(&state.InheritanceAlterPlan, scope.engine().stageRead(state.stage), old, next)

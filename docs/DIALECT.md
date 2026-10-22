@@ -1159,6 +1159,31 @@ Conflict arbitration and MERGE cannot target partition
 hierarchies. Temporary partition definitions and partition definitions nested in
 schema creation are unavailable. Nonunique virtual partition indexes and partition
 reindexing are unavailable; partition key/constraint combinations remain bounded.
+
+Partition CHECK/NOT NULL inheritance supports recursive ADD CHECK, named ADD
+NOT NULL, column SET/DROP NOT NULL and named DROP of these two constraint kinds.
+Only whole lists of these selected actions are admitted; mixed column/key/type
+or other hierarchy actions remain0A000 with no selected prefix publication.
+CHECK identity uses name plus the bound expression's structural identity, not
+SQL text or algebraic equivalence. A matching child CHECK becomes nonlocal;
+NOT NULL merges by mapped column and preserves an existing local child fact.
+Each merge stops only its own action's recursion. Existing SET localizes the
+current NOT NULL fact without localizing grandchildren.
+
+ONLY DROP removes the root contribution and localizes the immediate child;
+grandchildren keep their immediate parent contribution. Fresh ONLY ADD/SET with
+children fails42P16; childless ONLY and existing ONLY SET remain supported.
+CREATE child explicit unnamed NOT NULL gets its child-generated name, and an
+explicit different name is retained. Direct ALTER ADD with a different existing
+NOT NULL name fails55000 rather than silently renaming or reusing it.
+Descriptors retain exact local/count provenance and distinct own constraint OIDs;
+CHECK/NOT NULL conparentid and backing-index OIDs remain zero. Leaf validation,
+current owner admission and cancellation use the single atomic ALTER stage.
+Logical native Dump/Restore and unchanged emitted-SQL replay preserve final
+facts, nullability, rows and enforcement; no new durability or PostgreSQL native
+control API is implied. See
+[selected proof](../reference/tables/README.md#inherited-partition-constraints).
+
 RANGE and LIST keys require an admitted btree ordering provider. Native integer-array
 keys currently retain the existing missing-default-operator-class boundary;
 ordinary array storage does not add a partition ordering provider.

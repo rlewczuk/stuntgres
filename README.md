@@ -55,6 +55,33 @@ See [table contracts](docs/TABLES.md#inheritance-typed-attachments-and-partition
 [native boundaries](docs/DIALECT.md#tables-hierarchies-and-materializations)
 and [selected proof/smoke](reference/tables/README.md#partition-pruning-and-constraint-exclusion).
 
+## Partitioned CHECK and NOT NULL constraints — change note
+
+Partition CHECK/NOT NULL facts retain exact local and immediate inherited
+provenance through creation, selected ALTER and logical Dump/Restore. Recursive
+ADD CHECK, ADD NOT NULL, SET/DROP NOT NULL and named CHECK/NOT NULL DROP use one
+atomic statement stage across RANGE, LIST and HASH trees. Matching structural
+CHECKs merge as nonlocal facts; NOT NULL merges by column identity and retains
+an existing local child declaration. A merged action stops at that node without
+stopping other actions in the list. Existing SET NOT NULL localizes its fact.
+ONLY DROP localizes immediate surviving child facts; fresh ONLY ADD/SET with
+children is rejected. Different explicit CREATE child NOT NULL names are retained,
+while incompatible different ALTER ADD names fail with55000. The same shared
+ADD NOT NULL naming rule now applies to ordinary tables: a different explicit
+name cannot silently reuse an existing constraint. Existing NO INHERIT and
+NOT VALID compatibility errors retain their diagnostic precedence.
+Virtual roots and intermediates stay storage-free in the common ALTER pipeline;
+each visited physical descendant retains its own historical-row validation and
+storage publication fences in the same statement journal.
+
+Physical leaves enforce CHECK FALSE and NOT NULL independently, including routed
+and prepared inserts. Failed validation, ownership admission or cancellation
+publishes no prefix. Native controls are logical process-local replacement, not
+PostgreSQL disk/WAL durability. Generic mixed hierarchy ALTER, column/type/rename
+propagation, UPDATE/DELETE and explicit hierarchy locking are not added.
+See [native limits](docs/DIALECT.md#tables-hierarchies-and-materializations) and
+[selected proof and smoke](reference/tables/README.md#inherited-partition-constraints).
+
 ## Transactional large-object storage — change note
 
 `lo_create`, `lo_creat`, `lo_from_bytea`, both `lo_get` overloads, `lo_put`

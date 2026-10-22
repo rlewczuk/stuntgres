@@ -403,6 +403,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 						return address
 					}, func(origin catalog.InheritanceOrigin) ids.OID { return origin.Constraint })
 				}
+				table.RemapPartitionConstraintOrigins(&n, func(address ids.ObjectAddress) ids.ObjectAddress {
+					if destination, ok := mapping[address]; ok {
+						return destination
+					}
+					return address
+				}, func(origin catalog.InheritanceOrigin) ids.OID { return origin.Constraint })
 				if target != a {
 					n.Columns = append([]catalog.Column(nil), r.Columns...)
 					for i := range n.Columns {

@@ -146,6 +146,18 @@ func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			if constraint.NotValid && !a.NotValid {
 				return nil, index.IncompatibleNotValid(constraint.Name, old.Name())
 			}
+			if recursion == NotNullDirect && a.Constraint.Text != "" && a.Constraint.Text != constraint.Name {
+				diagnostic := sqlError("55000", fmt.Sprintf(`cannot create not-null constraint "%s" on column "%s" of table "%s"`, a.Constraint.Text, old.Columns[slot].Name, old.Name())).(*sqlstate.Error)
+				diagnostic.Detail = fmt.Sprintf(`A not-null constraint named "%s" already exists for this column.`, constraint.Name)
+				return nil, diagnostic
+			}
+			if recursion == NotNullDirect && constraint.PartitionOrigin != nil && !constraint.PartitionOrigin.Local {
+				next := *old
+				next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
+				next.Constraints.NotNull[idx].PartitionOrigin = catalog.CloneConstraintOrigin(constraint.PartitionOrigin)
+				next.Constraints.NotNull[idx].PartitionOrigin.Local = true
+				return &next, nil
+			}
 			if recursion == NotNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
 				next.Inheritance = catalog.CloneInheritance(old.Inheritance)
@@ -164,6 +176,13 @@ func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Rel
 			// validate an inherited NOT VALID fact or visit its descendants.
 			if recursion == NotNullInherited {
 				return old, nil
+			}
+			if recursion == NotNullDirect && constraint.PartitionOrigin != nil && !constraint.PartitionOrigin.Local {
+				next := *old
+				next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
+				next.Constraints.NotNull[idx].PartitionOrigin = catalog.CloneConstraintOrigin(constraint.PartitionOrigin)
+				next.Constraints.NotNull[idx].PartitionOrigin.Local = true
+				return &next, nil
 			}
 			if recursion == NotNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old

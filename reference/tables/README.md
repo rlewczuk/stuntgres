@@ -1974,3 +1974,40 @@ tree, physical leaf contents, NULL/default routing, result metadata, exact direc
 ancestry, overlap and occupied-DEFAULT rejection, reusable failed names, retained
 rows/held statements and native reset/restore/fresh-destination replay. When the
 oracle is enabled it consumes the actual owner-bearing native dump bytes too.
+
+### Inherited partition constraints
+
+PostgreSQL18.6 is the oracle for the shared direct/prepared partition CHECK and
+NOT NULL scenarios. Independent expectations cover structural CHECK merge,
+column-identity NN merge and operation-specific names, exact local/count/own-OID
+metadata, recursive per-action stops, all three ONLY DROP forms, fresh versus
+existing SET, leaf diagnostics/UNKNOWN evaluation, owner checks, late validation
+atomicity and held prepared consumers. Mixed selected/unrelated ALTER is an
+explicit native capability boundary, not partial execution.
+
+Run each small group natively and with `REFERENCE=1`, under an external900-second
+deadline; selected cancellation also requires `RACE=1` native proof:
+
+```sh
+make check RUN='^TestReferencePartitionInherited(Creation|Enforcement|Names|Methods)$'
+make check RUN='^TestReferencePartitionInherited(Alter|Drop|Only|ExistingSet|AddNames|Consumers)$'
+make check RUN='^TestReferencePartitionInherited(Atomicity|ConflictAtomicity|Diagnostics|Authorization|Boundary)$'
+make check RUN='^TestReferencePartitionInheritedCancellation$'
+make check RUN='^TestReferencePartitionInheritedCancellation$' RACE=1
+make check RUN='^TestReferencePartitionInherited(Controls|Replay)$'
+make check RUN='^TestReferencePartitionInheritedFeatureSmoke$'
+```
+
+Controls exercise native Dump/Reset/Restore, repeated roundtrip and failed or
+canceled replacement preserving sentinel state and an already-open cursor.
+Replay sends actual unchanged native dump SQL to PostgreSQL using the existing
+owner/admin replay helpers; SQL histories alone do not establish emitted replay.
+Native controls and eager cursor replacement are explicitly native-only, not
+invented PostgreSQL APIs or physical durability claims.
+
+The feature smoke adds a recursive CHECK to a two-leaf tree, proves physical
+enforcement and typed rows/metadata, removes it without replacing unrelated
+CHECK identities, then recursively drops parent NN. The inherited-only low leaf
+becomes nullable while the high leaf's explicit local NN survives with its own
+OID and continued enforcement. Native roundtrip preserves those final facts,
+the three-row bag and renewed enforcement.

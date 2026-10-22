@@ -34,22 +34,26 @@ func inheritanceEventName(a parser.AlterTableAction) string {
 func InheritanceParentActions(state *InheritanceAlterPlan, old *catalog.Relation) []parser.AlterTableAction {
 	var actions []parser.AlterTableAction
 	state.Validating = nil
-	if old.Inheritance == nil {
+	graph := old.Inheritance
+	if state.Partition {
+		graph = AlterGraph(old)
+	}
+	if graph == nil {
 		return actions
 	}
-	for _, edge := range old.Inheritance.Parents {
+	for _, edge := range graph.Parents {
 		parent := edge.Relation
 		for _, event := range state.Events[parent] {
 			a := event.Action
 			if a.Action == parser.DropColumn || a.Action == parser.DropNotNull || a.Action == parser.DropConstraint {
 				var origins []catalog.InheritanceOrigin
 				if a.Action == parser.DropConstraint {
-					origins = old.Inheritance.Checks[a.Constraint.Text].Origins
+					origins = graph.Checks[a.Constraint.Text].Origins
 				} else if slot, ok := old.Index[a.Column.Text]; ok {
 					if a.Action == parser.DropColumn {
-						origins = old.Inheritance.Columns[old.Attributes[slot]].Origins
+						origins = graph.Columns[old.Attributes[slot]].Origins
 					} else {
-						origins = old.Inheritance.NotNull[old.Attributes[slot]].Origins
+						origins = graph.NotNull[old.Attributes[slot]].Origins
 					}
 				}
 				reached := slices.ContainsFunc(origins, func(origin catalog.InheritanceOrigin) bool {

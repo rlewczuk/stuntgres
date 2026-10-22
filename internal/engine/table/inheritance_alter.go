@@ -18,6 +18,7 @@ type InheritanceAlterPlan struct {
 	Graph      *catalog.TableInheritance
 	Descendant bool
 	Only       bool
+	Partition  bool
 	Actions    []parser.AlterTableAction
 	Events     map[ids.ObjectAddress][]InheritanceAlterEvent
 	Validating map[string]bool
@@ -36,6 +37,11 @@ func InheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog
 			return
 		}
 		selected[d.Address()] = d
+		if d.Partition != nil {
+			for _, address := range d.Partition.Children {
+				collect(view.MustRelation(address))
+			}
+		}
 		for _, child := range catalog.InheritanceChildren(view, d.Address()) {
 			collect(child)
 		}
@@ -49,6 +55,11 @@ func InheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog
 			return
 		}
 		seen[d.Address()] = true
+		if d.Membership != nil {
+			if parent := selected[d.Membership.Parent]; parent != nil {
+				visit(parent)
+			}
+		}
 		if d.Inheritance != nil {
 			for _, edge := range d.Inheritance.Parents {
 				parent := edge.Relation
@@ -193,6 +204,9 @@ func InheritedNotNull(view catalog.Read, parents []catalog.InheritanceParent, na
 // order, and whether preparatory locks are needed before the targets are
 // visited.
 func PlanInheritanceAlter(view catalog.Read, root *catalog.Relation, raw *parser.AlterTable) (InheritanceAlterPlan, bool, error) {
+	if catalog.HierarchyRelation(root) && PartitionConstraintActions(root, raw.Actions) {
+		return planPartitionAlter(view, root, raw)
+	}
 	actions := raw.Actions
 	if err := InheritanceAlterActionsGuard(view, root, actions); err != nil {
 		return InheritanceAlterPlan{}, false, err

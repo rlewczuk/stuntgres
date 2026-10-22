@@ -103,7 +103,7 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 			}
 			local, count := NonuniqueConstraintProvenance(view, table, c.Name, c.Attribute, false)
 			builder.boolean(row, 7, !c.NotValid)
-			builder.boolean(row, 16, local || c.PartitionLocal)
+			builder.boolean(row, 16, local)
 			builder.integer(row, 17, count)
 			builder.boolean(row, 18, c.NoInherit)
 			builder.keys(row, 20, []int32{c.Attribute})
@@ -433,26 +433,16 @@ func NonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation
 			return provenance.Local, int64(provenance.Count())
 		}
 	}
-	if table.Membership != nil {
-		parent := catalog.MustRelation(table.Membership.Parent)
-		if check {
-			for _, constraint := range parent.Constraints.Check {
-				if constraint.Name == name {
-					return false, 1
-				}
+	if check {
+		for _, constraint := range table.Constraints.Check {
+			if constraint.Name == name && constraint.PartitionOrigin != nil {
+				return constraint.PartitionOrigin.Local, int64(constraint.PartitionOrigin.Count())
 			}
-		} else {
-			slot := slices.Index(table.Attributes, attribute)
-			if slot >= 0 {
-				parentSlot, exists := parent.Index[table.Columns[slot].Name]
-				if exists {
-					parentAttribute := parent.Attributes[parentSlot]
-					for _, constraint := range parent.Constraints.NotNull {
-						if constraint.Attribute == parentAttribute {
-							return false, 1
-						}
-					}
-				}
+		}
+	} else {
+		for _, constraint := range table.Constraints.NotNull {
+			if constraint.Attribute == attribute && constraint.PartitionOrigin != nil {
+				return constraint.PartitionOrigin.Local, int64(constraint.PartitionOrigin.Count())
 			}
 		}
 	}

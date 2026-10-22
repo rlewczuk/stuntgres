@@ -111,13 +111,8 @@ func addConstraintHierarchy(t *testing.T) {
 				}
 				run(fixture.Exec("INSERT INTO child VALUES(1)", 1))
 				q := "ALTER TABLE parent ADD CONSTRAINT ck CHECK(a>0)"
-				if !partition || b.PG {
-					run(fixture.Prepared(fixture.Exec(q, 0)))
-					run(fixture.ErrorDiagnostic("INSERT INTO child VALUES(0)", fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: `new row for relation "child" violates check constraint "ck"`, Detail: "Failing row contains (0).", Schema: "public", Table: "child", Constraint: "ck"}))
-				} else {
-					run(fixture.Prepared(fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "altering partition hierarchies is unsupported"))))
-					run(fixture.Select("SELECT conname FROM pg_constraint WHERE conrelid='parent'::regclass::oid", []string{"conname"}, []string{"NAME"}, nil))
-				}
+				run(fixture.Prepared(fixture.Exec(q, 0)))
+				run(fixture.ErrorDiagnostic("INSERT INTO child VALUES(0)", fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: `new row for relation "child" violates check constraint "ck"`, Detail: "Failing row contains (0).", Schema: "public", Table: "child", Constraint: "ck"}))
 				run(fixture.Select("SELECT a FROM child", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
 			})
 		})

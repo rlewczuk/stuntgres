@@ -36,7 +36,7 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	if !held.Rows.Schema()[0].Nullable || !reflect.DeepEqual(tuples(held), [][]driver.Value{{int64(7), "keep", int64(9)}}) {
 		t.Fatal(held.Rows.Schema())
 	}
-	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ADD CONSTRAINT other NOT NULL a", "ALTER TABLE t ALTER b DROP NOT NULL", "ALTER TABLE t DROP CONSTRAINT IF EXISTS absent"} {
+	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ADD CONSTRAINT t_a_not_null NOT NULL a", "ALTER TABLE t ALTER b DROP NOT NULL", "ALTER TABLE t DROP CONSTRAINT IF EXISTS absent"} {
 		run(t, e, q)
 		if e.catalog.state.Get(ref.Address) != next || e.storage.Relations[ref.Address] != storage {
 			t.Fatal(q, "no-op mutated state")

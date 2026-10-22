@@ -64,8 +64,12 @@ func StageDetach(stage ddl.Stage, base catalog.Read, parent, child *catalog.Rela
 	if len(child.Constraints.NotNull) != 0 {
 		nextChild.Constraints.NotNull = slices.Clone(child.Constraints.NotNull)
 		for i := range nextChild.Constraints.NotNull {
-			nextChild.Constraints.NotNull[i].PartitionLocal = true
+			nextChild.Constraints.NotNull[i].PartitionOrigin = nil
 		}
+	}
+	nextChild.Constraints.Check = slices.Clone(child.Constraints.Check)
+	for i := range nextChild.Constraints.Check {
+		nextChild.Constraints.Check[i].PartitionOrigin = nil
 	}
 	if len(child.Constraints.Unique) != 0 {
 		nextChild.Constraints.Unique = slices.Clone(child.Constraints.Unique)

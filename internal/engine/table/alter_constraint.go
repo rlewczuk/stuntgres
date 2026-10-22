@@ -66,6 +66,9 @@ func PrepareAddedChecks(h AlterHost, plan *InheritanceAlterPlan, auth ddl.Author
 	if len(raw) == 0 {
 		return prepared, nil
 	}
+	if plan != nil && plan.Partition && plan.Descendant {
+		return preparePartitionChecks(h, plan, auth, parent, raw)
+	}
 	next := *parent
 	next.Constraints.Check = slices.Clone(parent.Constraints.Check)
 	// The ordinary binder writes locality into this graph. A candidate must not
@@ -85,6 +88,9 @@ func PrepareAddedChecks(h AlterHost, plan *InheritanceAlterPlan, auth ddl.Author
 					continue
 				}
 				merge := plan.Descendant
+				if c.PartitionOrigin != nil {
+					merge = merge || c.PartitionOrigin.Count() != 0
+				}
 				if parent.Inheritance != nil {
 					provenance := parent.Inheritance.Checks[c.Name]
 					merge = merge || !provenance.Local && provenance.Count() != 0

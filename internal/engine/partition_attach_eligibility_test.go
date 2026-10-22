@@ -100,7 +100,7 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			if c.sameName {
 				name = "parent_nn"
 			}
-			child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, PartitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, PartitionLocal: true}}
+			child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true}}
 			original := append([]catalog.NotNullConstraint(nil), child.Constraints.NotNull...)
 			view := inheritanceUnitView(e, parent, child)
 			next, err := partition.AttachSchema(op.Context(), view, parent, child)
@@ -115,7 +115,7 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 					t.Fatal(err)
 				}
 				matched := original[0]
-				matched.PartitionLocal = false
+				matched.PartitionOrigin = &catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 8, Constraint: 32221}}}
 				if !reflect.DeepEqual(next.Constraints.NotNull, []catalog.NotNullConstraint{matched, original[1]}) {
 					t.Fatal("mapped identity/validity or stronger-local provenance changed", next.Constraints.NotNull)
 				}

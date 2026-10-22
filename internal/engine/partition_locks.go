@@ -60,6 +60,9 @@ func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, st
 		if partitionCheckReplayAllowed(op, auth, s, d) || partitionUsingIndexReplayAllowed(op, auth, s, d) || partitionUniqueReplayAllowed(op, auth, s, d) {
 			return nil
 		}
+		if table.PartitionConstraintActions(d, s.Actions) {
+			return nil
+		}
 		for _, action := range s.Actions {
 			if action.Action != parser.DropColumn {
 				continue

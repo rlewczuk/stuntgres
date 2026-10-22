@@ -142,6 +142,15 @@ constraint and the per-leaf groups; step 29 moves them to `dml`). `partition_hos
 - LIST metadata, dump literals and logical remap use key0 for every value, never
   the list ordinal. Typed NULL preserves its descriptor without nonnull output.
   Private LIST replay uses full-row validation; public LIST ATTACH stays excluded.
+- CHECK/NOT NULL descriptors own exact `PartitionOrigin` metadata. CREATE and
+  ATTACH populate immediate origins; DETACH removes the top contribution.
+  `ValidateConstraintOrigins` checks actual parent fact identities and NN column
+  mapping, including valid local-only survivors after ONLY/DROP. Catalog output
+  never infers locality from a currently matching parent name. Dump emits local
+  NN declarations (including child-generated/different names), omits inherited
+  CHECKs and uses the existing attachment fallback only when final shape needs it.
+  Selected recursive ALTER policy belongs in `table/partition_alter*.go`; the
+  engine reuses its ordinary one-stage orchestration and publication fences.
 
 ## Testing
 
@@ -169,6 +178,16 @@ Exec `TestQueryBranchPruning` covers interval/scan-range/raw-ordinal and rewind
 behavior. Other partition units build an engine and stay in the root package,
 naming the moved code as `partition.X`.
 `TestPartitionHost*` checks the root `ddlHost.BindKeyExpression`.
+
+Exact provenance clone/validation and parent-qualified remap units:
+
+```sh
+make check RUN='^TestPartitionInherited(Provenance|OriginRemap)$'
+```
+
+Public selected actions, controls, cancellation, replay and feature smoke:
+[reference/tables](../../../reference/tables/README.md#inherited-partition-constraints).
+
 
 LIST selected units and real production-phase cancellation proof:
 

@@ -13,6 +13,9 @@ import (
 // staged so far; retired reads the retired constraint history.
 func InheritedAlterActions(plan *InheritanceAlterPlan, view, retired catalog.Read, old *catalog.Relation) ([]parser.AlterTableAction, *catalog.TableInheritance, error) {
 	state := plan
+	if state.Partition {
+		return partitionInheritedActions(state, old)
+	}
 	graph := catalog.CloneInheritance(old.Inheritance)
 	var actions []parser.AlterTableAction
 	droppedColumns := make(map[string]bool)
@@ -168,6 +171,9 @@ func InheritedAlterActions(plan *InheritanceAlterPlan, view, retired catalog.Rea
 // takes no part in inheritance. view reads the members as staged.
 func FinishInheritanceAlterCandidate(plan *InheritanceAlterPlan, view catalog.Read, old, next *catalog.Relation) (*catalog.Relation, error) {
 	state := plan
+	if state != nil && state.Partition {
+		return finishPartitionCandidate(state, view, old, next)
+	}
 	if state == nil || old.Inheritance == nil {
 		return next, nil
 	}

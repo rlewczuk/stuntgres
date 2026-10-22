@@ -41,6 +41,13 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   `Membership`, `Inheritance`, `Sequence`, `View`, `Rules`, `Foreign`, ...)
   stay top-level. Sub-records are values, never pointers, so copying a
   `Relation` shares their slices and maps exactly like its top-level ones.
+  CHECK and NOT NULL descriptors carry optional `PartitionOrigin` using the
+  existing `InheritedConstraint`/`InheritanceOrigin` records. Nil means local
+  with no contribution; a present record carries exact locality and at most one
+  immediate partition parent, actual parent constraint OID and (for NOT NULL)
+  stable parent attribute. It is not ordinary inheritance topology or a
+  same-name inference. Candidate edits detach the record/slices with
+  `CloneConstraintOrigin`; remapping is parent-qualified, never a global OID map.
 - **Payload interfaces.** Engine-defined payloads stay behind interfaces
   that expose only what catalog code and the packages above it need:
   `ViewPayload`, `RulesPayload`, `PolicyPayload` and

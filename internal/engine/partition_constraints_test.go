@@ -454,7 +454,7 @@ func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	partitionConstraintBackings(f)
 	f.root.Constraints.NotNull = []catalog.NotNullConstraint{{OID: f.root.Address().ObjectID, Name: "nn", Attribute: 10}}
-	f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 30008, Name: "nn", Attribute: 22, PartitionLocal: true}}
+	f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 30008, Name: "nn", Attribute: 22, PartitionOrigin: &catalog.InheritedConstraint{Local: true, Origins: []catalog.InheritanceOrigin{{Parent: f.root.Address(), Attribute: 10, Constraint: f.root.Address().ObjectID}}}}}
 	next := *f.view.State()
 	next.ResetDescriptors(f.view.DescriptorCount())
 	for a, d := range f.view.Descriptors() {
@@ -480,7 +480,7 @@ func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	if !root.Constraints.Unique[0].IsLocal || leaf.Constraints.Unique[0].IsLocal || f.root.Constraints.Unique[0].OID != oldRoot || f.leaf.Constraints.Unique[0].OID != oldChild {
 		t.Fatal("remapping changed provenance or live predecessor")
 	}
-	if root.Constraints.NotNull[0].OID == f.root.Address().ObjectID || root.Constraints.NotNull[0].PartitionLocal || !leaf.Constraints.NotNull[0].PartitionLocal || !f.leaf.Constraints.NotNull[0].PartitionLocal {
+	if root.Constraints.NotNull[0].OID == f.root.Address().ObjectID || root.Constraints.NotNull[0].PartitionOrigin != nil || !leaf.Constraints.NotNull[0].PartitionOrigin.Local || !f.leaf.Constraints.NotNull[0].PartitionOrigin.Local {
 		t.Fatal("NN remapping lost explicit merged provenance")
 	}
 }

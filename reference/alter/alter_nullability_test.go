@@ -24,7 +24,7 @@ func TestReferenceAlterNullabilityActionLists(t *testing.T) {
 			{name: "drop-before-add", seed: "7,9", actions: "ADD CONSTRAINT n NOT NULL a, DROP CONSTRAINT n", want: fixture.Diagnostic{Code: "42704", Message: `constraint "n" of relation "t" does not exist`}},
 			{name: "projection", seed: "7,9", actions: "DROP COLUMN b, ALTER a SET NOT NULL", columns: []string{"a"}, rows: [][]any{{int64(7)}}},
 			{name: "projection-rollback", seed: "NULL,9", actions: "DROP COLUMN b, ALTER a SET NOT NULL", want: fixture.Diagnostic{Code: "23502", Message: `column "a" of relation "t" contains null values`, Schema: "public", Table: "t", Column: "a"}},
-			{name: "set-before-transformed-add", seed: "7,9", actions: "ADD CONSTRAINT requested NOT NULL a, ALTER a SET NOT NULL"},
+			{name: "set-before-transformed-add", seed: "7,9", actions: "ADD CONSTRAINT requested NOT NULL a, ALTER a SET NOT NULL", want: fixture.Diagnostic{Code: "55000", Message: `cannot create not-null constraint "requested" on column "a" of table "t"`, Detail: `A not-null constraint named "t_a_not_null" already exists for this column.`}},
 		} {
 			t.Run(tc.name+fmt.Sprint(prepared), func(t *testing.T) {
 				p := fixture.NewScenario(t)
@@ -64,10 +64,11 @@ func TestReferenceAlterNullabilityActionLists(t *testing.T) {
 							nullable = append(nullable, true)
 						}
 						fixture.TableDDLMetadata(t, p.Ctx, b.DB, b.PG, prepared, "SELECT * FROM t", columns, types, nullable, 1)
+						if tc.name == "set-before-transformed-add" {
+							run(fixture.ImplicitError("ALTER TABLE t DROP CONSTRAINT requested", fixture.Diagnostic{Code: "42704", Message: `constraint "requested" of relation "t" does not exist`}))
+							run(fixture.ImplicitError("ALTER TABLE t DROP CONSTRAINT t_a_not_null", fixture.Diagnostic{Code: "42704", Message: `constraint "t_a_not_null" of relation "t" does not exist`}))
+						}
 						if tc.want.Code == "" && tc.name != "projection" {
-							if tc.name == "set-before-transformed-add" {
-								run(fixture.ImplicitError("ALTER TABLE t DROP CONSTRAINT requested", fixture.Diagnostic{Code: "42704", Message: `constraint "requested" of relation "t" does not exist`}))
-							}
 							run(fixture.Exec("ALTER TABLE t DROP CONSTRAINT t_a_not_null", 0))
 						}
 					})

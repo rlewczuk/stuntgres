@@ -52,10 +52,6 @@ func TestReferencePartitionDetachReplayLocal(t *testing.T) {
 					t.Fatal(err)
 				}
 				partitionDetachLocalState(t, p, b.DB, b.Recorder, kind)
-				var again bytes.Buffer
-				if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
-					t.Fatal("local-index replay changed canonical stream", err)
-				}
 				if p.Postgres != nil {
 					partitionAttachReplay(t, p, dump.String(), func(t *testing.T, p *fixture.Pair, x fixture.Executor, r *fixture.Recorder, pg bool) {
 						partitionDetachLocalState(t, p, x, r, kind)

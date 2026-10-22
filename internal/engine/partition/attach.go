@@ -161,8 +161,19 @@ func AttachSchema(ctx context.Context, view catalog.Read, parent, child *catalog
 		constraint := &next.Constraints.NotNull[i]
 		slot := child.IndexForAttribute(constraint.Attribute)
 		parentSlot := parent.Index[child.Columns[slot].Name]
-		if !parent.Columns[parentSlot].Nullable {
-			constraint.PartitionLocal = false
+		for _, required := range parent.Constraints.NotNull {
+			if required.Attribute == parent.Attributes[parentSlot] {
+				constraint.PartitionOrigin = &catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: required.Attribute, Constraint: required.OID}}}
+			}
+		}
+	}
+	next.Constraints.Check = slices.Clone(child.Constraints.Check)
+	for i := range next.Constraints.Check {
+		constraint := &next.Constraints.Check[i]
+		for _, required := range parent.Constraints.Check {
+			if required.Name == constraint.Name && !required.NoInherit {
+				constraint.PartitionOrigin = &catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Constraint: required.OID}}}
+			}
 		}
 	}
 	return &next, nil

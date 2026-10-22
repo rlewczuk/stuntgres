@@ -74,14 +74,14 @@ func TestPartitionAttachSchema(t *testing.T) {
 	parent.Columns[0].Nullable = false
 	parent.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32100, Name: "parent_nn", Attribute: 1}}
 	child.Columns[1].Nullable = false
-	child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, PartitionLocal: true}}
+	child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2}}
 	view := inheritanceUnitView(e, parent, child)
 	ctx := op.Context()
 	next, err := partition.AttachSchema(ctx, view, parent, child)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == child || next.Constraints.NotNull[0].Name != "child_nn" || next.Constraints.NotNull[0].OID != 32101 || next.Constraints.NotNull[0].PartitionLocal || !child.Constraints.NotNull[0].PartitionLocal {
+	if next == child || next.Constraints.NotNull[0].Name != "child_nn" || next.Constraints.NotNull[0].OID != 32101 || next.Constraints.NotNull[0].PartitionOrigin == nil || next.Constraints.NotNull[0].PartitionOrigin.Local || next.Constraints.NotNull[0].PartitionOrigin.Count() != 1 || child.Constraints.NotNull[0].PartitionOrigin != nil {
 		t.Fatal("NN identity or source changed")
 	}
 	next.Membership = &catalog.PartitionMembership{Parent: parent.Address()}

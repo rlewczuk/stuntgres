@@ -51,7 +51,9 @@ func TestReferenceAlterAddConstraintDiagnostics(t *testing.T) {
 					if got := addConstraintInvalid(t, p, b, c, "t", "nn", "NOT NULL a NOT VALID"); got != oid {
 						t.Fatal(oid, got)
 					}
-					run(fixture.Prepared(fixture.Exec("ALTER TABLE t ADD CONSTRAINT nn_other NOT NULL a NOT VALID", 0)))
+					d = fixture.ControlsReferenceDiagnostic("55000", `cannot create not-null constraint "nn_other" on column "a" of table "t"`)
+					d.Detail = `A not-null constraint named "nn" already exists for this column.`
+					addConstraintError(t, p, c, "ALTER TABLE t ADD CONSTRAINT nn_other NOT NULL a NOT VALID", d, prepared, "execute")
 					run(fixture.Prepared(fixture.Exec("ALTER TABLE t ADD CONSTRAINT nn NOT NULL a NOT VALID", 0)))
 					if got := addConstraintInvalid(t, p, b, c, "t", "nn", "NOT NULL a NOT VALID"); got != oid {
 						t.Fatal("compatible invalid ADD changed identity", oid, got)
@@ -86,8 +88,16 @@ func TestReferenceAlterAddConstraintDiagnostics(t *testing.T) {
 			run(fixture.Exec("CREATE TABLE t(a INT CONSTRAINT original NOT NULL,b INT,CONSTRAINT occupied CHECK(a>0))", 0))
 			run(fixture.Exec("INSERT INTO t VALUES(1,2)", 1))
 			before := addConstraintCatalog(t, p, c)
-			for _, q := range []string{"ALTER TABLE t ADD CONSTRAINT fresh NOT NULL a", "ALTER TABLE t ADD CONSTRAINT occupied NOT NULL a NOT VALID", "ALTER TABLE t ADD CONSTRAINT fresh NOT NULL a NOT VALID"} {
-				run(fixture.Prepared(fixture.Exec(q, 0)))
+			for _, tc := range []struct{ query, name string }{
+				{"ALTER TABLE t ADD CONSTRAINT fresh NOT NULL a", "fresh"},
+				{"ALTER TABLE t ADD CONSTRAINT occupied NOT NULL a NOT VALID", "occupied"},
+				{"ALTER TABLE t ADD CONSTRAINT fresh NOT NULL a NOT VALID", "fresh"},
+			} {
+				d := fixture.ControlsReferenceDiagnostic("55000", fmt.Sprintf(`cannot create not-null constraint "%s" on column "a" of table "t"`, tc.name))
+				d.Detail = `A not-null constraint named "original" already exists for this column.`
+				for _, prepared := range []bool{false, true} {
+					addConstraintError(t, p, c, tc.query, d, prepared, "execute")
+				}
 				if got := addConstraintCatalog(t, p, c); fmt.Sprint(got) != fmt.Sprint(before) {
 					t.Fatal("compatible NN changed name/OID/validity", before, got)
 				}

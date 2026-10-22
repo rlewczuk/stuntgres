@@ -129,7 +129,7 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			view := f.e.stageRead(stage)
 			idx := view.MustRelation(f.child.Address())
 			table := view.MustRelation(f.leaf.Address())
-			if idx.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || idx.SQLIndex.Constraint != f.child.SQLIndex.Constraint || idx.SQLIndex.Valid != f.child.SQLIndex.Valid || table.Constraints.Unique[0].Parent != 0 || !table.Constraints.Unique[0].IsLocal || !table.Constraints.NotNull[0].PartitionLocal {
+			if idx.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || idx.SQLIndex.Constraint != f.child.SQLIndex.Constraint || idx.SQLIndex.Valid != f.child.SQLIndex.Valid || table.Constraints.Unique[0].Parent != 0 || !table.Constraints.Unique[0].IsLocal || table.Constraints.NotNull[0].PartitionOrigin != nil {
 				t.Fatal("top edge/provenance/backing identity wrong")
 			}
 			if table.Constraints.Unique[0].OID != childKey.OID || table.Constraints.NotNull[0].OID != 46602 || f.leaf.Constraints.Unique[0].Parent != rootKey.OID || f.child.SQLIndex.PartitionParent != f.parent.Address() {

@@ -138,7 +138,6 @@ func TestReferencePartitionAttachDiagnostics(t *testing.T) {
 	})
 	partitionAttachBoundPrecedence(t)
 	partitionAttachOwnerDiagnostics(t)
-	partitionAttachCheckAlterBoundary(t)
 	partitionAttachGeneratedDiagnostics(t)
 	partitionAttachEligibilityDiagnostics(t)
 }

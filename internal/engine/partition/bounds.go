@@ -20,6 +20,9 @@ import (
 
 func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid partition hierarchy descriptor") }
+	if err := ValidateConstraintOrigins(view, d); err != nil {
+		return err
+	}
 	if (d.Partition != nil) != (d.RelationKind == catalog.PartitionedRelation) {
 		return invalid()
 	}

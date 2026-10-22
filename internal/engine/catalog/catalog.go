@@ -142,12 +142,12 @@ func (d *Relation) HasAttribute(sub int32) bool {
 }
 
 type NotNullConstraint struct {
-	OID            ids.OID
-	Name           string
-	Attribute      int32
-	NotValid       bool
-	NoInherit      bool
-	PartitionLocal bool // Explicit NN declaration merged with an inherited definition.
+	OID             ids.OID
+	Name            string
+	Attribute       int32
+	NotValid        bool
+	NoInherit       bool
+	PartitionOrigin *InheritedConstraint
 }
 
 type State struct {

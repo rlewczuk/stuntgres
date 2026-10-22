@@ -133,11 +133,11 @@ func KeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation) 
 // Existing-table attachment need not have any of those properties. Decide from
 // captured definitions, not a historical CREATE/ATTACH flag, so logical replay
 // remains canonical after stable attribute numbers have been reminted.
-func DumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
+func DumpNeedsAttach(view catalog.Read, d *catalog.Relation) bool {
 	if d.Membership == nil {
 		return false
 	}
-	parent := catalog.MustRelation(d.Membership.Parent)
+	parent := view.MustRelation(d.Membership.Parent)
 	for i, column := range d.Columns {
 		if column.DeclaredDimensions != 0 || column.Name != parent.Columns[i].Name {
 			return true
@@ -156,7 +156,7 @@ func DumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
 				return true
 			}
 			for _, inherited := range parent.Constraints.NotNull {
-				if inherited.Attribute == parentAttribute && child.Name != inherited.Name {
+				if inherited.Attribute == parentAttribute && child.Name != inherited.Name && !catalog.ConstraintOrigin(child.PartitionOrigin).Local {
 					return true
 				}
 			}
@@ -242,7 +242,7 @@ func ChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation
 		}
 		if !column.Nullable {
 			for _, constraint := range d.Constraints.NotNull {
-				if constraint.Attribute == d.Attributes[i] && (parent.Columns[i].Nullable || constraint.PartitionLocal) {
+				if constraint.Attribute == d.Attributes[i] && (parent.Columns[i].Nullable || catalog.ConstraintOrigin(constraint.PartitionOrigin).Local) {
 					option.WriteString(" CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " NOT NULL")
 					changed = true
 					break

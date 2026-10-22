@@ -23,7 +23,7 @@ func TestAlterNullabilityMetadataAndStorage(t *testing.T) {
 	ends, generation := store.Ends, store.Generation
 	held := run(t, e, "SELECT * FROM t")
 	defer held.Rows.Close()
-	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL, ADD CONSTRAINT requested NOT NULL a")
+	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL, ADD NOT NULL a")
 	next := e.catalog.state.MustRelation(ref.Address)
 	if next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || !sameVersionRoot(root, store.Versions) || &root[0].Values[0] != &store.Versions[0].Values[0] {
 		t.Fatal("pure NN rewrote identity, metadata or values")
@@ -45,7 +45,7 @@ func TestAlterNullabilityMetadataAndStorage(t *testing.T) {
 }
 
 func TestAlterNullabilityLifecycle(t *testing.T) {
-	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL, DROP COLUMN b", "ALTER TABLE t ALTER a DROP NOT NULL, DROP CONSTRAINT IF EXISTS missing", "ALTER TABLE t ADD CONSTRAINT n NOT NULL a, ALTER a SET NOT NULL"} {
+	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL, DROP COLUMN b", "ALTER TABLE t ALTER a DROP NOT NULL, DROP CONSTRAINT IF EXISTS missing", "ALTER TABLE t ADD NOT NULL a, ALTER a SET NOT NULL"} {
 		t.Run(q, func(t *testing.T) {
 			e := New()
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)

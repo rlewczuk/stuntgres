@@ -115,7 +115,7 @@ func TestNotNullAXGrantTimeDescriptorAndRetargetFence(t *testing.T) {
 			ref := roleTableRef(t, e, "t")
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-			done := lockAsync(e, b, context.Background(), "ALTER TABLE t ADD CONSTRAINT requested NOT NULL a", false)
+			done := lockAsync(e, b, context.Background(), "ALTER TABLE t ADD NOT NULL a", false)
 			lockPending(t, e, 1)
 			switch kind {
 			case "revision":

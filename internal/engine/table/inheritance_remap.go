@@ -59,14 +59,14 @@ func RemapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAd
 func RemapInheritanceConstraintOrigins(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
-		if !ok || table.Inheritance == nil {
+		if !ok || table.Inheritance == nil && !HasPartitionConstraintOrigins(table) {
 			continue
 		}
 		if namespace, ok := next.Namespace(table.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		var remapErr error
-		graph := RemapInheritance(table.Inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin catalog.InheritanceOrigin) ids.OID {
+		remapConstraint := func(origin catalog.InheritanceOrigin) ids.OID {
 			if origin.Constraint == 0 {
 				return 0
 			}
@@ -96,13 +96,56 @@ func RemapInheritanceConstraintOrigins(next *catalog.State, previous map[ids.Obj
 			}
 			remapErr = fmt.Errorf("stuntgres: missing inheritance constraint origin")
 			return origin.Constraint
-		})
+		}
+		copy := *table
+		copy.Inheritance = RemapInheritance(table.Inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, remapConstraint)
+		RemapPartitionConstraintOrigins(&copy, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, remapConstraint)
 		if remapErr != nil {
 			return remapErr
 		}
-		copy := *table
-		copy.Inheritance = graph
 		next.SetDescriptor(address, &copy)
 	}
 	return nil
+}
+
+func HasPartitionConstraintOrigins(d *catalog.Relation) bool {
+	for _, c := range d.Constraints.Check {
+		if c.PartitionOrigin != nil {
+			return true
+		}
+	}
+	for _, c := range d.Constraints.NotNull {
+		if c.PartitionOrigin != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// RemapPartitionConstraintOrigins uses the same parent-qualified identity
+// callbacks as ordinary inheritance. Stable attributes remain relation-local.
+func RemapPartitionConstraintOrigins(d *catalog.Relation, address func(ids.ObjectAddress) ids.ObjectAddress, constraint func(catalog.InheritanceOrigin) ids.OID) {
+	remap := func(source *catalog.InheritedConstraint) *catalog.InheritedConstraint {
+		next := catalog.CloneConstraintOrigin(source)
+		if next == nil {
+			return nil
+		}
+		for i, origin := range next.Origins {
+			next.Origins[i].Constraint = constraint(origin)
+			next.Origins[i].Parent = address(origin.Parent)
+		}
+		return next
+	}
+	if slices.ContainsFunc(d.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.PartitionOrigin != nil }) {
+		d.Constraints.Check = slices.Clone(d.Constraints.Check)
+		for i := range d.Constraints.Check {
+			d.Constraints.Check[i].PartitionOrigin = remap(d.Constraints.Check[i].PartitionOrigin)
+		}
+	}
+	if slices.ContainsFunc(d.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.PartitionOrigin != nil }) {
+		d.Constraints.NotNull = slices.Clone(d.Constraints.NotNull)
+		for i := range d.Constraints.NotNull {
+			d.Constraints.NotNull[i].PartitionOrigin = remap(d.Constraints.NotNull[i].PartitionOrigin)
+		}
+	}
 }
