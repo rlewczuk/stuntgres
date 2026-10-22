@@ -64,12 +64,15 @@ never imports `view`.
   target through `analyze.CheckBinding`, then each layer under its owner or
   the original invoker), `AuthorizeSource` (SELECT on a stored view's
   source leaves, then its row marks), `CheckRowMarks` (stored and inherited
-  row marks under each nested view's principal) and `QueryTableRefs` (every
+  row marks under each nested view's principal), `QueryTableRefs` (every
   executable view occurrence authorized, then view bases, partitions and
-  inheritance children expanded into the stored relations to capture).
+  inheritance children expanded into the stored relations to capture) and
+  `CheckRowSecuritySource` (B7: the `row_security` setting guard on a
+  relation and, through stored views, on each source under its layer's
+  principal).
   They take the captured `access.View` and its `access.Environment`; the
   root's `AuthorizationView.CheckViewWrite`, `CheckViewRowMarks` and
-  `queryTableRefsLocked` (which keeps the engine and catalog owner check)
+  `queryTableRefsLocked` (which keeps the view and catalog owner check)
   forward to them. They check only relations and columns, so the
   caller's environment serves every nested principal.
 - **Rule rewriting** (`rule_rewrite.go`, `rule_frames.go`,
@@ -189,7 +192,8 @@ kind, `importMaterializedSnapshots` (target lookup, row evaluation and
 installation), `admitRuleCTEsLocked`,
 `stageRowSecurityFlagsLocked`, `configureRowSecurityLocked` and
 `rowSecurityInputLocked` as authority wrappers, `ruleActionScope`, the RLS
-setting walkers (`row_security_setting.go`), `dropProvider`'s staging,
+setting walkers over bindings and rule programs (`row_security_setting.go`),
+`dropProvider`'s staging,
 removal and lock-wait core (`viewDependents` removes the dependent views and
 records the CASCADE notices; `ExpressionDependencies` acquires locks; the
 label choosers read the preparation's live descriptors), and the slot

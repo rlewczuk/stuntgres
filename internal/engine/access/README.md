@@ -44,9 +44,12 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
   seeded-operator predicate as a value (`routine.OperatorSeeded` in the
   engine), because `routine` imports `access`.
 - **Namespaces** (`namespace.go`): `CheckPersistentCreationNamespace`, the
-  TEMP capability boundary of non-table creation and namespace moves, and
+  TEMP capability boundary of non-table creation and namespace moves,
   `CheckTemporaryStorageAccess`, which rejects another session's stored
-  TEMP relation before storage admission.
+  TEMP relation before storage admission, `OwnTemporaryNamespace`, which
+  matches a namespace against the session's TEMP namespace address, and
+  `AdjustRelationCreationPersistence`, the persistence of a relation created
+  in a namespace, which reads the `Environment` only for a TEMP namespace.
 - **Row security** (`rls.go`): `RowSecurityApplies`, `RowSecurityDecision`,
   `RowSecurityGroups` (returning an `RLSDisposition`), `RowSecurityProposal`,
   `RowSecurityExpressionError` and `RowSecurityPrincipal` over the view
@@ -81,7 +84,12 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 ## What stays in the engine
 
 - `AuthorizationView`: statement-level authority that embeds `View` and adds
-  the session, settings, definition reader and path inputs. Its `Check`,
+  the session, settings, definition reader and path inputs. It holds no
+  engine (B7): one constructor gives it a pointer to the engine's
+  `authorityInputs` (the engine's domain for path references and the TEMP
+  token check, the settings registry for the boot `search_path`, and
+  the published storage that `StorageLocked` reads under the engine mutex),
+  and statement identity checks compare the view's catalog owner. Its `Check`,
   `CanUse`, `CheckCreate`, `Effective` and `CheckColumns` are entry points
   that pass the view itself as the `Environment`. It implements
   `analyze.Privileges` for the binding walkers.
@@ -92,8 +100,10 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
   ALTER DEFAULT PRIVILEGES and the ownership statements; `SetObjectACL` and
   `SetRoleReferences`. Their decisions are in [`role`](../role/README.md),
   which calls this package over the captured `View`.
-- Search path resolution and `temporaryNamespace`, RLS configuration and the
-  `row_security_setting.go` walkers, which call `access` for each object.
+- Search path resolution (functions over `AuthorizationView`) and
+  `temporaryNamespace`, RLS configuration and the binding and rule-program
+  walkers of `row_security_setting.go`, which call `access` for each object;
+  the stored-view source walker is `view.CheckRowSecuritySource`.
   The binding walkers (`CheckBinding`, `CheckQuerySources`) are in
   `analyze`; the walkers over view definitions and view writes
   (`CheckWrite`, `AuthorizeSource`, `CheckRowMarks`, `QueryTableRefs`) are
@@ -107,10 +117,10 @@ Run from the repository root under the shared
 owner, a seeded role root and a current database without an engine, and pin
 the view's owner, pairing and epoch rejection, `RoleRead`'s owner and domain
 checks, the lazy TEMP environment, `RowSecurityPrincipal`, DROP OWNED policy
-cleanup and the `RowSecurityKind` fallback:
+cleanup, the `RowSecurityKind` fallback and the TEMP namespace helpers:
 
 ```sh
-timeout 900s make check RUN='^(TestViewRejectsForeignOrStaleObjects|TestRoleReadRequiresOwnerDomainAndRoot|TestViewTemporaryNamespaceOnlyFromEnvironment|TestRowSecurityPrincipalFollowsInnermostDefiner|TestDropOwnedPolicyTargets|TestRowSecurityKindDelegatesOtherKinds)$'
+timeout 900s make check RUN='^(TestViewRejectsForeignOrStaleObjects|TestRoleReadRequiresOwnerDomainAndRoot|TestViewTemporaryNamespaceOnlyFromEnvironment|TestRowSecurityPrincipalFollowsInnermostDefiner|TestDropOwnedPolicyTargets|TestRowSecurityKindDelegatesOtherKinds|TestOwnTemporaryNamespaceNeedsTheSessionTemporarySchema|TestAdjustRelationCreationPersistenceReadsTemporaryLazily)$'
 ```
 
 Engine unit tests exercise the checks through `AuthorizationView`:

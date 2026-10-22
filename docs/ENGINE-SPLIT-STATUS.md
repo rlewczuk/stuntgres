@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `2fdb6ea98` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129 and 130). Steps 8–17 were
+Last verified against `master` at `f3458442f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130 and 131). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -27,12 +27,12 @@ broad item.
 - **Third round, table and index:** none; 123, 124 and 125 (table
   24e–24g), 126 (index 23e) and 127 (partition 25e) are done, so steps 23,
   24 and 25 have no planned sub-step left.
-- **Third round, the rest:** 131 (access B7, in place; it changes
-  `AuthorizationView`, so rebase other open branches after it lands); 128
-  (regobj 21d), 129 (session 13g) and 130 (catalog 5k) are done, so steps
-  21, 13 and 5 have no planned sub-step left.
+- **Third round, the rest:** none; 128 (regobj 21d), 129 (session 13g),
+  130 (catalog 5k) and 131 (access B7) are done, so steps 21, 13, 5 and
+  `access` have no planned sub-step left. The closing review (133) waits
+  only for 132.
 
-Steps 1–17 and `access` (A1–B6) are done, and so is item 54, the second
+Steps 1–17 and `access` (A1–B7) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
 (dump 18a), 58 (copyfmt 19a), 60 (ddl 20a), 64 (regobj 21a) and 67
 (stored 22a) are done. Item 71 (functions F6) closed F2 and step 3. Items 74
@@ -783,8 +783,8 @@ them); the optional TRUNCATE cores were not needed.
     ([session](ENGINE-SPLIT-session.md)) (`a82279626`, `443bf6b00`, `42c1c25e1`, `530c173c9`, then the docs commit)
   - [x] 5k — Journal and projection leftovers moved
     ([catalog](ENGINE-SPLIT-catalog.md)) (`155b76f43`, `0cb30e030`, `fd020cb83`, then the docs commit)
-  - [ ] B7 — `AuthorizationView` without `*Engine`
-    ([authorization](ENGINE-SPLIT-authorization.md))
+  - [x] B7 — `AuthorizationView` without `*Engine`
+    ([authorization](ENGINE-SPLIT-authorization.md)) (`6672ab08e`, `5b92522f6`, `bf077f1f4`, `975e47840`, `c0211ddff`, `a19f3cebc`, then the docs commit)
   - [ ] 29e — DML preflights moved ([dml](ENGINE-SPLIT-dml.md))
   - [ ] Closing review (docs only; [ENGINE-SPLIT.md](ENGINE-SPLIT.md))
 
@@ -1923,10 +1923,18 @@ branches.
      quickcheck and the quick and `REFERENCE=1` pg_class history/ALTER
      column/enum/domain selections passed; racecheck/finalcheck skipped at
      user request
-131. [ ] Access B7: `AuthorizationView` without `*Engine` —
-     [authorization](ENGINE-SPLIT-authorization.md) B7 · needs — · in
-     place (about 0.95k lines become clean), then the small `access.View`
-     moves (about 0.2k lines)
+131. [x] Access B7: `AuthorizationView` without `*Engine` —
+     [authorization](ENGINE-SPLIT-authorization.md) B7 · needs — (`6672ab08e`, `5b92522f6`, `bf077f1f4`, `975e47840`, `c0211ddff`, `a19f3cebc`, then the
+     docs commit) · `authorityInputs` (settings registry and published
+     storage) behind one constructor (`authorityView`) replaces the engine
+     pointer; the path chain and `captureTypeDiagnosticName` are functions
+     over the view; identity checks compare catalog owners; moved
+     `table.ExplicitLockMode`/`CheckExplicitLock`, `regobj.AccessRoleID`,
+     `view.CheckRowSecuritySource`, `access.OwnTemporaryNamespace`,
+     `AdjustRelationCreationPersistence`; clean root code 2.06k → 3.18k
+     lines; no aliases · targeted units (also `RACE=1`), quickcheck and the
+     quick and `REFERENCE=1` access/LOCK/RLS/TEMP/search_path selections
+     passed; racecheck/finalcheck skipped at user request
 132. [ ] DML 29e: DML preflights — [dml](ENGINE-SPLIT-dml.md) 29e · needs
      115, 110f · `preflightUpdate*`, `preflightMerge`,
      `preflightConflictUpdate`; the `KeyTargets`/`AlterKeys` flag (about

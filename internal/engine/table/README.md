@@ -239,6 +239,11 @@ pending-grant decision they call live here.
   `view.TargetAdmission`, `dml.TargetAdmission`); the root registers them
   once (`relationTargetEntries`) and `AdmitTarget` asks them in order. Each
   statement kind belongs to one entry, so the order cannot change a result.
+- **Explicit locks** (B7; `explicit_lock.go`): `ExplicitLockMode` maps a
+  LOCK TABLE mode to its lock, and `CheckExplicitLock` checks the relation
+  kind, then the rights of the captured `access.View` through its
+  `access.Environment` (any privilege PostgreSQL accepts for the mode), then
+  the partition-hierarchy boundary. The root keeps the per-target lock loop.
 - **Stage slot** (`stage.go`, `like.go`): `Stage` holds CREATE … LIKE
   sources, recorded by `CaptureLikeSource` and checked at publication by
   `ValidateLikeSources`; the `CatalogStage` accessors stay in the engine.

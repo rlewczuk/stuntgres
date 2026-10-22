@@ -296,7 +296,8 @@ declaration never reaches `Engine`, `StatementScope` or `CatalogStage`.
   methods. `StatementScope` (`transaction.go:201`): 66 fields, 12 of them
   feature slots, and 321 methods. `CatalogStage` (`catalog.go:347`): 28
   fields, 31 methods. `AuthorizationView` holds `*Engine`, so code that only
-  takes it to read `access.View` data counts as dirty.
+  takes it to read `access.View` data counts as dirty (item 131 removed the
+  pointer).
 - **Clean code.** 37.3k lines (1,464 declarations) are clean; 70.3k are not.
   Of the dirty lines about 34.5k are `Engine` methods and 13.4k
   `StatementScope` methods; the rest reach them through other root
@@ -2240,7 +2241,8 @@ then move with no aliases. None is broad. Sizes are lines at `17e01ca8b`.
   narrow functions makes about 0.95k root lines clean. Then the small
   `access.View` moves: `checkExplicitLock` to `table`,
   `accessRoleArgument`, `checkRowSecuritySource` and the TEMP namespace
-  helpers.
+  helpers. Done (item 131; the moves went to `table`, `regobj`, `view` and
+  `access`).
 - **DML 29e — the DML preflights (item 132, about 0.2k).**
   `preflightUpdate`, `preflightUpdateWithPlanning`, `preflightMerge` and
   `preflightConflictUpdate` are clean and follow query preflight out of
@@ -2442,7 +2444,7 @@ package-specific scope. This section holds the rules every session follows.
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5h); 5i done (pure helpers moved, some left in the root) and 5j done (payload readers replace five host and runtime methods) (racecheck/finalcheck skipped at user request); 5k done (relation history normalizers to `catalog`, type journal helpers to `typedef`, `enumReownVersions` to `stored` as `ReownVersions`, storage projections to `session`, `sameVersionRoot` to `storage`; no aliases; racecheck/finalcheck skipped at user request) |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c); the write-set merges moved in with session 13g |
-| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B6, names cleanup; B5 moved the binding walkers into `analyze`; B6 moved the ownership helpers and RLS action rules into `access`; racecheck/finalcheck skipped at user request); B7 planned (`AuthorizationView` without `*Engine`, item 131) |
+| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B6, names cleanup; B5 moved the binding walkers into `analyze`; B6 moved the ownership helpers and RLS action rules into `access`; racecheck/finalcheck skipped at user request); B7 done (`AuthorizationView` holds `authorityInputs` instead of `*Engine`; the explicit LOCK check, role argument, RLS source walker and TEMP helpers moved to `table`, `regobj`, `view` and `access`; no aliases; racecheck/finalcheck skipped at user request) |
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10e): `plan` created, IR, node types and installed extension nodes moved, aliases removed; 10e moved node-tree output and the generation helpers (racecheck/finalcheck skipped by user) |

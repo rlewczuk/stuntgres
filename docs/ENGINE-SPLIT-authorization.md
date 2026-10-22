@@ -880,4 +880,104 @@ B6 results:
   `racecheck` and `finalcheck` were skipped at the user's request; no locks
   or goroutines changed. `make deps` lists only module paths. `AGENTS.md`
   stays at 99 lines.
-- [ ] B7 — `AuthorizationView` without `*Engine` (linear item 131)
+- [x] B7 — `AuthorizationView` without `*Engine` (linear item 131)
+  (`6672ab08e`, `5b92522f6`, `bf077f1f4`, `975e47840`, `c0211ddff`, `a19f3cebc`, then the commit that records this status) *(racecheck and
+  finalcheck skipped at user request; targeted `RACE=1` runs passed)*
+
+B7 results:
+
+- **Re-measure.** On `master` at `f39b1d293`, `reach -cut
+  'AuthorizationView>Engine'` left four dirty view methods:
+  `ReferencePath` (`Engine.referencePath`), `StorageLocked`
+  (`Engine.authorizationStorageLocked`), `TypeDiagnosticNames`
+  (`Engine.captureTypeDiagnosticName`) and `TemporaryNamespace` (through
+  `domainOf(engine)`, not counted among the three calls). Besides them the
+  field had about 20 other uses: seven identity checks (`auth.engine !=
+  e`), six "engine-built" tests (`auth.engine == nil`) and pass-throughs
+  (`lookupNamespacesSnapshot`, `resolveRelationSnapshot`, the partition
+  replay checks).
+- **Inputs, one constructor.** `authorityInputs` holds the engine's
+  domain and pointers to its settings registry (the boot `search_path`,
+  still read lazily) and published storage. `Engine.authority` holds one by value; views hold
+  `*authorityInputs` in place of `*Engine`, so a view is the same size and
+  building one allocates nothing. `Engine.authorityView` is the one
+  constructor: `operationAuthority`, `bootstrapAuthorization`, the
+  materialized replacement check in `catalog.go` and four test fixtures use
+  it. `live()` (inputs set) replaces the engine-built tests exactly.
+- **Path chain.** `explicitPath`, `explicitPathFor`, `lookupPath`,
+  `effectivePath`, `referencePath`, `captureTypeDiagnosticName`,
+  `lookupNamespacesSnapshot` and `resolveRelationSnapshot` are functions
+  over `AuthorizationView` (the engine supplied only the boot path and
+  `catalog.Domain.Ref`, now the view's `ref` over the captured domain; not
+  `View.Ref`, which reads the view's owner and would panic where a view
+  with a missing owner must still reach the stale-authority rejection, as
+  `TestOperatorFamilyPreflight/dependency_path_failure` pins); 85 call
+  sites were rewritten with `gofmt -r`. `explicitPathFor` now reads the boot path only when the view
+  has neither a materialized population nor session settings (same
+  result).
+- **Storage and TEMP domain.** `StorageLocked` reads the inputs' storage
+  through the new `privateStorage`, which `Engine.privateStorageLocked`
+  also uses; `Engine.authorizationStorageLocked` is deleted (five callers
+  call `StorageLocked`). `temporaryNamespace` matches the session token
+  against the captured domain (`engineDomain`, nil for a view the engine
+  did not build, as `domainOf(nil)` was).
+- **Identity.** The seven `auth.engine != e` checks compare `auth.Owner`
+  with `e.catalog.owner()`, as the invariants planned. The four
+  `partition*Replay*(auth.engine, …)` calls pass `operationEngine(op)`
+  (nil-safe); their checks already required `engineOf(op.Session) == e`.
+- **Moves.** `table.ExplicitLockMode` and `table.CheckExplicitLock` (over
+  `access.View` and `access.Environment`, like `view.CheckWrite`, rather
+  than precomputed rights, which would put the rights lookup before the
+  relation-kind error); `regobj.AccessRoleID` (`access` does not import
+  `functions`); `view.CheckRowSecuritySource` (it reads `stored` view
+  sources, which `access` cannot import); `access.OwnTemporaryNamespace`
+  (TEMP address passed in; the two callers that did not already test for a
+  TEMP namespace now do, so the address is still computed only for one)
+  and `access.AdjustRelationCreationPersistence` (over the `Environment`,
+  read only for a TEMP namespace: an eager address would scan the private
+  catalog per CREATE inside a transaction block). No aliases; `access`,
+  `table`, `view` and `regobj` gained no package import (`regobj` already
+  imported `functions`).
+- **Gain.** `measure.py` over `reach` (gods without `EvalContext`,
+  `expressionBinder`, `Operation`, `Session`, `transactionOwner`,
+  `catalogChanges`): clean root code 2,058 → 3,183 lines (220 → 332
+  declarations), root size 47,026 → 46,962 lines; `AuthorizationView` is
+  gone from the first-hop list (656 lines at `edc7d3221`).
+- **Tests.** New `access/namespace_test.go`:
+  `TestOwnTemporaryNamespaceNeedsTheSessionTemporarySchema` and
+  `TestAdjustRelationCreationPersistenceReadsTemporaryLazily` (an eager
+  TEMP read fails it). Engine tests changed only at call sites or
+  fixtures: four fixtures use `authorityView`, `regts_test.go`,
+  `search_path_test.go`, `namespace_temporary*_test.go`,
+  `extension_temporary_test.go`, `foreign_key_review_test.go`,
+  `visibility_inquiry_test.go` (rewritten calls) and
+  `sql_cursor_routine_authority_test.go` (`inputs`/`live()` for the
+  engine field). None moved or deleted.
+- **Verification.** `make build` and targeted `make check` after each
+  commit (authorization, rule, predefined, materialized refresh, search
+  path, namespace and TEMP, regts, extension TEMP, FK review, visibility
+  inquiry, cursor routine authority, partition and inheritance replay,
+  index, drop, view, LOCK, RLS, collation and `access` tests; the quick
+  LOCK, RLS, TEMP table/view/sequence, search_path and role selections).
+  `RACE=1` for the session and TEMP tests. `quickcheck` passed before and
+  after the rebases (the last rebase brought the new
+  `TestOperatorFamilyPreflight`, which caught the `View.Ref` panic above
+  before the merge). The `access` README reference set plus LOCK TABLE, RLS,
+  TEMP table/sequence, TEMP collation and search_path selections passed
+  with `REFERENCE=1`, except the known `master` oracle drift
+  `TestReferenceTemporaryTableDiagnostics/*/postgres` (0A000 on
+  PostgreSQL; the stuntgres subtests pass); `reference/tables` hit a
+  testcontainers reaper timeout under load and passed on rerun.
+  `make bench`: 5,057–5,100 allocations per op, against 5,096–5,117 on an interleaved `master` snapshot (no new allocation; building a view allocates nothing); ns/op is not comparable under a host load average of about 100 (3.3–6.8 ms/op for both, above the <1 ms target). `make deps` lists only module paths. `racecheck` and `finalcheck` were skipped at the user's request.
+  `AGENTS.md` unchanged (99 lines).
+
+Notes for later steps (B7):
+
+- `AuthorizationView` still carries root types (`session.Session`,
+  `session.SettingsStore`, `catalog.DefinitionReader`) and the
+  `authorityInputs` pointer; the path chain, `temporaryNamespace` and the
+  TEMP creation helpers stay root functions over it, as the README says.
+- The binding and rule-program RLS walkers (`checkRowSecurityBinding`,
+  `checkRowSecurityRuleProgram`) still take `*StatementScope` or rule
+  commands; they can follow `view.CheckRowSecuritySource` once the rule
+  payloads leave the root.

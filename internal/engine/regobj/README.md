@@ -28,7 +28,8 @@ feature. Only the upper features, `stored` and the engine import it; never
   `RoleContextFormatter`.
 - **reg\* input helpers** (`regclass_input.go`, `regrole_input.go`,
   `regoperator_groups.go`, `regproc_lookup.go`): `ClassNumeric`,
-  `ClassQualifiedName`, `RoleInput`, `CollectOperatorGroups`,
+  `ClassQualifiedName`, `RoleInput`, `AccessRoleID` (the role argument of
+  the ACL inquiry functions, B7), `CollectOperatorGroups`,
   `VisibleOperators`, `SelectRoutine`, `SelectExactRoutine`,
   `RoutineIdentityByOID`, `RoutineDescriptorOwner`.
 - **Captured input resolvers** (`regclass_input.go`, `regtype_input.go`,
