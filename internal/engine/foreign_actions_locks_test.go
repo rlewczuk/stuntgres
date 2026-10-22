@@ -175,7 +175,7 @@ func TestForeignActionsDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 	named := scope.lockedRef
-	err = scope.settleForeignActions()
+	err = SettleForeignActions(scope.writeHost())
 	var d *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "pid" of relation "c" violates not-null constraint`, Detail: "Failing row contains (null, old).", Schema: "public", Table: "c", Column: "pid", Context: `SQL statement "UPDATE ONLY "public"."c" SET "pid" = NULL WHERE $1 OPERATOR(pg_catalog.=) "pid""`}
 	if !errors.As(err, &d) || *d != want {
@@ -313,7 +313,7 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			sessionSQL(t, a, "SET ROLE fa_actor")
 			scope := foreignActionUnitScope(t, e, a, "DELETE FROM p")
 			original := scope.identity.Current
-			err = scope.settleForeignActions()
+			err = SettleForeignActions(scope.writeHost())
 			var d *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "pid" of relation "c" violates not-null constraint`, Detail: "Failing row contains (null, old).", Schema: "public", Table: "c", Column: "pid", Context: `SQL statement "UPDATE ONLY "public"."c" SET "pid" = NULL WHERE $1 OPERATOR(pg_catalog.=) "pid""`}
 			if !errors.As(err, &d) || *d != want {

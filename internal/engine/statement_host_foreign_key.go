@@ -45,7 +45,7 @@ func (h *statementHost) ForeignKeyJobs() ([]dml.ForeignKeyJob, map[ids.ObjectRef
 	}
 	auth.Catalog = e.privateCatalogLocked(s.foreignKeyChanges())
 	auth.Recapture(auth.Catalog)
-	jobs, modes, err := dml.ForeignKeyReach(auth.Catalog, e.catalog.Domain, s.stage.rows, s.stage.deletes)
+	jobs, modes, err := dml.ForeignKeyReach(auth.Catalog, s.stage.rows, s.stage.deletes)
 	return jobs, modes, &auth, err
 }
 

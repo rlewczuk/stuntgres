@@ -21,7 +21,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) planForeignAction(auth AuthorizationView, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) (*dml.ForeignActionPlan, error) {
+// planForeignAction is job's cached SET/CASCADE plan for the event's
+// direction: the target slots, the input environment (with SET DEFAULT's
+// bound defaults, from the host), SET NULL's domain inputs and CASCADE's
+// parent slots and coercions.
+func planForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) (*dml.ForeignActionPlan, error) {
 	cached := job.DeletePlan
 	if event.Next.Row != 0 {
 		cached = job.UpdatePlan
@@ -43,7 +47,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *dml.Fore
 	for _, slot := range plan.Targets {
 		plan.DomainChecks = plan.DomainChecks || sqltype.ContainsDomainConstraints(job.Child.Columns[slot].Usage.Type)
 	}
-	if err := s.writeHost().PlanForeignActionInput(&auth, job, plan, action); err != nil {
+	if err := h.PlanForeignActionInput(auth, job, plan, action); err != nil {
 		return nil, err
 	}
 	if action == parser.ForeignKeySetNull && plan.DomainChecks {
@@ -84,38 +88,43 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *dml.Fore
 	return plan, nil
 }
 
-func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) error {
-	e := s.engine()
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.Child.Address())
-	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
+// applyForeignAction runs one referential action of job for a parent
+// transition: RESTRICT reports a still-matching child; CASCADE, SET NULL and
+// SET DEFAULT grant, re-read, revalidate and stage each matching child as the
+// child's owner. SET DEFAULT then rechecks the new keys like NO ACTION.
+func applyForeignAction(h dml.FinishHost, auth dml.Authority, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) error {
+	view := auth.Access().Catalog
+	ref := view.Domain().Ref(view.Epoch(), job.Child.Address())
+	if err := h.AdmitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err
 	}
-	reportAuth := auth.actingAs(event.Owner)
+	input, output := h.Environments()
+	reportAuth := auth.ActingAs(event.Owner)
 	if action == parser.ForeignKeyRestrict {
-		children, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
+		children, err := h.ForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
 		return children.Each(func(child storage.RowVersion) (bool, error) {
-			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.Comparisons, child.Values, event.Old.Values, s.input)
+			match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child.Values, event.Old.Values, input)
 			if err != nil || !match {
 				return false, err
 			}
-			if err = s.foreignKeyGrant(ref, child.Row, lock.ForKeyShare, children.Storage); err != nil {
+			if err = h.GrantForeignKey(ref, child.Row, lock.ForKeyShare, children.Storage); err != nil {
 				return false, err
 			}
-			latest, live, err := s.foreignActionRow(ref, child)
+			latest, live, err := h.ForeignActionRow(ref, child)
 			if err != nil || !live {
 				return false, err
 			}
-			if err := s.physicalRowEvent(ref, latest, lock.MultiKeyShare, 0); err != nil {
+			if err := h.PhysicalRowEvent(ref, latest, lock.MultiKeyShare, 0); err != nil {
 				return false, err
 			}
-			match, err = table.ForeignKeyRowsMatch(s.op.Context(), job.Comparisons, latest.Values, event.Old.Values, s.input)
+			match, err = table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, latest.Values, event.Old.Values, input)
 			if err != nil || !match {
 				return false, err
 			}
-			d := table.ForeignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.Child, job.Parent, job.Definition, event.Old.Values, true, false, s.output)
+			d := table.ForeignKeyDiagnostic(h.Context(), reportAuth.Access(), reportAuth, job.Child, job.Parent, job.Definition, event.Old.Values, true, false, output)
 			var diagnostic *sqlstate.Error
 			if !errors.As(d, &diagnostic) {
 				return false, d
@@ -127,20 +136,23 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 			return false, &copy
 		})
 	}
-	ownerAuth := auth.actingAs(job.Child.Owner)
-	previous := s.foreignActionAuth
-	s.foreignActionAuth = &ownerAuth
-	defer func() { s.foreignActionAuth = previous }()
+	ownerAuth := auth.ActingAs(job.Child.Owner)
+	previous := h.SwapForeignActionAuthority(ownerAuth)
+	defer h.SwapForeignActionAuthority(previous)
 	deletion := action == parser.ForeignKeyCascade && event.Next.Row == 0
 	var plan *dml.ForeignActionPlan
 	var err error
 	if !deletion {
-		plan, err = s.planForeignAction(ownerAuth, job, event, action)
+		plan, err = planForeignAction(h, ownerAuth, job, event, action)
 		if err != nil {
-			return s.foreignActionError(err, job, event, action, auth.Catalog)
+			return foreignActionError(h, err, job, event, action, view)
 		}
 	}
-	children, retained, err := s.captureForeignActionRows(ref)
+	children, err := h.ForeignKeyRows(ref, ids.ObjectAddress{})
+	if err != nil {
+		return err
+	}
+	retained, err := h.RetainedForeignKeyRows(ref, children)
 	if err != nil {
 		return err
 	}
@@ -150,7 +162,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 	var retainedMatches map[ids.RowID]struct{}
 	if retained.Storage != nil {
 		err = retained.Each(func(child storage.RowVersion) (bool, error) {
-			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.Comparisons, child.Values, event.Old.Values, s.input)
+			match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child.Values, event.Old.Values, input)
 			if err != nil || !match {
 				return false, err
 			}
@@ -169,7 +181,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 		if _, exists := retainedMatches[child.Row]; exists {
 			return false, nil
 		}
-		match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.Comparisons, child.Values, event.Old.Values, s.input)
+		match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child.Values, event.Old.Values, input)
 		if match {
 			candidates = append(candidates, child)
 		}
@@ -178,33 +190,29 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 	if err != nil {
 		return err
 	}
-	input := s.input
+	planInput := input
 	if plan != nil {
-		input = plan.Input
+		planInput = plan.Input
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: ownerAuth.Catalog, Input: input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &ownerAuth}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: h.Context(), Host: h, Catalog: ownerAuth.Access().Catalog, Input: planInput, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: ownerAuth}}
 	if plan != nil && plan.DomainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
-	schema := auth.Catalog.Get(job.Child.Namespace()).Name()
+	schema := view.Get(job.Child.Namespace()).Name()
 	for _, candidate := range candidates {
 		mode := lock.ForNoKeyUpdate
 		if deletion {
 			mode = lock.ForUpdate
 		}
-		if err = s.foreignKeyGrant(ref, candidate.Row, mode, children.Storage); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.Catalog)
+		if err = h.GrantForeignKey(ref, candidate.Row, mode, children.Storage); err != nil {
+			return foreignActionError(h, err, job, event, action, view)
 		}
-		e.mu.Lock()
-		current := e.privateCatalogLocked(s.owner.Catalog)
-		err = dml.RefreshForeignActionJob(current, job)
-		e.mu.Unlock()
-		if err != nil {
+		if err = h.RefreshForeignActionJob(job); err != nil {
 			return err
 		}
-		old, live, rowErr := s.foreignActionRow(ref, candidate)
+		old, live, rowErr := h.ForeignActionRow(ref, candidate)
 		if rowErr != nil {
-			return s.foreignActionError(rowErr, job, event, action, auth.Catalog)
+			return foreignActionError(h, rowErr, job, event, action, view)
 		}
 		if !live {
 			continue
@@ -214,11 +222,11 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 			if err != nil {
 				return err
 			}
-			if err := s.physicalRowEvent(ref, old, lockMode, 0); err != nil {
-				return s.foreignActionError(err, job, event, action, auth.Catalog)
+			if err := h.PhysicalRowEvent(ref, old, lockMode, 0); err != nil {
+				return foreignActionError(h, err, job, event, action, view)
 			}
 		}
-		match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.Comparisons, old.Values, event.Old.Values, s.input)
+		match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, old.Values, event.Old.Values, input)
 		if err != nil {
 			return err
 		}
@@ -226,8 +234,8 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 			continue
 		}
 		if deletion {
-			if err = s.stage.deleteForeignAction(ref, old); err != nil {
-				return s.foreignActionError(err, job, event, action, auth.Catalog)
+			if err = h.DeleteForeignAction(ref, old); err != nil {
+				return foreignActionError(h, err, job, event, action, view)
 			}
 			continue
 		}
@@ -251,76 +259,78 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 				}
 			}
 			if err != nil {
-				return s.foreignActionError(err, job, event, action, auth.Catalog)
+				return foreignActionError(h, err, job, event, action, view)
 			}
 		}
 		b := analyze.Binding{Ref: ref, Relation: job.Child, Targets: plan.Targets}
-		if err = dml.ValidateMutationRow(s.writeHost(), b, schema, row, &evaluation); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.Catalog)
+		if err = dml.ValidateMutationRow(h, b, schema, row, &evaluation); err != nil {
+			return foreignActionError(h, err, job, event, action, view)
 		}
-		keyChanged, err := dml.UniqueKeyChanged(s.writeHost(), ref, old.Values, row)
+		keyChanged, err := dml.UniqueKeyChanged(h, ref, old.Values, row)
 		if err != nil {
-			return s.foreignActionError(err, job, event, action, auth.Catalog)
+			return foreignActionError(h, err, job, event, action, view)
 		}
 		if keyChanged {
-			if err = s.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
-				return s.foreignActionError(err, job, event, action, auth.Catalog)
+			if err = h.GrantForeignKey(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
+				return foreignActionError(h, err, job, event, action, view)
 			}
 		}
-		if err = dml.ClaimUniqueRow(s.writeHost(), ref, old); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.Catalog)
+		if err = dml.ClaimUniqueRow(h, ref, old); err != nil {
+			return foreignActionError(h, err, job, event, action, view)
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
 		actionMode := lock.MultiNoKeyAction
 		if keyChanged {
 			actionMode = lock.MultiUpdateAction
 		}
-		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.Catalog)
+		if err := h.PhysicalRowEvent(ref, old, actionMode, 0); err != nil {
+			return foreignActionError(h, err, job, event, action, view)
 		}
 		predecessor := [1]storage.RowVersion{old}
 		proposal := index.WriteCandidate{Values: row}
-		if err = dml.CheckUniqueRow(s.writeHost(), ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.Catalog)
+		if err = dml.CheckUniqueRow(h, ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
+			return foreignActionError(h, err, job, event, action, view)
 		}
 		replacement := [1][]sqltype.Value{row}
 		batch := index.WriteBatch{Values: replacement[:], ActionMode: actionMode}
 		batch.Set(0, proposal)
-		if err = dml.ReplaceRows(s.writeHost(), ref, predecessor[:], batch, dml.ReplaceMerge); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.Catalog)
+		if err = dml.ReplaceRows(h, ref, predecessor[:], batch, dml.ReplaceMerge); err != nil {
+			return foreignActionError(h, err, job, event, action, view)
 		}
 	}
 	if action == parser.ForeignKeySetDefault {
 		// RI SET DEFAULT performs its NO ACTION recheck even if the new datum is
 		// unchanged. This preserves the parent-side diagnostic for a deleted default.
-		final, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
+		final, err := h.ForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
-		parentRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.Parent.Address())
-		parents, err := s.captureForeignKeyRows(parentRef, job.Definition.Index)
+		parentRef := view.Domain().Ref(view.Epoch(), job.Parent.Address())
+		parents, err := h.ForeignKeyRows(parentRef, job.Definition.Index)
 		if err != nil {
 			return err
 		}
 		return final.Each(func(child storage.RowVersion) (bool, error) {
-			match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.Comparisons, child.Values, event.Old.Values, s.input)
+			match, err := table.ForeignKeyRowsMatch(h.Context(), job.Comparisons, child.Values, event.Old.Values, input)
 			if err != nil || !match {
 				return false, err
 			}
-			found, err := s.foreignKeyParentExists(parentRef, *job, &parents, child.Values, false)
+			found, err := foreignKeyParentExists(h, parentRef, *job, &parents, child.Values, false)
 			if err != nil || found {
 				return false, err
 			}
-			return false, table.ForeignKeyDiagnostic(s.op.Context(), reportAuth.View, reportAuth, job.Child, job.Parent, job.Definition, event.Old.Values, true, false, s.output)
+			return false, table.ForeignKeyDiagnostic(h.Context(), reportAuth.Access(), reportAuth, job.Child, job.Parent, job.Definition, event.Old.Values, true, false, output)
 		})
 	}
 	return nil
 }
 
-// Context describes the real internally executed plan; it is not parsed SQL or
-// a second dispatcher. AFTER-event diagnostics deliberately have no SPI frame.
-func (s *StatementScope) foreignActionError(err error, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction, view catalog.Read) error {
-	err = s.op.CommandError(err)
+// foreignActionError adds the internally executed action's statement to the
+// context of a non-FK error. The context describes the real plan; it is not
+// parsed SQL or a second dispatcher. AFTER-event diagnostics deliberately have
+// no SPI frame.
+func foreignActionError(h dml.FinishHost, err error, job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction, view catalog.Read) error {
+	err = h.CommandError(err)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code == "23503" || d.Code == "23001" || d.Code == "23P01" {
 		return err

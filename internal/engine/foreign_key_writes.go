@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, idx ids.ObjectAddress) (table.ForeignKeyRows, error) {
@@ -172,179 +170,6 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		}
 	}
 	return nil
-}
-
-func (s *StatementScope) checkForeignKeys() error {
-	// Catalog shape projections replace historical own overlays. They are not
-	// newly issued DML; selected ALTER/catalog validators own their obligations.
-	if s.projectedRoots {
-		return nil
-	}
-	if len(s.stage.rows) == 0 && len(s.stage.deletes) == 0 {
-		return nil
-	}
-	e := s.engine()
-	jobs := s.foreignActionsOrZero().Jobs
-	if len(jobs) == 0 {
-		return nil
-	}
-	auth, err := operationAuthorization(s.op)
-	if err != nil {
-		return err
-	}
-	e.mu.Lock()
-	changes := s.owner.Catalog
-	if s.catalog != nil {
-		changes = s.catalog
-	}
-	auth.Catalog = e.privateCatalogLocked(changes)
-	auth.Recapture(auth.Catalog)
-	e.mu.Unlock()
-	for i := range jobs {
-		job := &jobs[i]
-		if err = dml.RefreshForeignActionJob(auth.Catalog, job); err != nil {
-			return err
-		}
-		f := job.Definition
-		childAuth, parentAuth := auth, auth
-		if admission := s.foreignActionsOrZero().Admissions[job.Child.Address()]; admission != nil && admission.Mutated {
-			childAuth = auth.actingAs(admission.Relation.Owner)
-		}
-		if admission := s.foreignActionsOrZero().Admissions[job.Parent.Address()]; admission != nil && admission.Mutated {
-			parentAuth = auth.actingAs(admission.Relation.Owner)
-		}
-		childRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.Child.Address())
-		parentRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), f.Target)
-		parentRows, err := s.captureForeignKeyRows(parentRef, f.Index)
-		if err != nil {
-			return err
-		}
-		children, err := s.captureForeignKeyRows(childRef, ids.ObjectAddress{})
-		if err != nil {
-			return err
-		}
-		// Child checks only newly written final rows, not unaffected old rows.
-		for _, row := range s.stage.rows[childRef.Address] {
-			if root := s.stage.deletes[childRef.Address]; root != nil {
-				if _, deleted := root.Rows[row.Row]; deleted {
-					continue
-				}
-			}
-			any, all := table.ForeignKeyNullState(job.Comparisons, row.Values)
-			if any {
-				if f.Full && !all {
-					return table.ForeignKeyDiagnostic(s.op.Context(), childAuth.View, childAuth, job.Child, job.Parent, f, row.Values, false, true, s.output)
-				}
-				continue
-			}
-			// Only an actual committed predecessor can suppress an unchanged-key
-			// check. Prior own updates, as well as own inserts, still require it.
-			if row.Base != 0 {
-				previous, ok := children.Previous(row.Row)
-				if !ok {
-					return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
-				}
-				if previous.Born != 0 {
-					unchanged := true
-					for _, comparison := range job.Comparisons {
-						equal, err := comparison.Comparison.EqualChildren(s.op.Context(), previous.Values[comparison.Child], row.Values[comparison.Child], s.input)
-						if err != nil {
-							return err
-						}
-						if !equal {
-							unchanged = false
-							break
-						}
-					}
-					if unchanged {
-						continue
-					}
-				}
-			}
-			found, err := s.foreignKeyParentExists(parentRef, *job, &parentRows, row.Values, true)
-			if err != nil {
-				return err
-			}
-			if !found {
-				return table.ForeignKeyDiagnostic(s.op.Context(), childAuth.View, childAuth, job.Child, job.Parent, f, row.Values, false, false, s.output)
-			}
-		}
-		checkOld := func(old storage.RowVersion) error {
-			return children.Each(func(child storage.RowVersion) (bool, error) {
-				match, err := table.ForeignKeyRowsMatch(s.op.Context(), job.Comparisons, child.Values, old.Values, s.input)
-				if err != nil || !match {
-					return false, err
-				}
-				found, err := s.foreignKeyParentExists(parentRef, *job, &parentRows, child.Values, false)
-				if err != nil || found {
-					return false, err
-				}
-				return false, table.ForeignKeyDiagnostic(s.op.Context(), parentAuth.View, parentAuth, job.Child, job.Parent, f, old.Values, true, false, s.output)
-			})
-		}
-		for _, row := range parentRows.Staged {
-			old, ok := parentRows.Previous(row.Row)
-			if ok {
-				if dml.ForeignActionSameKey(job.Comparisons, old.Values, row.Values) {
-					continue
-				}
-				if err := checkOld(old); err != nil {
-					return err
-				}
-			} else if row.Base != 0 {
-				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
-			}
-		}
-		if parentRows.CurrentDeletes != nil {
-			for _, rows := range [][]storage.RowVersion{parentRows.Committed, parentRows.Own} {
-				for _, old := range rows {
-					if _, deleted := parentRows.CurrentDeletes.Rows[old.Row]; !deleted {
-						continue
-					}
-					previous, ok := parentRows.Previous(old.Row)
-					if !ok || previous.Version != old.Version {
-						continue
-					}
-					if err := checkOld(old); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return s.op.Context().Err()
-}
-
-func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job dml.ForeignKeyJob, rows *table.ForeignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
-	if err := table.PrepareForeignKeyChild(s.op.Context(), job.Comparisons, child, job.ChildKey, s.input); err != nil {
-		return false, err
-	}
-	for {
-		matching, locator, err := table.FindForeignKeyParent(s.op.Context(), job.Index, job.Comparisons, *rows, job.ChildKey, s.input)
-		if err != nil || matching.Row == 0 {
-			return false, err
-		}
-		if !lockParent || matching.Born == 0 {
-			return true, nil
-		}
-		if err := s.foreignKeyGrant(ref, matching.Row, lock.ForKeyShare, rows.Storage); err != nil {
-			return false, err
-		}
-		if err := s.refreshForeignKeyRows(ref, rows); err != nil {
-			return false, err
-		}
-		// The borrowed index entry is an exact physical-version locator. Waiting
-		// may end this version; retry the current index, never scan the relation.
-		if locator.Position >= 0 && locator.Position < len(rows.Committed) {
-			parent := rows.Committed[locator.Position]
-			if parent.Row == locator.Row && parent.Version == locator.Version && rows.CommittedLive(parent) {
-				if err := s.physicalRowEvent(ref, parent, lock.MultiKeyShare, 0); err != nil {
-					return false, err
-				}
-				return table.ForeignKeyRowsMatch(s.op.Context(), job.Comparisons, child, parent.Values, s.input)
-			}
-		}
-	}
 }
 
 func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *table.ForeignKeyRows) error {

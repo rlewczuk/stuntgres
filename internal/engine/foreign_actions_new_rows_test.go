@@ -43,7 +43,7 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 					sql = `UPDATE ONLY "public"."c" SET "pid" = $1 WHERE $2 OPERATOR(pg_catalog.=) "pid"`
 				}
 				scope := foreignActionUnitScope(t, e, reader, q)
-				err = scope.settleForeignActions()
+				err = SettleForeignActions(scope.writeHost())
 				var d *sqlstate.Error
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent update", Context: `SQL statement "` + sql + `"`}
 				if !errors.As(err, &d) || *d != want {

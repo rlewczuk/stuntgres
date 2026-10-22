@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -183,20 +182,6 @@ func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, 
 	admission := s.foreignActionsOrZero().Admissions[ref.Address]
 	admission.Mutated = true
 	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: admission.Relation.Owner})
-}
-
-// captureForeignActionRows is the current and, under stable isolation, the
-// retained image of ref.
-func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (table.ForeignKeyRows, table.ForeignKeyRows, error) {
-	rows, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
-	if err != nil {
-		return rows, table.ForeignKeyRows{}, err
-	}
-	retained, err := s.writeHost().RetainedForeignKeyRows(ref, rows)
-	if err != nil {
-		return table.ForeignKeyRows{}, retained, err
-	}
-	return rows, retained, nil
 }
 
 // foreignActions returns the statement's foreignActions slot, allocating it on first use.

@@ -83,13 +83,15 @@ func (s *StatementScope) Finish(err error) error {
 		t.Mu.Unlock()
 		err = s.checkExclusionEvents(t.State == session.TxImplicit && !t.RetainsTransaction(), nil)
 		if err == nil {
-			err = s.settleForeignActions()
+			err = SettleForeignActions(s.writeHost())
 		}
 		if err == nil && s.foreignActionsOrZero().ExclusionAdded {
 			err = s.checkExclusionEvents(t.State == session.TxImplicit && !t.RetainsTransaction(), nil)
 		}
-		if err == nil {
-			err = s.checkForeignKeys()
+		// Catalog shape projections replace historical own overlays. They are not
+		// newly issued DML; selected ALTER/catalog validators own their obligations.
+		if err == nil && !s.projectedRoots {
+			err = CheckForeignKeys(s.writeHost())
 		}
 		t.Mu.Lock()
 	}

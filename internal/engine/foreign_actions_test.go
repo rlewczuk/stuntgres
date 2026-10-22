@@ -140,12 +140,12 @@ func TestForeignActionsAdmission(t *testing.T) {
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
 	named, stored, descriptor := scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor
-	jobs, auth, err := scope.prepareForeignActions()
+	jobs, auth, err := PrepareForeignActions(scope.writeHost())
 	if err != nil {
 		t.Fatal(err)
 	}
 	job := foreignActionUnitJob(t, jobs, "c")
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.Child.Address())
+	ref := e.catalog.Domain.Ref(auth.Access().Catalog.Epoch(), job.Child.Address())
 	children, err := scope.captureForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
@@ -169,8 +169,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, true); err != nil {
 		t.Fatal(err)
 	}
-	ownerAuth := auth.actingAs(job.Child.Owner)
-	scope.foreignActionAuth = &ownerAuth
+	scope.writeHost().SwapForeignActionAuthority(auth.ActingAs(job.Child.Owner))
 	scope.foreignActions().Settling = true
 	if err = dml.ReplaceRows(scope.writeHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
@@ -223,7 +222,7 @@ func TestForeignActionsClosure(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	if err := scope.settleForeignActions(); err != nil {
+	if err := SettleForeignActions(scope.writeHost()); err != nil {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "g")
@@ -266,7 +265,7 @@ func TestForeignActionsDefaults(t *testing.T) {
 			before := e.storage.Relations[ref.Address]
 			versions := slices.Clone(before.Versions)
 			scope := foreignActionUnitScope(t, e, s, "DELETE FROM p WHERE id=10")
-			err := scope.settleForeignActions()
+			err := SettleForeignActions(scope.writeHost())
 			if probe.ordinal != 2 {
 				t.Fatal("default demand was not per physical row", probe.ordinal)
 			}

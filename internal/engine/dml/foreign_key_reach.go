@@ -13,7 +13,7 @@ import (
 // view, and the relation lock mode of each job's child and parent. Without a
 // foreign key touching a staged relation it returns no jobs and no modes.
 // The jobs are in catalog order; the caller sorts them.
-func ForeignKeyReach(view catalog.Read, domain *ids.Domain, rows map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) ([]ForeignKeyJob, map[ids.ObjectRef]lock.Mode, error) {
+func ForeignKeyReach(view catalog.Read, rows map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) ([]ForeignKeyJob, map[ids.ObjectRef]lock.Mode, error) {
 	relevant := false
 	for _, descriptor := range view.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
@@ -96,14 +96,14 @@ func ForeignKeyReach(view catalog.Read, domain *ids.Domain, rows map[ids.ObjectA
 			}
 			jobs = append(jobs, ForeignKeyJob{Child: child, Parent: parent, Index: index, Definition: f})
 			for _, a := range []ids.ObjectAddress{child.Address(), parent.Address()} {
-				ref := domain.Ref(view.Epoch(), a)
+				ref := view.Domain().Ref(view.Epoch(), a)
 				if modes[ref] == 0 {
 					modes[ref] = lock.RowShare
 				}
 			}
 			d := directions[f.Target]
 			if d&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade || d&2 != 0 && f.UpdateAction >= parser.ForeignKeyCascade {
-				modes[domain.Ref(view.Epoch(), child.Address())] = lock.RowExclusive
+				modes[view.Domain().Ref(view.Epoch(), child.Address())] = lock.RowExclusive
 			}
 		}
 	}
