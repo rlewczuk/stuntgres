@@ -33,3 +33,45 @@ func CheckTemporaryStorageAccess(view catalog.Read, relation *catalog.Relation, 
 	}
 	return nil
 }
+
+// OwnTemporaryNamespace reports whether ns is the session's own TEMP namespace
+// temp, as the session's access.Environment reports it. TOAST namespaces and
+// persistent namespaces are never owned. Callers read temp only for a TEMP
+// namespace.
+func OwnTemporaryNamespace(temp ids.ObjectAddress, ns *catalog.Namespace) bool {
+	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && temp == ns.Address()
+}
+
+// AdjustRelationCreationPersistence is the persistence of a relation created
+// in namespace ref of v's catalog with the requested persistence: a logged
+// relation in the session's own TEMP namespace becomes temporary, and the TEMP
+// boundary rejects the rest. env's TEMP namespace is read only for a TEMP namespace.
+// Creation permission precedes persistence adjustment, including for SET SCHEMA.
+// Callers supply the coherent catalog containing any privately staged namespace.
+func AdjustRelationCreationPersistence(v View, env Environment, ref ids.ObjectRef, requested string) (string, error) {
+	ns := v.Catalog.MustNamespace(ref.Address)
+	temporary := ns.Temporary != (ids.SessionToken{})
+	own := temporary && OwnTemporaryNamespace(env.TemporaryNamespace(), ns)
+	switch requested {
+	case "temporary":
+		if own {
+			return requested, nil
+		}
+		if temporary {
+			return "", sqlError("42P16", "cannot create relations in temporary schemas of other sessions")
+		}
+		return "", sqlError("42P16", "cannot create temporary relation in non-temporary schema")
+	case "logged":
+		if own {
+			return "temporary", nil
+		}
+		if temporary {
+			return "", sqlError("42P16", "cannot create relations in temporary schemas of other sessions")
+		}
+	default:
+		if temporary {
+			return "", sqlError("42P16", "only temporary relations may be created in temporary schemas")
+		}
+	}
+	return requested, nil
+}

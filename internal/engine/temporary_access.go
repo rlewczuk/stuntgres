@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -37,7 +38,7 @@ func temporaryDataTarget(auth AuthorizationView, b *analyze.Binding, stmt parser
 	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		if b.Relation != nil {
 			ns, ok := auth.Catalog.Namespace(b.Relation.Namespace())
-			return ok && ownTemporaryNamespace(auth, ns)
+			return ok && ns.Temporary != (ids.SessionToken{}) && access.OwnTemporaryNamespace(temporaryNamespace(auth), ns)
 		}
 	}
 	return false

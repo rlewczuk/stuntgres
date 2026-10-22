@@ -4,9 +4,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 )
 
@@ -28,7 +25,7 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b an
 		if principal == (authorization.PrincipalRef{}) {
 			principal = auth.State.CurrentUser
 		}
-		if err := checkRowSecuritySource(auth, leaf.Relation, principal, auth.State.CurrentUser); err != nil {
+		if err := view.CheckRowSecuritySource(auth.View, leaf.Relation, principal, auth.State.CurrentUser); err != nil {
 			return err
 		}
 	}
@@ -62,28 +59,6 @@ func checkRowSecurityRuleProgram(scope *StatementScope, auth AuthorizationView, 
 	}
 	for _, command := range program.Commands {
 		if err := checkRowSecurityBinding(scope, ruleAuthorizationOf(command.Auth), command.Binding); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// stored.ValidateViewReadGraph has already rejected active-path cycles. Each layer's
-// invoker is the executing user, not the owner of an enclosing definer view.
-func checkRowSecuritySource(auth AuthorizationView, relation *catalog.Relation, principal, invoker authorization.PrincipalRef) error {
-	if relation.RelationKind != catalog.ViewRelation {
-		return access.RowSecuritySettingGuard(false, auth.Roles, relation, principal)
-	}
-	principal = relation.Owner
-	if stored.ViewOf(relation).Invoker() {
-		principal = invoker
-	}
-	for _, source := range stored.ViewOf(relation).Sources() {
-		child, ok := auth.Catalog.Relation(source.Ref.Address)
-		if !ok || !stored.ViewReferenceValid(auth.Catalog, relation, source.Ref) {
-			return ids.ErrCatalogReplaced
-		}
-		if err := checkRowSecuritySource(auth, child, principal, invoker); err != nil {
 			return err
 		}
 	}

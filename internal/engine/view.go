@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -61,7 +62,7 @@ func (s *StatementScope) prepareViewCreation(createView *parser.CreateView) erro
 	if err := auth.CheckCreate(ns); err != nil && !operationReplayOrZero(s.op).tableDestination {
 		return err
 	}
-	persistence, err = adjustRelationCreationPersistence(auth, ns, persistence)
+	persistence, err = access.AdjustRelationCreationPersistence(auth.View, auth, ns, persistence)
 	if err != nil {
 		return err
 	}

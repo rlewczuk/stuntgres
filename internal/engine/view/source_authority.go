@@ -122,3 +122,27 @@ func checkRowMarksExpanded(a access.View, env access.Environment, d *catalog.Rel
 	}
 	return nil
 }
+
+// CheckRowSecuritySource applies the row_security setting guard to relation and,
+// through stored views, to each source under the layer's principal.
+// stored.ValidateViewReadGraph has already rejected active-path cycles. Each layer's
+// invoker is the executing user, not the owner of an enclosing definer view.
+func CheckRowSecuritySource(auth access.View, relation *catalog.Relation, principal, invoker authorization.PrincipalRef) error {
+	if relation.RelationKind != catalog.ViewRelation {
+		return access.RowSecuritySettingGuard(false, auth.Roles, relation, principal)
+	}
+	principal = relation.Owner
+	if stored.ViewOf(relation).Invoker() {
+		principal = invoker
+	}
+	for _, source := range stored.ViewOf(relation).Sources() {
+		child, ok := auth.Catalog.Relation(source.Ref.Address)
+		if !ok || !stored.ViewReferenceValid(auth.Catalog, relation, source.Ref) {
+			return ids.ErrCatalogReplaced
+		}
+		if err := CheckRowSecuritySource(auth, child, principal, invoker); err != nil {
+			return err
+		}
+	}
+	return nil
+}

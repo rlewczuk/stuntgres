@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
@@ -71,7 +72,7 @@ func explicitPathFor(auth AuthorizationView, kind analyze.LookupKind) ([]ids.Obj
 		if !ok {
 			continue
 		}
-		if ns, ok := auth.definitionNamespace(a); ok && ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != analyze.InstalledFunctionLookup {
+		if ns, ok := auth.definitionNamespace(a); ok && ns.Temporary != (ids.SessionToken{}) && !access.OwnTemporaryNamespace(temporaryNamespace(auth), ns) && kind != analyze.InstalledFunctionLookup {
 			continue
 		}
 		duplicate := false
@@ -111,7 +112,7 @@ func effectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind analyz
 		filtered := path[:0]
 		for _, a := range path {
 			ns, _ := auth.definitionNamespace(a)
-			if ns.Temporary == (ids.SessionToken{}) || kind == analyze.InstalledFunctionLookup && !ownTemporaryNamespace(auth, ns) {
+			if ns.Temporary == (ids.SessionToken{}) || kind == analyze.InstalledFunctionLookup && !access.OwnTemporaryNamespace(temporaryNamespace(auth), ns) {
 				filtered = append(filtered, a)
 			}
 		}
@@ -173,7 +174,7 @@ func lookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, ki
 		return analyze.NamespaceSelection{}, nil
 	}
 	ns, _ := auth.definitionNamespace(a)
-	foreignTemporary := ns.Temporary != (ids.SessionToken{}) && !ns.TemporaryToast && !ownTemporaryNamespace(auth, ns)
+	foreignTemporary := ns.Temporary != (ids.SessionToken{}) && !ns.TemporaryToast && !access.OwnTemporaryNamespace(temporaryNamespace(auth), ns)
 	if foreignTemporary {
 		actor, exists := auth.Roles.Find(auth.State.CurrentUser)
 		foreignTemporary = !exists || !actor.Superuser
@@ -221,7 +222,7 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 		n := name.Parts[0].Text
 		if n == "pg_temp" {
 			ns, ok := auth.Catalog.Namespace(auth.stagedTemporary)
-			if !ok || !ownTemporaryNamespace(auth, ns) {
+			if !ok || !access.OwnTemporaryNamespace(temporaryNamespace(auth), ns) {
 				return ids.ObjectRef{}, true, nil
 			}
 			a = ns.Address()

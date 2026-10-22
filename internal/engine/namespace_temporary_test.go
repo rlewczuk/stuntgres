@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -75,7 +76,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 		if a == table {
 			want = authorization.UsagePrivilege | authorization.CreatePrivilege
 		}
-		if err != nil || rights != want || ownTemporaryNamespace(auth, ns) != (a == table) {
+		if err != nil || rights != want || access.OwnTemporaryNamespace(temporaryNamespace(auth), ns) != (a == table) {
 			op.Done()
 			t.Fatal("table versus toast authority", a, rights, err)
 		}

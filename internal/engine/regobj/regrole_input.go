@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 )
 
@@ -28,4 +29,17 @@ func (r RoleInput) ResolveRegrole(ctx context.Context, input string) (uint32, er
 		return 0, fmt.Errorf("stuntgres: regrole identity out of range")
 	}
 	return uint32(role.Ref.ID()), nil
+}
+
+// AccessRoleID is the principal ID of a role argument of the ACL inquiry
+// functions: its OID as given, or the role its name finds in roles.
+func AccessRoleID(roles authorization.Read, role functions.AccessRole) (uint64, error) {
+	if role.ByOID {
+		return uint64(role.OID), nil
+	}
+	found, ok := roles.Lookup(role.Name)
+	if !ok {
+		return 0, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, role.Name))
+	}
+	return found.Ref.ID(), nil
 }

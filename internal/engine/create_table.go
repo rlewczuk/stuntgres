@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
@@ -46,7 +47,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 		e.mu.Unlock()
 		return Result{}, ddl.CreationError(err, s.Name)
 	}
-	persistence, err = adjustRelationCreationPersistence(auth, ns, persistence)
+	persistence, err = access.AdjustRelationCreationPersistence(auth.View, auth, ns, persistence)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, ddl.CreationError(err, s.Name)

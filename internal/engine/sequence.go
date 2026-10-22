@@ -128,7 +128,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		persistence, err := adjustRelationCreationPersistence(auth, ns, s.Persistence)
+		persistence, err := access.AdjustRelationCreationPersistence(auth.View, auth, ns, s.Persistence)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -327,7 +327,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if err = auth.CheckCreate(ns); err != nil {
 				return Result{}, err
 			}
-			if _, err = adjustRelationCreationPersistence(auth, ns, destination.Persistence); err != nil {
+			if _, err = access.AdjustRelationCreationPersistence(auth.View, auth, ns, destination.Persistence); err != nil {
 				return Result{}, err
 			}
 			if err = sequence.CheckSchemaMove(auth.Catalog.MustNamespace(d.Namespace()), auth.Catalog.MustNamespace(ns.Address)); err != nil {

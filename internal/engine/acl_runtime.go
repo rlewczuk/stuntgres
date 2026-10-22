@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -47,11 +45,11 @@ func (h *statementHost) RoleMembership(c *exec.Context, actor *functions.AccessR
 	}
 	actorID := uint64(expressionPrincipal(c).ID())
 	if actor != nil {
-		if actorID, err = accessRoleArgument(auth, *actor); err != nil {
+		if actorID, err = regobj.AccessRoleID(auth.Roles, *actor); err != nil {
 			return false, err
 		}
 	}
-	targetID, err := accessRoleArgument(auth, target)
+	targetID, err := regobj.AccessRoleID(auth.Roles, target)
 	if err != nil {
 		return false, err
 	}
@@ -110,15 +108,4 @@ func aclInquiryAuthorizationLocked(c *exec.Context, scope *StatementScope, e *En
 		auth.Recapture(e.privateCatalogLocked(scope.catalog))
 	}
 	return auth, nil
-}
-
-func accessRoleArgument(auth AuthorizationView, role functions.AccessRole) (uint64, error) {
-	if role.ByOID {
-		return uint64(role.OID), nil
-	}
-	found, ok := auth.Roles.Lookup(role.Name)
-	if !ok {
-		return 0, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, role.Name))
-	}
-	return found.Ref.ID(), nil
 }

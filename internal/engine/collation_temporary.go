@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -31,7 +32,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 		}
 	}
 	ns := auth.Catalog.MustNamespace(ref.Address)
-	if ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
+	if ns.Temporary != (ids.SessionToken{}) && !access.OwnTemporaryNamespace(temporaryNamespace(*auth), ns) {
 		actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 		if err != nil {
 			return ids.ObjectRef{}, err

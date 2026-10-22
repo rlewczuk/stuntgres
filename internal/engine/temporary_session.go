@@ -49,9 +49,6 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	return ids.ObjectAddress{}
 }
 
-func ownTemporaryNamespace(auth AuthorizationView, ns *catalog.Namespace) bool {
-	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.Address()
-}
 func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *session.Journal) (ids.ObjectRef, error) {
 	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
 }
@@ -118,36 +115,6 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *sessi
 	e.catalogChangeLocked(c, ns.Address(), ns)
 	e.catalogChangeLocked(c, toast.Address(), toast)
 	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), ns.Address()), nil
-}
-
-// Creation permission precedes persistence adjustment, including for SET SCHEMA.
-// Callers supply the coherent catalog containing any privately staged namespace.
-func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef, requested string) (string, error) {
-	ns := auth.Catalog.MustNamespace(ref.Address)
-	temporary := ns.Temporary != (ids.SessionToken{})
-	own := ownTemporaryNamespace(auth, ns)
-	switch requested {
-	case "temporary":
-		if own {
-			return requested, nil
-		}
-		if temporary {
-			return "", sqlError("42P16", "cannot create relations in temporary schemas of other sessions")
-		}
-		return "", sqlError("42P16", "cannot create temporary relation in non-temporary schema")
-	case "logged":
-		if own {
-			return "temporary", nil
-		}
-		if temporary {
-			return "", sqlError("42P16", "cannot create relations in temporary schemas of other sessions")
-		}
-	default:
-		if temporary {
-			return "", sqlError("42P16", "only temporary relations may be created in temporary schemas")
-		}
-	}
-	return requested, nil
 }
 
 // Physical-end cleanup occurs after command drain. Catalog edits remain coherent
