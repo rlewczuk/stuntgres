@@ -6,6 +6,66 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Transaction-control cancellation timeout boundary
+
+`TestReferenceTransactionControlsCancellation` keeps both `reference_77` and
+`original_1_77` in the shared native/pinned PostgreSQL body. Baseline Recorder
+observations require A/B `statement_timeout=0`. B's BEGIN/ACCESS EXCLUSIVE lock
+and A's BEGIN must succeed before A arms `SET LOCAL statement_timeout TO '20ms'`
+immediately before INSERT2. Setup cancellation is not the expected timeout.
+Full abort restores LOCAL before the next command: retain exact timeout57014,
+then exact aborted25P02, then on-demand prepared (reference) or direct (original)
+`ROLLBACK AND CHAIN`. Recorder-backed SHOW0 after chain precedes full rollback
+and explicit SET0; physical-owner checks prevent replacement from hiding state.
+
+The complete definition retains the pre-canceled/physical-retirement branches,
+native ordinary caller errors, PostgreSQL's actual relation queue witness,
+server signal and joined result, peer rows77 or1,77, and prepared INSERT9/count1
+with final9,77 or1,9,77. Neither2 nor3 may publish. Final A/B SHOW0 and the same
+A physical owner are required. Shared fixture APIs and neighboring tests are
+unchanged; LOCAL does not eliminate the cleanup window before the decisive abort.
+
+Run oracle-first selected proof on the completed definition, including race:
+
+```sh
+P='^TestReferenceTransactionControlsCancellation$'
+make check REFERENCE=1 RUN="$P"
+make check RUN="$P"
+make check RACE=1 RUN="$P"
+make check REFERENCE=1 RACE=1 RUN="$P"
+make check REFERENCE=1 RUN='^TestReferenceTransactionControlsSmoke$'
+make check RUN='^TestReferenceTransactionControlsSmoke$'
+```
+
+The part's throwaway public-API smoke source is
+`/tmp/stuntgres-PG18-TEST-TX-CONTROLS-TIMEOUT-SETUP-smoke.go`, not an installed
+tool. From this worktree, run each of these six finite schedules:
+
+```sh
+S=/tmp/stuntgres-PG18-TEST-TX-CONTROLS-TIMEOUT-SETUP-smoke.go
+timeout --signal=KILL 900s env GOMAXPROCS=1 go run "$S" -deadline 30s -workers 0 -prearm-delay 30ms
+timeout --signal=KILL 900s env GOMAXPROCS=1 go run "$S" -deadline 30s -workers 2 -prearm-delay 30ms
+timeout --signal=KILL 900s env GOMAXPROCS=2 go run "$S" -deadline 30s -workers 0 -prearm-delay 30ms
+timeout --signal=KILL 900s env GOMAXPROCS=2 go run "$S" -deadline 30s -workers 2 -prearm-delay 30ms
+timeout --signal=KILL 900s env -u GOMAXPROCS go run "$S" -deadline 30s -workers 0 -prearm-delay 30ms
+timeout --signal=KILL 900s env -u GOMAXPROCS go run -race "$S" -deadline 30s -workers 2 -prearm-delay 30ms
+```
+
+Expected: both variants satisfy exact diagnostics, abort/recovery, SHOW0 before
+reset, same-owner and final-row contracts; workers report0/0/0 or2/2/2
+requested/ready/joined. Record preparation, arming and decisive INSERT durations
+separately. The context-bounded30ms pre-arm delay is preparation stimulus, not
+queue admission or a tight elapsed-time assertion. All six cases must succeed
+without retries or changing either20ms budget. Native smoke makes no PostgreSQL
+claim; the pinned shared definition supplies actual queue/signal proof.
+These finite cooperative schedules are not arbitrary-starvation guarantees or
+proof of the historical failure's precise cause. Remove the temporary source
+after recording observations. No passing result is claimed here.
+
+For this part, apply external900s deadlines to selected checks and the full
+unfiltered pre-review `make quickcheck`; postmerge `make finalcheck` has1800s.
+Selected proof does not replace either whole-project check.
+
 ### Relation-lock cancellation admission
 
 `TestReferenceRelationLockCancellation` uses the shared active relation-lock

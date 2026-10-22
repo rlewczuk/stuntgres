@@ -174,10 +174,18 @@ func TestReferenceTransactionControlsCancellation(t *testing.T) {
 						f.Exec(t, f.A, "INSERT INTO t VALUES(1)", false, 1)
 						f.Rows(t, f.B, 1, 77)
 					}
-					f.Exec(t, f.A, "SET statement_timeout TO '20ms'", false, 0)
+					owner := fixture.SettingsPhysical(t, f.A)
+					showTimeout := func(c *sql.Conn) {
+						fixture.RunStep(t, ctx, c, f.Recorder, fixture.Select("SHOW statement_timeout", []string{"statement_timeout"}, []string{"TEXT"}, [][]any{{"0"}}))
+					}
+					showTimeout(f.A)
+					showTimeout(f.B)
 					f.Exec(t, f.B, "BEGIN", false, 0)
 					f.Exec(t, f.B, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE", false, 0)
 					f.Exec(t, f.A, "BEGIN", false, 0)
+					// Arm only the decisive operation; full abort restores LOCAL
+					// before the aborted probe and on-demand recovery Prepare.
+					f.Exec(t, f.A, "SET LOCAL statement_timeout TO '20ms'", false, 0)
 					_, err := f.A.ExecContext(ctx, "INSERT INTO t VALUES(2)")
 					want := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to statement timeout")
 					fixture.AssertDiagnostic(t, err, &want)
@@ -185,8 +193,15 @@ func TestReferenceTransactionControlsCancellation(t *testing.T) {
 					want = fixture.TransactionAborted()
 					fixture.AssertDiagnostic(t, err, &want)
 					f.Exec(t, f.A, "ROLLBACK AND CHAIN", !committedOne, 0)
+					showTimeout(f.A)
+					if fixture.SettingsPhysical(t, f.A) != owner {
+						t.Fatal("timeout recovery replaced physical owner")
+					}
 					f.Exec(t, f.A, "ROLLBACK", false, 0)
 					f.Exec(t, f.A, "SET statement_timeout TO 0", false, 0)
+					if fixture.SettingsPhysical(t, f.A) != owner {
+						t.Fatal("timeout reset replaced physical owner")
+					}
 					if postgres {
 						pid := 0
 						if err = f.A.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
@@ -241,6 +256,11 @@ func TestReferenceTransactionControlsCancellation(t *testing.T) {
 						f.Rows(t, f.B, 1, 9, 77)
 					} else {
 						f.Rows(t, f.B, 9, 77)
+					}
+					showTimeout(f.A)
+					showTimeout(f.B)
+					if fixture.SettingsPhysical(t, f.A) != owner {
+						t.Fatal("cancellation recovery replaced physical owner")
 					}
 				})
 			}
