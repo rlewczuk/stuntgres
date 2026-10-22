@@ -10,44 +10,44 @@ import (
 )
 
 func TestReferenceStringCoreReview2DeparseSourceConsumerRoutes(t *testing.T) {
-	p := fixture.NewScenario(t)
-	for _, backend := range p.Backends() {
-		t.Run(backend.Name, func(t *testing.T) {
-			db := backend.DB
-			cases := stringCoreReview2Cases()
-			for _, tc := range cases {
-				fixture.StringCoreControlExec(t, db, "CREATE TABLE sc2_"+tc.name+"("+tc.decl+",CONSTRAINT sc2c_"+tc.name+" CHECK("+tc.check+"))")
-			}
-			observe := func(phase string) {
-				for _, tc := range cases {
-					for _, mode := range []struct{ suffix, want string }{{"", tc.compact}, {",false", tc.compact}, {",true", tc.pretty}} {
-						for _, prepared := range []bool{false, true} {
-							t.Run(fmt.Sprintf("%s/%s/%s/prepared=%t", phase, tc.name, mode.suffix, prepared), func(t *testing.T) {
-								t.Run("expression", func(t *testing.T) {
-									fixture.StringCoreControlText(t, db, prepared, "SELECT pg_get_expr(conbin,conrelid"+mode.suffix+") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_"+tc.name+"'", mode.want)
+	// Keep each independent constraint's full lifecycle within its own fixture.
+	for _, tc := range stringCoreReview2Cases() {
+		t.Run(tc.name, func(t *testing.T) {
+			p := fixture.NewScenario(t)
+			for _, backend := range p.Backends() {
+				t.Run(backend.Name, func(t *testing.T) {
+					db := backend.DB
+					fixture.StringCoreControlExec(t, db, "CREATE TABLE sc2_"+tc.name+"("+tc.decl+",CONSTRAINT sc2c_"+tc.name+" CHECK("+tc.check+"))")
+					observe := func(phase string) {
+						for _, mode := range []struct{ suffix, want string }{{"", tc.compact}, {",false", tc.compact}, {",true", tc.pretty}} {
+							for _, prepared := range []bool{false, true} {
+								t.Run(fmt.Sprintf("%s/%s/prepared=%t", phase, mode.suffix, prepared), func(t *testing.T) {
+									t.Run("expression", func(t *testing.T) {
+										fixture.StringCoreControlText(t, db, prepared, "SELECT pg_get_expr(conbin,conrelid"+mode.suffix+") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_"+tc.name+"'", mode.want)
+									})
+									t.Run("constraint", func(t *testing.T) {
+										fixture.StringCoreControlText(t, db, prepared, "SELECT pg_get_constraintdef(oid"+mode.suffix+") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_"+tc.name+"'", "CHECK ("+mode.want+")")
+									})
 								})
-								t.Run("constraint", func(t *testing.T) {
-									fixture.StringCoreControlText(t, db, prepared, "SELECT pg_get_constraintdef(oid"+mode.suffix+") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_"+tc.name+"'", "CHECK ("+mode.want+")")
-								})
-							})
+							}
 						}
 					}
-				}
+					observe("initial")
+					if !backend.PG {
+						var dump bytes.Buffer
+						if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+							t.Fatal(err)
+						}
+						if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+							t.Fatal(err)
+						}
+						if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
+							t.Fatal(err)
+						}
+					}
+					observe("restored")
+				})
 			}
-			observe("initial")
-			if !backend.PG {
-				var dump bytes.Buffer
-				if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
-					t.Fatal(err)
-				}
-				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-					t.Fatal(err)
-				}
-				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
-					t.Fatal(err)
-				}
-			}
-			observe("restored")
 		})
 	}
 }

@@ -182,41 +182,53 @@ func objectAddressAllRoutines() []objectAddressRoutineFact {
 	return rows
 }
 func TestReferenceObjectAddressAuthorityRoutines(t *testing.T) {
-	objectAddressScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		_, _, types := objectAddressTypeFacts(t)
-		var facts []objectAddressInventoryRow
-		rows := objectAddressAllRoutines()
-		if len(rows) != 3397 {
-			t.Fatal("fixed routine inventory", len(rows))
+	_, _, types := objectAddressTypeFacts(t)
+	var facts []objectAddressInventoryRow
+	rows := objectAddressAllRoutines()
+	if len(rows) != 3397 {
+		t.Fatal("fixed routine inventory", len(rows))
+	}
+	for _, r := range rows {
+		args := []string{}
+		for _, symbol := range strings.Fields(r.args) {
+			s, ok := types[symbol]
+			if !ok {
+				t.Fatal("missing released type", symbol)
+			}
+			args = append(args, s)
 		}
-		for _, r := range rows {
-			args := []string{}
-			for _, symbol := range strings.Fields(r.args) {
-				s, ok := types[symbol]
-				if !ok {
-					t.Fatal("missing released type", symbol)
-				}
-				args = append(args, s)
-			}
-			kind := "function"
-			if r.kind == "a" {
-				kind = "aggregate"
-			}
-			if r.kind == "p" {
-				kind = "procedure"
-			}
-			identity := "pg_catalog." + objectAddressIdent(r.name) + "(" + strings.Join(args, ",") + ")"
-			// Human routine descriptions use visible type names from the independent
-			// type fixture; pg_catalog qualification is not forced there.
-			humanArgs := make([]string, len(args))
-			for i, s := range args {
-				humanArgs[i] = strings.TrimPrefix(s, "pg_catalog.")
-			}
-			description := "function " + objectAddressIdent(r.name) + "(" + strings.Join(humanArgs, ",") + ")"
-			facts = append(facts, objectAddressInventoryRow{1255, r.id, kind, "pg_catalog", nil, identity, description, []string{"pg_catalog", r.name}, args})
+		kind := "function"
+		if r.kind == "a" {
+			kind = "aggregate"
 		}
-		objectAddressInventory(t, p, b, c, facts, true)
-	})
+		if r.kind == "p" {
+			kind = "procedure"
+		}
+		identity := "pg_catalog." + objectAddressIdent(r.name) + "(" + strings.Join(args, ",") + ")"
+		// Human routine descriptions use visible type names from the independent
+		// type fixture; pg_catalog qualification is not forced there.
+		humanArgs := make([]string, len(args))
+		for i, s := range args {
+			humanArgs[i] = strings.TrimPrefix(s, "pg_catalog.")
+		}
+		description := "function " + objectAddressIdent(r.name) + "(" + strings.Join(humanArgs, ",") + ")"
+		facts = append(facts, objectAddressInventoryRow{1255, r.id, kind, "pg_catalog", nil, identity, description, []string{"pg_catalog", r.name}, args})
+	}
+	// Released catalog inquiries are independent: no group creates or mutates
+	// state consumed by another. Bound each fixture's complete lifecycle rather
+	// than renewing one live scenario's context across the whole inventory.
+	const groupSize = 512
+	for start := 0; start < len(facts); start += groupSize {
+		end := start + groupSize
+		if end > len(facts) {
+			end = len(facts)
+		}
+		t.Run(fmt.Sprintf("inventory_%d_%d", start, end), func(t *testing.T) {
+			objectAddressScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				objectAddressInventory(t, p, b, c, facts[start:end], true)
+			})
+		})
+	}
 }
 func TestReferenceObjectAddressAuthorityOperators(t *testing.T) {
 	objectAddressScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {

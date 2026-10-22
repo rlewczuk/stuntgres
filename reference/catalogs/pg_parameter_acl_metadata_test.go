@@ -6,8 +6,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func pgParameterACLFacts(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-	t.Helper()
+func pgParameterACLFactSteps(b fixture.Backend) []fixture.Step {
 	steps := []fixture.Step{
 		fixture.Select("SELECT oid,relnamespace,relowner,relkind,relpersistence,relnatts,relhasindex,relisshared,reltablespace FROM pg_class WHERE oid=6243::oid", []string{"oid", "relnamespace", "relowner", "relkind", "relpersistence", "relnatts", "relhasindex", "relisshared", "reltablespace"}, []string{"OID", "OID", "OID", "CHAR", "CHAR", "INT2", "BOOL", "BOOL", "OID"}, [][]any{{int64(6243), int64(11), int64(10), "r", "p", int64(3), true, true, int64(1664)}}),
 		fixture.Select("SELECT reltype='pg_catalog.pg_parameter_acl'::regtype::oid AS same_type FROM pg_class WHERE oid=6243::oid", []string{"same_type"}, []string{"BOOL"}, [][]any{{true}}),
@@ -21,6 +20,12 @@ func pgParameterACLFacts(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		}),
 	}
 	steps = append(steps, fixture.Select("SELECT t.typrelid=6243::oid AS same_relation,a.typelem=t.oid AS same_element,a.oid='pg_catalog.pg_parameter_acl[]'::regtype::oid AS same_array FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='pg_catalog.pg_parameter_acl'::regtype::oid", []string{"same_relation", "same_element", "same_array"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+	return steps
+}
+
+func pgParameterACLFacts(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+	t.Helper()
+	steps := pgParameterACLFactSteps(b)
 	for _, s := range steps {
 		pgDatabaseCheck(t, p, b, b.DB, s)
 		pgDatabaseCheck(t, p, b, b.DB, fixture.Prepared(s))

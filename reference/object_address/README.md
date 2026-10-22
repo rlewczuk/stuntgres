@@ -96,31 +96,49 @@ Native controls are explicit native-only phases; their
 SQL outcomes share the same body with PostgreSQL. Whole-project quickcheck and
 finalcheck do not replace selected dual-mode proof.
 
-### Exhaustive inventory batching efficiency
+### Exhaustive routine inventory fixture boundaries
 
-The inventory helper batches128 rows rather than40: all3397 fixed routine
-identities now require27 statements instead of85 on each of the direct and
-freshly prepared routes. Type, operator and conversion inventories use the
-same helper and retain their complete expected row sets, SQL functions,
-inverse relationships, ordering and metadata assertions. This amortizes
-statement parsing/admission without splitting fixtures, extending contexts,
-renewing clocks or changing production code.
+`TestReferenceObjectAddressAuthorityRoutines` keeps all 3397 independently
+specified released routine facts, but partitions the fixed inventory into seven
+serial subtests, each owning an existing `fixture.NewScenario` lifecycle:
+`inventory_0_512`, `inventory_512_1024`, `inventory_1024_1536`,
+`inventory_1536_2048`, `inventory_2048_2560`, `inventory_2560_3072`, and
+`inventory_3072_3397`. These are half-open ranges in the released inventory,
+not OID ranges. Six groups contain 512 facts and the last contains 325:
+`6*512+325 = 3397`, with no omission or overlap.
 
-This is a bounded test-workflow remedy for the observed30-second routine
-inventory fixture expiry, not measured proof of a speedup or a passing race
-suite. Root must obtain fresh native and pinned PostgreSQL18.6 UTF8/C evidence
-for the complete affected helper closure, and selected race evidence:
+Each group only reads fixed catalog objects; no dynamic state crosses group
+boundaries. Each new scenario retains the shared fixture's original 30-second
+context from construction through cleanup, including both backends when enabled.
+The existing scenario helper closes each backend's borrowed connection before
+that scenario's fixture cleanup, which completes before the next group starts.
+No live scenario's context is renewed or extended.
+
+The unchanged inventory helper still batches 128 rows: each full group has four
+batches, and the last has three (128, 128, 69), so the complete inventory retains
+27 batches and 54 direct/freshly prepared streams per backend. Every fact still
+checks its exact identity, kind, schema/name, argument/name arrays, English
+description and inverse roundtrip, with the same column/type metadata and
+explicit `ORDER BY v.id`. Expected values still come only from released routine
+and type fixtures. Type, operator and other inventory definitions and shared
+helper semantics are unchanged.
+
+This test-workload remedy addresses the observed final-batch 30-second fixture
+expiry; it is not measured evidence of a passing race suite or a speedup.
+Root must obtain fresh selected native and pinned PostgreSQL 18.6 UTF8/C proof
+and selected race evidence for the changed definition:
 
 ```sh
-make check RUN='^TestReferenceObjectAddressAuthority(Types|Builtins)$'
-make check RUN='^TestReferenceObjectAddressAuthority(Routines|Operators)$'
-make check RUN='^TestReferenceObjectAddressAuthority(Types|Builtins)$' REFERENCE=1
-make check RUN='^TestReferenceObjectAddressAuthority(Routines|Operators)$' REFERENCE=1
-make check RUN='^TestReferenceObjectAddressAuthority(Types|Builtins|Routines|Operators)$' RACE=1
+make check RUN='^TestReferenceObjectAddressAuthorityRoutines$'
+make check RUN='^TestReferenceObjectAddressAuthorityRoutines$' REFERENCE=1
+make check RUN='^TestReferenceObjectAddressAuthorityRoutines$' RACE=1
 ```
 
-Use external900-second deadlines. These selected commands supplement fresh
-whole-project quickcheck, information_schema.user_mappings dual-mode feature
-smoke and independent remedy review; finalcheck remains required after
-separate remedy integration.
+Use external 900-second deadlines. The same selectors are the exhaustive
+routine-inventory remedy smoke: expect all seven scenarios to check all 3397
+facts through both execution routes, exact metadata and successful inverse
+relationships, without deadline expiry. These selected commands supplement
+fresh whole-project quickcheck, the package's public feature smoke above and
+independent remedy review; finalcheck remains required after separate remedy
+integration.
 

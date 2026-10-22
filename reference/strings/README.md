@@ -30,6 +30,37 @@ scenarios exercise the lifecycle remedy directly; no additional standalone
 string smoke program is needed for this test-only change. Selected proof does
 not replace whole-project Docker-free quickcheck or postmerge finalcheck.
 
+### String core noncontext source-consumer lifecycle
+
+`TestReferenceStringCoreReview2DeparseSourceConsumerRoutes` likewise gives each
+of the same 74 independent constraint cases its own serial `NewScenario`.
+Each fixture keeps its original 30-second context from creation through cleanup:
+create one table, observe `initial`, perform native Dump/Reset/Restore with that
+same context, then observe `restored`. PostgreSQL repeats observations against
+its original table, without simulated native controls. Cleanup finishes before
+the next case creates its fixture; no live lifecycle gets a renewed deadline.
+
+Every case retains `pg_get_expr` and `pg_get_constraintdef` in default,
+explicit-false and explicit-true modes, with unchanged compact/pretty expected
+strings through both noncontext direct Query and Prepare/Stmt.Query routes.
+The existing helpers retain CREATE result/RowsAffected/LastInsertId checks,
+single-column TEXT/string scan metadata, raw values, complete rows and retained
+Rows assertions in both observation phases. The separate
+`TestReferenceStringCoreReview2ByteaGroupingSourceConsumerRoutes` definition and
+its ordinary/special BYTEA grouping, NULL and owned-scan assertions are unchanged.
+
+```sh
+make check RUN='^TestReferenceStringCoreReview2DeparseSourceConsumerRoutes$' REFERENCE=1
+make check RUN='^TestReferenceStringCoreReview2DeparseSourceConsumerRoutes$'
+make check RUN='^TestReferenceStringCoreReview2DeparseSourceConsumerRoutes$' RACE=1
+```
+
+Use an external 900-second deadline per command. These same selectors provide
+the test-only remedy smoke: all 74 case lifecycles must retain their independently
+specified deparse strings, metadata and direct/prepared observations before and
+after native roundtrip. Selected proof does not replace whole-project quickcheck
+or postmerge finalcheck.
+
 ### Text slicing selected proof
 
 `TestReferenceStringSlice*` covers `left`, `right`, positional

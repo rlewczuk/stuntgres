@@ -710,6 +710,38 @@ ACL output survives removal and Reset. Native controls assert Dump rejection
 before writer callbacks and unchanged reads, then Reset emptiness with retained
 old rows/metadata; there is no positive parameter ACL serialization contract.
 
+`TestReferencePGParameterACLControls` partitions its independent metadata facts
+into four serial fixtures: `relation` (pg_class identity and reltype),
+`row_array_types` (row/array regtype identities and reciprocal pg_type links),
+`discovery` (pg_tables inclusion and pg_views exclusion), and `attributes`
+(all three exact pg_attribute rows). Each fixture has the existing 30-second
+context from birth through cleanup; it does not renew a live lifecycle's
+deadline. Every family keeps the complete grant/read/Dump-rejection/read/Reset
+sequence, same held-query Reset emptiness, freshly executed Reset emptiness,
+and the original old row and saved metadata retained across that same Reset.
+All seven fact queries and their exact expected rows, columns, types and raw
+carriers still run directly, fresh-prepared and twice on the same held statement,
+both before and after native Reset. PostgreSQL retains the ordinary grant,
+complete family facts, revoke and empty-read route in each independent fixture.
+The standalone `TestReferencePGParameterACLMetadata` still checks all seven
+facts together through its unchanged four execution routes.
+
+Selected workload-remedy proof and control smoke (run each command under an
+external 900-second deadline):
+
+```sh
+make check RUN='^TestReferencePGParameterACL(Controls|Metadata)$' REFERENCE=1
+make check RUN='^TestReferencePGParameterACL(Controls|Metadata)$'
+make check RUN='^TestReferencePGParameterACLControls$' RACE=1
+```
+
+Expected observations are the original canonical PUBLIC SET ACL and positive
+uint32 OID, exact catalog facts unchanged by native Reset, native Dump's ordinary
+`stuntgres: dump cannot serialize parameter ACL` error with zero writer calls
+and no SQLSTATE, fresh/held empty rows after Reset, and the retained original
+OID/name/ACL plus complete saved descriptor. These commands describe required
+proof, not an assertion that the new fixture boundaries have been verified.
+
 ```sh
 make check RUN='^TestReferencePGParameterACL(Shape|Metadata|GrantedEntries|IdentityAndLifecycle|ExplicitEmpty|VisibilityAndDiagnostics|Controls|FeatureSmoke)$' REFERENCE=1
 make check RUN='^TestReferencePGParameterACL(Shape|Metadata|GrantedEntries|IdentityAndLifecycle|ExplicitEmpty|VisibilityAndDiagnostics|Controls|FeatureSmoke)$'
