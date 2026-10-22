@@ -2,7 +2,7 @@ package engine
 
 import (
 	"errors"
-	"stuntgres/internal/engine/analyze"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // Descendant targets belong to the active command, not its SELECT sources or
@@ -102,50 +101,6 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 		}
 	}
-}
-
-// Physical generation/checks use the full physical proposal; diagnostic values
-// and SELECT rights are projected back to the named mutation target.
-func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.Binding, physical exec.QueryPhysicalRow, schema string, row []sqltype.Value, eval *exec.Context) error {
-	if physical.Leaf.Ref == named.Ref {
-		return e.validateMutationRow(s, named, schema, row, eval)
-	}
-	relation := physical.Leaf.Relation
-	generationEval := *eval
-	if err := table.EvaluateGenerations(eval.Context, relation, row, &generationEval); err != nil {
-		return err
-	}
-	diagnostic := func(column, check string) error {
-		detail, err := e.rowConstraintDetail(s, &named, physical.Values(storage.RowVersion{Values: row}))
-		if err != nil {
-			return err
-		}
-		physicalSchema := schema
-		if name, ok := s.writeHost().SchemaName(relation.Namespace()); ok {
-			physicalSchema = name
-		}
-		if check != "" {
-			return table.CheckDetailError(physicalSchema, relation.Name(), check, detail)
-		}
-		return table.NotNullDetailError(physicalSchema, relation.Name(), column, detail)
-	}
-	for i, column := range relation.Columns {
-		if !column.Nullable {
-			value, err := table.LogicalColumnValue(relation, i, row, &generationEval)
-			if err != nil {
-				return err
-			}
-			if value.IsNull() {
-				return diagnostic(column.Name, "")
-			}
-		}
-	}
-	if constraint, err := table.ValidateCheckRow(relation, row, &generationEval); err != nil {
-		return err
-	} else if constraint != nil {
-		return diagnostic("", constraint.Name)
-	}
-	return nil
 }
 
 // Descendant replacement authority is a real command target, captured generation

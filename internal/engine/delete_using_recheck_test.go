@@ -33,7 +33,7 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 		}
 		return predicate.Eval(c)
 	})
-	r, err := scope.deleteSource(b, target, inputs, nil)
+	r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}

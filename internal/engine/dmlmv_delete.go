@@ -1,0 +1,174 @@
+package engine
+
+import (
+	"errors"
+
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
+	"stuntgres/internal/sqltype"
+)
+
+// DeleteInput is one DELETE execution: the captured target Source, the query
+// sources (nil without USING or subquery demand) and the canonical
+// parameters. ExecuteDelete closes Inputs; the caller closes Source.
+type DeleteInput struct {
+	Binding    analyze.Binding
+	Source     *exec.Source
+	Inputs     *exec.Source
+	Parameters []sqltype.Value
+}
+
+// ExecuteDelete runs DELETE after the root has captured the target and its
+// sources and released Engine.mu: each qualifying row takes its row lock,
+// rereads its latest version, rechecks the predicate when it moved and is
+// staged for deletion.
+func ExecuteDelete(h dml.Host, in DeleteInput) (dml.Outcome, error) {
+	b, source, inputs, parameters := in.Binding, in.Source, in.Inputs, in.Parameters
+	_, lockedStorage := h.Target()
+	if b.Storage == nil || b.Storage != lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
+		if inputs != nil {
+			inputs.Close()
+		}
+		return dml.Outcome{}, ids.ErrCatalogReplaced
+	}
+	var positioned dml.MutationRowIdentity
+	if b.CurrentOf != "" {
+		var err error
+		positioned, err = h.PositionedRow(b)
+		if err != nil {
+			if inputs != nil {
+				inputs.Close()
+			}
+			return dml.Outcome{}, err
+		}
+	}
+	ctx := h.Operation().Context()
+	input, output := h.Environments()
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Host: h, Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	if inputs != nil {
+		if err := exec.SelectQuerySources(ctx, inputs); err != nil {
+			return dml.Outcome{}, err
+		}
+		if b.ViewWrite != nil || b.Rule.Template {
+			inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
+		}
+		defer inputs.Close()
+		state := &exec.State{Source: inputs, Parameters: parameters, Input: input, Output: output, Locking: inputs.Locks != nil}
+		defer state.ReleaseMemberships()
+		inputs.Host = h
+		evaluation.Query = state
+	}
+	if b.Delete.Using != nil {
+		return deleteUsingSource(h, b, source, &evaluation, positioned)
+	}
+	var count int64
+	var rows *exec.FinalRows
+	keep := false
+	if b.Returning != nil {
+		rows = exec.NewFinalRows(b.Returning.Schema, 0)
+		rows.Output = output
+		defer func() {
+			if !keep {
+				rows.Close()
+			}
+		}()
+	}
+	for i := range source.Count() {
+		if err := ctx.Err(); err != nil {
+			return dml.Outcome{}, err
+		}
+		physical := dml.MutationPhysicalRow(source, i, b)
+		version := physical.Version
+		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || version.Row != positioned.Row) {
+			continue
+		}
+		evaluation.Row = physical.Values(version)
+		evaluation.PhysicalTable = physical.Leaf.Ref
+		if b.Predicate != nil {
+			value, err := b.Predicate.Eval(&evaluation)
+			if err != nil {
+				return dml.Outcome{}, err
+			}
+			truth, err := plan.TruthOf(value)
+			if err != nil {
+				return dml.Outcome{}, err
+			}
+			if truth != plan.True {
+				continue
+			}
+		}
+		candidate := physical.Deletion()
+		if err := h.AcquireRow(candidate); err != nil {
+			return dml.Outcome{}, err
+		}
+		latest, err := h.LatestRow(dml.DeleteRowRequest(candidate))
+		current, live := latest.Version, latest.Live
+		if err != nil {
+			return dml.Outcome{}, err
+		}
+		if !live {
+			continue
+		}
+		if current.Version != candidate.Version {
+			if err := h.PhysicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
+				return dml.Outcome{}, err
+			}
+		}
+		if current.Version != candidate.Version && b.Predicate != nil {
+			evaluation.Row = physical.Values(current)
+			value, err := b.Predicate.Eval(&evaluation)
+			if err != nil {
+				return dml.Outcome{}, err
+			}
+			truth, err := plan.TruthOf(value)
+			if err != nil {
+				return dml.Outcome{}, err
+			}
+			if truth != plan.True {
+				continue
+			}
+		}
+		if err := dml.ClaimUniqueRow(h, candidate.Ref, current); err != nil {
+			return dml.Outcome{}, err
+		}
+		deleted, err := h.Delete(candidate)
+		if err != nil {
+			return dml.Outcome{}, err
+		}
+		if deleted {
+			count++
+			if rows != nil {
+				evaluation.Row = physical.Values(current)
+				for output, expr := range b.Returning.Expressions {
+					value, err := expr.Eval(&evaluation)
+					if err != nil {
+						return dml.Outcome{}, err
+					}
+					if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.Columns[output].Usage.Type {
+						return dml.Outcome{}, errors.New("stuntgres: invalid finalized DELETE value")
+					}
+					rows.Values = append(rows.Values, value)
+				}
+				rows.Count++
+			}
+		}
+	}
+	if rows != nil && b.Returning.RegclassOutput && count != 0 {
+		if err := h.CaptureRegclassOutput(rows); err != nil {
+			return dml.Outcome{}, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return dml.Outcome{}, err
+	}
+	keep = true
+	if rows != nil {
+		return dml.Outcome{Count: count, Rows: rows}, nil
+	}
+	return dml.Outcome{Count: count}, nil
+}

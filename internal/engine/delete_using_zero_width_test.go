@@ -15,7 +15,7 @@ func TestDeleteUsingZeroWidthCardinality(t *testing.T) {
 	if b.Delete.SourceWidth != 0 || len(b.Relation.Columns) != 0 || target.Count() != 2 {
 		t.Fatal("width confused with occurrence count", b.Delete.SourceWidth, target.Count())
 	}
-	r, err := scope.deleteSource(b, target, inputs, nil)
+	r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
@@ -23,7 +23,7 @@ func TestDeleteUsingZeroWidthCardinality(t *testing.T) {
 	if err != nil || r.Count != 2 || len(scope.stage.deletes[b.Ref.Address].Rows) != 2 {
 		t.Fatal(r, err)
 	}
-	got := tuples(r)
+	got := tuples(outcomeResult(r))
 	r.Rows.Close()
 	if len(got) != 2 || len(got[0]) != 1 || got[0][0] != int64(1) || got[1][0] != int64(1) {
 		t.Fatal(got)

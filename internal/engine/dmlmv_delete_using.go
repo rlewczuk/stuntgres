@@ -12,7 +12,7 @@ import (
 
 // The source stage owns immutable joined frames. Only qualifying identities and
 // occurrence indexes are retained, before any target row arbitration can wait.
-func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Source, evaluation *exec.Context, positioned dml.MutationRowIdentity) (Result, error) {
+func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evaluation *exec.Context, positioned dml.MutationRowIdentity) (dml.Outcome, error) {
 	ctx := evaluation.Context
 	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.Delete.Using) || exec.BoundHasVirtualReads(b.Predicate)
 	if b.Returning != nil {
@@ -22,15 +22,15 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 	}
 	stage, err := exec.OpenNode(ctx, evaluation.Query, b.Delete.Using)
 	if err != nil {
-		return Result{}, err
+		return dml.Outcome{}, err
 	}
 	stage, err = exec.SettlePendingQueryMarks(ctx, evaluation.Query, b.Delete.Using, stage)
 	if err != nil {
-		return Result{}, err
+		return dml.Outcome{}, err
 	}
 	defer stage.Close()
 	if err := stage.Drain(ctx); err != nil {
-		return Result{}, err
+		return dml.Outcome{}, err
 	}
 	var frame []sqltype.Value
 	sourceCount := stage.Count()
@@ -49,7 +49,7 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 		candidate := physical.Deletion()
 		for j := range sourceCount {
 			if err := ctx.Err(); err != nil {
-				return Result{}, err
+				return dml.Outcome{}, err
 			}
 			copy(frame, physical.Values(version))
 			copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(j)))
@@ -58,7 +58,7 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 			evaluation.PhysicalTable = physical.Leaf.Ref
 			matches, err := exec.UpdateMatches(evaluation, b.Predicate)
 			if err != nil {
-				return Result{}, err
+				return dml.Outcome{}, err
 			}
 			if matches {
 				candidates = append(candidates, dml.DeleteUsingCandidate{DeleteCandidate: candidate, SourceIndex: j, Physical: physical})
@@ -73,7 +73,7 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 	keep := false
 	if b.Returning != nil {
 		rows = exec.NewFinalRows(b.Returning.Schema, 0)
-		rows.Output = s.output
+		rows.Output = evaluation.Output
 		defer func() {
 			if !keep {
 				rows.Close()
@@ -83,20 +83,20 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 	var count int64
 	for _, pair := range candidates {
 		if err := ctx.Err(); err != nil {
-			return Result{}, err
+			return dml.Outcome{}, err
 		}
 		candidate := pair.DeleteCandidate
 		identity := dml.MutationRowIdentity{Ref: candidate.Ref, Row: candidate.Row}
 		if deletedIDs[identity] {
 			continue
 		}
-		if err := s.acquireRow(candidate); err != nil {
-			return Result{}, err
+		if err := h.AcquireRow(candidate); err != nil {
+			return dml.Outcome{}, err
 		}
-		latest, err := s.writeHost().LatestRow(dml.DeleteRowRequest(candidate))
+		latest, err := h.LatestRow(dml.DeleteRowRequest(candidate))
 		current, live := latest.Version, latest.Live
 		if err != nil {
-			return Result{}, err
+			return dml.Outcome{}, err
 		}
 		if !live {
 			continue
@@ -107,23 +107,23 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 		evaluation.BindQueryIdentity(stage.Source, stage.Index(pair.SourceIndex))
 		evaluation.PhysicalTable = candidate.Ref
 		if current.Version != candidate.Version {
-			if err := s.physicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
-				return Result{}, err
+			if err := h.PhysicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
+				return dml.Outcome{}, err
 			}
 			matches, err := exec.UpdateMatches(evaluation, b.Predicate)
 			if err != nil {
-				return Result{}, err
+				return dml.Outcome{}, err
 			}
 			if !matches {
 				continue
 			}
 		}
-		if err := dml.ClaimUniqueRow(s.writeHost(), candidate.Ref, current); err != nil {
-			return Result{}, err
+		if err := dml.ClaimUniqueRow(h, candidate.Ref, current); err != nil {
+			return dml.Outcome{}, err
 		}
-		deleted, err := s.Writes().Delete(candidate)
+		deleted, err := h.Delete(candidate)
 		if err != nil {
-			return Result{}, err
+			return dml.Outcome{}, err
 		}
 		if !deleted {
 			continue
@@ -134,10 +134,10 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 			for output, expr := range b.Returning.Expressions {
 				value, err := expr.Eval(evaluation)
 				if err != nil {
-					return Result{}, err
+					return dml.Outcome{}, err
 				}
 				if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.Columns[output].Usage.Type {
-					return Result{}, errors.New("stuntgres: invalid finalized DELETE value")
+					return dml.Outcome{}, errors.New("stuntgres: invalid finalized DELETE value")
 				}
 				rows.Values = append(rows.Values, value)
 			}
@@ -145,16 +145,16 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 		}
 	}
 	if rows != nil && b.Returning.RegclassOutput && count != 0 {
-		if err := s.engine().captureRegclassOutput(s.op, rows); err != nil {
-			return Result{}, err
+		if err := h.CaptureRegclassOutput(rows); err != nil {
+			return dml.Outcome{}, err
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return Result{}, err
+		return dml.Outcome{}, err
 	}
 	keep = true
 	if rows != nil {
-		return Result{Count: count, Rows: rows}, nil
+		return dml.Outcome{Count: count, Rows: rows}, nil
 	}
-	return Result{Count: count}, nil
+	return dml.Outcome{Count: count}, nil
 }

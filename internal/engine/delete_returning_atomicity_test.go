@@ -66,7 +66,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				b.Returning.Expressions = append(output.Expressions, probe)
 				b.Returning.Schema = append(output.Schema, b.Returning.Schema...)
 			}
-			result, err := scope.deleteSource(b, source, nil, nil)
+			result, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: source})
 			want := sentinel
 			if phase == "output_cancel" || phase == "explicit_cancel" {
 				want = context.Canceled

@@ -39,14 +39,14 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		}
 		return out.Eval(c)
 	})
-	r, err := scope.deleteSource(b, target, inputs, nil)
+	r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
 	if err != nil || r.Count != 3 || calls != 3 {
 		t.Fatal(r, err, calls)
 	}
-	got := tuples(r)
+	got := tuples(outcomeResult(r))
 	r.Rows.Close()
 	if !reflect.DeepEqual(got, [][]driver.Value{{int64(2), int64(20), "same", nil}, {int64(2), int64(20), "same", nil}, {int64(3), int64(30), "third", nil}}) {
 		t.Fatal(got)
@@ -136,7 +136,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 						return out.Eval(c)
 					})
 				}
-				r, err := scope.deleteSource(b, target, inputs, nil)
+				r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
 				if r.Rows != nil {
 					t.Cleanup(func() { r.Rows.Close() })
 				}
@@ -189,7 +189,7 @@ func TestDeleteUsingCapturedOccurrenceLatestTarget(t *testing.T) {
 	sessionSQL(t, a, "UPDATE s SET n=999")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
 	sessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
-	r, err := scope.deleteSource(b, target, inputs, nil)
+	r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
@@ -197,7 +197,7 @@ func TestDeleteUsingCapturedOccurrenceLatestTarget(t *testing.T) {
 	if err != nil || r.Count != 2 {
 		t.Fatal(r, err)
 	}
-	got := tuples(r)
+	got := tuples(outcomeResult(r))
 	r.Rows.Close()
 	if !reflect.DeepEqual(got, [][]driver.Value{{int64(11), int64(100)}, {int64(20), int64(200)}}) {
 		t.Fatal(got)

@@ -4,14 +4,11 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -165,148 +162,9 @@ func executeDelete(s *StatementScope, b analyze.Binding, view *visibility.View, 
 		return Result{}, err
 	}
 	defer source.Close()
-	return s.deleteSource(b, source, inputs, parameters)
-}
-
-func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
-	if b.Storage == nil || b.Storage != s.lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
-		if inputs != nil {
-			inputs.Close()
-		}
-		return Result{}, ids.ErrCatalogReplaced
-	}
-	var positioned dml.MutationRowIdentity
-	if b.CurrentOf != "" {
-		var err error
-		positioned, err = s.positionedMutationRow(b)
-		if err != nil {
-			if inputs != nil {
-				inputs.Close()
-			}
-			return Result{}, err
-		}
-	}
-	ctx := s.op.Context()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	if inputs != nil {
-		if err := exec.SelectQuerySources(ctx, inputs); err != nil {
-			return Result{}, err
-		}
-		if b.ViewWrite != nil || b.Rule.Template {
-			inputs = view.FreezeWriteSources(inputs, b.QuerySources, s.authority, hostOf(s))
-		}
-		defer inputs.Close()
-		state := &exec.State{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}
-		defer state.ReleaseMemberships()
-		inputs.Host = hostOf(s)
-		evaluation.Query = state
-	}
-	if b.Delete.Using != nil {
-		return s.deleteUsingSource(b, source, &evaluation, positioned)
-	}
-	var count int64
-	var rows *exec.FinalRows
-	keep := false
-	if b.Returning != nil {
-		rows = exec.NewFinalRows(b.Returning.Schema, 0)
-		rows.Output = s.output
-		defer func() {
-			if !keep {
-				rows.Close()
-			}
-		}()
-	}
-	for i := range source.Count() {
-		if err := ctx.Err(); err != nil {
-			return Result{}, err
-		}
-		physical := dml.MutationPhysicalRow(source, i, b)
-		version := physical.Version
-		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || version.Row != positioned.Row) {
-			continue
-		}
-		evaluation.Row = physical.Values(version)
-		evaluation.PhysicalTable = physical.Leaf.Ref
-		if b.Predicate != nil {
-			value, err := b.Predicate.Eval(&evaluation)
-			if err != nil {
-				return Result{}, err
-			}
-			truth, err := plan.TruthOf(value)
-			if err != nil {
-				return Result{}, err
-			}
-			if truth != plan.True {
-				continue
-			}
-		}
-		candidate := physical.Deletion()
-		if err := s.acquireRow(candidate); err != nil {
-			return Result{}, err
-		}
-		latest, err := s.writeHost().LatestRow(dml.DeleteRowRequest(candidate))
-		current, live := latest.Version, latest.Live
-		if err != nil {
-			return Result{}, err
-		}
-		if !live {
-			continue
-		}
-		if current.Version != candidate.Version {
-			if err := s.physicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
-				return Result{}, err
-			}
-		}
-		if current.Version != candidate.Version && b.Predicate != nil {
-			evaluation.Row = physical.Values(current)
-			value, err := b.Predicate.Eval(&evaluation)
-			if err != nil {
-				return Result{}, err
-			}
-			truth, err := plan.TruthOf(value)
-			if err != nil {
-				return Result{}, err
-			}
-			if truth != plan.True {
-				continue
-			}
-		}
-		if err := dml.ClaimUniqueRow(s.writeHost(), candidate.Ref, current); err != nil {
-			return Result{}, err
-		}
-		deleted, err := s.Writes().Delete(candidate)
-		if err != nil {
-			return Result{}, err
-		}
-		if deleted {
-			count++
-			if rows != nil {
-				evaluation.Row = physical.Values(current)
-				for output, expr := range b.Returning.Expressions {
-					value, err := expr.Eval(&evaluation)
-					if err != nil {
-						return Result{}, err
-					}
-					if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.Columns[output].Usage.Type {
-						return Result{}, errors.New("stuntgres: invalid finalized DELETE value")
-					}
-					rows.Values = append(rows.Values, value)
-				}
-				rows.Count++
-			}
-		}
-	}
-	if rows != nil && b.Returning.RegclassOutput && count != 0 {
-		if err := s.engine().captureRegclassOutput(s.op, rows); err != nil {
-			return Result{}, err
-		}
-	}
-	if err := ctx.Err(); err != nil {
+	outcome, err := ExecuteDelete(s.writeHost(), DeleteInput{Binding: b, Source: source, Inputs: inputs, Parameters: parameters})
+	if err != nil {
 		return Result{}, err
 	}
-	keep = true
-	if rows != nil {
-		return Result{Count: count, Rows: rows}, nil
-	}
-	return Result{Count: count}, nil
+	return outcomeResult(outcome), nil
 }
