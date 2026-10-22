@@ -195,23 +195,66 @@ sequence: stored seed64, genuine active cancellation, unchanged source count64,
 then the SAME held FLOAT8 query with bind2 yielding4.5. Scenario30s and admission15s
 remain unchanged; neither deadline is refreshed during that sequence.
 Native observation matches the executing goroutine's exact identity and live
-`sortOrderedAggregate` frame in complete samples. Reusable byte storage and a
-context-aware5ms wait after misses limit observation work; sampling still has a
-finite-window limitation and early completion fails. PostgreSQL retains exact
-PID/query admission, acknowledged cancellation and full57014 diagnostics.
-The pure `TestOrderedSetWorkerSorting` supplements, not replaces, public proof.
+`sortOrderedAggregate` frame in a complete all-stack capture. Each iteration
+captures once and measures its wall cost. An incomplete buffer never admits:
+it grows once (with overflow protection), then takes the same paced miss wait.
+Reusable byte storage and a context-aware timer avoid immediate recapture on
+growth. Misses wait `min(25ms, max(5ms, 2*captureWall))`, clamped before
+multiplication. The25ms requested-wait ceiling was retained after finite
+native/race cancellation and paced-growth cohorts; actual scheduler waits can
+exceed25ms. This is neither arbitrary-starvation immunity nor a proven optimum.
+Capture wall is not CPU time or an additive estimate of worker overhead.
+
+Only a live-budget sort witness permits the real native CancelFunc. Joined
+native output must have nil Rows/Result/Stmt and ordinary context.Canceled,
+without SQLSTATE. Cleanup cancels and shares one5s join attempt with normal
+cancellation handling; a timeout remains unjoined and deferred cleanup cannot
+refresh the allowance or consume a late result as an on-time join. Received
+unexpected owned rows/statements close before the outer held statement/connection
+are returned.
+PostgreSQL retains exact PID/query admission, acknowledged pg_cancel_backend
+and complete ERROR57014 diagnostics, without changing the common helper.
+Early completion/missed sort still fails; no sleep itself establishes admission.
+
+Bounded failure summaries retain capture counts/cost/growth/waits, first/last
+complete-sample brackets, justified source/staging/sort observations, last live
+frame/location, launch-relative witness/cancel/result-observation/cleanup offsets
+and parent/child budget states. Worker deadline-before-observed-sort, observer
+deadline without a witness, successful completion before observation and
+unexpected operation errors remain distinct. Samples bracket observations, not
+exact phase transitions; ambiguous frames remain unknown. No summary attributes
+historical failure to load or claims that an unwitnessed sort never ran.
+
+The pure parser, pacing, diagnostic and single-owner join units supplement, never replace, the
+complete direct/prepared public scenario:
 
 ```sh
-make check RUN='^TestReferenceOrderedSetAggregateActiveCancellation$' REFERENCE=1
-make check RUN='^TestReferenceOrderedSetAggregateActiveCancellation$'
-make check RUN='^TestReferenceOrderedSetAggregateActiveCancellation$' RACE=1
-make check RUN='^TestOrderedSetWorkerSorting$'
-make check RUN='^TestOrderedSetWorkerSorting$' RACE=1
+RUN='^(TestReferenceOrderedSetAggregateActiveCancellation|TestOrderedSetWorkerSorting|TestOrderedSetObservationWait|TestOrderedSetObservationDiagnostic|TestOrderedSetCancellationJoin)$'
+make check RUN="$RUN" REFERENCE=1
+make check RUN="$RUN"
+make check RUN="$RUN" RACE=1
 ```
 
-Use external900-second deadlines. Standalone public smoke evidence must observe
-actual native sort admission, nil canceled outputs, count64 and SAME-held4.5;
-an observer-disabled successful timing run is not cancellation acceptance.
+Use external900-second deadlines, oracle first with pinned18.6/UTF8/C.
+Standalone public smoke must witness actual native sort, nil canceled outputs,
+count64 and SAME-held raw FLOAT8/float64=4.5, preserving metadata and cursor
+closure. The prespecified finite native/race cohort compares observer-off/on
+full64 completion units and genuine cancellation units, with0 or2 joined
+integer contenders released at launch or exact worker identity. Positive
+per-contender work deltas inside the operation body, not readiness alone,
+establish overlap. Retain every failed unit, sample cost/wait/growth record and
+budget bracket; an observer-off successful run is not cancellation acceptance.
+Finite sampled cohorts cannot establish immunity to arbitrary starvation.
+The recorded experiment admitted and joined all36 original cancellation units
+and4 additional small-initial-buffer paced-growth cancellation units. Four
+descriptive full64 comparison units reached completion deadlines, including
+two candidate units that had witnessed sort. These failures remain evidence;
+the whole60-route descriptive cohort is not reported as passing. Cancellation
+acceptance does not require completing another large successful sort, and no
+comparison deadline was increased or retried to erase the failures.
+Whole-project `make quickcheck` retains unchanged coverage (external900s here);
+postintegration `make finalcheck` retains full benchmark/race/dependency coverage
+(external1800s). Report actual startup target misses, not readiness as proof.
 
 ### Correlation, covariance and regression finalizers
 
