@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
@@ -26,6 +27,8 @@ type dumpScript struct {
 	domainNodes                               map[ids.OID]*catalog.Type
 	collationStatements, conversionStatements []dump.Statement
 	seedStatements, conversionSeeds           []string
+	familySeeds                               []string
+	familySeedFinal                           map[ids.OID]dump.Statement
 	conversionSchemas                         []string
 	sequenceCreation, sequenceCompletion      []string
 	invalidReplay                             map[ids.OID]partition.InvalidReplay
@@ -115,6 +118,9 @@ func (s *dumpScript) addDeclarationEdges() error {
 			}
 		}
 	}
+	if err := index.OperatorFamilyDumpEvents(Resolver{}, s.CatalogView, s.OperatorFamilies, s.Graph); err != nil {
+		return err
+	}
 	if err := routine.OperatorDumpDependencies(Resolver{}, s.CatalogView, s.Operators, s.Graph); err != nil {
 		return err
 	}
@@ -159,7 +165,10 @@ func (s *dumpScript) renderTypeStatements(ctx context.Context) error {
 	if s.conversionStatements, s.conversionSchemas, err = typedef.ConversionDumpStatements(ctx, s.CatalogView, s.DomainRoles, s.Conversions); err != nil {
 		return err
 	}
-	s.conversionSeeds, err = typedef.ConversionSeedDumpStatements(ctx, s.CatalogView, s.DomainRoles)
+	if s.conversionSeeds, err = typedef.ConversionSeedDumpStatements(ctx, s.CatalogView, s.DomainRoles); err != nil {
+		return err
+	}
+	s.familySeeds, s.familySeedFinal, err = index.OperatorFamilySeedDumpStatements(ctx, s.CatalogView, s.DomainRoles, s.OperatorFamilies)
 	return err
 }
 
@@ -228,12 +237,18 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 	if s.declarations, err = typedef.MixedDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, viewOrder, s.domainNodes, s.Composites); err != nil {
 		return err
 	}
+	for oid, statement := range s.familySeedFinal {
+		s.declarations[oid] = statement
+	}
 	for _, d := range s.SQLRoutines {
 		declaration, err := routine.SQLRoutineDumpStatement(Presenter{}, s.CatalogView, s.DomainRoles, d)
 		if err != nil {
 			return err
 		}
 		s.declarations[d.Address().ObjectID] = declaration
+	}
+	if err := index.OperatorFamilyDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, s.OperatorFamilies, s.declarations); err != nil {
+		return err
 	}
 	s.operatorLinks, err = routine.OperatorDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, s.Operators, s.declarations)
 	return err

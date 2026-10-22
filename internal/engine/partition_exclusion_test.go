@@ -31,12 +31,12 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 			t.Fatal("missing class")
 		}
 		d.Keys[i].Class = class
-		d.Exclusion[i], err = sqltype.BindExclusionOperator(usage, class, "=")
+		d.Exclusion[i], err = operatorFamilyTestExclusion(usage, class, "=")
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := index.PartitionUniqueCoverage(f.root, &d); err != nil {
+	if err := index.PartitionUniqueCoverage(f.view, f.root, &d); err != nil {
 		t.Fatal(err)
 	}
 	mapped, err := index.MapPartitionIndex(context.Background(), f.view, f.root, f.leaf, &d)
@@ -57,11 +57,11 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 	missing.Exclusion = missing.Exclusion[1:]
 	missing.Include = []int32{10}
 	var diagnostic *sqlstate.Error
-	if err := index.PartitionUniqueCoverage(f.root, &missing); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Detail != `EXCLUDE constraint on table "unit_root" lacks column "a" which is part of the partition key.` {
+	if err := index.PartitionUniqueCoverage(f.view, f.root, &missing); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Detail != `EXCLUDE constraint on table "unit_root" lacks column "a" which is part of the partition key.` {
 		t.Fatal("INCLUDE cannot cover exclusion key", err)
 	}
 	// A genuinely independent leaf declaration is not widened to ancestor scope.
-	if err := index.PartitionUniqueCoverage(f.leaf, &missing); err != nil {
+	if err := index.PartitionUniqueCoverage(f.view, f.leaf, &missing); err != nil {
 		t.Fatal("local scope", err)
 	}
 	if len(d.Keys) != len(f.parent.SQLIndex.Keys) || len(d.Exclusion) != len(mapped.Exclusion) {

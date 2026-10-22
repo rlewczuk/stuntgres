@@ -8,13 +8,24 @@ package sits at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (types and pure functions only),
 `authorization`, `catalog`, `ddl`, `exec`, `expr`, `ids`, `lock`, `plan`,
-`regobj`, `session`, `settings`, `storage`, `stored`, `typedef`,
+`regobj`, `routine`, `session`, `settings`, `storage`, `stored`, `typedef`,
 `visibility`, `parser`, `sqlstate`, `sqltype` and the standard library.
 It never imports the engine, `fdw`, or the features above it (`table`,
 `partition`, `view`, `dml`); they import it. It never builds a binder.
 See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
 
 ## What it owns
+
+- **Operator-family DDL** (`operator_family_ddl.go`,
+  `operator_family_members.go`, `operator_family_validation.go`,
+  `operator_family_dump.go`): positioned parser items resolve through the shared
+  namespace/type/routine/operator authorities, validate the complete ordered
+  list privately, then use the ordinary catalog stage and drop closure.
+  No class DDL or family-as-class shortcut is provided. `catalog.OperatorFamily`,
+  `OperatorFamilyOperator` and `OperatorFamilySupport` own metadata; immutable
+  `Read.FamilyOperator`/`Read.FamilySupport` selectors are the only member lookup
+  authority. Registered routine identity selects runtime operations outside
+  the DDL validator; metadata-only optional callbacks are not callable grants.
 
 - **Keys, roots and programs** (`index.go`, `hash.go`, `gist.go`,
   `predicate.go`, `expression.go`, `program.go`, `clauses.go`,
@@ -28,6 +39,13 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   `ValidateHashKeyDirection`, `ValidateIndexOptions`,
   `ValidateIndexReloptions`, `ValidateReindexOptions`,
   `ReindexControlError`); `Capability`, `ColumnCapability`; `CatalogKey`.
+  Declared class identity is compared with `IndexClass.SameIdentity`, not
+  structural equality including captured support members. Default-class
+  reconstruction and presentation therefore retain their original behavior
+  across TYPE changes; nondefault explicit classes still require compatible
+  inputs. Compatible CIDR exclusion keys use the class's physical INET input
+  identity, never a fabricated CIDR family row; other operator eligibility
+  checks retain their declared SQL input semantics.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
   `build_transport.go`, `layout_transport.go`, `layout_capture.go`,
   `snapshot.go`, `snapshot_capture.go`, `snapshot_repair.go`,
@@ -323,3 +341,58 @@ make check RUN='^TestReference(AlterAddConstraint|PartitionConstraints|RangePart
 ```
 
 Run the same selections with `REFERENCE=1` against PostgreSQL 18.
+
+Operator-family selected proof (run each reference selector in native mode and
+with `REFERENCE=1`; root owns generation and verification):
+CREATE resolves namespace/schema CREATE before method and superuser checks.
+Member ADD/DROP first validates the whole SQL list and its primary duplicates;
+only then do operator-before-procedure storage/deletion checks run, followed by
+private staging and one publication. FUNCTION lookup precedes explicit associated
+types; ORDER BY resolves its btree sort family before method capability checks.
+Associated-type counts are rejected after resolving at most the first two types.
+Family DROP keeps strict method resolution before missing-ok object lookup:
+an absent explicit schema produces the schema skip NOTICE under `IF EXISTS`,
+while an existing schema's absent family retains the family skip NOTICE.
+Schema USAGE denial is never skipped. ALTER and DROP share positionless
+object-address namespace lookup; other namespace callers keep their own context.
+Support-function identity lookup also has no expression position. An absent
+explicit operator namespace yields typed operator-not-found `42883`, while
+family/function namespace absence retains `3F000`; other errors are not masked.
+
+```sh
+make check RUN='^TestReferenceOperatorFamily(Definitions|Methods|Diagnostics|SecondaryUniqueness)$'
+make check RUN='^TestReferenceOperatorFamily(Metadata|BuiltinMetadata|Dependencies|PinnedDependencies)$'
+make check RUN='^TestReferenceOperatorFamily(Atomicity|Authority|MetadataInvalidation|Notices|TransactionBoundaries)$'
+make check RUN='^TestReferenceOperatorFamily(Roundtrip|SeedRoundtrip|Smoke|SupportRoutines)$'
+make check RUN='^TestOperatorFamily(Catalog|Validation|ProviderInventory|SupportExecution)$'
+make check RUN='^TestOperatorFamilyPublication$' RACE=1
+make check RUN='^TestReferenceOperatorFamilyReview(LookupMetadata|ListPhases|ResolutionOrder|CreateAuthorityOrder)$'
+make check RUN='^TestReferenceOperatorFamilyReviewMissingSchema$'
+make check RUN='^TestOperatorFamily(MemberPhases|AssociationResolution)$'
+make check RUN='^TestBuiltinRoutineResultInventory$'
+```
+
+Smoke independently expects five integer strategies97/523/96/525/521 and support
+routine351, DROP/reADD new member identity on the SAME held SELECT, atomic mixed
+list failure and surviving builtin btree/hash indexes. It never creates a class
+or installs an unrelated INTERNAL callback into a live builtin class.
+
+SecondaryUniqueness checks direct/prepared stored and same-list conflicts against
+the released `pg_amop_opr_fam_index` diagnostic, including relational family OID,
+all exposed error fields, original-row identity and failed-list atomicity.
+BuiltinMetadata asserts complete implemented-family/member bags; its class
+association query retains the existing 63-class capability boundary, excluding
+PostgreSQL's unimplemented btree `cidr_ops` (10009), not any family members.
+Publication constructs its relation, rows and index root through ordinary staged
+publication before testing canceled/invalid changes and immutable builtin roots.
+
+`TestOperatorFamilyMacaddrSupportExecution` additionally binds the existing
+class10024 through family1984/member10074/routine836, checks the independently
+observed unsigned comparison boundary, and maintains real duplicate/NULL roots
+across insertion and deletion while retaining the old root:
+
+```sh
+make check RUN='^TestOperatorFamily(MacaddrSupportExecution|ProviderInventory|Catalog)$'
+make check RUN='^TestReferenceOperatorFamilyBuiltinMetadata$'
+make check RUN='^TestReferenceOperatorFamilyBuiltinMetadata$' REFERENCE=1
+```

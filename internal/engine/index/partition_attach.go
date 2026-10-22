@@ -116,7 +116,7 @@ func ValidatePartitionIndex(view catalog.Read, index, table *catalog.Relation) e
 	if table.Partition != nil && d.Valid && !PartitionIndexCoverageComplete(view, index) {
 		return fmt.Errorf("stuntgres: inconsistent virtual index validity")
 	}
-	if err := PartitionUniqueCoverage(table, d); err != nil {
+	if err := PartitionUniqueCoverage(view, table, d); err != nil {
 		return err
 	}
 	if d.PartitionParent == (ids.ObjectAddress{}) {

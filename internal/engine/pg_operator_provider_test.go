@@ -24,7 +24,7 @@ func TestPGOperatorExclusionPredicate(t *testing.T) {
 	if !ok {
 		t.Fatal("missing INET exclusion class")
 	}
-	operator, err := sqltype.BindExclusionOperator(inet.Usage(), class, "&&")
+	operator, err := operatorFamilyTestExclusion(inet.Usage(), class, "&&")
 	if err != nil {
 		t.Fatal(err)
 	}

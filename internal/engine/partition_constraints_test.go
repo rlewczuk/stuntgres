@@ -43,7 +43,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	root.ObjectName = "unit_root"
 	root.RelationKind = catalog.PartitionedRelation
 	keyClass, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	comparison, err := sqltype.BindIndexOrdering(root.Columns[0].Usage, keyClass)
+	comparison, err := operatorFamilyTestOrdering(root.Columns[0].Usage, keyClass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,23 +89,23 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 
 func TestPartitionConstraintsCoverage(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	if err := index.PartitionUniqueCoverage(f.root, f.parent.SQLIndex); err != nil {
+	if err := index.PartitionUniqueCoverage(f.view, f.root, f.parent.SQLIndex); err != nil {
 		t.Fatal(err)
 	}
 	definition := *f.parent.SQLIndex
 	definition.Keys = []catalog.IndexKey{definition.Keys[1]}
 	definition.Include = []int32{10, 30}
-	err := index.PartitionUniqueCoverage(f.root, &definition)
+	err := index.PartitionUniqueCoverage(f.view, f.root, &definition)
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unique constraint on partitioned table must include all partitioning columns", Detail: `UNIQUE constraint on table "unit_root" lacks column "a" which is part of the partition key.`}
 	if !reflect.DeepEqual(err, want) {
 		t.Fatal(err, want)
 	}
-	if err := index.PartitionUniqueCoverage(f.leaf, &definition); err != nil {
+	if err := index.PartitionUniqueCoverage(f.view, f.leaf, &definition); err != nil {
 		t.Fatal("independent leaf coverage", err)
 	}
 	definition.Constraint = &catalog.BackingConstraint{Primary: true}
 	want.Detail = `PRIMARY KEY constraint on table "unit_root" lacks column "a" which is part of the partition key.`
-	if err := index.PartitionUniqueCoverage(f.root, &definition); !reflect.DeepEqual(err, want) {
+	if err := index.PartitionUniqueCoverage(f.view, f.root, &definition); !reflect.DeepEqual(err, want) {
 		t.Fatal(err)
 	}
 }
@@ -1026,7 +1026,7 @@ func TestPartitionConstraintsStructuralEquivalence(t *testing.T) {
 			leaf := *next.MustRelation(roleTableRef(t, e, "leaf").Address)
 			typ, _ := base.LookupType(sqltype.Int4)
 			class, _ := sqltype.DefaultIndexClass(typ)
-			comparison, err := sqltype.BindIndexOrdering(root.Columns[0].Usage, class)
+			comparison, err := operatorFamilyTestOrdering(root.Columns[0].Usage, class)
 			if err != nil {
 				t.Fatal(err)
 			}

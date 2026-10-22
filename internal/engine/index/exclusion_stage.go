@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -64,7 +65,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 		if !visible {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("operator does not exist: %s %s %s", usage.Type.DiagnosticName(), catalog.ObjectNameText(name), usage.Type.DiagnosticName()), Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}
 		}
-		operators[i], err = sqltype.BindExclusionOperator(usage, definition.Keys[i].Class, operator)
+		operators[i], err = routine.BindExclusionOperator(h.StageRead(), usage, definition.Keys[i].Class, operator)
 		if err != nil {
 			return err
 		}
@@ -141,7 +142,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	c := catalog.ExclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
 	definition.Constraint = ExclusionBacking(&c)
 	definition.Exclusion = operators
-	if err := PartitionUniqueCoverage(parent, definition); err != nil {
+	if err := PartitionUniqueCoverage(h.StageRead(), parent, definition); err != nil {
 		return err
 	}
 	backing := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}}

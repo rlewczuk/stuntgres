@@ -284,7 +284,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	if !ok {
 		t.Fatal("missing text ordering class")
 	}
-	comparison, err := sqltype.BindIndexOrdering(usage, class)
+	comparison, err := operatorFamilyTestOrdering(usage, class)
 	if err != nil {
 		t.Fatal(err)
 	}

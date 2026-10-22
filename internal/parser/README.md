@@ -136,3 +136,17 @@ Public SQL diagnostics/results remain in `reference/query_core`, not this packag
 spellings, inclusive maximal munch, adjacent comments, qualified operators and
 Unicode character positions. No new token or precedence convention is introduced.
 Public signature/diagnostic expectations remain in `reference/types`.
+
+### Operator-family member syntax
+
+`TestOperatorFamilyParser` exercises the actual lexer/generated-parser path for
+ADD/DROP operator entries, including subsequent comma-separated members, mixed
+support entries, signatures, character positions and complete-input rejection.
+The unreserved `operator` keyword retains its contextual token after ADD or a
+comma; the family grammar accepts it without promoting ordinary identifiers.
+Public SQL acceptance remains in the shared operator-family Smoke and
+SecondaryUniqueness reference definitions.
+
+```sh
+make check RUN='^TestOperatorFamilyParser$'
+```

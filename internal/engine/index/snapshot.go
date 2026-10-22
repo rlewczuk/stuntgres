@@ -150,7 +150,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, next *catalog.State
 			}
 		}
 		if source.Root.Hash != nil {
-			binding, err := BindHashIndex(parent, index.SQLIndex)
+			binding, err := BindHashIndex(catalog.NewRead(nil, next), parent, index.SQLIndex)
 			if err != nil {
 				return nil, err
 			}
@@ -182,7 +182,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, next *catalog.State
 			}
 			roots[address] = &storage.IndexRoot{Hash: hash}
 		} else {
-			ordering, err := BindIndexKeys(parent, index.SQLIndex)
+			ordering, err := BindIndexKeys(catalog.NewRead(nil, next), parent, index.SQLIndex)
 			if err != nil {
 				return nil, err
 			}

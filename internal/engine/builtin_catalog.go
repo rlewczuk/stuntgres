@@ -24,7 +24,7 @@ import (
 // namespaces, tablespaces, catalog sources and the current database.
 func builtinCatalogCapacity(types int) int {
 	return types + len(catalog.BuiltinCollations) + typedef.BuiltinConversionCount + len(routine.BuiltinRoutineDeclarations) +
-		len(catalog.BuiltinConversions) + routine.BuiltinOperatorCount + 128
+		len(catalog.BuiltinConversions) + routine.BuiltinOperatorCount + catalog.BuiltinFamilyDescriptorCount + 128
 }
 
 // installBuiltinProcedures installs the builtin routine descriptors.

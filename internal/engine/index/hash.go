@@ -7,18 +7,19 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
-func bindIndexProvider(parent *catalog.Relation, d *catalog.IndexDefinition) error {
+func bindIndexProvider(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) error {
 	switch d.Method {
 	case catalog.BtreeMethod:
-		_, err := BindIndexOrdering(parent, d)
+		_, err := BindIndexOrdering(view, parent, d)
 		return err
 	case catalog.HashMethod:
-		_, err := BindHashIndex(parent, d)
+		_, err := BindHashIndex(view, parent, d)
 		return err
 	case catalog.GistMethod:
 		_, err := bindLogicalExclusionKeys(parent, d)
@@ -28,7 +29,7 @@ func bindIndexProvider(parent *catalog.Relation, d *catalog.IndexDefinition) err
 	}
 }
 
-func BindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (storage.HashBinding, error) {
+func BindHashIndex(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (storage.HashBinding, error) {
 	var b storage.HashBinding
 	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
 		return b, fmt.Errorf("stuntgres: invalid hash index definition")
@@ -48,6 +49,10 @@ func BindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (storag
 		if !exists {
 			return b, DefaultClassError(usage.Type.DiagnosticName(), d.Method)
 		}
+	}
+	class, err = routine.BindClassSupport(view, class)
+	if err != nil {
+		return b, err
 	}
 	b.Provider, err = sqltype.BindIndexHash(usage, class)
 	if err != nil {
@@ -80,7 +85,7 @@ func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, eva
 
 func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, materialize bool, capture *BuildCapture) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
-	binding, err := BindHashIndex(parent, d) // Eager even on empty/all-NULL input.
+	binding, err := BindHashIndex(evaluation.Catalog, parent, d) // Eager even on empty/all-NULL input.
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +167,7 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			return nil, fmt.Errorf("stuntgres: missing hash root")
 		}
 		var err error
-		binding, err = BindHashIndex(parent, d)
+		binding, err = BindHashIndex(evaluation.Catalog, parent, d)
 		if err != nil {
 			return nil, err
 		}
@@ -182,7 +187,7 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			slot = -1
 		}
 		if usage != binding.Usage || class != binding.Class || slot != binding.Slot || key.Derived != binding.Derived || key.Desc || key.NullsFirst {
-			binding, err = BindHashIndex(parent, d)
+			binding, err = BindHashIndex(evaluation.Catalog, parent, d)
 			if err != nil {
 				return nil, err
 			}

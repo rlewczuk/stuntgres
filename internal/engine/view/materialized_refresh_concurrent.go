@@ -184,7 +184,7 @@ func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	orderings := make([]index.Ordering, len(indices))
 	for i, idx := range indices {
 		var err error
-		orderings[i], err = index.BindIndexOrdering(parent, idx.SQLIndex)
+		orderings[i], err = index.BindIndexOrdering(view, parent, idx.SQLIndex)
 		if err != nil {
 			return nil, err
 		}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -58,19 +59,19 @@ func ValidateDescriptor(view catalog.Read, d *catalog.Relation) error {
 				return invalid()
 			}
 			if p.Strategy == parser.PartitionHash {
-				hash, err := sqltype.BindPartitionHash(key.Usage, key.Class)
+				hash, err := routine.BindPartitionHash(view, key.Usage, key.Class)
 				if err != nil {
 					return err
 				}
-				if hash != key.Hash {
+				if !hash.SameOperation(key.Hash) {
 					return invalid()
 				}
 			} else if p.Strategy == parser.PartitionRange || p.Strategy == parser.PartitionList {
-				comparison, err := sqltype.BindIndexOrdering(key.Usage, key.Class)
+				comparison, err := routine.BindIndexOrdering(view, key.Usage, key.Class)
 				if err != nil {
 					return err
 				}
-				if comparison != key.Comparison {
+				if !comparison.SameOperation(key.Comparison) {
 					return invalid()
 				}
 			} else {
@@ -585,16 +586,16 @@ func CheckOverlap(ctx context.Context, input sqltype.InputEnvironment, base cata
 // CheckCoverage rejects a UNIQUE or EXCLUDE constraint of the new
 // partitioned child whose index does not cover its partition key. stage
 // holds the child's indexes. It holds nothing.
-func CheckCoverage(stage ddl.Stage, child *catalog.Relation) error {
+func CheckCoverage(view catalog.Read, stage ddl.Stage, child *catalog.Relation) error {
 	for _, constraint := range child.Constraints.Unique {
 		idx := stage.Get(constraint.Index).(*catalog.Relation)
-		if err := index.PartitionUniqueCoverage(child, idx.SQLIndex); err != nil {
+		if err := index.PartitionUniqueCoverage(view, child, idx.SQLIndex); err != nil {
 			return err
 		}
 	}
 	for _, constraint := range child.Constraints.Exclusion {
 		idx := stage.Get(constraint.Index).(*catalog.Relation)
-		if err := index.PartitionUniqueCoverage(child, idx.SQLIndex); err != nil {
+		if err := index.PartitionUniqueCoverage(view, child, idx.SQLIndex); err != nil {
 			return err
 		}
 	}

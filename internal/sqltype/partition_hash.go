@@ -5,45 +5,50 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"stuntgres/internal/sqlstate"
 )
 
-// PartitionHash supplies PostgreSQL's seeded support function 2, not the
-// grouping/index hash. The shared index binder owns class and normalization policy.
+// PartitionHash executes registered PostgreSQL extended support. IndexHash
+// shares its native datum primitives with seed zero and a 32-bit result.
 type PartitionHash struct {
-	usage         Usage
-	class         IndexClass
-	input         ID
-	indeterminate bool
+	usage   Usage
+	class   IndexClass
+	input   ID
+	routine uint32
+}
+
+func (p PartitionHash) SameOperation(other PartitionHash) bool {
+	for i := range p.class.support {
+		p.class.support[i].Revision, p.class.support[i].FamilyRevision, p.class.support[i].RoutineRevision = 0, 0, 0
+		other.class.support[i].Revision, other.class.support[i].FamilyRevision, other.class.support[i].RoutineRevision = 0, 0, 0
+	}
+	return p == other
 }
 
 func BindPartitionHash(u Usage, c IndexClass) (PartitionHash, error) {
 	if err := validateHashClass(u, c); err != nil {
 		return PartitionHash{}, err
 	}
-	grouping, err := BindGrouping(u)
-	if err != nil {
-		return PartitionHash{}, err
+	s := c.Support(2)
+	n, ok := NativeIndexRoutineByOID(s.Routine)
+	if !ok || n.Kind != IndexExtendedHashRoutine || n.Left != s.Left || n.Right != uint32(Int8) || s.Left != s.Right || s.Member == 0 {
+		return PartitionHash{}, fmt.Errorf("partition hash has no registered native support")
 	}
-	input := c.input
-	if c.enum {
+	input := ID(n.Left)
+	if input == 3500 {
 		input = u.Type.BaseType().id
 	}
-	return PartitionHash{usage: u, class: c, input: input, indeterminate: grouping.comparison.collationIndeterminate}, nil
+	return PartitionHash{usage: u, class: c, input: input, routine: n.OID}, nil
 }
-func (p PartitionHash) Hash(ctx context.Context, v Value, seed uint64) (uint64, error) {
+func (p *PartitionHash) Hash(ctx context.Context, v Value, seed uint64) (uint64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	v, err := normalizeHashPayload(v, p.usage, p.class)
+	v, err := normalizeHashPayload(v, p.usage, p.class.input)
 	if err != nil {
 		return 0, err
 	}
 	if v.null {
 		return 0, fmt.Errorf("NULL partition hash argument")
-	}
-	if p.indeterminate {
-		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string hashing", Hint: "Use the COLLATE clause to set the collation explicitly."}
 	}
 	if v.typ.BaseType().IsEnum() {
 		return partitionHashUint32(uint32(v.integer), seed), ctx.Err()
@@ -91,6 +96,13 @@ func (p PartitionHash) Hash(ctx context.Context, v Value, seed uint64) (uint64, 
 		}
 		var data [8]byte
 		binary.LittleEndian.PutUint64(data[:], n)
+		return partitionHashBytes(ctx, data[:], seed)
+	case Tid:
+		block := uint32(uint64(v.integer) >> 16)
+		var data [6]byte
+		binary.LittleEndian.PutUint16(data[:2], uint16(block>>16))
+		binary.LittleEndian.PutUint16(data[2:4], uint16(block))
+		binary.LittleEndian.PutUint16(data[4:], uint16(v.integer))
 		return partitionHashBytes(ctx, data[:], seed)
 	case Text, VarChar, Name, Bytea:
 		return partitionHashBytes(ctx, v.text, seed)

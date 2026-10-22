@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -337,11 +338,11 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			definition.Ready = true
 			next.SQLIndex = &definition
 			next.ObjectRevision++
-			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &definition, &snapshot, nil)
+			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &definition, &snapshot, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := index.ValidateUniqueRoot(context.Background(), parent, &next, root, "public", sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
+			if err := index.ValidateUniqueRoot(context.Background(), parent, &next, root, "public", sqltype.OutputEnvironment{}, &access.View{Catalog: base}, nil, true); err != nil {
 				t.Fatal(err)
 			}
 			stage := e.BeginCatalogStage(base)

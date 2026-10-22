@@ -30,10 +30,10 @@ func TestExclusionGiSTOperators(t *testing.T) {
 			if !ok || !class.Accepts(typ) {
 				t.Fatal(class)
 			}
-			if _, err := BindIndexOrdering(typ.Usage(), class); err == nil {
+			if _, err := bindTestIndexOrdering(typ.Usage(), class); err == nil {
 				t.Fatal("GiST acquired a btree comparator")
 			}
-			p, err := BindExclusionOperator(typ.Usage(), class, tc.op)
+			p, err := bindTestExclusionOperator(typ.Usage(), class, tc.op)
 			if err != nil {
 				t.Fatal(err)
 			}

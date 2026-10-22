@@ -35,7 +35,7 @@ func (c *pruningProviderContext) Err() error {
 	frames := runtime.CallersFrames(pcs[:n])
 	for {
 		frame, more := frames.Next()
-		if strings.Contains(frame.Function, "sqltype.IndexComparison.Compare") {
+		if strings.Contains(frame.Function, "sqltype.(*IndexComparison).Compare") {
 			c.providerCalls++
 			if c.cancel != nil {
 				c.cancel()

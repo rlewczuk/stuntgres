@@ -5,17 +5,18 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
-func RebindExclusionOperators(parent *catalog.Relation, definition *catalog.IndexDefinition) ([]sqltype.ExclusionOperator, error) {
+func RebindExclusionOperators(view catalog.Read, parent *catalog.Relation, definition *catalog.IndexDefinition) ([]sqltype.ExclusionOperator, error) {
 	operators := make([]sqltype.ExclusionOperator, len(definition.Exclusion))
 	for i, operator := range definition.Exclusion {
 		usage, err := KeyUsage(parent, definition.Keys[i])
 		if err != nil {
 			return nil, err
 		}
-		operators[i], err = sqltype.BindExclusionOperator(usage, definition.Keys[i].Class, operator.Name)
+		operators[i], err = routine.BindExclusionOperator(view, usage, definition.Keys[i].Class, operator.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +53,7 @@ func RebindImportedExclusions(next *catalog.State) error {
 			if !changed {
 				continue
 			}
-			operators, err := RebindExclusionOperators(parent, definition)
+			operators, err := RebindExclusionOperators(catalog.NewRead(nil, next), parent, definition)
 			if err != nil {
 				return err
 			}
@@ -99,7 +100,7 @@ func RebuildAlterExclusions(h Host, parent *catalog.Relation, transformations []
 			idx = replacement
 		}
 		oldParent := h.StageBase().MustRelation(parent.Address())
-		evolved, err := EvolveIndex(idx, oldParent, parent, transformations)
+		evolved, err := EvolveIndex(h.StageBase(), idx, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +132,7 @@ func RebuildAlterExclusions(h Host, parent *catalog.Relation, transformations []
 			return nil, err
 		}
 		definition := *evolved.SQLIndex
-		definition.Exclusion, err = RebindExclusionOperators(parent, &definition)
+		definition.Exclusion, err = RebindExclusionOperators(h.StageRead(), parent, &definition)
 		if err != nil {
 			return nil, err
 		}

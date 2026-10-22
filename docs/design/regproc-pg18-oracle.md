@@ -42,12 +42,24 @@ pg_catalog default. proargtypes already includes IN/INOUT/VARIADIC arguments and
 excludes OUT-only arguments; no execution/provider inference is made from prokind.
 Extraction was source research, not a build/test/formatter or native verification.
 
-`internal/engine/catalog/builtin_routine_identities.go` contains only the resulting fixed identity
-facts. Shared name/OID indexes are initialized once; actual descriptors win the
+`internal/engine/catalog/builtin_routine_identities.go` retains that complete
+identity sequence. Shared name/OID indexes are initialized once; actual descriptors win the
 same-OID merge and duplicate conversion identities are not new overloads. No
 lookup-only fact is registered as an executable descriptor or projected SQL row.
 Runtime-allocated information_schema/plpgsql routines are not assigned invented
 fixed identities. They remain an explicit unavailable native catalog capability.
+
+The operator-family result-metadata extension reconciles all3397 existing OIDs,
+namespaces, names and formal signatures against the root's pinned18.6/180006
+UTF8/C fixed-procedure extraction, with no missing/drifting identities. Its
+3413-row oracle contains16 additional identities that are deliberately not
+imported. Each existing private identity row now also embeds its genuine result
+OID, including pseudo/array/unsupported types; the existing OID index exposes
+`BuiltinRoutineResultByOID`. Exported identity-only lookup/copy APIs are unchanged.
+The independent complete fixture is
+`internal/engine/catalog/testdata/builtin_routine_results_pg18_6.tsv`.
+This is metadata admission, not another provider, descriptor or SQL pg_proc
+projection; it replaces the obsolete family-only result allowlist.
 
 Routine input reuses the environment's captured type authority instead of
 recapturing its effective type path. Binder, parameter and COPY assembly capture

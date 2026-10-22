@@ -151,7 +151,7 @@ func RebindAlterTypeIndexes(h AlterHost, auth ddl.Authority, parent *catalog.Rel
 		}
 		// The captured TYPE queue already normalized every key against its
 		// original Usage while retaining the newly rebound expression trees.
-		next, err := index.EvolveIndex(&copy, oldParent, parent, nil)
+		next, err := index.EvolveIndex(h.StageBase(), &copy, oldParent, parent, nil)
 		if err != nil {
 			return err
 		}

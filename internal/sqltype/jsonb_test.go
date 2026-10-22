@@ -390,7 +390,7 @@ func TestJSONBComparisonHashAndDatumProviders(t *testing.T) {
 	if !ok || class.Name != "jsonb_ops" || class.OID() != 10088 {
 		t.Fatal(class, ok)
 	}
-	if _, err := BindIndexOrdering(d.Usage(), class); err != nil {
+	if _, err := bindTestIndexOrdering(d.Usage(), class); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := BindOrdering(d.Usage()); err != nil {

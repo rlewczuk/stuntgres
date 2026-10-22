@@ -44,6 +44,12 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		}
 		return extension.Address().ObjectID, nil
 	}
+	if _, ok := object.(*catalog.OperatorFamily); ok {
+		if catalog.OperatorFamilySeeded(object) {
+			return 0, nil
+		}
+		return object.Address().ObjectID, nil
+	}
 	if operator, ok := object.(*catalog.Operator); ok {
 		if routine.OperatorSeeded(operator) {
 			return 0, nil

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -64,6 +65,11 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 	}
 	if !exists {
 		return key, DefaultClassError(u.Type.DiagnosticName(), method)
+	}
+	var supportErr error
+	c, supportErr = routine.BindClassSupport(h.AccessView(auth).Catalog, c)
+	if supportErr != nil {
+		return key, supportErr
 	}
 	key.Class = c
 	if method == catalog.GistMethod {

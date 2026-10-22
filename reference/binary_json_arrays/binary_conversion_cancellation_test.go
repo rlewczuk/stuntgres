@@ -40,7 +40,7 @@ func TestReferenceBinaryConversionActiveCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer write.Close()
-		binaryConversionGateCancel(t, p, b, c, false, func(ctx context.Context) fixture.RelationOutcome {
+		outputGateCancel(t, p, b, c, false, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := read.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})
@@ -55,7 +55,7 @@ func TestReferenceBinaryConversionActiveCancellation(t *testing.T) {
 		if n, err := changed.RowsAffected(); err != nil || n != 1 {
 			t.Fatal(n, err)
 		}
-		binaryConversionGateCancel(t, p, b, c, true, func(ctx context.Context) fixture.RelationOutcome {
+		outputGateCancel(t, p, b, c, true, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := write.ExecContext(ctx)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

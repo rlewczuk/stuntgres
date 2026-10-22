@@ -41,7 +41,7 @@ func TestOrderingBtreeIdentityIndexClassEnumPreservation(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, class := range []IndexClass{implicit, explicit} {
-				bound, err := BindIndexOrdering(typ.Usage(), class)
+				bound, err := bindTestIndexOrdering(typ.Usage(), class)
 				if err != nil {
 					t.Fatal("existing declaration-order provider not consumed", err)
 				}
@@ -74,7 +74,7 @@ func TestOrderingBtreeIdentityExplicitClassIdentities(t *testing.T) {
 			if !ok || class.OID() != c.oid || !class.Accepts(testTypes()[c.input]) {
 				t.Fatal("actual released class identity/admission", class, ok, c)
 			}
-			if _, err := BindIndexOrdering(testTypes()[c.input].Usage(), class); err != nil {
+			if _, err := bindTestIndexOrdering(testTypes()[c.input].Usage(), class); err != nil {
 				t.Fatal(err)
 			}
 			var oid uint32

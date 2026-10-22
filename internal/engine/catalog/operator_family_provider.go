@@ -1,0 +1,115 @@
+package catalog
+
+import (
+	"fmt"
+	"stuntgres/internal/engine/ids"
+)
+
+type OperatorFamilyProvider struct{ Class ids.OID }
+
+func (p OperatorFamilyProvider) ClassID() ids.OID { return p.Class }
+func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
+	if d == nil || d.Address().ClassID != p.Class || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
+		return fmt.Errorf("stuntgres: invalid operator family descriptor authority")
+	}
+	switch d := d.(type) {
+	case *OperatorFamily:
+		if _, ok := v.Namespace(d.Namespace()); !ok || d.Name() == "" || d.Method != 403 && d.Method != 405 && d.Method != 783 {
+			return fmt.Errorf("stuntgres: invalid operator family")
+		}
+	case *OperatorFamilyOperator:
+		f, ok := v.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: d.Family})
+		if !ok || f.Method != d.Method || d.Left == 0 || d.Right == 0 || d.Operator == 0 || d.Number <= 0 || d.Purpose != 's' && d.Purpose != 'o' || d.Purpose == 's' && d.SortFamily != 0 {
+			return fmt.Errorf("stuntgres: invalid operator family operator")
+		}
+		if p.Class != ids.AccessMethodOperatorClassID || f.Method == 403 && d.Number > 5 || f.Method == 405 && d.Number > 1 || d.Purpose == 'o' && (f.Method != 783 || d.SortFamily == 0) {
+			return fmt.Errorf("stuntgres: invalid family operator method")
+		}
+		if OperatorFamilySeeded(d) {
+			for i := range builtinFamilyOperators {
+				if builtinFamilyOperators[i].Address() == d.Address() && builtinFamilyOperators[i] != *d {
+					return fmt.Errorf("stuntgres: altered original family operator")
+				}
+			}
+		} else {
+			operator, ok := v.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: d.Operator})
+			if !ok || operator.Left != d.Left || operator.Right != d.Right || d.Purpose == 's' && operator.Result != 16 {
+				return fmt.Errorf("stuntgres: invalid family operator reference")
+			}
+			for _, other := range v.Descriptors() {
+				if member, ok := other.(*OperatorFamilyOperator); ok && member.Address() != d.Address() && member.Family == d.Family && member.Operator == d.Operator && member.Purpose == d.Purpose {
+					return fmt.Errorf("stuntgres: duplicate family operator identity")
+				}
+			}
+		}
+	case *OperatorFamilySupport:
+		family, ok := v.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: d.Family})
+		if !ok || p.Class != ids.AccessMethodProcedureClassID || d.Left == 0 || d.Right == 0 || d.Function == 0 || d.Number <= 0 {
+			return fmt.Errorf("stuntgres: invalid operator family support")
+		}
+		maximum := int16(12)
+		if family.Method == 403 {
+			maximum = 6
+		} else if family.Method == 405 {
+			maximum = 3
+		}
+		if d.Number > maximum {
+			return fmt.Errorf("stuntgres: invalid family support number")
+		}
+		if OperatorFamilySeeded(d) {
+			for i := range builtinFamilySupports {
+				if builtinFamilySupports[i].Address() == d.Address() && builtinFamilySupports[i] != *d {
+					return fmt.Errorf("stuntgres: altered original family support")
+				}
+			}
+		} else if _, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Function}); !ok {
+			if _, ok := BuiltinRoutineResultByOID(d.Function); !ok {
+				return fmt.Errorf("stuntgres: invalid family support routine reference")
+			}
+		}
+	default:
+		return fmt.Errorf("stuntgres: invalid operator family descriptor kind")
+	}
+	return nil
+}
+
+// OperatorFamilySeeded identifies original initdb objects, not loose user
+// additions to an initdb family. Original optional/cross-type rows are pinned.
+func OperatorFamilySeeded(d Descriptor) bool {
+	switch d := d.(type) {
+	case *OperatorFamily:
+		for _, row := range builtinFamilyRows {
+			if row.oid == d.Address().ObjectID {
+				return true
+			}
+		}
+	case *OperatorFamilyOperator:
+		for i := range builtinFamilyOperators {
+			if builtinFamilyOperators[i].Address() == d.Address() {
+				return true
+			}
+		}
+	case *OperatorFamilySupport:
+		for i := range builtinFamilySupports {
+			if builtinFamilySupports[i].Address() == d.Address() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// OperatorFamilySeedName is the canonical release spelling used only to
+// reconstruct admitted seed metadata changes, never to select runtime members.
+func OperatorFamilySeedName(id ids.OID) (string, bool) {
+	for _, row := range builtinFamilyRows {
+		if row.oid == id {
+			return row.name, true
+		}
+	}
+	return "", false
+}
+func OperatorFamilySeedModified(d *OperatorFamily) bool {
+	name, seeded := OperatorFamilySeedName(d.Address().ObjectID)
+	return seeded && (d.Name() != name || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID || d.Owner.ID() != 10)
+}

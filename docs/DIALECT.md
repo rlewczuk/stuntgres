@@ -3628,7 +3628,7 @@ Existing JSONB hash uses class10089/family4034, distinct from btree10088/4033.
 Recognized diagnostic-only array/record/range/multirange/bit/varbit/pg_lsn/
 tsquery/tsvector classes are not advertised without executable method providers.
 The existing native hash-array0A000 and btree-array42704 boundaries remain;
-no gin/spgist/brin provider, class DDL, catalog writes, pg_opfamily source or
+no gin/spgist/brin provider, class DDL, direct catalog writes or
 pg_index.indclass/vector projection is added. Existing bounded GiST exclusion
 providers and the represented pg_am source do not claim physical index storage.
 Full diagnostic and lifecycle expectations and actual feature smoke selectors
@@ -3639,6 +3639,36 @@ hash10055/family2227 providers. Values canonicalize as unsigned `(block,offset)`
 and compare by numeric unsigned components. This supports declared TID keys, not
 physical `ctid` source population or system-column indexing. TID arrays,
 binary COPY and development-only TID functions remain outside this scalar scope.
+
+## Operator families and registered members
+
+The implemented btree403, hash405 and GiST783 methods support operator-family
+CREATE/ALTER/DROP, member ADD/DROP, rename, owner and schema changes. Family
+names are keyed by namespace and method; an empty or incomplete family is legal.
+CREATE and member ALTER require superuser; other mutations use ordinary owner,
+schema and role authority. Native family utilities remain excluded in explicit
+transactions and reject execution in read-only transactions.
+
+The read-only PUBLIC `pg_opfamily`, `pg_amop` and `pg_amproc` sources expose
+the released five/nine/six columns. Support references are REGPROC, not OID;
+formal routine arguments and associated member types are distinct. The compiled
+PostgreSQL18.6 subset has49 families,292 operator rows and185 support rows,
+including all observed cross-type and optional registrations. Btree support
+numbers are1–6, hash1–3 and GiST1–12; strategy limits are5/1/32767.
+
+Original bootstrap objects are pinned even when their dependency classification
+is loose. New classless members have AUTO family/implementation dependencies;
+family removal preserves the underlying operators and routines. ADD-time
+signature checks do not impose full opclass completeness or callback execution.
+Existing class consumers bind registered support once; held metadata reads
+fresh rows after member replacement, while retained rows and roots stay
+immutable. There is no blanket warmed-opclass/root invalidation promise.
+Custom class creation, FAMILY association and a new custom-class index belong
+to the downstream operator-class feature.
+
+Native Dump/Restore uses ordinary dependency events, current names and fresh
+destination identities for custom families/members. See the
+[design](design/PG18-INDEX-OPERATOR-FAMILY.md) for the authority split and proof.
 
 ## Collation, encoding and indexes
 

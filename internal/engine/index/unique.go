@@ -226,6 +226,8 @@ func UniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 	return d
 }
 
+// ValidateUniqueRoot always uses view's catalog for support binding. A nil env,
+// not a nil view, marks trusted publication without a SQL disclosure principal.
 func ValidateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, view *access.View, env access.Environment, building bool) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
@@ -234,7 +236,7 @@ func ValidateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, ro
 	if !d.Unique {
 		return nil
 	}
-	ordering, err := BindIndexOrdering(parent, d)
+	ordering, err := BindIndexOrdering(view.Catalog, parent, d)
 	if err != nil {
 		return err
 	}

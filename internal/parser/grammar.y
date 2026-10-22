@@ -186,6 +186,9 @@ package parser
  operatorSignature *OperatorSignature
  operatorSignatures []OperatorSignature
  alterOperator *AlterOperator
+ familyItem OperatorFamilyItem
+ familyItems []OperatorFamilyItem
+ alterFamily *AlterOperatorFamily
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -447,6 +450,12 @@ package parser
 %type <operatorSignature> operator_signature
 %type <operatorSignatures> operator_signatures
 %type <alterOperator> operator_alter_head
+%type <stmt> create_operator_family alter_operator_family drop_operator_family
+%type <tok> family_word search_word family_operator_word
+%type <alterFamily> operator_family_head
+%type <familyItem> family_add_item family_operator_item family_function_item family_drop_item
+%type <familyItems> family_add_items family_drop_items
+%type <types> family_signature
 %type <createCollation> collation_create_head
 %type <alterCollation> collation_alter_head
 %type <collationOptions> collation_options
@@ -779,6 +788,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | alter_conversion | drop_conversion
  | alter_operator | drop_operator
  | drop_routine
+ | alter_operator_family | drop_operator_family
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
@@ -1320,6 +1330,7 @@ create: create_table { $$=$1 }
  | create_conversion { $$=$1 }
  | create_function { $$=$1 }
  | create_operator { $$=$1 }
+ | create_operator_family { $$=$1 }
  | create_enum { $$=$1 }
  | create_composite { $$=$1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
@@ -1487,6 +1498,35 @@ drop_operator: DROP OPERATOR operator_signatures drop_mode {$$=&DropOperator{Sig
  | DROP OPERATOR IF EXISTS operator_signatures drop_mode {$$=&DropOperator{Signatures:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 drop_routine: DROP grant_routine_kind grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($3),Mode:$4,Pos:$1.pos}}
  | DROP grant_routine_kind IF EXISTS grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($5),IfExists:true,Mode:$6,Pos:$1.pos}} ;
+family_word: KW_U {if $1.text!="family" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+search_word: name {if $1.text!="search" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+create_operator_family: CREATE OPERATOR family_word relation_name USING name {$$=&CreateOperatorFamily{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}} ;
+operator_family_head: ALTER OPERATOR family_word relation_name USING name {$$=&AlterOperatorFamily{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}} ;
+alter_operator_family: operator_family_head ADD family_add_items {$1.Action="add";$1.Items=$3;$$=$1}
+ | operator_family_head DROP family_drop_items {$1.Action="drop";$1.Items=$3;$$=$1}
+ | operator_family_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | operator_family_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1}
+ | operator_family_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1} ;
+drop_operator_family: DROP OPERATOR family_word relation_name USING name drop_mode {$$=&DropOperatorFamily{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Mode:$7,Pos:$1.pos}}
+ | DROP OPERATOR family_word IF EXISTS relation_name USING name drop_mode {$$=&DropOperatorFamily{Name:$6,Method:Identifier{Text:$8.text,Pos:$8.pos},IfExists:true,Mode:$9,Pos:$1.pos}} ;
+family_add_items: family_add_item {$$=[]OperatorFamilyItem{$1}} | family_add_items ',' family_add_item {$$=append($1,$3)} ;
+family_add_item: family_operator_item {$$=$1}
+ | family_operator_item FOR search_word {$$=$1;$$.Purpose="s"}
+ | family_operator_item FOR ORDER BY relation_name {$$=$1;$$.Purpose="o";$$.SortFamily=$5}
+ | family_function_item {$$=$1} ;
+/* OPERATOR is unreserved: the lexer promotes it after CREATE/ALTER/DROP,
+ * but ADD and subsequent comma-separated members retain its KW_U token. */
+family_operator_word: OPERATOR {$$=$1}
+ | KW_U {if $1.text!="operator" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+family_operator_item: family_operator_word NUMBER operator_name {$$=OperatorFamilyItem{Number:$2.text,Name:$3,Purpose:"s",Pos:$1.pos}}
+ | family_operator_word NUMBER operator_name '(' prepare_type_list ')' {$$=OperatorFamilyItem{Number:$2.text,Name:$3,Arguments:$5,Signature:true,Purpose:"s",Pos:$1.pos}} ;
+family_function_item: FUNCTION NUMBER relation_name family_signature {$$=OperatorFamilyItem{Function:true,Number:$2.text,Name:$3,Arguments:$4,Signature:true,Pos:$1.pos}}
+ | FUNCTION NUMBER relation_name {$$=OperatorFamilyItem{Function:true,Number:$2.text,Name:$3,Pos:$1.pos}}
+ | FUNCTION NUMBER '(' prepare_type_list ')' relation_name family_signature {$$=OperatorFamilyItem{Function:true,Number:$2.text,Association:$4,Name:$6,Arguments:$7,Signature:true,Pos:$1.pos}} ;
+family_signature: '(' ')' {$$=[]TypeName{}} | '(' prepare_type_list ')' {$$=$2} ;
+family_drop_items: family_drop_item {$$=[]OperatorFamilyItem{$1}} | family_drop_items ',' family_drop_item {$$=append($1,$3)} ;
+family_drop_item: family_operator_word NUMBER '(' prepare_type_list ')' {$$=OperatorFamilyItem{Number:$2.text,Association:$4,Purpose:"s",Pos:$1.pos}}
+ | FUNCTION NUMBER '(' prepare_type_list ')' {$$=OperatorFamilyItem{Function:true,Number:$2.text,Association:$4,Pos:$1.pos}} ;
 /* Index reloptions use '='; REINDEX controls use whitespace. Keep them separate
  * so malformed option syntax fails before any earlier statement can execute. */
 maintenance_concurrent: /* empty */ {$$=lexeme{}} | CONCURRENTLY ;

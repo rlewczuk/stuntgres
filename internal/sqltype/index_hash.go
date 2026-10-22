@@ -110,11 +110,12 @@ func DefaultHashIndexClassID(id ID) (IndexClass, bool) {
 
 // IndexHash normalizes into the class input representation once per datum. The
 // normalized values never escape sqltype or replace the stored typed keys.
-// Grouping owns compatible equality/hash, including numeric, NaN and intervals.
+// Native support owns hashing; typed grouping primitives supply equality only.
 type IndexHash struct {
 	usage    Usage
 	class    IndexClass
 	grouping Grouping
+	native   PartitionHash
 }
 
 func validateHashClass(u Usage, c IndexClass) error {
@@ -126,6 +127,9 @@ func validateHashClass(u Usage, c IndexClass) error {
 	}
 	if u.Type.BaseType().IsArray() || c.oid == 0 {
 		return failure("0A000", "index operator class is unsupported")
+	}
+	if !u.validCollation() {
+		return fmt.Errorf("invalid hash collation")
 	}
 	return nil
 }
@@ -142,19 +146,30 @@ func BindIndexHash(u Usage, c IndexClass) (IndexHash, error) {
 	}
 	keyUsage := u
 	keyUsage.Type, keyUsage.Typmod = normal, -1
-	g, err := BindGrouping(keyUsage)
-	if err != nil {
-		return IndexHash{}, err
+	s := c.Support(1)
+	n, ok := NativeIndexRoutineByOID(s.Routine)
+	if !ok || n.Kind != IndexHashRoutine || n.Left != s.Left || s.Left != s.Right || s.Member == 0 {
+		return IndexHash{}, fmt.Errorf("index hash has no registered native support")
 	}
-	return IndexHash{usage: u, class: c, grouping: g}, nil
+	// Equality uses concrete datum comparison, while hashing invokes the
+	// registered native operation rather than the grouping hash algorithm.
+	g := Grouping{usage: keyUsage}
+	if !normal.IsEnum() {
+		g.comparison = Comparison{left: normal, right: normal, inputCollation: u.Collation}
+	}
+	p := PartitionHash{usage: u, class: c, input: ID(n.Left), routine: n.OID}
+	if normal.IsEnum() {
+		p.input = normal.id
+	}
+	return IndexHash{usage: u, class: c, grouping: g, native: p}, nil
 }
 
-func normalizeHashPayload(v Value, u Usage, c IndexClass) (Value, error) {
+func normalizeHashPayload(v Value, u Usage, input ID) (Value, error) {
 	if v.typ != u.Type {
 		return Value{}, fmt.Errorf("invalid hash index value")
 	}
 	base := v.typ.BaseType().id
-	if !v.null && c.input == Oid {
+	if !v.null && input == Oid {
 		if base == Int4 {
 			v.oid = uint32(v.integer)
 		}
@@ -165,8 +180,8 @@ func normalizeHashPayload(v Value, u Usage, c IndexClass) (Value, error) {
 	return v, nil
 }
 
-func (p IndexHash) normalize(v Value) (Value, error) {
-	v, err := normalizeHashPayload(v, p.usage, p.class)
+func (p *IndexHash) normalize(v Value) (Value, error) {
+	v, err := normalizeHashPayload(v, p.usage, p.class.input)
 	if err != nil {
 		return Value{}, err
 	}
@@ -174,15 +189,12 @@ func (p IndexHash) normalize(v Value) (Value, error) {
 	return v, nil
 }
 
-func (p IndexHash) Hash(ctx context.Context, v Value) (uint64, error) {
-	v, err := p.normalize(v)
-	if err != nil {
-		return 0, err
-	}
-	return p.grouping.Hash(ctx, v)
+func (p *IndexHash) Hash(ctx context.Context, v Value) (uint64, error) {
+	h, err := p.native.Hash(ctx, v, 0)
+	return uint64(uint32(h)), err
 }
 
-func (p IndexHash) Equal(ctx context.Context, a, b Value) (bool, error) {
+func (p *IndexHash) Equal(ctx context.Context, a, b Value) (bool, error) {
 	a, err := p.normalize(a)
 	if err != nil {
 		return false, err
@@ -192,6 +204,12 @@ func (p IndexHash) Equal(ctx context.Context, a, b Value) (bool, error) {
 		return false, err
 	}
 	return p.grouping.Equal(ctx, a, b)
+}
+
+// Comparison captures the selected hash operation's typed datum ordering for
+// logical exclusion keys; it does not manufacture a Btree operator class.
+func (p IndexHash) Comparison() IndexComparison {
+	return IndexComparison{comparison: Comparison{left: p.usage.Type, right: p.usage.Type, inputCollation: p.usage.Collation}, input: p.class.input}
 }
 
 // Row-side coercions and class-coarser equality are not probe authorization.

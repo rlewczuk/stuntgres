@@ -109,6 +109,9 @@ func (d *TSDictionary) Name() string { return d.ObjectName }
 func (*TSDictionary) Kind() ids.ObjectKind { return ids.TSDictionaryObject }
 
 func DescriptorNameKey(d Descriptor) ids.NameKey {
+	if family, ok := d.(*OperatorFamily); ok {
+		return FamilyNameKey(family.Namespace(), family.Method, family.Name())
+	}
 	key := ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}
 	if p, ok := d.(*Procedure); ok {
 		key.Signature = string(p.Signature)

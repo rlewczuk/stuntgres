@@ -47,9 +47,9 @@ func ValidatePrivateExpressions(evaluation *exec.Context, view catalog.Read, sta
 		if pending {
 			var err error
 			if idx.SQLIndex.Method == catalog.HashMethod {
-				hash, err = BindHashIndex(parent, idx.SQLIndex)
+				hash, err = BindHashIndex(view, parent, idx.SQLIndex)
 			} else {
-				ordering, err = BindIndexKeys(parent, idx.SQLIndex)
+				ordering, err = BindIndexKeys(view, parent, idx.SQLIndex)
 			}
 			if err != nil {
 				return err

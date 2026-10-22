@@ -15,6 +15,9 @@ func NamespaceChildren(base Read, namespaces map[ids.ObjectAddress]bool) ([]ids.
 		if namespaces[descriptor.Namespace()] {
 			selected[address] = true
 		}
+		if namespace := OperatorFamilyNamespace(base, descriptor); namespace != (ids.ObjectAddress{}) && namespaces[namespace] {
+			selected[address] = true
+		}
 		if ext, ok := descriptor.(*Extension); ok && namespaces[ext.TargetNamespace] {
 			selected[address] = true
 			for _, member := range ext.Members {

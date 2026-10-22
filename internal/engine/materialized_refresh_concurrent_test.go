@@ -218,7 +218,7 @@ func TestMaterializedRefreshConcurrentDuplicatePreflight(t *testing.T) {
 	d := concurrentUnitRelation(t, e)
 	idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.catalog.state.MustRelation(d.Address())
-	ordering, err := index.BindIndexOrdering(d, idx.SQLIndex)
+	ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), d, idx.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +323,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if expected == 1 && &effective[0][0] != &old.Versions[0].Values[0] {
 				t.Fatal("old matched datum buffer copied or replaced")
 			}
-			ordering, err := index.BindIndexOrdering(d, first.SQLIndex)
+			ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), d, first.SQLIndex)
 			if err != nil {
 				t.Fatal(err)
 			}

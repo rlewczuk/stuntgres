@@ -49,10 +49,10 @@ func TestHashIndexClassProviders(t *testing.T) {
 				if c.Accepts(typ) {
 					t.Fatal("diagnostic input became an executable key", tc)
 				}
-				if _, err := BindIndexHash(typ.Usage(), c); err == nil {
+				if _, err := bindTestIndexHash(typ.Usage(), c); err == nil {
 					t.Fatal("diagnostic input acquired a hash provider", tc)
 				}
-				if _, err := BindIndexOrdering(typ.Usage(), c); err == nil {
+				if _, err := bindTestIndexOrdering(typ.Usage(), c); err == nil {
 					t.Fatal("diagnostic input acquired an ordering provider", tc)
 				}
 				return
@@ -60,7 +60,7 @@ func TestHashIndexClassProviders(t *testing.T) {
 			if !c.Accepts(typ) {
 				t.Fatal("released input rejected", tc)
 			}
-			_, err := BindIndexHash(typ.Usage(), c)
+			_, err := bindTestIndexHash(typ.Usage(), c)
 			if tc.id == NameArray {
 				var d *sqlstate.Error
 				if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "index operator class is unsupported" {
@@ -69,7 +69,7 @@ func TestHashIndexClassProviders(t *testing.T) {
 			} else if err != nil {
 				t.Fatal("eager provider binding", err)
 			}
-			if _, err := BindIndexOrdering(typ.Usage(), c); err == nil {
+			if _, err := bindTestIndexOrdering(typ.Usage(), c); err == nil {
 				t.Fatal("hash class silently ordered")
 			}
 		})
@@ -98,7 +98,7 @@ func TestHashIndexClassProviders(t *testing.T) {
 		{Int4, "oid_ops", true}, {Regclass, "oid_ops", true}, {Oid, "int4_ops", false}, {Int4, "int8_ops", false}, {Name, "text_ops", false}, {BPChar, "text_ops", false},
 	} {
 		c, _ := LookupHashIndexClass(tc.name)
-		_, err := BindIndexHash(types[tc.id].Usage(), c)
+		_, err := bindTestIndexHash(types[tc.id].Usage(), c)
 		if c.Accepts(types[tc.id]) != tc.accept || (err == nil) != tc.accept {
 			t.Fatal(tc, err)
 		}
@@ -163,7 +163,7 @@ func TestHashIndexEqualityNormalization(t *testing.T) {
 				}
 				beforeA, beforeB := a, b
 				c, _ := LookupHashIndexClass(tc.class)
-				provider, err := BindIndexHash(typ.Usage(), c)
+				provider, err := bindTestIndexHash(typ.Usage(), c)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -200,7 +200,7 @@ func TestHashIndexEqualityNormalization(t *testing.T) {
 		u := types[Text].Usage()
 		u.Collation = CollationRef{ID: id, Derivation: Default}
 		c, _ := LookupHashIndexClass("text_pattern_ops")
-		p, err := BindIndexHash(u, c)
+		p, err := bindTestIndexHash(u, c)
 		if err != nil {
 			t.Fatal(id, err)
 		}
@@ -232,7 +232,7 @@ func TestHashIndexEnumDomainIdentity(t *testing.T) {
 		if !ok || c.OID() != 10070 {
 			t.Fatal(c, ok)
 		}
-		p, err := BindIndexHash(typ.Usage(), c)
+		p, err := bindTestIndexHash(typ.Usage(), c)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -170,9 +170,9 @@ func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view c
 		bound.Index = idx
 		bound.Parent = parent
 		if idx.SQLIndex.IsExclusion() {
-			bound.Ordering, err = BindExclusionOrdering(parent, idx.SQLIndex)
+			bound.Ordering, err = BindExclusionOrdering(view, parent, idx.SQLIndex)
 		} else {
-			bound.Ordering, err = BindIndexOrdering(parent, idx.SQLIndex)
+			bound.Ordering, err = BindIndexOrdering(view, parent, idx.SQLIndex)
 		}
 		if err != nil {
 			return nil, err
@@ -210,9 +210,9 @@ func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view c
 		for _, idx := range checkedNonunique {
 			bound := InsertionBinding{Index: idx, Parent: parent}
 			if idx.SQLIndex.Method == catalog.HashMethod {
-				bound.Hash, err = BindHashIndex(parent, idx.SQLIndex)
+				bound.Hash, err = BindHashIndex(view, parent, idx.SQLIndex)
 			} else {
-				bound.Ordering, err = BindIndexKeys(parent, idx.SQLIndex)
+				bound.Ordering, err = BindIndexKeys(view, parent, idx.SQLIndex)
 			}
 			if err != nil {
 				return nil, err

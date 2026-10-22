@@ -44,6 +44,7 @@ var definitions = [...]Definition{
 	{Names: []string{"line_eq"}, ExactSpelling: true, SharedGates: true, Bind: bindLineEquality},
 	{Names: []string{"radius", "circle_eq", "circle_ne", "circle_lt", "circle_gt", "circle_le", "circle_ge", "circle_same", "circle_left", "circle_right", "circle_overleft", "circle_overright", "circle_below", "circle_above", "circle_overbelow", "circle_overabove", "circle_contain", "circle_contained", "circle_overlap", "circle_distance"}, ExactSpelling: true, SharedGates: true, Bind: bindCircle},
 	{Names: []string{"network_sub", "network_subeq", "network_sup", "network_supeq", "network_overlap"}, ExactSpelling: true, SharedGates: true, Bind: bindNetworkSubnet},
+	{Names: []string{"btint4cmp", "hashint4", "hashint4extended"}, ExactSpelling: true, SharedGates: true, Bind: bindIntegerIndexSupport},
 	{Names: []string{"lo_create", "lo_creat", "lo_from_bytea", "lo_get", "lo_put", "lo_unlink"}, ExactSpelling: true, SharedGates: true, Bind: bindLargeObject},
 	{Names: []string{"mxid_age", "pg_current_xact_id", "pg_current_xact_id_if_assigned", "pg_xact_status", "pg_get_multixact_members"}, Claims: parser.TransactionIdentityFunctionName, Bind: bindTransactionIdentity},
 	{Names: []string{"pg_xact_commit_timestamp", "pg_xact_commit_timestamp_origin", "pg_last_committed_xact"}, Claims: parser.CommitTimestampFunctionName, Bind: bindCommitTimestamp},

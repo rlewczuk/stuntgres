@@ -22,14 +22,14 @@ type builtinRoutineKey struct {
 
 var builtinRoutineIdentityByOID, builtinRoutineIdentitiesByName, builtinRoutineIdentityBySignature = indexBuiltinRoutineIdentities()
 
-func indexBuiltinRoutineIdentities() (map[ids.OID]RoutineIdentity, map[string][]RoutineIdentity, map[builtinRoutineKey]RoutineIdentity) {
-	byOID := make(map[ids.OID]RoutineIdentity, len(builtinRoutineIdentities))
+func indexBuiltinRoutineIdentities() (map[ids.OID]builtinRoutineMetadata, map[string][]RoutineIdentity, map[builtinRoutineKey]RoutineIdentity) {
+	byOID := make(map[ids.OID]builtinRoutineMetadata, len(builtinRoutineIdentities))
 	byName := make(map[string][]RoutineIdentity)
 	bySignature := make(map[builtinRoutineKey]RoutineIdentity, len(builtinRoutineIdentities))
 	for _, p := range builtinRoutineIdentities {
 		byOID[p.ID] = p
-		byName[p.Name] = append(byName[p.Name], p)
-		bySignature[builtinRoutineKey{p.Name, p.Signature}] = p
+		byName[p.Name] = append(byName[p.Name], p.RoutineIdentity)
+		bySignature[builtinRoutineKey{p.Name, p.Signature}] = p.RoutineIdentity
 	}
 	return byOID, byName, bySignature
 }
@@ -37,14 +37,25 @@ func indexBuiltinRoutineIdentities() (map[ids.OID]RoutineIdentity, map[string][]
 // BuiltinRoutineIdentities returns a copy of the released lookup-only builtin
 // routine identities in source order.
 func BuiltinRoutineIdentities() []RoutineIdentity {
-	return slices.Clone(builtinRoutineIdentities[:])
+	identities := make([]RoutineIdentity, len(builtinRoutineIdentities))
+	for i, p := range builtinRoutineIdentities {
+		identities[i] = p.RoutineIdentity
+	}
+	return identities
 }
 
 // BuiltinRoutineIdentityByOID returns the released lookup-only builtin
 // routine identity with this OID.
 func BuiltinRoutineIdentityByOID(id ids.OID) (RoutineIdentity, bool) {
 	p, ok := builtinRoutineIdentityByOID[id]
-	return p, ok
+	return p.RoutineIdentity, ok
+}
+
+// BuiltinRoutineResultByOID returns genuine released result metadata without
+// granting callability, requiring a local type descriptor, or adding pg_proc rows.
+func BuiltinRoutineResultByOID(id ids.OID) (ids.OID, bool) {
+	p, ok := builtinRoutineIdentityByOID[id]
+	return p.Result, ok
 }
 
 // BuiltinRoutineIdentitiesNamed returns a copy of the released lookup-only

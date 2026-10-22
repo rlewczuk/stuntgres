@@ -34,6 +34,9 @@ func PersistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 	for a, d := range view.Descriptors() {
 		ns, isNamespace := d.(*catalog.Namespace)
 		parent, hasParent := view.Namespace(d.Namespace())
+		if namespace := catalog.OperatorFamilyNamespace(view, d); namespace != (ids.ObjectAddress{}) {
+			parent, hasParent = view.Namespace(namespace)
+		}
 		if isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
 			operators.Replace(d, nil)
 			procedures.Replace(d, nil)

@@ -83,7 +83,7 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	idx, _ := btreeRoot(t, e, "u")
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), idx.Address())
 	parent := e.catalog.state.MustRelation(idx.SQLIndex.Parent)
-	ordering, err := index.BindIndexOrdering(parent, idx.SQLIndex)
+	ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, idx.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
 	}

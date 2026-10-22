@@ -18,11 +18,11 @@ import (
 // Return a detached descriptor when a dependent attribute TYPE or schema/owner
 // changes. TYPE reconstructs the whole definition using OLD type defaults,
 // matching PostgreSQL's captured pg_get_indexdef rather than original spelling.
-func EvolveIndex(index, oldParent, parent *catalog.Relation, transformations []ColumnTransformation) (*catalog.Relation, error) {
-	return evolveIndexRevision(index, oldParent, parent, transformations, false)
+func EvolveIndex(view catalog.Read, index, oldParent, parent *catalog.Relation, transformations []ColumnTransformation) (*catalog.Relation, error) {
+	return evolveIndexRevision(view, index, oldParent, parent, transformations, false)
 }
 
-func evolveIndexRevision(index, oldParent, parent *catalog.Relation, transformations []ColumnTransformation, terminal bool) (*catalog.Relation, error) {
+func evolveIndexRevision(view catalog.Read, index, oldParent, parent *catalog.Relation, transformations []ColumnTransformation, terminal bool) (*catalog.Relation, error) {
 	if parent == nil {
 		return nil, nil
 	}
@@ -141,7 +141,7 @@ func evolveIndexRevision(index, oldParent, parent *catalog.Relation, transformat
 			definition.Keys[i] = ReconstructIndexKey(key, oldUsage, newUsage, definition.Method)
 		}
 	}
-	if err := bindIndexProvider(parent, definition); err != nil {
+	if err := bindIndexProvider(view, parent, definition); err != nil {
 		return nil, err
 	}
 	changed := definition != index.SQLIndex || index.Namespace() != parent.Namespace() || index.Owner != parent.Owner
@@ -259,7 +259,7 @@ func ApplyIndexEvolution(provider EvolutionTarget, address ids.ObjectAddress, in
 	if index.SQLIndex.Parent == typeParent && (!staged || UniqueIndexTypeAffected(index.SQLIndex, transformations)) {
 		dependentTypes = transformations
 	}
-	next, err := evolveIndexRevision(index, oldParent, parent, dependentTypes, provider.TerminalCleanup())
+	next, err := evolveIndexRevision(provider.EvolutionBase(), index, oldParent, parent, dependentTypes, provider.TerminalCleanup())
 	if err != nil {
 		return err
 	}
@@ -505,7 +505,7 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				// key construction. Replacement also accepts reduced validated
 				// parent/index catalogues for ordinary nonintegrity roots.
 				namespace := next.MustNamespace(parent.Namespace())
-				ordering, err := BindIndexKeys(parent, index.SQLIndex)
+				ordering, err := BindIndexKeys(view, parent, index.SQLIndex)
 				if err != nil {
 					return nil, err
 				}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
@@ -73,6 +74,12 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropRoutine:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
+	case *parser.DropOperatorFamily:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
+	case *parser.AlterOperatorFamily:
+		if s.Action == "drop" {
+			domainMode = parser.DropRestrict
+		}
 	case *parser.DropSchema:
 		cascade = s.Cascade
 		if !s.Cascade {
@@ -191,6 +198,18 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		}
 	case *parser.DropRoutine:
 		if err = routine.StageDropRoutine(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.CreateOperatorFamily:
+		if err = index.StageCreateOperatorFamily(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterOperatorFamily:
+		if err = index.StageAlterOperatorFamily(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropOperatorFamily:
+		if err = index.StageDropOperatorFamily(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateOperator:

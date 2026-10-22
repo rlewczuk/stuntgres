@@ -21,7 +21,7 @@ func KeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
 
 func ReconstructIndexKey(key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, method catalog.IndexMethod) catalog.IndexKey {
 	oldDefault, _ := method.DefaultClass(oldUsage.Type)
-	if key.Class.Name == "" || key.Class == oldDefault {
+	if key.Class.Name == "" || key.Class.SameIdentity(oldDefault) {
 		key.Class, _ = method.DefaultClass(newUsage.Type)
 		key.ExplicitClass = false
 	}

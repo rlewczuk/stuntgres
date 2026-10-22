@@ -90,7 +90,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 		return Result{}, err
 	}
 	idx := e.stageRead(stage).MustRelation(next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
-	if err = index.PartitionUniqueCoverage(next, idx.SQLIndex); err != nil {
+	if err = index.PartitionUniqueCoverage(e.stageRead(stage), next, idx.SQLIndex); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()

@@ -271,6 +271,44 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 			}
 		}
 		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", TypeSpelling(view, q.Capture.Path, ids.OID(typeID)), TypeSpelling(view, q.Capture.Path, argIDs[0])))
+	case ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID:
+		var method ids.OID
+		switch names[0] {
+		case "btree":
+			method = 403
+		case "hash":
+			method = 405
+		case "gist":
+			method = 783
+		default:
+			return missing("42704", fmt.Sprintf("access method %q does not exist", names[0]))
+		}
+		number, err := strconv.ParseInt(names[len(names)-1], 10, 16)
+		if err != nil {
+			return missing("22P02", fmt.Sprintf("invalid input syntax for type smallint: %q", names[len(names)-1]))
+		}
+		path, err := q.path(names[1 : len(names)-1])
+		if err != nil {
+			return ids.ObjectAddress{}, err
+		}
+		for i := range path.Count() {
+			family := view.NameAddress(catalog.FamilyNameKey(path.At(i), method, names[len(names)-2]))
+			if family == (ids.ObjectAddress{}) {
+				continue
+			}
+			if class == ids.AccessMethodProcedureClassID {
+				if member, ok := view.FamilySupport(family.ObjectID, argIDs[0], argIDs[1], int16(number)); ok {
+					return member.Address(), nil
+				}
+			} else {
+				for _, purpose := range []byte{'s', 'o'} {
+					if member, ok := view.FamilyOperator(family.ObjectID, argIDs[0], argIDs[1], int16(number), purpose); ok {
+						return member.Address(), nil
+					}
+				}
+			}
+		}
+		return missing("42704", fmt.Sprintf("%s %q does not exist", kind, strings.Join(names, ".")))
 	case 2616, 2753:
 		method := uint32(0)
 		switch names[0] {
@@ -278,6 +316,8 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 			method = 403
 		case "hash":
 			method = 405
+		case "gist":
+			method = 783
 		default:
 			return missing("42704", fmt.Sprintf("access method %q does not exist", names[0]))
 		}
@@ -286,19 +326,18 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 			return ids.ObjectAddress{}, err
 		}
 		for i := range path.Count() {
+			if class == ids.OperatorFamilyClassID {
+				if address := view.NameAddress(catalog.FamilyNameKey(path.At(i), ids.OID(method), names[len(names)-1])); address != (ids.ObjectAddress{}) {
+					return address, nil
+				}
+				continue
+			}
 			if path.At(i).ObjectID != ids.PGCatalogNamespaceOID {
 				continue
 			}
 			for j := range sqltype.IndexClassMetadataCount() {
 				cl, _ := sqltype.IndexClassMetadataAt(j)
 				name, id, am := cl.Name, cl.OID, cl.Method
-				if class == 2753 {
-					family, ok := sqltype.IndexFamilyMetadataByOID(cl.Family)
-					if !ok {
-						continue
-					}
-					name, id, am = family.Name, family.OID, family.Method
-				}
 				if method == am && name == names[len(names)-1] {
 					a.ObjectID = ids.OID(id)
 					return a, nil

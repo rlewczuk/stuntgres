@@ -93,11 +93,17 @@ func TestReferencePosixStatementTimeout(t *testing.T) {
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			b.DB.SetMaxOpenConns(1)
+			// Cleanup SQL cannot reliably finish inside the expired session's
+			// 10ms limit under whole-suite scheduling contention. Retire that
+			// idle physical connection instead; committed table state survives
+			// reconnect, so the sentinel still proves autocommit atomicity.
+			retireTimedSession := func() {
+				b.DB.SetMaxIdleConns(0)
+				b.DB.SetMaxIdleConns(1)
+			}
 			fixture.StringCoreControlExec(t, b.DB, `CREATE TABLE timeout_t(v TEXT,p TEXT,sentinel INT)`)
 			defer func() {
-				if _, err := b.DB.ExecContext(context.Background(), `SET statement_timeout=0`); err != nil {
-					t.Error("timeout reset", err)
-				}
+				retireTimedSession()
 				if _, err := b.DB.ExecContext(context.Background(), `DROP TABLE IF EXISTS timeout_t`); err != nil {
 					t.Error("timeout fixture cleanup", err)
 				}
@@ -115,7 +121,7 @@ func TestReferencePosixStatementTimeout(t *testing.T) {
 				s.Prepared = prepared
 				s.ErrorStage = "execute"
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-				fixture.StringCoreControlExec(t, b.DB, `SET statement_timeout=0`)
+				retireTimedSession()
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(`SELECT sentinel FROM timeout_t`, []string{"sentinel"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			}
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`UPDATE timeout_t SET sentinel=8 WHERE 'a' ~ 'a'`, 1))

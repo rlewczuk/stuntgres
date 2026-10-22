@@ -39,7 +39,7 @@ func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *
 	d := inheritanceUnitRelation(e, name, id, "k")
 	d.RelationKind = catalog.PartitionedRelation
 	class, _ := sqltype.DefaultIndexClass(d.Columns[0].Usage.Type)
-	comparison, err := sqltype.BindIndexOrdering(d.Columns[0].Usage, class)
+	comparison, err := operatorFamilyTestOrdering(d.Columns[0].Usage, class)
 	if err != nil {
 		t.Fatal(err)
 	}

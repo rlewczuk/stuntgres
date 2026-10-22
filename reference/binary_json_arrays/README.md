@@ -2053,9 +2053,6 @@ contexts and unreachable branches.
 
 Cancellation uses the same bounded8192-by-4092-byte string shape below32MiB,
 retaining all wildcard, strict recursive, comparison, regex and root paths.
-The existing complete live-stack provider-plus-worker gate is unchanged, as
-are PostgreSQL admission/full57014, joined workers, sentinel atomicity and
-SAME-held recovery. Each child restores its input/output on assertion failure.
 
 Subscripts pins complete operand demand before cardinality/type validation:
 late missing variables and structural errors retain their diagnostic precedence
@@ -2087,12 +2084,25 @@ fixture deadline. Within each path, read and write cancellation plus valid
 reuse retain the same physical connection and both original held statements.
 There is no cross-path identity assertion: each path starts from the same
 independently specified rows. Each imports the same near-32MiB encoded array of
-8192 strings of 4092 bytes into four rows twice. Bounded elements exercise provider
-traversal/output cancellation checks rather than relying on one giant runtime
-copy as an admission window. Native uses real evaluator/worker admission;
-PostgreSQL uses active-query admission and backend cancellation.
-The existing admission helper joins the worker and rejects any published Rows
-or Result, with unchanged ordinary-cancellation/full PostgreSQL diagnostics.
+8192 strings of 4092 bytes into four rows twice. Public admission uses the existing
+output-dependent advisory-lock protocol, not a transient private stack sample or
+completion of a large regex result within a timing window. The fifth control row
+temporarily holds `["x"]` and the selected path. MATERIALIZED producers require
+its independently expected result: `["x"]` for wildcard/comparison/regex,
+`[["x"], "x"]` for strict recursion and `[["x"]]` for the root path.
+After the progress key2 grant, only that exact result requests the held key67108864.
+Both the aggregate and ordered INSERT depend on this producer before evaluating
+the remaining operands. An independent transaction holds the gate. Admission
+requires the exact physical worker wait, matching holder grant and actual
+`pg_blocking_pids` blocker in the current database; writes also require the earlier
+small-result grant. The shared helper cancels/joins, rejects published Rows/Result
+and verifies removal of worker requests/grants and the holder's grant.
+This proves active SQL cancellation after reached selected JSONPath work, not
+interruption inside the later large evaluator. Unchanged
+`TestJSONPathNavigateCancellation` separately covers that private work, including
+traversal, comparison, regex and output. All five rows return to `[0]`/`$` before
+same-held recovery. Ordinary native cancellation and complete PostgreSQL57014
+diagnostics remain independently asserted; no payload, path or deadline is removed.
 Native direct and held precancellation also require ordinary cancellation
 and nil outputs. Same-held recovery retains the exact INT8 sum25, five inserted
 rows, sentinel99 and JSONB `[[0]]` values, metadata/middleware assertions, no

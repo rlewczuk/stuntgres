@@ -5,11 +5,13 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -30,8 +32,15 @@ func pruningProofFixture(t *testing.T) (pruneProof, plan.ColumnExpr, *sqltype.De
 	columnRef := ref
 	columnRef.Address.SubID = 1
 	column := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 0}
-	evaluation := &exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	return newPruneProof(context.Background(), evaluation, catalog.Read{}, relation, ref), column, boolean
+	state := catalog.NewState(1)
+	catalog.InstallBuiltinFamilies(state, authorization.PrincipalRef{})
+	procedures := routine.BuiltinProcedures(authorization.PrincipalRef{})
+	for i := range procedures {
+		state.SetDescriptor(procedures[i].Address(), &procedures[i])
+	}
+	view := catalog.NewRead(nil, state)
+	evaluation := &exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
+	return newPruneProof(context.Background(), evaluation, view, relation, ref), column, boolean
 }
 func pruningComparison(t *testing.T, column plan.ColumnExpr, boolean *sqltype.Descriptor, op string, n int64) expr.Expr {
 	t.Helper()
@@ -127,7 +136,7 @@ func TestPartitionPruningProof(t *testing.T) {
 	if !ok {
 		t.Fatal("missing admitted OID class")
 	}
-	ordering, err := sqltype.BindIndexOrdering(column.Usage, class)
+	ordering, err := routine.BindIndexOrdering(p.view, column.Usage, class)
 	if err != nil {
 		t.Fatal(err)
 	}

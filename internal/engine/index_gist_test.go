@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -24,11 +25,11 @@ func logicalGiSTFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, fun
 	parent := &catalog.Relation{ObjectName: "bookings", Attributes: []int32{1, 2}, Columns: []catalog.Column{{Name: "tenant", Usage: inet.Usage()}, {Name: "during", Usage: r.Usage()}}}
 	ic, _ := sqltype.LookupGiSTIndexClass("inet_ops")
 	rc, _ := sqltype.LookupGiSTIndexClass("range_ops")
-	eq, err := sqltype.BindExclusionOperator(inet.Usage(), ic, "=")
+	eq, err := operatorFamilyTestExclusion(inet.Usage(), ic, "=")
 	if err != nil {
 		t.Fatal(err)
 	}
-	overlap, err := sqltype.BindExclusionOperator(r.Usage(), rc, "&&")
+	overlap, err := operatorFamilyTestExclusion(r.Usage(), rc, "&&")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +53,7 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 	parent, idx, row := logicalGiSTFixture(t)
 	for _, middle := range []storage.RowVersion{row(2, "10.0.0.1", "empty"), row(2, "10.0.0.2", "[1,5)")} {
 		store := &storage.Relation{Versions: []storage.RowVersion{row(1, "10.0.0.1", "[1,5)"), middle, row(3, "10.0.0.1", "[3,7)")}}
-		root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, idx.SQLIndex, store, nil)
+		root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}}, parent, idx.SQLIndex, store, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +61,7 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 			t.Fatal("membership reordered", root)
 		}
 		before := append([]storage.IndexEntry(nil), root.Entries...)
-		err = index.ValidateExclusionRoot(context.Background(), parent, idx, root, "public", sqltype.OutputEnvironment{}, nil, nil, true)
+		err = index.ValidateExclusionRoot(context.Background(), parent, idx, root, "public", sqltype.OutputEnvironment{}, &access.View{Catalog: operatorFamilyTestRead()}, nil, true)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 			t.Fatal("nonadjacent overlap not rejected", err)
@@ -74,7 +75,7 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 func TestLogicalGiSTDeltaImmutable(t *testing.T) {
 	parent, idx, row := logicalGiSTFixture(t)
 	store := &storage.Relation{Versions: []storage.RowVersion{row(1, "10.0.0.1", "[1,5)"), row(2, "10.0.0.2", "[1,5)")}}
-	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
+	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}}
 	root, err := index.BuildIndexRoot(evaluation, parent, idx.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +97,7 @@ func TestLogicalGiSTDeltaImmutable(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, parent, idx, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
+	_, err = index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: canceled}}, parent, idx, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -132,7 +133,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),
 			}}
-			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, parent, idx.SQLIndex, store, nil)
+			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}}, parent, idx.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -158,7 +159,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			// Explicit parent rebuild intent, no supplied candidate root and no
 			// row delta: validation must inspect rebuilt A/empty/C membership.
 			roots, err := e.prepareIndexRoots(
-				&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}},
+				&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}},
 				e.catalog.state, e.catalog.state, captured, e.storage.IndexRoots,
 				map[ids.ObjectAddress]bool{parent.Address(): true}, nil, nil,
 				materialize, sqltype.OutputEnvironment{}, nil, nil, nil,
@@ -188,7 +189,7 @@ func TestLogicalGiSTUnchangedPublicationNonadjacentOverlap(t *testing.T) {
 				row(2, "10.0.0.1", "empty"),
 				row(3, "10.0.0.1", "[3,7)"),
 			}}
-			evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
+			evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}}
 			root, err := index.BuildIndexRoot(evaluation, parent, idx.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)

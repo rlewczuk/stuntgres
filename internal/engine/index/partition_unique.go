@@ -10,13 +10,13 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func PartitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefinition) error {
+func PartitionUniqueCoverage(view catalog.Read, table *catalog.Relation, index *catalog.IndexDefinition) error {
 	if table.Partition == nil || !index.Unique && !index.IsExclusion() {
 		return nil
 	}
@@ -46,7 +46,7 @@ func PartitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefini
 					return sqlError("0A000", fmt.Sprintf(`cannot match partition key to index on column "%s" using non-equal operator "%s"`, partitionKey.Label, operator.Name))
 				}
 				inputs, err := operator.OperatorInputs()
-				equality, bindErr := sqltype.BindExclusionOperator(partitionKey.Usage, partitionKey.Class, "=")
+				equality, bindErr := routine.BindExclusionOperator(view, partitionKey.Usage, partitionKey.Class, "=")
 				expected, inputErr := equality.OperatorInputs()
 				found = err == nil && bindErr == nil && inputErr == nil && operator.Name == equality.Name && inputs == expected
 				if found {
@@ -58,20 +58,19 @@ func PartitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefini
 			if class.Name == "" {
 				class, _ = sqltype.DefaultIndexClass(usage.Type)
 			}
-			comparison, err := sqltype.BindIndexOrdering(usage, class)
-			partitionComparison := partitionKey.Comparison
-			if table.Partition.Strategy == parser.PartitionHash {
-				equalityClass, ok := sqltype.LookupIndexClass(partitionKey.Class.Name)
-				if !ok {
-					continue
-				}
-				var equalityErr error
-				partitionComparison, equalityErr = sqltype.BindIndexOrdering(partitionKey.Usage, equalityClass)
-				if equalityErr != nil {
-					continue
-				}
+			selected, err := routine.BindClassSupport(view, class)
+			partitionSelected, partitionErr := routine.BindClassSupport(view, partitionKey.Class)
+			if err != nil || partitionErr != nil || !selected.Accepts(usage.Type) {
+				continue
 			}
-			found = err == nil && usage.Collation == partitionKey.Usage.Collation && comparison == partitionComparison
+			left, right := selected.Support(1), partitionSelected.Support(1)
+			partitionStrategy := int16(3)
+			if partitionSelected.IsHash() {
+				partitionStrategy = 1
+			}
+			equality, exists := view.FamilyOperator(ids.OID(left.Family), ids.OID(left.Left), ids.OID(left.Right), 3, 's')
+			partitionEquality, partitionExists := view.FamilyOperator(ids.OID(right.Family), ids.OID(right.Left), ids.OID(right.Right), partitionStrategy, 's')
+			found = exists && partitionExists && usage.Collation == partitionKey.Usage.Collation && equality.Operator == partitionEquality.Operator && equality.Left == partitionEquality.Left && equality.Right == partitionEquality.Right
 			if found {
 				break
 			}
@@ -145,7 +144,7 @@ func MapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 	}
 	if old.IsExclusion() {
 		var err error
-		d.Exclusion, err = RebindExclusionOperators(child, &d)
+		d.Exclusion, err = RebindExclusionOperators(view, child, &d)
 		if err != nil {
 			return nil, err
 		}
@@ -343,7 +342,7 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 	mapped.PartitionParent = parentIndex.Address()
 	mapped.Valid = true
 	mapped.Constraint = parentIndex.SQLIndex.Constraint
-	if err = PartitionUniqueCoverage(child, mapped); err != nil {
+	if err = PartitionUniqueCoverage(view, child, mapped); err != nil {
 		return nil, err
 	}
 	mapped.Constraint = nil

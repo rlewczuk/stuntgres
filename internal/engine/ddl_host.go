@@ -73,7 +73,7 @@ func (h ddlHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class
 		kind = analyze.TypeLookup
 	case ids.ConversionClassID:
 		kind = analyze.ConversionLookup
-	case ids.OperatorClassID:
+	case ids.OperatorClassID, ids.OperatorFamilyClassID:
 		kind = analyze.OperatorLookup
 	case ids.ProcedureClassID:
 		kind = analyze.FunctionLookup

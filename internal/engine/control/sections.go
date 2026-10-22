@@ -29,6 +29,7 @@ var dumpSections = [...]dumpSection{
 	{"conversion schemas", emitDumpConversionSchemas},
 	{"collation seeds", emitDumpCollationSeeds},
 	{"conversion seeds", emitDumpConversionSeeds},
+	{"operator family seeds", emitDumpOperatorFamilySeeds},
 	{"schema comments", emitDumpSchemaComments},
 	{"sequence creation", emitDumpSequenceCreation},
 	{"collations and conversions", emitDumpTypeStatements},
@@ -82,6 +83,16 @@ func emitDumpCollationSeeds(_ context.Context, s *dumpScript, w *dumpWriter) err
 
 func emitDumpConversionSeeds(_ context.Context, s *dumpScript, w *dumpWriter) error {
 	return emitDumpLines(w, s.conversionSeeds)
+}
+
+func emitDumpOperatorFamilySeeds(_ context.Context, s *dumpScript, w *dumpWriter) error {
+	if len(s.familySeeds) == 0 {
+		return nil
+	}
+	if err := w.setOwner("postgres"); err != nil {
+		return err
+	}
+	return emitDumpLines(w, s.familySeeds)
 }
 
 func emitDumpSchemaComments(_ context.Context, s *dumpScript, w *dumpWriter) error {

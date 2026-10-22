@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -32,7 +33,7 @@ func enforcingIndexes(view catalog.Read, parent ids.ObjectAddress) []*catalog.Re
 
 // Index ordering owns comparison; existing column grouping owns normalized
 // claims. Reject only the owned cross-input class whose equality differs.
-func ValidateUniqueProviders(parent *catalog.Relation, definition *catalog.IndexDefinition, raw []parser.IndexKey) error {
+func ValidateUniqueProviders(view catalog.Read, parent *catalog.Relation, definition *catalog.IndexDefinition, raw []parser.IndexKey) error {
 	for i, key := range definition.Keys {
 		position := parser.Position{}
 		if len(raw) != 0 {
@@ -49,7 +50,7 @@ func ValidateUniqueProviders(parent *catalog.Relation, definition *catalog.Index
 			return insertError("0A000", "unique index operator class is unsupported", position)
 		}
 		if key.Class.Family == "network_ops" {
-			if _, err := sqltype.BindIndexOrdering(KeyCollation(usage, key), key.Class); err != nil {
+			if _, err := routine.BindIndexOrdering(view, KeyCollation(usage, key), key.Class); err != nil {
 				return err
 			}
 			continue

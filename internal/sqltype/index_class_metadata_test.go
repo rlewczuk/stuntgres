@@ -135,11 +135,11 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 		bind := func(typ *Descriptor) {
 			t.Helper()
 			if m.Method == 403 {
-				if _, err := BindIndexOrdering(typ.Usage(), c); err != nil {
+				if _, err := bindTestIndexOrdering(typ.Usage(), c); err != nil {
 					t.Fatal("advertised ordering", m, err)
 				}
 			} else {
-				if _, err := BindIndexHash(typ.Usage(), c); err != nil {
+				if _, err := bindTestIndexHash(typ.Usage(), c); err != nil {
 					t.Fatal("advertised hash", m, err)
 				}
 			}
@@ -177,11 +177,11 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 				t.Fatal("alias default", id, hash)
 			}
 			if hash {
-				if _, err := BindIndexHash(types[id].Usage(), c); err != nil {
+				if _, err := bindTestIndexHash(types[id].Usage(), c); err != nil {
 					t.Fatal(id, err)
 				}
 			} else {
-				if _, err := BindIndexOrdering(types[id].Usage(), c); err != nil {
+				if _, err := bindTestIndexOrdering(types[id].Usage(), c); err != nil {
 					t.Fatal(id, err)
 				}
 			}

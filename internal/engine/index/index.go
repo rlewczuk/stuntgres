@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
@@ -33,7 +34,7 @@ func ColumnLabel(name string, suffix int) string {
 	return name[:length] + tail
 }
 
-func BindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefinition) (Ordering, error) {
+func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *catalog.IndexDefinition) (Ordering, error) {
 	if definition.Method != catalog.BtreeMethod {
 		return Ordering{}, fmt.Errorf("stuntgres: non-btree ordering definition")
 	}
@@ -68,7 +69,7 @@ func BindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefini
 					return o, DefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
 			}
-			o.Comparisons[i], err = sqltype.BindIndexOrdering(usage, class)
+			o.Comparisons[i], err = routine.BindIndexOrdering(view, usage, class)
 			if err != nil {
 				return o, err
 			}
@@ -96,7 +97,7 @@ func BindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefini
 				return o, DefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
 			}
 		}
-		comparison, err := sqltype.BindIndexOrdering(usage, class)
+		comparison, err := routine.BindIndexOrdering(view, usage, class)
 		if err != nil {
 			return o, err
 		}
@@ -125,7 +126,7 @@ func ValidateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 	if err := ValidatePartitionIndex(view, index, parent); err != nil {
 		return err
 	}
-	err := bindIndexProvider(parent, d)
+	err := bindIndexProvider(view, parent, d)
 	if err != nil {
 		return err
 	}
@@ -291,7 +292,7 @@ func BuildIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catal
 
 func BuildIndexEntries(evaluation *exec.Context, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *BuildCapture) ([]storage.IndexEntry, error) {
 	ctx := evaluation.Context
-	o, err := BindIndexKeys(parent, d)
+	o, err := BindIndexKeys(evaluation.Catalog, parent, d)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +342,7 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
-	o, err := BindIndexKeys(parent, d)
+	o, err := BindIndexKeys(evaluation.Catalog, parent, d)
 	if err != nil {
 		return nil, err
 	}

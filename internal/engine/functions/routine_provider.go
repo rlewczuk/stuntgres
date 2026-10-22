@@ -35,4 +35,5 @@ const (
 	NetworkRoutineProvider
 	LargeObjectRoutineProvider
 	CircleRoutineProvider
+	IndexSupportRoutineProvider
 )

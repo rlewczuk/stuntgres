@@ -113,7 +113,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 					if row.Values[1].Type() != current {
 						t.Fatal("row retained old BOOL generation", i)
 					}
-					value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row.Values}})
+					value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row.Values}})
 					if err != nil || value != row.Values[1] {
 						t.Error("retyped predicate tree cannot evaluate its retyped row", i, value, err)
 					}
@@ -121,12 +121,12 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			var preparation index.ExecutionPreparation
 			for i, row := range stores[f.parent.Address()].Versions {
-				matched, err := preparation.PredicateMatches(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, reowned.SQLIndex, row.Values, nil, nil)
+				matched, err := preparation.PredicateMatches(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, reowned.SQLIndex, row.Values, nil, nil)
 				if err != nil || matched != (i == 0 || i == 3 || i == 4) {
 					t.Error("reowned predicate changed TRUE/FALSE/NULL membership", i, matched, err)
 				}
 			}
-			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, reowned.SQLIndex, stores[f.parent.Address()], nil)
+			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, reowned.SQLIndex, stores[f.parent.Address()], nil)
 			if err != nil {
 				t.Fatal(err)
 			}

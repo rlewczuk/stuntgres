@@ -226,19 +226,15 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		}
 		return r, nil
 	}
-	if a.ClassID == 2616 || a.ClassID == 2753 {
+	if a.ClassID == 2616 {
 		var name string
 		var method uint32
-		if a.ClassID == 2616 {
-			for i := range sqltype.IndexClassMetadataCount() {
-				fact, _ := sqltype.IndexClassMetadataAt(i)
-				if ids.OID(fact.OID) == a.ObjectID {
-					name, method = fact.Name, fact.Method
-					break
-				}
+		for i := range sqltype.IndexClassMetadataCount() {
+			fact, _ := sqltype.IndexClassMetadataAt(i)
+			if ids.OID(fact.OID) == a.ObjectID {
+				name, method = fact.Name, fact.Method
+				break
 			}
-		} else if fact, ok := sqltype.IndexFamilyMetadataByOID(uint32(a.ObjectID)); ok {
-			name, method = fact.Name, fact.Method
 		}
 		if name == "" {
 			return r, nil
@@ -246,6 +242,8 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		am := "btree"
 		if method == 405 {
 			am = "hash"
+		} else if method == 783 {
+			am = "gist"
 		}
 		r.Found = true
 		r.Schema = "pg_catalog"
@@ -262,6 +260,9 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		return r, nil
 	}
 	r.Found = true
+	if member, ok := identifyOperatorFamilyMember(view, path, d, r); ok {
+		return member, nil
+	}
 	actual, canonical := objectNamespace(view, d.Namespace())
 	if actual != "" {
 		r.Schema = catalog.Identifier(actual)
@@ -278,6 +279,17 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		display = r.Name
 	}
 	switch d := d.(type) {
+	case *catalog.OperatorFamily:
+		am := "btree"
+		if d.Method == 405 {
+			am = "hash"
+		} else if d.Method == 783 {
+			am = "gist"
+		}
+		r.Names = []string{am, canonical, d.Name()}
+		r.Identity = catalog.Identifier(canonical) + "." + r.Name + " USING " + am
+		r.Description = "operator family " + display + " for access method " + am
+		return r, nil
 	case *catalog.Namespace:
 		_, canonical = objectNamespace(view, d.Address())
 		r.Identity = catalog.Identifier(canonical)

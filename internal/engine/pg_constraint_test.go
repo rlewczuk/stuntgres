@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -350,7 +351,7 @@ func TestPGConstraintOperatorMetadata(t *testing.T) {
 		if !ok {
 			t.Fatal("missing class", tc)
 		}
-		bound, err := sqltype.BindIndexForeignKey(parent.Usage(), child.Usage(), class, view.LookupType)
+		bound, err := routine.BindIndexForeignKey(view, parent.Usage(), child.Usage(), class)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -374,7 +375,7 @@ func TestPGConstraintOperatorMetadata(t *testing.T) {
 	view = e.CatalogRead()
 	enum := domainUnitType(t, view, "pc_unit_enum").SQLType
 	class, _ := sqltype.DefaultIndexClass(enum)
-	bound, err := sqltype.BindIndexForeignKey(enum.Usage(), enum.Usage(), class, view.LookupType)
+	bound, err := routine.BindIndexForeignKey(view, enum.Usage(), enum.Usage(), class)
 	if err != nil {
 		t.Fatal(err)
 	}

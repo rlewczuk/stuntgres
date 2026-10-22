@@ -21,7 +21,7 @@ func ExclusionShapeEntries(evaluation *exec.Context, parent *catalog.Relation, v
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing private exclusion index")
 		}
-		ordering, err := BindExclusionOrdering(parent, idx.SQLIndex)
+		ordering, err := BindExclusionOrdering(view, parent, idx.SQLIndex)
 		if err != nil {
 			return nil, err
 		}

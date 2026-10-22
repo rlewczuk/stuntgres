@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -119,7 +120,7 @@ func (p *pruneProof) term(node expr.Expr) int {
 	if !ok {
 		return -1
 	}
-	ordering, err := sqltype.BindIndexOrdering(node.ResultUsage(), class)
+	ordering, err := routine.BindIndexOrdering(p.view, node.ResultUsage(), class)
 	if err != nil {
 		return -1
 	}

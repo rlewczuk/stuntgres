@@ -4821,6 +4821,22 @@ See [clause design](docs/design/PG18-INDEX-CLAUSES.md).
 Feature smoke: `make check RUN='^TestReferenceIndexClausesFeatureSmoke$'`;
 use the identical RUN with `REFERENCE=1` for the pinned PostgreSQL oracle.
 
+Change note: `CREATE`, `ALTER` and `DROP OPERATOR FAMILY` support the implemented
+btree, hash and GiST methods, including ordered ADD/DROP member lists, rename,
+owner/schema changes and IF EXISTS notices. `pg_opfamily`, `pg_amop` and
+`pg_amproc` expose exact released family/member identities, associated types,
+strategy/support numbers and REGPROC support references. Incomplete families
+are legal; ADD admission is not complete operator-class validation.
+Existing builtin classes select registered family support, captured immutably
+with their roots. Loose family edits refresh metadata, not every warmed root.
+Custom class DDL and custom family→class→new-index association remain outside
+this feature. Dump/Restore serializes custom families and loose members with
+their real dependencies and current names. Original bootstrap family/member
+objects, including optional and cross-type members, are pinned.
+See [operator-family design](docs/design/PG18-INDEX-OPERATOR-FAMILY.md).
+Feature smoke: `make check RUN='^TestReferenceOperatorFamilySmoke$'`;
+use the identical RUN with `REFERENCE=1` for pinned PostgreSQL18.6.
+
 Ordinary B-tree partial indexes accept same-table immutable Boolean `WHERE` predicates. Only
 TRUE rows enter the root; FALSE and NULL rows skip even derived-key evaluation.
 Common write publication maintains qualifying/excluded transitions atomically.

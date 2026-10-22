@@ -68,6 +68,10 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
+	case *catalog.OperatorFamily:
+		next := *old
+		next.Owner, next.ObjectRevision = target, revision
+		return stage.Replace(&next)
 	case *catalog.Operator:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision

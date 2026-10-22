@@ -9,13 +9,14 @@ import (
 // IndexClass is an immutable released method-specific class identity. Its input
 // and family belong here, not to namespace lookup or expression coercion.
 type IndexClass struct {
-	Name   string
-	Family string
-	input  ID
-	oid    uint32
-	enum   bool
-	hash   bool
-	gist   bool
+	Name    string
+	Family  string
+	input   ID
+	oid     uint32
+	enum    bool
+	hash    bool
+	gist    bool
+	support [2]IndexSupport
 }
 
 // OID is the released identity. Unowned B-tree diagnostic classes do not
@@ -24,6 +25,13 @@ func (c IndexClass) OID() uint32 { return c.oid }
 
 func (c IndexClass) IsHash() bool { return c.hash }
 func (c IndexClass) IsGiST() bool { return c.gist }
+
+// SameIdentity compares the declared class, independently of the catalog
+// members captured for execution. Runtime support is not a class annotation.
+func (c IndexClass) SameIdentity(other IndexClass) bool {
+	c.support, other.support = [2]IndexSupport{}, [2]IndexSupport{}
+	return c == other
+}
 
 // OIDKeyValue supplies the physical oid_ops datum for diagnostic output only.
 // Like comparison and HASH normalization, it reinterprets binary-compatible
@@ -300,9 +308,33 @@ func SystemAttributeType(name string) (ID, string) {
 	return 0, ""
 }
 
+// IndexSupport is an immutable catalog-selected member, never a type resolver.
+// Routine is checked against the native provider's released formal signature.
+type IndexSupport struct {
+	Family, Member, Routine, Left, Right uint32
+	Revision                             uint64
+	FamilyRevision, RoutineRevision      uint64
+}
+
+func (c IndexClass) WithSupport(slot int, support IndexSupport) IndexClass {
+	if slot >= 1 && slot <= len(c.support) {
+		c.support[slot-1] = support
+	}
+	return c
+}
+
+func (c IndexClass) Support(slot int) IndexSupport {
+	if slot < 1 || slot > len(c.support) {
+		return IndexSupport{}
+	}
+	return c.support[slot-1]
+}
+
 type IndexComparison struct {
 	comparison Comparison
 	input      ID
+	routine    uint32
+	support    IndexSupport
 }
 
 func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
@@ -315,16 +347,70 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 	if c.input == NameArray {
 		return IndexComparison{}, failure("0A000", "index operator class is unsupported")
 	}
-	p, err := BindOrdering(u)
-	return IndexComparison{comparison: p, input: c.input}, err
+	s := c.Support(1)
+	n, ok := NativeIndexRoutineByOID(s.Routine)
+	if !ok || n.Kind != IndexCompareRoutine || n.Left != s.Left || n.Right != s.Right || s.Member == 0 {
+		return IndexComparison{}, fmt.Errorf("index comparison has no registered native support")
+	}
+	if !u.validCollation() {
+		return IndexComparison{}, fmt.Errorf("invalid ordering collation")
+	}
+	// The selected operation owns admission. Comparison supplies only typed
+	// datum primitives and retained collation, not another class lookup.
+	p := Comparison{left: u.Type, right: u.Type, inputCollation: u.Collation, orderingBound: true, defaultBtreeOpclass: c.OID()}
+	if n.Pattern {
+		p.inputCollation = CollationRef{ID: 950, Derivation: Default}
+	}
+	return IndexComparison{comparison: p, input: ID(n.Left), routine: n.OID, support: s}, nil
 }
 
-func (p IndexComparison) Compare(ctx context.Context, a, b Value, input InputEnvironment) (int, error) {
+func (p IndexComparison) Support() IndexSupport { return p.support }
+
+// SameOperation ignores ACL/name-only descriptor revisions. Captures still
+// retain those revisions, but metadata publication is not an ordering change.
+func (p IndexComparison) SameOperation(other IndexComparison) bool {
+	p.support.Revision, p.support.FamilyRevision, p.support.RoutineRevision = 0, 0, 0
+	other.support.Revision, other.support.FamilyRevision, other.support.RoutineRevision = 0, 0, 0
+	p.comparison.defaultBtreeOpclass, other.comparison.defaultBtreeOpclass = 0, 0
+	return p == other
+}
+
+func bindIndexPair(left, right Usage, support IndexSupport) (IndexComparison, error) {
+	n, ok := NativeIndexRoutineByOID(support.Routine)
+	if !ok || n.Kind != IndexCompareRoutine || n.Left != support.Left || n.Right != support.Right || support.Member == 0 {
+		return IndexComparison{}, fmt.Errorf("foreign-key pair has no registered native comparison")
+	}
+	p := Comparison{left: left.Type, right: right.Type, inputCollation: left.Collation, orderingBound: true}
+	return IndexComparison{comparison: p, input: ID(n.Left), routine: n.OID, support: support}, nil
+}
+
+func (p *IndexComparison) Compare(ctx context.Context, a, b Value, input InputEnvironment) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
 	if a.typ != p.comparison.left || b.typ != p.comparison.right || a.null || b.null || !a.typ.Concrete() {
 		return 0, fmt.Errorf("invalid index comparison values")
+	}
+	if p.routine == 351 {
+		return nativeInt4Compare(a.integer, b.integer), nil
+	}
+	if p.routine == 836 {
+		// MACADDR stores the unsigned six octets in network order, in 48 bits.
+		av, bv := uint64(a.integer), uint64(b.integer)
+		if av < bv {
+			return -1, nil
+		}
+		if av > bv {
+			return 1, nil
+		}
+		return 0, nil
+	}
+	if p.routine == 181 {
+		n := a.integer - b.integer
+		if n < -2147483648 || n > 2147483647 {
+			return 0, failure("22003", "integer out of range")
+		}
+		return int(n), nil
 	}
 	if p.input == Oid && a.typ.BaseType().id == Int4 {
 		av, bv := uint32(a.integer), uint32(b.integer)

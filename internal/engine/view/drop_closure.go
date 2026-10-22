@@ -132,6 +132,13 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				continue
 			}
 			switch d := descriptor.(type) {
+			case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+				for _, dependency := range catalog.OperatorFamilyDependencies(base, d) {
+					if dependency.Address == target {
+						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: dependency.Kind == 'a', Label: stored.DependencyObject(base, a, path)})
+						break
+					}
+				}
 			case *catalog.Operator:
 				if routine.OperatorDependsOn(base, d, target) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})

@@ -119,7 +119,7 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 					}
 				}
 			}
-			binding, err := BindHashIndex(lineage.TargetParent, lineage.Target.SQLIndex)
+			binding, err := BindHashIndex(evaluation.Catalog, lineage.TargetParent, lineage.Target.SQLIndex)
 			if err != nil {
 				return nil, false, err
 			}
@@ -228,13 +228,13 @@ func TransportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 		}
 		var root *storage.IndexRoot
 		if index.SQLIndex.Method == catalog.HashMethod {
-			binding, err := BindHashIndex(parent, index.SQLIndex)
+			binding, err := BindHashIndex(catalog.NewRead(nil, snapshot), parent, index.SQLIndex)
 			if err != nil {
 				return err
 			}
 			root = &storage.IndexRoot{Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
 		} else {
-			if err := bindIndexProvider(parent, index.SQLIndex); err != nil {
+			if err := bindIndexProvider(catalog.NewRead(nil, snapshot), parent, index.SQLIndex); err != nil {
 				return err
 			}
 			root = NewLogicalIndexRoot(index.SQLIndex, nil)

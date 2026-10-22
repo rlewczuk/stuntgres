@@ -16,6 +16,11 @@ import (
 func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.ObjectAddress) string {
 	base := target
 	base.SubID = 0
+	if d, ok := read.Find(base); ok {
+		if description, family := regobj.OperatorFamilyDescription(read, d, path); family {
+			return description
+		}
+	}
 	if parent := ConstraintParent(read, base); parent != nil {
 		return "constraint " + catalog.DependencyIdentifier(ConstraintName(parent, base)) + " on table " + DependencyRelationName(read, parent, path)
 	}

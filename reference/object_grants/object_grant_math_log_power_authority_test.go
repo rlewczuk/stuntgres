@@ -286,27 +286,27 @@ func TestReferenceObjectGrantMathLogPowerAuthority(t *testing.T) {
 	t.Run("internal_helpers_not_sql_edges", func(t *testing.T) {
 		objectGrantScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 			targets := []string{"pg_catalog.dpow(double precision,double precision)", "pg_catalog.numeric_power(numeric,numeric)", "pg_catalog.btint4cmp(integer,integer)", "pg_catalog.bttextcmp(text,text)"}
-			cleanupTargets := targets
-			if !b.PG {
-				cleanupTargets = targets[:2]
-			}
-			defer objectGrantRoutineCleanup(t, p, c, cleanupTargets)
+			defer objectGrantRoutineCleanup(t, p, c, targets)
 			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO og_object_reader", 0))
 			run(fixture.Exec("CREATE TABLE og_math_internal(x INT,t TEXT)", 0))
 			run(fixture.Exec("INSERT INTO og_math_internal VALUES(2,'m')", 1))
-			run(fixture.Exec("GRANT SELECT ON og_math_internal TO og_object_reader", 0))
-			for i, target := range targets {
-				q := "REVOKE EXECUTE ON FUNCTION " + target + " FROM PUBLIC"
-				if !b.PG && i >= 2 {
-					fixture.RoleGrantError(run, q, "0A000", "routine privileges are unsupported for unimplemented routines in embedded mode")
-				} else {
-					run(fixture.Exec(q, 0))
-				}
+			run(fixture.Exec("GRANT SELECT,INSERT ON og_math_internal TO og_object_reader", 0))
+			for _, target := range targets {
+				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+target+" FROM PUBLIC", 0))
 			}
+			// Physical index support captures the registered routine without
+			// borrowing the invoker's scalar EXECUTE privilege.
+			run(fixture.Exec("CREATE INDEX og_math_internal_i ON og_math_internal(x)", 0))
 			fixture.RoleGrantActor(run, "og_object_reader", func() {
 				run(fixture.Select("SELECT power(x::DOUBLE PRECISION,3::DOUBLE PRECISION) AS f,power(x::NUMERIC,3::NUMERIC) AS n,width_bucket(x,ARRAY[0,2,4]) AS i,width_bucket(t,ARRAY['a','m','z']) AS t FROM og_math_internal", []string{"f", "n", "i", "t"}, []string{"FLOAT8", "NUMERIC", "INT4", "INT4"}, [][]any{{float64(8), "8.0000000000000000", int64(2), int64(2)}}))
 				fixture.RoleGrantPermissionDenied(run, "SELECT x::DOUBLE PRECISION ^ 3::DOUBLE PRECISION FROM og_math_internal", "function", "dpow", prepared)
 				fixture.RoleGrantPermissionDenied(run, "SELECT x::NUMERIC ^ 3::NUMERIC FROM og_math_internal", "function", "numeric_power", prepared)
+				fixture.RoleGrantPermissionDenied(run, "SELECT pg_catalog.btint4cmp(x,3) FROM og_math_internal", "function", "btint4cmp", prepared)
+				run(fixture.Exec("INSERT INTO og_math_internal VALUES(3,'z')", 1))
+			})
+			run(fixture.Exec("GRANT EXECUTE ON FUNCTION pg_catalog.btint4cmp(integer,integer) TO og_object_reader", 0))
+			fixture.RoleGrantActor(run, "og_object_reader", func() {
+				run(fixture.Select("SELECT pg_catalog.btint4cmp(x,3) AS v FROM og_math_internal ORDER BY x", []string{"v"}, []string{"INT4"}, [][]any{{int64(-1)}, {int64(0)}}))
 			})
 		})
 	})

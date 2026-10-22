@@ -54,7 +54,7 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 			if !ok {
 				t.Fatal("missing admitted class", tc.typ)
 			}
-			bound, err := sqltype.BindExclusionOperator(typ.Usage(), class, "=")
+			bound, err := operatorFamilyTestExclusion(typ.Usage(), class, "=")
 			if err != nil {
 				t.Fatal("existing exclusion admission", err)
 			}

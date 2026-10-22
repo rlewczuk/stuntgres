@@ -70,7 +70,7 @@ func TestPartitionHashTypes(t *testing.T) {
 		if !ok {
 			t.Fatal("missing class", c)
 		}
-		provider, err := BindPartitionHash(typ.Usage(), class)
+		provider, err := bindTestPartitionHash(typ.Usage(), class)
 		if err != nil {
 			t.Fatal(c, err)
 		}
@@ -82,7 +82,7 @@ func TestPartitionHashTypes(t *testing.T) {
 	// Class normalization must preserve identity while applying class semantics.
 	text := types[Text]
 	class, _ := LookupHashIndexClass("bpchar_ops")
-	p, err := BindPartitionHash(text.Usage(), class)
+	p, err := bindTestPartitionHash(text.Usage(), class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestPartitionHashTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	c, _ := DefaultHashIndexClass(enum)
-	provider, err := BindPartitionHash(enum.Usage(), c)
+	provider, err := bindTestPartitionHash(enum.Usage(), c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestPartitionHashCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		class, _ := DefaultHashIndexClass(typ)
-		provider, err := BindPartitionHash(typ.Usage(), class)
+		provider, err := bindTestPartitionHash(typ.Usage(), class)
 		if err != nil {
 			t.Fatal(err)
 		}

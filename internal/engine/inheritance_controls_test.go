@@ -241,7 +241,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if !ok {
 		t.Fatal("missing actual int4 btree class")
 	}
-	operator, err := sqltype.BindExclusionOperator(tempChild.Columns[0].Usage, class, "=")
+	operator, err := operatorFamilyTestExclusion(tempChild.Columns[0].Usage, class, "=")
 	if err != nil {
 		t.Fatal(err)
 	}

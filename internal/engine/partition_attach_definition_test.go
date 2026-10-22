@@ -112,7 +112,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	if !supported {
 		t.Fatal("missing default index class")
 	}
-	ordering, err := sqltype.BindIndexOrdering(usage, class)
+	ordering, err := operatorFamilyTestOrdering(usage, class)
 	if err != nil {
 		t.Fatal(err)
 	}

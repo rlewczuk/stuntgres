@@ -49,6 +49,12 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			return nil, err
 		}
 		switch d := descriptor.(type) {
+		case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+			if !catalog.OperatorFamilySeeded(d) {
+				for _, dependency := range catalog.OperatorFamilyDependencies(view, d) {
+					add(d.Address(), dependency.Address, dependency.Kind)
+				}
+			}
 		case *catalog.Operator:
 			if !runtime.OperatorSeeded(d) {
 				for _, address := range runtime.OperatorDependencies(view, d) {

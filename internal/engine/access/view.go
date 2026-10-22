@@ -115,6 +115,8 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Conversion:
 		return d.Owner, authorization.ACLValue{}, nil
+	case *catalog.OperatorFamily:
+		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Operator:
 		return d.Owner, authorization.ACLValue{}, nil
 	}
@@ -309,6 +311,8 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = "collation"
 		} else if d.Kind() == ids.ConversionObject {
 			kind = "conversion"
+		} else if d.Kind() == ids.OperatorFamilyObject {
+			kind = "operator family"
 		} else if d.Kind() == ids.OperatorObject {
 			kind = "operator"
 		} else if d.Kind() == ids.ProcedureObject {
@@ -469,7 +473,8 @@ func (v View) CheckColumns(env Environment, ref ids.ObjectRef, relation *catalog
 
 // ValidateACL checks that every principal and ACL of d belongs to r.
 func ValidateACL(r authorization.Read, d catalog.Descriptor) error {
-	// Immutable builtin identities have no principal or role-owned ACL.
+	// Ownerless descriptors have no principal or role-owned ACL. Their
+	// catalog providers validate structural authority and referenced objects.
 	switch t := d.(type) {
 	case *catalog.ForeignObject:
 		if t.Address().ClassID == ids.ForeignMappingClassID {
@@ -478,7 +483,7 @@ func ValidateACL(r authorization.Read, d catalog.Descriptor) error {
 			}
 			return r.ValidatePrincipal(t.MappedRole)
 		}
-	case *catalog.TSTemplate:
+	case *catalog.TSTemplate, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		return nil
 	}
 	owner, acl, cols := DescriptorACL(d)

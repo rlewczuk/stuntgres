@@ -22,12 +22,27 @@ func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
 				run(fixture.Exec(`INSERT INTO jpn_active VALUES(1,'[0]','$'),(2,'[0]','$'),(3,'[0]','$'),(4,'[0]','$'),(5,'[0]','$')`, 5))
 				run(fixture.Exec(`INSERT INTO jpn_cancel_out VALUES(0,'99')`, 1))
 				// Keep the encoded payload below 32MiB with 8192 bounded strings.
-				// Provider traversal/output checks cancellation between 4KiB chunks;
-				// a single giant runtime string copy is not an admission barrier.
+				// Admission depends on completed JSONPath output, not a transient
+				// private frame or an inflated input.
 				element := `"` + strings.Repeat("x", 4092) + `"`
 				large := `[` + strings.Repeat(element+",", 8191) + element + `]`
-				readSQL := `SELECT sum(length(jsonb_path_query_array(v,p)::text)) AS n FROM jpn_active`
-				writeSQL := `INSERT INTO jpn_cancel_out SELECT id,jsonb_path_query_array(v,p) FROM jpn_active ORDER BY id`
+				controlOutput := `["x"]`
+				if path == `strict $.**` {
+					controlOutput = `[["x"], "x"]`
+				} else if path == `$` {
+					controlOutput = `[["x"]]`
+				}
+				// Complete the selected path on a controlled row before admitting
+				// the remaining operands; large regex completion is not a timer gate.
+				gateSQL := `WITH produced AS MATERIALIZED (
+					SELECT jsonb_path_query_array(v,p) AS v FROM jpn_active WHERE id=1
+				), progressed AS MATERIALIZED (
+					SELECT v,pg_advisory_xact_lock(2::bigint) AS progress FROM produced
+				), gate AS MATERIALIZED (
+					SELECT pg_advisory_xact_lock(CASE WHEN v::text='` + controlOutput + `' THEN 67108864::bigint ELSE 2::bigint END) AS ready FROM progressed
+				) `
+				readSQL := gateSQL + `SELECT sum(length(jsonb_path_query_array(v,p)::text)) AS n FROM jpn_active WHERE (SELECT count(*) FROM gate)=1`
+				writeSQL := gateSQL + `INSERT INTO jpn_cancel_out SELECT id,jsonb_path_query_array(v,p) FROM jpn_active WHERE (SELECT count(*) FROM gate)=1 ORDER BY id`
 				read, err := c.PrepareContext(p.Ctx, readSQL)
 				if err != nil {
 					t.Fatal(err)
@@ -61,34 +76,35 @@ func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
 						fixture.LexicalOrdinary(t, err, context.Canceled)
 					}
 				}
-				provider := "sqltype.JSONBPathQueryArrayPlan.Evaluate"
 				defer func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 					defer cancel()
 					for _, query := range []string{
 						"DELETE FROM jpn_cancel_out WHERE id>0",
-						`UPDATE jpn_active SET v='[0]',p='$' WHERE id>1`,
+						`UPDATE jpn_active SET v='[0]',p='$' WHERE id>=1`,
 					} {
 						if _, err := c.ExecContext(ctx, query); err != nil {
 							t.Error("restore active cancellation child:", query, err)
 						}
 					}
 				}()
-				// Import typed data first: admission must observe evaluator work, not input.
+				// Import typed data first; the public gate consumes its real output.
 				run(fixture.Prepared(fixture.Exec(`UPDATE jpn_active SET v=$1,p=$2 WHERE id>1`, 4, large, path)))
-				fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, provider, func(ctx context.Context) fixture.RelationOutcome {
+				run(fixture.Prepared(fixture.Exec(`UPDATE jpn_active SET v='["x"]',p=$1 WHERE id=1`, 1, path)))
+				outputGateCancel(t, p, b, c, false, func(ctx context.Context) fixture.RelationOutcome {
 					rows, err := read.QueryContext(ctx)
 					return fixture.RelationOutcome{Rows: rows, Err: err}
 				})
-				run(fixture.Exec(`UPDATE jpn_active SET v='[0]',p='$' WHERE id>1`, 4))
+				run(fixture.Exec(`UPDATE jpn_active SET v='[0]',p='$' WHERE id>=1`, 5))
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(25)}}))
 				run(fixture.Prepared(fixture.Exec(`UPDATE jpn_active SET v=$1,p=$2 WHERE id>1`, 4, large, path)))
-				fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, provider, func(ctx context.Context) fixture.RelationOutcome {
+				run(fixture.Prepared(fixture.Exec(`UPDATE jpn_active SET v='["x"]',p=$1 WHERE id=1`, 1, path)))
+				outputGateCancel(t, p, b, c, true, func(ctx context.Context) fixture.RelationOutcome {
 					result, err := write.ExecContext(ctx)
 					return fixture.RelationOutcome{Result: result, Err: err}
 				})
 				run(fixture.Select(`SELECT id,v FROM jpn_cancel_out`, []string{"id", "v"}, []string{"INT4", "JSONB"}, [][]any{{int64(0), `99`}}))
-				run(fixture.Exec(`UPDATE jpn_active SET v='[0]',p='$' WHERE id>1`, 4))
+				run(fixture.Exec(`UPDATE jpn_active SET v='[0]',p='$' WHERE id>=1`, 5))
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: write, SQL: writeSQL}, b.Recorder, fixture.Exec(writeSQL, 5))
 				run(fixture.Select(`SELECT id,v FROM jpn_cancel_out ORDER BY id`, []string{"id", "v"}, []string{"INT4", "JSONB"}, [][]any{{int64(0), `99`}, {int64(1), `[[0]]`}, {int64(2), `[[0]]`}, {int64(3), `[[0]]`}, {int64(4), `[[0]]`}, {int64(5), `[[0]]`}}))
 				run(fixture.Exec(`DELETE FROM jpn_cancel_out WHERE id>0`, 5))

@@ -70,7 +70,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if p == nil {
 		return nil
 	}
-	if err := partition.CheckCoverage(p.stage, p.Child); err != nil {
+	if err := partition.CheckCoverage(p.stage.StageRead(), p.stage, p.Child); err != nil {
 		return err
 	}
 	if p.Parent == nil {

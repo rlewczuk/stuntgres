@@ -16,8 +16,8 @@ type IndexForeignKeyComparison struct {
 	parentCast, childCast         CoercionPlan
 	parentConvert, childConvert   bool
 	cross                         bool
-	comparison                    Comparison
-	childComparison               Comparison
+	comparison                    IndexComparison
+	childComparison               IndexComparison
 	index                         IndexComparison
 }
 
@@ -43,7 +43,9 @@ func (p IndexForeignKeyComparison) EqualityInputs() ([3][2]ID, error) {
 	return [3][2]ID{{parent, child}, {parent, parent}, {child, child}}, nil
 }
 
-func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) (*Descriptor, bool)) (IndexForeignKeyComparison, error) {
+type IndexForeignKeySupport struct{ Cross, Child IndexSupport }
+
+func BindIndexForeignKey(parent, child Usage, class IndexClass, support IndexForeignKeySupport, lookup func(ID) (*Descriptor, bool)) (IndexForeignKeyComparison, error) {
 	if _, err := BindIndexOrdering(parent, class); err != nil {
 		return IndexForeignKeyComparison{}, err
 	}
@@ -61,7 +63,7 @@ func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) 
 			return plan, fmt.Errorf("missing foreign-key class input descriptor")
 		}
 		plan.operatorParent, plan.operatorChild = input, input
-		if indexFamilyEquality(class.Family, class.input, child.Type.id) {
+		if support.Cross.Member != 0 {
 			plan.operatorChild = child.Type
 		}
 	}
@@ -82,7 +84,7 @@ func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) 
 	parentInput, childInput := input.Usage(), input.Usage()
 	// Foreign-key probes use the supporting index's comparison authority.
 	parentInput.Collation = parent.Collation
-	if indexFamilyEquality(class.Family, class.input, child.Type.id) {
+	if support.Cross.Member != 0 {
 		// Preserve genuine mixed-width members: no narrowing int8 into int4.
 		childInput = child.Type.Usage()
 		plan.cross = true
@@ -98,9 +100,9 @@ func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) 
 	}
 	plan.parentConvert, plan.childConvert = parent.Type != parentInput.Type, child.Type != childInput.Type
 	if plan.cross {
-		plan.comparison, err = BindComparison(parentInput.Type, childInput.Type, parent.Collation, false)
+		plan.comparison, err = bindIndexPair(parentInput, childInput, support.Cross)
 		if err == nil {
-			plan.childComparison, err = BindComparison(childInput.Type, childInput.Type, parent.Collation, false)
+			plan.childComparison, err = bindIndexPair(childInput, childInput, support.Child)
 		}
 	} else {
 		plan.index, err = BindIndexOrdering(parentInput, class)
@@ -108,30 +110,8 @@ func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) 
 	return plan, err
 }
 
-// Released B-tree families with implemented cross-input members. Same-input
-// members use the index provider above. Both pfeq and ffeq must exist; these
-// families contain the corresponding same-child equality as well.
-func indexFamilyEquality(family string, parent, child ID) bool {
-	if parent == child {
-		return true
-	}
-	switch family {
-	case "integer_ops":
-		integer := func(id ID) bool { return id == Int2 || id == Int4 || id == Int8 }
-		return integer(parent) && integer(child)
-	case "float_ops":
-		return isFloat(parent) && isFloat(child)
-	case "datetime_ops":
-		return dateTimestampType(parent) && dateTimestampType(child)
-	case "text_ops":
-		text := func(id ID) bool { return id == Text || id == Name }
-		return text(parent) && text(child)
-	}
-	return false
-}
-
 // PrepareChild applies the admitted input coercion once for an ordered probe.
-func (p IndexForeignKeyComparison) PrepareChild(ctx context.Context, child Value, input InputEnvironment) (Value, error) {
+func (p *IndexForeignKeyComparison) PrepareChild(ctx context.Context, child Value, input InputEnvironment) (Value, error) {
 	child, err := child.BaseValue()
 	if err != nil {
 		return Value{}, err
@@ -146,7 +126,7 @@ func (p IndexForeignKeyComparison) PrepareChild(ctx context.Context, child Value
 }
 
 // Compare orders an index-side parent against an ordinary referencing value.
-func (p IndexForeignKeyComparison) Compare(ctx context.Context, parent, child Value, input InputEnvironment) (int, error) {
+func (p *IndexForeignKeyComparison) Compare(ctx context.Context, parent, child Value, input InputEnvironment) (int, error) {
 	child, err := p.PrepareChild(ctx, child, input)
 	if err != nil {
 		return 0, err
@@ -156,7 +136,7 @@ func (p IndexForeignKeyComparison) Compare(ctx context.Context, parent, child Va
 
 // ComparePrepared preserves provider/generation authority while avoiding a
 // repeated child cast for every entry visited by a lower-bound/equal-run probe.
-func (p IndexForeignKeyComparison) ComparePrepared(ctx context.Context, parent, child Value, input InputEnvironment) (int, error) {
+func (p *IndexForeignKeyComparison) ComparePrepared(ctx context.Context, parent, child Value, input InputEnvironment) (int, error) {
 	parent, err := parent.BaseValue()
 	if err != nil {
 		return 0, err
@@ -182,7 +162,7 @@ func (p IndexForeignKeyComparison) ComparePrepared(ctx context.Context, parent, 
 
 // EqualChildren uses the admitted family's same-child equality, including
 // cross-width members. It never narrows a child into the parent's storage type.
-func (p IndexForeignKeyComparison) EqualChildren(ctx context.Context, before, after Value, input InputEnvironment) (bool, error) {
+func (p *IndexForeignKeyComparison) EqualChildren(ctx context.Context, before, after Value, input InputEnvironment) (bool, error) {
 	if before.IsNull() || after.IsNull() {
 		return false, nil
 	}

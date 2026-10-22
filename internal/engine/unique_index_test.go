@@ -33,7 +33,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 			class, _ := sqltype.LookupIndexClass(c.class)
 			parent := &catalog.Relation{Attributes: []int32{1}, Columns: []catalog.Column{{Usage: typ.Usage()}}}
 			definition := &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}
-			if err := index.ValidateUniqueProviders(parent, definition, nil); err != nil {
+			if err := index.ValidateUniqueProviders(operatorFamilyTestRead(), parent, definition, nil); err != nil {
 				t.Fatal(err)
 			}
 			a, err := typ.Input(ctx, c.first, -1)
@@ -44,7 +44,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ordering, err := index.BindIndexOrdering(parent, definition)
+			ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, definition)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -71,7 +71,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		for _, name := range []string{"bpchar_ops", "bpchar_pattern_ops"} {
 			class, _ := sqltype.LookupIndexClass(name)
 			parent := &catalog.Relation{Attributes: []int32{1}, Columns: []catalog.Column{{Usage: typ.Usage()}}}
-			if err := index.ValidateUniqueProviders(parent, &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}, nil); err == nil {
+			if err := index.ValidateUniqueProviders(operatorFamilyTestRead(), parent, &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}, nil); err == nil {
 				t.Fatal("inconsistent hash provider accepted", id, name)
 			}
 		}

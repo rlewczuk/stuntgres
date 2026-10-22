@@ -156,7 +156,7 @@ func StageLikeIndexes(h Host, auth ddl.Authority, destination *catalog.Relation,
 				c := *original
 				c.Name, c.Index = name, address
 				c.Parent, c.IsLocal = 0, true
-				definition.Exclusion, err = index.RebindExclusionOperators(destination, &definition)
+				definition.Exclusion, err = index.RebindExclusionOperators(view.Catalog, destination, &definition)
 				if err != nil {
 					return err
 				}

@@ -64,7 +64,7 @@ func hashPartitionUnitEngine(t *testing.T) (*Engine, catalog.Read, *catalog.Rela
 		}
 	}
 	class, _ := sqltype.DefaultHashIndexClass(typ)
-	provider, err := sqltype.BindPartitionHash(typ.Usage(), class)
+	provider, err := operatorFamilyTestPartitionHash(typ.Usage(), class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	}}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	dirty := map[ids.ObjectAddress]bool{source.Address(): true, destination.Address(): true}
-	if err := snapshot.Repair(evaluation.Context, &evaluation, relations, nil, dirty, access.View{}, nil); err != nil {
+	if err := snapshot.Repair(evaluation.Context, &evaluation, relations, nil, dirty, access.View{Catalog: view}, nil); err != nil {
 		t.Fatal(err)
 	}
 	// The existing storage remint mutates candidate row identities in place.

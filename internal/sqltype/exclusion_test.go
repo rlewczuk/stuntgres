@@ -53,7 +53,7 @@ func TestExclusionOperatorFamily(t *testing.T) {
 					if !ok || !class.Accepts(typ) {
 						t.Fatal("missing actual class", class)
 					}
-					operator, err := BindExclusionOperator(typ.Usage(), class, "=")
+					operator, err := bindTestExclusionOperator(typ.Usage(), class, "=")
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -75,7 +75,7 @@ func TestExclusionOperatorFamily(t *testing.T) {
 						}
 					}
 					if hash && tc.equal {
-						provider, err := BindIndexHash(typ.Usage(), class)
+						provider, err := bindTestIndexHash(typ.Usage(), class)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -107,7 +107,7 @@ func TestExclusionOperatorFamily(t *testing.T) {
 			if !class.Accepts(types[tc.id]) {
 				t.Fatal("counterexample must pass broad class admission")
 			}
-			_, err := BindExclusionOperator(types[tc.id].Usage(), class, "=")
+			_, err := bindTestExclusionOperator(types[tc.id].Usage(), class, "=")
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42809" {
 				t.Fatal("original operator family identity lost", tc, err)
@@ -116,7 +116,7 @@ func TestExclusionOperatorFamily(t *testing.T) {
 	}
 	class, _ := LookupIndexClass("int4_ops")
 	for _, tc := range []struct{ operator, code string }{{"<", "42809"}, {"<>", "42809"}, {"!=", "42809"}, {"&&", "42883"}, {"^", "42883"}} {
-		_, err := BindExclusionOperator(types[Int4].Usage(), class, tc.operator)
+		_, err := bindTestExclusionOperator(types[Int4].Usage(), class, tc.operator)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal(tc, err)

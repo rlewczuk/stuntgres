@@ -115,6 +115,13 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   `OperatorIndexEdit` and `RebuildOperatorNames`; default ACL helpers
   (`OverlayDefaultACLs`, `PruneNamespaceDefaults`, `RemapDefaultSchemas`,
   `ValidateDefaultACLs`, ...).
+- **Operator families and members** (`operator_family*.go`). Ordinary immutable
+  family/amop/amproc descriptors use namespace+method family names and typed
+  member keys. `Read.OperatorFamily`, `Read.FamilyOperator` and `Read.FamilySupport`
+  read the same descriptor/name authority as Candidate publication. Exact compiled
+  PostgreSQL18.6 seeds share immutable member payloads and name keys between
+  engines. Insertion-time hard/loose dependencies and original initdb pinning are
+  separate facts; metadata-only routine result facts never grant execution.
 - **Derived procedure membership** (`procedure_index.go`). `ProcedureNameIndex`
   maps namespace/decoded name to descriptor addresses and carries a SQL-name
   count for the negative-call fast path. It is not callable or ACL authority.
@@ -130,12 +137,17 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   aggregate-spelled and function-cast-spelled calls never scan the full base
   descriptor inventory merely to discover routine candidates.
 - **Builtin routine identities** (`builtin_routine_identities.go`,
-  `regproc_lookup.go`). The released REL_18_0 `pg_proc` identities as
+  `regproc_lookup.go`). The released REL_18_0 `pg_proc` identities remain
   lookup-only `RoutineIdentity` facts: `BuiltinRoutineIdentities` returns a
   copy, `BuiltinRoutineIdentityByOID`, `BuiltinRoutineIdentitiesNamed` (a
-  copy) and `BuiltinRoutineIdentityBySignature` look them up. They are not
-  descriptors and never grant execution; the engine's regproc lookup and the
-  binder's unavailable-function diagnostic read them.
+  copy) and `BuiltinRoutineIdentityBySignature` look them up. Every one of the
+  3397 existing identities was reconciled by OID, namespace, name and input
+  signature against pinned PostgreSQL18.6. The same private rows and OID index
+  also own genuine result OIDs, exposed by `BuiltinRoutineResultByOID` for
+  family signature admission. Unsupported result types stay numeric metadata;
+  the 16 additional fixed oracle identities are not imported. These are not
+  descriptors, providers or additional SQL `pg_proc` rows and never grant
+  execution. There is no family-specific result allowlist.
 - **Diagnostic names** (`diagnostic_names.go`). `QuoteIdentifier` always
   quotes; `Identifier` quotes only when the supported grammar needs it
   (`parser.IdentifierNeedsQuotes`; deparse and dump spellings use it);
@@ -270,3 +282,7 @@ external900-second deadline; public dual-mode proof is documented in
 - Revision frontiers: `make check RUN='^Test(CatalogStoreRevisionFrontier|AlterDropColumnRevisionFrontier(Failures|Terminal)?|AlterSchema(WholeCandidate|OverflowAndSkip))$'`.
 - Retained policy/index authority: `make check RUN='^Test(DefaultPrivileges(CloneStage|RetainedMessage|SchemaLifecycle|CreationFence)|SQLRoutineStagedLookup|CatalogCopiesStayIndependent|UserOperatorIndex(CopyOnWrite|PublicationAndOverlay)|BuiltinProcedureNamesCopyOnEdit)$'`.
 - Tablespace validators: `make check RUN='^TestTablespace(NameValidation|CanonicalPaths)$'`.
+- Complete routine lookup/result authority and identity-copy preservation:
+  `make check RUN='^TestBuiltinRoutineResultInventory$'`. Its independent
+  `testdata/builtin_routine_results_pg18_6.tsv` records all existing identities
+  and their exact results from the pinned18.6 fixed-procedure extraction.

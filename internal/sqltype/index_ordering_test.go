@@ -24,14 +24,14 @@ func TestIndexClausesProviders(t *testing.T) {
 				t.Fatal(c, ok)
 			}
 			// Binding, not non-NULL data, establishes a provider on empty/all-NULL roots.
-			if _, err := BindIndexOrdering(types[tc.id].Usage(), c); err != nil {
+			if _, err := bindTestIndexOrdering(types[tc.id].Usage(), c); err != nil {
 				t.Fatal(err)
 			}
 			if tc.id == Text || tc.id == VarChar || tc.id == BPChar {
 				for _, id := range []uint32{100, 950, 951, 811, 6411} {
 					u := types[tc.id].Usage()
 					u.Collation = CollationRef{ID: id, Derivation: Default}
-					if _, err := BindIndexOrdering(u, c); err != nil {
+					if _, err := bindTestIndexOrdering(u, c); err != nil {
 						t.Fatal(id, err)
 					}
 				}
@@ -60,7 +60,7 @@ func TestIndexClausesProviders(t *testing.T) {
 		if c.Accepts(types[tc.id]) != tc.accept {
 			t.Fatal(tc)
 		}
-		_, err := BindIndexOrdering(types[tc.id].Usage(), c)
+		_, err := bindTestIndexOrdering(types[tc.id].Usage(), c)
 		if tc.accept {
 			if err != nil {
 				t.Fatal(tc, err)
@@ -73,7 +73,7 @@ func TestIndexClausesProviders(t *testing.T) {
 		}
 	}
 	c, _ := LookupIndexClass("array_ops")
-	_, err := BindIndexOrdering(types[NameArray].Usage(), c)
+	_, err := bindTestIndexOrdering(types[NameArray].Usage(), c)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "index operator class is unsupported" {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestIndexClausesProviderSemantics(t *testing.T) {
 				}
 				oldA, oldB := a, b
 				c, _ := LookupIndexClass(tc.class)
-				p, err := BindIndexOrdering(typ.Usage(), c)
+				p, err := bindTestIndexOrdering(typ.Usage(), c)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -80,7 +80,7 @@ func TestRegtypeInlineUnsignedCodec(t *testing.T) {
 		t.Fatal(err)
 	}
 	class, _ := LookupHashIndexClass("oid_ops")
-	hash, err := BindIndexHash(d.Usage(), class)
+	hash, err := bindTestIndexHash(d.Usage(), class)
 	if err != nil {
 		t.Fatal(err)
 	}

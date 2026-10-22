@@ -41,6 +41,21 @@ or the engine. Step 14 of the split moves it here; see
   `ReleasedOperatorEstimatorResult`, the descriptor validator
   `OperatorProvider`, `OperatorSeeded` and the seed constructor
   `BuiltinOperatorDescriptors`.
+- **Registered index support** (`index_support.go`,
+  `index_support_binding.go`): the one catalog-aware class/member selector,
+  `BindClassSupport`, `BindIndexOrdering`, `BindPartitionHash`,
+  `BindIndexForeignKey` and `BindExclusionOperator`. A coherent catalog.Read
+  supplies actual family/member/routine identities and signatures; finite
+  `sqltype.NativeIndexRoutine*` associations select immutable native operations.
+  Functions remains catalog-free. Btree comparison1, hash1 and partition
+  extended hash2 retain genuine registrations for every existing class and
+  cross-type RI comparison. Optional physical callbacks are metadata-only.
+  Scalar wrappers351/450/425 share genuine integer primitives with root/routing
+  execution; known argument types must implicitly match their signatures before
+  conversion, while unknown literals and parameters retain ordinary conversion
+  diagnostics and inference. There is no routine-name/key-type fallback or
+  per-datum catalog lookup. Declaration volatility remains authoritative:
+  cross-timezone comparisons2357/2383/2526/2533 are STABLE, not IMMUTABLE.
 - **Operator options** (`operator_options.go`): CREATE/ALTER OPERATOR option
   syntax, extraction and validation (`ValidOperatorName` and private
   helpers). Messages and SQLSTATEs match PostgreSQL 18.
@@ -143,6 +158,13 @@ Package seams and option validation:
 
 ```sh
 make check RUN='^Test(BuiltinRoutineLookup|OperatorRoutineLookup|SeededOperatorNamesIsOneIndex|UserOperatorCatalogEstimatorVariants|UserOperatorCatalogEstimatorMetadata|UserOperatorOptionExtraction)$'
+```
+
+Independent PostgreSQL 18.6 support declaration metadata (including volatility,
+signatures, results and strictness for every installed native support provider):
+
+```sh
+make check RUN='^TestOperatorFamilySupportDeclarations$'
 ```
 
 Dump seams and graph events:

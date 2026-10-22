@@ -28,7 +28,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				}
 				f.e.storage.SetFrontierLocked(uint64(size), uint64(size))
 				f.e.visibility.SetCommitSeqLocked(1)
-				root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index.SQLIndex, f.store, nil)
+				root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index.SQLIndex, f.store, nil)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -66,7 +66,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				scope.owner.Isolation, scope.owner.Frontier = isolation, 1
 				ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
 				action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
-				evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+				evaluation := exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 				if err := action.SelectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 					b.Fatal(err)
 				}

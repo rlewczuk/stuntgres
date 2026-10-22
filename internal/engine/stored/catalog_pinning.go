@@ -19,20 +19,15 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 	}
 	switch d := d.(type) {
 	case *catalog.Type:
-		if d.OwningRelation != (ids.ObjectAddress{}) {
-			descriptor, ok := catalog.DescriptorAt(view, reader, d.OwningRelation)
-			relation, relationOK := descriptor.(*catalog.Relation)
-			return !ok || !relationOK || relation.RelationKind == catalog.CatalogRelation
-		}
-		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
-		// arrays retain their owned element's dependency even without storage.
-		return !d.SQLType.IsUserDefined() && !(d.SQLType.IsArray() && (d.SQLType.Element().IsDomain() || d.SQLType.Element().IsUserDefined()))
+		return catalog.TypePinned(view, reader, d)
 	case *catalog.Collation:
 		return d.Seeded()
 	case *catalog.Conversion:
 		return d.Seeded()
 	case *catalog.Procedure:
 		return d.Seeded()
+	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+		return catalog.OperatorFamilySeeded(d)
 	case *catalog.Operator:
 		return routine.OperatorSeeded(d)
 	case *catalog.Relation:

@@ -95,7 +95,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				}
 				// Key extraction still sees all expression/simple components independently
 				// of the native row-key bitmap classification.
-				ordering, err := index.BindIndexOrdering(parent, idx.SQLIndex)
+				ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, idx.SQLIndex)
 				if err != nil {
 					t.Fatal(err)
 				}

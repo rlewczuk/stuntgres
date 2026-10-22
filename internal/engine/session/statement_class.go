@@ -143,6 +143,12 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "ALTER OPERATOR"
 	case *parser.DropOperator:
 		return "DROP OPERATOR"
+	case *parser.CreateOperatorFamily:
+		return "CREATE OPERATOR FAMILY"
+	case *parser.AlterOperatorFamily:
+		return "ALTER OPERATOR FAMILY"
+	case *parser.DropOperatorFamily:
+		return "DROP OPERATOR FAMILY"
 	case *parser.AlterTableAllInTablespace, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.AlterTable:
 		return "ALTER TABLE"
 	case *parser.CreateExtension:
@@ -211,6 +217,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
 	case *parser.CreateFunction, *parser.DropRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
+		return true
+	case *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily:
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true

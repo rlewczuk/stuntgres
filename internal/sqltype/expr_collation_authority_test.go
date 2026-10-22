@@ -129,7 +129,7 @@ func TestExprCollationKeyAuthority(t *testing.T) {
 			if !ok {
 				t.Fatal("missing Btree family")
 			}
-			btree, err := BindIndexOrdering(usage, class)
+			btree, err := bindTestIndexOrdering(usage, class)
 			if err != nil || btree.comparison.inputCollation != ref {
 				t.Fatal(btree, err)
 			}
@@ -137,7 +137,7 @@ func TestExprCollationKeyAuthority(t *testing.T) {
 			if !ok {
 				t.Fatal("missing hash family")
 			}
-			hash, err := BindIndexHash(usage, hashClass)
+			hash, err := bindTestIndexHash(usage, hashClass)
 			if err != nil || hash.grouping.usage.Collation != ref {
 				t.Fatal(hash, err)
 			}
@@ -182,10 +182,10 @@ func TestExprCollationKeyAuthority(t *testing.T) {
 			if _, err := BindGrouping(bad); err == nil {
 				t.Fatal("invalid allNULL grouping admitted")
 			}
-			if _, err := BindIndexOrdering(bad, class); err == nil {
+			if _, err := bindTestIndexOrdering(bad, class); err == nil {
 				t.Fatal("invalid Btree admitted")
 			}
-			if _, err := BindIndexHash(bad, hashClass); err == nil {
+			if _, err := bindTestIndexHash(bad, hashClass); err == nil {
 				t.Fatal("invalid hash index admitted")
 			}
 			canceled, cancel := context.WithCancel(ctx)

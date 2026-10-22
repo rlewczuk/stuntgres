@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -80,6 +81,7 @@ func RemintStorage(ctx context.Context, next *catalog.State, base RemintBase, re
 	if err != nil {
 		return nil, 0, 0, err
 	}
+	validationView := access.View{Catalog: catalog.NewRead(nil, next)}
 	for address, descriptor := range next.Descriptors() {
 		idx, ok := descriptor.(*catalog.Relation)
 		if !ok || idx.SQLIndex == nil || !idx.SQLIndex.Ready || !idx.SQLIndex.Live {
@@ -112,7 +114,7 @@ func RemintStorage(ctx context.Context, next *catalog.State, base RemintBase, re
 			}
 			schema = namespace.Name()
 		}
-		if err := ValidateUniqueRoot(ctx, parent, idx, root, schema, sqltype.OutputEnvironment{}, nil, nil, true); err != nil {
+		if err := ValidateUniqueRoot(ctx, parent, idx, root, schema, sqltype.OutputEnvironment{}, &validationView, nil, true); err != nil {
 			return nil, 0, 0, err
 		}
 	}

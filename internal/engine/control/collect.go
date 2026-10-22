@@ -100,6 +100,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"parameter", isDumpParameter, collectParameterDump},
 	{"tablespace", isDumpTablespace, collectTablespaceDump},
 	{"large object", isDumpLargeObject, collectLargeObjectDump},
+	{"operator family", isDumpOperatorFamily, collectOperatorFamilyDump},
 	{"operator", isDumpOperator, collectOperatorDump},
 	{"procedure", isDumpProcedure, collectProcedureDump},
 	{"text search", isDumpTextSearch, collectTextSearchDump},

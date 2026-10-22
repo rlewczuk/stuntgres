@@ -143,7 +143,7 @@ func TestTIDAuthorityAndOrdering(t *testing.T) {
 			t.Fatal(c)
 		}
 		if method {
-			provider, err := BindIndexHash(d.Usage(), c)
+			provider, err := bindTestIndexHash(d.Usage(), c)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -151,7 +151,7 @@ func TestTIDAuthorityAndOrdering(t *testing.T) {
 				t.Fatal(equal, err)
 			}
 		} else {
-			if _, err := BindIndexOrdering(d.Usage(), c); err != nil {
+			if _, err := bindTestIndexOrdering(d.Usage(), c); err != nil {
 				t.Fatal(err)
 			}
 		}

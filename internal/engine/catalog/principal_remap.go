@@ -48,8 +48,9 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 	}
 	for addr, d := range state.Descriptors() {
 		switch d := d.(type) {
-		case *Database, *TSTemplate:
-			// Attachment authority is local; text search templates have no owner.
+		case *Database, *TSTemplate, *OperatorFamilyOperator, *OperatorFamilySupport:
+			// Attachment authority is local. Templates and family members have
+			// no principals; member object references use the address remapper.
 		case *Extension:
 			n := *d
 			var err error
@@ -164,6 +165,14 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, d.Seeded())
+			if err != nil {
+				return err
+			}
+			state.SetDescriptor(addr, &n)
+		case *OperatorFamily:
+			n := *d
+			var err error
+			n.Owner, err = seedOwner(d.Owner, OperatorFamilySeeded(d))
 			if err != nil {
 				return err
 			}

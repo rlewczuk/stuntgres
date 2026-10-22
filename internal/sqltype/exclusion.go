@@ -17,6 +17,8 @@ type ExclusionOperator struct {
 	comparison     Comparison
 	usage          Usage
 	rangePlan      RangeOperatorPlan
+	index          IndexComparison
+	member         uint32
 }
 
 // OperatorInputs identifies the released signature without retagging values.
@@ -29,14 +31,19 @@ func (p ExclusionOperator) OperatorInputs() ([2]ID, error) {
 
 func (p ExclusionOperator) IsEquality() bool { return p.Name == "=" }
 
-func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOperator, error) {
+func BindExclusionOperator(u Usage, class IndexClass, name string, member uint32) (ExclusionOperator, error) {
 	if u.Type == nil || !u.Type.Concrete() {
 		return ExclusionOperator{}, fmt.Errorf("invalid exclusion operator input")
 	}
 	t := u.Type.BaseType()
 	id := t.ID()
 	if class.IsGiST() {
-		return bindGiSTExclusion(u, class, name)
+		p, err := bindGiSTExclusion(u, class, name)
+		if err == nil && member == 0 {
+			return ExclusionOperator{}, failure("42809", fmt.Sprintf(`operator %s(%s,%s) is not a member of operator family "%s"`, name, t.DiagnosticName(), t.DiagnosticName(), class.Family))
+		}
+		p.member = member
+		return p, err
 	}
 	operatorType := t.DiagnosticName()
 	if id == VarChar {
@@ -93,19 +100,22 @@ func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOpe
 			return ExclusionOperator{}, missing(true)
 		}
 	}
-	comparison, err := BindOrdering(u)
+	var comparison IndexComparison
+	var err error
+	if class.IsHash() {
+		var hash IndexHash
+		hash, err = BindIndexHash(u, class)
+		comparison = hash.Comparison()
+	} else {
+		comparison, err = BindIndexOrdering(u, class)
+	}
 	if err != nil && comparisonOperator {
 		return ExclusionOperator{}, missing(false)
 	}
 	if name == "<" || name == ">" || name == "<=" || name == ">=" || name == "-" || name == "/" || name == "%" || name == "^" {
 		return ExclusionOperator{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "operator " + signature + " is not commutative", Detail: "Only commutative operators can be used in exclusion constraints."}
 	}
-	defaultClass, exists := DefaultIndexClass(t)
-	if class.IsHash() {
-		defaultClass, exists = DefaultHashIndexClass(t)
-	}
-	member := exists && (class.Family == defaultClass.Family || id == Text && class.Family == "text_pattern_ops" || id == BPChar && class.Family == "bpchar_pattern_ops")
-	if name != "=" || !member {
+	if name != "=" || member == 0 {
 		return ExclusionOperator{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`operator %s is not a member of operator family "%s"`, signature, class.Family), Detail: "The exclusion operator must be related to the index operator class for the constraint."}
 	}
 	if err != nil {
@@ -118,7 +128,7 @@ func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOpe
 	if input == 0 {
 		return ExclusionOperator{}, fmt.Errorf("missing exclusion class input")
 	}
-	return ExclusionOperator{Name: name, Left: id, Right: id, operatorInputs: [2]ID{input, input}, comparison: comparison, usage: u}, nil
+	return ExclusionOperator{Name: name, Left: id, Right: id, operatorInputs: [2]ID{input, input}, index: comparison, member: member, usage: u}, nil
 }
 
 // MatchesUsage prevents a captured comparison from crossing descriptor generations.
@@ -145,6 +155,10 @@ func (p ExclusionOperator) Matches(ctx context.Context, left, right Value) (bool
 		a, b := left.network, right.network
 		a.prefix, b.prefix = min(a.prefix, b.prefix), min(a.prefix, b.prefix)
 		return a.family == b.family && a.masked() == b.masked(), nil
+	}
+	if p.index.comparison.left != nil {
+		comparison, err := p.index.Compare(ctx, left, right, InputEnvironment{})
+		return comparison == 0, err
 	}
 	comparison, err := p.comparison.Compare(ctx, left, right, InputEnvironment{})
 	return comparison == 0, err

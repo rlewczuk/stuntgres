@@ -23,7 +23,7 @@ func listPartitionUnitDescriptor(t *testing.T) (*Engine, catalog.Read, *catalog.
 	if !ok {
 		t.Fatal("missing integer ordering class")
 	}
-	comparison, err := sqltype.BindIndexOrdering(usage, class)
+	comparison, err := operatorFamilyTestOrdering(usage, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestListPartitionComparison(t *testing.T) {
 				}
 				usage.Collation = capability
 			}
-			comparison, err := sqltype.BindIndexOrdering(usage, class)
+			comparison, err := operatorFamilyTestOrdering(usage, class)
 			if err != nil {
 				t.Fatal(err)
 			}

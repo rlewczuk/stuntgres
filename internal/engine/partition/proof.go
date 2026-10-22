@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -112,7 +113,7 @@ func ConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view 
 		}
 		keys[i] = node
 	}
-	proof := prover{ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
+	proof := prover{view: view, ctx: ctx, input: input, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
 	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*ProofGoal, bool) {
 		if complement {
 			return proofOr(ProofTuple(membership.Lower, 0, false), ProofTuple(membership.Upper, 0, true)), true
@@ -147,6 +148,7 @@ func ConstraintProven(ctx context.Context, input sqltype.InputEnvironment, view 
 }
 
 type prover struct {
+	view     catalog.Read
 	ctx      context.Context
 	input    sqltype.InputEnvironment
 	relation *catalog.Relation
@@ -303,8 +305,8 @@ func (p *prover) fact(node expr.Expr, goal *ProofGoal) (bool, error) {
 	if !supported {
 		return false, nil
 	}
-	ordering, err := sqltype.BindIndexOrdering(entry.Usage, class)
-	if err != nil || ordering != entry.Comparison {
+	ordering, err := routine.BindIndexOrdering(p.view, entry.Usage, class)
+	if err != nil || !ordering.SameOperation(entry.Comparison) {
 		return false, nil
 	}
 	collation, indeterminate := e.Predicate.InputCollation()

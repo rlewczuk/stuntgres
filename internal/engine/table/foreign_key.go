@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -116,7 +117,7 @@ func BindForeignKeyComparison(view catalog.Read, child, parent, idx *catalog.Rel
 			}
 			if node == nil && a == f.Referenced[i] {
 				pu = index.KeyCollation(pu, key)
-				bound.Comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.Class, view.LookupType)
+				bound.Comparison, err = routine.BindIndexForeignKey(view, pu, cu, key.Class)
 				matchedAt = at
 				break
 			}

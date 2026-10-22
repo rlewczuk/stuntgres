@@ -2,11 +2,11 @@ package index
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -67,31 +67,22 @@ func ExclusionDefinition(parent *catalog.Relation, index *catalog.Relation) *cat
 	return nil
 }
 
-func BindExclusionOrdering(parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
+func BindExclusionOrdering(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
 	if d.Method == catalog.GistMethod {
 		return bindLogicalExclusionKeys(parent, d)
 	}
 	if d.Method == catalog.BtreeMethod {
-		return BindIndexOrdering(parent, d)
+		return BindIndexOrdering(view, parent, d)
 	}
-	// The supported HASH equality has the same concrete scalar comparison as
-	// its default Btree class. This is a comparator binding, not an index or a
-	// UNIQUE owner, and HASH storage continues to use its actual provider.
-	copy := *d
-	copy.Method = catalog.BtreeMethod
-	copy.Keys = slices.Clone(d.Keys)
-	for i, key := range copy.Keys {
-		u, err := KeyUsage(parent, key)
-		if err != nil {
-			return Ordering{}, err
-		}
-		class, ok := sqltype.DefaultIndexClass(u.Type)
-		if !ok {
-			return Ordering{}, fmt.Errorf("stuntgres: missing exclusion equality comparator")
-		}
-		copy.Keys[i].Class = class
+	binding, err := BindHashIndex(view, parent, d)
+	if err != nil {
+		return Ordering{}, err
 	}
-	return BindIndexOrdering(parent, &copy)
+	o := Ordering{Slots: []int{binding.Slot}, Comparisons: []sqltype.IndexComparison{binding.Provider.Comparison()}, Keys: d.Keys}
+	if binding.Expression != nil {
+		o.Derived = []expr.Expr{binding.Expression}
+	}
+	return o, nil
 }
 
 func ExclusionKeysMatch(ctx context.Context, d *catalog.IndexDefinition, left, right []sqltype.Value) (bool, error) {

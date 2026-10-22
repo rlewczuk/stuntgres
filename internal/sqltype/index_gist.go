@@ -35,9 +35,8 @@ func bindGiSTExclusion(u Usage, class IndexClass, name string) (ExclusionOperato
 	p := ExclusionOperator{Name: name, Left: t.id, Right: t.id, usage: u, operatorInputs: [2]ID{class.input, class.input}}
 	if class.input == Inet && t.id == Inet && (name == "=" || name == "&&") {
 		if name == "=" {
-			var err error
-			p.comparison, err = BindOrdering(u)
-			return p, err
+			p.comparison = Comparison{left: u.Type, right: u.Type, inputCollation: u.Collation}
+			return p, nil
 		}
 		return p, nil
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -107,20 +108,20 @@ func (p *pruneProof) keyTerms(parent *catalog.Relation) ([32]int, error) {
 		if !ok {
 			continue
 		}
-		ordering, err := sqltype.BindIndexOrdering(key.Usage, class)
+		ordering, err := routine.BindIndexOrdering(p.view, key.Usage, class)
 		if err != nil {
 			continue
 		}
 		if parent.Partition.Strategy == parser.PartitionHash {
 			hashClass, ok := sqltype.DefaultHashIndexClass(key.Usage.Type)
-			if !ok || hashClass != key.Class {
+			if !ok || !hashClass.SameIdentity(key.Class) {
 				continue
 			}
-			hash, err := sqltype.BindPartitionHash(key.Usage, hashClass)
+			hash, err := routine.BindPartitionHash(p.view, key.Usage, hashClass)
 			if err != nil || hash != key.Hash {
 				continue
 			}
-		} else if ordering != key.Comparison {
+		} else if !ordering.SameOperation(key.Comparison) {
 			continue
 		}
 		var node expr.Expr
@@ -146,7 +147,7 @@ func (p *pruneProof) keyTerms(parent *catalog.Relation) ([32]int, error) {
 			continue
 		}
 		term := p.term(mapped)
-		if term >= 0 && p.terms[term].ordering == ordering {
+		if term >= 0 && p.terms[term].ordering.SameOperation(ordering) {
 			result[i] = term
 		}
 	}

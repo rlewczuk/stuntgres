@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -37,10 +38,14 @@ func RemapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 					}
 				}
 			}
+			key.Class, err = routine.BindClassSupport(view, key.Class)
+			if err != nil {
+				return nil, err
+			}
 			if definition.Strategy == parser.PartitionHash {
-				key.Hash, err = sqltype.BindPartitionHash(key.Usage, key.Class)
+				key.Hash, err = routine.BindPartitionHash(view, key.Usage, key.Class)
 			} else {
-				key.Comparison, err = sqltype.BindIndexOrdering(key.Usage, key.Class)
+				key.Comparison, err = routine.BindIndexOrdering(view, key.Usage, key.Class)
 			}
 			if err != nil {
 				return nil, err

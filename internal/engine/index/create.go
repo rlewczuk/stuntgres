@@ -101,11 +101,11 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	}
 	definition.Unique, definition.NullsNotDistinct = s.Unique, s.NullsNotDistinct
 	if s.Unique && s.Concurrent.Character == 0 && !trusted {
-		if err := ValidateUniqueProviders(parent, definition, s.Keys); err != nil {
+		if err := ValidateUniqueProviders(view, parent, definition, s.Keys); err != nil {
 			return CreatePlan{}, err
 		}
 	}
-	if err := PartitionUniqueCoverage(parent, definition); err != nil {
+	if err := PartitionUniqueCoverage(view, parent, definition); err != nil {
 		return CreatePlan{}, err
 	}
 	if len(s.Options) != 0 {

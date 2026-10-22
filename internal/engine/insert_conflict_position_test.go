@@ -62,7 +62,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			}
 			f.e.storage.SetFrontierLocked(3, 3)
 			f.e.visibility.SetCommitSeqLocked(1)
-			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
+			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,7 +91,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
 					t.Fatal(err)
 				}
-				next, err := index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, root.Entries, &p, false, true, false, "public", scope.output, nil, nil)
+				next, err := index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, root.Entries, &p, false, true, false, "public", scope.output, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -131,7 +131,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			publish([]storage.RowVersion{{Row: 1, Version: 7, Base: 1, Values: values}}, 0)
 			delete(want, 2)
 			publish(nil, 2)
-			rebuilt, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
+			rebuilt, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -164,7 +164,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			nextCatalog.SetDescriptor(idx.Address(), &idx)
 			stores := maps.Clone(f.e.storage.Relations)
 			stores[parent.Address()] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.e.catalog.state, &nextCatalog, stores, f.e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
+			prepared, err := f.e.prepareIndexCatalog(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.e.catalog.state, &nextCatalog, stores, f.e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}

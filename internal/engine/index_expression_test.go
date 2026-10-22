@@ -32,7 +32,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	for i, v := range values {
 		store.Versions = append(store.Versions, storage.RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{v}})
 	}
-	root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, d, store, nil)
+	root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, d, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 		t.Fatal(got, want)
 	}
 	publication := &index.RowPublication{Writes: []storage.RowVersion{{Row: 6, Version: 6, Values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
-	next, err := index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &catalog.Relation{SQLIndex: d}, root.Entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil, nil)
+	next, err := index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, &catalog.Relation{SQLIndex: d}, root.Entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,12 +62,12 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	parent := &catalog.Relation{Attributes: []int32{7, 9}, Columns: []catalog.Column{{Usage: typ.Usage()}, {Usage: typ.Usage()}}}
 	d := &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 9}, {Attribute: 7}}, Unique: true, Ready: true, Valid: true, Live: true}
-	ordering, err := index.BindIndexOrdering(parent, d)
+	ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, d)
 	if err != nil || !reflect.DeepEqual(ordering.Slots, []int{1, 0}) || ordering.Derived != nil {
 		t.Fatal(ordering, err)
 	}
 	d.Keys[0] = catalog.IndexKey{Derived: &catalog.DerivedIndexKey{Execution: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}}
-	if _, err := index.BindIndexOrdering(parent, d); err == nil {
+	if _, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, d); err == nil {
 		t.Fatal("derived UNIQUE sentinel admitted")
 	}
 }

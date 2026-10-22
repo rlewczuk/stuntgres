@@ -28,28 +28,31 @@ type NameKey struct {
 }
 
 const (
-	NamespaceClassID      OID = 2615
-	RelationClassID       OID = 1259
-	TypeClassID           OID = 1247
-	CollationClassID      OID = 3456
-	ConversionClassID     OID = 2607
-	PolicyClassID         OID = 3256
-	ParameterClassID      OID = 6243
-	TablespaceClassID     OID = 1213
-	ProcedureClassID      OID = 1255
-	ExtensionClassID      OID = 3079
-	TSTemplateClassID     OID = 3764
-	TSDictionaryClassID   OID = 3600
-	DatabaseClassID       OID = 1262
-	ForeignWrapperClassID OID = 2328
-	ForeignServerClassID  OID = 1417
-	ForeignMappingClassID OID = 1418
-	ForeignTableClassID   OID = 3118
-	OperatorClassID       OID = 2617
-	LargeObjectClassID    OID = 2995
-	PGCatalogNamespaceOID OID = 11
-	PGToastNamespaceOID   OID = 99
-	PublicNamespaceOID    OID = 2200
+	NamespaceClassID             OID = 2615
+	RelationClassID              OID = 1259
+	TypeClassID                  OID = 1247
+	CollationClassID             OID = 3456
+	ConversionClassID            OID = 2607
+	PolicyClassID                OID = 3256
+	ParameterClassID             OID = 6243
+	TablespaceClassID            OID = 1213
+	ProcedureClassID             OID = 1255
+	ExtensionClassID             OID = 3079
+	TSTemplateClassID            OID = 3764
+	TSDictionaryClassID          OID = 3600
+	DatabaseClassID              OID = 1262
+	ForeignWrapperClassID        OID = 2328
+	ForeignServerClassID         OID = 1417
+	ForeignMappingClassID        OID = 1418
+	ForeignTableClassID          OID = 3118
+	OperatorClassID              OID = 2617
+	OperatorFamilyClassID        OID = 2753
+	AccessMethodOperatorClassID  OID = 2602
+	AccessMethodProcedureClassID OID = 2603
+	LargeObjectClassID           OID = 2995
+	PGCatalogNamespaceOID        OID = 11
+	PGToastNamespaceOID          OID = 99
+	PublicNamespaceOID           OID = 2200
 )
 
 type ObjectKind uint8
@@ -72,4 +75,7 @@ const (
 	ParameterObject
 	TablespaceObject
 	LargeObjectObject
+	OperatorFamilyObject
+	OperatorFamilyOperatorObject
+	OperatorFamilySupportObject
 )

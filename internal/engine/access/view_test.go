@@ -150,3 +150,31 @@ func TestRowSecurityPrincipalFollowsInnermostDefiner(t *testing.T) {
 		}
 	}
 }
+
+func TestOperatorFamilyMemberOwnershipValidation(t *testing.T) {
+	f := newAccessFixture(t)
+	other := newAccessFixture(t)
+	roles := f.view(t, "postgres").Roles
+	for _, member := range []catalog.Descriptor{
+		&catalog.OperatorFamilyOperator{},
+		&catalog.OperatorFamilySupport{},
+	} {
+		owner, acl, columns := DescriptorACL(member)
+		if owner != (authorization.PrincipalRef{}) || acl.Explicit || len(acl.Entries) != 0 || len(columns) != 0 {
+			t.Fatal("family member acquired permission state", member)
+		}
+		if err := ValidateACL(roles, member); err != nil {
+			t.Fatal("ownerless family member rejected", member, err)
+		}
+	}
+	family := &catalog.OperatorFamily{Owner: f.bootstrap}
+	if err := ValidateACL(roles, family); err != nil {
+		t.Fatal("local family owner rejected", err)
+	}
+	for _, owner := range []authorization.PrincipalRef{{}, other.bootstrap} {
+		family.Owner = owner
+		if err := ValidateACL(roles, family); err == nil {
+			t.Fatal("invalid family owner accepted", owner)
+		}
+	}
+}
