@@ -33,6 +33,7 @@ type lexer struct {
 	jsonAggregateDepths []int
 	jsonQueryDepths     []int
 	jsonFunctionDepths  []int
+	jsonTableDepths     []int
 	jsonObjectFirst     bool // Empty/member/legacy disambiguation starts with an ordinary operand.
 	err                 error
 	statements          []Statement
@@ -892,6 +893,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = SELECTED_FUNC
 		}
 	}
+	if token.lexeme.keyword != nil && token.lexeme.text == "json_table" && l.previousToken != int('.') {
+		token.code = JSON_TABLE_FUNC
+	}
 	if token.lexeme.keyword != nil && l.previousToken != int('.') && (token.lexeme.text == "json_exists" || token.lexeme.text == "json_query" || token.lexeme.text == "json_value") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
@@ -1010,6 +1014,30 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	if len(l.jsonFunctionDepths) > 0 && l.jsonParenDepth == l.jsonFunctionDepths[len(l.jsonFunctionDepths)-1] && token.lexeme.keyword != nil && l.previousToken != int('.') && l.previousToken != AS {
 		switch token.lexeme.text {
+		case "columns":
+			if len(l.jsonTableDepths) > 0 && l.jsonTableDepths[len(l.jsonTableDepths)-1] == l.jsonParenDepth {
+				next := l.nextRaw()
+				l.lookahead, l.hasLookahead = next, true
+				if next.code == int('(') {
+					token.code = JSON_COLUMNS
+				}
+			}
+		case "nested":
+			if len(l.jsonTableDepths) > 0 && l.jsonTableDepths[len(l.jsonTableDepths)-1] == l.jsonParenDepth {
+				next := l.nextRaw()
+				l.lookahead, l.hasLookahead = next, true
+				if next.code == STRING || next.lexeme.keyword != nil && next.lexeme.text == "path" {
+					token.code = JSON_NESTED
+				}
+			}
+		case "path":
+			if len(l.jsonTableDepths) > 0 && l.jsonTableDepths[len(l.jsonTableDepths)-1] == l.jsonParenDepth {
+				next := l.nextRaw()
+				l.lookahead, l.hasLookahead = next, true
+				if next.code == STRING {
+					token.code = JSON_PATH
+				}
+			}
 		case "passing":
 			if l.previousToken != int('(') && l.previousToken != int(',') && l.previousToken != DEFAULT && l.previousToken != JSON_PASSING {
 				token.code = JSON_PASSING
@@ -1514,6 +1542,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == int('(') {
 		l.jsonParenDepth++
 	} else if token.code == int(')') {
+		if len(l.jsonTableDepths) > 0 && l.jsonTableDepths[len(l.jsonTableDepths)-1] == l.jsonParenDepth {
+			l.jsonTableDepths = l.jsonTableDepths[:len(l.jsonTableDepths)-1]
+		}
 		if len(l.jsonFunctionDepths) > 0 && l.jsonFunctionDepths[len(l.jsonFunctionDepths)-1] == l.jsonParenDepth {
 			l.jsonFunctionDepths = l.jsonFunctionDepths[:len(l.jsonFunctionDepths)-1]
 		}

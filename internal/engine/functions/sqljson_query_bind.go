@@ -29,7 +29,7 @@ func BindSQLJSONQuery(b Binder, raw parser.SQLJSONQueryExpr) (expr.Expr, error) 
 	if err := ValidateJSONOutputFormat(result, raw.Output); err != nil {
 		return nil, err
 	}
-	if raw.Quotes == "omit" && raw.Wrapper != "" && raw.Wrapper != "without" {
+	if raw.Quotes != "" && (raw.Quotes == "omit" || raw.TableColumn != "") && raw.Wrapper != "" && raw.Wrapper != "without" {
 		return nil, expr.ErrorAt("42601", "SQL/JSON QUOTES behavior must not be specified when WITH WRAPPER is used", raw.Pos)
 	}
 	for i, behavior := range []parser.SQLJSONBehavior{raw.Empty, raw.Error} {
@@ -53,6 +53,17 @@ func BindSQLJSONQuery(b Binder, raw parser.SQLJSONQueryExpr) (expr.Expr, error) 
 			}
 			diagnostic := expr.ErrorAt("42601", "invalid ON "+branch+" behavior", behavior.Pos).(*sqlstate.Error)
 			diagnostic.Detail = "Only " + allowed + " is allowed in ON " + branch + " for " + strings.ToUpper(raw.Kind) + "()."
+			if raw.TableColumn != "" {
+				family := "formatted"
+				if raw.Kind == "json_value" {
+					family = "scalar"
+				}
+				if raw.Kind == "json_exists" {
+					family = "EXISTS"
+				}
+				diagnostic.Message = "invalid ON " + branch + " behavior for column \"" + raw.TableColumn + "\""
+				diagnostic.Detail = "Only " + allowed + " is allowed in ON " + branch + " for " + family + " columns."
+			}
 			return nil, diagnostic
 		}
 	}
@@ -97,7 +108,7 @@ func BindSQLJSONQuery(b Binder, raw parser.SQLJSONQueryExpr) (expr.Expr, error) 
 		if behavior.Default == nil {
 			continue
 		}
-		if err := sqlJSONDefaultShape(behavior.Default); err != nil {
+		if err := sqlJSONDefaultShape(behavior.Default, raw.TableColumn != ""); err != nil {
 			return nil, err
 		}
 		operand, err := b.AnalyzeArgument(behavior.Default, AnalysisRequest{Intent: ComparisonArgument})
@@ -105,6 +116,11 @@ func BindSQLJSONQuery(b Binder, raw parser.SQLJSONQueryExpr) (expr.Expr, error) 
 			return nil, err
 		}
 		arg := operand.Expression
+		if raw.TableColumn != "" {
+			if err := b.ValidateSQLJSONDefault(behavior.Default, arg); err != nil {
+				return nil, err
+			}
+		}
 		if sqlJSONDefaultSet(arg) {
 			return nil, expr.ErrorAt("42804", "DEFAULT expression must not return a set", behavior.Default.SourcePosition())
 		}
@@ -176,11 +192,15 @@ func sqlJSONQuerySource(b Binder, raw parser.Expr, id sqltype.ID, format *parser
 	return b.CoerceArgument(Argument{Expression: arg, Usage: usage}, CoercionRequest{Intent: JSONFormattedArgument, Target: target, Plan: plan, Planned: true})
 }
 
-func sqlJSONDefaultShape(raw parser.Expr) error {
+func sqlJSONDefaultShape(raw parser.Expr, tableColumn bool) error {
 	return parser.VisitQueryExpressions(&parser.Select{Targets: []parser.Expr{raw}}, func(child parser.Expr) error {
 		invalid := false
 		switch r := child.(type) {
-		case parser.ColumnExpr, parser.SubqueryExpr, parser.AggregateExpr, parser.GroupingExpr:
+		case parser.ColumnExpr:
+			// JSON_TABLE binds ordinary scalar names before distinguishing
+			// enclosing shape from references in the complete bound tree.
+			invalid = !tableColumn
+		case parser.SubqueryExpr, parser.AggregateExpr, parser.GroupingExpr:
 			invalid = true
 		case parser.FunctionExpr:
 			invalid = r.Window != nil

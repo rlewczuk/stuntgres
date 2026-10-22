@@ -124,6 +124,18 @@ func (v *View) ValidateLiterals(catalog catalog.Read) error {
 		var from func(parser.FromItem, plan.Node) error
 		from = func(item parser.FromItem, node plan.Node) error {
 			switch raw := item.(type) {
+			case *parser.JSONTable:
+				function, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
+				if !ok {
+					return fmt.Errorf("stuntgres: invalid stored JSON_TABLE frame")
+				}
+				for i, child := range raw.Expressions() {
+					path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewFunctionLiteral, Source: function.ViewOrdinal, Target: i}
+					ordinal := 0
+					if err := v.validateLiteralTree(catalog, child, path, &ordinal, &count, &columnCount, &compositeCount, &routineCount); err != nil {
+						return err
+					}
+				}
 			case *parser.FunctionTable:
 				table, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
 				if !ok {

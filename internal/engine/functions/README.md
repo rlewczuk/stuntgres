@@ -86,6 +86,30 @@ not a retained `Children` slice. Scalar NULL is one present row; EOF is typed
 NULL with false presence. Every demanded invocation has independent state, and
 close/EOF/error/cancellation release it without invalidating emitted values.
 
+`JSONTable` is a composite source carrier, not an ordinary builtin registration.
+Immutable levels hold descriptor/child slots; OpenSource owns every row-path
+binding, expansion stack and complete record vector. Active ancestor columns
+are reevaluated for each child output row; artificial NULL subtrees never run
+their policies. Rebuild remints the anonymous shape from remapped column usages.
+Immediate sibling paths reset left-to-right before descendants or any active
+column evaluation; selected match vectors belong to the current invocation and
+parent. Hard reset errors cannot run earlier siblings' column/default effects.
+The shared name map reserves `json_table_path_0` only for an unnamed root.
+
+`Binder.ValidateSQLJSONDefault` checks ordinary bound enclosing shape, then
+full-tree column references before set detection and RETURNING fallback coercion.
+Accepted operators/functions may contain parameters, including through specialized
+regclass and transparent cast/collation wrappers; bare parameters and special
+constructs cannot be laundered. Accepted shapes containing columns get the
+distinct reference diagnostic, while bare columns retain generic shape rejection.
+Ordinary supported scalar binding errors precede these table-only restrictions.
+The existing aggregate/grouping/subquery/window preguards and standalone SQL/JSON
+admission remain unchanged. All written dependencies still bind.
+`TestJSONTableExpression` covers real source opening, sibling union and outer
+NULLs, ordinality, eager late failure, reminting and retained invocation ownership:
+`make check RUN='^TestJSONTableExpression$'`.
+
+
 Occurrence hooks preserve each family's exact existing identity, not structural
 child/group equality. In particular RegexpSet compares concrete family only
 after engine set/position guards. Equivalent-child substitution preserves

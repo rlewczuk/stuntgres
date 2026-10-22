@@ -1404,6 +1404,33 @@ func (p CoercionPlan) FunctionCastShortcut() bool {
 	return p.method == identity || p.method == viaIO
 }
 
+// FunctionExpression reports a cast/typmod function in the selected coercion.
+// SQL/JSON DEFAULT validation visits an array coercion's element expression as
+// well as its input, so an element function can establish an accepted shape.
+func (p CoercionPlan) FunctionExpression() bool {
+	switch p.method {
+	case arrayConversion:
+		return p.element != nil && p.element.FunctionExpression()
+	case viaIO, jsonFormattedInput, jsonReturningOutput:
+		return false
+	case identity:
+		return p.target.Typmod >= 0 && p.target.Typmod != p.source.Typmod
+	case networkConversion:
+		return !(p.source.Type.id == Cidr && p.target.Type.id == Inet)
+	case oidConversion:
+		// OID aliases share the four-byte representation. Only widening or
+		// narrowing an actual integer needs a cast function.
+		return p.source.Type.id == Int2 || p.source.Type.id == Int8 || p.target.Type.id == Int8
+	case stringConversion:
+		// TEXT/VARCHAR are binary relabels except for a requested typmod;
+		// BPCHAR removal and NAME conversion use real functions.
+		return p.source.Type.id == BPChar || p.source.Type.id == Name ||
+			p.target.Type.id == BPChar || p.target.Typmod >= 0
+	default:
+		return true
+	}
+}
+
 // EvaluationFunctionCount exposes only the existing coercion representation:
 // a relabel, one cast function, or the output/input pair of an IO coercion.
 // OVERLAPS uses it for the released duplicated-argument inline threshold.

@@ -325,6 +325,8 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		return nil, QueryNamespace{}, err
 	}
 	switch n := item.(type) {
+	case *parser.JSONTable:
+		return b.bindJSONTable(n, ordinal)
 	case nil:
 		return &plan.SingletonNode{}, QueryNamespace{}, nil
 	case *parser.FunctionTable:
@@ -421,6 +423,9 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			}
 		}
 		if len(n.Columns) > aliasWidth {
+			if _, ok := n.Input.(*parser.JSONTable); ok {
+				return nil, QueryNamespace{}, sqlError("42P10", fmt.Sprintf("JSON_TABLE function has %d columns available but %d columns specified", aliasWidth, len(n.Columns)))
+			}
 			kind := "join expression"
 			switch n.Input.(type) {
 			case *parser.TableReference, *parser.ValuesQuery, *parser.DerivedQuery, *parser.FunctionTable, *parser.FunctionFrom:
@@ -470,6 +475,8 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionFrom); function {
 			q.ScalarAlias = ns.Qualifiers[0].ScalarAlias
+			b.Query.Hidden[len(b.Query.Hidden)-1] = q
+		} else if _, table := n.Input.(*parser.JSONTable); table {
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else {
 			q.ExcludeColumnDiagnostics = true

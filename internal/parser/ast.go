@@ -1999,6 +1999,7 @@ type SQLJSONQueryExpr struct {
 	Wrapper, Quotes string
 	Empty, Error    SQLJSONBehavior
 	Pos             Position
+	TableColumn     string // Analysis-only context for JSON_TABLE column semantics.
 }
 
 type SQLJSONPassing struct {

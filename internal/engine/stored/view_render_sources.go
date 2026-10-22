@@ -274,6 +274,8 @@ func (v *QueryRenderer) aliasFrom(from viewRenderFrom, ns analyze.ViewNamespace,
 
 func viewHasFunctionSource(item parser.FromItem) bool {
 	switch n := item.(type) {
+	case *parser.JSONTable:
+		return true
 	case *parser.FunctionTable:
 		for _, call := range n.Calls {
 			if analyze.SelectedFunctionSourceName(call.Name.Parts[len(call.Name.Parts)-1].Text) {
@@ -381,6 +383,8 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 	}()
 	v.namespace++
 	switch n := item.(type) {
+	case *parser.JSONTable:
+		return v.renderJSONTableSQL(ctx, catalogView, n, ns)
 	case *parser.FunctionTable:
 		return v.renderFunctionTableSQL(ctx, catalogView, n, ns)
 	case *parser.FunctionFrom:

@@ -29,6 +29,33 @@ boundary. Literal capture records RETURNING usage and every document/path,
 PASSING and DEFAULT occurrence in written order; normalization, qualification
 and VALUES aggregate inspection traverse the same query children.
 
+`JSON_TABLE` binds through general BindFrom into one anonymous composite
+FunctionFromNode, with actual expression captures and parent-first member order.
+Every declared type/default remains an analysis dependency even for empty paths
+or unprojected columns. There is no synthetic JSON_TABLE routine/grant. Normal
+lateral rebasing, source authority, prepared generations and stored namespace
+ownership remain the existing query authorities. Stored capture pairs only
+written document/PASSING/default occurrences; synthetic column documents are not
+extra SQL occurrences.
+The JSON_TABLE DEFAULT validator uses the ordinary bound coercion recipe before
+RETURNING fallback conversion: real cast/typmod functions supply function shape,
+while relabel/IO/domain/collation wrappers inspect their input. Array coercions
+also inspect the element expression. Ordinary parser CallExpr and decorated
+FunctionExpr retain function shape; specialized regclass syntax preserves its
+operand's shape, including actual constants and nonliteral operators. An elided
+type-name call cannot launder a bare Param. Parameter dependence is not an
+enclosing-shape proxy.
+For ordinary supported scalar table defaults, binding precedes enclosing shape,
+then a full bound-tree ColumnExpr restriction, set detection and fallback
+conversion. Accepted operators/functions with columns get the distinct column-
+reference diagnostic; bare columns/special shapes get the generic shape error.
+Unknown columns/routines keep ordinary binder diagnostics before either check.
+DEFAULT locations use transformed operands and operator expression starts, not
+operator tokens or specialized cast separators. Existing raw aggregate/grouping/
+subquery/window guards remain before analysis; competing errors within those
+forbidden families and standalone SQL/JSON admission are unchanged.
+Private seam proof: `make check RUN='^TestSQLJSONDefaultShape$'`.
+
 ## What it owns
 
 - **`Binder`** (`expression.go` and the other expression, function,

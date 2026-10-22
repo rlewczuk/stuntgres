@@ -128,6 +128,9 @@ type Binder interface {
 	// JSONReturningType resolves a SQL/JSON RETURNING type name as the
 	// statement's type input does, rejecting the RETURNING-forbidden forms.
 	JSONReturningType(parser.TypeName) (sqltype.Usage, error)
+	// ValidateSQLJSONDefault checks analyzed enclosing shape, then full-tree
+	// column references, before RETURNING fallback coercion without rebinding.
+	ValidateSQLJSONDefault(parser.Expr, expr.Expr) error
 	// SequenceArgument binds a sequence call's regclass provider input. It
 	// owns prepared sequence-literal capture (held constants keep their
 	// captured identity) and, in a column DEFAULT, requires a non-NULL

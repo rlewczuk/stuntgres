@@ -215,6 +215,12 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	}
 	from = func(item FromItem, s *Select) error {
 		switch n := item.(type) {
+		case *JSONTable:
+			for _, child := range n.Expressions() {
+				if err := expression(child); err != nil {
+					return err
+				}
+			}
 		case *FunctionTable:
 			for _, call := range n.Calls {
 				if err := expression(call); err != nil {

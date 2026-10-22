@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"context"
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
@@ -16,6 +17,7 @@ type SQLJSONQuery struct {
 	Args     []expr.Expr
 	Plan     sqltype.SQLJSONQueryPlan
 	Defaults [2]sqltype.CoercionPlan
+	Column   string
 }
 
 func NewSQLJSONQuery(info expr.Info, raw parser.SQLJSONQueryExpr, args []expr.Expr, jsonb sqltype.Usage) (SQLJSONQuery, error) {
@@ -29,11 +31,18 @@ func NewSQLJSONQuery(info expr.Info, raw parser.SQLJSONQueryExpr, args []expr.Ex
 		usages[i] = args[i+2].ResultUsage()
 		names[i] = binding.Name.Text
 	}
-	plan, err := sqltype.BindSQLJSONQuery(raw.Kind, raw.Wrapper, raw.Quotes == "omit", info.Usage, args[0].ResultUsage(), args[1].ResultUsage(), jsonb, usages, names)
+	bind := sqltype.BindSQLJSONQuery
+	if raw.TableColumn != "" {
+		bind = sqltype.BindSQLJSONTableColumn
+	}
+	plan, err := bind(raw.Kind, raw.Wrapper, raw.Quotes == "omit", info.Usage, args[0].ResultUsage(), args[1].ResultUsage(), jsonb, usages, names)
 	if err != nil {
 		return SQLJSONQuery{}, err
 	}
-	node := SQLJSONQuery{Info: info, Raw: raw, Args: args, Plan: plan}
+	if raw.TableColumn != "" {
+		plan = plan.TableColumn(raw.TableColumn, info.Usage)
+	}
+	node := SQLJSONQuery{Info: info, Raw: raw, Args: args, Plan: plan, Column: raw.TableColumn}
 	for i, behavior := range []parser.SQLJSONBehavior{raw.Empty, raw.Error} {
 		if behavior.Default != nil {
 			if count >= len(args) {
@@ -61,6 +70,10 @@ func (e SQLJSONQuery) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	return e.evalDocument(ctx, c, document)
+}
+
+func (e SQLJSONQuery) evalDocument(ctx context.Context, c expr.Context, document sqltype.Value) (sqltype.Value, error) {
 	if document.IsNull() {
 		return sqltype.Null(e.Usage.Type), nil
 	}
@@ -104,7 +117,11 @@ func (e SQLJSONQuery) Eval(c expr.Context) (sqltype.Value, error) {
 		if outcome.Error != nil {
 			return sqltype.Value{}, outcome.Error
 		}
-		return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22035", Message: "no SQL/JSON item found for specified path"}
+		message := "no SQL/JSON item found for specified path"
+		if e.Column != "" {
+			message += " of column \"" + e.Column + "\""
+		}
+		return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22035", Message: message}
 	}
 	if behavior.Default != nil {
 		child := 2 + len(e.Raw.Passing)
@@ -134,6 +151,7 @@ type sqlJSONDocument struct {
 	expr.Info
 	Child expr.Expr
 	Plan  sqltype.CoercionPlan
+	Table bool
 }
 
 func newSQLJSONDocument(info expr.Info, child expr.Expr) (sqlJSONDocument, error) {
@@ -156,7 +174,9 @@ func (e sqlJSONDocument) Rebuild(info expr.Info, children []expr.Expr) (expr.Exp
 	if len(children) != 1 {
 		return nil, fmt.Errorf("invalid SQL/JSON document children")
 	}
-	return newSQLJSONDocument(info, children[0])
+	next, err := newSQLJSONDocument(info, children[0])
+	next.Table = e.Table
+	return next, err
 }
 func (e sqlJSONDocument) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	return e.Rebuild(info, children)
@@ -169,7 +189,12 @@ func (e sqlJSONDocument) SameGroup(other expr.Expr, same func(expr.Expr, expr.Ex
 	o, ok := other.(sqlJSONDocument)
 	return ok && e.Usage == o.Usage && same(e.Child, o.Child)
 }
-func (e sqlJSONDocument) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+func (e sqlJSONDocument) PreflightFold() expr.Preflight {
+	if e.Table {
+		return expr.PreflightEvaluate
+	}
+	return expr.PreflightChildren
+}
 func (e sqlJSONDocument) Render() (expr.Rendering, error) {
 	return expr.Rendering{Inputs: []expr.Expr{e.Child}, Form: expr.FormTemplate, Args: []expr.RenderArg{{Expr: e.Child, Listed: true}}, Pieces: []expr.Piece{expr.ArgPiece(0)}}, nil
 }
@@ -180,7 +205,12 @@ func (e SQLJSONQuery) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, 
 		return nil, fmt.Errorf("invalid SQL/JSON query children")
 	}
 	// The JSONB source owner is remapped with the document child.
-	return NewSQLJSONQuery(info, e.Raw, children, children[0].ResultUsage())
+	node, err := NewSQLJSONQuery(info, e.Raw, children, children[0].ResultUsage())
+	if err == nil && e.Column != "" {
+		node.Column = e.Column
+		node.Plan = node.Plan.TableColumn(e.Column, info.Usage)
+	}
+	return node, err
 }
 func (e SQLJSONQuery) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	return e.Rebuild(info, children)
@@ -215,6 +245,9 @@ func (e SQLJSONQuery) Render() (expr.Rendering, error) {
 }
 func (e SQLJSONQuery) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(SQLJSONQuery)
+	if ok && e.Column != o.Column {
+		return false
+	}
 	if !ok || e.Raw.Kind != o.Raw.Kind || e.Raw.Wrapper != o.Raw.Wrapper || e.Raw.Quotes != o.Raw.Quotes || e.Raw.Empty.Kind != o.Raw.Empty.Kind || e.Raw.Error.Kind != o.Raw.Error.Kind || len(e.Args) != len(o.Args) || len(e.Raw.Passing) != len(o.Raw.Passing) {
 		return false
 	}

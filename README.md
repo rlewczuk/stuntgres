@@ -1908,6 +1908,28 @@ remain outside native support.
 Feature smoke: `make check RUN='^TestReferenceSQLJSONQueryFeatureSmoke$'` and
 `make check RUN='^TestReferenceSQLJSONQueryFeatureSmoke$' REFERENCE=1`.
 
+Change note: `JSON_TABLE` is an implicitly lateral relational source with typed,
+formatted JSON and EXISTS columns, INT4 ordinality, ordered PASSING, recursive
+outer nested paths and union-style siblings. Missing subtrees receive typed NULL
+without evaluating their column policies. A demanded invocation materializes all
+rows and columns before publishing any row, including under LIMIT 1. Column
+conversion/default policies reuse the SQL/JSON query providers; table ON ERROR
+controls row paths only. Static schema, held authority/dependencies, existing DML
+source consumers, stored views and native Dump/Reset/Restore use the ordinary
+query lane. This does not add PLAN clauses, advanced JSONPath methods or GIN.
+Immediate sibling row paths initialize left-to-right before descendant paths or
+column effects. DEFAULT permits parameterized operators/functions, including
+through specialized regclass wrappers, not bare parameters hidden by transparent
+casts. Accepted shapes containing columns get the distinct column-reference
+diagnostic; bare columns/special shapes remain generic errors. Ordinary scalar
+binding precedes these restrictions; existing forbidden-family preguards remain.
+An unnamed root reserves
+`json_table_path_0` in the shared path/column namespace; an explicit root name
+replaces that reservation.
+Feature smoke: `make check RUN='^TestReferenceJSONTable(FeatureSmoke|ReviewRegressions|DefaultCastShapes|DefaultRegclassConstant|DefaultWrapperReferences)$'` and the
+same selector with `REFERENCE=1`.
+
+
 Change note: `json_agg`, `jsonb_agg`, `json_agg_strict`, `jsonb_agg_strict`
 and SQL/JSON `json_arrayagg` collect values through the ordinary aggregate
 pipeline. Local ORDER BY fixes element order; ordinary variants include SQL NULL,

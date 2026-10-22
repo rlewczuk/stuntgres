@@ -2575,3 +2575,93 @@ make check RUN='^TestReferenceSQLJSONQueryMutability$' REFERENCE=1
 make check RUN='^TestSQLJSONPathMutable$'
 make check RUN='^TestReferenceSQLJSONQueryMutability$'
 ```
+
+### SQL/JSON JSON_TABLE
+
+Fifteen definitions independently specify typed/formatted/EXISTS output, parent-
+first static metadata, nested outer paths, union siblings, INT4 ordinality,
+ordered typed PASSING and observed volatile/default evaluation order. Diagnostics
+retain complete fields and UTF8 character locations, including bare DEFAULT
+parameter rejection. Direct/prepared/SAME-held, current grants/dependencies,
+existing SELECT/DML consumers, eager demanded invocation failures, atomic writes,
+cancellation, native controls and actual emitted-SQL PostgreSQL replay share
+the public fixtures. No discovery guard is retained.
+Authority/stored helpers use supported default-volatility SQL function declarations;
+routine attributes are not part of this feature. Malformed bound JSON retains both
+JSON input context and the shared unnamed-portal parameter context in both modes.
+`ReviewRegressions` retains direct/new-prepared/SAME-held parameterized operator
+DEFAULT results and volatile unselected-branch controls, immediate-sibling path
+diagnostic precedence and exact DEFAULT/PASSING sequence effects across recovery,
+and implicit-root namespace collisions with UTF8 positions/explicit-root control.
+The volatile denominator avoids PostgreSQL custom-plan constant folding in the
+unselected control; it does not request a generic optimizer implementation.
+`DefaultCastShapes` independently distinguishes accepted scalar cast/typmod and
+array-element cast functions from rejected IO/relabel/domain wrappers around
+bare parameters, including multibyte diagnostic positions.
+`DefaultRegclassConstant` pins specialized regclass syntax analyzed to a constant:
+selected/unselected/recovery TEXT output through direct/new prepared/SAME-held
+routes, with an invalid regclass parameter-wrapper control. Classification uses
+the actual bound constant, not a blanket allowance for raw regclass syntax.
+`DefaultWrapperReferences` pins a nonliteral parameterized operator through real
+INT4/OID/regclass/text conversions: zero yields TEXT `-`, a backend-local sequence
+OID yields its name, and direct/new prepared/SAME-held reuse covers unselected,
+JSON-null, SQL-NULL and recovery. Bare/special wrapper controls remain invalid.
+Preceding VALUES/table columns inside accepted operators/functions get the distinct
+column-reference error at the whole transformed expression (operator left operand
+or function start). Bare columns/special shapes retain generic shape errors.
+Ordinary missing-column/routine errors win before shape/reference restrictions;
+full diagnostics, UTF8 positions and direct/Prepare stages are independently pinned.
+Existing aggregate/grouping/subquery/window preguards remain unchanged; this proof
+does not claim competing-error precedence within those forbidden families.
+
+The LEFT JOIN metadata witness independently requires native known nonnullable
+source-PK `id` and known nullable JSON_TABLE `o/v/e` columns. The pq adapter
+reports nullability unavailable (`false,false`) for all four; do not discard
+native proofs to manufacture adapter parity. Other raw metadata, exact schemas
+and rows remain asserted on direct and prepared routes.
+
+For the default-volatility DEFAULT routine, simultaneous missing source SELECT
+and routine EXECUTE produces full `42501` diagnostics with native
+`permission denied for function fallback` versus PostgreSQL
+`permission denied for table docs`. This is the existing admission-order
+boundary, not permission bypass: isolated denials and SAME-held revoke/regrant
+must still match exactly. No planner folding or routine-attribute support is
+added to change which of two genuine denials wins.
+
+Stored coverage retains supported domain and source-column renames. Native
+`ALTER FUNCTION ... RENAME` is outside the existing routine DDL surface, so the
+captured DEFAULT routine instead undergoes actual EXECUTE revoke/regrant through
+a reader's SAME held view query. Owner queries explicitly retain fallback=9 on
+all five sibling rows through native Dump/Reset/Restore, fresh-driver Restore
+and actual emitted-SQL PostgreSQL replay. Replay precedes ACL mutations because
+native Dump rejects explicit relation ACLs even after revoke. Reset replaces
+logical domain identities: an old domain-bearing held result rejects `0A000`,
+while fresh direct/prepared consumers succeed. Reader-held ACL transitions then
+prove routine identity and current admission without claiming routine rename.
+Restore-parameter witnesses use the existing INSERT scalar-subquery validator
+for document, PASSING, parent DEFAULT and nested DEFAULT children; CREATE VIEW
+uses ordinary binder parameter diagnostics instead.
+
+Run each bounded group in native and pinned real mode (add `REFERENCE=1`):
+
+```sh
+make check RUN='^TestReferenceJSONTable(Columns|Nested|Passing)$'
+make check RUN='^TestReferenceJSONTable(Policies|Diagnostics|Prepared)$'
+make check RUN='^TestReferenceJSONTable(Sources|Authority|Stored)$'
+make check RUN='^TestReferenceJSONTable(Lifecycle|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONTable(ReviewRegressions|DefaultCastShapes|DefaultRegclassConstant|DefaultWrapperReferences)$'
+make check RUN='^TestReferenceJSONTable(Lifecycle|Prepared|ReviewRegressions|DefaultCastShapes|DefaultRegclassConstant|DefaultWrapperReferences)$' RACE=1
+make check RUN='^TestJSONTable(Parser|Plan|Expression)$'
+make check RUN='^TestSQLJSONDefaultShape$'
+```
+
+Feature smoke: `make check RUN='^TestReferenceJSONTable(FeatureSmoke|ReviewRegressions|DefaultCastShapes|DefaultRegclassConstant|DefaultWrapperReferences)$'` and the
+identical selector with `REFERENCE=1`. It asserts the exact five-row sibling bag,
+typed/FORMAT JSON/EXISTS/PASSING/ordinal output, empty static schema, demanded
+late 22P02 under LIMIT 1, SAME-held recovery, stored-view roundtrip/replay,
+accepted parameter DEFAULTs, cast/constant/nonliteral regclass wrappers, exact
+shape/reference/binder diagnostic precedence and positions, sibling reset effects
+and implicit-root diagnostics.
+Expected observation is a quiet successful package exit only after those
+independent assertions. Whole-project Docker-free proof is `make quickcheck`.
+

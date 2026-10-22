@@ -24,6 +24,18 @@ DEFAULT literal children, nested/generated/index syntax and complete-input rejec
 `make check RUN='^TestSQLJSONQueryParser$'`.
 
 
+### SQL/JSON relational syntax
+
+`JSONTable` is a dedicated FROM item. `Expressions`/`WithExpressions` visit and
+replace the document, ordered PASSING and recursively written DEFAULT children
+without aliasing the original recursive slices. Paths retain original literal
+positions, while COLUMNS/NESTED/PATH and existing query options use scoped depths.
+Column types use the signature declaration grammar, avoiding the general table-
+column two-word diagnostic guard that would consume a following EXISTS clause.
+`TestJSONTableParser` checks recursive options, positions, replacement ownership,
+central visitor coverage, context reset and full-input rejection:
+`make check RUN='^TestJSONTableParser$'`.
+
 ### Qualified JSONPath operators
 
 `TestJSONBPathOpsParser` checks generic maximal-munch `@?`/`@@`, qualified

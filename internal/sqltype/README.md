@@ -96,6 +96,23 @@ lookup while evaluating every input. Query/value selection fully demands strict
 tails and discards structural-error prefixes. Result conversion uses destination
 input/domain/array/composite providers; SQL VALUE temporal text and UTC JSON
 temporal encoding are separate. Selected behavior conversion is terminal.
+
+`JSONTableRows` reuses those typed bindings and the same evaluator for complete
+row-path selection. Selected rows retain both the borrowed immutable JSON tree
+and canonical JSONB text required by the ordinary descriptor output codec.
+Suppressible failures discard the entire private prefix; missing variables,
+unsupported operations, ordinary errors and cancellation stay hard errors.
+`SQLJSONQueryPlan` carries optional table-column context for exact
+cardinality diagnostics and typed EXISTS conversion (INT4 0/1, other types JSON
+boolean spelling). It does not alter standalone query-function behavior.
+Private boundary proof: `make check RUN='^TestJSONTablePlan$'`.
+`CoercionPlan.FunctionExpression` exposes selected cast/typmod functions for
+binding-time SQL/JSON DEFAULT validation. Relabel/IO wrappers inspect their
+input; array wrappers also inspect the element expression, so a real element
+cast function can establish a valid DEFAULT shape. Domain wrappers retain the
+underlying selected operation. This query never evaluates a value or changes
+conversion policy.
+
 Constant-path properties walk the parsed tree with separate incoming-item and
 filter-current temporal categories. Filters preserve their candidate category;
 lax array access preserves scalar wrapping, strict array access clears it.

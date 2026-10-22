@@ -63,6 +63,32 @@ teardown sweep: a later owner interaction detects the stale epoch before pulling
 then releases resources; finalized batches remain readable. See the
 [embedding lifecycle contract](DRIVER.md#foreign-provider-registration).
 
+## SQL/JSON relational sources
+
+`JSON_TABLE` enters the existing composite function-source lane without an
+ordinary routine lookup. Its schema is descriptor-bound before row demand.
+Arguments capture actual predecessor/outer frame slots, so implicit and explicit
+LATERAL retain ordinary RIGHT/FULL restrictions and current source authority.
+Each demanded invocation privately completes recursive path expansion and all
+active column conversions before returning owned records. Nested paths outer-join
+parents and siblings concatenate with typed NULLs for inactive subtrees; no
+result points into mutable invocation scratch. Table row policies and column
+conversion policies have independent error boundaries. Stored rendering retains
+the relational syntax, recursive structure and live declared type identities.
+At each current parent match, all immediate sibling row patterns initialize
+left-to-right before descendant fetching or column evaluation. Stored match
+vectors are invocation-private; grandchildren initialize only when their parent
+becomes current. A suppressed path discards its whole prefix without discarding
+successful siblings. A hard initializer error leaves initial PASSING effects
+intact but prevents that transition's column PASSING/default effects.
+Ordinary supported scalar DEFAULTs bind through the same lateral namespace before
+enclosing-shape and full bound-tree column-reference validation. Accepted operators/
+functions containing columns get the distinct column-reference diagnostic; bare
+columns/special shapes remain generic shape errors. Transparent regclass/cast
+wrappers preserve operand shape, not permission for bare parameters. Unknown
+columns/routines retain ordinary binding diagnostics. Existing aggregate/grouping/
+subquery/window preguards and standalone SQL/JSON admission are unchanged.
+
 ## SQL/JSON query arrays
 
 `JSON_ARRAY(query)` reuses the ordinary query binder, source capture and

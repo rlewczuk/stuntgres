@@ -2644,6 +2644,51 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   above; demanded methods on typed temporal items and remaining unsupported
   methods/arithmetic raise native `0A000`, without eager rejection of unreachable
   branches.
+- `JSON_TABLE` supports root/PASSING, typed/FORMAT JSON/EXISTS columns, column
+  ON EMPTY/ERROR, named recursive nested paths and INT4 level ordinality. It is
+  an implicitly lateral relational source, not a grantable ordinary routine.
+  Parent columns precede nested output columns in the static schema regardless
+  of written placement. Nested children outer-join their immediate parent;
+  siblings concatenate rather than multiply or zip. Artificial missing subtrees
+  bypass defaults, EXISTS and domain validation and receive typed NULLs.
+  Row-path EMPTY ON ERROR discards the complete failing path prefix, including
+  nested paths; ERROR throws. Neither policy suppresses column/document errors.
+  At each parent transition, all immediate sibling paths initialize left-to-right
+  before any descendant path or active column; suppression empties only that
+  path, while a hard initializer error prevents subsequent column effects.
+  Unnamed roots reserve `json_table_path_0` in the shared column/path namespace;
+  explicit root names replace that entry, not additionally reserve it.
+  Ordinary scalar columns use VALUE; JSON/array/composite or explicitly formatted/
+  wrapper/quotes columns use QUERY. EXISTS converts JSON boolean spelling except
+  INT4 (and its domains), which uses 0/1. Selected DEFAULT failures are terminal.
+  For ordinary supported scalar DEFAULTs, binding precedes enclosing shape,
+  full-tree column-reference restriction, set detection and RETURNING fallback
+  coercion. Operators/functions may contain parameters through transparent
+  wrappers, including specialized regclass syntax; bare parameters remain invalid.
+  Actual scalar/typmod/array-element cast functions count as function expressions;
+  IO/relabel/domain wrappers alone do not legalize an invalid shape. Accepted
+  shapes containing columns report `DEFAULT expression must not contain column
+  references` at the transformed expression location (operator start/function
+  name); bare columns and special shapes retain generic shape rejection.
+  Ordinary unknown-column/routine diagnostics precede these restrictions.
+  Existing aggregate/grouping/subquery/window raw preguards remain before analysis;
+  this does not change competing-error precedence inside those forbidden families
+  or standalone SQL/JSON admission.
+  Ordered PASSING runs before the document and again for each active ordinary/
+  EXISTS column; parent columns are evaluated for each expanded output row.
+  Complete demanded invocation materialization preserves late errors under
+  LIMIT 1 and unprojected columns. LIMIT 0 may avoid row demand but not independent
+  constant preflight. Static metadata survives empty/SQL-NULL documents.
+  Native LEFT JOIN metadata retains known nonnull source keys and known nullable
+  outer-extended JSON_TABLE columns; pq reports nullability unavailable instead.
+  With both source SELECT and a default-volatility DEFAULT routine's EXECUTE
+  revoked, native reports the function's 42501 first while PostgreSQL reports
+  the table's 42501 first. Isolated denials and held revoke/regrant retain current
+  authority on both backends; this feature does not change general admission
+  ordering or add ALTER FUNCTION rename support.
+  Existing SELECT, CTE, subquery, CTAS, views, INSERT SELECT, UPDATE FROM,
+  DELETE USING and MERGE source routes share this source lane. PLAN and newer
+  nested INNER/CROSS variants, advanced path methods, `_tz` and GIN are excluded.
 - SQL/JSON constructors `JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR`,
   `JSON_SERIALIZE` and `IS [NOT] JSON` predicates support FORMAT JSON,
   applicable RETURNING, NULL/ABSENT ON NULL and UNIQUE KEYS. Query ARRAY uses

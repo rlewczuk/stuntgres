@@ -33,6 +33,9 @@ package parser
  sqljsonQuery *SQLJSONQueryExpr
  sqljsonPassing []SQLJSONPassing
  sqljsonBehavior SQLJSONBehavior
+ jsonTable *JSONTable
+ jsonTableColumns []JSONTableColumn
+ jsonTableColumn JSONTableColumn
  types []TypeName
  grantRoutine GrantRoutineTarget
  grantRoutines []GrantRoutineTarget
@@ -210,6 +213,7 @@ package parser
 %token <tok> JSON_ARRAYAGG JSON_OBJECTAGG JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING JSON_ABSENT JSON_NULL JSON_KEYS JSON_WITH JSON_WITHOUT
 %token <tok> SQLJSON_ARRAY SQLJSON_OBJECT SQLJSON_PARSE SQLJSON_SCALAR SQLJSON_SERIALIZE JSON_PREDICATE JSON_KIND
 %token <tok> SQLJSON_QUERY_FUNC JSON_PASSING JSON_WRAPPER JSON_CONDITIONAL JSON_UNCONDITIONAL JSON_QUOTES JSON_KEEP JSON_OMIT JSON_BEHAVIOR JSON_EMPTY JSON_ERROR JSON_SCALAR_STRING
+%token <tok> JSON_TABLE_FUNC JSON_COLUMNS JSON_NESTED JSON_PATH
 %token <tok> OVER WINDOW PARTITION FRAME_UNIT FRAME_EDGE FRAME_START
 %token <tok> UNIQUE PRIMARY
 %token <tok> FOREIGN REFERENCES MATCH PERIOD INITIALLY
@@ -611,6 +615,12 @@ package parser
 %type <sqljsonPassing> sqljson_passing sqljson_bindings
 %type <sqljsonBehavior> sqljson_behavior
 %type <sqljsonQuery> sqljson_behaviors
+%type <jsonTable> json_table
+%type <jsonTableColumns> json_table_columns json_table_column_list
+%type <jsonTableColumn> json_table_column
+%type <tok> json_table_head json_columns_head
+%type <identifier> json_path_name
+%type <expr> json_column_path
 %type <tok> like_operator
 %type <expr> target_escape
 %type <expr> conditional conditional_call case_test case_else conditional_value
@@ -2368,6 +2378,8 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
  | relation_name '*' { $$=&TableReference{Name:$1} }
  | ONLY relation_name { $$=&TableReference{Name:$2,Only:true} }
  | ONLY '(' relation_name ')' { $$=&TableReference{Name:$3,Only:true} }
+ | json_table {$$=$1}
+ | LATERAL json_table {$$=$2;$2.Lateral=true}
  | function_table {
     n:=$1
     selected:=true
@@ -2656,6 +2668,36 @@ sqljson_behavior: JSON_BEHAVIOR { $$=SQLJSONBehavior{Kind:$1.text,Pos:$1.pos} }
  | JSON_EMPTY JSON_BEHAVIOR { $$=SQLJSONBehavior{Kind:"empty "+$2.text,Pos:$1.pos} }
  | JSON_ERROR { $$=SQLJSONBehavior{Kind:"error",Pos:$1.pos} }
  | DEFAULT target_or { $$=SQLJSONBehavior{Kind:"default",Default:$2,Pos:$1.pos} } ;
+json_table_head: JSON_TABLE_FUNC '(' {l:=sqllex.(*lexer);l.jsonTableDepths=append(l.jsonTableDepths,l.jsonParenDepth);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonFunctionDepths=append(l.jsonFunctionDepths,l.jsonParenDepth);$$=$1} ;
+json_table: json_table_head target_or json_format ',' target_or json_path_name sqljson_passing json_table_columns sqljson_behaviors ')' {
+ if $9.Empty.Kind!="" {sqllex.(*lexer).syntax(lexeme{raw:"EMPTY",pos:$9.Empty.BranchPos});return 1}
+ $$=&JSONTable{Document:$2,Input:$3,Path:$5,PathPos:sqllex.(*lexer).jsonTablePathPosition($4.pos),PathName:$6,Passing:$7,Columns:$8,Error:$9.Error,Pos:$1.pos}
+} ;
+json_path_name: /* empty */ {$$=nil} | AS name {$$=&Identifier{Text:$2.text,Pos:$2.pos}} ;
+json_columns_head: JSON_COLUMNS '(' {l:=sqllex.(*lexer);l.jsonTableDepths=append(l.jsonTableDepths,l.jsonParenDepth);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonFunctionDepths=append(l.jsonFunctionDepths,l.jsonParenDepth);$$=$1} ;
+json_table_columns: json_columns_head json_table_column_list ')' {$$=$2} ;
+json_table_column_list: json_table_column {$$=[]JSONTableColumn{$1}} | json_table_column_list ',' json_table_column {$$=append($1,$3)} ;
+json_column_path: /* empty */ {$$=nil} | JSON_PATH STRING {$$=LiteralExpr{Value:Value{Kind:StringValue,Text:$2.text,Pos:$2.pos}}} ;
+/* Unlike table columns, these declarations are followed by EXISTS. Do not use
+ * type's two-word invalid-column guard, which consumes EXISTS as a type name. */
+json_table_column: name FOR name {
+ if $3.text!="ordinality" {sqllex.(*lexer).syntax($3);return 1}
+ $$=JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Ordinality:true,Pos:$1.pos}
+}
+ | name declared_type json_format json_column_path sqljson_wrapper sqljson_quotes sqljson_behaviors {
+ $$=JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Format:$3,Path:$4,Wrapper:$5.text,Quotes:$6.text,Empty:$7.Empty,Error:$7.Error,Pos:$1.pos}
+}
+ | name declared_type EXISTS json_column_path sqljson_behaviors {
+ if $5.Empty.Kind!="" {sqllex.(*lexer).syntax(lexeme{raw:"EMPTY",pos:$5.Empty.BranchPos});return 1}
+ $$=JSONTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Exists:true,Path:$4,Error:$5.Error,Pos:$1.pos}
+}
+ | JSON_NESTED json_column_path json_path_name json_table_columns {
+ if $2==nil {sqllex.(*lexer).syntax($1);return 1}
+ $$=JSONTableColumn{Path:$2,PathName:$3,Columns:$4,Pos:$1.pos}
+}
+ | JSON_NESTED STRING json_path_name json_table_columns {
+ $$=JSONTableColumn{Path:LiteralExpr{Value:Value{Kind:StringValue,Text:$2.text,Pos:$2.pos}},PathName:$3,Columns:$4,Pos:$1.pos}
+} ;
 fetch_count: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if !selectedScalarChild(sqllex,$3,$4) {return 1};if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | aggregate_application { $$=$1 }
@@ -2712,6 +2754,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | SQLJSON_SCALAR %prec NAME_LIST { $$=$1 }
  | SQLJSON_SERIALIZE %prec NAME_LIST { $$=$1 }
  | SQLJSON_QUERY_FUNC %prec NAME_LIST { $$=$1 }
+ | JSON_TABLE_FUNC %prec NAME_LIST {$$=$1}
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;

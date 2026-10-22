@@ -15,6 +15,7 @@ type SQLJSONQueryPlan struct {
 	result, document, path, jsonb Usage
 	passing                       []Usage
 	names                         []string
+	column                        string
 }
 
 type SQLJSONQueryOutcome struct {
@@ -24,10 +25,16 @@ type SQLJSONQueryOutcome struct {
 }
 
 func BindSQLJSONQuery(kind, wrapper string, omit bool, result, document, path, jsonb Usage, passing []Usage, names []string) (SQLJSONQueryPlan, error) {
+	return bindSQLJSONQuery(kind, wrapper, omit, result, document, path, jsonb, passing, names, false)
+}
+func BindSQLJSONTableColumn(kind, wrapper string, omit bool, result, document, path, jsonb Usage, passing []Usage, names []string) (SQLJSONQueryPlan, error) {
+	return bindSQLJSONQuery(kind, wrapper, omit, result, document, path, jsonb, passing, names, true)
+}
+func bindSQLJSONQuery(kind, wrapper string, omit bool, result, document, path, jsonb Usage, passing []Usage, names []string, table bool) (SQLJSONQueryPlan, error) {
 	if kind != "json_exists" && kind != "json_query" && kind != "json_value" || !result.Valid() || !document.Valid() || document.Type.ID() != JSONB || !path.Valid() || path.Type.ID() != JSONPath || !jsonb.Valid() || jsonb.Type.ID() != JSONB || len(passing) != len(names) {
 		return SQLJSONQueryPlan{}, fmt.Errorf("invalid SQL/JSON query plan")
 	}
-	if kind == "json_exists" && result.Type.ID() != Bool {
+	if !table && kind == "json_exists" && result.Type.ID() != Bool {
 		return SQLJSONQueryPlan{}, fmt.Errorf("invalid JSON_EXISTS result")
 	}
 	if wrapper != "" && wrapper != "without" && wrapper != "conditional" && wrapper != "unconditional" || kind != "json_query" && (wrapper != "" || omit) {
@@ -72,6 +79,14 @@ func (p SQLJSONQueryPlan) Evaluate(ctx context.Context, document, path Value, pa
 	if len(passing) > len(local) {
 		bindings = make([]jsonpathBinding, len(passing))
 	}
+	bindings, err := p.bindings(ctx, passing, output, bindings)
+	if err != nil {
+		return SQLJSONQueryOutcome{}, err
+	}
+	return p.evaluate(ctx, document, path, bindings, input, output)
+}
+
+func (p SQLJSONQueryPlan) bindings(ctx context.Context, passing []Value, output OutputEnvironment, bindings []jsonpathBinding) ([]jsonpathBinding, error) {
 	temporalCount := 0
 	for _, value := range passing {
 		if value.typ != nil && !value.null && sqlJSONTemporal(value.typ.BaseType().ID()) {
@@ -84,14 +99,14 @@ func (p SQLJSONQueryPlan) Evaluate(ctx context.Context, document, path Value, pa
 	}
 	for i, v := range passing {
 		if err := ctx.Err(); err != nil {
-			return SQLJSONQueryOutcome{}, err
+			return nil, err
 		}
 		if v.typ != p.passing[i].Type {
-			return SQLJSONQueryOutcome{}, fmt.Errorf("foreign SQL/JSON PASSING value")
+			return nil, fmt.Errorf("foreign SQL/JSON PASSING value")
 		}
 		base, err := v.BaseValue()
 		if err != nil {
-			return SQLJSONQueryOutcome{}, err
+			return nil, err
 		}
 		item := jsonpathItem{}
 		if !base.null && sqlJSONTemporal(base.typ.ID()) {
@@ -99,18 +114,22 @@ func (p SQLJSONQueryPlan) Evaluate(ctx context.Context, document, path Value, pa
 			item.temporal = &temporals[len(temporals)-1]
 		} else if !base.null && base.typ.ID() == JSONB {
 			if base.jsonb == nil {
-				return SQLJSONQueryOutcome{}, fmt.Errorf("missing PASSING JSONB payload")
+				return nil, fmt.Errorf("missing PASSING JSONB payload")
 			}
 			item.jsonbNode = &base.jsonb.root
 		} else {
 			writer := jsonCreateWriter{ctx: ctx, env: output, result: p.jsonb.Type, binary: true}
 			if err := writer.value(base, false); err != nil {
-				return SQLJSONQueryOutcome{}, err
+				return nil, err
 			}
 			item.jsonbNode = &writer.tree.root
 		}
 		bindings[i] = jsonpathBinding{name: p.names[i], item: item}
 	}
+	return bindings, nil
+}
+
+func (p SQLJSONQueryPlan) evaluate(ctx context.Context, document, path Value, bindings []jsonpathBinding, input InputEnvironment, output OutputEnvironment) (SQLJSONQueryOutcome, error) {
 	executor := jsonpathExecutor{ctx: ctx, root: &document.jsonb.root, strict: path.jsonpath.strict, bindings: bindings, input: input}
 	count := 0
 	var first jsonpathItem
@@ -145,20 +164,31 @@ func (p SQLJSONQueryPlan) Evaluate(ctx context.Context, document, path Value, pa
 		return SQLJSONQueryOutcome{Error: status.diagnostic}, nil
 	}
 	if p.kind == "json_exists" {
-		return SQLJSONQueryOutcome{Value: Boolean(p.result.Type, count != 0)}, nil
+		value, err := p.exists(ctx, count != 0, input)
+		if err != nil {
+			if sqlJSONConversionError(err) {
+				return SQLJSONQueryOutcome{Error: err}, nil
+			}
+			return SQLJSONQueryOutcome{}, err
+		}
+		return SQLJSONQueryOutcome{Value: value}, nil
 	}
 	if count == 0 {
 		return SQLJSONQueryOutcome{Empty: true}, nil
 	}
 	if p.kind == "json_value" {
 		if count > 1 {
-			return SQLJSONQueryOutcome{Error: failure("22034", "JSON path expression in JSON_VALUE must return single scalar item")}, nil
+			return SQLJSONQueryOutcome{Error: failure("22034", p.scalarMessage())}, nil
 		}
 		if first.itemKind() == jsonbArray || first.itemKind() == jsonbObject {
-			return SQLJSONQueryOutcome{Error: failure("2203F", "JSON path expression in JSON_VALUE must return single scalar item")}, nil
+			return SQLJSONQueryOutcome{Error: failure("2203F", p.scalarMessage())}, nil
 		}
 	} else if count > 1 && (p.wrapper == "" || p.wrapper == "without") {
-		diagnostic := failure("22034", "JSON path expression in JSON_QUERY must return single item when no wrapper is requested").(*sqlstate.Error)
+		message := "JSON path expression in JSON_QUERY must return single item when no wrapper is requested"
+		if p.column != "" {
+			message = "JSON path expression for column \"" + p.column + "\" must return single item when no wrapper is requested"
+		}
+		diagnostic := failure("22034", message).(*sqlstate.Error)
 		diagnostic.Hint = "Use the WITH WRAPPER clause to wrap SQL/JSON items into an array."
 		return SQLJSONQueryOutcome{Error: diagnostic}, nil
 	}
@@ -248,7 +278,7 @@ func (p SQLJSONQueryPlan) Behavior(ctx context.Context, kind, branch string, inp
 	var err error
 	switch kind {
 	case "true", "false":
-		return Boolean(p.result.Type, kind == "true"), nil
+		value, err = p.exists(ctx, kind == "true", input)
 	case "empty array", "empty object":
 		node := jsonbNode{kind: jsonbArray}
 		if kind == "empty object" {
@@ -273,4 +303,33 @@ func SQLJSONBehaviorError(branch, kind string, cause error) error {
 		diagnostic.Detail = inner.Message
 	}
 	return diagnostic
+}
+
+// TableColumn adds table-only result conversion and diagnostic context without
+// changing standalone SQL/JSON function behavior.
+func (p SQLJSONQueryPlan) TableColumn(name string, result Usage) SQLJSONQueryPlan {
+	p.column, p.result = name, result
+	return p
+}
+func (p SQLJSONQueryPlan) scalarMessage() string {
+	if p.column != "" {
+		return "JSON path expression for column \"" + p.column + "\" must return single scalar item"
+	}
+	return "JSON path expression in JSON_VALUE must return single scalar item"
+}
+func (p SQLJSONQueryPlan) exists(ctx context.Context, truth bool, input InputEnvironment) (Value, error) {
+	if p.column == "" {
+		return Boolean(p.result.Type, truth), nil
+	}
+	text := "false"
+	if truth {
+		text = "true"
+	}
+	if p.result.Type.BaseType().ID() == Int4 {
+		text = "0"
+		if truth {
+			text = "1"
+		}
+	}
+	return p.result.Type.InputWithEnvironment(ctx, text, p.result.Typmod, input)
 }
