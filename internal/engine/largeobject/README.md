@@ -19,6 +19,9 @@ body activation obtains a fresh immutable command-visible READ capture through
 existing lexical scratch, then restores its caller's capture on success/error.
 Rollback/savepoints select old descriptors; this package adds no second store.
 Dump visits stored chunks, including terminal zero bytes, without copying them.
+The protected `pg_largeobject` producer also enumerates these same chunks,
+preserving sparse/short page shape rather than synthesizing logical-read zeros.
+Catalog SELECT is an independent relation ACL, not an LO object read privilege.
 
 `RestoresBytes` and `ACLRepair` admit only generated qualified fixed-OID literal
 create/put and one-object typed raw-ACL repair shapes. Parameters, nested queries,

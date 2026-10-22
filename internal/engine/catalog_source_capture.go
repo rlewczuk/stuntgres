@@ -73,6 +73,13 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		switch oid {
 		case 2609, 3079, ids.ParameterClassID:
 			in.Catalog = scope.inquiry.commentCatalog
+		case 2613:
+			// Page reads share the active LO query frontier. A fresh VOLATILE
+			// body includes its argument effects; the outer inquiry stays frozen.
+			in.Catalog = scope.largeObjectRead
+			if in.Catalog.State() == nil {
+				in.Catalog = scope.inquiry.commentCatalog
+			}
 		default:
 			in.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 		}

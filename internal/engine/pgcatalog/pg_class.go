@@ -16,7 +16,7 @@ import (
 func CatalogHasIndexes(oid ids.OID) bool {
 	switch oid {
 	case TypeOID, 1213, 1249, 1255, 1259, 1262, 2224, 2396, 2600, AMOID, 2604, 2605, 2606, 2607,
-		2608, 2609, 2610, 2611, 2612, 2615, 2616, 2617, 2618, 2964, 3079, 3456, 3501, pgRangeOID, TransformOID, 3600, TSConfigOID, 3764, ids.ParameterClassID, 826:
+		2608, 2609, 2610, 2611, 2612, 2613, 2615, 2616, 2617, 2618, 2964, 3079, 3456, 3501, pgRangeOID, TransformOID, 3600, TSConfigOID, 3764, ids.ParameterClassID, 826:
 		return true
 	}
 	return false

@@ -222,7 +222,16 @@ func relationGrantChange(ctx context.Context, view access.View, s *parser.Object
 	case catalog.CompositeRelation:
 		return ObjectGrantChange{}, false, sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.Name()))
 	case catalog.CatalogRelation:
-		return ObjectGrantChange{}, false, sqlError("0A000", "statement is not supported")
+		// Only the protected large-object page relation exposes catalog SELECT.
+		// Reuse ordinary table/column ACL mutation without opening catalog writes.
+		if relation.Address().ObjectID != 2613 {
+			return ObjectGrantChange{}, false, sqlError("0A000", "statement is not supported")
+		}
+		for i, item := range s.Privileges {
+			if item.All || req.masks[i] != authorization.SelectPrivilege {
+				return ObjectGrantChange{}, false, sqlError("0A000", "statement is not supported")
+			}
+		}
 	}
 	classMask := authorization.TableGrantPrivileges
 	noun := "table"

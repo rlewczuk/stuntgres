@@ -6,6 +6,33 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_largeobject page projection
+
+The shared `TestReferencePGLargeobject` scenarios specify actual sparse page
+bytes, qualified/unqualified metadata, catalog identity links, independent table
+and large-object ACLs, execution-time held-statement authorization, transaction
+and savepoint publication, retained buffers, and fresh VOLATILE SQL-body versus
+outer-query snapshots. Native-only Dump/Reset/Restore phases reuse the same SQL
+baseline and check exact page keys, owners and NULL/empty/populated raw LO ACLs.
+These definitions are contracts, not a claim that implementation or verification
+has completed. Oracle discovery follows the shared testing guide.
+
+```sh
+make check RUN='^TestReferencePGLargeobject(Shape|Pages|Authorization|Transactions|Prepared|Snapshots|Controls|Diagnostics|Smoke)$' REFERENCE=1
+make check RUN='^TestReferencePGLargeobject(Shape|Pages|Authorization|Transactions|Prepared|Snapshots|Controls|Diagnostics|Smoke)$'
+make check RUN='^TestReferencePGLargeobject(Transactions|Snapshots)$' RACE=1
+```
+
+Root owns execution with an external900-second deadline. Standalone public-API
+smoke source is the session artifact `local://pg-largeobject-projection-smoke.go`,
+not repository scaffolding. Materialize it as an absolute temporary `SMOKE_GO`
+and run `timeout 900s go run "$SMOKE_GO"` from the worktree. It checks split and
+sparse bytes, protected-table and independent LO authority, held revocation,
+rollback, native replay and the `aa00,bbff,aa00` outer/body/outer witness. Expected
+stdout is
+`pages=split-exact,sparse-exact acl=independent held=rechecked tx=rollback-exact replay=exact snapshots=aa00,bbff,aa00`.
+
+
 ### pg_transform selected proof
 
 The seven `TestReferencePGTransform` definitions independently specify complete

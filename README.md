@@ -14,6 +14,19 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Large-object page catalog — change note
+
+`pg_catalog.pg_largeobject` exposes genuine stored `(loid,pageno,data)` rows.
+Pages are2048 bytes at most; empty objects and missing sparse pages contribute
+no rows, and short stored pages retain their exact binary length and bytes.
+The catalog is protected by default: LO ownership or SELECT does not grant
+table access. Explicit table/column SELECT grants use ordinary catalog ACL
+authority independently of object privileges, including held-query rechecks.
+Reads retain their active query snapshot; fresh VOLATILE SQL bodies can see
+argument-side LO effects without changing the outer snapshot. Native replay
+reconstructs pages from the existing LO state, not a second serialized catalog.
+See [selected proof and smoke](reference/catalogs/README.md#pg_largeobject-page-projection).
+
 ## Transactional large-object storage — change note
 
 `lo_create`, `lo_creat`, `lo_from_bytea`, both `lo_get` overloads, `lo_put`

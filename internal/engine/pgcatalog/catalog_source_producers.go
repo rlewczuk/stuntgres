@@ -37,6 +37,7 @@ var producers = [...]Registration{
 	{2610, capturePGIndex},
 	{2611, capturePGInherits},
 	{2612, capturePGLanguage},
+	{2613, capturePGLargeObject},
 	{2615, capturePGNamespace},
 	{2616, capturePGOpclass},
 	{2617, capturePGOperator},

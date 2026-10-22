@@ -546,9 +546,20 @@ raw ACL even without object-byte privileges; there is no per-object metadata
 filter or ACL redaction. NULL, explicit-empty and ordered populated ACLs remain
 distinct; `pg_get_acl` returns the same raw state. Held metadata queries observe
 create, grant/revoke, unlink and same-OID recreation at each execution. Unlink
-requires ownership, not merely UPDATE. The full page relation, durability,
-descriptor client API, import/export, truncate and standalone ALTER OWNER are
-not added.
+requires ownership, not merely UPDATE.
+
+`pg_largeobject` projects genuine stored sparse pages as
+`(loid oid,pageno int4,data bytea)`, all nonnullable. Empty objects and
+missing pages have no rows; short pages and binary bytes are preserved exactly.
+The relation has no PUBLIC SELECT: table/column SELECT GRANT/REVOKE is supported
+only for this protected catalog, independently of LO SELECT/UPDATE/ownership.
+There is no per-object row filter after ordinary table admission. Held queries
+recheck current grants, while returned rows and byte buffers stay owned.
+Page scans use their active query frontier, including fresh VOLATILE body
+captures, without exposing same-command effects to an outer scan. Native
+Dump/Reset/Restore reconstructs pages through existing LO replay; arbitrary
+catalog-grant persistence is not promised. Durability, descriptor client APIs,
+import/export, truncate and standalone ALTER OWNER are not added.
 
 
 Qualified TEMP namespace/REGCLASS lookup follows normal captured role authority;

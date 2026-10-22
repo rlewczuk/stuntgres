@@ -25,6 +25,11 @@ type Spec struct {
 }
 
 var Specs = [...]Spec{
+	{2613, ids.PGCatalogNamespaceOID, "pg_largeobject", []ColumnSpec{
+		{"loid", sqltype.Oid, false, 0, 0, -1},
+		{"pageno", sqltype.Int4, false, 0, 0, -1},
+		{"data", sqltype.Bytea, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(2613), true, true, "stuntgres: missing catalog source type"},
 	{2995, ids.PGCatalogNamespaceOID, "pg_largeobject_metadata", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"lomowner", sqltype.Oid, false, 0, 0, -1},

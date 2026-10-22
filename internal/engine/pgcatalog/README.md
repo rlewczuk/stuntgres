@@ -6,8 +6,8 @@ the `information_schema` views `table_privileges`, `data_type_privileges` and
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
-imports `catalog`, `authorization`, `lock` (lock records), `expr`, `ids`,
-`sqltype`, `sqlstate`, `parser` and the standard library. It never imports the
+imports `catalog`, `authorization`, `largeobject`, `lock` (lock records), `expr`,
+`ids`, `sqltype`, `sqlstate`, `parser` and the standard library. It never imports the
 engine, `access`, `storage` or `visibility`. `parser` is needed because
 catalog descriptors store parser enums (foreign-key actions, identity mode,
 partition bound values); it is an L0 leaf that `catalog` also imports.
@@ -39,6 +39,25 @@ type Producer func(Input) ([][]sqltype.Value, error)
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
   rows are produced. Absent and explicit-empty ACLs stay different: `ClassACL`
   returns NULL for an absent ACL.
+
+`pg_largeobject` (2613) enumerates actual immutable LO stored chunks, not
+zero-filled logical reads. Its producer validates source/descriptor provenance
+and copies each borrowed chunk once into an owned BYTEA value; holes and short
+tails are never materialized. It does not consult per-object ACLs: ordinary
+table/column SELECT admission protects this non-public relation. The engine
+selects only2613's active LO READ root, falling back to the statement inquiry
+frontier, so fresh SQL bodies see argument effects while outer scans remain
+frozen. Existing metadata2995 capture remains independent and unchanged.
+
+Behavioral units cover retained/fresh captured roots, cancellation and ordinary
+provenance errors; public SQL contracts and smoke belong in
+[reference/catalogs](../../../reference/catalogs/README.md#pg_largeobject-page-projection).
+
+```sh
+make check RUN='^TestPGLargeobject(Projection|CapturedRoots|CanceledCapture)$'
+make check RUN='^TestCatalogSourceProducerCoverage$'
+```
+
 
 ## Registry
 
