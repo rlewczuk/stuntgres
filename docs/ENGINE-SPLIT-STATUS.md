@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `475d044a2` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121 and 122). Steps 8–17 were
+Last verified against `master` at `c378ffbcc` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122 and 123). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -25,7 +25,8 @@ broad item.
 - **Third round, control:** none; 119 (stored 22e), 120 (control 30d),
   121 (control 30e) and 122 (control 30f) are done, so steps 22 and 30
   have no planned sub-step left.
-- **Third round, table and index:** 123 (24e; then 124 and 125), 126 (23e;
+- **Third round, table and index:** 124 (24f; then 125; 123, table 24e,
+  is done), 126 (23e;
   touches `set_constraints.go`, which 110b also edited), 127 (25e).
 - **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
   (catalog 5k), 131 (access B7, in place; it changes `AuthorizationView`,
@@ -762,8 +763,9 @@ them); the optional TRUNCATE cores were not needed.
   - [x] 30f — TEMP preservation phases moved
     ([control](ENGINE-SPLIT-control.md)) (`e3948ad1b`, `9aec972de`, then the
     docs commit)
-  - [ ] 24e — Relation validation and generation remap moved
-    ([table](ENGINE-SPLIT-table.md))
+  - [x] 24e — Relation validation and generation remap moved
+    ([table](ENGINE-SPLIT-table.md)) (`20e2675f2`, `77e73dff4`,
+    `9e28f488c`, then the docs commit)
   - [ ] 24f — Remaining CREATE and ALTER decisions moved
     ([table](ENGINE-SPLIT-table.md))
   - [ ] 24g — Inheritance prepare side moved ([table](ENGINE-SPLIT-table.md))
@@ -1823,11 +1825,15 @@ branches.
      units, the dump smoke, quickcheck and the quick and `REFERENCE=1`
      dump/restore/control selections passed; racecheck/finalcheck skipped
      at user request
-123. [ ] Table 24e: relation validation and generation remap —
-     [table](ENGINE-SPLIT-table.md) 24e · needs — ·
-     `relationProvider.Validate` with an injected validator table,
-     `recomputeRemappedGenerations`, the tablespace-only helpers (about
-     0.4k lines)
+123. [x] Table 24e: relation validation and generation remap —
+     [table](ENGINE-SPLIT-table.md) 24e · needs — (`20e2675f2`,
+     `77e73dff4`, `9e28f488c`, then the docs commit) ·
+     `table.RelationProvider` with `table.RelationValidators` slots filled
+     by the root (`view`, `partition`), `table.RecomputeRemappedGenerations`
+     with a capture callback, `table.TablespaceOnlyActions`,
+     `table.ValidateAlterTablespaceMove`; no aliases · targeted units (also
+     `RACE=1`), quickcheck and the quick and `REFERENCE=1` table selections
+     passed; racecheck/finalcheck skipped at user request
 124. [ ] Table 24f: remaining CREATE and ALTER decisions —
      [table](ENGINE-SPLIT-table.md) 24f · needs 123 · `bindColumnChecks`
      core, the target-admission table, ALTER TABLE OF, CREATE TABLE shape

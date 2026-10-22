@@ -218,11 +218,14 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
 DDL commands, `CatalogStage` and its publication coordination (storage row
 shapes, index candidates, domain validation, materialized replacement, role
 candidates), publication itself, the `catalogStore` allocators, seeding, the
-transaction catalog journal, and the validators that need engine services:
-extension, procedure, operator and parameter validation (relation and type
-validation are clean and move to `table` 24e and `stored` 22e),
-the physical NOT NULL validators (their origin and primary-support checks
-and `SameRelationRowShape` are [`index`](../index/README.md) code), definition-OID
+transaction catalog journal, parameter validation (`parameterProvider`, over
+the settings registry), the registration of the other providers, which live
+in their packages (relations `table.RelationProvider`, whose validator slots
+the engine fills from `view` and `partition`; types `stored.TypeProvider`;
+procedures `stored.ProcedureProvider`; extensions `extension.CatalogProvider`;
+operators `routine.OperatorProvider`; the physical NOT NULL validators are
+`table` code, their origin and primary-support checks and
+`SameRelationRowShape` [`index`](../index/README.md) code), definition-OID
 assignment (the Restore remap is `control.RemapDefinitionOIDs` since 30e), the
 restore principal mapper, the
 `DefinitionReader` implementations

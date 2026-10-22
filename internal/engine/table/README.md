@@ -9,7 +9,8 @@ moved the clean set). It sits above `index` and below `partition`, `view`,
 `dml` and `control` in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (types and pure functions only),
-`authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`, `functions`,
+`authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`, `extension`,
+`functions`,
 `ids`, `index`, `lock`, `pgcatalog`, `plan`, `regobj`, `sequence`,
 `session`, `storage`, `stored`, `typedef`, `visibility`, `parser`,
 `sqlstate`, `sqltype` and the standard library. It never imports the
@@ -190,6 +191,22 @@ admission and DML expansion goes to `dml`.
   `SetSchemaOwned`, `SetSchemaGroup`, `SetSchemaCandidates` and
   `SetSchemaConflict` (`set_schema.go`), `QueryTableColumns` (CREATE TABLE
   AS column derivation), `TypedObservationValid` (`typed.go`).
+- **Relation validation** (24e; `relation_validation.go`):
+  `RelationProvider`, the catalog provider of relation descriptors. The
+  three checks owned by packages above `table` come in as
+  `RelationValidators` slots, called at fixed points in this order:
+  `Policies` after the column checks, `Partition` after the CHECK-kind
+  check, `Definition` as the view and materialized-view tail. The root
+  builds one `relationProvider` value with `view.ValidatePolicies`,
+  `partition.ValidateDescriptor` and `view.ValidateViewDefinition`.
+- **Generation remap** (24e; `generated_remap.go`):
+  `RecomputeRemappedGenerations` recomputes the stored generated cells that
+  read their owner's table OID after an OID remap, with NOT NULL and CHECK
+  rechecks. Its CHECK snapshot capture is a callback, called with no lock
+  held; the root's `remapCheckCapture` takes `Engine.mu` for it.
+- **Tablespace-only ALTER helpers** (24e; `alter_tablespace.go`):
+  `TablespaceOnlyActions`, `ValidateAlterTablespaceMove`; the bulk
+  `ALTER TABLE ALL IN TABLESPACE` handler stays in the root.
 - **Stage slot** (`stage.go`, `like.go`): `Stage` holds CREATE … LIKE
   sources, recorded by `CaptureLikeSource` and checked at publication by
   `ValidateLikeSources`; the `CatalogStage` accessors stay in the engine.
@@ -290,11 +307,13 @@ and its callers hold nothing; its comment marks the methods that wait
 Package-local tests cover pure helpers (`TestOwnedSequenceNameTruncatesToValidUTF8`).
 Every other table unit test builds an engine and stays in the root package,
 naming the moved code as `table.X`; the host seams have
-`TestTableHost(BindColumnDefaultsMatchesCreateTable|StageChangedReportsStagedDescriptor)`
-and `TestAlterHostInputReflectsCheckSnapshotCapture`.
+`TestTableHost(BindColumnDefaultsMatchesCreateTable|StageChangedReportsStagedDescriptor)`,
+`TestAlterHostInputReflectsCheckSnapshotCapture`, the validator slots
+`TestRelationValidatorsOrder` and the remap capture
+`TestGeneratedRemapCheckCapture`.
 
 ```sh
-make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost'
+make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost|^TestRelationValidatorsOrder$|^TestGeneratedRemapCheckCapture$'
 make check RUN='^Test(AlterAdd|AlterGenerated|AlterTablespace|AlterType|AlterDefault|IdentityAlter|ConstraintRename|InheritanceAlter|InheritanceRetired|InheritanceMetadata)'
 make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
 make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'

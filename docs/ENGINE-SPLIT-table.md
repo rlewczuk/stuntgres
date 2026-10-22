@@ -1020,7 +1020,10 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   `44f1ae9bf`, then the docs commit) · selected unit (also `RACE=1`) and
   dual-mode proof, Dump→Restore→Dump smoke and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 24d.3 record below
-- [ ] 24e — Relation validation and generation remap moved (linear item 123)
+- [x] 24e — Relation validation and generation remap moved — linear item
+  123 (`20e2675f2`, `77e73dff4`, `9e28f488c`, then the docs commit) ·
+  selected unit (also `RACE=1`) and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 24e record below
 - [ ] 24f — Remaining CREATE and ALTER decisions moved (linear item 124)
 - [ ] 24g — Inheritance prepare side moved (linear item 125)
 
@@ -1381,6 +1384,46 @@ was `sqlError` alone.
   which fails on master too; `table` imports no root,
   `partition`, `view`, `dml` or `control` package.
 
+### 24e record
+
+Re-measured at `16cb9f7d0` (rebased onto `c378ffbcc`): names, line ranges and callers matched the
+plan. Three commits, each green on `make build` and its units; no aliases.
+
+- `20e2675f2`: `table.TablespaceOnlyActions` and
+  `table.ValidateAlterTablespaceMove` (`table/alter_tablespace.go`); the
+  root `alter_tablespace.go` keeps only `alterAllTablespaceLocked`.
+  Callers: `alter_table.go` (5×), `partition_locks.go`.
+- `77e73dff4`: `table.RecomputeRemappedGenerations`
+  (`table/generated_remap.go`; root `generated_remap.go` deleted) takes
+  `capture func(*catalog.Relation) error`, called once per remapped
+  relation with its valid CHECK traversal before any row is evaluated,
+  with no lock held; nil skips it. The root `remapCheckCapture(host)`
+  (`generated_replacement.go`) returns nil without a statement scope and
+  otherwise keeps today's single `Engine.mu` window around the comment and
+  visibility captures.
+- `9e28f488c`: `table.RelationProvider` (`table/relation_validation.go`,
+  body unchanged). Pattern 5 as named slots, not a positional slice: the
+  three checks of packages above `table` sit at different points of the
+  sequence, so `Validate` keeps the order and calls
+  `RelationValidators.Policies` (after the column checks), `.Partition`
+  (after the CHECK-kind check) and `.Definition` (the view and
+  materialized-view tail). The root builds one package-level
+  `relationProvider` value with `view.ValidatePolicies`,
+  `partition.ValidateDescriptor` and `view.ValidateViewDefinition`, so
+  registration costs nothing extra at startup. `table` now imports
+  `extension` (already below it through `stored`).
+- Tests: new `TestGeneratedRemapCheckCapture` and
+  `TestRelationValidatorsOrder` (root, engine fixtures; both observed
+  failing first). Adapted to the new names, unchanged otherwise:
+  `alter_tablespace_test.go`, `TestGeneratedReplacementPrivateRowsAndCancellation`,
+  `TestGeneratedVirtualReplacementDoesNotMaterializeOwner`, and the root
+  tests calling `relationProvider.Validate` (`relationProvider{}` became
+  the root value). None moved or deleted.
+- Docs: the `catalog` README sentence on validators that need engine
+  services was stale beyond 24e (extension, procedure and operator
+  providers already live in their packages); it now lists only parameter
+  validation as root and names each provider's package.
+
 ### Notes for later steps
 
 - 24b: the dependency passes need `dropDependencyReader` and
@@ -1440,6 +1483,10 @@ was `sqlError` alone.
   replaces one relation can reuse the root `publishRestoreRepairLocked`
   tail; the receipts' `Holds` checks keep the role record and current
   relation identity without an authorization view.
+- 24e for 24f: `relationProvider` is a root value, not a type; new
+  callers pass it as is. Nothing in 24e touched the 24f files
+  (`check.go`, `relation_scope.go`, `typed_table.go`, `create_table.go`,
+  `alter_table.go:701-736`).
 - 24d.1 for partition 25d: `schemaPartitionChildLocked` already calls
   `table.StageCreateIdentities`, `table.NewRelation`,
   `table.AssignDefinitionOIDs` and `(*table.Stage).CaptureLikeSource`; its
