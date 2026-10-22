@@ -234,6 +234,16 @@ pending-grant decision they call live here.
   `TypedSources` (`typed_alter.go`), the ALTER TABLE [NOT] OF checks over a
   small `TypedResolver` and the OID-ordered OF types a typed-table change
   locks.
+- **ALTER row rewrite and scan** (24h): `PlanAddedColumns`
+  (`alter_add_column.go`), the ADD COLUMN DEFAULT preparation and one-time
+  fills; `RewriteTypeRows` (`alter_rewrite.go`), the TYPE, added-column and
+  generation rewrite of the effective live heads into a private
+  replacement; `ValidateAddedConstraintRows` (`alter_constraint_rows.go`),
+  the CHECK and NOT NULL scan of old rows. The caller passes the statement's
+  `exec.Context` template (the routine authority's catalog for the fills
+  and the rewrite, none for the scan) and the private write and delete
+  roots; the functions take no lock, and expressions may reach host methods
+  that take `Engine.mu`, so callers hold nothing.
 - **Target admission** (24f; `target_admission.go`): `Target` is how a
   statement admits its target relation (name, lock mode, owner, rename,
   IF EXISTS, table-rename and view-replacement flags), decided from syntax.
@@ -293,8 +303,8 @@ builds the host), `dropTableLocked`, `alterSchemaLocked` and
 `prepareQueryTableLocked` around their cores, `schemaPartitionTableLocked`
 (partition 25d), `alterTableLocked` and its pass loop, the candidate
 functions that stage or wait (`addColumnCandidate`, `alterTypeCandidate`,
-`dropColumnCandidate`, ...), row rewrites and validation
-(`rewriteTypeRows`, `validateAddedConstraintRows`), `Engine.mu` windows,
+`dropColumnCandidate`, ...), the row evaluation template
+(`alterRowEvaluation`) and projection roots, `Engine.mu` windows,
 lock admission (`acquireDefinitionProviders`, `admitInheritanceAlter`,
 `acquireInheritanceDefinitions`), the identity sequence waits and staging
 (`stageAlterIdentityTypes`, `alterIdentityTypeSequence`,
@@ -358,12 +368,15 @@ tests: `TestTypedSources`, `TestPlanAlterScan`, `TestCheckCreateShape`,
 `TestTableTargetAdmission` and `TestAdmitTargetAsksEachEntry`. The 24g
 prepare side and query grants have package-local tests over a fake host
 and a small catalog: `TestPrepareInheritanceNode(PhaseOrder|StopsAtFailedStep)`
-and `TestInheritancePendingGrants`.
+and `TestInheritancePendingGrants`. The 24h scan has
+`TestValidateAddedConstraintRows`; the rewrite and fill tests need an
+engine fixture and stay in the root (`TestAlterAddColumn*`,
+`TestAlterGenerated*`).
 
 ```sh
 make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost|^TestRelationValidatorsOrder$|^TestGeneratedRemapCheckCapture$'
 make check RUN='^Test(TypedSources|PlanAlterScan|CheckCreateShape|TableTargetAdmission|AdmitTargetAsksEachEntry)$'
-make check RUN='^Test(PrepareInheritanceNode|InheritancePendingGrants)'
+make check RUN='^Test(PrepareInheritanceNode|InheritancePendingGrants|ValidateAddedConstraintRows)'
 make check RUN='^Test(AlterAdd|AlterGenerated|AlterTablespace|AlterType|AlterDefault|IdentityAlter|ConstraintRename|InheritanceAlter|InheritanceRetired|InheritanceMetadata)'
 make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
 make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'

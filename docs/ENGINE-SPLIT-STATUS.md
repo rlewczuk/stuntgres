@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `4c05da8fe` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132 and 133). Steps 8–17 were
+Last verified against `master` at `28e17c28d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133 and 134). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,9 +20,9 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, table family and DML:** 134 (table 24h), 136 (table
+- **Fourth round, table family and DML:** 135 (table 24i), 136 (table
   24j), 137 (dml 29f), 138 (copyfmt 19c), 139 (view 27i), 140 (partition
-  25f), 141 (fdw 26f), 142 (index 23f); 135 (table 24i) waits for 134.
+  25f), 141 (fdw 26f), 142 (index 23f).
 - **Fourth round, statement and session:** 143 (session 13h), 144 (exec
   11g), 145 (regobj 21e).
 - **Fourth round, catalog, DDL, types, roles and Restore:** 146 (analyze
@@ -219,6 +219,10 @@ of decisions that are clean after one cut and fit an existing package, so
 it planned a fourth round, items 134–150 in Group N (§6 "Fourth round",
 §7 decision 19), and a second closing review, item 151. Every item except
 135 (needs 134) and 151 is ready.
+Item 134 (table 24h) is done: the ALTER row rewrite, the added-column
+fills and the old-row CHECK/NOT NULL scan are `table.RewriteTypeRows`,
+`PlanAddedColumns` and `ValidateAddedConstraintRows`, over a root
+evaluation template and the private roots, so 135 (table 24i) is ready.
 
 ## Task tree
 
@@ -803,7 +807,8 @@ it planned a fourth round, items 134–150 in Group N (§6 "Fourth round",
 - [ ] **Fourth round** — decisions clean after one cut, planned by item
   133 ([ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 "Fourth round"); each is a
   sub-step of an existing prompt file
-  - [ ] 24h — ALTER row rewrite and scan ([table](ENGINE-SPLIT-table.md))
+  - [x] 24h — ALTER row rewrite and scan ([table](ENGINE-SPLIT-table.md))
+    (`35c4bd095`, `2425a5ac1`, then the docs commit)
   - [ ] 24i — FK provider plans, validation loops and inheritance
     decisions ([table](ENGINE-SPLIT-table.md))
   - [ ] 24j — Definition-provider collection and deparse inquiries
@@ -2009,8 +2014,15 @@ sub-step of an existing prompt file; none is broad. Items with "needs —"
 may run in parallel with each other, on separate branches. The numbers are
 final; an item that splits gets lettered sub-items (rule 5 below).
 
-134. [ ] Table 24h: ALTER row rewrite and scan —
-     [table](ENGINE-SPLIT-table.md) 24h · needs —
+134. [x] Table 24h: ALTER row rewrite and scan —
+     [table](ENGINE-SPLIT-table.md) 24h · needs — (`35c4bd095`,
+     `2425a5ac1`, then the docs commit) · `table.RewriteTypeRows`,
+     `table.ValidateAddedConstraintRows` and `table.PlanAddedColumns` over
+     a root `exec.Context` template (`alterRowEvaluation`) and the private
+     write and delete roots; no aliases · targeted units (also `RACE=1`),
+     quickcheck and the quick and `REFERENCE=1` ALTER TYPE/ADD COLUMN/ADD
+     CONSTRAINT/typed-table selections passed; racecheck/finalcheck
+     skipped at user request
 135. [ ] Table 24i: FK provider plans, validation loops and inheritance
      decisions — [table](ENGINE-SPLIT-table.md) 24i · needs 134
 136. [ ] Table 24j: definition-provider collection and deparse inquiries —

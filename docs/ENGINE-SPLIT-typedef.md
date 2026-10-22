@@ -211,7 +211,7 @@ domain index generations. Wait for approval.
   validates rows (`exec.Context`) and publishes (`ValidateCatalogStage`,
   `publishCatalogOperation`). ALTER TYPE (composite) and ALTER TABLE OF also
   use the ALTER TABLE machinery (`alterTypeCandidate`, `addColumnCandidate`,
-  `rewriteTypeRows`, `rebuildAlterUniquesLocked`/`ExclusionsLocked`,
+  `table.RewriteTypeRows`, `rebuildAlterUniquesLocked`/`ExclusionsLocked`,
   `addedColumn`, `columnTransformation`).
 - **Publication and lifecycle code**: `reownStagedTypeGenerationsLocked`
   (5 production callers: `catalog.go`, `view.go`, `query_table_create.go`,

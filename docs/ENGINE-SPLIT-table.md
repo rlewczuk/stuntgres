@@ -38,8 +38,9 @@ constraints, verification, documentation and report.
 Tables become a feature package: column and constraint records, NOT NULL,
 CHECK, DEFAULT, generated columns, foreign-key definitions, ALTER TABLE
 candidates, the table dump record, and inheritance. The orchestration of
-CREATE and ALTER TABLE (`Engine.mu` windows, lock waits, row rewrites,
-publication) stays in the root.
+CREATE and ALTER TABLE (`Engine.mu` windows, lock waits, publication)
+stays in the root; since 24h the row rewrites and scans are `table`
+functions over a root evaluation template.
 
 **Why inheritance is part of `table`.** Inheritance and tables use each
 other in both directions: 69 dirty and 29 clean inheritance declarations
@@ -120,7 +121,7 @@ uses `columnTransformation`, so `typedef` cannot own it).
   `dropColumnCandidate`, `addColumnCandidate`, `alterTypeCandidate`,
   `stageUsingIndex`, `stageAddedUnique`, `stageExclusion`,
   `notNullCandidate`) → CHECK and FK staging → row phase
-  (`rewriteTypeRows`, row validation) → index work → `scope.catalog =
+  (`table.RewriteTypeRows`, row validation) → index work → `scope.catalog =
   changes`. `Engine.mu` is taken and released about 30 times inside.
   Publication happens at Finish (`transaction_finish.go`).
 - *Admission:* lock modes and waits in `relation_scope.go`,
@@ -422,9 +423,10 @@ directly. The 85a seam (`index.Host`, `index.KeyHost`, `index.DropStage`,
   (`Acquire`, `lockInheritanceClosure`), `acquireDefinitionProviders`,
   `acquireForeignKeyTypeProviders`, `acquireSerializableSnapshot`,
   `admitInheritanceAlter`, `acquireInheritanceDefinitions`. Row work stays
-  too: `rewriteTypeRows`, `projectColumnShape`,
-  `validateAddedConstraintRows`, `transportIndexLayouts`,
-  `planAddedColumns`, FK validation.
+  too: `projectColumnShape`, `transportIndexLayouts`, FK validation.
+  (Correction, 24h: `rewriteTypeRows`, `validateAddedConstraintRows` and
+  `planAddedColumns` needed only roots and an evaluation template; they
+  are `table` functions now.)
 - **Removal has mixed contracts.** Of `table.DropDependencyReader`'s 18
   methods about 8 are generic reads; `Acquire`, `OwnedExpressionDependencies`
   and `CompositeFieldDependencies` wait, `ApplyViewDependents` takes
@@ -1126,7 +1128,10 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   `319ad1289`, `35e3d98ae`, then the docs commit) · selected unit (also `RACE=1`) and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request; see the 24g record below
-- [ ] 24h — ALTER row rewrite and scan (linear item 134)
+- [x] 24h — ALTER row rewrite and scan — linear item 134 (`35c4bd095`,
+  `2425a5ac1`, then the docs commit) · selected unit (also `RACE=1`) and
+  dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+  user request; see the 24h record below
 - [ ] 24i — FK provider plans, validation loops and inheritance decisions (linear item 135)
 - [ ] 24j — Definition-provider collection and deparse inquiries (linear item 136)
 
@@ -1620,7 +1625,47 @@ on `make build` and its units; no aliases.
   `inheritance_alter_admission_test.go`, `inheritance_admission_test.go`,
   `inheritance_dependency_authority_test.go`. None moved or deleted.
 
+### 24h record
+
+Started at `47331f37f` (item 133 recorded) and rebased onto `28e17c28d`
+(information_schema.key_column_usage; no overlap). `reach` at the start
+confirmed the plan: `rewriteTypeRows`, `StatementScope.validateAddedConstraintRows`
+and `planAddedColumns` were DIRTY only through `StatementScope`; after the
+move the four touched root files keep only the candidate wrappers and
+`alterRowEvaluation` (outputs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-ROW-REWRITE/`). Two code commits, each
+green on `make build` and its units; no aliases.
+
+- `35c4bd095` (cut in place): the three functions take an `exec.Context`
+  template by value and, for the rewrite, the private write and delete
+  roots. The root `alterRowEvaluation(scope, op, read)` builds the
+  template right before each call: `scope.op` and the routine authority's
+  catalog for the fills, the `op` argument and the same catalog for the
+  ALTER TABLE rewrite, `scope.op` and an empty `catalog.Read` for the scan,
+  exactly as the functions built it before. The roots come from
+  `scope.columnProjectionRoots` of the storage owner (ALTER TABLE) or the
+  old relation (typed tables), the address the rewrite read before.
+  Cancellation checks read the template's context, which is that same
+  `op.Context()`.
+- `2425a5ac1` (move): `table.RewriteTypeRows` (new `table/alter_rewrite.go`),
+  `table.ValidateAddedConstraintRows` (`table/alter_constraint_rows.go`) and
+  `table.PlanAddedColumns` (`table/alter_add_column.go`), bodies unchanged
+  apart from the `table.` qualifiers. The root `alter_constraint_rows.go`
+  was deleted. No new import edge.
+- Tests: new `TestValidateAddedConstraintRows` (table; observed failing to
+  compile first). Adapted to the new signatures, unchanged otherwise:
+  `alter_generation_test.go` and `alter_add_column_candidate_test.go` (they
+  stay in the root: engine fixture, `queryProbeExpression` and the
+  `Engine.mu` TryLock assertion). None moved or deleted.
+
 ### Notes for later steps
+
+- 24h for 24i: `alter_table.go` changed only at the three call sites
+  (`table.PlanAddedColumns`, `table.RewriteTypeRows`,
+  `table.ValidateAddedConstraintRows`); the FK code 24i moves is untouched.
+  `typed_mutation.go`'s own CHECK loop (no rewrite, `!rewrite &&
+  len(mutation.checks) != 0`) still builds its template inline and could
+  call `alterRowEvaluation`.
 
 - 24g: step 24 has no planned sub-step left. The root keeps the
   inheritance waits and stage consumers: `admitInheritanceAlter`,
