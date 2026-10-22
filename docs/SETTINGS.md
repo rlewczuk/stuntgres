@@ -82,23 +82,54 @@ the original write is suppressed. Unconditional INSTEAD NOTHING leaves no
 executable command, so no original off guard or executor ACL check runs.
 These setting checks do not define rule-change invalidation for cached plans.
 
-The read-only typed `pg_catalog.pg_settings` virtual view currently publishes
-**only row_security**, with all 17 PostgreSQL columns. It does not fabricate
-metadata for other settings or implement UPDATE rules/pg_show_all_settings.
-SHOW ALL still exposes the entire native registry. The row reports canonical
-on/off, context `user`, vartype `bool`, category
-`Client Connection Defaults / Statement Behavior`, boot_val `on`, and the
-physical session's captured default as reset_val. Unit/bounds/enumvals and
-sourcefile/sourceline are NULL; pending_restart is false.
+The read-only typed `pg_catalog.pg_settings` virtual view publishes exactly one
+row per registered definition: 33 builtins plus host-registered custom entries.
+It uses the same immutable registry as SHOW ALL, not a second catalog or store.
+All 17 PostgreSQL columns retain their declared types. Names, descriptions,
+categories, contexts, units, bounds and visible enum order are exact metadata.
+Current transaction characteristics come from the existing transaction owner.
+`role` and `session_authorization` remain separate identity commands, not GUC rows.
+Unregistered dotted placeholders never appear in either registry listing.
+
+Numeric setting/boot_val/reset_val use stored **base units**, not rounded SHOW
+text: after SET statement_timeout='1s', SHOW/current_setting/SHOW ALL report `1s`,
+while pg_settings reports setting `1000`, unit `ms`, bounds `0`/`2147483647`.
+Unitless units, nonnumeric bounds and nonenum enumvals are SQL NULL. Enum arrays
+preserve visible registry order. Custom categories are `Customized Options`;
+their registered descriptions, defaults, bounds and access classes are retained.
+sourcefile/sourceline are NULL and pending_restart is false because native has
+no configuration-file/reload facility, not because those fields are approximated.
+
+INSERT/UPDATE/DELETE retain native55000 view diagnostics, even for dead predicates;
+PostgreSQL's UPDATE rewrite rule is not implemented. Existing read-only and
+relation/column authority checks are unchanged; metadata grants no mutation rights.
 
 Source reflects provenance, not equality to boot text: absent SQL override is
-`default`; any SQL override is `session`, even explicit SET on. A default
-supplied by native SessionDefaultProvider maps to `client` until overridden;
+`default`; any SQL override is `session`, even explicit SET to the boot value.
+A present response from the internal SessionDefaultProvider maps to `client`
+even when boot-equal; an absent response remains `default`. Provenance is
+captured once per definition, never inferred from equality or provider existence.
 RESET/DEFAULT restores that captured default and source without another
 callback. This is an explicit native startup-API provenance mapping, not a
 PostgreSQL Go callback or configuration-file claim. Existing transaction and
 savepoint journals restore override presence and therefore source. Captured
 rows are immutable; prepared handles never cache GUC or principal authority.
+
+### Statistics collector boundary
+
+No cumulative query/index, activity, I/O/WAL/function timing, query-ID or
+statistics-snapshot collector exists natively. This part introduces **no technical
+statistic approximations or approximate objects/columns**; configuration values
+and command/transaction effects are not approximations. PostgreSQL18 §19.9's
+`track_activities`, `track_activity_query_size`, `track_counts`,
+`track_cost_delay_timing`, `track_io_timing`, `track_wal_io_timing`,
+`track_functions`, `stats_fetch_consistency`, `compute_query_id`,
+`log_parser_stats`, `log_planner_stats` and `log_executor_stats` remain absent:
+SHOW/current_setting/SET return42704, and pg_settings has no rows for them.
+The thirteenth control, existing `log_statement_stats`, exposes Boolean/off/
+superuser metadata but remains deny-only42501, including bootstrap superusers.
+Monitoring membership cannot synthesize missing support or enable inert controls.
+
 
 ## Parameter ACLs
 

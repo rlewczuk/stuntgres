@@ -36,6 +36,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	switch oid {
 	case pgcatalog.SettingsOID:
 		runtime.settings = scope.op.Session.Settings
+		runtime.registry = e.settings
 		unlockBefore = true
 	case pgcatalog.CursorsOID:
 		runtime.cursors = payloadOf(scope.op.Session).cursors

@@ -9,6 +9,8 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	settingspkg "stuntgres/internal/engine/settings"
+	"stuntgres/internal/sqltype"
 )
 
 func TestRowSecuritySettingsCapture(t *testing.T) {
@@ -48,17 +50,18 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	capture := func(value, source string) *exec.Source {
 		t.Helper()
-		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings)
-		if err != nil || len(rows.Anonymous) != 1 {
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings, registry: e.settings}}, capturePGSettings)
+		if err != nil || len(rows.Anonymous) != len(e.settings.Order()) {
 			t.Fatal(rows, err)
 		}
+		row := settingsMetadataRow(t, rows.Anonymous, "row_security")
 		for index, want := range map[int]string{1: value, 8: source, 12: "on", 13: "off"} {
-			got, err := rows.Anonymous[0][index].Text()
+			got, err := row[index].Text()
 			if err != nil || got != want {
 				t.Fatal(index, got, want, err)
 			}
 		}
-		if !rows.Anonymous[0][14].IsNull() || !rows.Anonymous[0][15].IsNull() {
+		if !row[14].IsNull() || !row[15].IsNull() {
 			t.Fatal("invented configuration-file provenance")
 		}
 		return rows
@@ -67,20 +70,34 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	// Provider changes are not live defaults, even when SQL resets an override.
 	provider.values["row_security"] = "on"
 	settings.Values["row_security"] = "on"
+	settings.Typed["row_security"] = settingspkg.Value{Boolean: true}
 	capture("on", "session")
 	settings.Values["row_security"] = "off"
+	settings.Typed["row_security"] = settingspkg.Value{Boolean: false}
 	capture("off", "session")
 	delete(settings.Values, "row_security")
+	delete(settings.Typed, "row_security")
 	capture("off", "client")
 	if provider.calls["row_security"] != 1 {
 		t.Fatal(provider.calls)
 	}
-	if got, _ := old.Anonymous[0][8].Text(); got != "client" {
+	if got, _ := settingsMetadataRow(t, old.Anonymous, "row_security")[8].Text(); got != "client" {
 		t.Fatal("retained metadata changed", got)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings); source != nil || err != context.Canceled {
+	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings, registry: e.settings}}, capturePGSettings); source != nil || err != context.Canceled {
 		t.Fatal(source, err)
 	}
+}
+
+func settingsMetadataRow(t *testing.T, rows [][]sqltype.Value, name string) []sqltype.Value {
+	t.Helper()
+	for _, row := range rows {
+		if got, _ := row[0].Text(); got == name {
+			return row
+		}
+	}
+	t.Fatalf("missing setting %s", name)
+	return nil
 }

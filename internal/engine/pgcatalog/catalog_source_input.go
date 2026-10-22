@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqltype"
 	"time"
 )
@@ -31,7 +32,11 @@ type CursorFact struct {
 	Hold, Scroll    bool
 	Created         sqltype.Value
 }
-type SettingsFact struct{ Value, Reset, Source string }
+type SettingsFact struct {
+	Definition   settings.Definition
+	Value, Reset settings.Value
+	Source       string
+}
 type PreparedFact struct {
 	XID          uint32
 	GID          string
@@ -50,7 +55,7 @@ type ForeignKeyComparison struct {
 type Runtime interface {
 	CursorCount() int
 	VisitCursors(func(CursorFact) error) error
-	SessionSettings() SettingsFact
+	SessionSettings(context.Context) ([]SettingsFact, error)
 	PreparedCount() int
 	VisitPreparedTransactions(context.Context, func(PreparedFact) error) error
 	TimezoneInput() sqltype.InputEnvironment

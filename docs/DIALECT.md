@@ -928,8 +928,11 @@ SQL inquiry inputs, not trusted principal handles. The latter is metadata-only:
 it does not enforce policies or require table SELECT. The native `row_security`
 setting is separate: on preserves the existing enforcement boundary; off raises
 42501 for RLS-applicable queries, never bypasses policies, and leaves the inquiry
-unchanged. Relation-name schema access remains separate. The bounded pg_settings
-provider exposes only row_security; see [settings](SETTINGS.md#row-security-and-pg_settings)
+unchanged. Relation-name schema access remains separate. The existing pg_settings
+provider exposes all actual registered definitions, exact base-unit values and
+captured reset provenance. It remains native read-only (55000); PostgreSQL's UPDATE
+rewrite rule is not implemented. Missing statistics collectors remain unsupported,
+not inert settings or zero counters. See [settings](SETTINGS.md#row-security-and-pg_settings)
 and [authorization](AUTHORIZATION.md#membership-provenance-and-publication).
 
 `pg_get_acl(classid oid, objid oid, objsubid integer) -> aclitem[]` is a strict

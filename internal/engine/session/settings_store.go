@@ -17,12 +17,12 @@ type SettingsStore struct {
 	Session          *Session
 	Defaults, Values map[string]string
 	// typed contains only overrides; captured defaults never require reparsing.
-	Typed, DefaultTyped        map[string]settings.Value
-	Placeholders               map[string]bool
-	Ended                      bool
-	RowSecurityProviderDefault bool // Immutable native startup-default provenance.
-	Actions                    map[string]settingAction
-	RoleAction                 roleSettingAction
+	Typed, DefaultTyped map[string]settings.Value
+	Placeholders        map[string]bool
+	Ended               bool
+	ProviderDefaults    map[string]bool // Captured present responses, even when equal to boot.
+	Actions             map[string]settingAction
+	RoleAction          roleSettingAction
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -197,9 +197,10 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 				return err
 			}
 			if present {
-				if name == "row_security" {
-					s.RowSecurityProviderDefault = true
+				if s.ProviderDefaults == nil {
+					s.ProviderDefaults = make(map[string]bool)
 				}
+				s.ProviderDefaults[name] = true
 				v, err = d.Parse(input)
 				if err != nil {
 					return err
@@ -227,6 +228,7 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.Typed = nil
 	s.DefaultTyped = nil
 	s.Placeholders = nil
+	s.ProviderDefaults = nil
 	s.Actions = nil
 	s.RoleAction = roleSettingAction{}
 	return nil

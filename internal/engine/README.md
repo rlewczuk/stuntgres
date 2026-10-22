@@ -32,8 +32,8 @@ them:
   cheap facts without enumerating unrelated runtime state. Its value-taking
   operations expose neither Engine, StatementScope, AuthorizationView nor
   bindings. Cursors are observed without fetching; settings capture one
-  coherent physical-session `row_security` tuple after unlocking; prepared
-  rows use the actual registry, assigned XID and currently published owner
+  coherent registry-wide physical-session snapshot after unlocking Engine.mu;
+  prepared rows use the actual registry, assigned XID and currently published owner
   name. Expression/query walkers and deparsers forward to `stored`; the
   foreign-key binder, type and ACL validation, output formatters and
   error-bearing privilege operations stay adapter-owned. Physical TEMP ownership, sequence journal overlays,
@@ -131,6 +131,29 @@ hook is exposed. Existing public reference scenarios are unchanged. Pure
 definition tests live in the [`settings` README](settings/README.md#testing);
 split evidence lives in
 [the split prompt](../../docs/ENGINE-SPLIT-settings.md#status).
+
+### Settings catalog authorization
+
+`TestPGSettingsCatalogACLRecheck` retains the immutable authorization-view
+assertions. `TestPGSettingsCatalogACLConsumers` uses actual `SetObjectACL`
+publication, engine preparation and statement execution: direct, freshly
+prepared and held consumers must recheck relation/column SELECT authority for
+both populated and empty predicates. A name-only grant permits name reads but
+not setting projections or setting predicates. Revocation after the same
+statement's metadata admission preserves the native `ErrCatalogReplaced` fence
+and publishes no rows/count. A fresh held attempt while still revoked must
+independently return the complete42501 diagnostic. Restored direct/new/held
+consumers read the original values; rejected reads cannot change settings,
+boot/reset values or provenance.
+
+```sh
+make check RUN='^TestPGSettingsCatalogACL(Recheck|Consumers)$'
+make check RUN='^TestPGSettingsCatalogACL(Recheck|Consumers)$' RACE=1
+```
+
+Use external900-second deadlines. These package-seam tests supplement the public
+ordinary-role and native unsupported catalog GRANT/REVOKE witnesses in
+`TestReferenceStatisticsSettingsAuthority`; they do not admit catalog-grant SQL.
 
 ### Catalog inquiry and session identity
 

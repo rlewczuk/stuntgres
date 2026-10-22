@@ -9,6 +9,45 @@ Its TestMain delegates to fixture.Main; no package-local setup authority is adde
 SQL prepared/DISCARD consumers and all server/protocol tests remain in
 [reference/sessions](../sessions/README.md#testing).
 
+### Runtime settings metadata
+
+The `TestReferenceStatisticsSettings` definitions cover Metadata (33 exact
+builtins, all17 typed fields, empty metadata and canonical normalization), Sources
+(override-presence provenance, captured resets and physical A/B isolation),
+Transactions (owner projections, LOCAL/savepoints and CHAIN), Consumers (direct,
+fresh/held Prepare and retained eager rows), WriteBoundary (full native55000,
+PostgreSQL UPDATE rewrite, failure stage/aborted recovery), UnsupportedCollectors
+(the13-control PostgreSQL18 inventory versus native absence/deny-only logging),
+Custom (native public registration: all5 types,7 units and3 access classes),
+Authority (ordinary monitoring-role reads, logging denial, PostgreSQL catalog
+table/column grants, and native direct/prepared GRANT/REVOKE execute-stage0A000
+diagnostics with unchanged healthy direct/new/held metadata reads), Controls
+(native Dump/Reset/Restore and physical retirement) and FeatureSmoke. No public
+default-provider API is invented; generic captured provider provenance/lifetime
+is covered at the internal SessionStart.Defaults seam. Native catalog GRANT SQL
+remains unsupported; internal SetObjectACL consumers cover real table/column
+rechecks, empty predicates and restored authority without widening SQL admission.
+
+Run each selected group in native mode and again with `REFERENCE=1` (pinned18.6):
+
+```sh
+make check RUN='^TestReferenceStatisticsSettings(Metadata|Custom|Authority|WriteBoundary|UnsupportedCollectors)$'
+make check RUN='^TestReferenceStatisticsSettings(Sources|Transactions|Consumers|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceStatisticsSettingsFeatureSmoke$'
+make check RUN='^TestPGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck|CatalogACLConsumers)$'
+make check RUN='^TestSettingsMetadata(Raw|Registry)$'
+make check RACE=1 RUN='^TestPGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck|CatalogACLConsumers)$'
+```
+
+Feature smoke observes all five representative settings, raw1000/ms alongside
+SHOW/current_setting/SHOW ALL1s, a held prepared recapture and retained native
+cursor, boot-equal source=session then RESET, missing native track_counts,
+deny-only log_statement_stats, and native read-only versus real PostgreSQL
+UPDATE/rollback. Expected observations are independently asserted; no check
+results are claimed by this contract. Root owns verification; external deadline
+is900 seconds for selected checks and quickcheck,1800 seconds for finalcheck.
+
+
 ### Direct-message selected proof
 
 The shared, unfiltered driver-batch definitions cover effects/counts (B1), result

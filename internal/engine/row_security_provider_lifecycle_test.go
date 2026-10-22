@@ -55,17 +55,18 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if got, ok := sess.Setting("row_security"); !ok || got != value {
 					t.Fatal("effective setting", got, ok, value)
 				}
-				rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: sess.Settings}}, capturePGSettings)
-				if err != nil || len(rows.Anonymous) != 1 {
+				rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: sess.Settings, registry: e.settings}}, capturePGSettings)
+				if err != nil || len(rows.Anonymous) != len(e.settings.Order()) {
 					t.Fatal(rows, err)
 				}
+				row := settingsMetadataRow(t, rows.Anonymous, "row_security")
 				for index, want := range map[int]string{1: value, 8: provenance, 12: "on", 13: reset} {
-					got, err := rows.Anonymous[0][index].Text()
+					got, err := row[index].Text()
 					if err != nil || got != want {
 						t.Fatal("metadata", index, got, want, err)
 					}
 				}
-				if !rows.Anonymous[0][14].IsNull() || !rows.Anonymous[0][15].IsNull() {
+				if !row[14].IsNull() || !row[15].IsNull() {
 					t.Fatal("invented file provenance")
 				}
 				scope := newStatementScope(&session.Operation{Session: sess}, &session.TransactionOwner{}, time.Time{})

@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
@@ -28,6 +29,7 @@ type engineCatalogRuntime struct {
 	auth         AuthorizationView
 	cursors      *cursorRegistry
 	settings     *session.SettingsStore
+	registry     settings.Registry
 	input        sqltype.InputEnvironment
 	database     string
 	temporary    ids.SessionToken
@@ -47,18 +49,40 @@ func (r engineCatalogRuntime) VisitCursors(visit func(pgcatalog.CursorFact) erro
 	}
 	return nil
 }
-func (r engineCatalogRuntime) SessionSettings() pgcatalog.SettingsFact {
+func (r engineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.SettingsFact, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	facts := make([]pgcatalog.SettingsFact, len(r.registry.Order()))
 	s := r.settings
 	s.Mu.Lock()
-	defer s.Mu.Unlock()
-	source := "default"
-	if s.RowSecurityProviderDefault {
-		source = "client"
+	for i, name := range r.registry.Order() {
+		d := r.registry.Definitions()[name]
+		value := s.TypedValue(name)
+		switch name {
+		case "transaction_isolation":
+			if s.CurrentIsolation != "" {
+				value = settings.Value{Text: s.CurrentIsolation}
+			}
+		case "transaction_read_only":
+			value = settings.Value{Boolean: s.CurrentReadOnly}
+		case "transaction_deferrable":
+			value = settings.Value{Boolean: s.CurrentDeferrable}
+		}
+		source := "default"
+		if s.ProviderDefaults[name] {
+			source = "client"
+		}
+		if _, present := s.Values[name]; present {
+			source = "session"
+		}
+		facts[i] = pgcatalog.SettingsFact{Definition: d, Value: value, Reset: s.DefaultTyped[name], Source: source}
 	}
-	if _, present := s.Values["row_security"]; present {
-		source = "session"
+	s.Mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	return pgcatalog.SettingsFact{s.Value("row_security"), s.Defaults["row_security"], source}
+	return facts, nil
 }
 func (r engineCatalogRuntime) PreparedCount() int { return len(r.engine.prepared) }
 func (r engineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, visit func(pgcatalog.PreparedFact) error) error {

@@ -58,8 +58,9 @@ nor requires table SELECT permission.
 independently cover canonical Boolean values, ordinary USERSET authority,
 default-deny on versus off/42501, FORCE owner hints, current held authority,
 dead/empty sources, exact pg_settings metadata/provenance and transactional
-restoration. The pg_settings inventory is intentionally row_security only;
-native applicable policy expressions with on retain the explicit 0A000 boundary.
+restoration. This scenario filters row_security within the complete registered
+pg_settings inventory; native applicable policy expressions with on retain the
+explicit 0A000 boundary.
 See [settings](../../docs/SETTINGS.md#row-security-and-pg_settings).
 
 Rewritten mutations distinguish physical RLS targets from logical view

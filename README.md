@@ -865,11 +865,27 @@ superuser/BYPASSRLS bypass even FORCE. Forced owners receive PostgreSQL's
 NO FORCE hint. On preserves default-deny and the explicit native `0A000`
 policy-expression enforcement boundary, not an invented expression evaluator.
 SESSION/LOCAL, rollback and savepoints use the existing settings journal.
-The typed `pg_catalog.pg_settings` provider currently exposes only the
-`row_security` row; SHOW ALL continues listing every supported setting.
+The typed `pg_catalog.pg_settings` provider exposes all registered settings,
+including `row_security`; SHOW ALL consumes the same immutable registry.
 See [settings and provenance](docs/SETTINGS.md#row-security-and-pg_settings).
 Feature smoke: `make check RUN='^TestReferenceRowSecurityFeatureSmoke$'`
 and the same command with `REFERENCE=1`.
+
+### Runtime settings metadata — change note
+
+`pg_settings` now captures all33 builtins and host-registered custom definitions
+coherently, with exact types, units, contexts, categories, bounds, descriptions,
+current values and captured reset provenance. Numeric metadata uses base units:
+SHOW statement_timeout=`1s` corresponds to setting=`1000`, unit=`ms`.
+Prepared reads recapture current state; opened native rows remain owned snapshots
+through SET, physical retirement and native Reset/Restore. The native view stays
+read-only; PostgreSQL's UPDATE rewrite rule is an intentional boundary.
+No cumulative statistics collectors, inert controls or fake metrics are added.
+See [settings](docs/SETTINGS.md#row-security-and-pg_settings) and
+[selected proof](reference/session_state/README.md#runtime-settings-metadata).
+Feature smoke: `make check RUN='^TestReferenceStatisticsSettingsFeatureSmoke$'`,
+also with `REFERENCE=1`.
+
 
 
 ## Blocking session information — change note

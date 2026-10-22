@@ -136,8 +136,9 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 				t.Fatal("pg_type lost builtin identity")
 			}
 		case pgcatalog.SettingsOID:
-			name, _ := source.Anonymous[0][0].Text()
-			value, _ := source.Anonymous[0][1].Text()
+			row := settingsMetadataRow(t, source.Anonymous, "row_security")
+			name, _ := row[0].Text()
+			value, _ := row[1].Text()
 			if name != "row_security" || value != "on" {
 				t.Fatal("physical setting route", name, value)
 			}
@@ -306,9 +307,10 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 					t.Fatal("metadata dispatch demanded or replaced cursor")
 				}
 			} else {
-				value, _ := source.Anonymous[0][1].Text()
-				provenance, _ := source.Anonymous[0][8].Text()
-				reset, _ := source.Anonymous[0][13].Text()
+				row := settingsMetadataRow(t, source.Anonymous, "row_security")
+				value, _ := row[1].Text()
+				provenance, _ := row[8].Text()
+				reset, _ := row[13].Text()
 				if value != "on" || reset != "on" || provenance != "session" {
 					t.Fatal("override presence/coherent tuple", value, reset, provenance)
 				}

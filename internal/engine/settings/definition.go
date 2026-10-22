@@ -50,6 +50,7 @@ const (
 // Definition is immutable shared metadata, never session value storage.
 type Definition struct {
 	Name, Description, BootDefault string
+	Category, ExtraDescription     string
 	Type                           Type
 	Access                         Access
 	Unit                           Unit
@@ -125,6 +126,8 @@ func CustomName(name string) bool {
 // Validate returns an owned definition without publishing partial state.
 func Validate(d Definition) (Definition, error) {
 	d.Name = FoldName(d.Name)
+	d.Category = "Customized Options"
+	d.ExtraDescription = ""
 	if !CustomName(d.Name) || d.Type > Enum || d.Access > Privileged || d.Unit > Minutes || !utf8.ValidString(d.Description) || strings.IndexByte(d.Description, 0) >= 0 {
 		return d, registrationError("invalid setting definition")
 	}

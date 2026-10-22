@@ -12,11 +12,12 @@ import this package directly.
 
 ## What it owns
 
-- **Definitions** (`definition.go`): `Definition` with `Type`, `Access` and
-  `Unit` and their constants, `Validate` (registration: dotted custom names,
-  bounds, enums and an exact typed boot value), `BootValue`, `FoldName`,
-  `CustomName`, `DisplayName` and `SessionDefaultProvider`. Validation errors
-  use the same `"stuntgres: "` prefix as the engine's `RegistrationError`,
+- **Definitions** (`definition.go`, `metadata.go`): `Definition` with `Type`,
+  `Access`, `Unit`, category and optional extra description; builtin metadata
+  follows PostgreSQL18 English wording. `Validate` captures custom category
+  `Customized Options`, dotted names, bounds, enums and exact typed boot values;
+  `BootValue`, `FoldName`, `CustomName`, `DisplayName` and `SessionDefaultProvider`.
+  Validation errors use the same `"stuntgres: "` prefix as the engine's `RegistrationError`,
   which stays in the engine because foreign-data registration shares it.
 - **Builtins** (`builtins.go`, `messages.go`, `format_encoding.go`): the
   private builtin table in PostgreSQL 18.0 `short_desc` wording, the
@@ -25,8 +26,8 @@ import this package directly.
   orders the client message levels; the `session.NoticeLevel` constants
   follow that order.
 - **Values** (`value.go`, `number.go`, `units.go`): `Value` and
-  `Definition.Parse`/`Format`, PostgreSQL-compatible number scanning
-  (`ParseNumber`, also used for storage options) and memory/time units.
+  `Definition.Parse`/`Format` and base-unit `Raw`, PostgreSQL-compatible number
+  scanning (`ParseNumber`, also used for storage options) and memory/time units.
 - **Search path** (`search_path.go`): the pure list parser. Namespace and ACL
   resolution stay in the engine (`schema_path.go`).
 - **Registry** (`registry.go`): `NewRegistry(registered,
@@ -70,3 +71,14 @@ make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers
 
 Engine-side session, publication and public SQL selectors are in the
 [engine README](../README.md#immutable-settings-registry).
+
+Registry metadata and raw integer/real formatting are supplemented by:
+
+```sh
+make check RUN='^TestSettingsMetadata(Raw|Registry)$'
+```
+
+The shared public metadata, registered-custom and actual feature-smoke scenarios
+live in [reference/session_state](../../../reference/session_state/README.md#runtime-settings-metadata);
+run their selected definitions in native and pinned PostgreSQL modes.
+

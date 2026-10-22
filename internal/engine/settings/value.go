@@ -193,3 +193,14 @@ func (d Definition) Format(v Value) string {
 	}
 	return realText(n) + suffix
 }
+
+// Raw formats the stored base-unit value for pg_settings, without SHOW scaling.
+func (d Definition) Raw(v Value) string {
+	if d.Type == Integer {
+		return strconv.FormatFloat(v.Number, 'f', 0, 64)
+	}
+	if d.Type == Floating {
+		return realText(v.Number)
+	}
+	return d.Format(v)
+}

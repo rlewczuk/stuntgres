@@ -47,9 +47,12 @@ so either import would form a cycle.
   session from the `ids` owner interfaces, and `TxOwnerAttached` and
   `TokenAttached` check them before lock registration.
 - **Settings store** (`settings_store.go`, `savepoint_marks.go`):
-  `SettingsStore` (values, typed values, defaults, SET LOCAL actions, role
-  setting actions and the owner's characteristic projections) and
-  `SettingsMark` for savepoints.
+  `SettingsStore` (values, typed values, defaults, sparse per-definition
+  provider-present provenance, SET LOCAL actions, role setting actions and the
+  owner's characteristic projections) and `SettingsMark` for savepoints.
+  Providers are called once at physical startup, never by metadata/RESET.
+  Boot-equal present responses still have client provenance; absent responses
+  remain defaults. Teardown clears the owned provenance map with value storage.
 - **Timeouts** (`timeout.go`): transaction, idle-in-transaction and idle
   session budgets and their timers; `TimeoutFatal`.
 - **Records and delegates**: `Notification` and `NotificationAction`
@@ -169,3 +172,13 @@ make check RUN='^(TestCatalogFences|TestCatalogTypeJournalSlotsCopyOnWrite|TestE
 make check RUN='^TestUUIDOsspTime(Packing|Clock|Sequence|Entropy|Cancellation|Concurrent)$'
 make check RACE=1 RUN='^TestUUIDOsspTimeConcurrent$'
 ```
+
+Generic settings provenance/coherent capture and retained authority use the
+engine's package seams, not an invented public provider API:
+
+```sh
+make check RUN='^TestPGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)$'
+make check RACE=1 RUN='^TestPGSettings(ProviderCapture|CoherentCapture)$'
+make check RUN='^TestRowSecurity(SettingProvenance|ProviderLifecycle)$'
+```
+

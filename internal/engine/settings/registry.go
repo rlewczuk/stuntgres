@@ -21,6 +21,7 @@ func NewRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
 	for i, list := range [][]Definition{builtins, registered} {
 		for _, d := range list {
 			if i == 0 {
+				d = builtinMetadata(d)
 				if d.Name == "track_commit_timestamp" && trackCommitTimestamps {
 					d.BootDefault = "on"
 				}

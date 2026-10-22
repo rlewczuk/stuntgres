@@ -95,7 +95,7 @@ options and policy conditions are read from the catalog payloads directly
 | Methods | Why they are engine-owned |
 |---|---|
 | `CursorCount`, `VisitCursors` | session cursor registry (`pg_cursors`) |
-| `SessionSettings` | one coherent physical-session `row_security` tuple (`pg_settings`) |
+| `SessionSettings` | coherent registry-wide typed current/reset/source capture under one physical-session mutex (`pg_settings`) |
 | `PreparedCount`, `VisitPreparedTransactions` | prepared-transaction registry, assigned XIDs, published role names |
 | `TimezoneInput`, `DatabaseName`, `TemporaryOwner`, `CurrentPrincipal` | statement input environment, session database, physical TEMP owner, current user |
 | `ValidateCapture`, `Effective`, `CanUse`, `SelectColumns`, `ForeignServerVisible` | error-bearing privilege checks through the statement's authorization view |
@@ -215,3 +215,15 @@ catalog seeded by the engine. They call producers through the real registry
 (`internal/engine/catalog_source_producers_test.go`). Their selectors, the
 reference selections and the race checks are in the
 [engine README](../README.md#system-catalog-producer-contract).
+
+The existing `pg_settings` producer projects registry metadata and one coherent
+typed snapshot into the unchanged17-column schema/SettingsOID. It owns enum-array
+buffers, releases no caller-owned locks, and publishes no partial canceled rows.
+SQL mutation remains the existing read-only virtual-view boundary.
+
+```sh
+make check RUN='^TestPGSettings(ProviderCapture|CoherentCapture|CatalogACLRecheck)$'
+make check RUN='^TestReferenceStatisticsSettings(Metadata|Consumers|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceStatisticsSettings(Metadata|Consumers|Controls|FeatureSmoke)$'
+```
+
