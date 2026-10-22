@@ -26,7 +26,7 @@ type View struct {
 	castUsages        map[analyze.ViewLiteralPath]sqltype.Usage
 	routineRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
 	operatorRefs      map[analyze.ViewLiteralPath]ids.ObjectRef
-	composites        map[analyze.ViewLiteralPath]analyze.CompositeOccurrence
+	composites        map[analyze.ViewLiteralPath]analyze.TypeOccurrence
 	similarSubstrings map[analyze.ViewLiteralPath]bool
 	posixSubstrings   map[analyze.ViewLiteralPath]bool
 	columns           map[analyze.ViewLiteralPath]analyze.ViewColumn

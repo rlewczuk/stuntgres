@@ -298,7 +298,7 @@ func fdwConfiguredNamespaceControls(t *testing.T, ctx context.Context, r *fdwSQL
 		fixture.RunStep(t, ctx, matchingTarget, recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE (classid="+class+" AND objid=$1::oid) OR (refclassid="+class+" AND refobjid=$1::oid)", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, item.oid))
 	}
 	for _, name := range []string{"public.remote_data", "public.remote_data[]"} {
-		absent := fdwDiagnostic("42704", `type "public.remote_data" does not exist`)
+		absent := fdwDiagnostic("42704", `type "`+name+`" does not exist`)
 		absent.Position = "14"
 		step := fixture.ErrorDiagnostic("SELECT NULL::"+name, absent)
 		step.SelectRows = true

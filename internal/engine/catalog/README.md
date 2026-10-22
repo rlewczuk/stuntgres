@@ -21,6 +21,14 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   default ACL records, ...) live here too. Identity fields are
   `ObjectAddress`, `ObjectNamespace`, `ObjectName` and `ObjectRevision`; read
   them through the `Descriptor` methods.
+  Domain/companion `Type.DomainPlanStamp` is an analysis stamp, not logical
+  identity: `UsesDomainPlanStamp` excludes unrelated arrays, and zero falls back
+  to descriptor revision. `NormalizeTypeReplacement` is the
+  canonical rule used by staged replacement and ACL candidate installation.
+  Revised ordinary mutations invalidate; explicit pure identity edits preserve;
+  same-revision generation refresh retains its normalized private predecessor.
+  Both carrier and domain element are prepared dependencies; preserving a pure
+  array rename stamp never hides executable or authority changes on its element.
 - **Relation layout.** `Relation` keeps identity, kind, owner, comment and
   the live column shape (`Columns`, `Index`, `Attributes`, `RowType`,
   `OfType`) at the top level, then four sub-records: `ColumnMeta`

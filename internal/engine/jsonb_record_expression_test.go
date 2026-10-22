@@ -271,8 +271,8 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if err != nil || len(out) != 4 {
 		t.Fatal("initial star", out, err)
 	}
-	key := analyze.PreparedCompositeKey{Offset: 40, Kind: analyze.CompositeSourceExpansion, Projection: 7}
-	captured := b.Prepared.Composites[key]
+	key := analyze.PreparedTypeKey{Offset: 40, Kind: analyze.CompositeSourceExpansion, Projection: 7}
+	captured := b.Prepared.Types[key]
 	if err := stored.ValidateCompositeOccurrence(captured, view); err != nil {
 		t.Fatal(err)
 	}
@@ -280,8 +280,8 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if captured.Names[0] != "x" || captured.Attributes[0] != first.Attribute || captured.Attributes[1] != second.Attribute {
 		t.Fatal("capture borrowed mutable labels or lost stable attributes", captured)
 	}
-	b.Expected = expectedOf(&StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: b.Prepared.Composites})
-	b.Prepared.Composites = nil
+	b.Expected = expectedOf(&StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), types: b.Prepared.Types})
+	b.Prepared.Types = nil
 	current, err := sqltype.Composite(original.ID(), original.Name(), original.SQLName(), original.AssociatedArray(), []sqltype.CompositeMember{first, second, {Attribute: 99, Name: "extra", Usage: first.Usage}})
 	if err != nil {
 		t.Fatal(err)
@@ -403,10 +403,10 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			if _, err := first.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
-			if first.Clause.JSONBRecordBase || len(first.Prepared.Composites) == 0 {
+			if first.Clause.JSONBRecordBase || len(first.Prepared.Types) == 0 {
 				t.Fatal("base capture escaped or was absent")
 			}
-			for _, captured := range first.Prepared.Composites {
+			for _, captured := range first.Prepared.Types {
 				if captured.Kind != analyze.CompositeRecordArgument || captured.Base.Type != original {
 					t.Fatal("wrong provider capture", captured)
 				}
@@ -426,7 +426,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				return expression
 			}
 			raw.Args[0] = oldSpelling(raw.Args[0])
-			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: first.Prepared.Composites}
+			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), types: first.Prepared.Types}
 			next := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, expected)
 			node, err := next.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil || next.Clause.JSONBRecordBase {

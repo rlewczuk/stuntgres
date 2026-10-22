@@ -57,7 +57,7 @@ type ViewCapture struct {
 	CastUsages        map[ViewLiteralPath]sqltype.Usage
 	RoutineRefs       map[ViewLiteralPath]ids.ObjectRef
 	OperatorRefs      map[ViewLiteralPath]ids.ObjectRef
-	Composites        map[ViewLiteralPath]CompositeOccurrence
+	Composites        map[ViewLiteralPath]TypeOccurrence
 	SimilarSubstrings map[ViewLiteralPath]bool
 	PosixSubstrings   map[ViewLiteralPath]bool
 	Collations        map[ViewLiteralPath]uint32
@@ -70,7 +70,7 @@ type ViewCapture struct {
 // against the current environment before each execution.
 type PreparedCaptures struct {
 	Temporals         []TemporalConstant
-	Composites        map[PreparedCompositeKey]CompositeOccurrence
+	Types             map[PreparedTypeKey]TypeOccurrence
 	SequenceConstants []sequence.Constant
 	RegclassConcat    bool
 	RegtypeConstants  []RegtypeConstant

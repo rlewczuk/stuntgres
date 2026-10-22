@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
@@ -66,15 +67,22 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 	}
 	var result []table.DomainDependency
 	resultSlots := make(map[ids.ObjectAddress]int)
-	// Only composite-attribute roots with real domain-default edges use the
-	// released reverse-postorder walk. CHECK-only and other provider routes
-	// retain their established traversal and notice contracts.
+	// Domain roots and composite-attribute roots with real domain-default
+	// edges use the catalog's descending visitation/reverse-postorder walk.
+	// Other provider routes retain their established traversal contracts.
 	compositeAttributeRoot := false
 	if len(targets) == 1 && targets[0].ClassID == ids.RelationClassID && targets[0].SubID > 0 {
 		address := targets[0]
 		address.SubID = 0
 		relation, ok := provider.Descriptor(address).(*catalog.Relation)
 		compositeAttributeRoot = ok && relation.RelationKind == catalog.CompositeRelation && relation.IndexForAttribute(targets[0].SubID) >= 0
+	}
+	domainRootOrder := false
+	for _, target := range targets {
+		if typ, ok := provider.retirementDescriptor(target).(*catalog.Type); ok && typ.SQLType.IsDomain() {
+			domainRootOrder = true
+			break
+		}
 	}
 	compositeDefaultOrder := false
 	var postorder []int
@@ -116,11 +124,12 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					descriptor = replacement
 				}
 			}
-			// Owned indexes are closure roots even if an earlier pass already
-			// staged their removal. Their external consumers still need pruning,
-			// just like consumers of owned row types and associated arrays.
-			if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == target {
-				direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true, Relation: index})
+			// Owned indexes are AUTO dependents of the table and every referenced
+			// stable attribute. Retire them in this closure, before their column
+			// types disappear and before generation reownership sees live indexes.
+			// Already removed indexes still expose their external consumers.
+			if idx, ok := descriptor.(*catalog.Relation); ok && idx.SQLIndex != nil && idx.SQLIndex.Parent.ClassID == target.ClassID && idx.SQLIndex.Parent.ObjectID == target.ObjectID && (target.SubID == 0 || index.UniqueIndexTypeAffected(idx.SQLIndex, []index.ColumnTransformation{{Attribute: target.SubID}})) {
+				direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true, Relation: idx})
 				continue
 			}
 			if provider.Removed(a) {
@@ -266,19 +275,37 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 				if d.View != nil {
 					if view.ViewDepends(d, target) {
-						if compositeDefaultOrder {
-							passive, err := provider.passiveViewTypeDependency(d, target)
+						passive := false
+						if compositeDefaultOrder || domainRootOrder {
+							var err error
+							passive, err = provider.passiveViewTypeDependency(d, target)
 							if err != nil {
 								return err
 							}
-							if passive {
-								continue
+						}
+						// Lifetime captures retain selected-column datatypes,
+						// but only explicit SQL type references own a direct
+						// type-to-view dependency. Passive captures must not
+						// preempt the real output/source-column owner paths.
+						if !passive {
+							if name == "" {
+								name = dependencyRelationName(provider.base, d, provider.path)
+							}
+							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
+						}
+					}
+					// Output columns have their own datatype dependencies, just
+					// like table columns. Visiting them can reach another view's
+					// _RETURN owner before that owner's source table is visited.
+					// Do not flatten these paths into a whole-view type edge.
+					if domainRootOrder {
+						for i, c := range d.Columns {
+							if typedef.UsageDependsOn(c.Usage, target) {
+								column := a
+								column.SubID = d.Attributes[i]
+								direct = append(direct, table.DomainDependency{Address: column, Target: target, Root: root, OID: a.ObjectID, Ordinal: column.SubID, Label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + catalog.RelationDiagnosticKind(d) + " " + dependencyRelationName(provider.base, d, provider.path), Relation: d, Column: c.Name})
 							}
 						}
-						if name == "" {
-							name = dependencyRelationName(provider.base, d, provider.path)
-						}
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: catalog.RelationDiagnosticKind(d) + " " + name, Relation: d})
 					}
 					continue
 				}
@@ -368,6 +395,15 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 				return direct[i].Address.SubID < direct[j].Address.SubID
 			}
+			if domainRootOrder {
+				if direct[i].OID != direct[j].OID {
+					return direct[i].OID > direct[j].OID
+				}
+				if direct[i].Address.ClassID != direct[j].Address.ClassID {
+					return direct[i].Address.ClassID < direct[j].Address.ClassID
+				}
+				return direct[i].Ordinal < direct[j].Ordinal
+			}
 			if direct[i].OID != direct[j].OID {
 				return direct[i].OID < direct[j].OID
 			}
@@ -397,7 +433,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 					return err
 				}
 			}
-			if compositeDefaultOrder {
+			if compositeDefaultOrder || domainRootOrder {
 				postorder = append(postorder, slot)
 			}
 		}
@@ -408,7 +444,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 			return nil, err
 		}
 	}
-	if compositeDefaultOrder {
+	if compositeDefaultOrder || domainRootOrder {
 		// Keep original slots throughout DFS so repeated/automatic edges use
 		// the same authority. Then apply reverse postorder in place, without
 		// a second dependency graph or duplicate descriptor/edge buffers.
@@ -418,6 +454,17 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 		for i := range result {
 			for destination := resultSlots[result[i].Address]; destination != i; destination = resultSlots[result[i].Address] {
 				result[i], result[destination] = result[destination], result[i]
+			}
+		}
+	}
+	// A retired whole view subsumes its output columns. Keep their traversal
+	// authority, but do not report or mutate them as independently surviving
+	// columns. This is the same subobject rule as the catalog dependency walk.
+	for i := range result {
+		edge := &result[i]
+		if edge.Relation != nil && edge.Relation.View != nil && edge.Address.SubID != 0 {
+			if _, retired := resultSlots[edge.Relation.Address()]; retired || provider.Removed(edge.Relation.Address()) {
+				edge.Automatic = true
 			}
 		}
 	}

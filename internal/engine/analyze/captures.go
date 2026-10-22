@@ -93,19 +93,20 @@ type ViewNamespace struct {
 	Keys       []string
 }
 
-type CompositeOccurrenceKind uint8
+type TypeOccurrenceKind uint8
 
 const (
-	CompositeSelection CompositeOccurrenceKind = iota + 1
+	CompositeSelection TypeOccurrenceKind = iota + 1
 	CompositeExpansion
 	CompositeDotBuiltin
 	CompositeWholeRow
 	CompositeSourceExpansion
 	CompositeRecordArgument
+	DomainCast
 )
 
-type CompositeOccurrence struct {
-	Kind       CompositeOccurrenceKind
+type TypeOccurrence struct {
+	Kind       TypeOccurrenceKind
 	Base       sqltype.Usage
 	Attributes []int32
 	Names      []string // Original exposed labels for a selected source star.
@@ -113,28 +114,28 @@ type CompositeOccurrence struct {
 	Source     plan.WholeRowSource
 }
 
-type PreparedCompositeKey struct {
+type PreparedTypeKey struct {
 	Offset     int
-	Kind       CompositeOccurrenceKind
+	Kind       TypeOccurrenceKind
 	Projection int // Star offset; one source can occur in several target stars.
 }
 
-func (p *PreparedCaptures) CaptureComposite(key PreparedCompositeKey, base sqltype.Usage, attributes []int32) {
-	if p.Composites == nil {
-		p.Composites = make(map[PreparedCompositeKey]CompositeOccurrence)
+func (p *PreparedCaptures) CaptureComposite(key PreparedTypeKey, base sqltype.Usage, attributes []int32) {
+	if p.Types == nil {
+		p.Types = make(map[PreparedTypeKey]TypeOccurrence)
 	}
-	p.Composites[key] = CompositeOccurrence{Kind: key.Kind, Base: base, Attributes: attributes}
+	p.Types[key] = TypeOccurrence{Kind: key.Kind, Base: base, Attributes: attributes}
 }
 
-func (c *ViewCapture) CaptureViewComposite(path ViewLiteralPath, kind CompositeOccurrenceKind, base expr.Expr, attributes []int32) {
+func (c *ViewCapture) CaptureViewComposite(path ViewLiteralPath, kind TypeOccurrenceKind, base expr.Expr, attributes []int32) {
 	if c.Composites == nil {
-		c.Composites = make(map[ViewLiteralPath]CompositeOccurrence)
+		c.Composites = make(map[ViewLiteralPath]TypeOccurrence)
 	}
 	source := plan.WholeRowSource{}
 	if row, ok := base.(plan.RowExpr); ok {
 		source = row.WholeSource
 	}
-	c.Composites[path] = CompositeOccurrence{Kind: kind, Base: base.ResultUsage(), Attributes: attributes, Source: source}
+	c.Composites[path] = TypeOccurrence{Kind: kind, Base: base.ResultUsage(), Attributes: attributes, Source: source}
 }
 
 type ViewLiteralClause uint8

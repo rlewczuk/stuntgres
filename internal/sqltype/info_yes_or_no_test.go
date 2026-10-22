@@ -87,7 +87,7 @@ func TestInfoYesOrNoBuiltinDescriptor(t *testing.T) {
 	fresh := testTypes()
 	freshBase := physical
 	freshBase.Type = fresh[VarChar]
-	rebound, err := d.RebindDomain(freshBase, "information_schema.yes_or_no")
+	rebound, err := d.RebindDomain(freshBase, d.Name(), "information_schema.yes_or_no")
 	if err != nil {
 		t.Fatal(err)
 	}

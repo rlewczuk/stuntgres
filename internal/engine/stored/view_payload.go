@@ -38,7 +38,7 @@ type ViewParts struct {
 	CastUsages        map[analyze.ViewLiteralPath]sqltype.Usage
 	RoutineRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
 	OperatorRefs      map[analyze.ViewLiteralPath]ids.ObjectRef
-	Composites        map[analyze.ViewLiteralPath]analyze.CompositeOccurrence
+	Composites        map[analyze.ViewLiteralPath]analyze.TypeOccurrence
 	SimilarSubstrings map[analyze.ViewLiteralPath]bool
 	PosixSubstrings   map[analyze.ViewLiteralPath]bool
 	Columns           map[analyze.ViewLiteralPath]analyze.ViewColumn

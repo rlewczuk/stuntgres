@@ -189,8 +189,8 @@ func typedFieldCheckOwner(stage *CatalogStage, relation *catalog.Relation) bool 
 
 // Lifetime captures include a selected column's datatype. SQL dependency
 // recording does not turn that passive capture into a direct type-to-view edge.
-// The scoped composite-default walk instead reaches such a view through its
-// genuine retiring column; explicit SQL datatype references remain direct.
+// Domain-root and composite-default walks instead reach such a view through
+// its genuine retiring columns; explicit SQL datatype references remain direct.
 func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relation, target ids.ObjectAddress) (bool, error) {
 	if target.ClassID != ids.TypeClassID {
 		return false, nil

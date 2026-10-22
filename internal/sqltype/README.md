@@ -12,6 +12,12 @@ fresh input. Admitted arrays and composites recursively retain their member
 usages and NULL identities. NULL belongs to the caller's framing: it is not the
 empty text/byte value or the zero `Value`.
 
+`Descriptor.RebindDomain(base, name, declaration)` rebuilds a same-ID immutable
+domain generation with current naming and immediate-base authority. It preserves
+own CHECK/NOT NULL, builtin inventory provenance and associated identities while
+recomputing inherited flags. Catalog namespace, ownership, recipes and atomic
+publication remain with the existing catalog/type staging owners.
+
 A catalog OID alone does not grant an executable provider, cast, table/storage
 admission or persistence capability. Lookup-only companion arrays remain
 unavailable. Raw internal CHAR value codecs do not admit CHAR columns. Native

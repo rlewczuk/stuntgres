@@ -200,7 +200,7 @@ func (b *Binder) compositeFieldAt(base expr.Expr, index int, pos parser.Position
 	}
 	return plan.FieldExpr{Info: b.Info(member.Usage, pos, base.Properties()), Base: base, Attribute: member.Attribute, Index: index}
 }
-func (b *Binder) RetainedCompositeField(base expr.Expr, key PreparedCompositeKey, captured CompositeOccurrence, pos parser.Position) expr.Expr {
+func (b *Binder) RetainedCompositeField(base expr.Expr, key PreparedTypeKey, captured TypeOccurrence, pos parser.Position) expr.Expr {
 	index, exists := base.ResultUsage().Type.BaseType().CompositeAttributeIndex(captured.Attributes[0])
 	b.Prepared.CaptureComposite(key, captured.Base, captured.Attributes)
 	if !exists {
@@ -544,7 +544,7 @@ func (b *Binder) BindFunction(raw parser.FunctionExpr) (result expr.Expr, failur
 		return nil, err
 	}
 	base := b.Clause.FunctionProjection.Operand
-	key := PreparedCompositeKey{Offset: raw.Pos.Offset, Kind: CompositeSelection}
+	key := PreparedTypeKey{Offset: raw.Pos.Offset, Kind: CompositeSelection}
 	captured, retained, failure := b.retainedComposite(key, base.ResultUsage())
 	if failure != nil {
 		return nil, failure

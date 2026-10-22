@@ -10,24 +10,24 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *Binder) retainedComposite(key PreparedCompositeKey, base sqltype.Usage) (CompositeOccurrence, bool, error) {
+func (b *Binder) retainedComposite(key PreparedTypeKey, base sqltype.Usage) (TypeOccurrence, bool, error) {
 	if !b.Expected.Held {
-		return CompositeOccurrence{}, false, nil
+		return TypeOccurrence{}, false, nil
 	}
 	catalog := b.BindingCatalog()
 	if b.Expected.CatalogOwner != catalog.Owner() || b.Expected.CatalogEpoch != catalog.Epoch() {
-		return CompositeOccurrence{}, false, nil
+		return TypeOccurrence{}, false, nil
 	}
-	captured, ok := b.Expected.Composites[key]
+	captured, ok := b.Expected.Types[key]
 	if !ok {
 		return captured, false, nil
 	}
 	if (captured.Kind != key.Kind && !(key.Kind == CompositeSelection && captured.Kind == CompositeDotBuiltin)) || captured.Kind == CompositeSelection && len(captured.Attributes) != 1 || captured.Kind == CompositeDotBuiltin && (len(captured.Attributes) != 0 || captured.Function == 0) || base.Type == nil || captured.Base.Type == nil || base.Type.ID() != captured.Base.Type.ID() || captured.Kind != CompositeDotBuiltin && !base.Type.BaseType().IsComposite() {
-		return CompositeOccurrence{}, false, fmt.Errorf("stuntgres: incompatible retained composite occurrence")
+		return TypeOccurrence{}, false, fmt.Errorf("stuntgres: incompatible retained composite occurrence")
 	}
 	return captured, true, nil
 }
-func fieldCompositeKey(raw parser.FieldExpr) PreparedCompositeKey {
+func fieldCompositeKey(raw parser.FieldExpr) PreparedTypeKey {
 	offset := raw.Field.Pos.Offset
 	kind := CompositeSelection
 	if raw.Expansion {
@@ -37,7 +37,7 @@ func fieldCompositeKey(raw parser.FieldExpr) PreparedCompositeKey {
 			offset = raw.Pos.Offset
 		}
 	}
-	return PreparedCompositeKey{Offset: offset, Kind: kind}
+	return PreparedTypeKey{Offset: offset, Kind: kind}
 }
 
 func (b *Binder) captureCompositeExpansion(raw parser.Expr, expansion plan.CompositeExpansionBinding, path ViewLiteralPath, ordinal *int) error {
@@ -54,7 +54,7 @@ func (b *Binder) captureCompositeExpansion(raw parser.Expr, expansion plan.Compo
 	}
 }
 
-func (b *Binder) bindDotBuiltin(raw parser.FieldExpr, key PreparedCompositeKey) (expr.Expr, error) {
+func (b *Binder) bindDotBuiltin(raw parser.FieldExpr, key PreparedTypeKey) (expr.Expr, error) {
 	node, err := b.BindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{raw.Field}}, Args: []parser.Expr{raw.Base}, Pos: raw.Pos})
 	if err != nil {
 		return nil, err
@@ -64,10 +64,10 @@ func (b *Binder) bindDotBuiltin(raw parser.FieldExpr, key PreparedCompositeKey) 
 		return nil, fmt.Errorf("stuntgres: invalid dot builtin resolution")
 	}
 	call.DotBuiltin = true
-	if b.Prepared.Composites == nil {
-		b.Prepared.Composites = make(map[PreparedCompositeKey]CompositeOccurrence)
+	if b.Prepared.Types == nil {
+		b.Prepared.Types = make(map[PreparedTypeKey]TypeOccurrence)
 	}
-	b.Prepared.Composites[key] = CompositeOccurrence{Kind: CompositeDotBuiltin, Base: call.Args[0].ResultUsage(), Function: call.Kind}
+	b.Prepared.Types[key] = TypeOccurrence{Kind: CompositeDotBuiltin, Base: call.Args[0].ResultUsage(), Function: call.Kind}
 	return call, nil
 }
 

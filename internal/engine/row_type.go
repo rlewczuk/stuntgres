@@ -62,7 +62,9 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 		stage.RenameStagedDescriptor(key, &next, nextKey)
 		return true, e.reownStagedTypeGenerationsLocked(stage)
 	}
-	if err := stage.Replace(&next); err != nil {
+	// Displacement is an identity-only rename, including a domain's own
+	// companion yielding its spelling before the domain itself is renamed.
+	if err := stage.replaceDescriptor(&next, true, true); err != nil {
 		return false, err
 	}
 	return true, e.reownStagedTypeGenerationsLocked(stage)

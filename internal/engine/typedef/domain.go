@@ -139,8 +139,12 @@ func StageDropDomainLocked(h StageHost, auth ddl.Authority, s *parser.DropDomain
 	view := h.AccessView(auth)
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
-		path, err := h.SearchNamespaces(auth, name, ids.TypeClassID)
+		path, err := domainUtilityPath(h, auth, name)
 		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && diagnostic.Code == "3F000" {
+				ddl.Notice(h, "00000", diagnostic.Message+", skipping")
+				continue
+			}
 			return err
 		}
 		var found []ids.ObjectAddress
@@ -163,7 +167,19 @@ func StageDropDomainLocked(h StageHost, auth ddl.Authority, s *parser.DropDomain
 		}
 		ref := ddl.ObjectRef(h, auth, target.Address())
 		if err = ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-			return err
+			denied, ok := err.(*sqlstate.Error)
+			if !ok || denied.Code != "42501" {
+				return err
+			}
+			// DROP alone admits the containing-schema owner. ALTER continues
+			// to use the domain's own authority, not this local alternative.
+			schema := ddl.ObjectRef(h, auth, target.Namespace())
+			if schemaErr := ddl.Check(h, auth, access.Requirement{Object: schema, OwnerOnly: true}); schemaErr != nil {
+				if diagnostic, ok := schemaErr.(*sqlstate.Error); !ok || diagnostic.Code != "42501" {
+					return schemaErr
+				}
+				return err
+			}
 		}
 		if seen[ref.Address] {
 			continue

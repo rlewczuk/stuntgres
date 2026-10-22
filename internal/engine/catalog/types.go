@@ -22,6 +22,10 @@ type Type struct {
 	Comment         string
 	ObjectNamespace ids.ObjectAddress
 	ObjectRevision  ids.DefinitionRevision
+	// DomainPlanStamp separates domain/companion lexical identity edits from
+	// executable/authority revisions. Zero uses Revision(); ordinary revised
+	// replacement clears it.
+	DomainPlanStamp ids.DefinitionRevision
 	Owner           authorization.PrincipalRef
 	Extension       ids.ObjectAddress
 	ACL             authorization.ACLValue
@@ -50,6 +54,47 @@ func (d *Type) Revision() ids.DefinitionRevision {
 		return 1
 	}
 	return d.ObjectRevision
+}
+
+// UsesDomainPlanStamp selects domains and immediate domain-element companions,
+// not unrelated arrays. Annotation reconstruction checks reciprocal companion
+// authority against the live catalog.
+func (d *Type) UsesDomainPlanStamp() bool {
+	return d.SQLType.IsDomain() || d.SQLType.IsArray() && d.SQLType.Element().IsDomain()
+}
+
+func (d *Type) EffectiveDomainPlanStamp() ids.DefinitionRevision {
+	if d.DomainPlanStamp != 0 {
+		return d.DomainPlanStamp
+	}
+	return d.Revision()
+}
+
+// NormalizeTypeReplacement is shared by staged DDL and ACL publication. Revised
+// ordinary domain/companion replacements invalidate analysis by default. Only certified
+// name/namespace edits preserve it; same-revision generation refresh retains the
+// already normalized private predecessor rather than reviving the base stamp.
+func NormalizeTypeReplacement(previous, next Descriptor, preserveIdentity bool) Descriptor {
+	d, ok := next.(*Type)
+	if !ok || !d.UsesDomainPlanStamp() {
+		return next
+	}
+	old, ok := previous.(*Type)
+	if !ok {
+		return next
+	}
+	var stamp ids.DefinitionRevision
+	if d.Revision() == old.Revision() {
+		stamp = old.DomainPlanStamp
+	} else if preserveIdentity {
+		stamp = old.EffectiveDomainPlanStamp()
+	}
+	if d.DomainPlanStamp == stamp {
+		return next
+	}
+	copy := *d
+	copy.DomainPlanStamp = stamp
+	return &copy
 }
 
 func (d *Type) Namespace() ids.ObjectAddress {

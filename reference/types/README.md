@@ -6,6 +6,103 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Domain identity lifecycle contract
+
+`TestReferenceDomainIdentityLifecycle`, `Permissions`, `Diagnostics`,
+`DropAtomicity`, `PreparedMetadata`, `NativeControls`, `Atomicity`, and
+`Boundaries` are the cohesive identity-lifecycle inventory. They cover same-OID
+rename/move and recursive carriers, existing OWNER/ACL behavior, schema-owner
+DROP, qualified missing-schema IF EXISTS, whole-list atomicity and scoped
+dependency closure, actual held utilities/consumers and base metadata, native
+current-name replay and failure preservation, real DROP lock cancellation, and
+explicit-transaction/read-only boundaries. Existing dependency and recreation
+tests retain their separate baseline contracts; no duplicate feature-smoke
+reference definition is added.
+
+Pinned18.6 observations are encoded as complete utility diagnostics, ordered
+multi-object notices, exact companion spellings, and held explicit-cast outcomes.
+Both constrained and unconstrained old-spelling casts survive identity edits,
+then fail42704 at character12 after search_path forces reanalysis. Failed DROP
+publication emits no CASCADE notice. Those eight completed scenarios run both
+available backends without discovery filters, loggers or intentional failures.
+The cancellation observer reads catalog identities while DROP waits; a new table
+reader would queue behind DROP's AccessExclusiveLock. Table values and the SAME
+preheld consumer are checked after cancellation joins, without longer deadlines.
+Owner ACL witnesses scan the public `typacl` array and compare its exact ACLITEM
+bag, including all grantors/grantees/masks and multiplicities; owner/PUBLIC array
+storage order is not an authorization contract. Temporary destinations resolve the actual
+session-owned namespace before normal CREATE/owner/temp checks, never create one.
+After schema-owner CASCADE, the survivor's comment is read from its exact
+`pg_description` object/class/subobject address. Surviving rows are selected
+under the genuinely delegated actor role, proving retained SELECT access
+rather than relying on an inquiry function or a privileged-owner read.
+The recursive closure retires indexes automatically through their exact parent
+stable attributes, including direct/derived keys, INCLUDE and predicates, before
+removing the domain types. Sibling-column and unrelated-parent indexes survive.
+Domain-root traversal also retains view output-column datatype edges: visiting
+one can reach a downstream view's `_RETURN` owner before visiting the source
+table column. Descending dependency visitation and reverse postorder preserve
+this ownership order; output-column subobjects disappear from diagnostics only
+when their whole view is retired. The recursive witness keeps all14 dependents
+and their exact pinned notice order, without sorting labels for parity.
+Lifetime captures of a selected column's datatype are not SQL type-to-view
+dependencies. The existing stored-query dependency classifier excludes only
+those passive whole-view edges, preserving explicit SQL typename references
+and both real output-column and source-column traversal paths.
+
+```sh
+make check RUN='^TestReferenceDomainIdentity(Lifecycle|Permissions|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceDomainIdentity(DropAtomicity|PreparedMetadata|Atomicity|Boundaries)$' REFERENCE=1
+make check RUN='^TestReferenceDomainIdentityNativeControls$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterConstraintBoundaries$' REFERENCE=1
+```
+Review H1 adds `TestReferenceDomainIdentityPreparedArrays`, a distinct held-input
+carrier regression: bracketed domain-array and direct companion annotations,
+checked/unchecked elements, array bounds and NULLs, current coercion/CHECK
+semantics, environment retirement and dropped/recreated companion lifetime.
+Pinned18.6 retains both old annotation forms through rename/move; environment
+reanalysis then fails42704 at character13, including after restoring the path.
+Complete parameter coercion/CHECK diagnostics retain their portal context.
+Dropped/recreated companions use their captured physical OID in PostgreSQL's
+XX000 diagnostic; native keeps its existing missing-name and changed-parameter
+boundaries. This definition runs both backends without discovery scaffolding.
+The same occurrence map retains the resolved companion ID and reconstructs its
+current element or direct-array annotation under live reciprocal identity checks.
+Both array and element are analysis dependencies. The canonical stamp rule covers
+both pair members and certified companion displacement, while semantic element
+mutations invalidate normally; unrelated arrays and direct array ACL exclusions
+are unchanged. Private `ArrayCapture` and `ArrayPlanStamp` supplements inspect
+these retained-input and immutable-generation boundaries.
+
+```sh
+make check RUN='^TestReferenceDomainIdentityPreparedArrays$' REFERENCE=1
+```
+
+
+Package-function supplements and migrated signature/capture callers:
+
+```sh
+make check RUN='^TestDomainIdentity(Descriptor|Grammar|Stage|DropStage|Authorization|PlanStamp|GrantStamp|PreparedCapture|CaptureRetirement|IndexClosure|ArrayCapture|ArrayPlanStamp)$'
+make check RUN='^Test(DomainCheckInputVersusIdentity|DomainNullabilityAuthority|Info(CardinalNumber|SQLIdentifier|TimeStamp|YesOrNo)BuiltinDescriptor)$'
+make check RUN='^Test(ExpectedOfCopiesHeldInputs|CompositeExprVisitorsAndRetag|CompositeAlterFunctionalRetainedFields|JSONBRecord(SourceProjection|ArgumentIdentity)|ViewLiteralProtocolAnnotations)$'
+make check RUN='^TestReferenceDomain(Dependencies|PreparedLifecycle|Metadata|NativeControls)$'
+make check RUN='^TestReferenceDomainIdentity(Atomicity|PreparedMetadata)$' RACE=1
+```
+
+The preexisting public regression selection above also requires `REFERENCE=1`.
+These are selected proof commands, not claims of exercised verification.
+
+Each selected check has an external900-second deadline and must also run without
+`REFERENCE=1`, using identical definitions. The root alone runs checks, generation
+and formatting. Native pre-cancel and Dump/Reset/Restore phases are explicit
+public-control witnesses; PostgreSQL supplies the shared ordinary SQL oracle.
+A standalone public native executable was also exercised during implementation;
+its temporary source location, argv and observations belong to the part's
+verification evidence, not checkout instructions. The repository-resolvable
+selectors above are the enduring regression entry points; the shared reference
+scenarios supply the PostgreSQL oracle.
+
+
 ### Text-search scalar IO
 
 `TestReferenceFTSTypesValues`, `Binds`, `Query`, `Boundaries`, `Diagnostics`,

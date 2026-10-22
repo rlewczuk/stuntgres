@@ -326,6 +326,8 @@ const (
 	DomainAddCheck DomainConstraintAction = iota + 1
 	DomainDropCheck
 	DomainValidateCheck
+	DomainRename
+	DomainSetSchema
 )
 
 type AlterDomain struct {
@@ -333,6 +335,7 @@ type AlterDomain struct {
 	Action     DomainConstraintAction
 	Check      *CheckConstraint
 	Constraint Identifier
+	Target     Identifier
 	IfExists   bool
 	Mode       DropMode
 	Pos        Position

@@ -19,8 +19,8 @@ import (
 func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 	e, source, _ := typedUnitCatalog(t, false)
 	original, _ := e.CatalogRead().LookupType(source.RowType)
-	key := analyze.PreparedCompositeKey{Kind: analyze.CompositeSelection}
-	capture := analyze.CompositeOccurrence{Kind: analyze.CompositeSelection, Base: original.Usage(), Attributes: []int32{source.Attributes[1]}}
+	key := analyze.PreparedTypeKey{Kind: analyze.CompositeSelection}
+	capture := analyze.TypeOccurrence{Kind: analyze.CompositeSelection, Base: original.Usage(), Attributes: []int32{source.Attributes[1]}}
 	for _, members := range [][]sqltype.CompositeMember{{original.CompositeMember(0)}, {}, {{Attribute: 9, Name: "note", Usage: testUsage(e, sqltype.Text)}}} {
 		current, err := sqltype.Composite(original.ID(), original.Name(), original.SQLName(), original.AssociatedArray(), members)
 		if err != nil {
@@ -33,7 +33,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 		if !ok || !literal.Value.IsNull() || node.ResultUsage() != original.CompositeMember(1).Usage {
 			t.Fatal("retired field retargeted", node)
 		}
-		capture = binder.Prepared.Composites[key]
+		capture = binder.Prepared.Types[key]
 		if capture.Base.Type != original || capture.Attributes[0] != source.Attributes[1] {
 			t.Fatal("original capture overwritten")
 		}

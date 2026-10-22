@@ -97,18 +97,18 @@ exact BYTEA identity, domain rejection, UTF8-only output, full positioned
 diagnostics and valid controls. The existing native window-provider boundary is
 unchanged. Run `make check RUN='^TestReferenceSQLJSONAggregateOutputEncoding$'`
 and the identical selector with `REFERENCE=1` for real pinned PostgreSQL.
-Cancellation observes real aggregate execution (`openAggregateNode`, including
-child drain) once per direct/prepared route, joins each worker, checks no
-destination publication and recovers the same owner. It preloads the unchanged
-32768 unique integer rows once and uses a single ordered, parameter-bounded scan.
-Public admission requires that aggregate frame and the fixture worker in the
-same live stack; workload size, elapsed time or a launched goroutine is not proof.
-PostgreSQL independently requires actual query activity and the complete57014
-diagnostic, not a transport-racing context cancellation. The ordinary30-second
-fixture and existing helper admission/join deadlines remain unchanged.
-Each canceled execution leaves the destination empty; the SAME held statement
-then uses limit1, inserts exactly `{"1": 1}`, and clears that row before the next
-route.
+Cancellation observes a real `pg_sleep` wait INSIDE aggregate value evaluation
+once per direct/prepared route, joins each worker, checks no destination
+publication and recovers the same owner. Two preloaded rows replace finite
+workload padding: the active limit2 route selects a30-second wait, while the
+SAME held limit1 continuation selects `pg_sleep(0)` and inserts exactly
+`{"1": 1}` before clearing that row. Both CASE outcomes preserve the value.
+Existing `SleepActiveCancel` requires the native sleep provider and fixture
+worker in the same live stack, or the exact active PostgreSQL query with
+`PgSleep`; elapsed time or a launched goroutine is not admission proof.
+The complete57014 diagnostic, nil output, atomic destination and held-consumer
+assertions remain unchanged. The ordinary30-second fixture and existing
+15-second admission/bounded join deadlines are not extended.
 
 Precise transition and root-sort cancellation belongs to the existing pure-provider
 `TestSQLJSONObjectAggregateReachedCancellation` unit, not asynchronous sampling of

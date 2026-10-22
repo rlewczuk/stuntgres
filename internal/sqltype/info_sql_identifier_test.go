@@ -71,17 +71,17 @@ func TestInfoSQLIdentifierBuiltinDescriptor(t *testing.T) {
 		}
 	}
 	fresh := testTypes()
-	rebound, err := d.RebindDomain(fresh[Name].Usage(), "renamed.sql_identifier")
+	rebound, err := d.RebindDomain(fresh[Name].Usage(), d.Name(), "renamed.sql_identifier")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if rebound == d || rebound.DomainBase().Type != fresh[Name] || rebound.DomainBase().Type == base || !rebound.IsBuiltin() || rebound.IsUserDefined() || rebound.ID() != d.ID() || rebound.AssociatedArray() != d.AssociatedArray() || rebound.NamespaceName() != d.NamespaceName() || rebound.SQLName() != "renamed.sql_identifier" || d.SQLName() != "information_schema.sql_identifier" || d.DomainBase().Type != base {
 		t.Fatal("immutable rebind provenance", rebound)
 	}
-	if _, err := d.RebindDomain(Usage{}, "renamed.sql_identifier"); err == nil {
+	if _, err := d.RebindDomain(Usage{}, d.Name(), "renamed.sql_identifier"); err == nil {
 		t.Fatal("invalid rebind admitted")
 	}
-	if _, err := base.RebindDomain(base.Usage(), "renamed.base"); err == nil {
+	if _, err := base.RebindDomain(base.Usage(), base.Name(), "renamed.base"); err == nil {
 		t.Fatal("non-domain rebind admitted")
 	}
 }

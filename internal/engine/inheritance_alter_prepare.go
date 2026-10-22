@@ -239,7 +239,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		return nil, table.AddedColumn{}, true, step.err
 	}
 	for _, descriptor := range step.types {
-		if err := stage.replaceDescriptor(descriptor, false); err != nil {
+		if err := stage.replaceDescriptor(descriptor, false, false); err != nil {
 			return nil, table.AddedColumn{}, true, err
 		}
 	}

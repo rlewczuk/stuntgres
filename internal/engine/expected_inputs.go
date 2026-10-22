@@ -20,7 +20,7 @@ func expectedOf(d *StatementDescription) analyze.Expected {
 		RefreshTemporals: d.refreshTemporals,
 		PlanOwner:        d.planOwner,
 		PlanGeneration:   d.planGeneration,
-		Composites:       d.composites,
+		Types:            d.types,
 		Sequences:        d.sequences,
 	}
 	if d.regtypes != nil {

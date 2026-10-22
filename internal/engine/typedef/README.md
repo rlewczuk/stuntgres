@@ -17,14 +17,18 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
 ## What it owns
 
 - **Stage handlers** (`collation_ddl.go`, `conversion_ddl.go`, `domain.go`,
-  `enum.go`, `composite.go`, `typed_type_drop.go`): CREATE/ALTER/DROP
-  COLLATION and CONVERSION, CREATE/DROP DOMAIN, CREATE TYPE AS ENUM and
-  CREATE/DROP TYPE (composite), as `Stage...Locked(h, auth, statement)`.
+  `domain_identity.go`, `enum.go`, `composite.go`, `typed_type_drop.go`):
+  CREATE/ALTER/DROP COLLATION and CONVERSION, CREATE/DROP DOMAIN, domain
+  RENAME/SET SCHEMA, CREATE TYPE AS ENUM and CREATE/DROP TYPE (composite),
+  as `Stage...Locked(h, auth, statement)`.
   The ALTER staging cores `StageAlterEnumLabelLocked`
   (`enum_label_stage.go`, returning an `EnumLabelEdit`) and
   `StageAlterDomainConstraintLocked` (`domain_constraint_stage.go`,
   returning a `DomainConstraintEdit`) stage one ALTER TYPE ... VALUE or
   ALTER DOMAIN constraint action; their executors stay in the engine.
+  Pure domain identity staging uses `StageHost.ReplaceDomainIdentity` to preserve
+  the existing executable analysis stamp while advancing descriptor revisions.
+  Ordinary replacement invalidates by default; OWNER stays with the role owner.
 - **Collations** (`collation_name.go`, `collation_provider.go`,
   `collation_remap.go`, `collation_seed_dump.go`): `CollationName`,
   `CollationSQLName`, `ValidateCollationProvider`, the import remapper

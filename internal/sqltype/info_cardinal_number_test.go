@@ -83,7 +83,7 @@ func TestInfoCardinalNumberBuiltinDescriptor(t *testing.T) {
 		t.Fatal("typed NULL CHECK boundary", null, observer.values, err)
 	}
 	fresh := testTypes()
-	rebound, err := d.RebindDomain(fresh[Int4].Usage(), "information_schema.cardinal_number")
+	rebound, err := d.RebindDomain(fresh[Int4].Usage(), d.Name(), "information_schema.cardinal_number")
 	if err != nil {
 		t.Fatal(err)
 	}

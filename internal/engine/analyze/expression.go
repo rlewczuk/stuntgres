@@ -1009,7 +1009,10 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
 	var target sqltype.Usage
 	var err error
-	annotation := raw.TypeName
+	annotation, err := b.DomainCastAnnotation(raw)
+	if err != nil {
+		return nil, err
+	}
 	if b.Clause.JSONBRecordBase {
 		annotation, err = b.JSONBRecordCastAnnotation(raw)
 		if err != nil {
@@ -1027,7 +1030,14 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 		return nil, err
 	}
 	if b.Clause.JSONBRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
-		b.Prepared.CaptureComposite(PreparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}, target, nil)
+		b.Prepared.CaptureComposite(PreparedTypeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}, target, nil)
+	}
+	if (target.Type.IsDomain() || target.Type.IsArray() && target.Type.Element().IsDomain()) && raw.Syntax != parser.FunctionCast {
+		if b.Prepared.Types == nil {
+			b.Prepared.Types = make(map[PreparedTypeKey]TypeOccurrence)
+		}
+		key := PreparedTypeKey{Offset: raw.TypeName.Pos.Offset, Kind: DomainCast}
+		b.Prepared.Types[key] = TypeOccurrence{Kind: DomainCast, Base: target}
 	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.

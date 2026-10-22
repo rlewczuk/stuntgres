@@ -24,7 +24,7 @@ type Expected struct {
 	RefreshTemporals bool
 	PlanOwner        ids.SessionToken
 	PlanGeneration   uint64
-	Composites       map[PreparedCompositeKey]CompositeOccurrence
+	Types            map[PreparedTypeKey]TypeOccurrence
 	Sequences        *sequence.Analysis
 	Regtypes         []RegtypeConstant
 }

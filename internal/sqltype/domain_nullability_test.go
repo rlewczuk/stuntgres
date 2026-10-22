@@ -22,11 +22,11 @@ func TestDomainNullabilityAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound, err := child.RebindDomain(nullable.Usage(), "public.child")
+	rebound, err := child.RebindDomain(nullable.Usage(), child.Name(), "public.child")
 	if err != nil || rebound.DomainNotNull() || !child.DomainNotNull() {
 		t.Fatal("ancestor rebind mutated old authority", err)
 	}
-	rebound, err = parent.RebindDomain(nullable.Usage(), "public.required")
+	rebound, err = parent.RebindDomain(nullable.Usage(), parent.Name(), "public.required")
 	if err != nil || !rebound.OwnDomainNotNull() || !rebound.DomainNotNull() {
 		t.Fatal("own nullability lost on rebind", err)
 	}

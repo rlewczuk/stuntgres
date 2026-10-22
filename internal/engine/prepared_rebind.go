@@ -87,6 +87,9 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 // state and descriptor revisions. Commit exposes the descriptor's source stamp
 // to peers; a reverted reset retains its event only in the initiating session.
 func preparedDefinitionStamp(d catalog.Descriptor, session *session.Session) ids.DefinitionRevision {
+	if domain, ok := d.(*catalog.Type); ok && domain.UsesDomainPlanStamp() {
+		return domain.EffectiveDomainPlanStamp()
+	}
 	var memory *sequence.SessionMemory
 	if session != nil {
 		memory = &payloadOf(session).sequences
@@ -178,6 +181,23 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	for _, dep := range b.Dependencies {
 		if err := visit(dep.Ref); err != nil {
 			return nil, err
+		}
+	}
+	// A domain conversion can be elided from the executable expression, but
+	// its resolved cast occurrence still belongs to this analysis lifetime.
+	for key, captured := range b.Prepared.Types {
+		if key.Kind != analyze.DomainCast || captured.Base.Type == nil {
+			continue
+		}
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(captured.Base.Type.ID())})
+		if err := visit(ref); err != nil {
+			return nil, err
+		}
+		if captured.Base.Type.IsArray() && captured.Base.Type.Element().IsDomain() {
+			element := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(captured.Base.Type.Element().ID())})
+			if err := visit(element); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return cell, nil

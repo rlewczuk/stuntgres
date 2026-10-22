@@ -405,7 +405,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, composites: b.Prepared.Composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.Session.SessionToken, planGeneration: op.Session.DiscardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, types: b.Prepared.Types, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.Session.SessionToken, planGeneration: op.Session.DiscardPlansGeneration}, nil
 }
 
 // requiredRef is the exact acquired DML/utility target; query source occurrences

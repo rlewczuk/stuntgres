@@ -594,7 +594,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 		}
 		switch {
 		case effect.descriptor != nil:
-			if err := stage.replaceDescriptor(effect.descriptor, false); err != nil {
+			if err := stage.replaceDescriptor(effect.descriptor, false, false); err != nil {
 				return nil, err
 			}
 		case effect.remove.Address != (ids.ObjectAddress{}):
@@ -757,7 +757,7 @@ func (p *dropProvider) RecordIndexLayout(address ids.ObjectAddress, lineage inde
 
 func (p *dropProvider) projectPreparedColumn(old, next *catalog.Relation) error {
 	if old.RelationKind == catalog.CompositeRelation || old.RelationKind == catalog.ForeignRelation {
-		return p.stage.replaceDescriptor(next, false)
+		return p.stage.replaceDescriptor(next, false, false)
 	}
 	if p.changes != nil {
 		return p.scope.stagePreparedColumnShape(p.stage, p.changes, old, next)

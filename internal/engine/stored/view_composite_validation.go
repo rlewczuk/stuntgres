@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (v *View) ValidateCompositeSource(captured analyze.CompositeOccurrence) error {
+func (v *View) ValidateCompositeSource(captured analyze.TypeOccurrence) error {
 	source := captured.Source
 	if source.Namespace == 0 {
 		if source.Qualifier != 0 || source.Frame != 0 || captured.Kind == analyze.CompositeWholeRow {
@@ -45,7 +45,7 @@ func (v *View) ValidateCompositeSource(captured analyze.CompositeOccurrence) err
 	return nil
 }
 
-func ValidateCompositeOccurrence(captured analyze.CompositeOccurrence, catalog catalog.Read) error {
+func ValidateCompositeOccurrence(captured analyze.TypeOccurrence, catalog catalog.Read) error {
 	if captured.Kind != analyze.CompositeSelection && captured.Kind != analyze.CompositeExpansion && captured.Kind != analyze.CompositeDotBuiltin && captured.Kind != analyze.CompositeWholeRow && captured.Kind != analyze.CompositeSourceExpansion && captured.Kind != analyze.CompositeRecordArgument || captured.Kind == analyze.CompositeSelection && len(captured.Attributes) != 1 || captured.Kind == analyze.CompositeRecordArgument && len(captured.Attributes) != 0 || captured.Kind == analyze.CompositeWholeRow && (len(captured.Attributes) != 0 || captured.Source.Namespace == 0) || captured.Kind == analyze.CompositeDotBuiltin && (len(captured.Attributes) != 0 || captured.Function != functions.CountNulls && captured.Function != functions.CountNonnulls) || captured.Kind != analyze.CompositeDotBuiltin && captured.Function != 0 || !ValidExpressionUsage(catalog, captured.Base) || captured.Kind != analyze.CompositeDotBuiltin && !captured.Base.Type.BaseType().IsComposite() {
 		return fmt.Errorf("stuntgres: invalid frozen composite authority")
 	}

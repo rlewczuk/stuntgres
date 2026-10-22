@@ -428,15 +428,20 @@ func (s *CatalogStage) Create(d catalog.Descriptor) error {
 	return s.Candidate.Create(d)
 }
 func (s *CatalogStage) Replace(d catalog.Descriptor) error {
-	return s.replaceDescriptor(d, true)
+	return s.replaceDescriptor(d, true, false)
 }
 
 // A fully rebuilt immutable type closure is already reciprocal. Installing its
 // members must not synthesize a second projection based on map iteration order.
-func (s *CatalogStage) replaceDescriptor(d catalog.Descriptor, synchronize bool) error {
+func (s *CatalogStage) replaceDescriptor(d catalog.Descriptor, synchronize, preserveDomainPlan bool) error {
 	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil || d == nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
+	previous := s.Get(d.Address())
+	if previous == nil {
+		previous = s.Base.Get(d.Address())
+	}
+	d = catalog.NormalizeTypeReplacement(previous, d, preserveDomainPlan)
 	if err := s.Candidate.Replace(d); err != nil {
 		return err
 	}

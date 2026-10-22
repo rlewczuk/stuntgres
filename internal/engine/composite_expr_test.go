@@ -263,7 +263,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if b.SameGroupExpression(left, right) {
 		t.Fatal("zero-width source occurrences conflated")
 	}
-	zero := analyze.CompositeOccurrence{Kind: analyze.CompositeExpansion, Base: empty.Usage()}
+	zero := analyze.TypeOccurrence{Kind: analyze.CompositeExpansion, Base: empty.Usage()}
 	if err := stored.ValidateCompositeOccurrence(zero, view); err != nil {
 		t.Fatal("zero-width expansion lost authority", err)
 	}
@@ -271,7 +271,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := stored.ValidateCompositeOccurrence(zero, view); err == nil {
 		t.Fatal("missing capture kind admitted")
 	}
-	whole := analyze.CompositeOccurrence{Kind: analyze.CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
+	whole := analyze.TypeOccurrence{Kind: analyze.CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
 	if err := (stored.NewView(stored.ViewParts{})).ValidateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}

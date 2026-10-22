@@ -1347,7 +1347,11 @@ drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
 alter_domain: ALTER DOMAIN relation_name ADD domain_alter_check {$$=&AlterDomain{Name:$3,Action:DomainAddCheck,Check:$5,Constraint:$5.Name,Pos:$1.pos}}
  | ALTER DOMAIN relation_name DROP CONSTRAINT drop_target drop_mode {$$=&AlterDomain{Name:$3,Action:DomainDropCheck,Constraint:$6.Name,IfExists:$6.IfExists,Mode:$7,Pos:$1.pos}}
- | ALTER DOMAIN relation_name domain_validate_word CONSTRAINT name {$$=&AlterDomain{Name:$3,Action:DomainValidateCheck,Constraint:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}} ;
+ | ALTER DOMAIN relation_name domain_validate_word CONSTRAINT name {$$=&AlterDomain{Name:$3,Action:DomainValidateCheck,Constraint:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER DOMAIN relation_name RENAME TO name {$$=&AlterDomain{Name:$3,Action:DomainRename,Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER DOMAIN relation_name SET SCHEMA name {$$=&AlterDomain{Name:$3,Action:DomainSetSchema,Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER DOMAIN relation_name SET DEFAULT {sqllex.(*lexer).syntax($4);return 1}
+ | ALTER DOMAIN relation_name SET NOT {sqllex.(*lexer).syntax($4);return 1} ;
 domain_alter_check: check_constraint {$$=$1}
  | domain_alter_check NOT nn_modifier {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};$1.NotValid=true;$$=$1}
  | domain_alter_check NO nn_inherit {$1.NoInherit=true;$$=$1} ;

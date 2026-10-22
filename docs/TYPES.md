@@ -957,6 +957,46 @@ conversions use current rules; previously returned rows remain owned. Public
 `pg_get_constraintdef`/`pg_get_expr` render VALUE through the common deparser.
 Domain utilities retain the native explicit-transaction exclusion.
 
+Domain rename and schema move rebuild immutable same-ID descriptors and their
+reciprocal arrays through the common catalog generation owner. Direct and derived
+columns, composite/array members, stored expressions and physical datum tags use
+the admitted generation; retained roots and already-returned eager rows remain
+unchanged. CHECK OIDs/names and default/nullability recipes survive, with the
+constraint namespace projected from the current domain namespace. No historical
+CHECK/default evaluation is replayed. Fresh input diagnostics name the current
+schema/type and existing constraint.
+
+The catalog's domain analysis stamp distinguishes pure name/namespace revisions
+from executable or authority changes. Ordinary revised replacement invalidates
+by default, including CHECK changes with unchanged flags, OWNER and real ACL
+changes; same-revision generation reownership preserves the normalized stamp.
+Held explicit casts retain the original domain or reciprocal domain companion
+array through identity edits. Written `d[]` reconstructs the current element name
+with the original brackets/bounds; direct `_d` reconstructs the current array name.
+Both carrier and element remain semantic dependencies, so a stable array identity
+cannot conceal changed element CHECKs or authority. Companion displacement is an
+explicit lexical rename under the same stamp rule, not a semantic mutation.
+A changed effective search path still reanalyzes the original spelling, and
+drop/recreate or replacement catalog lifetimes cannot silently substitute a new
+logical type.
+Actual driver-prepared utilities expose no parameters/results and mutate only at
+Execute; existing explicit-transaction rejection remains there, read-only first.
+
+DROP authorizes the domain owner or containing-schema owner after ordinary source
+lookup. IF EXISTS reports missing qualified schemas as notices while retaining
+wrong-kind and permission failures. Full target lists preflight before publishing
+the dependency closure. RESTRICT reports dependent uses; CASCADE retires exactly
+their owned columns/defaults/CHECKs/derived types/views/routines, preserving
+containing tables, surviving attributes and row counts.
+
+Native Dump/Restore renders the final qualified domain/base/cast names and
+reconstructs named owners and reproducible companion topology. Retained historical
+typdefault display text is not an executable lookup. Existing NOT VALID history,
+typed NULLs, array bounds, base typmods and source immutability remain intact.
+Arbitrary changed ACLs still reject Dump before output; no external pg_dump or
+physical-OID contract is added.
+
+
 Checked expression conversions retain runtime demand: a false filter or empty
 source does not consume their CHECK truth, and each actual row executes its own
 conversion even for a constant physical value and a volatile CHECK provider.

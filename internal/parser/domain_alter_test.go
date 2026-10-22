@@ -54,3 +54,32 @@ func TestDomainAlterConstraintGrammar(t *testing.T) {
 		}
 	}
 }
+
+func TestDomainIdentityGrammar(t *testing.T) {
+	for _, tc := range []struct {
+		sql    string
+		action DomainConstraintAction
+		target string
+	}{
+		{`ALTER DOMAIN /* é */ domain_s."Δ Domain" RENAME TO "Renamed Domain"`, DomainRename, "Renamed Domain"},
+		{`ALTER DOMAIN domain_s.d SET SCHEMA "Destination é"`, DomainSetSchema, "Destination é"},
+	} {
+		statements, err := Parse(tc.sql)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(tc.sql, statements, err)
+		}
+		alter, ok := statements[0].(*AlterDomain)
+		if !ok || alter.Action != tc.action || alter.Target.Text != tc.target || alter.Check != nil || alter.Constraint.Text != "" || alter.IfExists || alter.Mode != DropRestrict || len(alter.Name.Parts) != 2 {
+			t.Fatal("identity syntax lost", statements[0])
+		}
+		offset := strings.Index(tc.sql, `"`+tc.target+`"`)
+		if alter.Target.Pos.Offset != offset || alter.Target.Pos.Character != utf8.RuneCountInString(tc.sql[:offset])+1 {
+			t.Fatal("identity target position", alter.Target.Pos)
+		}
+	}
+	for _, sql := range []string{"ALTER DOMAIN public.d RENAME TO", "ALTER DOMAIN public.d SET SCHEMA", "ALTER DOMAIN public.d RENAME TO d extra", "ALTER DOMAIN public.d SET SCHEMA moved, RENAME TO d"} {
+		if statements, err := Parse(sql); err == nil || statements != nil {
+			t.Fatal("partial identity syntax admitted", sql, statements, err)
+		}
+	}
+}

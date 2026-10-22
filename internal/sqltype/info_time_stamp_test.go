@@ -48,17 +48,17 @@ func TestInfoTimeStampBuiltinDescriptor(t *testing.T) {
 	fresh := testTypes()
 	freshBase := fresh[Timestamptz].Usage()
 	freshBase.Typmod = 2
-	rebound, err := d.RebindDomain(freshBase, "renamed.time_stamp")
+	rebound, err := d.RebindDomain(freshBase, d.Name(), "renamed.time_stamp")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if rebound == d || rebound.DomainBase().Type != fresh[Timestamptz] || rebound.DomainBase().Type == base || !rebound.IsBuiltin() || rebound.IsUserDefined() || rebound.ID() != d.ID() || rebound.AssociatedArray() != d.AssociatedArray() || rebound.NamespaceName() != d.NamespaceName() || rebound.SQLName() != "renamed.time_stamp" || d.SQLName() != "information_schema.time_stamp" {
 		t.Fatal("immutable rebind provenance", rebound)
 	}
-	if _, err := d.RebindDomain(Usage{}, "renamed.time_stamp"); err == nil {
+	if _, err := d.RebindDomain(Usage{}, d.Name(), "renamed.time_stamp"); err == nil {
 		t.Fatal("invalid rebind admitted")
 	}
-	if _, err := base.RebindDomain(base.Usage(), "renamed.base"); err == nil {
+	if _, err := base.RebindDomain(base.Usage(), base.Name(), "renamed.base"); err == nil {
 		t.Fatal("non-domain rebind admitted")
 	}
 }

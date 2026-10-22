@@ -1771,6 +1771,17 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
 
 ## Types, expressions and catalogs
 
+- Domain RENAME/OWNER/SET SCHEMA retain logical domain, companion-array and CHECK
+  identities. Rename requires domain ownership, not source-schema CREATE; move
+  checks destination actor CREATE before ownership, including same-schema moves.
+  Only DROP also accepts the containing-schema owner. IF EXISTS suppresses missing
+  domains or qualified schemas, not wrong kinds or permissions. RESTRICT and
+  complete target-list failures are atomic; CASCADE follows real dependency
+  ownership, dropping dependent attributes without dropping their whole tables.
+  Identity edits do not rescan historical CHECK/default truth. Actual driver
+  utilities Prepare quietly and enforce read-only/explicit-transaction boundaries
+  at Execute. Native replay uses current qualified declarations and captured
+  expressions; physical OIDs and external pg_dump interoperability are not promised.
 - CREATE DOMAIN DEFAULT/NULL/NOT NULL use the existing declaration and coercion
   machinery. Defaults are variable-free; column/VALUE references, parameters and
   subqueries are rejected. A column recipe overrides the effective domain/base

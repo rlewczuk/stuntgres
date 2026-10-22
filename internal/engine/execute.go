@@ -104,7 +104,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.CreateEnum, *parser.AlterEnum:
 		return e.executeEnumDDL(scope, stmt, count)
 	case *parser.AlterDomain:
-		result, err := e.executeAlterDomain(scope, stmt.(*parser.AlterDomain), count)
+		domain := stmt.(*parser.AlterDomain)
+		var result Result
+		var err error
+		if domain.Action == parser.DomainRename || domain.Action == parser.DomainSetSchema {
+			result, err = e.executeSchema(scope, op, stmt, count, scope.input)
+		} else {
+			result, err = e.executeAlterDomain(scope, domain, count)
+		}
 		if err == nil {
 			scope.completed = true
 		}
@@ -248,6 +255,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		replan = replan || !current
 	}
 	if expected != nil {
+		if replan {
+			expected.retireDomainCasts()
+		}
 		valid, err = e.sequenceAnalysisValidLocked(auth, expected.sequences)
 		if err != nil {
 			e.mu.Unlock()
@@ -444,6 +454,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			if replan {
 				scope.Expected.temporals = b.Prepared.Temporals
+				scope.Expected.publishDomainCasts(b.Prepared.Types)
 				if preparableBody(stmt) {
 					scope.Expected.analysis = prepared
 				}

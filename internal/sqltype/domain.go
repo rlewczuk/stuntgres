@@ -16,18 +16,18 @@ func Domain(id ID, name, declaration string, base Usage, checks ...bool) (*Descr
 	return &Descriptor{id: id, name: name, sql: declaration, database: base.Type.BaseType().database, base: base, ownDomainChecks: ownChecks, domainChecks: ownChecks || base.Type.HasDomainChecks(), ownDomainNotNull: ownNotNull, domainNotNull: ownNotNull || base.Type.DomainNotNull()}, nil
 }
 
-// RebindDomain reowns a concrete domain's base without losing its immutable
-// identity, inventory provenance or associated-array relationship.
-func (d *Descriptor) RebindDomain(base Usage, declaration string) (*Descriptor, error) {
+// RebindDomain reowns a concrete domain's name and base without losing its
+// immutable identity, inventory provenance or associated-array relationship.
+func (d *Descriptor) RebindDomain(base Usage, name, declaration string) (*Descriptor, error) {
 	if !d.IsDomain() || !d.Concrete() {
 		return nil, fmt.Errorf("invalid domain rebind")
 	}
-	validated, err := Domain(d.id, d.name, declaration, base)
+	validated, err := Domain(d.id, name, declaration, base)
 	if err != nil {
 		return nil, err
 	}
 	*validated = *d
-	validated.base, validated.database, validated.sql = base, base.Type.BaseType().database, declaration
+	validated.base, validated.database, validated.name, validated.sql = base, base.Type.BaseType().database, name, declaration
 	validated.domainChecks = d.ownDomainChecks || base.Type.HasDomainChecks()
 	validated.domainNotNull = d.ownDomainNotNull || base.Type.DomainNotNull()
 	return validated, nil

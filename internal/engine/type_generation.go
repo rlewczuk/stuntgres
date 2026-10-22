@@ -96,7 +96,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 		}
 		if stage.Base.Get(address) == nil {
 			stage.UpdateDescriptor(descriptor)
-		} else if err := stage.replaceDescriptor(descriptor, false); err != nil {
+		} else if err := stage.replaceDescriptor(descriptor, false, false); err != nil {
 			return err
 		}
 	}

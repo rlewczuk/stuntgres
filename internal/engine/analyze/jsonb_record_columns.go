@@ -54,7 +54,7 @@ func (b *Binder) jsonbRecordQualifierStar(columns []QueryColumn, frame uint32, s
 func (b *Binder) JSONBRecordCallStar(columns, source []QueryColumn, star parser.StarExpr, call functions.JSONBRecord) ([]QueryColumn, error) {
 	usage := call.ResultUsage()
 	shape := usage.Type.BaseType()
-	key := PreparedCompositeKey{Offset: call.SourcePosition().Offset, Kind: CompositeSourceExpansion, Projection: star.Pos.Offset}
+	key := PreparedTypeKey{Offset: call.SourcePosition().Offset, Kind: CompositeSourceExpansion, Projection: star.Pos.Offset}
 	captured, retained, err := b.retainedComposite(key, usage)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (b *Binder) JSONBRecordCallStar(columns, source []QueryColumn, star parser.
 		first = source[0].Slot
 	}
 	if !retained {
-		captured = CompositeOccurrence{Kind: CompositeSourceExpansion, Base: usage, Attributes: make([]int32, 0, len(source)), Names: make([]string, 0, len(source))}
+		captured = TypeOccurrence{Kind: CompositeSourceExpansion, Base: usage, Attributes: make([]int32, 0, len(source)), Names: make([]string, 0, len(source))}
 		for _, column := range columns {
 			index := column.Slot - first
 			if index >= 0 && index < len(source) {
@@ -76,10 +76,10 @@ func (b *Binder) JSONBRecordCallStar(columns, source []QueryColumn, star parser.
 	if len(captured.Names) != len(captured.Attributes) {
 		return nil, fmt.Errorf("stuntgres: invalid retained JSONB record labels")
 	}
-	if b.Prepared.Composites == nil {
-		b.Prepared.Composites = make(map[PreparedCompositeKey]CompositeOccurrence)
+	if b.Prepared.Types == nil {
+		b.Prepared.Types = make(map[PreparedTypeKey]TypeOccurrence)
 	}
-	b.Prepared.Composites[key] = captured
+	b.Prepared.Types[key] = captured
 	if !retained {
 		return columns, nil
 	}
@@ -141,8 +141,8 @@ func (b *Binder) JSONBRecordCastAnnotation(raw parser.CastExpr) (parser.TypeName
 	if b.Expected.CatalogOwner != view.Owner() || b.Expected.CatalogEpoch != view.Epoch() {
 		return annotation, nil
 	}
-	key := PreparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}
-	captured, found := b.Expected.Composites[key]
+	key := PreparedTypeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}
+	captured, found := b.Expected.Types[key]
 	if !found {
 		return annotation, nil
 	}

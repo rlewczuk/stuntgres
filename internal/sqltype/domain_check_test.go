@@ -54,7 +54,7 @@ func TestDomainCheckInputVersusIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebound, err := inherited.RebindDomain(unchecked.Usage(), "public.inherited")
+	rebound, err := inherited.RebindDomain(unchecked.Usage(), inherited.Name(), "public.inherited")
 	if err != nil || rebound.HasDomainChecks() || !inherited.HasDomainChecks() {
 		t.Fatal("immutable inherited marker recomputation", rebound, err)
 	}

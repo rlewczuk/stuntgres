@@ -363,8 +363,8 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		parent := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
 		child := parent
 		child.Node = 1
-		want := analyze.CompositeOccurrence{Kind: analyze.CompositeDotBuiltin, Base: b.Type(sqltype.Text).Usage(), Function: functions.CountNulls}
-		if !reflect.DeepEqual(b.Capture.Composites, map[analyze.ViewLiteralPath]analyze.CompositeOccurrence{parent: want}) || !reflect.DeepEqual(b.Capture.Columns, map[analyze.ViewLiteralPath]analyze.ViewColumn{child: {Frame: b.FrameID(), Slot: 0}}) || len(b.Capture.CastUsages) != 0 {
+		want := analyze.TypeOccurrence{Kind: analyze.CompositeDotBuiltin, Base: b.Type(sqltype.Text).Usage(), Function: functions.CountNulls}
+		if !reflect.DeepEqual(b.Capture.Composites, map[analyze.ViewLiteralPath]analyze.TypeOccurrence{parent: want}) || !reflect.DeepEqual(b.Capture.Columns, map[analyze.ViewLiteralPath]analyze.ViewColumn{child: {Frame: b.FrameID(), Slot: 0}}) || len(b.Capture.CastUsages) != 0 {
 			t.Fatal("dot builtin identity/base ownership", b.Capture.Composites, b.Capture.Columns)
 		}
 	})

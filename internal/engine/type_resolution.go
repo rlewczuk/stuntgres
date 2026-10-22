@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -118,7 +119,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Ope
 		if raw.Schema == nil && typedef.UnsupportedColumnType(raw) {
 			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 		}
-		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(object)))
+		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s%s" does not exist`, catalog.ObjectNameText(object), strings.Repeat("[]", len(raw.ArrayBounds))))
 	}
 	d, validType := auth.definitionType(sqltype.ID(found.ObjectID))
 	if !validType {

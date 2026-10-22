@@ -55,7 +55,7 @@ func TestReferenceDomainAlterConstraintBoundaries(t *testing.T) {
 		// These adjacent operations remain an explicit native parser boundary;
 		// PostgreSQL's legal transactional forms are executed and rolled back.
 		for _, tc := range []struct{ suffix, token string }{
-			{"SET DEFAULT 7", "SET"}, {"SET NOT NULL", "SET"}, {"DROP NOT NULL", "NOT"}, {"RENAME TO renamed", "RENAME"},
+			{"SET DEFAULT 7", "SET"}, {"SET NOT NULL", "SET"}, {"DROP NOT NULL", "NOT"},
 		} {
 			t.Run(tc.suffix, func(t *testing.T) {
 				q := "ALTER DOMAIN domain_s.d " + tc.suffix

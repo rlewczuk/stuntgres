@@ -75,7 +75,7 @@ func RemapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 		}
 	}
 	if len(original.composites) != 0 {
-		definition.composites = make(map[analyze.ViewLiteralPath]analyze.CompositeOccurrence, len(original.composites))
+		definition.composites = make(map[analyze.ViewLiteralPath]analyze.TypeOccurrence, len(original.composites))
 		for path, captured := range original.composites {
 			captured.Base.Type = typ(captured.Base.Type)
 			if collation != nil {

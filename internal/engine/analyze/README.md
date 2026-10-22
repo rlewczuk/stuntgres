@@ -62,8 +62,16 @@ and VALUES aggregate inspection traverse the same query children.
 - **Capture groups** (`binding_groups.go`, `captures.go`): `ViewCapture` (the
   rendering captures keyed by `ViewLiteralPath`, with view columns,
   namespaces and composite occurrences), `PreparedCaptures` (temporal,
-  composite, sequence and regtype constants a prepared statement
-  re-resolves), `ResolverInputs` (the statement input resolvers, captured by
+  type-occurrence, sequence and regtype captures a prepared statement re-resolves).
+  `Types`/`PreparedTypeKey` share composite captures with domain-cast identities;
+  `DomainCastAnnotation` reconstructs the live spelling of the retained ID before
+  normal lookup/authority/coercion, only while its analysis environment is valid.
+  Domain casts include immediate domain-element companion arrays. Reconstruction
+  checks live reciprocal carrier/element identity; bracketed syntax names the
+  current element without changing its bounds, direct companion syntax names
+  the current array. Both stay subject to ordinary annotation authority/coercion.
+  Composite-specific validators and stored `ViewCapture.Composites` remain narrow.
+  `ResolverInputs` (the statement input resolvers, captured by
   `NewResolverInputs`), `RuleBinding`, and `DefaultOrigin` (where a default
   expression came from).
 - **`Authority`** (`authority.go`): the catalog and search-path authority a

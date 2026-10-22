@@ -203,6 +203,10 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		if err = typedef.StageCreateDomainLocked(host, auth, s, input, output); err != nil {
 			return nil, err
 		}
+	case *parser.AlterDomain:
+		if err = typedef.StageAlterDomainIdentityLocked(host, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.DropDomain:
 		if err = typedef.StageDropDomainLocked(host, auth, s); err != nil {
 			return nil, err

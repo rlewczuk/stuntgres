@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (v *QueryRenderer) wholeRowSQL(captured analyze.CompositeOccurrence) (string, error) {
+func (v *QueryRenderer) wholeRowSQL(captured analyze.TypeOccurrence) (string, error) {
 	rendered, ok := v.wholeRows[captured.Source]
 	if !ok || rendered.sql == "" {
 		return "", fmt.Errorf("stuntgres: missing rendered whole-row occurrence")
@@ -18,7 +18,7 @@ func (v *QueryRenderer) wholeRowSQL(captured analyze.CompositeOccurrence) (strin
 	return rendered.sql, nil
 }
 
-func (v *QueryRenderer) frozenCompositeFields(ctx context.Context, catalogView catalog.Read, captured analyze.CompositeOccurrence, base string) ([]string, error) {
+func (v *QueryRenderer) frozenCompositeFields(ctx context.Context, catalogView catalog.Read, captured analyze.TypeOccurrence, base string) ([]string, error) {
 	shape := captured.Base.Type.BaseType()
 	fields := make([]string, len(captured.Attributes))
 	var exposed []string
@@ -82,7 +82,7 @@ func (v *QueryRenderer) compositeExpansionSQL(ctx context.Context, catalog catal
 	return v.frozenCompositeFields(ctx, catalog, captured, base)
 }
 
-func frozenDotBuiltinSQL(captured analyze.CompositeOccurrence, base string) (string, error) {
+func frozenDotBuiltinSQL(captured analyze.TypeOccurrence, base string) (string, error) {
 	name := ""
 	switch captured.Function {
 	case functions.CountNulls:

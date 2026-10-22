@@ -57,12 +57,13 @@ func TestReferenceSQLJSONObjectAggregateBoundaries(t *testing.T) {
 
 func TestReferenceSQLJSONObjectAggregateCancellation(t *testing.T) {
 	sqlJSONObjectAggregateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		// Preexisting rows keep admission work to one bounded scan, rather than
-		// materializing a cross product before aggregate execution is observed.
-		const activeRows int64 = 32768
+		// Admission is a real wait inside aggregate value evaluation, not a
+		// race to sample a finite workload. The SAME held limit1 route below
+		// evaluates pg_sleep(0), preserving prompt successful continuation.
+		const activeRows int64 = 2
 		for _, s := range []fixture.Step{
 			fixture.Exec("CREATE TABLE sjo_cancel_seed(x int)", 0),
-			fixture.Exec("INSERT INTO sjo_cancel_seed SELECT generate_series(1,32768)", activeRows),
+			fixture.Exec("INSERT INTO sjo_cancel_seed SELECT generate_series(1,2)", activeRows),
 			fixture.Exec("CREATE TABLE sjo_cancel_destination(v jsonb)", 0),
 		} {
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
@@ -72,7 +73,7 @@ func TestReferenceSQLJSONObjectAggregateCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer conn.Close()
-		const q = "INSERT INTO sjo_cancel_destination SELECT json_objectagg(x:x WITH UNIQUE KEYS RETURNING jsonb) FROM(SELECT x FROM sjo_cancel_seed ORDER BY x LIMIT $1) s"
+		const q = "INSERT INTO sjo_cancel_destination SELECT json_objectagg(x:CASE WHEN pg_sleep(CASE WHEN $1::bigint>1 THEN 30 ELSE 0 END) IS NULL THEN x ELSE x END WITH UNIQUE KEYS RETURNING jsonb) FROM(SELECT x FROM sjo_cancel_seed ORDER BY x LIMIT $1) s"
 		stmt, err := conn.PrepareContext(p.Ctx, q)
 		if err != nil {
 			t.Fatal(err)
@@ -101,10 +102,10 @@ func TestReferenceSQLJSONObjectAggregateCancellation(t *testing.T) {
 			}
 		}
 		for _, prepared := range []bool{false, true} {
-			// Observe aggregate execution before input drain. Exact transition
-			// and root-sort cancellation are deterministic private provider units,
-			// not transient microframes sampled by this public API witness.
-			fixture.BinaryConversionActiveCancel(t, p, b, conn, q, "openAggregateNode", func(ctx context.Context) fixture.RelationOutcome {
+			// Observe the real value-expression wait before cancellation.
+			// Precise transition/root-sort cancellation remains in the private
+			// provider units; this public witness checks active atomic recovery.
+			fixture.SleepActiveCancel(t, p, b, conn, q, nil, func(ctx context.Context) fixture.RelationOutcome {
 				var result sql.Result
 				var err error
 				if prepared {

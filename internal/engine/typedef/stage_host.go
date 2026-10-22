@@ -25,6 +25,8 @@ type StageHost interface {
 
 	// ReplaceUnsynchronized replaces d without re-deriving a row type.
 	ReplaceUnsynchronized(catalog.Descriptor) error
+	// Only pure domain name/namespace edits preserve executable plan identity.
+	ReplaceDomainIdentity(*catalog.Type) error
 	AddDomainBase(catalog.Descriptor)
 	RemoveDomainCheck(d *catalog.Type, oid ids.OID) error
 

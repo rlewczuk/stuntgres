@@ -133,7 +133,8 @@ type GrantPlan struct {
 }
 
 // ObjectGrantPlan builds the new ACLs of req's targets. revision allocates
-// the plan stamps of changed sequences. The warnings are returned in
+// the plan stamps of changed sequences and definition revisions of domains.
+// The warnings are returned in
 // statement order, also with an error: the ones raised before it.
 func ObjectGrantPlan(ctx context.Context, view access.View, s *parser.ObjectGrant, req GrantRequest, revision func() (ids.DefinitionRevision, error)) (GrantPlan, []sqlstate.Error, error) {
 	var warnings []sqlstate.Error
@@ -157,6 +158,13 @@ func ObjectGrantPlan(ctx context.Context, view access.View, s *parser.ObjectGran
 				return GrantPlan{}, warnings, err
 			}
 			if next != nil {
+				if domain, ok := next.(*catalog.Type); ok && domain.SQLType.IsDomain() {
+					domain.ObjectRevision, err = revision()
+					if err != nil {
+						return GrantPlan{}, warnings, err
+					}
+					next = catalog.NormalizeTypeReplacement(d, domain, false)
+				}
 				plan.Changed[address] = ObjectGrantChange{Descriptor: next}
 				if plan.Candidate == nil {
 					plan.Candidate = catalog.CloneState(view.Catalog.State())

@@ -520,11 +520,15 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return s.engine().describeOperation(s, stmt)
 	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
 		return s.engine().describeOperation(s, stmt)
-	case *parser.AlterDomain:
+	case *parser.AlterDomain, *parser.DropDomain:
 		// This narrow utility has no parameter/result signature. Preparation
 		// must remain quiet; Execute owns read-only-first and explicit-block
 		// rejection, without resolving or changing a domain during analysis.
 		return s.engine().describeOperation(s, stmt)
+	case *parser.AlterOwner:
+		if stmt.(*parser.AlterOwner).Kind == "domain" {
+			return s.engine().describeOperation(s, stmt)
+		}
 	case *parser.CreateFunction, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		// These utilities have no result signature. Admission, read-only
 		// precedence and the explicit-transaction boundary belong to Execute.

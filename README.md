@@ -3691,6 +3691,23 @@ Feature smokes:
 `make check RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$'`,
 and pinned `make check REFERENCE=1 RUN='^TestReferenceDomain'`.
 
+Change note: `ALTER DOMAIN ... RENAME TO`, `OWNER TO`, and `SET SCHEMA`
+preserve logical domain, companion-array and CHECK identities. Stored columns,
+derived domains and nested values keep their coercion rules; subsequent failures
+name the current domain. Actual driver-prepared utilities are quiet at Prepare
+and check current authority at Execute. Held typed consumers, including checked
+and unchecked companion-array inputs written as `d[]` or `_d`, retain identity
+through rename/move without losing bounds, NULLs or element CHECK enforcement.
+Search-path reanalysis still resolves the original SQL.
+DROP admits the containing-schema owner as well as the domain owner, and
+qualified missing schemas obey IF EXISTS notice semantics. RESTRICT is atomic;
+CASCADE removes the real dependent columns/definitions, not their containing
+tables or unrelated data. Native Dump/Restore emits final qualified names.
+Explicit-transaction, ALTER default/nullability, arbitrary-ACL dump and external
+pg_dump boundaries remain unchanged. See the
+[identity contract and selected proof](reference/types/README.md#domain-identity-lifecycle-contract).
+
+
 Change note: `ALTER DOMAIN` supports CHECK additions (including NOT VALID),
 selected DROP CONSTRAINT and VALIDATE CONSTRAINT. NOT VALID preserves old
 violators but checks every new conversion. Validation scans direct and derived

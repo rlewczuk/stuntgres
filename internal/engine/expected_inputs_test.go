@@ -24,7 +24,7 @@ func TestExpectedOfCopiesHeldInputs(t *testing.T) {
 		catalogOwner:     owner,
 		catalogEpoch:     ids.CatalogEpoch(3),
 		temporals:        []analyze.TemporalConstant{{Offset: 4}},
-		composites:       map[analyze.PreparedCompositeKey]analyze.CompositeOccurrence{{}: {}},
+		types:            map[analyze.PreparedTypeKey]analyze.TypeOccurrence{{}: {}},
 		sequences:        &sequence.Analysis{Constants: []sequence.Constant{{Offset: 5}}},
 		regtypes:         &regtypeAnalysis{constants: []analyze.RegtypeConstant{{Offset: 6}}},
 		planOwner:        ids.SessionToken{},
@@ -41,7 +41,7 @@ func TestExpectedOfCopiesHeldInputs(t *testing.T) {
 		RefreshTemporals: true,
 		PlanOwner:        d.planOwner,
 		PlanGeneration:   7,
-		Composites:       d.composites,
+		Types:            d.types,
 		Sequences:        d.sequences,
 		Regtypes:         d.regtypes.constants,
 	}

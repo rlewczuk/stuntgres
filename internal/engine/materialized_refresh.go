@@ -257,7 +257,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	next := *d
 	next.ObjectRevision++
 	next.Populated = populated
-	if err := s.replaceDescriptor(&next, false); err != nil {
+	if err := s.replaceDescriptor(&next, false, false); err != nil {
 		return err
 	}
 	s.materialized().Replacement = &view.MaterializedReplacement{Original: d, Descriptor: &next, Predecessor: previous, Storage: &storage.Relation{Versions: versions, Generation: previous.Generation + 1}, Generation: previous.Generation, Length: len(previous.Versions), Ends: previous.Ends}

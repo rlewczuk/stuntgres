@@ -35,7 +35,11 @@ func (h ddlHost) AllocateEnumMember() (int64, error) {
 }
 
 func (h ddlHost) ReplaceUnsynchronized(d catalog.Descriptor) error {
-	return h.stage.replaceDescriptor(d, false)
+	return h.stage.replaceDescriptor(d, false, false)
+}
+
+func (h ddlHost) ReplaceDomainIdentity(d *catalog.Type) error {
+	return h.stage.replaceDescriptor(d, false, true)
 }
 
 func (h ddlHost) CreationTypeACL(owner authorization.PrincipalRef, schema ids.ObjectAddress) (authorization.ACLValue, bool) {
