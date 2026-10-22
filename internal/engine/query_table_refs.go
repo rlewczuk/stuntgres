@@ -1,150 +1,20 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 )
 
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
+// The engine and catalog owner checks stay here; view.QueryTableRefs walks.
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []exec.Leaf, refs []ids.ObjectRef, token ids.SessionToken, inherited plan.RowMark) ([]ids.ObjectRef, error) {
 	read := auth.Catalog
 	if auth.engine != e || read.Owner() != e.catalog.owner() || read.State() == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
-	// Authorize every executable view occurrence before admitting any physical
-	// source or target. Only the recursion path detects cycles; shared views
-	// retain each occurrence's row marks without a permission cache.
-	var active []ids.ObjectRef
-	var authorize func(ids.ObjectRef, authorization.PrincipalRef, plan.RowMark) error
-	authorize = func(ref ids.ObjectRef, sourceInvoker authorization.PrincipalRef, mark plan.RowMark) error {
-		relation, ok := read.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != read.Epoch() {
-			return ids.ErrCatalogReplaced
-		}
-		if relation.RelationKind != catalog.ViewRelation {
-			return nil
-		}
-		for _, prior := range active {
-			if prior == ref {
-				return nil
-			}
-		}
-		mark = exec.EffectiveQueryRowMark(relation, mark)
-		if err := view.AuthorizeSource(auth.View, auth, ref, stored.ViewOf(relation), sourceInvoker, mark); err != nil {
-			return err
-		}
-		active = append(active, ref)
-		defer func() { active = active[:len(active)-1] }()
-		for i, child := range stored.ViewOf(relation).Sources() {
-			if child.AnalysisOnly {
-				continue
-			}
-			use, err := stored.ViewUseReference(read, relation, child.Ref)
-			if err != nil {
-				return err
-			}
-			// Nested invoker views retain this occurrence's original invoker;
-			// each definer view selects its own owner in the canonical check.
-			if err := authorize(use, sourceInvoker, stored.ViewLeafRowMark(stored.ViewOf(relation), i, mark)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	for _, leaf := range leaves {
-		if !leaf.AnalysisOnly {
-			principal := leaf.Principal
-			if principal == (authorization.PrincipalRef{}) {
-				principal = invoker
-			}
-			if err := authorize(leaf.Ref, principal, exec.MergeQueryRowMark(inherited, leaf.Mark)); err != nil {
-				return nil, err
-			}
-		}
-	}
-	for _, ref := range refs {
-		relation, ok := read.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != read.Epoch() {
-			return nil, ids.ErrCatalogReplaced
-		}
-		if err := access.CheckTemporaryStorageAccess(read, relation, token); err != nil {
-			return nil, err
-		}
-	}
-	var visited map[ids.ObjectRef]bool
-	var collect func(ids.ObjectRef, bool) error
-	collect = func(ref ids.ObjectRef, only bool) error {
-		relation, ok := read.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != read.Epoch() {
-			return ids.ErrCatalogReplaced
-		}
-		if relation.RelationKind == catalog.ViewRelation {
-			if visited[ref] {
-				return nil
-			}
-			if visited == nil {
-				visited = make(map[ids.ObjectRef]bool)
-			}
-			visited[ref] = true
-			for _, child := range stored.ViewOf(relation).Sources() {
-				if child.AnalysisOnly {
-					continue
-				}
-				use, err := stored.ViewUseReference(read, relation, child.Ref)
-				if err != nil {
-					return err
-				}
-				if err := collect(use, child.Only); err != nil {
-					return err
-				}
-			}
-		}
-		if relation.Partition != nil && !only {
-			for _, address := range relation.Partition.Children {
-				child, ok := read.Relation(address)
-				if !ok {
-					return ids.ErrCatalogReplaced
-				}
-				if err := collect(ref.Domain().Ref(ref.Epoch, address), child.Partition == nil); err != nil {
-					return err
-				}
-			}
-		}
-		if relation.RelationKind == catalog.TableRelation && !only {
-			return table.InheritanceQueryClosure(read, relation, token, func(physical *catalog.Relation) error {
-				child := ref
-				child.Address = physical.Address()
-				return collect(child, true)
-			})
-		}
-		if relation.RelationKind.Stored() {
-			if err := access.CheckTemporaryStorageAccess(read, relation, token); err != nil {
-				return err
-			}
-			for _, prior := range refs {
-				if prior == ref {
-					return nil
-				}
-			}
-			refs = append(refs, ref)
-		}
-		return nil
-	}
-	for _, leaf := range leaves {
-		if leaf.AnalysisOnly {
-			continue
-		}
-		if err := collect(leaf.Ref, leaf.Only); err != nil {
-			return nil, err
-		}
-	}
-	return refs, nil
+	return view.QueryTableRefs(auth.View, auth, invoker, leaves, refs, token, inherited)
 }
