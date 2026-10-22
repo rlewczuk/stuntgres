@@ -9,15 +9,6 @@ import (
 	"stuntgres/internal/engine/lock"
 )
 
-// Admission precedes dependency discovery. Repeat after grants so a descendant
-// gaining a child while its AX grant was queued becomes part of the same drop.
-func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, roots []ids.ObjectAddress) error {
-	provider := stageDropProvider(nil, stage, scope, nil, nil)
-	catalog, err := admitInheritanceDropClosure(scope, stage.Base, roots, provider.removalDescriptors())
-	stage.Base = catalog
-	return err
-}
-
 // admitInheritanceDropClosure reconciles actual captures without a stage. The
 // incumbent execution wrapper alone installs its returned catalog as stage base.
 func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots []ids.ObjectAddress, removals iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) (catalog.Read, error) {

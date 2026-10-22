@@ -210,7 +210,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if !ok || next == p || len(next.Columns) != len(p.Columns) {
 				t.Fatal("retained parent definition mutation not staged")
 			}
-			if len(next.ColumnMeta.Defaults) != 0 || len(next.Constraints.Check) != 0 || inheritanceStageAlterGuard(stage, next) != nil {
+			if len(next.ColumnMeta.Defaults) != 0 || len(next.Constraints.Check) != 0 || stageDropProvider(nil, stage, nil, nil, nil).InheritanceAlterGuard(next) != nil {
 				t.Fatal("retained parent did not become standalone with consumed definition")
 			}
 			if e.catalog.state != base.State() || e.catalog.state.Get(q.Address()) != q || e.catalog.state.Get(p.Address()) != p || e.catalog.state.Get(c.Address()) != c || len(c.Inheritance.Parents) != 2 || c.Inheritance.Parents[0].Relation != q.Address() || c.Inheritance.Parents[1].Relation != p.Address() {
