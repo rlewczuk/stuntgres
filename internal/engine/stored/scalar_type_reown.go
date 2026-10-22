@@ -1,4 +1,4 @@
-package engine
+package stored
 
 import (
 	"fmt"
@@ -11,7 +11,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+// ReownScalarTypes points the column types of every relation in next, and
+// the datums of relations, at the current type generations after a type
+// change or a renumbering by mapping. It rebinds domain datums and remaps
+// reg* and aclitem values; changed relations and descriptors are copies.
+func ReownScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	collation := typedef.RemappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {

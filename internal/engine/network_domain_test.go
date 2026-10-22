@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -63,7 +64,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			if err := reownCatalogScalarTypes(next, relations, mapping); err != nil {
+			if err := stored.ReownScalarTypes(next, relations, mapping); err != nil {
 				t.Fatal(err)
 			}
 			importedDirect := next.MustType(direct.Address())

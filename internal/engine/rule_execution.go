@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -141,7 +142,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		captures := &exec.QuoteCaptureCandidate{}
 		if command.Binding.Parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
-			pruneQuoteCaptures(captures, commandAuth.Catalog)
+			stored.PruneQuoteCaptures(captures, commandAuth.Catalog)
 		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: commandAuth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 		e.mu.Lock()

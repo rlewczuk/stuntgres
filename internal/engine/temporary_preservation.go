@@ -316,7 +316,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	refreshScalarImportDestinations(next)
 	indexes.CaptureMapping(mapping, next.ScalarImports())
 	if typesChanged || domainsChanged || len(mapping) != 0 || len(next.ScalarImports()) != 0 || next.ACLItemImport() != nil {
-		if err := reownCatalogScalarTypes(next, relations, mapping); err != nil {
+		if err := stored.ReownScalarTypes(next, relations, mapping); err != nil {
 			return err
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -19,7 +20,7 @@ func enumReownVersions(next *catalog.State, versions []storage.RowVersion) ([]st
 	}
 	address := ids.ObjectAddress{}
 	stores := map[ids.ObjectAddress]*storage.Relation{address: {Versions: versions}}
-	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
+	if err := stored.ReownScalarTypes(next, stores, nil); err != nil {
 		return nil, err
 	}
 	return stores[address].Versions, nil

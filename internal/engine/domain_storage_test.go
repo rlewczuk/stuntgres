@@ -141,7 +141,7 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if err = reownCatalogScalarTypes(next, relations, mapping); err != nil {
+	if err = stored.ReownScalarTypes(next, relations, mapping); err != nil {
 		t.Fatal(err)
 	}
 	imported := next.MustType(chain.Address())

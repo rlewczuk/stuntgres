@@ -83,7 +83,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 				t.Error("predicate-only type generation was not detected")
 			}
 			stores := map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): f.store}
-			if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
+			if err := stored.ReownScalarTypes(next, stores, nil); err != nil {
 				t.Fatal(err)
 			}
 			parent := next.MustRelation(f.parent.Address())

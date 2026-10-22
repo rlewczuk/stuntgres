@@ -587,7 +587,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	quoteCaptures := exec.QuoteCaptureCandidate{}
 	if b.Parameters.Count == 0 {
 		quoteCaptures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteCapturesChanged}
-		pruneQuoteCaptures(&quoteCaptures, auth.Catalog)
+		stored.PruneQuoteCaptures(&quoteCaptures, auth.Catalog)
 	}
 	evaluation.QuoteCaptures = &quoteCaptures
 	// Planning-owned physical conversions and CHECK recipe initialization

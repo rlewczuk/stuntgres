@@ -1,15 +1,16 @@
-package engine
+package stored
 
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/stored"
 )
 
-// Definition tokens, not unrelated catalog revisions, retire stored origins.
-// The stable case borrows the entire published group without allocating.
-func pruneQuoteCaptures(g *exec.QuoteCaptureCandidate, view catalog.Read) {
+// PruneQuoteCaptures drops quote constants whose stored origin (a column
+// default or a view definition) was retired in view. Definition tokens, not
+// unrelated catalog revisions, retire stored origins. The stable case
+// borrows the entire published group without allocating.
+func PruneQuoteCaptures(g *exec.QuoteCaptureCandidate, view catalog.Read) {
 	valid := func(origin exec.QuoteOrigin) bool {
 		if origin.Owner == (ids.ObjectRef{}) {
 			return true
@@ -24,7 +25,7 @@ func pruneQuoteCaptures(g *exec.QuoteCaptureCandidate, view catalog.Read) {
 		if origin.Attribute != 0 {
 			return d.ColumnMeta.Defaults[origin.Attribute].OID == origin.Definition
 		}
-		return d.View != nil && stored.ViewOf(d).RuleOID() == origin.Definition && stored.ViewOf(d).QuoteRevision() == origin.Revision
+		return d.View != nil && ViewOf(d).RuleOID() == origin.Definition && ViewOf(d).QuoteRevision() == origin.Revision
 	}
 	for i, entry := range g.Entries {
 		if valid(entry.Origin) {

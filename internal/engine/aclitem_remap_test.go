@@ -115,7 +115,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	next.SetDescriptor(address, &catalog.Relation{ObjectAddress: address, Columns: []catalog.Column{{Name: "a", Usage: d.Usage()}}})
 	original := &storage.Relation{Versions: []storage.RowVersion{{Values: []sqltype.Value{value}}}}
 	stores := map[ids.ObjectAddress]*storage.Relation{address: original}
-	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
+	if err := stored.ReownScalarTypes(next, stores, nil); err != nil {
 		t.Fatal(err)
 	}
 	if stores[address] == original || original.Versions[0].Values[0] != value || stores[address].Versions[0].Values[0] == value {

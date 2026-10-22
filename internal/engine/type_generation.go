@@ -16,7 +16,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if _, err := typedef.ReownDomainTypes(next, nil, false); err != nil {
 		return err
 	}
-	if err := reownCatalogScalarTypes(next, nil, nil); err != nil {
+	if err := stored.ReownScalarTypes(next, nil, nil); err != nil {
 		return err
 	}
 	if err := stored.ReownExpressions(e.catalog.read(next), next, nil, true); err != nil {
@@ -103,7 +103,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if len(stores) == 0 {
 		return nil
 	}
-	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
+	if err := stored.ReownScalarTypes(next, stores, nil); err != nil {
 		return err
 	}
 	if stage.domainAlter.AlterContext() != nil {
