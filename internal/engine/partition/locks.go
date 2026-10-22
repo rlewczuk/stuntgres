@@ -143,3 +143,51 @@ func AppendCompatible(old, current *catalog.Relation) bool {
 	}
 	return old.Partition.DefaultChild == (ids.ObjectAddress{}) || old.Partition.DefaultChild == current.Partition.DefaultChild
 }
+
+// CaptureCatalog returns read with each admitted descriptor of the statement
+// (admitted, keyed by address) put back where the current descriptor is only
+// its append growth. One existing visibility capture owns the admitted
+// descriptors: metadata is copied only when actual concurrent append growth
+// occurred, never on the normal path.
+func CaptureCatalog(read catalog.Read, admitted map[ids.ObjectAddress]*catalog.Relation) catalog.Read {
+	changed := false
+	for address, captured := range admitted {
+		current, _ := read.Relation(address)
+		if current != captured && AppendCompatible(captured, current) {
+			changed = true
+			break
+		}
+	}
+	if !changed {
+		return read
+	}
+	state := *read.State()
+	state.CloneDescriptors()
+	for address, captured := range admitted {
+		current, _ := read.Relation(address)
+		if current != captured && AppendCompatible(captured, current) {
+			state.SetDescriptor(address, captured)
+		}
+	}
+	return read.WithState(&state)
+}
+
+// Ancestors returns the ancestors of ref in view, root first, for the caller
+// to lock before the leaf. A missing relation or a stale epoch is
+// ids.ErrCatalogReplaced.
+func Ancestors(view catalog.Read, ref ids.ObjectRef) ([]ids.ObjectRef, error) {
+	d, ok := view.Relation(ref.Address)
+	if !ok || ref.Epoch != view.Epoch() {
+		return nil, ids.ErrCatalogReplaced
+	}
+	var ancestors []ids.ObjectRef
+	for d.Membership != nil {
+		d, ok = view.Relation(d.Membership.Parent)
+		if !ok {
+			return nil, ids.ErrCatalogReplaced
+		}
+		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, d.Address()))
+	}
+	slices.Reverse(ancestors)
+	return ancestors, nil
+}

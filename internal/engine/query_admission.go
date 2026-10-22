@@ -249,7 +249,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	}
 	var collectErr error
 	collectAuth := scope.inquiry.deparseAuth
-	collectAuth.Recapture(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog)))
+	collectAuth.Recapture(partition.CaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog), scope.PartitionRelations))
 	refs, collectErr = e.queryTableRefsLocked(collectAuth, invoker, leaves, refs, scope.op.Session.SessionToken, inherited)
 	if collectErr != nil {
 		return nil, collectErr
@@ -329,7 +329,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 						source = &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: []exec.InheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = partition.CaptureQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), catalogView, leaf.Ref, leaf.Relation)
+					source, err = partition.CaptureQueryPrefix(partition.CaptureCatalog(scope.inquiry.commentCatalog, scope.PartitionRelations), catalogView, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
 				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), catalogView, leaf, scope.op.Session.SessionToken)
@@ -365,7 +365,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			return nil, err
 		}
 		if !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
-			partition.CapturePruner(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog)), leaf.Relation, source)
+			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog), scope.PartitionRelations), leaf.Relation, source)
 		}
 		borrowQueryAuthority(source, scope)
 		source.Occurrence = i

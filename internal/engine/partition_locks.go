@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -103,23 +102,11 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 	e := s.engine()
 	e.mu.Lock()
-	catalog := e.privateCatalogLocked(s.owner.Catalog)
-	d, ok := catalog.Relation(ref.Address)
-	if !ok || ref.Epoch != catalog.Epoch() {
-		e.mu.Unlock()
-		return ids.ErrCatalogReplaced
-	}
-	var ancestors []ids.ObjectRef
-	for d.Membership != nil {
-		d, ok = catalog.Relation(d.Membership.Parent)
-		if !ok {
-			e.mu.Unlock()
-			return ids.ErrCatalogReplaced
-		}
-		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, d.Address()))
-	}
+	ancestors, err := partition.Ancestors(e.privateCatalogLocked(s.owner.Catalog), ref)
 	e.mu.Unlock()
-	slices.Reverse(ancestors)
+	if err != nil {
+		return err
+	}
 	for _, ancestor := range ancestors {
 		if err := s.acquirePartitionLock(ancestor, lock.AccessShare); err != nil {
 			return err
@@ -188,30 +175,4 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 		return err
 	}
 	return s.acquirePartitionDescendants(child, lock.AccessExclusive)
-}
-
-// One existing visibility capture owns the admitted descriptors. Copy metadata
-// only when actual concurrent append growth occurred, never on the normal path.
-func (s *StatementScope) partitionCaptureCatalog(catalog catalog.Read) catalog.Read {
-	changed := false
-	for address, captured := range s.PartitionRelations {
-		current, _ := catalog.Relation(address)
-		if current != captured && partition.AppendCompatible(captured, current) {
-			changed = true
-			break
-		}
-	}
-	if !changed {
-		return catalog
-	}
-	state := *catalog.State()
-	state.CloneDescriptors()
-	for address, captured := range s.PartitionRelations {
-		current, _ := catalog.Relation(address)
-		if current != captured && partition.AppendCompatible(captured, current) {
-			state.SetDescriptor(address, captured)
-		}
-	}
-	catalog = catalog.WithState(&state)
-	return catalog
 }
