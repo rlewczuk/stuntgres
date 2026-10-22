@@ -164,6 +164,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = len(FuzzystrmatchMembers) - 1
 	case record.Name == "intagg" && record.Version == "1.1":
 		expectedMembers = len(IntaggMembers)
+	case record.Name == "pgrowlocks" && record.Version == "1.2":
+		expectedMembers = 1
 	case record.Name == "pgcrypto" && record.Version == "1.4":
 		expectedMembers = len(functions.PgcryptoMembers)
 	case record.Name == "uuid-ossp" && record.Version == "1.1":
@@ -204,6 +206,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				valid = member.Name == "cube_in" && member.Signature == "2275" || member.Name == "cube_out" && member.Signature == "cube"
 			case "citext":
 				valid = member.Name == "citextin" && member.Signature == "2275" || member.Name == "citextout" && member.Signature == "citext"
+			case "pgrowlocks":
+				valid = member.Name == "pgrowlocks" && member.Signature == "25"
 			case "intagg":
 				for _, selected := range IntaggMembers {
 					if member.Name == selected.Name && member.Signature == string(selected.Signature) {

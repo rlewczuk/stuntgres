@@ -72,6 +72,15 @@ standard library. It never imports the root engine. Layering is in
   `Release` ends only its own handle, and a forged or copied handle can
   neither retain, release nor read (`Data` panics; `Load` returns the raw
   pointer).
+- **Runtime-named lock observations.** Before the first data capture, the
+  engine checks the outer analyzed dependencies and executable stored-view
+  source manifests recursively for the installed pgrowlocks provider.
+  Those statements retain all-relation immutable prefixes in `Data.DynamicRoots`
+  at the same frontier as their ordinary sources. A later dynamic target uses
+  those prefixes locally, without replacing the outer view, resolving targets
+  early, merging stored routine ACL manifests, or weakening epoch, storage,
+  object and lexical admission fences. Prepared and nested stored routes share
+  this trigger; unrelated statements do not retain all-relation roots.
 - **SSI.** Edge failure follows PostgreSQL REL_18_0
   `OnConflict_CheckForSerializationFailure`; finalized nodes are immune, and
   prepared finalization orders conflicts without resolving the committed

@@ -19,6 +19,7 @@ func TestArrayBuiltinAuthority(t *testing.T) {
 	}{
 		{1000, Bool, "_bool", "BOOLEAN[]"}, {1001, Bytea, "_bytea", "BYTEA[]"}, {1003, Name, "_name", "NAME[]"},
 		{1005, Int2, "_int2", "SMALLINT[]"}, {1007, Int4, "_int4", "INTEGER[]"}, {1009, Text, "_text", "TEXT[]"},
+		{1011, Xid, "_xid", "XID[]"},
 		{1014, BPChar, "_bpchar", "BPCHAR[]"}, {1015, VarChar, "_varchar", "VARCHAR[]"}, {1016, Int8, "_int8", "BIGINT[]"},
 		{1021, Float4, "_float4", "REAL[]"}, {1022, Float8, "_float8", "DOUBLE PRECISION[]"}, {1028, Oid, "_oid", "OID[]"},
 		{1115, Timestamp, "_timestamp", "TIMESTAMP[]"}, {1182, Date, "_date", "DATE[]"},
@@ -35,12 +36,12 @@ func TestArrayBuiltinAuthority(t *testing.T) {
 		}
 	}
 	// Catalog identity is not executable array authority.
-	for _, id := range []ID{Unknown, Char, Void, PgNodeTree, Xid, Cid, Xid8} {
+	for _, id := range []ID{Unknown, Char, Void, PgNodeTree, Cid, Xid8} {
 		if _, err := Array(90000, "_boundary", types[id]); err == nil {
 			t.Fatal("unsupported scalar admitted to stored array", id)
 		}
 	}
-	for _, id := range []ID{1002, 1011, 1012, 271} {
+	for _, id := range []ID{1002, 1012, 271} {
 		if _, err := ArrayValue(types[id], nil, nil); err == nil {
 			t.Fatal("lookup-only array admitted an empty value", id)
 		}

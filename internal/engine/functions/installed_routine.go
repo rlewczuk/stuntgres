@@ -17,6 +17,7 @@ const (
 	FuzzystrmatchExtension
 	UnaccentExtension
 	IntaggExtension
+	PgrowlocksExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

@@ -37,6 +37,15 @@ RECORD text input retain their existing explicit restrictions. See
 [`docs/TYPES.md`](../../docs/TYPES.md#binary-stream-providers) for the full type
 and storage distinctions.
 
+Pgrowlocks uses the genuine concrete XID companion1011 with the shared array
+codec and owned-value constructors; it is not an OID-labeled TEXT array.
+CID/XID8 companions remain lookup-only. Only plain XID is admitted by this
+required output seam: arrays over domains whose base is XID remain excluded.
+It does not change the engine's transaction-array table-declaration boundary
+or add scalar operators/identity allocation. `TestPgrowlocksXIDArray` checks
+reciprocal descriptor ownership, real unsigned elements/NULL, text round-trip,
+owned empty/nonempty output and rejection of foreign generations.
+
 `Descriptor.CheckBinaryInput` and `CheckBinaryOutput` share the actual
 missing-provider boundary with binary receive/send dispatch, without invoking
 conversion on a fabricated value. Domains delegate to the base owner; generic
@@ -112,6 +121,12 @@ Public SQL/provider/control proof is in
 Follow the [shared testing guide](../../docs/TESTING.md). These tests call codec
 and value functions directly; public SQL and socket answers belong in
 `reference/`.
+
+Pgrowlocks' required XID array value seam:
+
+```sh
+make check RUN='^(TestPgrowlocksXIDArray|TestArrayBuiltinAuthority|TestRegtypeInventoryCapability|TestIdentifierScalarProviders|TestXIDScalarAuthorityAndGrouping|TestCompositeArrayStorageAdmission)$'
+```
 
 `TestSQLJSONQueryPlan` covers private descriptor authority, strict prefix
 discard, ordinary errors, context-before-NULL, duplicate-name lookup,

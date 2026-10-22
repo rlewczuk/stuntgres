@@ -2316,8 +2316,8 @@ add native catalog producers. Unknown installed-version mutation is real
 PostgreSQL-only UPDATE in a transaction always rolled back; native covers the
 same projection with a private authentic descriptor copy, not new installation.
 
-The complete native inventory includes unaccent1.1, intagg1.1, intarray1.5,
-fuzzystrmatch1.2 and pgcrypto1.4. Intagg reports the released comment
+The complete native inventory includes cube1.5, unaccent1.1, intagg1.1, intarray1.5,
+fuzzystrmatch1.1/1.2, pgcrypto1.4, pgrowlocks1.2 and uuid-ossp1.1. Intagg reports the released comment
 `integer aggregator and enumerator (obsolete)`, superuser=true, trusted=false
 and relocatable=true; availability does not imply installation.
 

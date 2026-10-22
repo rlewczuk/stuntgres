@@ -58,6 +58,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.UnaccentProviderOf(proc) == extension.StockUnaccent
 	case functions.IntaggExtension:
 		installed = extension.IntaggProviderOf(proc) == extension.StockIntagg
+	case functions.PgrowlocksExtension:
+		installed = extension.PgrowlocksProviderOf(proc) == extension.StockPgrowlocks
 	default:
 		return nil, fmt.Errorf("stuntgres: unknown installed extension %d", family)
 	}
@@ -86,6 +88,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockFuzzystrmatch.ValidateProcedure(r.catalog, p)
 	case extension.IntaggProviderOf(p) != nil:
 		return extension.StockIntagg.ValidateProcedure(r.catalog, p)
+	case extension.PgrowlocksProviderOf(p) != nil:
+		return extension.StockPgrowlocks.ValidateProcedure(r.catalog, p)
 	case extension.UnaccentProviderOf(p) == extension.StockUnaccent:
 		ext, ok := r.catalog.Extension(p.Extension)
 		if !ok {
@@ -146,6 +150,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 			break
 		}
 		return r.attachIntaggEnumeration(c)
+	case functions.Pgrowlocks:
+		return r.attachPgrowlocks(c, ref)
 	}
 	return nil, fmt.Errorf("stuntgres: invalid installed %T call", call)
 }

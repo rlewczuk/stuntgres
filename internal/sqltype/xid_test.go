@@ -19,8 +19,9 @@ func TestXIDScalarAuthorityAndGrouping(t *testing.T) {
 	if xid == nil || xid.ID() != 28 || xid.Name() != "xid" || xid.DatabaseName() != "XID" || xid.Usage().Collation.ID != 0 {
 		t.Fatal(xid)
 	}
-	if _, err := Array(90000, "_boundary", xid); err == nil {
-		t.Fatal("narrow XID enabled stored arrays")
+	array, err := Array(90000, "_boundary", xid)
+	if err != nil || array.Element() != xid || !array.Concrete() {
+		t.Fatal("plain XID result array rejected", array, err)
 	}
 	for _, n := range []uint32{0, 1, 4294967295} {
 		value, err := XIDValue(xid, n)

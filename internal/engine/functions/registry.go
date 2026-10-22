@@ -80,6 +80,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_sleep", "pg_sleep_for", "pg_sleep_until"}, ExactSpelling: true, SharedGates: true, Bind: bindDatetimeSleep},
 	{Names: []string{"now", "transaction_timestamp", "statement_timestamp", "clock_timestamp", "timeofday"}, Bind: bindTransactionTime},
 	{Names: []string{"int_array_aggregate", "int_array_enum"}, Bind: bindIntagg},
+	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks},
 	{Names: pgcryptoNames[:], Bind: bindPgcrypto},
 	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},
 	{Names: []string{"unaccent", "daitch_mokotoff"}, Bind: bindInstalledText},

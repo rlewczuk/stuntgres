@@ -6,6 +6,139 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pgrowlocks: independently specified oracle-first contract
+
+The untagged `pgrowlocks_*_test.go` scenarios use this package's shared public
+fixture, physical connections, real transaction identities and joined workers.
+They specify PostgreSQL 18.6 expectations independently; adding a scenario is
+not evidence that either backend has passed it.
+
+| Group | Public witness |
+|---|---|
+| R1 InstalledAndShape | Installation/member identity, STRICT NULL, all six empty/populated descriptors, named/coerced arguments, inferred held parameters, numeric TEXT names |
+| R2 ModesAndOwners | Four SELECT lock modes, UPDATE/key UPDATE/DELETE action modes, actual XIDs/PIDs, self locks, invisible INSERT, stable release/reacquire identity |
+| R3 ConflictingHandoff | Actual queued conflicting SELECT/UPDATE absent from owners, COMMIT/ROLLBACK handoff, joined worker, restored data and tuple identity |
+| R4 RawMultiAndPID | Compatible owners, complete aligned raw bag, independent multixact crosscheck, ended member PID0, new transaction does not revive PID, prepared owner PID0 |
+| R5 VisibilityAndVersions | RC/RR version choice, committed mixed updater retained under RR, inherited singleton/Multi successor headers, own writes/deletes, top-level rollback |
+| R6 NamesPermissionsAndDiagnostics | Quoted/schema/current-database/TEMP/numeric names, exact relation only, kinds/AM, table versus column SELECT, inherited stat role/NOINHERIT, namespace/EXECUTE, unfiltered RLS storage |
+| R7 ExpressionRoutes | FROM/record/target/lateral/alias/ordinality, held reexecution and owned Rows, volatile child evaluated once, exact analysis errors and UTF8 character positions |
+| R8 LifecycleAndControls | Transaction/savepoint installation publication, failed install atomicity, schema/path and stored view dependency, drop/reinstall identity, native Dump/Reset/Restore |
+| R9 RelationWaitAndIdentity | Real relation-AS wait, NULL no wait, cancellation/request removal, exact relation only, function-added AS release versus earlier SELECT preservation, replacement fencing |
+| R10 FeatureSmoke | Installation, real conflicting UPDATE handoff, direct/prepared six-column shape, strict NULL, raw multi/PID0, rollback restoration and distinct committed successor |
+| R13 DynamicSnapshot | Real outer storage row, correlated empty-table AX/AS gate, separately named target UPDATE/COMMIT, original snapshot/raw members, RC/RR reexecution through direct/held/stored/nested consumers |
+
+Assertions compare result rows and aligned `(xid,mode,pid)` member triples as
+bags, preserving multiplicity. They never sort arrays independently, pin
+allocator numbers, promise heap coordinates or issue `SELECT table.ctid`.
+Child-XID/savepoint-acquired row-lock parity is not claimed. Actual prepared
+transactions use existing public fixture setup. Native controls are explicit
+native-only phases, not fabricated PostgreSQL APIs. Custom nonheap table-AM
+setup is PostgreSQL-only: represented native ordinary storage is heap and has
+no custom-AM constructor. Queued replacement is deliberately backend-specific:
+PostgreSQL exercises actual transactional DROP/recreate and checks its new
+identity; native independently asserts the existing explicit-DROP `0A000`
+boundary and unchanged real table, then Reset/Restore exercises queued
+catalog-replacement fencing without retargeting.
+
+Each pgrowlocks backend scenario explicitly drops the extension before setup
+and after all borrowed owner/observer handles and workers are cleaned up, using
+a separate administrative connection. Resetting `public` alone can remove the
+function while leaving its extension registration; nonpublic installations must
+not survive into the next scenario. The denied-installer ACL setup uses a
+separate schema, removed before native controls so provider/view replay does
+not require unsupported explicit namespace ACL serialization. Failure cleanup
+drops both schemas before removing the installer role.
+
+The installed-function OID assertion uses the shared OID fixture: PostgreSQL
+returns decimal bytes while native returns an integer, but both must identify
+the exact RECORD OID2249 with OID metadata. The own-header schedule keeps its
+exact PostgreSQL18.6 observation: FOR UPDATE followed by the same owner's
+non-key UPDATE reports predecessor action `Update`, while the own successor
+inherits `For Key Share`. Ordinary non-key-update expectations remain unchanged.
+
+Record expansion retains scalar ownership by field attribute path and result
+usage, not just the shared written `.*` position. Direct/prepared populated and
+empty routes check every descriptor and actual owner field; a supplemental
+engine unit distinguishes same-typed sibling fields. Ordinary SELECT under
+the false RLS policy returns no rows on PostgreSQL and independently reports
+the existing native policy-expression `0A000` boundary. In both modes,
+pgrowlocks still reports the actual locked storage row after its own ACL check;
+this does not implement ordinary RLS enforcement.
+
+Use selected proof in both modes, with an external 900-second deadline per
+command, after all discovery corrections and removal of temporary discovery
+selection. These commands are requirements, not a passing-evidence claim:
+
+```sh
+make check RUN='^TestReferencePgrowlocks(InstalledAndShape|NamesPermissionsAndDiagnostics|ExpressionRoutes)$' REFERENCE=1
+make check RUN='^TestReferencePgrowlocks(InstalledAndShape|NamesPermissionsAndDiagnostics|ExpressionRoutes)$'
+make check RUN='^TestReferencePgrowlocks(ModesAndOwners|ConflictingHandoff|RawMultiAndPID|VisibilityAndVersions)$' REFERENCE=1
+make check RUN='^TestReferencePgrowlocks(ModesAndOwners|ConflictingHandoff|RawMultiAndPID|VisibilityAndVersions)$'
+make check RUN='^TestReferencePgrowlocks(LifecycleAndControls|RelationWaitAndIdentity|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferencePgrowlocks(LifecycleAndControls|RelationWaitAndIdentity|FeatureSmoke)$'
+make check RUN='^TestReferencePgrowlocks(ConflictingHandoff|RawMultiAndPID|RelationWaitAndIdentity)$' RACE=1
+```
+
+Standalone feature smoke uses the permanent shared-body scenario, not Ping:
+
+```sh
+make check RUN='^TestReferencePgrowlocksFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferencePgrowlocksFeatureSmoke$'
+```
+
+Expected smoke observation is quiet exit0 only after the actual singleton A,
+queued-but-not-owner B, granted B action, empty-after-rollback, stable original
+TID, full-shape NULL, raw compatible Multi/ended PID0 and distinct committed
+successor assertions pass. A mismatch exits nonzero. No smoke has been observed
+merely by writing these definitions.
+
+#### Dynamic-target snapshot review remedy
+
+`TestReferencePgrowlocksDynamicSnapshot`, in
+`pgrowlocks_dynamic_snapshot_test.go`, supplies the public dynamic-target witness
+in addition to the internal snapshot-mechanism unit. Four consumers (direct,
+held prepared, stored view, and held prepared over nested stored views/subquery)
+each run at READ COMMITTED and REPEATABLE READ. The held handles are prepared
+before BEGIN and reused after the concurrent commit.
+
+A real `pgrow_names` row supplies both target and gate names. Its MATERIALIZED
+producer evaluates a correlated `pgrowlocks` count on the empty `pgrow_gate`
+table; another physical session holds that gate's AccessExclusiveLock. The
+observer requires the reader's actual pending AccessShareLock on that exact
+gate and its actual blocking PID before a different session updates `pgrow_t`
+and commits. The target argument depends on the completed gate count, so the
+target observation cannot precede the update. There are no sleeps, private
+snapshot constructors, advisory APIs, or assumed allocator values.
+
+Independently expected outcomes: both blocked isolation levels retain the old
+TID and original raw MultiXact locker, with the surviving owner's
+`For Key Share` member and committed updater's `No Key Update` member/PID0.
+A fresh RC observer sees the distinct successor with its inherited singleton
+key-share header. Reexecuting the same consumer advances RC to that successor,
+while RR retains the predecessor/raw bag; ordinary value reads then prove RC1
+versus RR0. Rolling back the surviving owner removes all reported locks.
+
+The completed definition executes the same scenario for both available backends;
+there is no discovery filter. PostgreSQL-first discovery established these
+expectations before native verification exposed the stored/nested RC snapshot
+regression. Keep that oracle-first order when changing the behavior.
+
+```sh
+make check RUN='^TestReferencePgrowlocksDynamicSnapshot$' REFERENCE=1
+make check RUN='^TestReferencePgrowlocksDynamicSnapshot$'
+make check RUN='^TestReferencePgrowlocksDynamicSnapshot$' RACE=1
+```
+
+Use an external 900-second deadline per selected command. These commands exercise
+the completed definitions; observed results belong in the numbered part reports.
+Also select the structural-construction regression in both modes when changing
+the XID-array boundary:
+
+```sh
+make check RUN='^TestReferenceComparisonStructuralConstruction$'
+make check RUN='^TestReferenceComparisonStructuralConstruction$' REFERENCE=1
+```
+
 ### Transaction settings and read-only temporary MERGE
 
 `TestReferenceTransactionSettingsDefaultsLifecycle` fixes independent expectations
@@ -555,3 +688,59 @@ review, each invocation bounded to 900 seconds:
 make check RACE=1 RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$'
 make check RACE=1 REFERENCE=1 RUN='^TestReferenceTransaction(Smoke|BeginContextCancellation)$'
 ```
+
+### Installed pgrowlocks
+
+The shared PostgreSQL18.6/native scenarios cover the one installed TEXT→SETOF
+RECORD overload, all six output descriptors, strict NULL, each row-lock/action
+mode, real conflicting handoff, raw MultiXact bags and ended PID0 members,
+RC/RR/own-overlay exact-version visibility, inherited singleton headers,
+permissions/kinds/names, expression routes and owned retained Rows, extension
+lifecycle/dependency/reinstall, native controls and relation-only AS waits.
+Owner XIDs/PIDs are captured from real dedicated sessions, not fixed goldens:
+after assigning an XID, read its granted transactionid ExclusiveLock in
+`pg_locks`. This independently witnesses backend identity without depending on
+the unsupported `pg_backend_pid()` or on the pgrowlocks output being tested.
+Idle waiters use a temporary identifying transaction, rolled back before the
+queued command so its autocommit cancellation/replacement semantics are unchanged.
+Unordered rows and aligned member triples are bags with multiplicity.
+
+The independently observed strong-lock promotion is exact: prior FOR UPDATE
+then non-key UPDATE reports Update on the predecessor, not No Key Update.
+The fresh conflicting updater in handoff/smoke has no earlier stronger grant
+and reports No Key Update. Native TIDs are checked logical version identities,
+not PostgreSQL coordinates or a `table.ctid` implementation. PostgreSQL's child
+XIDs remain an inherited native boundary; the named rollback witnesses are
+top-level transactions. PostgreSQL-only nonheap AM and full pg_proc declaration
+metadata use genuine oracle setup, not fabricated native descriptors/catalog
+columns. Shared direct/prepared six-field metadata and U4 declaration/OUT-shape
+checks remain mandatory.
+
+Run each group in both modes, with external 900-second deadlines:
+
+```sh
+make check RUN='^TestReferencePgrowlocks(InstalledAndShape|NamesPermissionsAndDiagnostics|ExpressionRoutes)$'
+make check REFERENCE=1 RUN='^TestReferencePgrowlocks(InstalledAndShape|NamesPermissionsAndDiagnostics|ExpressionRoutes)$'
+make check RUN='^TestReferencePgrowlocks(ModesAndOwners|ConflictingHandoff|RawMultiAndPID|VisibilityAndVersions)$'
+make check REFERENCE=1 RUN='^TestReferencePgrowlocks(ModesAndOwners|ConflictingHandoff|RawMultiAndPID|VisibilityAndVersions)$'
+make check RUN='^TestReferencePgrowlocks(LifecycleAndControls|RelationWaitAndIdentity|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgrowlocks(LifecycleAndControls|RelationWaitAndIdentity|FeatureSmoke)$'
+make check RUN='^TestPgrowlocks(LogicalTID|Capture|Eligibility|ProviderIdentity|RelationIdentity|InheritedOwnerProvenance|XIDArray)$'
+make check RACE=1 RUN='^(TestPgrowlocks(Capture|Eligibility|RelationIdentity|InheritedOwnerProvenance)|TestReferencePgrowlocks(ConflictingHandoff|RawMultiAndPID|RelationWaitAndIdentity))$'
+```
+
+Actual feature smoke:
+
+```sh
+make check RUN='^TestReferencePgrowlocksFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePgrowlocksFeatureSmoke$'
+```
+
+The smoke installs1.2, locks an actual row in A, observes A directly and through
+a held prepared call, queues B's fresh UPDATE, proves B is not yet an owner,
+rolls A back and observes actual B's No Key Update, then rolls B back and
+requires empty output/original data. It checks stable reacquisition TID, strict
+NULL/full metadata, raw compatible Multi members with ended PID0 and a distinct
+committed successor TID. Workers cancel/join and Rows close before fixture reset.
+No successful native verification is implied merely by this documented argv.
+

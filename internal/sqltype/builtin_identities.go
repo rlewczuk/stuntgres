@@ -686,7 +686,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			d.element = byID[fact.element]
 			d.delimiter = d.element.Delimiter()
 			d.sql = d.element.SQLName() + "[]"
-			d.lookupOnly = d.element.ID() == Tid || d.element.ID() == Macaddr || IsOperatorAlias(d.element.ID()) || IsRegTS(d.element.ID()) || d.element.ID() == Money || IsNetwork(d.element.ID()) || IsTransactionIdentifier(d.element.BaseType().ID()) || !d.element.Concrete() || d.element.IsDomain() && d.element.IsBuiltin() || !d.element.IsDomain() && !StoredScalarCastType(d.element.ID()) && d.element.ID() != Regclass
+			d.lookupOnly = d.element.ID() == Tid || d.element.ID() == Macaddr || IsOperatorAlias(d.element.ID()) || IsRegTS(d.element.ID()) || d.element.ID() == Money || IsNetwork(d.element.ID()) || IsTransactionIdentifier(d.element.BaseType().ID()) && d.element.ID() != Xid || !d.element.Concrete() || d.element.IsDomain() && d.element.IsBuiltin() || !d.element.IsDomain() && !StoredScalarCastType(d.element.ID()) && d.element.ID() != Regclass
 			if IsFTS(d.element.ID()) {
 				d.lookupOnly = true
 			}

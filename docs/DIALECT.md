@@ -382,6 +382,61 @@ identity and restore live contribution provenance without rewriting old bags.
 See [transaction ownership](TRANSACTIONS.md#transaction-identity-and-retention)
 and [selected proof/smoke](../reference/locking_transactions/README.md#transaction-identity-oracle-first-contract).
 
+## Installed pgrowlocks
+
+The nontrusted, superuser-required, relocatable pgrowlocks1.2 provider installs
+only `pgrowlocks(relname text) RETURNS SETOF record`, STRICT/VOLATILE/PARALLEL SAFE.
+Its six named outputs are `locked_row tid`, `locker xid`, `multi boolean`,
+`xids xid[]`, `modes text[]`, `pids integer[]`. It uses the shared expression/SRF
+routes, installed procedure dependencies and current EXECUTE privilege; NULL
+returns zero rows/full descriptors without resolving or locking a relation.
+
+The text argument names a relation, including quoted, qualified and actual TEMP
+names; numeric text names a numeric-named table, never an OID. Only that relation
+receives temporary AccessShare admission: AccessExclusive blocks, row locks do
+not, and function completion removes only its own added contribution. Native
+queued admission rejects replaced descriptor/storage/lexical identities rather
+than retargeting DROP/recreate. PostgreSQL's queued name invalidation can resolve
+differently; this is an explicit native identity boundary.
+
+Partitioned parents fail42809 with the partition detail; views, materialized
+views, sequences, indexes and foreign tables fail42809 before table ACL checks.
+All represented native ordinary storage uses heap; no native table-AM descriptor
+or CREATE ACCESS METHOD setup exists. The independently exercised PostgreSQL
+nonheap0A000 case does not imply a fabricated native access-method marker.
+Superuser, table-level SELECT or inherited pg_stat_scan_tables privileges allow
+the scan, but do not bypass namespace USAGE/TEMP checks. Column SELECT is not
+enough. Ordinary SELECT predicates, RLS and descendant expansion do not filter
+the function's direct storage scan.
+
+The scan retains the active statement's immutable MVCC prefixes, RR roots and own
+earlier-command overlays, then joins full ObjectRef/RowID/VersionID identities to
+current physical lock state. Own modified predecessors are suppressed; another
+uncommitted updater's predecessor can appear. A compatible survivor can keep an
+RR predecessor reportable after the updater commits. MultiXact locker IDs and
+aligned member arrays remain raw: ended members retain their mode and get PID0,
+as do prepared owners. Waiters never become fake owner rows. Inherited singleton
+headers report For Key Share independently of the original raw mode; actual
+prior FOR UPDATE followed by non-key UPDATE reports Update, whereas a fresh
+non-key UPDATE reports No Key Update.
+
+`locked_row` is a checked logical native version TID, not a physical PostgreSQL
+heap coordinate. Version v maps through n=v-1, block=n/65535, offset=n%65535+1,
+only for 1<=v<=4294967295*65535. Zero/overflow gives the ordinary native error
+`stuntgres: logical row version exceeds tid range`; no truncation or hashing.
+One version stays stable across release/reacquire/rollback; an UPDATE successor
+differs even with the same RowID. Restore may remint versions. This adds neither
+`table.ctid` access nor portable physical coordinates.
+
+Savepoints retain the inherited native top-level XID/contribution authority:
+PostgreSQL child-XID owner-array/PID0 distinctions are not claimed or invented.
+Named COMMIT/ROLLBACK behavior uses real top-level transactions. Dump/Restore
+preserves provider identities and stored calls, never live locks, XIDs, PIDs,
+MultiXact history or materialized results. Native pg_proc keeps its established
+nine-column projection; full released argument/retset metadata is PostgreSQL-only
+corroboration, while native units validate the actual provider and OUT shape.
+See [selected proof and smoke](../reference/locking_transactions/README.md#installed-pgrowlocks).
+
 ## Commit timestamp retention
 
 Commit-time inquiries track actual successful assigned-XID transaction
@@ -1696,8 +1751,8 @@ notices; unsupported names raise22023. HMAC streams keys larger than the hash
 block before passing a bounded effective key to the standard-library provider.
 Installed immutable consumers and native controls preserve procedure signatures,
 owners and executable expressions. Availability includes pgcrypto and the selected
-uuid-ossp provider beside unaccent, two-wrapper intagg, selected-type intarray and
-selected-function fuzzystrmatch.
+uuid-ossp provider beside unaccent, two-wrapper intagg, pgrowlocks1.2,
+selected-type intarray and selected-function fuzzystrmatch.
 
 Password hashing implements DES, xdes, MD5-crypt and bcrypt with per-call state.
 DES consumes eight password bytes with high bits discarded; xdes folds the full
@@ -2144,9 +2199,12 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   generated system attributes. XID supports equality/inequality (including INT4
   only on its right); CID only equality; XID8 unsigned comparisons/order.
   Explicit XID8→XID retains low32 bits. String I/O is admitted, not numeric/OID
-  casts. Identifier companion arrays remain lookup-only. Scalar input itself
-  does not allocate; the selected transaction-information functions above own
-  actual assignment, full epochs and retention, without populating system columns.
+  casts. The XID companion1011 is executable through the existing array codec
+  and owned-value seams for pgrowlocks' genuine `xids` output. CID/XID8 companions
+  remain lookup-only; transaction-identifier array table declarations retain
+  their existing storage boundary. Scalar input itself does not allocate;
+  transaction-information functions own actual assignment, full epochs and
+  retention, without populating system columns.
 - JSONPath supports `jsonb_path_query_array`, the four query-family consumers,
   JSONB `@?`/`@@` and standard SQL/JSON query syntax, not GIN. JSON has no equality
   provider. Catalog type identities do not imply executable codecs.

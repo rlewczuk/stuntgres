@@ -48,10 +48,28 @@ engine.
   interning. Same-XID strength merges keep action versus lock kind.
   Savepoints restore status contributions separately from grant modes; grant
   intersection only bounds a stale checkpoint and never invents provenance.
+  Inherited singleton tuple headers are separately KEYSHR|LOCK_ONLY, without
+  rewriting immutable original membership. A subsequent genuine lock changes
+  the effective header; checkpoints preserve earlier inherited provenance.
+  Successor assignment retains the updater's original per-mode contribution
+  mask before singleton promotion clears predecessor modes. Only those saved
+  contributions can survive on its successor; matching owner pointers cannot
+  resurrect an action retained solely in an immutable rolled-back raw bag.
+  A prior singleton FOR UPDATE followed by a non-key UPDATE remains an
+  `Update` action, while a fresh non-key UPDATE is `No Key Update`.
 - **Inquiries.** `BlockingPids` (for `pg_blocking_pids`), `PGLocks` (the
   manager's half of `pg_locks`, as owned `Record` values) and the grant queries
   the engine uses to validate its own admission (`Holds`, `MissingRowGrant`,
   `ReplacementGrants`, `ValidSession`, `TransactionTicket`, `IndexWriters`).
+- **pgrowlocks capture.** `Pgrowlocks` accepts only an MVCC-selected prefix of
+  exact ObjectRef/RowID/VersionID identities. It applies current HTSU-style
+  eligibility separately from raw membership, preserves full aligned bags,
+  excludes pending requests and projects current top-level PID ownership
+  (ended/detached owners are zero). The output contains owned scalars only,
+  never tickets or queues. Capture assigns nothing, settles nothing and runs
+  no callbacks. The engine releases Engine.mu before entering this manager.
+  `HasAccessShare`/`ReleaseAddedAccessShare` remove only the function-added
+  exact-relation contribution, preserving earlier SELECT grants.
 
 ## Mutex ownership and lock order
 
@@ -178,3 +196,12 @@ new reference definition or real-mode oracle run.
 
 Engine tests that need an engine stay in `internal/engine` and read lock state
 only through the diagnostic seam.
+
+Pgrowlocks engine-level mechanism witnesses use genuine canonical XID
+assignment, row grants and physical events; no fake SQL rows:
+
+```sh
+make check RUN='^TestPgrowlocks(Capture|Eligibility|RelationIdentity|InheritedOwnerProvenance)$'
+make check RACE=1 RUN='^TestPgrowlocks(Capture|Eligibility|RelationIdentity|InheritedOwnerProvenance)$'
+```
+

@@ -35,7 +35,7 @@ type Preparation interface {
 	// view, else the statement's domain input or resolution catalog.
 	DomainCatalog(c *Context) catalog.Read
 	// ReturnsSet reports whether d returns a set, including the installed
-	// intagg enumerator.
+	// intagg enumerator and pgrowlocks record source.
 	ReturnsSet(d *catalog.Procedure) bool
 	// StoredReferenceValid reports whether ref, captured by consumer's stored
 	// SQL, still names its object in view, bridging a TEMP owner's epochs.

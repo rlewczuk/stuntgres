@@ -121,6 +121,16 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(proc.Name()), []expr.Expr{n.Arg})
+	case plan.InstalledPgrowlocksExpr:
+		if err := ValidateInstalledPgrowlocks(n, view); err != nil {
+			return "", err
+		}
+		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored pgrowlocks namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), []expr.Expr{n.Arg})
 	case plan.ExtensionPathsExpr:
 		if r.CommentSnapshot != nil {
 			*r.CommentSnapshot = true

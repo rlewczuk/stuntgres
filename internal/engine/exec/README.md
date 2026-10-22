@@ -122,7 +122,7 @@ code calls it through the package forwarder of the same name),
 domain state), `SpecializeRuleParameters` (a rule action's parameters
 replaced through the view rewriter), `CheckDomain`, `DomainCatalog` (the
 catalog a domain check reads), `ReturnsSet` (set-returning, including the
-installed intagg enumerator), `StoredReferenceValid` (the stored-reference
+installed intagg enumerator and pgrowlocks record source), `StoredReferenceValid` (the stored-reference
 epoch bridge of a TEMP owner) and `ValidInstalledText` (the installed text
 call's provider check). The engine installs its implementation from `init`
 with `InstallPreparation`; until then every method panics with

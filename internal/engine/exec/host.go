@@ -86,6 +86,8 @@ type Host interface {
 	TransactionAge(xid uint32) (int32, error)
 	TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	TransactionStatus(full uint64) (string, bool, error)
+	Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error)
+	ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error
 	// functions.SequenceRuntime
 	Sequence(request functions.SequenceRequest) (int64, error)
 	// functions.LargeObjectRuntime

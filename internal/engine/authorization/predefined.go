@@ -3,6 +3,7 @@ package authorization
 const (
 	BootstrapPrincipalID uint64 = 10
 	DatabaseOwnerRoleID  uint64 = 6171
+	StatScanTablesRoleID uint64 = 3377
 	monitorRoleID        uint64 = 3373
 	readAllDataRoleID    uint64 = 6181
 	writeAllDataRoleID   uint64 = 6182
@@ -19,7 +20,7 @@ var predefinedRoleDefinitions = [...]struct {
 	{"pg_checkpoint", 4544}, {"pg_create_subscription", 6304},
 	{"pg_database_owner", DatabaseOwnerRoleID}, {"pg_maintain", maintainRoleID},
 	{"pg_monitor", monitorRoleID}, {"pg_read_all_settings", 3374},
-	{"pg_read_all_stats", 3375}, {"pg_stat_scan_tables", 3377},
+	{"pg_read_all_stats", 3375}, {"pg_stat_scan_tables", StatScanTablesRoleID},
 	{"pg_read_all_data", readAllDataRoleID}, {"pg_write_all_data", writeAllDataRoleID},
 	{"pg_read_server_files", 4569}, {"pg_write_server_files", 4570},
 	{"pg_execute_server_program", 4571}, {"pg_signal_autovacuum_worker", 6392},
@@ -37,7 +38,7 @@ func Seed(domain *Domain) Root {
 		r.names[definition.name] = ref
 	}
 	r.edges = make([]Membership, 3)
-	for i, id := range [...]uint64{3374, 3375, 3377} {
+	for i, id := range [...]uint64{3374, 3375, StatScanTablesRoleID} {
 		r.edges[i] = Membership{Role: PrincipalRef{domain, id}, Member: PrincipalRef{domain, monitorRoleID}, Grantor: bootstrap, Inherit: true, Set: true}
 	}
 	return r

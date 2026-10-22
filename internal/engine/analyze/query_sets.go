@@ -63,6 +63,9 @@ func QueryScalarOwner(child plan.Node, expression expr.Expr) (expr.Expr, bool) {
 				if _, cached := expression.(plan.CachedOrderExpr); cached {
 					continue
 				}
+				if !matches && !sameQueryScalarProjection(expression, binding.Original) {
+					continue
+				}
 				if !matches && expression.SourcePosition() != column.SourcePosition() && expression.SourcePosition() != binding.Original.SourcePosition() {
 					continue
 				}
@@ -83,6 +86,26 @@ func QueryScalarOwner(child plan.Node, expression expr.Expr) (expr.Expr, bool) {
 		child = next
 	}
 	return expression, false
+}
+
+// Expansion gives every generated field the same written position. Preserve
+// its attribute path as well as its usage when recovering a scalar owner;
+// position alone would substitute the first field for every sibling.
+func sameQueryScalarProjection(a, b expr.Expr) bool {
+	if a.ResultUsage() != b.ResultUsage() {
+		return false
+	}
+	for {
+		left, leftField := a.(plan.FieldExpr)
+		right, rightField := b.(plan.FieldExpr)
+		if !leftField || !rightField {
+			return leftField == rightField
+		}
+		if left.Attribute != right.Attribute {
+			return false
+		}
+		a, b = left.Base, right.Base
+	}
 }
 
 // A demanded level brings its peers and their lower dependencies, not unrelated
@@ -116,5 +139,5 @@ func SelectedFunctionSourceName(name string) bool {
 	return name == "jsonb_path_query" || parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
 		parser.CatalogRelationFunctionName(name) ||
 		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) || parser.TransactionIdentityFunctionName(name) ||
-		name == "age" || name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
+		name == "pgrowlocks" || name == "age" || name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }

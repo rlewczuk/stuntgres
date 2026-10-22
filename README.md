@@ -94,6 +94,21 @@ propagation, UPDATE/DELETE and explicit hierarchy locking are not added.
 See [native limits](docs/DIALECT.md#tables-hierarchies-and-materializations) and
 [selected proof and smoke](reference/tables/README.md#inherited-partition-constraints).
 
+## Installed pgrowlocks — change note
+
+`CREATE EXTENSION pgrowlocks` installs the superuser-required, relocatable 1.2
+provider. `pgrowlocks(text)` returns real row-version lock observations:
+`locked_row TID`, `locker XID`, `multi BOOL`, `xids XID[]`, `modes TEXT[]`,
+and `pids INT4[]`. Direct/prepared calls, FROM, target SRFs and stored views
+use the ordinary installed-routine identity and EXECUTE authority. NULL is
+strict and returns no rows with the complete result shape.
+
+The scan joins the active MVCC-visible versions to actual lock history, not
+waiters or synthetic rows. Raw MultiXact bags can retain ended members with
+PID zero. Logical TIDs identify native versions, not PostgreSQL heap locations
+or a new `table.ctid` system column. See the [native boundaries](docs/DIALECT.md#installed-pgrowlocks)
+and [selected proof and smoke](reference/locking_transactions/README.md#installed-pgrowlocks).
+
 ## Transactional large-object storage — change note
 
 `lo_create`, `lo_creat`, `lo_from_bytea`, both `lo_get` overloads, `lo_put`
@@ -5308,13 +5323,13 @@ pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatur
 **Available-extension metadata change note:** `pg_catalog.pg_available_extensions`
 and `pg_catalog.pg_available_extension_versions` are readonly PUBLIC SELECT views
 over the same immutable embedded registry used by installation. The native
-universe has eight providers: citext1.8, cube1.5, unaccent1.1, selected-type intarray1.5,
-selected-function fuzzystrmatch1.1/1.2, intagg1.1, pgcrypto1.4 and uuid-ossp1.1,
+universe has nine providers: citext1.8, cube1.5, unaccent1.1, selected-type intarray1.5,
+selected-function fuzzystrmatch1.1/1.2, intagg1.1, pgcrypto1.4, pgrowlocks1.2 and uuid-ossp1.1,
 with released control comments and superuser/trusted/relocatable flags. The
 comments do not promise complete upstream member inventories. hstore, file_fdw
-and plpgsql are not invented. The default view has eight rows; the versions view
-has nine. Default, available and actual installed versions are distinct.
-Control schema/dependencies remain NULL for all eight providers even when
+and plpgsql are not invented. The default view has nine rows; the versions view
+has ten. Default, available and actual installed versions are distinct.
+Control schema/dependencies remain NULL for all nine providers even when
 installed elsewhere.
 Metadata is not filtered by member namespace privileges or TEMP ownership;
 ordinary relation admission and SQL predicates still apply.

@@ -79,7 +79,7 @@ func StageCreate(host Host, auth ddl.Authority, view access.View, s *parser.Crea
 	}
 	if !actor.Superuser && !host.ReplayingTableDestination() {
 		if !registration.Trusted {
-			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
+			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text), Hint: "Must be superuser to create this extension."}
 		}
 		rights, err := view.Effective(auth, view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
 		if err != nil {

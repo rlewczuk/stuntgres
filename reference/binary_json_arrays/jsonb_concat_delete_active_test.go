@@ -25,10 +25,10 @@ func jsonbConcatDeleteActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Back
 	element := `"` + strings.Repeat("x", 4092) + `"`
 	large := `["drop",` + strings.Repeat(element+",", 8191) + element + `]`
 	run(fixture.Prepared(fixture.Exec("UPDATE jbcd_active_input SET saved=$1 WHERE id=2", 1, large)))
-	for _, tc := range []struct{ name, expression, provider, want string }{
-		{"concat", "doc || rhs", "sqltype.BinaryPlan.jsonbConcat", `["drop", 1, 2]`},
-		{"text", "doc - key", "sqltype.BinaryPlan.jsonbDelete", `[1]`},
-		{"integer", "doc - idx", "sqltype.BinaryPlan.jsonbDelete", `[1]`},
+	for _, tc := range []struct{ name, expression, want string }{
+		{"concat", "doc || rhs", `["drop", 1, 2]`},
+		{"text", "doc - key", `[1]`},
+		{"integer", "doc - idx", `[1]`},
 	} {
 		t.Run("active_"+tc.name, func(t *testing.T) {
 			// Each child owns its assertions and restores shared input/output even
@@ -47,8 +47,18 @@ func jsonbConcatDeleteActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Back
 				}
 			})
 			run(fixture.Exec("INSERT INTO jbcd_active_out VALUES(0,'99')", 1))
-			readSQL := "SELECT sum(length((" + tc.expression + ")::text)) AS n FROM jbcd_active_input"
-			writeSQL := "INSERT INTO jbcd_active_out SELECT id," + tc.expression + " FROM jbcd_active_input ORDER BY id"
+			// MATERIALIZED preserves the result consumed by the lock key. The
+			// wait therefore follows actual operator evaluation and rendering.
+			converted := "SELECT id," + tc.expression + " AS v FROM jbcd_active_input"
+			readSQL := "WITH converted AS MATERIALIZED (" + converted + "), gated AS MATERIALIZED (" +
+				"SELECT v,pg_advisory_xact_lock(length(v::text)::bigint) AS gate FROM converted) " +
+				"SELECT sum(length(v::text)) AS n FROM gated"
+			// RETURNING is a data dependency, not an assumed source-row order:
+			// the early insert must execute before the second operator and wait.
+			writeSQL := "WITH first AS (INSERT INTO jbcd_active_out " + converted + " WHERE id=1 RETURNING id), " +
+				"converted AS MATERIALIZED (" + converted + " WHERE id=2 AND (SELECT id FROM first)=1), " +
+				"gated AS MATERIALIZED (SELECT id,v,pg_advisory_xact_lock(length(v::text)::bigint) AS gate FROM converted) " +
+				"INSERT INTO jbcd_active_out SELECT id,v FROM gated"
 			read, err := c.PrepareContext(p.Ctx, readSQL)
 			if err != nil {
 				t.Fatal(err)
@@ -59,10 +69,11 @@ func jsonbConcatDeleteActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Back
 				t.Fatal(err)
 			}
 			defer write.Close()
-			// All input conversion finishes before admission. Both operators must
-			// publish a changed root, retaining the large subtree for rendering.
+			// Input conversion finishes before the worker starts. The public gate
+			// tests active SQL cancellation after a genuine JSONB result, not
+			// cancellation at an incidental private provider frame.
 			run(fixture.Exec("UPDATE jbcd_active_input SET doc=saved WHERE id=2", 1))
-			fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, tc.provider, func(ctx context.Context) fixture.RelationOutcome {
+			jsonbConcatDeleteGateCancel(t, p, b, c, tc.expression, func(ctx context.Context) fixture.RelationOutcome {
 				rows, err := read.QueryContext(ctx)
 				return fixture.RelationOutcome{Rows: rows, Err: err}
 			})
@@ -70,7 +81,7 @@ func jsonbConcatDeleteActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Back
 			held := fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(2 * len(tc.want))}}))
 			run(fixture.Exec("UPDATE jbcd_active_input SET doc=saved WHERE id=2", 1))
-			fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, tc.provider, func(ctx context.Context) fixture.RelationOutcome {
+			jsonbConcatDeleteGateCancel(t, p, b, c, tc.expression, func(ctx context.Context) fixture.RelationOutcome {
 				result, err := write.ExecContext(ctx)
 				return fixture.RelationOutcome{Result: result, Err: err}
 			})
@@ -78,7 +89,7 @@ func jsonbConcatDeleteActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Back
 			run(jsonbConcatDeleteSelect("SELECT doc AS v FROM jbcd_active_input WHERE id=1", `["drop", 1]`))
 			run(fixture.Exec(`UPDATE jbcd_active_input SET doc='["drop",1]' WHERE id=2`, 1))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(2 * len(tc.want))}}))
-			fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: write, SQL: writeSQL}, b.Recorder, fixture.Exec(writeSQL, 2))
+			fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: write, SQL: writeSQL}, b.Recorder, fixture.Exec(writeSQL, 1))
 			want := [][]any{{int64(0), "99"}}
 			for id := int64(1); id <= 2; id++ {
 				want = append(want, []any{id, tc.want})

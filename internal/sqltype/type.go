@@ -255,7 +255,7 @@ func Builtins() []*Descriptor {
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
 		{id: Tid, name: "tid", sql: "TID", database: "TID"},
 		{id: Macaddr, name: "macaddr", sql: "MACADDR", database: "MACADDR", associatedArray: 1040},
-		{id: Xid, name: "xid", sql: "XID", database: "XID"},
+		{id: Xid, name: "xid", sql: "XID", database: "XID", associatedArray: 1011},
 		{id: Cid, name: "cid", sql: "CID", database: "CID"},
 		{id: Xid8, name: "xid8", sql: "XID8", database: "XID8"},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},

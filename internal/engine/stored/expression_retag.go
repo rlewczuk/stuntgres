@@ -90,6 +90,8 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 				address = installed.Ref.Address
 			case plan.InstalledTextExpr:
 				address = installed.Ref.Address
+			case plan.InstalledPgrowlocksExpr:
+				address = installed.Ref.Address
 			case plan.InstalledCryptoExpr:
 				address = installed.Ref.Address
 			case plan.InstalledUUIDOsspExpr:
@@ -320,6 +322,17 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 		if !analyze.ValidInstalledText(n) {
 			return nil, false, fmt.Errorf("stuntgres: invalid remapped installed function")
 		}
+		rebound = n
+	case plan.InstalledPgrowlocksExpr:
+		n.Arg = child(n.Arg)
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
+		proc, ok := descriptor.(*catalog.Procedure)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped pgrowlocks function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledPgrowlocks(n, view)
 		rebound = n
 	case plan.ViewQualificationExpr:
 		mapped, replaced, failure := exec.MapViewQualification(n, mapChild)

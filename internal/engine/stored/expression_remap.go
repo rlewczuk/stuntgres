@@ -363,6 +363,12 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case plan.InstalledPgrowlocksExpr:
+		n.Arg = child(n.Arg)
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case functions.SequenceCall:
 		if ref != nil {
 			n.Ref = ref(n.Ref)

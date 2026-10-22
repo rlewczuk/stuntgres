@@ -281,6 +281,13 @@ The query legality helpers need engine-built plans, so their unit tests stay
 in the engine (`TestQueryOuterJoinsNegatedKeys`, `TestQueryWindow*`,
 `TestQuerySet*`, `TestStringSplitRowMarks`, `TestQuerySubquery*`):
 
+`QueryScalarOwner` preserves generated record-field attribute paths and result
+usage when a star expansion shares one source position. Reserved columns still
+resolve by frame/scope/slot. `TestQuerySetScalarExpansionOwnership` covers
+same-typed siblings in scheduled and upper scalar stages; the public
+`TestReferencePgrowlocksExpressionRoutes` regression covers genuine populated
+and empty installed-SRF records through direct and prepared execution.
+
 ```sh
 make check RUN='^(TestQueryOuterJoins|TestQueryWindow|TestQuerySet|TestStringSplit|TestQuerySubquery)'
 ```

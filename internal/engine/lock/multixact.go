@@ -79,6 +79,12 @@ type multiRow struct {
 	members          []MultiMember
 	inheritedID      uint32
 	inheritedMembers []MultiMember // Original raw xmax, before the updating event.
+	// Original updater-owned contributions, sampled before singleton promotion
+	// replaces predecessor modes. Raw retained actions are not live provenance.
+	inheritedOwnerModes uint8
+	// An inherited singleton's tuple header is KEYSHR|LOCK_ONLY even when
+	// its immutable original member has a stronger mode.
+	inheritedSingleton bool
 }
 type MultiEvent struct {
 	Tuple     MultiTuple
@@ -193,10 +199,10 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 					continue
 				}
 				mode := event.Mode
-				if old.id == 0 && len(old.members) == 1 && mode == MultiNoKeyAction && member.Mode.strength() > mode.strength() {
+				if !old.inheritedSingleton && old.id == 0 && len(old.members) == 1 && mode == MultiNoKeyAction && member.Mode.strength() > mode.strength() {
 					mode = MultiUpdateAction
 				}
-				if member.Mode == mode || !mode.updating() && member.Mode.strength() >= mode.strength() {
+				if !old.inheritedSingleton && (member.Mode == mode || !mode.updating() && member.Mode.strength() >= mode.strength()) {
 					if old.id != 0 {
 						owner.multiCache = rememberMultiXact(owner.multiCache, old.id)
 					}
@@ -277,13 +283,17 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 			remember(old.id)
 		}
 		mode := event.Mode
-		if old.id == 0 && len(old.members) == 1 && old.members[0].owner == owner && old.members[0].XID == xid && live(old.members[0], key) && mode == MultiNoKeyAction && old.members[0].Mode.strength() > mode.strength() {
+		if !old.inheritedSingleton && old.id == 0 && len(old.members) == 1 && old.members[0].owner == owner && old.members[0].XID == xid && live(old.members[0], key) && mode == MultiNoKeyAction && old.members[0].Mode.strength() > mode.strength() {
 			mode = MultiUpdateAction
 		}
 		if !mode.updating() {
 			sufficient := false
 			for _, member := range old.members {
-				if member.owner == owner && member.XID == xid && live(member, key) && member.Mode.strength() >= mode.strength() {
+				effectiveMode := member.Mode
+				if old.inheritedSingleton {
+					effectiveMode = MultiKeyShare
+				}
+				if member.owner == owner && member.XID == xid && live(member, key) && effectiveMode.strength() >= mode.strength() {
 					sufficient = true
 					break
 				}
@@ -295,12 +305,16 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 		pair := MultiMember{xid, mode, owner}
 		same := false
 		for _, member := range old.members {
-			if member.owner == owner && member.XID == xid && member.Mode == mode && live(member, key) {
+			if !old.inheritedSingleton && member.owner == owner && member.XID == xid && member.Mode == mode && live(member, key) {
 				same = true
 				break
 			}
 		}
 		if !same {
+			var inheritedOwnerModes uint8
+			if mode.updating() {
+				inheritedOwnerModes = getContribution(owner, key)
+			}
 			members := make([]MultiMember, 0, len(old.members)+1)
 			for _, member := range old.members {
 				if live(member, key) || member.Mode.updating() && member.owner != nil && member.owner.CompletionState() == ids.TxCommitted {
@@ -325,6 +339,7 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 			row := multiRow{members: members}
 			if mode.updating() {
 				row.inheritedID, row.inheritedMembers = old.id, old.members
+				row.inheritedOwnerModes = inheritedOwnerModes
 			}
 			if len(members) > 1 {
 				id, err := intern(members)
@@ -344,11 +359,15 @@ func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 			// heap_update copies the ORIGINAL raw xmax, not the computed action ID
 			// or a live-only/strongest-mode reconstruction. Old records stay immutable.
 			inherited := multiRow{id: action.inheritedID, members: action.inheritedMembers}
+			inherited.inheritedSingleton = inherited.id == 0 && len(inherited.members) == 1
 			rows[successor] = inherited
 			for _, member := range inherited.members {
-				running := live(member, key)
-				if member.owner == owner && !owner.OwnershipEnded() && owner.CompletionState() != ids.TxAborted {
-					running = true
+				var running bool
+				if member.owner == owner {
+					running = action.inheritedOwnerModes&(1<<member.Mode) != 0 &&
+						!owner.OwnershipEnded() && owner.CompletionState() != ids.TxAborted
+				} else {
+					running = live(member, key)
 				}
 				if running {
 					c := multiContribution{member.owner, successor}
@@ -432,6 +451,7 @@ func (m *Manager) restoreMultiContributionsLocked(t *Ticket, held Checkpoint) {
 			}
 		}
 		canonicalMultiMembers(members)
+		row.inheritedSingleton = saved.InheritedSingleton[tuple.Version]
 		row.members = members
 		if len(members) == 0 {
 			delete(m.multiRows, tuple)

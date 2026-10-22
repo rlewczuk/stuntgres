@@ -32,6 +32,9 @@ type Data struct {
 	Own                    map[ids.ObjectAddress][]storage.RowVersion
 	Ends                   map[ids.ObjectAddress]*storage.DeletionRoot
 	Deleted                map[ids.ObjectAddress]*PrivateDeletes
+	// DynamicRoots retains immutable prefixes for runtime-named pgrowlocks
+	// targets. Only statements with that installed dependency allocate it.
+	DynamicRoots map[ids.ObjectAddress]Root
 }
 
 // GenerationAt is the storage incarnation captured for address, or nil.

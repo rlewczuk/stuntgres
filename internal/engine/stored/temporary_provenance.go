@@ -124,10 +124,10 @@ func ViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.O
 		return beforeErr == nil && afterErr == nil && before == after
 	case *catalog.Procedure:
 		old, ok := captured.(*catalog.Procedure)
-		// An old-epoch intagg occurrence bridges replacement only through the
-		// exact descriptor captured by this retained TEMP consumer. Ordinary
-		// current-epoch COW declarations take the path above, not this bridge.
-		if ok && (extension.IntaggProviderOf(old) != nil || extension.IntaggProviderOf(actual) != nil) && actual != old {
+		// Old-epoch installed SRFs bridge only through the exact descriptor
+		// captured by this retained TEMP consumer. Ordinary current-epoch COW
+		// declarations take the path above, not this bridge.
+		if ok && (extension.IntaggProviderOf(old) != nil || extension.IntaggProviderOf(actual) != nil || extension.PgrowlocksProviderOf(old) != nil || extension.PgrowlocksProviderOf(actual) != nil) && actual != old {
 			return false
 		}
 		return ok && old.Address() == address && old.Revision() != 0 &&

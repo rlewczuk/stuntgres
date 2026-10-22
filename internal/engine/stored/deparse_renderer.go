@@ -770,6 +770,15 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), []expr.Expr{n.Arg}, true)
+	case plan.InstalledPgrowlocksExpr:
+		if err := ValidateInstalledPgrowlocks(n, r.View); err != nil {
+			return "", err
+		}
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing pgrowlocks namespace")
+		}
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), []expr.Expr{n.Arg}, true)
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

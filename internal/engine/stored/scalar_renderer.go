@@ -167,6 +167,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return catalog.QuoteIdentifier(r.Owner.Columns[n.Slot].Name), nil
 	case plan.SQLRoutineExpr, plan.ExtensionPathsExpr, plan.InstalledTextExpr, plan.InstalledUUIDOsspExpr, plan.InstalledCryptoExpr, plan.InstalledSoundexExpr, plan.InstalledMetaphoneExpr, plan.InstalledLevenshteinExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledPgrowlocksExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case functions.ObjectACL:
 		if r.Owner == nil {
 			return "", fmt.Errorf("stuntgres: object ACL inquiries are unsupported in stored defaults")

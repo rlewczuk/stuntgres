@@ -373,18 +373,42 @@ Real mode replays the entire actual native dump, unmodified, on PostgreSQL and
 checks saved rows and fresh generated/view/default consumers independently.
 Cancellation separates native precanceled direct/held contracts from PostgreSQL
 admitted, joined server-side cancellation, reusing the same owner and preheld
-consumer. Active SELECT/INSERT cases use stored operands and wait for actual
-concat/deletion-provider admission (server admission on PostgreSQL), then join
-workers, assert no partial write and reuse the same held statements successfully.
-One early small row and one heavy row preserve the partial-write boundary.
-The operand contains8192 strings of4092 bytes each, below the original32MiB
-encoded-byte budget. It is parsed/stored once and reused by column assignment
-between phases, avoiding redundant large binds and duplicate heavy rows.
-Bounded elements exercise real provider traversal/output cancellation checks;
-a giant scalar's runtime copy is not a reliable observable admission window.
-Each child owns its assertion closure and bounded failure cleanup, so a failed
-admission cannot leave a sentinel or large input behind for the next child.
-The provider/server admission checks and cancellation deadlines remain unchanged.
+consumer. Active SELECT/INSERT cases use stored operands and a deterministic
+public advisory-transaction lock gate. A MATERIALIZED producer evaluates the
+actual concat/deletion expression; the gate key depends on the rendered result
+length. A separate owner holds the heavy result's key until the worker has been
+observed as its actual waiter through `pg_locks` and `pg_blocking_pids`.
+For writes, an early INSERT CTE's RETURNING output is a necessary dependency of
+the second result producer, proving tentative work before the gate without an
+assumed input-row order. Cancellation must roll back that early write, preserve
+the sentinel and source, publish no cursor/result, and permit the same held
+statements and physical connection to succeed afterward. The final INSERT's
+command count is1; its prerequisite CTE inserts the other row.
+An idle observer uses a fresh context after worker join to require no exact-key
+worker request/grant while the holder remains, then no worker/holder request or
+grant after holder rollback.
+This tests active SQL cancellation **after JSONB evaluation**, not interruption
+inside an already-completed private provider. Exact lower-level merge/filter/
+render cancellation remains covered by `TestJSONBConcatDeletePhaseCancellation`.
+The former parent stack sampler could miss finite provider work; caller-context
+Err instrumentation cannot observe it because the session owns a child cancel
+context. Neither implementation detail is a public behavioral test contract.
+The operand still contains8192 strings of4092 bytes each, below the original
+32MiB encoded-byte budget, parsed/stored once and reused by column assignment.
+Each child retains bounded joined-worker/failure cleanup. Native cancellation
+remains ordinary `context.Canceled`; PostgreSQL uses real `pg_cancel_backend`
+and independently expected57014 diagnostics. No sleeps, retries, skips, larger
+inputs, production hooks or increased deadlines provide admission.
+
+Only `TestReferenceJSONBConcatDeleteCancellation` uses this local gate; all
+other `BinaryConversionActiveCancel`/sleep-helper consumers are unchanged.
+After editing this definition, run oracle-first and then native proof:
+
+```sh
+make check RUN='^TestReferenceJSONBConcatDeleteCancellation$' REFERENCE=1
+make check RUN='^TestReferenceJSONBConcatDeleteCancellation$'
+make check RUN='^TestReferenceJSONBConcatDeleteCancellation$' RACE=1
+```
 Private units additionally cover descriptor authority, strictness, immutable
 sharing/no-op identity, integer endpoints and deterministic merge/filter/render
 cancellation, including long equal-prefix keys/strings.

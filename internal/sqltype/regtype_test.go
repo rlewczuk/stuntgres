@@ -22,7 +22,7 @@ func TestRegtypeInventoryCapability(t *testing.T) {
 			}
 		}
 	}
-	for _, id := range []ID{1002, 1011, 2287, 1041, 143, 6155} {
+	for _, id := range []ID{1002, 2287, 1041, 143, 6155} {
 		d := types[id]
 		if d == nil || d.Concrete() || d.Usage().Valid() || d.IsUserDefined() {
 			t.Fatal("lookup identity became executable", id, d)

@@ -242,8 +242,9 @@ func (m *Manager) valid(t *Ticket) bool {
 
 // A checkpoint contains only held contributions, never pending requests.
 type CheckpointHold struct {
-	Mode  Mode
-	Multi map[ids.VersionID]uint8
+	Mode               Mode
+	Multi              map[ids.VersionID]uint8
+	InheritedSingleton map[ids.VersionID]bool
 }
 type Checkpoint map[Resource]CheckpointHold
 
@@ -268,6 +269,12 @@ func (m *Manager) Checkpoint(t *Ticket) Checkpoint {
 			h.Multi = make(map[ids.VersionID]uint8)
 		}
 		h.Multi[tuple.Version] = bits
+		if m.multiRows[tuple].inheritedSingleton {
+			if h.InheritedSingleton == nil {
+				h.InheritedSingleton = make(map[ids.VersionID]bool)
+			}
+			h.InheritedSingleton[tuple.Version] = true
+		}
 		held[tuple.Resource] = h
 	}
 	return held

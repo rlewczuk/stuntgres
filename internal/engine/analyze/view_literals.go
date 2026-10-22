@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -548,6 +549,15 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 				}
 			}
 			return children(r.Args, n.Args)
+		}
+		if n, ok := bound.(plan.InstalledPgrowlocksExpr); ok {
+			if err := extension.ValidatePgrowlocksIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			return children(r.Args, []expr.Expr{n.Arg})
 		}
 		if n, ok := bound.(plan.InstalledSoundexExpr); ok {
 			return children(r.Args, n.Args)

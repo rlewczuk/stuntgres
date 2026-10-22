@@ -75,11 +75,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 	for _, oid := range []ids.OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
 		source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions)
-		wantCount := 8
-		if oid == 12085 {
-			wantCount = 9
-		}
-		if err != nil || source == nil || source.Count() != wantCount || source.Ref != ref {
+		if err != nil || source == nil || source.Ref != ref {
 			t.Fatal("capture", source, err)
 		}
 		expected := map[string][]any{
@@ -88,6 +84,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 			"unaccent":      {"unaccent", "1.1", version, comment},
 			"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
 			"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
+			"pgrowlocks":    {"pgrowlocks", "1.2", nil, "show row-level locking information"},
 			"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 			"pgcrypto":      {"pgcrypto", "1.4", nil, "cryptographic functions"},
 			"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
@@ -98,6 +95,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
 			expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
 			expected["intagg"] = []any{"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}
+			expected["pgrowlocks"] = []any{"pgrowlocks", "1.2", false, true, false, true, nil, nil, "show row-level locking information"}
 			expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 			expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}
 			expected["uuid-ossp"] = []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"}

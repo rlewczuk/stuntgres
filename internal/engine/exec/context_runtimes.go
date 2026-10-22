@@ -513,6 +513,31 @@ func (c *Context) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]
 	return host.TransactionMembers(xid, result)
 }
 
+func (c *Context) Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return nil, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: pgrowlocks lacks statement scope")
+	}
+	return host.Pgrowlocks(name, result)
+}
+
+func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCursor, error) {
+	if err := EvaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: pgrowlocks lacks statement scope")
+	}
+	if err := host.ValidatePgrowlocks(n); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	return n.Pgrowlocks.OpenSource(c)
+}
+
 func (c *Context) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
 	host := c.LiveHost()
 	if host == nil {

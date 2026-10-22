@@ -37,8 +37,8 @@ It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
 - **Installed extension nodes** (`expression_installed.go`,
   `expression_extension_paths.go`): `InstalledTextExpr` (unaccent,
   `daitch_mokotoff`), `InstalledCryptoExpr`, `InstalledUUIDOsspExpr`,
-  `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr` and
-  `InstalledSoundexExpr` wrap a `functions` kernel with the captured
+  `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
+  `InstalledPgrowlocksExpr` and `InstalledSoundexExpr` wrap a `functions` kernel with the captured
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their
   identity against the extension providers.

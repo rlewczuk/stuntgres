@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider
-records and control data for the eight bundled extensions (citext, cube,
-fuzzystrmatch, intagg, intarray, pgcrypto, unaccent, uuid-ossp), member
+records and control data for the nine bundled extensions (citext, cube,
+fuzzystrmatch, intagg, intarray, pgcrypto, pgrowlocks, unaccent, uuid-ossp), member
 validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner
@@ -33,7 +33,7 @@ function-level staging/conflict/import witnesses live in the engine package.
 ## What it owns
 
 - **Providers** (`*_provider.go`): `CitextProvider`, `CubeProvider`, `FuzzystrmatchProvider`,
-  `IntaggProvider`, `IntarrayProvider`, `PgcryptoProvider`,
+  `IntaggProvider`, `IntarrayProvider`, `PgcryptoProvider`, `PgrowlocksProvider`,
   `UnaccentProvider` and `UUIDOsspProvider`, each with `Control`,
   `Versions`, `ValidateExtension` (`catalog.ExtensionImplementation`) and,
   except unaccent, `ValidateProcedure`. The stock instances are
@@ -56,6 +56,15 @@ function-level staging/conflict/import witnesses live in the engine package.
   `ValidateIntaggIdentity`, `IntaggRecipeFunction`, `IntaggDefinition` and
   the owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares
   captured identities).
+- **pgrowlocks** (`pgrowlocks_provider.go`, `pgrowlocks_stage.go`):
+  the nontrusted/superuser/relocatable 1.2 singleton installs precisely
+  `pgrowlocks(text) RETURNS SETOF record`. Its member is STRICT, VOLATILE and
+  parallel safe. `ValidatePgrowlocksIdentity` checks actual owner-domain,
+  epoch, descriptor and singleton manifest, not spelling. Owner metadata,
+  transaction publication, dependency removal and remap use the same shared
+  extension lifecycle as the scalar providers; no lock state is serialized.
+  Shared untrusted-extension creation rejects nonsuperusers with 42501 and
+  the PostgreSQL hint `Must be superuser to create this extension.`
 - **Staging** (`stage.go`, `*_stage.go`, `extension_actions.go`): `Stage`
   is the host a provider installs through (the stage base, name lookup,
   checked `Create`/`Replace`, OID and revision allocation, the associated
@@ -147,3 +156,13 @@ make check RUN='^TestCitextProvider(Identity|Conflicts|Import)$'
 Public behavior is covered by the CREATE/ALTER/DROP EXTENSION, extension
 function, `pg_extension`, `pg_available_extensions` and Dump/Restore
 selections in `reference/` that the step 16 prompt file lists.
+
+Pgrowlocks provider/OUT-shape, forged manifests, stale identity and identity remap:
+
+```sh
+make check RUN='^TestPgrowlocksProviderIdentity$'
+```
+
+Its public SQL, lifecycle and controls are in
+[`reference/locking_transactions`](../../../reference/locking_transactions/README.md#installed-pgrowlocks).
+

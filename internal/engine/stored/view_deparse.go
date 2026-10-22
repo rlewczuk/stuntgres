@@ -625,7 +625,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 	}
 	path.Node = *ordinal
 	(*ordinal)++
-	if _, captured := v.routineRefs[path]; captured && extension.IntaggRecipeFunction(raw) == "" {
+	if _, captured := v.routineRefs[path]; captured && extension.IntaggRecipeFunction(raw) == "" && !pgrowlocksRecipe(raw) {
 		if call, ok := raw.(parser.FunctionExpr); !ok || !call.StoredSQLRoutine {
 			return "", fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
 		}
@@ -1322,6 +1322,14 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
 		if name == "int_array_enum" {
 			qualified, err := v.intaggRecipeName(catalogView, path, name)
+			if err != nil {
+				return "", err
+			}
+			text, err := args(e.Args)
+			return qualified + "(" + text + ")", err
+		}
+		if name == "pgrowlocks" {
+			qualified, err := v.pgrowlocksRecipeName(catalogView, path)
 			if err != nil {
 				return "", err
 			}

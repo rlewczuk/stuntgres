@@ -176,6 +176,12 @@ Added for UUID generation, `format` and uuid-ossp (F4/F5):
   The engine's `int_array_aggregate` aggregate and window paths read the
   identity from the same handle. intarray needed nothing: it installs only
   the `query_int` type and its I/O procedures, which bind no calls.
+  `PgrowlocksExtension` uses the same handle and set-returning placement gates.
+  `Pgrowlocks` owns TEXT coercion, the six-field record shape and strict
+  materialized source opening; the statement host owns exact relation admission,
+  MVCC capture and manager projection. `InstalledPgrowlocksExpr` preserves the
+  actual provider identity through source, stored-view and control rewrites.
+  No manager or engine dependency enters this package.
 
 Added for the array and range families (F4/F5), which also use
 `CollatedInfo` and `NoteCatalogText` (array_to_string over catalog-identifier

@@ -227,6 +227,11 @@ func (v *View) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path a
 			return err
 		}
 		(*routineCount)++
+	} else if pgrowlocksRecipe(raw) {
+		if _, err := v.pgrowlocksRecipeProcedure(catalog, path); err != nil {
+			return err
+		}
+		(*routineCount)++
 	} else if _, exists := v.routineRefs[path]; exists {
 		return fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
 	}
