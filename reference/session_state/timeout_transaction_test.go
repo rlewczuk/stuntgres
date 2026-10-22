@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
@@ -190,86 +191,212 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				f := newTimeoutReferenceFixture(t, p, b)
 				identity := fixture.SettingsPhysical(t, f.owner)
+				phase, before, after := kind, time.Now(), time.Time{}
+				mark := func(query string) { phase, before, after = query, time.Now(), time.Time{} }
+				t.Cleanup(func() {
+					if t.Failed() {
+						t.Logf("assignment=%s phase/query=%s before=%v after=%v elapsed=%v", kind, phase, before, after, time.Since(before))
+					}
+				})
+				run := func(s fixture.Step) {
+					mark(s.Query)
+					fixture.RunStep(t, p.Ctx, f.owner, b.Recorder, s)
+					after = time.Now()
+				}
+				exec := func(q string) { run(fixture.Exec(q, 0)) }
+				set := func(v string) { exec("SET transaction_timeout='" + v + "'") }
+				show := func(v string) { run(localReferenceSelect(b.PG, "SHOW transaction_timeout", "transaction_timeout", v)) }
+				idle := func(d time.Duration) {
+					mark("idle (no owner SQL)")
+					timeoutReferenceIdle(t, p.Ctx, d)
+					after = time.Now()
+				}
 				if kind == "positive-positive" || kind == "same-value" || kind == "commands" {
+					mark("positiveAssignment/" + kind)
 					f.positiveAssignment(kind)
 					return
 				}
 				if kind == "local-rollback" || kind == "local-commit" || kind == "session-commit" {
-					f.exec(f.owner, "BEGIN", 0)
+					exec("BEGIN")
 					mode := "LOCAL"
 					if kind == "session-commit" {
 						mode = "SESSION"
 					}
-					f.exec(f.owner, "SET "+mode+" transaction_timeout='250ms'", 0)
+					exec("SET " + mode + " transaction_timeout='250ms'")
 					end := "COMMIT"
 					if kind == "local-rollback" {
 						end = "ROLLBACK"
 					}
-					f.exec(f.owner, end, 0)
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
+					exec(end)
+					idle(350 * time.Millisecond)
 					want := "0"
 					if kind == "session-commit" {
 						want = "250ms"
 					}
-					f.show("transaction_timeout", want)
+					show(want)
 					if fixture.SettingsPhysical(t, f.owner) != identity {
 						t.Fatal("completed transaction lost physical owner")
 					}
 					f.rows(f.peer, 7)
 					return
 				}
-				f.set("transaction_timeout", "250ms")
-				f.exec(f.owner, "BEGIN", 0)
+				if kind == "savepoint-restore" {
+					identity = f.prepareSavepointRestore(mark)
+				} else {
+					set("250ms")
+					exec("BEGIN")
+				}
 				switch kind {
 				case "disable", "reset", "reset-all":
 					switch kind {
 					case "disable":
-						f.set("transaction_timeout", "0")
+						set("0")
 					case "reset":
-						f.exec(f.owner, "RESET transaction_timeout", 0)
+						exec("RESET transaction_timeout")
 					case "reset-all":
-						f.exec(f.owner, "RESET ALL", 0)
+						exec("RESET ALL")
 					}
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-					f.show("transaction_timeout", "0")
-					f.exec(f.owner, "ROLLBACK", 0)
-					f.show("transaction_timeout", "250ms")
+					idle(350 * time.Millisecond)
+					show("0")
+					exec("ROLLBACK")
+					show("250ms")
+					if fixture.SettingsPhysical(t, f.owner) != identity {
+						t.Fatal("reset/disabled timeout lost physical owner")
+					}
+					mark("peer SELECT v FROM timeout_sentinel ORDER BY v")
 					f.rows(f.peer, 7)
 					return
 				case "reenable", "savepoint-restore", "set-config":
-					if kind == "savepoint-restore" {
-						f.exec(f.owner, "SAVEPOINT timeout_restore", 0)
-					}
 					if kind == "set-config" {
-						fixture.RunStep(t, p.Ctx, f.owner, b.Recorder, localReferenceSelect(b.PG, "SELECT set_config('transaction_timeout','0',false)", "set_config", "0"))
-					} else {
-						f.set("transaction_timeout", "0")
+						run(localReferenceSelect(b.PG, "SELECT set_config('transaction_timeout','0',false)", "set_config", "0"))
+					} else if kind != "savepoint-restore" {
+						set("0")
 					}
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-					f.show("transaction_timeout", "0")
+					idle(350 * time.Millisecond)
+					show("0")
+					if fixture.SettingsPhysical(t, f.owner) != identity {
+						t.Fatal("retired timeout lost physical owner")
+					}
 					if kind == "savepoint-restore" {
-						f.exec(f.owner, "ROLLBACK TO timeout_restore", 0)
+						exec("ROLLBACK TO timeout_restore")
 					} else {
-						f.set("transaction_timeout", "250ms")
+						set("250ms")
 					}
-					timeoutReferenceIdle(t, p.Ctx, 50*time.Millisecond)
-					f.show("transaction_timeout", "250ms")
+					idle(50 * time.Millisecond)
+					show("250ms")
 				}
 				if kind == "savepoint-restore" {
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
+					idle(350 * time.Millisecond)
 					// Restoring SHOW250 after SET0 does not
 					// rearm the retired budget. A real later off/on still does.
-					f.show("transaction_timeout", "250ms")
+					show("250ms")
+					mark("SELECT v FROM timeout_sentinel ORDER BY v")
 					f.rows(f.owner, 7)
-					f.set("transaction_timeout", "0")
-					f.set("transaction_timeout", "250ms")
+					if fixture.SettingsPhysical(t, f.owner) != identity {
+						t.Fatal("restored timeout lost physical owner")
+					}
+					set("0")
+					set("250ms")
 				}
+				mark("await transaction FATAL25P04 / first fatal SQL")
 				f.awaitTransactionFatal(p.Ctx)
+				mark("dead owner INSERT99 must fail without output")
 				f.dead()
+				mark("peer SELECT v FROM timeout_sentinel ORDER BY v")
 				f.rows(f.peer, 7)
 			})
 		})
 	}
+}
+
+// Only the short, still-armed preparation may adapt to a legitimate expiry.
+// SET0 commits us to the semantic witness: nothing after it is retried.
+func (f *timeoutReferenceFixture) prepareSavepointRestore(mark func(string)) any {
+	t := f.t
+	t.Helper()
+	start := time.Now()
+	parentEnd, ok := f.p.Ctx.Deadline()
+	if !ok || time.Until(parentEnd) <= 4*time.Second {
+		t.Fatal("savepoint preparation lacks four-second semantic reserve")
+	}
+	end := start.Add(6 * time.Second)
+	if reserve := parentEnd.Add(-4 * time.Second); reserve.Before(end) {
+		end = reserve
+	}
+	ctx, cancel := context.WithDeadline(f.p.Ctx, end)
+	defer cancel()
+	// Registered before arming; even an assertion on a live attempt must not
+	// return an armed transaction to the pool.
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(f.p.Ctx, time.Second)
+		defer cancel()
+		_, _ = f.owner.ExecContext(ctx, "ROLLBACK")
+		_ = f.owner.Raw(func(any) error { return driver.ErrBadConn })
+		_ = f.owner.Close()
+	})
+	for attempt := 1; attempt <= 3; attempt++ {
+		f.requireAttemptTime(250 * time.Millisecond)
+		if ctx.Err() != nil {
+			t.Fatal("savepoint preparation allowance expired", ctx.Err())
+		}
+		identity := fixture.SettingsPhysical(t, f.owner)
+		var beginBefore, beginAfter time.Time
+		expired := false
+		for _, q := range []string{"SET transaction_timeout='250ms'", "BEGIN", "SAVEPOINT timeout_restore", "SET transaction_timeout='0'"} {
+			mark(fmt.Sprintf("savepoint preparation attempt=%d query=%s", attempt, q))
+			before := time.Now()
+			result, err := f.owner.ExecContext(ctx, q)
+			after := time.Now()
+			if q == "BEGIN" {
+				beginBefore, beginAfter = before, after
+			}
+			earliest := beginBefore.Add(250 * time.Millisecond)
+			if q == "SET transaction_timeout='250ms'" {
+				earliest = before.Add(250 * time.Millisecond)
+			}
+			if err != nil {
+				t.Logf("savepoint preparation attempt=%d query=%s command=[%v,%v] BEGIN=[%v,%v] earliest=%v elapsed=%v error=%v", attempt, q, before, after, beginBefore, beginAfter, earliest, after.Sub(start), err)
+				if result != nil {
+					t.Fatal("failed savepoint preparation published result", result)
+				}
+				if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					t.Fatal("savepoint preparation context failure, not configured expiry", ctx.Err(), err)
+				}
+				if after.Before(earliest) {
+					t.Fatal("savepoint preparation failed before configured expiry", err)
+				}
+				f.preparationExpired(err, earliest)
+				f.rows(f.peer, 7)
+				_ = f.owner.Raw(func(any) error { return driver.ErrBadConn })
+				_ = f.owner.Close()
+				expired = true
+				break
+			}
+			if result == nil {
+				t.Fatal("savepoint preparation omitted result", q)
+			}
+			if n, err := result.RowsAffected(); err != nil || n != 0 {
+				t.Fatal("savepoint preparation affected count", q, n, err)
+			}
+			if ctx.Err() != nil {
+				t.Fatal("savepoint preparation allowance expired", ctx.Err())
+			}
+			if fixture.SettingsPhysical(t, f.owner) != identity {
+				t.Fatal("savepoint preparation changed physical owner", q)
+			}
+		}
+		if !expired {
+			return identity
+		}
+		if attempt == 3 {
+			t.Fatal("savepoint preparation exhausted three fixed250ms attempts")
+		}
+		if ctx.Err() != nil {
+			t.Fatal("savepoint preparation allowance expired after disposal", ctx.Err())
+		}
+		f.replaceTimeoutOwner()
+	}
+	panic("unreachable savepoint preparation")
 }
 
 func (f timeoutReferenceFixture) positiveAssignment(kind string) {

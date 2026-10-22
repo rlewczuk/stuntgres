@@ -180,6 +180,23 @@ The SSI witnesses exercise actual safe-snapshot waits/retries and statement
 timeout, including Prepare; SHOW DEFERRABLE alone is not proof of this behavior.
 Whole-project quickcheck follows selected proof; it does not replace either mode.
 
+`TestReferenceSerializableDeferrableInactiveModes` retains all four modes:
+RC/read-only, RR/read-only, serializable/read-write, and serializable/read-only
+explicitly made NOT DEFERRABLE before any data query. BEGIN, optional mode change
+and independent canonical mode SHOWs run with statement_timeout0. Only then does
+SET LOCAL arm the unchanged200ms immediately before SELECT v/INT4/0. The unsafe
+writer stays open through successful SELECT and reader rollback: neither a SHOW
+nor worker-start is nonwaiting proof. Reader rollback must succeed, restore
+timeout0 and preserve physical identity before the writer ends and a healthy
+SELECT0 repeats. Failure-only diagnostics identify the actual SQL/time bracket;
+no timeout or SELECT retry is accepted.
+
+```sh
+make check RUN='^TestReferenceSerializableDeferrableInactiveModes$' REFERENCE=1
+make check RUN='^TestReferenceSerializableDeferrableInactiveModes$'
+make check RUN='^TestReferenceSerializableDeferrableInactiveModes$' RACE=1
+```
+
 For standalone runtime smoke, use a temporary public Go program outside the
 repository, importing only the standard library and `stuntgres`. Pin two physical
 connections, set RR/on/on defaults, begin and inspect all current modes, mask the

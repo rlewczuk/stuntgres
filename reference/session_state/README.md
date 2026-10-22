@@ -472,6 +472,19 @@ describe observations, not the server's unobservable fatal-publication timestamp
 Unexpected outcomes and failed armed assertions are not retried. Exhaustion
 fails; retries alone never pass.
 
+Savepoint-only preparation retains fixed250ms and SAVEPOINT before SET0. It has
+at most three attempts within a six-second child allowance (or parent deadline
+minus four seconds, whichever is earlier). Actual command/BEGIN brackets identify
+the earliest legitimate expiry, including SET250's implicit transaction.
+Only exact25P04 with nil output, dead owner and peer7 permits replacement;
+child cancellation/expiry, wrong diagnostics/counts/identity or early failure do
+not. Every expired attempt is physically disposed, including final exhaustion.
+Successful SET0 ends adaptation irrevocably:350ms idle SHOW0, rollback/50ms SHOW250,
+another350ms survival with row7/same owner, then explicit off/on and actual fatal
+polling remain armed semantic assertions. Failure-only phase/query diagnostics
+cover all twelve assignment branches; the existing positive-assignment adaptive
+policy above is unchanged.
+
 ```sh
 make check RUN='^TestReferenceTimeoutTransactionAssignments$' REFERENCE=1
 make check RUN='^TestReferenceTimeoutTransactionAssignments$'

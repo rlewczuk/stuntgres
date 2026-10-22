@@ -365,10 +365,22 @@ pinned backend. `TestSimilarSubstringPresentationIdentity`,
 units; the latter cover configuration-preserving invalidation, preallocation
 replacement ownership, translation/compile/runtime failure, NULL, cancellation
 and recovery. They do not claim a PostgreSQL-identical resource cutoff.
-`TestReferenceSimilarActualCancellation` executes the actual regex UPDATE;
-server admission is observed before cancellation, and native cancellation
-observes entry into translation/compiler/matcher work. It must not substitute
-`pg_sleep`, a precanceled context or readiness for exercised cancellation.
+`TestReferenceSimilarActualCancellation` keeps the original8MiB input and actual
+parameterized regex-bearing UPDATE, with durable relation-lock admission before
+real cancellation. Both direct and held routes require nil output, unchanged7,
+the same physical owner, affected1 and recovery8; the held route reuses the SAME
+statement object after replacing only the recovery input with a small match.
+This public test proves active cancellation of the actual regex-bearing UPDATE while waiting for its relation; it does not prove that the regex provider ran before cancellation.
+The genuine `TestSimilarActualMatcherCancellation` unit separately translates
+SIMILAR and cancels through a real CancelFunc only when both the matcher primitive
+and its work-step frame are present on the same current stack. Neither layer
+accepts precancellation, early success, synthetic errors or a sleep substitute.
+
+```sh
+make check RUN='^TestReferenceSimilarActualCancellation$' REFERENCE=1
+make check RUN='^(TestReferenceSimilarActualCancellation|TestSimilarActualMatcherCancellation)$'
+make check RUN='^(TestReferenceSimilarActualCancellation|TestSimilarActualMatcherCancellation)$' RACE=1
+```
 
 Root runs both modes before review, each under the Makefile's 900-second bound:
 

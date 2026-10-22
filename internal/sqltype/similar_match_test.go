@@ -3,6 +3,7 @@ package sqltype
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -173,6 +174,69 @@ func TestSimilarBudgetsAndCancellation(t *testing.T) {
 	yes, _, _, err := similarTestMatch(p, context.Background(), "a")
 	if err != nil || !yes {
 		t.Fatal(yes, err)
+	}
+}
+
+// Cancel at the real translated matcher's work poll, not at entry or return.
+type similarActualCancelContext struct {
+	context.Context
+	cancel  context.CancelFunc
+	entered bool
+}
+
+func (c *similarActualCancelContext) Err() error {
+	if !c.entered {
+		var pcs [64]uintptr
+		n := runtime.Callers(2, pcs[:])
+		frames := runtime.CallersFrames(pcs[:n])
+		matcher, step := false, false
+		for {
+			frame, more := frames.Next()
+			matcher = matcher || strings.HasSuffix(frame.Function, ".(*PGRegexProgram).matchPGRegexStates")
+			step = step || strings.HasSuffix(frame.Function, ".(*pgRegexWork).step")
+			if !more {
+				break
+			}
+		}
+		if matcher && step {
+			c.entered = true
+			c.cancel()
+		}
+	}
+	return c.Context.Err()
+}
+
+func TestSimilarActualMatcherCancellation(t *testing.T) {
+	p := similarTestProgram(t, "(a|aa)*", "\\", 950)
+	base, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx := &similarActualCancelContext{Context: base, cancel: cancel}
+	if base.Err() != nil {
+		t.Fatal("context canceled before matcher invocation")
+	}
+	yes, _, _, err := similarTestMatch(p, ctx, strings.Repeat("a", 20000))
+	if !ctx.entered || yes || !errors.Is(err, context.Canceled) {
+		t.Fatal("actual matcher cancellation", ctx.entered, yes, err)
+	}
+	select {
+	case <-base.Done():
+	default:
+		t.Fatal("real cancellation did not close embedded Done")
+	}
+	if p.matchWork.ctx != nil || p.budget.work != nil {
+		t.Fatal("canceled matcher retained execution context")
+	}
+	for _, tc := range []struct {
+		source string
+		want   bool
+	}{{"a", true}, {"b", false}} {
+		yes, start, end, err := similarTestMatch(p, context.Background(), tc.source)
+		if err != nil || yes != tc.want || start != -1 || end != -1 {
+			t.Fatal("same-program recovery", tc.source, yes, start, end, err)
+		}
+		if p.matchWork.ctx != nil || p.budget.work != nil {
+			t.Fatal("recovered matcher retained execution context")
+		}
 	}
 }
 

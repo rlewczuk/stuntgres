@@ -3,6 +3,7 @@ package reference_test
 import (
 	"stuntgres/reference/fixture"
 	"testing"
+	"time"
 )
 
 func TestReferenceSerializableModes(t *testing.T) {
@@ -194,15 +195,49 @@ func TestReferenceSerializableDeferrableInactiveModes(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			serializableReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				_, c, r := serializableReferenceWriters(t, p, b)
-				run := func(x fixture.Executor, s fixture.Step) { serializableReferenceRun(t, p, b, x, s) }
-				run(r, fixture.Exec("SET statement_timeout='200ms'", 0))
+				phase, before, after := "setup", time.Now(), time.Time{}
+				t.Cleanup(func() {
+					if t.Failed() {
+						t.Logf("inactive mode=%s phase/query=%s before=%v after=%v elapsed=%v", mode, phase, before, after, time.Since(before))
+					}
+				})
+				run := func(x fixture.Executor, s fixture.Step) {
+					phase, before, after = s.Query, time.Now(), time.Time{}
+					serializableReferenceRun(t, p, b, x, s)
+					after = time.Now()
+				}
+				show := func(name, want string) {
+					run(r, fixture.Select("SHOW "+name, []string{name}, []string{"TEXT"}, [][]any{{want}}))
+				}
+				identity := fixture.SettingsPhysical(t, r)
+				show("statement_timeout", "0")
 				run(r, fixture.Exec("BEGIN ISOLATION LEVEL "+mode+" DEFERRABLE", 0))
 				if mode == "SERIALIZABLE READ ONLY" {
 					run(r, fixture.Exec("SET TRANSACTION NOT DEFERRABLE", 0))
 				}
+				isolation, ro, def := "serializable", "on", "on"
+				switch mode {
+				case "READ COMMITTED READ ONLY":
+					isolation = "read committed"
+				case "REPEATABLE READ READ ONLY":
+					isolation = "repeatable read"
+				case "SERIALIZABLE READ WRITE":
+					ro = "off"
+				case "SERIALIZABLE READ ONLY":
+					def = "off"
+				}
+				show("transaction_isolation", isolation)
+				show("transaction_read_only", ro)
+				show("transaction_deferrable", def)
+				run(r, fixture.Exec("SET LOCAL statement_timeout='200ms'", 0))
 				run(r, fixture.TransactionRows(false, "SELECT v FROM x", 0))
 				run(r, fixture.Exec("ROLLBACK", 0))
+				show("statement_timeout", "0")
+				if fixture.SettingsPhysical(t, r) != identity {
+					t.Fatal("inactive reader lost physical owner")
+				}
 				run(c, fixture.Exec("ROLLBACK", 0))
+				run(r, fixture.TransactionRows(false, "SELECT v FROM x", 0))
 			})
 		})
 	}

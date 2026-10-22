@@ -136,6 +136,20 @@ comparisons are not blanket mutable.
 
 ## Testing
 
+`TestSimilarActualMatcherCancellation` translates `(a|aa)*`, compiles outside the
+cancellation phase, and uses the real matcher on finite20,000-character input.
+Its delegated context calls an actual CancelFunc only when the current stack
+contains BOTH matchPGRegexStates and pgRegexWork.step. It requires closed embedded
+Done, ordinary context.Canceled, no successful match publication, cleared work
+contexts and same-program true/false recovery. This is genuine primitive evidence,
+distinct from [public relation-admitted SQL cancellation](../../reference/patterns_encoding/README.md#sql-similar-oracle-and-feature-checks),
+which does not claim provider entry.
+
+```sh
+make check RUN='^TestSimilarActualMatcherCancellation$'
+make check RUN='^TestSimilarActualMatcherCancellation$' RACE=1
+```
+
 Circle codec, numeric/diagnostic precedence, area/sameness/NULL distinction,
 bit identity, binary framing and selected-plan ownership units:
 
