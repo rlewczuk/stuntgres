@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `59704db2e` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137 and 138). Steps 8–17 were
+Last verified against `master` at `2e50df9e3` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138 and 139). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,8 +20,8 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, table family and DML:** 139 (view 27i), 140
-  (partition 25f), 141 (fdw 26f), 142 (index 23f).
+- **Fourth round, table family and DML:** 140 (partition 25f), 141 (fdw
+  26f), 142 (index 23f).
 - **Fourth round, statement and session:** 143 (session 13h), 144 (exec
   11g), 145 (regobj 21e).
 - **Fourth round, catalog, DDL, types, roles and Restore:** 146 (analyze
@@ -2074,8 +2074,18 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      `copy_binary.go` removed; no aliases · targeted units (also `RACE=1`),
      quickcheck and the quick and `REFERENCE=1` COPY selections passed;
      racecheck/finalcheck skipped at user request
-139. [ ] View 27i: RLS binding checks and query lock walks —
-     [view](ENGINE-SPLIT-view.md) 27i · needs —
+139. [x] View 27i: RLS binding checks and query lock walks —
+     [view](ENGINE-SPLIT-view.md) 27i · needs — (`7499a3bf9`, `ab3e6d2f5`,
+     `020d56fd1`, `815bcac3e`, then the docs commit) ·
+     `view.CheckRowSecurityBinding` and `CheckRowSecurityRuleProgram` over
+     the `row_security` value and an `access.View`; `view.FreezeStoredSources`,
+     `view.CheckColumnCollations`; `view.FirstQueryRowMode`, `QueryLocks`
+     (`QueryLockDemand`) and `CurrentQuerySource` behind the root wrappers
+     `initializeQueryLocksLocked` and `currentQuerySourceLocked`;
+     `stored.HasPgrowlocksDependency`; no aliases · targeted units (also
+     `RACE=1`), quickcheck and the quick and `REFERENCE=1` view, rule,
+     RLS, row-lock and `pgrowlocks` selections passed; racecheck/finalcheck
+     skipped at user request
 140. [ ] Partition 25f: attach frontier, insert capture and constraint
      drop — [partition](ENGINE-SPLIT-partition.md) 25f · needs —
 141. [ ] FDW 26f: participant handshake — [fdw](ENGINE-SPLIT-fdw.md) 26f ·

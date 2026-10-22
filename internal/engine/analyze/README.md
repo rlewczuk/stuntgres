@@ -278,10 +278,10 @@ the binder reads stored view definitions (`stored`): `StoredViewVolatile`,
 set preflight are in `view` since 27e, expression preflight in `exec`); rule
 program execution and
 admission (rule rewriting, its CTE commands and view-write lowering are in
-[`view`](../view/README.md)); the RLS setting walkers
-(`row_security_setting.go`; the view-definition and view-write walkers
-behind `AuthorizationView.CheckViewWrite` and `CheckViewRowMarks` are in
-`view`); and the
+[`view`](../view/README.md), and so are the RLS setting walkers
+`view.CheckRowSecurityBinding` and `CheckRowSecurityRuleProgram` since 27i
+and the view-definition and view-write walkers behind
+`AuthorizationView.CheckViewWrite` and `CheckViewRowMarks`); and the
 execution-side helper `capturedDomainReplayCell` over the binding types
 (the default evaluators are here: `ApplyDefaultOrigin` and `EvalDefault`
 in `default_eval.go`; `dml` has the ON

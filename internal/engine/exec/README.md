@@ -184,7 +184,9 @@ with `InstallPreparation`; until then every method panics with
 
 Statement dispatch (`executeStatement`, `executeBoundLocked`, ...); query
 admission and capture (`query_admission.go`, `query_lock_admission.go`,
-`captureQuerySources*`, the view row-lock admission walks); the
+`captureQuerySources*`; the view row-lock walks and the admitted-source
+identity check are `view.QueryLocks`, `view.FirstQueryRowMode` and
+`view.CurrentQuerySource` since view 27i); the
 `PreflightQuery` and `AdmitExpression` forwarders of the installed
 preparation (query preflight and join legality import `stored` and `table`,
 which sit above `exec` and `analyze`, so view 27e moved them to `view`, not

@@ -183,7 +183,10 @@ after the matching domain-consumer remedy.
   The stored-view read graph and CTE volatility (`ValidateViewReadGraph`,
   `ViewVolatile`, `CaptureRetainedInput`), the stored row-mark readers
   (`view_row_marks.go`: `ViewHasRowMarks`, `ViewRowLockLegality`,
-  `ViewLeafRowMark`), view validation
+  `ViewLeafRowMark`), the stock `pgrowlocks` call check
+  (`pgrowlocks_dependency.go`: `HasPgrowlocksDependency` over a statement's
+  routine dependencies and the stored views under its query leaves; view
+  27i), view validation
   (`View.Validate`, `ValidateViewLeaves`, `ValidateSetNode`,
   `ValidateViewCheckDeclaration`, `ViewOptions`) and the view-write shape
   (`ViewWriteShape`, `ViewDirectColumn`, `SameViewRelation`,
@@ -273,6 +276,7 @@ make check RUN='^TestReference(View|Rule|Polic|RLS|RowSecurity|Materialized|Depa
 make check RUN='Stored|Remap'
 make check RUN='DumpRoundTrip|Restore|NativeControls'
 make check RUN='^Test(DomainDefault|DomainCheck|CubeProvider|IntarrayProvider|ObjectACLType|ArrayCatalogAssociation|StringVariadicRetainedGeneration|QueryTableCreate(Regclass|XID)|NetworkDomainCatalogRemap)'
+make check RUN='^Test(Reference)?Pgrowlocks'
 ```
 
 Add `REFERENCE=1` for the real PostgreSQL oracle. `TestViewPartsRoundTrip`

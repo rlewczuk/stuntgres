@@ -931,7 +931,10 @@ in the root. The checks in §8.3 pass.
   (`12af345ea`, `e63ef11e2`, `dd8a270f4`, then the docs commit) · selected
   unit, `RACE=1` and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 27h record below
-- [ ] 27i — RLS binding checks and query lock walks (linear item 139)
+- [x] 27i — RLS binding checks and query lock walks moved (linear item 139)
+  (`7499a3bf9`, `ab3e6d2f5`, `020d56fd1`, `815bcac3e`, then the docs commit)
+  · selected unit, `RACE=1` and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 27i record below
 
 Outstanding aliases: none (27b added none).
 
@@ -1292,7 +1295,80 @@ Deviations and notes:
   racecheck, finalcheck and bench skipped at user request (no startup
   change).
 
+### 27i record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-VIEW-RLS-QUERY-LOCKS`, started at
+`ea4545216` and rebased onto `79aeb07ee` and `d4b8023b9` (test-only
+changes in `reference/` and `sqltype`), then onto `2e50df9e3` (registered
+access methods; it touches `engine.go` and the `access`, `exec` and
+`stored` READMEs, none of the moved code).
+Re-measured on the current code: the RLS walkers read only the scope's
+`row_security` value and the authority's `access.View`; the lock walks
+read only the private catalog read, the catalog domain and epoch and the
+leaf's storage. The attribute-bridge loop is no longer in
+`prepareStoredQueryLocked` but in its helper `captureStoredSourceLocked`.
+No reference cancellation fixture matches a moved frame name.
+
+| Commit | Change |
+|---|---|
+| `7499a3bf9` | `row_security_setting.go` → `view`: `CheckRowSecurityBinding(rowSecurity, v, b)` and `CheckRowSecurityRuleProgram(rowSecurity, v, original, program)`; the seven root callers pass `scope.rowSecurity` and the authority's `View` |
+| `ab3e6d2f5` | `view.FreezeStoredSources` (`stored_sources.go`, the bridge loop and the head's borrow); `view.CheckColumnCollations` (`create.go`) |
+| `020d56fd1` | `view.FirstQueryRowMode`, `view.QueryLocks` with `QueryLockDemand`, `view.CurrentQuerySource` (`query_locks.go`); root wrappers `initializeQueryLocksLocked` and `currentQuerySourceLocked` |
+| `815bcac3e` | `stored.HasPgrowlocksDependency` (`pgrowlocks_dependency.go`) |
+
+Deviations and notes:
+
+- **Rule authority.** The walkers recurse through
+  `RuleAuthority.Access()`; `ruleAuthorizationOf` stays in the root for
+  rule admission and execution, which need the full `AuthorizationView`.
+- **Visibility demand.** `QueryLocks` returns the read graph's visibility
+  demand with a walk error, so `initializeQueryLocksLocked` still records
+  it before returning the error, as the old in-walk assignment did.
+- **First row mode.** `firstQueryRowModeLocked` is gone: its two root
+  callers (`execute_bound.go`, `rls_runtime.go`) call
+  `view.FirstQueryRowMode` with the private catalog read.
+- **Source identity.** `currentQuerySourceLocked` (14 callers) is a
+  one-line wrapper. It looks up the leaf's current storage before the
+  call; the lookup is a pure map read, so evaluating it for sequences and
+  stale leaves changes nothing.
+- **Bridges.** `FreezeStoredSources` is not merged with
+  `FreezeWriteSources`: it bridges a source whose frozen attributes are nil
+  but whose relation has columns, gives the bridge the leaf's reference,
+  and records `StoredRef`. The `RoutineRecipe` and `RoutineChecks` lines
+  stay in `captureStoredSourceLocked`.
+- **Names.** None of the moved functions keeps `Locked`: they read only
+  values passed in. Their callers still hold `Engine.mu`, as before.
+- **Stays root.** `initializeQueryLocksLocked` (it sets
+  `scope.inquiry.visibilityDemand` and `scope.queryLocks`),
+  `currentQuerySourceLocked`, the rest of `prepareViewCreation` and of
+  `captureStoredSourceLocked`, and the visibility capture that calls
+  `stored.HasPgrowlocksDependency`. Root production code: 326 lines out,
+  24 in.
+- **Imports.** `view` and `stored` import nothing new (`go list`).
+- **Tests.** `query_set_lock_test.go` calls `view.FirstQueryRowMode`. The
+  tests that call `initializeQueryLocksLocked` and
+  `currentQuerySourceLocked` use the unchanged wrappers. None added, moved
+  or deleted.
+- **Checks.** Every commit builds; vet output equals master's; the
+  string-literal multiset of the root, `view` and `stored` production
+  files is unchanged
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-RLS-QUERY-LOCKS/lits-*.txt`). The
+  rule, RLS, policy, CTE, view, materialized, inheritance query, temporary
+  view, query lock, set and join, DELETE USING, UPDATE FROM, cursor,
+  TRUNCATE, MERGE and `pgrowlocks` units passed, and with `RACE=1` the
+  query lock, set and join and RLS row-mark units. quickcheck passed at the
+  first tip and after each rebase (after the `d4b8023b9` rebase only
+  `TestReferenceJSONBExistsCancellation/memory` failed, a known load flake:
+  "conversion completed before active admission"; 3/3 alone). `REFERENCE=1` on
+  `^TestReference(View|Rule|Materialized|RLSBase|AccessRoleRLS|InheritanceQueryRLS|InheritanceDMLRLS|DriverBatchPolicy|Pgrowlocks|Query.*(RowLocks|Locking)|MergeUpdateRowLocks)`
+  passed in full (`ref-real.log`). racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
 ### Notes for later steps
+
+- 151 (from 27i): `query_lock_admission.go` holds only the
+  `initializeQueryLocksLocked` wrapper. `row_security_setting.go` left the
+  root. Step 27 has no planned sub-step left.
 
 - 133 (from 27h): `view_locks.go` now holds only the acquire loops and the
   refresh source capture. The refresh still calls the root

@@ -110,9 +110,10 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
   `SetRoleReferences`. Their decisions are in [`role`](../role/README.md),
   which calls this package over the captured `View`.
 - Search path resolution (functions over `AuthorizationView`) and
-  `temporaryNamespace`, RLS configuration and the binding and rule-program
-  walkers of `row_security_setting.go`, which call `access` for each object;
-  the stored-view source walker is `view.CheckRowSecuritySource`.
+  `temporaryNamespace` and RLS configuration. The binding and rule-program
+  `row_security` walkers, which call `access` for each object, are
+  `view.CheckRowSecurityBinding` and `view.CheckRowSecurityRuleProgram`
+  (view 27i); the stored-view source walker is `view.CheckRowSecuritySource`.
   The binding walkers (`CheckBinding`, `CheckQuerySources`) are in
   `analyze`; the walkers over view definitions and view writes
   (`CheckWrite`, `AuthorizeSource`, `CheckRowMarks`, `QueryTableRefs`) are

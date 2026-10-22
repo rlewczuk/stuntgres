@@ -10,7 +10,8 @@ preflight and join legality, the privilege walkers over view definitions
 and view writes, and the read side of DROP behind `DropReader`. Step 27 of
 the engine split created it (27b moved the clean set, 27d the handler
 decisions, 27e the query preflight, 27f the privilege walkers and query
-table refs, 27g the DROP read side). It is an upper feature in
+table refs, 27g the DROP read side, 27h the lock walks and materialized
+checks, 27i the RLS setting walkers and the query lock walks). It is an upper feature in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (types and pure functions only),
 `authorization`, `catalog`, `ddl`, `exec`, `expr`, `functions`, `ids`, `index`,
@@ -107,7 +108,8 @@ never imports `view`.
 - **View DDL records and checks** (`view.go`, `alter.go`,
   `dependencies.go`, `options.go`, `query.go`): `CreationScope` (the CREATE
   VIEW scope record), `CheckViewOutputNames`, `CheckViewPrefix`,
-  `RequestedViewPersistence`, `AlterViewAuthority`, `ViewDropMissing`,
+  `RequestedViewPersistence`, `CheckColumnCollations` (the CREATE VIEW
+  output collation check, view 27i), `AlterViewAuthority`, `ViewDropMissing`,
   `ViewDropOwner`, `ValidateViewDefinition`, `ViewDepends`,
   `DependencyEdge`, `TransformViewOptions` and `StoredProjectionDemand`.
 - **Lock walks** (`source_locks.go`): `SourceWalk.Closure` walks the view
@@ -117,6 +119,22 @@ never imports `view`.
   refresh, the observed sources; `StoredLeaves` lists the visited stored
   relations. `DefinitionReferences` lists the relations a binding's
   dependencies and sequence constants name. The root acquires them.
+- **Query lock walks and source identity** (`query_locks.go`, view 27i):
+  `FirstQueryRowMode` finds the first row-lock mode a query or the stored
+  views under its leaves request (the read-only diagnostics);
+  `QueryLocks` validates the read graph and the row-lock legality of every
+  reached view and relation and returns a `QueryLockDemand` (rows locked,
+  visibility snapshot demanded); `CurrentQuerySource` revalidates an
+  admitted leaf's exact identity (domain, epoch, name, kind, row shape,
+  storage lineage or sequence plan stamp). They read the statement's
+  private `catalog.Read`; the root's `initializeQueryLocksLocked` records
+  the demand on the scope, and `currentQuerySourceLocked` passes the
+  engine's domain, epoch and the leaf's current storage.
+- **Stored view sources** (`stored_sources.go`, view 27i):
+  `FreezeStoredSources` installs the frozen-layout bridges and stored
+  references of a stored view's captured sources, borrowing the statement's
+  query authority or host; the root's `captureStoredSourceLocked` calls it
+  after selecting the raw prefixes.
 - **The DROP read side** (`drop_reader.go`, `drop_closure.go`,
   `dependents.go`, `drop_diagnostics.go`): `DropReader` is the drop stage
   (the base catalog, the staged or prepared replacements and removals, the
@@ -151,7 +169,11 @@ never imports `view`.
   `PolicyClauses`, `PolicyDuplicate`, `PolicyIndex`, `PolicyMissing`,
   `PolicyOwnerNoun`, `PolicyPreflight`, `ResolvePolicyRoles`,
   `PolicyDepends`, `PolicyTypeChangeError`, `PolicyPayloadOf`,
-  `RowSecurityLayers`, `CaptureDeniedQuerySource`, and the command state
+  `RowSecurityLayers`, `CaptureDeniedQuerySource`, the `row_security`
+  setting walkers (`row_security_setting.go`, view 27i:
+  `CheckRowSecurityBinding` over a binding's target, query sources and
+  data-modifying CTEs, `CheckRowSecurityRuleProgram` over a rule program,
+  each command under its `RuleAuthority.Access()`), and the command state
   (`row_security.go`): `RowSecurity` borrows OLD/NEW `exec.RLSProgram`s;
   `RowSecurityTarget` resets selection, `CheckProposal` shares NEW enforcement,
   and `SelectAdjacentRowSecurity` retains MERGE/ON CONFLICT action boundaries.
@@ -198,16 +220,19 @@ staging (`refreshMaterializedLocked`, `materializedRefreshRowsLocked`,
 kind, `importMaterializedSnapshots` (target lookup, row evaluation and
 installation), `admitRuleCTEsLocked`,
 `stageRowSecurityFlagsLocked`, `configureRowSecurityLocked` and
-`rowSecurityInputLocked` as authority wrappers, `ruleActionScope`, the RLS
-setting walkers over bindings and rule programs (`row_security_setting.go`),
-`dropProvider`'s staging,
+`rowSecurityInputLocked` as authority wrappers, `ruleActionScope`, the
+`initializeQueryLocksLocked` and `currentQuerySourceLocked` wrappers (the
+scope's query lock context and visibility demand; the engine's catalog
+domain, epoch and storage), `dropProvider`'s staging,
 removal and lock-wait core (`viewDependents` removes the dependent views and
 records the CASCADE notices; `ExpressionDependencies` acquires locks; the
 label choosers read the preparation's live descriptors), and the slot
 accessors on `CatalogStage` and `StatementScope`. The third round moves the
 clean parts here: query preflight (27e, done), the privilege walkers over
 `access.View` (27f, done), the DROP read side behind `DropReader` (27g,
-done), and the closure walks and materialized checks (27h, done). See
+done), and the closure walks and materialized checks (27h, done); the
+fourth round moved the RLS setting walkers, the query lock walks, the
+stored-source bridges and the CREATE VIEW collation check (27i, done). See
 [ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md) 27d.
 
 ## Invariants
@@ -252,6 +277,7 @@ covers the target-admission entry.
 make check RUN='^Test(BindingSlots|ViewWriteSlot|ViewTargetAdmission|Rule|View|Materialized|Polic|RLS|RowSecurity)'
 make check RUN='^Test(DropReaderSeam|Regclass|Domain|AlterType|Collation|Composite|Extension.*Drop|PGDepend)'
 make check RUN='^Test(Query(OuterJoins|Lock|Set|Window)|CastCoercion.*Preflight|ExprCollation|ObjectAddress|Series|StringSplit|SourceProtocol)'
+make check RUN='^Test(QueryJoins|DeleteUsing|UpdateFrom|CTE|InheritanceQuery|TemporaryView)'
 make check RACE=1 RUN='^TestMaterializedRefreshConcurrent'
 ```
 
@@ -260,5 +286,6 @@ Public behavior is covered by the dual-mode reference suite:
 ```sh
 make check RUN='^TestReference(View|Rule|Materialized|RLSBase)'
 make check RUN='^TestReference(AccessRoleRLS|InheritanceQueryRLS|InheritanceDMLRLS|DriverBatchPolicy)'
+make check RUN='^TestReference(Query.*(RowLocks|Locking)|MergeUpdateRowLocks|Pgrowlocks)'
 make check RUN='^TestReference(DumpRoundTrip$$|Deparse)'
 ```
