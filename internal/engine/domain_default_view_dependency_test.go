@@ -38,7 +38,7 @@ func TestDomainDefaultViewSQLDependenciesInternal(t *testing.T) {
 		if !view.ViewDepends(d, domain.Address()) {
 			t.Fatal("missing original lifetime capture", tc.name)
 		}
-		got, err := provider.passiveViewTypeDependency(d, domain.Address())
+		got, err := view.PassiveTypeDependency(provider, d, domain.Address())
 		if err != nil || got != tc.passive {
 			t.Fatal("SQL column/type edge classification", tc.name, got, err)
 		}

@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
@@ -13,7 +11,6 @@ import (
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -107,44 +104,11 @@ func (h alterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddres
 	if err := view.PolicyTypeChangeError(auth.Catalog, target); err != nil {
 		return err
 	}
-	if path, pathErr := h.e.lookupPath(auth, analyze.RelationLookup); pathErr != nil {
-		return pathErr
-	} else if dependents := view.RuleDependentLabels(auth.Catalog, []ids.ObjectAddress{target}, path); len(dependents) != 0 {
-		d := sqlError("0A000", "cannot alter type of a column used by a view or rule").(*sqlstate.Error)
-		d.Detail = fmt.Sprintf(`%s depends on column "%s"`, dependents[0].Label, column)
-		return d
-	}
-	edges := viewDependencyClosure(auth.Catalog, []ids.ObjectAddress{target}, h.stage)
-	if len(edges) == 0 {
-		return nil
-	}
-	dependent := edges[0].View
-	name := dependent.Name()
-	if parser.IdentifierNeedsQuotes(name) {
-		name = catalog.QuoteIdentifier(name)
-	}
-	namespace := auth.Catalog.Get(dependent.Namespace()).Name()
 	path, err := h.e.lookupPath(auth, analyze.RelationLookup)
 	if err != nil {
 		return err
 	}
-	visible := false
-	for _, schema := range path {
-		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: dependent.Name()})
-		if len(found) != 0 {
-			visible = len(found) == 1 && found[0] == dependent.Address()
-			break
-		}
-	}
-	if !visible {
-		if parser.IdentifierNeedsQuotes(namespace) {
-			namespace = catalog.QuoteIdentifier(namespace)
-		}
-		name = namespace + "." + name
-	}
-	d := sqlError("0A000", "cannot alter type of a column used by a view or rule").(*sqlstate.Error)
-	d.Detail = fmt.Sprintf(`rule _RETURN on view %s depends on column "%s"`, name, column)
-	return d
+	return view.TypeChangeError(&dropProvider{base: auth.Catalog, path: path, stage: h.stage}, target, column)
 }
 
 func (h alterHost) StageIdentitySequenceOptions(relation *catalog.Relation, attribute int32, sequence ids.ObjectAddress, raw []parser.SequenceOption) error {

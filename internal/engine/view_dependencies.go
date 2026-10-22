@@ -2,7 +2,6 @@ package engine
 
 import (
 	"slices"
-	"sort"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
@@ -11,29 +10,11 @@ import (
 )
 
 func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *CatalogStage) []view.DependencyEdge {
-	provider := &dropProvider{base: catalog, stage: stage}
-	return provider.viewClosure(targets)
-}
-
-func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []view.DependencyEdge {
-	var views []*catalog.Relation
-	for address, descriptor := range provider.Descriptors() {
-		if provider.Removed(address) {
-			continue
-		}
-		if replacement := provider.Replacement(address); replacement != nil {
-			descriptor = replacement
-		}
-		if d, ok := descriptor.(*catalog.Relation); ok && d.View != nil {
-			views = append(views, d)
-		}
-	}
-	sort.Slice(views, func(i, j int) bool { return views[i].Address().ObjectID < views[j].Address().ObjectID })
-	return view.DependencyClosure(views, targets)
+	return view.DependentViews(&dropProvider{base: catalog, stage: stage}, targets)
 }
 
 func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
-	edges := provider.viewClosure(targets)
+	edges := view.DependentViews(provider, targets)
 	expanded := targets
 	if len(edges) != 0 {
 		expanded = make([]ids.ObjectAddress, len(targets), len(targets)+len(edges))
@@ -67,10 +48,10 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	if err := table.ForeignKeyDependents(provider, foreign); err != nil {
 		return err
 	}
-	if err := provider.policyDependents(expanded, mode); err != nil {
+	if err := view.DropPolicyDependents(provider, expanded, mode); err != nil {
 		return err
 	}
-	if err := provider.ruleDependents(expanded, mode); err != nil {
+	if err := view.DropRuleDependents(provider, expanded, mode); err != nil {
 		return err
 	}
 	activeEdges := edges[:0]

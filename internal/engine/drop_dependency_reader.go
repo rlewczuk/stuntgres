@@ -20,6 +20,11 @@ func (p *dropProvider) BaseRef(address ids.ObjectAddress) ids.ObjectRef {
 	return p.owner.catalog.Domain.Ref(p.base.Epoch(), address)
 }
 
+// DependencyClosure returns the dependents of targets in the drop.
+func (p *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]table.DomainDependency, error) {
+	return view.DropClosure(p, targets)
+}
+
 // Path is the SQL lookup path of the drop's diagnostics.
 func (p *dropProvider) Path() []ids.ObjectAddress { return p.path }
 

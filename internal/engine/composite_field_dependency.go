@@ -11,8 +11,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -185,56 +183,4 @@ func typedFieldCheckOwner(stage *CatalogStage, relation *catalog.Relation) bool 
 		}
 	}
 	return false
-}
-
-// Lifetime captures include a selected column's datatype. SQL dependency
-// recording does not turn that passive capture into a direct type-to-view edge.
-// Domain-root and composite-default walks instead reach such a view through
-// its genuine retiring columns; explicit SQL datatype references remain direct.
-func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relation, target ids.ObjectAddress) (bool, error) {
-	if target.ClassID != ids.TypeClassID {
-		return false, nil
-	}
-	domain, ok := provider.Descriptor(target).(*catalog.Type)
-	if !ok || !domain.SQLType.IsDomain() {
-		return false, nil
-	}
-	view := stored.ViewOf(relation)
-	if view == nil || view.Query() == nil {
-		return false, nil
-	}
-	column := false
-	for _, dependency := range view.Dependencies() {
-		ref := dependency.Ref
-		if ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID <= 0 || ref.Domain() != provider.base.Owner().Domain || ref.Epoch != provider.base.Epoch() {
-			continue
-		}
-		address := ref.Address
-		address.SubID = 0
-		source, ok := provider.Descriptor(address).(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		slot := source.IndexForAttribute(ref.Address.SubID)
-		if slot >= 0 && typedef.UsageDependsOn(source.Columns[slot].Usage, target) {
-			column = true
-			break
-		}
-	}
-	if !column {
-		return false, nil
-	}
-	var reader catalog.DefinitionReader
-	if provider.prepared != nil {
-		reader = provider.prepared
-	} else if provider.stage != nil {
-		reader = stageDefinitionReader{stage: provider.stage}
-	} else {
-		return false, fmt.Errorf("stuntgres: missing view dependency projection")
-	}
-	refs, err := stored.QueryDependRefs(provider.ctx, provider.base, reader, view.Query())
-	if err != nil {
-		return false, err
-	}
-	return !slices.Contains(refs, target), nil
 }

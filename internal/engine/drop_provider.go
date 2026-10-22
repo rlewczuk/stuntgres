@@ -859,6 +859,13 @@ func (p *dropProvider) policyDependentLabels(targets []ids.ObjectAddress) []view
 	return view.PolicyDependentLabelsFrom(p.base, targets, p.path, p.liveDescriptors())
 }
 
+func (p *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) []view.Dependent {
+	if p.prepared == nil {
+		return view.RuleDependentLabels(p.base, targets, p.path)
+	}
+	return view.RuleDependentLabelsFrom(p.base, targets, p.path, p.liveDescriptors(), p.observe)
+}
+
 // Catalog enumeration is discovery, not an observation of every unrelated
 // descriptor. Selected providers are captured by descriptor/effect/grant paths.
 func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.Descriptor {
