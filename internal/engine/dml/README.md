@@ -11,7 +11,8 @@ run over it, and FK enforcement and actions over `FinishHost`. Step 29 of
 the engine split created it (29b moved the clean set, 29d.1 added the
 seam, 29d.2 moved the probing and staging loops, 29d.3 the INSERT and COPY
 FROM executors, 29d.4 the UPDATE and DELETE executors, 29d.5 the MERGE and
-foreign DML executors, 29d.6 the FK seam, enforcement and actions). It sits at L13 in
+foreign DML executors, 29d.6 the FK seam, enforcement and actions, 29e
+the DML preflights). It sits at L13 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (payload types and pure functions only),
 `authorization`, `catalog`, `copyfmt`, `exec`, `expr`, `fdw`, `ids`,
@@ -150,6 +151,12 @@ it, it never imports the engine, and it never builds a binder. See
 - **RETURNING** (`returning.go`, `returning_preflight.go`):
   `InsertReturningOutput`, `MergeReturningOutput` (`Project`),
   `ForeignMutationRow`, `ProjectForeignReturning`, `PreflightReturning`.
+- **Preflights** (`update_preflight.go`, `merge_preflight.go`,
+  `insert_conflict_update.go`): `PreflightUpdate`,
+  `PreflightUpdateWithPlanning`, `PreflightMerge` and
+  `PreflightConflictUpdate` fold the private binding of each Execute over
+  `exec` expression preflight and `view.PreflightQuery`, copying only what
+  changes; `execute_bound.go` calls them before the executors.
 - **MERGE, UPDATE, DELETE records** (`merge.go`, `candidates.go`): `MergeRows`,
   `MergeActionRow`, `MergeCandidate`, `MergeMatches`, `SelectMergeArm`,
   `MergeCardinalityError`, `MergeOnTruth`, `MergeHasVirtualReads`,
@@ -166,7 +173,8 @@ it, it never imports the engine, and it never builds a binder. See
   catalog), over `access.View`.
 - **Foreign-key actions** (`foreign_actions.go`, `foreign_key_reach.go`,
   `foreign_action_settle.go`, `foreign_action_apply.go`): the records
-  `ForeignKeyJob`, `ForeignActionScope`, `ForeignActionAdmission`,
+  `ForeignKeyJob`, `ForeignActionScope` (DML state only; CREATE and ALTER
+  TABLE's FK captures are `table.ForeignKeyCreation`), `ForeignActionAdmission`,
   `ForeignActionTransition`, `ForeignActionPlan`, `ForeignActionQuery`,
   `ForeignActionSameKey`, `RefreshForeignActionJob`,
   `SameForeignKeyDefinition`; `ForeignKeyReach`, the jobs and relation lock
@@ -220,13 +228,12 @@ projected catalog roots). The FK row and grant bodies (`foreignKeyGrant`,
 admission and `WriteStage.deleteForeignAction`, `writeAuthorizationLocked`,
 the `foreignActionAuth` slot and its readers, and
 `acquireForeignKeyCreation` stay: ALTER TABLE, CREATE TABLE and the write
-stage use them too. TRUNCATE and `preflightConflictUpdate` stay. Also root: `truncateGraphFence` (catalog fences implement the
+stage use them too. TRUNCATE stays. Also root: `truncateGraphFence` (catalog fences implement the
 root `catalogFence` interface; the kind order is in `catalog_fence.go`),
 `mutationTarget` (the admitted target, which statement admission and DDL
 read), `WriteStage` with the `Stage` windows (its public `Apply` checks
 each row and calls `ApplyValidated`), the exclusion projection's `*Locked`
-helpers, `readmitProgramsAfterWait`, and `preflightUpdate`/`preflightMerge`
-(root query preflight); 29e (item 132) moves the DML preflights.
+helpers and `readmitProgramsAfterWait`.
 
 ## Invariants
 
@@ -280,11 +287,16 @@ covered by the engine's `TestForeignActions*` and `TestForeignKey*` tests,
 which call `dml.PrepareForeignActions` and `dml.SettleForeignActions` over
 the scope's host; the FK seam tests are `statement_host_foreign_key_test.go`
 (the authority swap, `ActingAs`, the captured jobs and modes, the retained
-image).
+image). The preflights are covered by the engine's `TestUpdateCore*`,
+`TestUpdateFrom*`, `TestUpdateRow*`, `TestRuleStaticOperatorPreflight`,
+`TestMergeNothing*`, `TestInsertConflictUpdate*` and `TestInsertReturning*`
+tests, which call `dml.PreflightUpdate`, `dml.PreflightMerge` and
+`dml.PreflightConflictUpdate`.
 
 ```sh
 make check RUN='^TestInsertConflictPredicate|^TestDMLTargetAdmission$'
 make check RUN='^TestStatementHost'
+make check RUN='^Test(UpdateCore|UpdateFrom|UpdateRow|RuleStaticOperatorPreflight|MergeNothing|InsertConflictUpdate|InsertReturning)'
 make check RUN='^Test(Insert|Update|Merge|Delete|Truncate|Copy|Foreign|InheritanceDML|CTE)'
 make check RUN='^Test(Unique|Exclusion|PartialUnique|ConcurrentIndex|ViewWrite|ViewCheck|UpdateCore)'
 make check RACE=1 RUN='^Test(Unique|Exclusion|InsertConflict)'

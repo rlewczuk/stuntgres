@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `f3458442f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130 and 131). Steps 8–17 were
+Last verified against `master` at `c32d28a09` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131 and 132). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -17,8 +17,9 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
-- **DML:** 132 (dml 29e, the DML preflights; 110f is done, so step 29d
-  is closed).
+- **Closing review:** 133 (docs only); every item it needs is done.
+- **DML:** none; 132 (dml 29e) is done, so step 29 has no planned
+  sub-step left.
 - **Third round, view:** none; 115, 116, 117 and 118 are done, so
   step 27 has no planned sub-step left.
 - **Third round, control:** none; 119 (stored 22e), 120 (control 30d),
@@ -29,8 +30,7 @@ broad item.
   24 and 25 have no planned sub-step left.
 - **Third round, the rest:** none; 128 (regobj 21d), 129 (session 13g),
   130 (catalog 5k) and 131 (access B7) are done, so steps 21, 13, 5 and
-  `access` have no planned sub-step left. The closing review (133) waits
-  only for 132.
+  `access` have no planned sub-step left.
 
 Steps 1–17 and `access` (A1–B7) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -208,6 +208,12 @@ enforcement and actions (`dml.PrepareForeignActions`,
 `dml`, so 29d and item 110 are closed and 132 (dml 29e) is ready. The FK
 row, grant and admission bodies stay root (ALTER and CREATE TABLE use
 them); the optional TRUNCATE cores were not needed.
+Item 132 (DML 29e) is done: the UPDATE, MERGE and ON CONFLICT preflights
+are `dml.PreflightUpdate`, `PreflightUpdateWithPlanning`, `PreflightMerge`
+and `PreflightConflictUpdate`; `KeyTargets` and `AlterKeys` left
+`dml.ForeignActionScope` for `table.ForeignKeyCreation` (only CREATE and
+ALTER TABLE write or read them). Step 29 is closed, so the closing review
+(133) is ready.
 
 ## Task tree
 
@@ -681,7 +687,7 @@ them); the optional TRUNCATE cores were not needed.
     `eb6d750cc`, `0521e3b83`, `2492afb3f`, then the docs commit)
   - [x] 28c — Host refined (docs only) (the docs commit)
   - [x] 28d — Handler decisions moved (`c320c6ec8`, `d0ad04e54`, `1ef3f87f9`, `0a0c9ef3e`, `6455845cc`, then the docs commit)
-- [ ] **Step 29 — `dml`** ([prompt](ENGINE-SPLIT-dml.md); 29b needs Part A of
+- [x] **Step 29 — `dml`** ([prompt](ENGINE-SPLIT-dml.md); 29b needs Part A of
   19 and 23–27, 29c needs Part B of 23–27)
   - [x] 29a — In place: `insert.go`, misplaced code to owners, receivers
     (`919c6319f`, `3bbec01e0`, `146d99d5b`, `03b5e1c78`, then the docs commit)
@@ -785,7 +791,8 @@ them); the optional TRUNCATE cores were not needed.
     ([catalog](ENGINE-SPLIT-catalog.md)) (`155b76f43`, `0cb30e030`, `fd020cb83`, then the docs commit)
   - [x] B7 — `AuthorizationView` without `*Engine`
     ([authorization](ENGINE-SPLIT-authorization.md)) (`6672ab08e`, `5b92522f6`, `bf077f1f4`, `975e47840`, `c0211ddff`, `a19f3cebc`, then the docs commit)
-  - [ ] 29e — DML preflights moved ([dml](ENGINE-SPLIT-dml.md))
+  - [x] 29e — DML preflights moved ([dml](ENGINE-SPLIT-dml.md))
+    (`7e2bd45bf`, `5ca904eee`, then the docs commit)
   - [ ] Closing review (docs only; [ENGINE-SPLIT.md](ENGINE-SPLIT.md))
 
 `access` is tracked under Part B above, not under the later waves.
@@ -1935,10 +1942,15 @@ branches.
      lines; no aliases · targeted units (also `RACE=1`), quickcheck and the
      quick and `REFERENCE=1` access/LOCK/RLS/TEMP/search_path selections
      passed; racecheck/finalcheck skipped at user request
-132. [ ] DML 29e: DML preflights — [dml](ENGINE-SPLIT-dml.md) 29e · needs
-     115, 110f · `preflightUpdate*`, `preflightMerge`,
-     `preflightConflictUpdate`; the `KeyTargets`/`AlterKeys` flag (about
-     0.2k lines)
+132. [x] DML 29e: DML preflights — [dml](ENGINE-SPLIT-dml.md) 29e · needs
+     115, 110f (`7e2bd45bf`, `5ca904eee`, then the docs commit) ·
+     `dml.PreflightUpdate`, `PreflightUpdateWithPlanning`, `PreflightMerge`,
+     `PreflightConflictUpdate`; `KeyTargets`/`AlterKeys` moved to
+     `table.ForeignKeyCreation` in a new `foreignKeysSlot`; no aliases ·
+     targeted units, quickcheck and the quick and `REFERENCE=1`
+     UPDATE/MERGE/ON CONFLICT/FK selections passed (the MERGE REPEATABLE
+     READ `/postgres` drift fails on master too); racecheck/finalcheck
+     skipped at user request
 133. [ ] Closing review (docs only): re-measure after 110f and the third
      round, write ENGINE-SPLIT.md §2.9, close the split —
      [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 110f, 115, 116, 117,

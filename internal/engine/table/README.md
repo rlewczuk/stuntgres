@@ -38,6 +38,9 @@ pending-grant decision they call live here.
   (`AlterTypeCheck`, `CaptureAlterTypeChecks`, `AlterRowValidator`),
   `AlterActionPhase` (the nine-pass order), `AlterTableLockMode`,
   `AlterTableLookupKind`, `AlterTablePreparation`, `AlterForeignKeyAdmission`,
+  `ForeignKeyCreation` (the statement's CREATE TABLE REFERENCES targets and
+  ALTER TABLE ADD FOREIGN KEY captures; the root keeps it in a
+  `StatementScope` slot),
   `RenameColumnCandidate`, `RenameLocalConstraint`,
   `ValidateQueryTableOutputType`.
 - **NOT NULL** (`not_null_*.go`, `physical_not_null*.go`): `NotNullCandidate`

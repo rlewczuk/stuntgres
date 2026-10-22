@@ -771,7 +771,8 @@ exclusion probing and FK enforcement and actions live there too, behind
 `dml.Host`/`dml.FinishHost` (29c); dispatch and its locked prologues,
 source capture, writable-CTE orchestration, `WriteStage` and its windows,
 the Finish order, preflight, TRUNCATE (catalog staging; 29c decision 9)
-and the COPY protocol stay in the root. The checks in §8.3 pass.
+and the COPY protocol stay in the root. The checks in §8.3 pass. 29e
+(item 132) later moved the DML preflights to `dml`.
 
 ## Status
 
@@ -815,7 +816,8 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
     commit; see the 29d.5 record)
   - [x] 29d.6 — FK enforcement and actions; close step 29 (110f) (`2e098af92`, `80bd36830`, `80f1a03ba`, then the docs
     commit; see the 29d.6 record)
-- [ ] 29e — DML preflights moved (linear item 132)
+- [x] 29e — DML preflights moved (linear item 132) (`7e2bd45bf`, `5ca904eee`, then
+  the docs commit; see the 29e record)
 
 Outstanding aliases: none (29b added none).
 
@@ -1244,7 +1246,53 @@ rebased onto `eaf63bb35`.
   `^TestReferenceForeign(Key|Actions)` passed. racecheck, finalcheck and
   bench skipped at user request (no startup change).
 
+### 29e record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-PREFLIGHTS` from `c32d28a09`.
+
+| Commit | Change |
+|---|---|
+| `7e2bd45bf` | Move: `preflightUpdate`, `preflightUpdateWithPlanning` (`update.go`) to `dml/update_preflight.go`, `preflightMerge` (`merge.go`) to `dml/merge_preflight.go`, `preflightConflictUpdate` (root `insert_conflict_update.go`, deleted) to `dml/insert_conflict_update.go`, exported; `execute_bound.go` and 7 engine test files name `dml.X` |
+| `5ca904eee` | `table.ForeignKeyCreation` (`KeyTargets`, `AlterKeys`) replaces the two `dml.ForeignActionScope` fields; `StatementScope.foreignKeysSlot` with `foreignKeys()`/`foreignKeysOrZero()` (`foreign_key_writes.go`), read by CREATE TABLE, CREATE TABLE ... PARTITION OF and ALTER TABLE |
+
+- **The 29c flag.** The plan said to move the fields to `table` "if ALTER
+  TABLE is their only writer". It is the only writer of `AlterKeys`;
+  `KeyTargets` is written by `acquireForeignKeyCreation` for CREATE TABLE.
+  Both writers and all readers are table DDL, and `dml` reads neither, so
+  both moved. The new slot follows the `StatementScope` slot convention.
+  Behavior is unchanged: CREATE TABLE used to allocate
+  `foreignActionsSlot` with no jobs, which `CheckForeignKeys`,
+  `SettleForeignActions` and the exclusion settling check read exactly
+  like a nil slot.
+- **No seam change.** The preflights are pure over `exec.Context`; `dml`
+  already imported `view`, `analyze`, `catalog`, `plan` and `parser`.
+  `PreflightMerge` uses `dml`'s own `sqlError` (same body as the root's)
+  and `MergeOnTruth` directly.
+- **Frames.** No reference or engine test matches the old function names
+  as stack frames.
+- **Tests.** Rewritten to the new names: `update_preflight_test.go`,
+  `update_from_preflight_test.go`, `update_row_binding_test.go`,
+  `rule_preflight_test.go`, `merge_nothing_test.go`,
+  `insert_returning_test.go`, `insert_conflict_update_test.go`,
+  `alter_add_constraint_test.go`. None moved or deleted: they build an
+  engine.
+- **Checks.** String-literal multiset of the engine sources unchanged;
+  selected units after each commit
+  (`^Test(UpdateFrom|UpdateCore|RuleStaticOperatorPreflight|InsertConflictUpdate|MergeNothing|UpdateRow|InsertReturning|Merge|Update|InsertConflict)`,
+  `^Test(AlterAddConstraint|AlterForeignKey|ForeignKey|ForeignAction|CreateTable|StatementHost|Partition|RangePartition|SetConstraints|Truncate|Exclusion)`);
+  quickcheck; quick-mode and `REFERENCE=1`
+  `^TestReference(Update|Merge|InsertConflict|ForeignKey|Alter[A-Za-z]*Foreign)`
+  passed, except the `/postgres` halves of the four
+  `TestReferenceMerge*RepeatableRead*` tests, which fail the same way on
+  master (`c32d28a09`; known oracle drift). racecheck, finalcheck and bench skipped at user request (no
+  startup change).
+
 ### Notes for later steps
+
+- 29e, for 133: no DML preflight or DDL capture is left in a root or `dml`
+  record that does not own it; root DML is now dispatch, the locked
+  prologues, source capture, writable-CTE orchestration, `WriteStage` and
+  its windows, the Finish order, TRUNCATE and the COPY protocol.
 
 - 29d.6, for 29e: FK enforcement and actions are in `dml` over
   `dml.FinishHost`; only TRUNCATE and the DML preflights (`preflightUpdate*`,
