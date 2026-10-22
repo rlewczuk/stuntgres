@@ -1928,6 +1928,18 @@ Constants do not demand entropy or session generation state. Generated columns
 and expression indexes accept them, but stored calls retain their installed
 procedure identity/current invoker ACL and symbolic recipes rather than literals.
 
+Installed `uuid_generate_v3(namespace uuid,name text)` and
+`uuid_generate_v5(namespace uuid,name text)` return deterministic UUIDs using
+MD5/SHA1 respectively. Hash input is the namespace's16 network-order bytes then
+the exact name bytes; take the first16 digest bytes and set version3/5 and RFC
+variant bits. Both are immutable, strict and parallel safe, accepting arbitrary
+and nil namespaces, empty names and named/reordered formals. Nil UUID is distinct
+from SQL NULL; either NULL argument gives typed SQL NULL. Text is not normalized,
+and these calls demand no entropy/clock/session generation state. Ordinary
+UUID/text coercion, computed metadata, installed identity/ACL and symbolic
+two-operand recipes apply through defaults/generated/index/view/group/control
+consumers. The provider now has ten members, the original eight unchanged.
+
 The version-7 ascending clock belongs to the physical session, not a table,
 statement or transaction. Tie/backward wall time advances its minimum step.
 Unshifted and zero-shift draws on that session are strictly ordered; different

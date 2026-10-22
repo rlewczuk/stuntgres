@@ -51,7 +51,7 @@ func TestReferenceUUIDOsspNamespaceIdentity(t *testing.T) {
 			run(fixture.Exec("SET search_path TO public", 0))
 		}
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='uuid_ossp_part'", []string{"count"}, []string{"INT8"}, [][]any{{int64(8)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='uuid_ossp_part'", []string{"count"}, []string{"INT8"}, [][]any{{int64(10)}}))
 		}
 	})
 }

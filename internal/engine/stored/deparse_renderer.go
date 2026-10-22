@@ -775,7 +775,7 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing uuid-ossp function namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), nil, true)
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
 	case plan.InstalledCryptoExpr:
 		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {

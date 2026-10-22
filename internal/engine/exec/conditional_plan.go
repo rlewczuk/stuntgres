@@ -380,6 +380,26 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 		}
 		expression = e
 	case plan.InstalledUUIDOsspExpr:
+		var args []expr.Expr
+		for i, old := range e.Args {
+			node, did, failure := SimplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				if args == nil {
+					args = append([]expr.Expr(nil), e.Args...)
+				}
+				args[i], changed = node, true
+			}
+		}
+		if args != nil {
+			next, failure := e.Reconstruct(e.Info, args, nil)
+			if failure != nil {
+				return nil, false, failure
+			}
+			e.UUIDGeneration = next
+		}
 		expression = e
 	case plan.InstalledCryptoExpr:
 		var args []expr.Expr
@@ -529,7 +549,15 @@ func ConditionalConstantInputs(node expr.Expr) bool {
 		}
 		return true
 	case plan.InstalledUUIDOsspExpr:
-		return e.Procedure != nil && e.Procedure.Volatility == expr.Immutable
+		if e.Procedure == nil || e.Procedure.Volatility != expr.Immutable {
+			return false
+		}
+		for _, arg := range e.Args {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
 	case plan.InstalledCryptoExpr:
 		for _, arg := range e.Args {
 			if !literal(arg) {

@@ -87,7 +87,7 @@ func GenerationImmutable(node expr.Expr) bool {
 	case InstalledLevenshteinExpr:
 		return args(n.Args)
 	case InstalledUUIDOsspExpr:
-		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
 	case InstalledCryptoExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
 	case InstalledTextExpr:
@@ -181,7 +181,7 @@ func GenerationHasTableOID(node expr.Expr) bool {
 	case InstalledLevenshteinExpr:
 		return args(n.Args)
 	case InstalledUUIDOsspExpr:
-		return false
+		return args(n.Args)
 	case InstalledCryptoExpr:
 		return args(n.Args)
 	case InstalledTextExpr:

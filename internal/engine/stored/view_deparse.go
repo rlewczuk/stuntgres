@@ -1336,6 +1336,27 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			return fields[0], nil
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if member, selected := functions.UUIDOsspLookup(name); selected && member.Signature != "" {
+			// Captured arguments retain lexical order. Preserve formal labels
+			// instead of replaying a reordered named call as positional input.
+			// Rendering operands in that same order also preserves capture ordinals.
+			parts := make([]string, len(e.Args))
+			identifier := catalog.QuoteIdentifier
+			if v.Presentation.Deparse {
+				identifier = v.Presentation.identifier
+			}
+			for i, arg := range e.Args {
+				text, err := operand(arg, DeparseParent{functionArgument: true})
+				if err != nil {
+					return "", err
+				}
+				if i < len(e.ArgNames) && e.ArgNames[i].Text != "" {
+					text = identifier(e.ArgNames[i].Text) + " => " + text
+				}
+				parts[i] = text
+			}
+			return catalog.ObjectNameText(e.Name) + "(" + strings.Join(parts, ", ") + ")", nil
+		}
 		if name == "int_array_enum" {
 			qualified, err := v.intaggRecipeName(catalogView, path, name)
 			if err != nil {

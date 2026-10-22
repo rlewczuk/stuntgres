@@ -77,6 +77,12 @@ func (e UUIDGeneration) Eval(c expr.Context) (sqltype.Value, error) {
 	if value, ok := uuidOsspConstant(e.Name); ok {
 		return sqltype.UUIDValue(e.Usage.Type, value)
 	}
+	if uuidOsspName(e.Name) {
+		if err := e.replayFault(); err != nil {
+			return sqltype.Value{}, err
+		}
+		return e.evalName(ctx, c)
+	}
 	if e.Name != "uuidv4" && e.Name != "uuidv7" && e.Name != "gen_random_uuid" && !uuidOsspTime(e.Name) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid UUID selector")
 	}
@@ -181,7 +187,11 @@ func CoerceUUIDShift(b ArgumentCoercer, argument Argument, target sqltype.Usage)
 	return b.CoerceArgument(argument, CoercionRequest{Intent: DirectFormalArgument, Target: target, AtRaw: true})
 }
 func NewUUIDGeneration(info expr.Info, name string, args []expr.Expr, timestamp *sqltype.Descriptor) (UUIDGeneration, error) {
-	if name != "uuidv4" && name != "uuidv7" && name != "gen_random_uuid" && !uuidOsspTime(name) {
+	if uuidOsspName(name) {
+		if timestamp != nil || len(args) != 2 || args[0] == nil || args[1] == nil || args[0].ResultUsage().Type == nil || args[1].ResultUsage().Type == nil || args[0].ResultUsage().Type.ID() != sqltype.UUID || args[1].ResultUsage().Type.ID() != sqltype.Text {
+			return UUIDGeneration{}, fmt.Errorf("stuntgres: invalid UUID namespace/name selector shape")
+		}
+	} else if name != "uuidv4" && name != "uuidv7" && name != "gen_random_uuid" && !uuidOsspTime(name) {
 		if _, ok := uuidOsspConstant(name); !ok || len(args) != 0 || timestamp != nil {
 			return UUIDGeneration{}, fmt.Errorf("stuntgres: invalid UUID constant selector or shape")
 		}
@@ -190,7 +200,7 @@ func NewUUIDGeneration(info expr.Info, name string, args []expr.Expr, timestamp 
 		return UUIDGeneration{}, fmt.Errorf("stuntgres: invalid UUID time selector shape")
 	}
 	node := UUIDGeneration{Info: info, Name: name, Args: args, Timestamp: timestamp}
-	if len(args) != 0 {
+	if len(args) != 0 && !uuidOsspName(name) {
 		var err error
 		node.Addition, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, timestamp, args[0].ResultUsage().Type, timestamp)
 		if err != nil {
@@ -223,9 +233,14 @@ func (e UUIDGeneration) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 	return rebuilt(e.Reconstruct(info, children, e.Timestamp))
 }
 
-// IntrinsicVolatility is the analyzed volatility: the call is volatile or
-// has no children, so nothing from eliminated arms can be retained.
-func (e UUIDGeneration) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }
+// IntrinsicVolatility excludes operand volatility so simplification can merge
+// only the children that remain demanded.
+func (e UUIDGeneration) IntrinsicVolatility() expr.Volatility {
+	if uuidOsspName(e.Name) {
+		return expr.Immutable
+	}
+	return e.Property.Volatility
+}
 
 // StrictNull eliminates demand even though the provider is volatile.
 func (e UUIDGeneration) StrictNull() expr.Strict { return expr.StrictAfter }
@@ -238,8 +253,11 @@ func (e UUIDGeneration) Retag(info expr.Info, children []expr.Expr, changed bool
 		e.Info = info
 		return e, changed, nil
 	}
-	timestamp := env.Type(e.Timestamp)
-	changed = changed || timestamp != e.Timestamp
+	timestamp := e.Timestamp
+	if timestamp != nil {
+		timestamp = env.Type(timestamp)
+		changed = changed || timestamp != e.Timestamp
+	}
 	node, err := e.Reconstruct(info, children, timestamp)
 	return retagged(node, changed, err)
 }
@@ -257,6 +275,13 @@ func (e UUIDGeneration) Render() (expr.Rendering, error) {
 
 // replayFault validates the stored signature and its optional uuidv7 shift.
 func (e UUIDGeneration) replayFault() error {
+	if uuidOsspName(e.Name) {
+		if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.UUID || e.Timestamp != nil || e.Addition != (sqltype.Arithmetic{}) {
+			return fmt.Errorf("stuntgres: invalid stored UUID namespace/name signature")
+		}
+		_, err := NewUUIDGeneration(e.Info, e.Name, e.Args, nil)
+		return err
+	}
 	_, constant := uuidOsspConstant(e.Name)
 	if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.UUID || (!constant && !uuidOsspTime(e.Name) && e.Name != "uuidv7" && e.Name != "uuidv4" && e.Name != "gen_random_uuid") || len(e.Args) > 1 || len(e.Args) != 0 && e.Name != "uuidv7" || uuidOsspTime(e.Name) && e.Timestamp != nil {
 		return fmt.Errorf("stuntgres: invalid stored UUID generation signature")

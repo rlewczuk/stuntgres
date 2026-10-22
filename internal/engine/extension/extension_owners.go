@@ -228,8 +228,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			case "pgcrypto":
 				_, valid = functions.PgcryptoLookup(member.Name, member.Signature)
 			case "uuid-ossp":
-				_, _, selected := functions.UUIDOsspLookup(member.Name)
-				valid = selected && member.Signature == ""
+				memberSpec, selected := functions.UUIDOsspLookup(member.Name)
+				valid = selected && member.Signature == memberSpec.Signature
 			}
 			if record.Name == "fuzzystrmatch" {
 				valid = fuzzystrmatchResult(member.Name, catalog.ProcedureSignature(member.Signature)) != 0 && (record.Version != "1.1" || member.Name != "daitch_mokotoff")

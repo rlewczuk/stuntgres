@@ -162,7 +162,27 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		}
 		return e, args != nil, nil
 	case plan.InstalledUUIDOsspExpr:
-		return e, false, nil
+		var args []expr.Expr
+		for i, arg := range e.Args {
+			next, changed, err := PreflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]expr.Expr(nil), e.Args...)
+				}
+				args[i] = next
+			}
+		}
+		if args != nil {
+			next, err := e.Reconstruct(e.Info, args, nil)
+			if err != nil {
+				return nil, false, err
+			}
+			e.UUIDGeneration = next
+		}
+		return e, args != nil, nil
 	case plan.InstalledCryptoExpr:
 		var args []expr.Expr
 		for i, arg := range e.Args {

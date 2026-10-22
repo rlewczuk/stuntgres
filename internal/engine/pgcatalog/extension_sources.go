@@ -2,10 +2,12 @@ package pgcatalog
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -106,6 +108,12 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				}
 				if named {
 					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
+				}
+			} else if ext, ok := view.Extension(d.Extension); ok && ext.Name() == "uuid-ossp" && d.Implementation != nil && slices.Contains(ext.Members, d.Address()) {
+				if member, selected := functions.UUIDOsspLookup(d.Name()); selected && member.Signature == string(d.Signature) && member.Signature != "" {
+					element := source.Columns[10].Usage.Type.Element()
+					values := []sqltype.Value{sqltype.String(element, member.ArgumentNames[0]), sqltype.String(element, member.ArgumentNames[1])}
+					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, values)
 				}
 			}
 		case *catalog.TSTemplate:

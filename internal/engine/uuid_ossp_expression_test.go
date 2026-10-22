@@ -121,6 +121,9 @@ func TestUUIDOsspControls(t *testing.T) {
 	for _, name := range []string{"uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500", "uuid_generate_v1", "uuid_generate_v1mc"} {
 		record.Members = append(record.Members, extension.MemberOwner{Kind: "procedure", Name: name, Signature: "", Owner: "postgres"})
 	}
+	for _, name := range []string{"uuid_generate_v3", "uuid_generate_v5"} {
+		record.Members = append(record.Members, extension.MemberOwner{Kind: "procedure", Name: name, Signature: "2950,25", Owner: "postgres"})
+	}
 	encode := func(r extension.OwnerRecord) string {
 		data, err := json.Marshal(r)
 		if err != nil {

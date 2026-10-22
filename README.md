@@ -805,9 +805,11 @@ See [native contract](docs/DIALECT.md#pg_range-supported-range-metadata) and
 
 ## Installed UUID version 4 — change note
 
-`CREATE EXTENSION "uuid-ossp"` installs eight zero-argument `RETURNS uuid`
-members, version1.1: `uuid_generate_v4()`, `uuid_generate_v1()`,
-`uuid_generate_v1mc()` and the five immutable constants below.
+`CREATE EXTENSION "uuid-ossp"` installs ten `RETURNS uuid` members,
+version1.1: eight zero-argument functions (`uuid_generate_v4()`,
+`uuid_generate_v1()`, `uuid_generate_v1mc()` and the five constants below),
+plus `uuid_generate_v3(namespace uuid,name text)` and
+`uuid_generate_v5(namespace uuid,name text)`.
 The generator uses Go's
 `crypto/rand` source and the shared UUID codec to return non-NULL random
 version4/RFC-variant values. The function is VOLATILE: held calls, row defaults
@@ -815,7 +817,7 @@ and views demand fresh values; generated columns and expression indexes reject i
 Schema visibility and real installed procedure identities survive native
 Dump/Reset/Restore, including grouped views projecting UUID calls beside
 aggregates. Legitimate group-stage metadata is retained without relaxing closed
-DEFAULT restrictions. The name-based v3/v5 generators are not installed.
+DEFAULT restrictions.
 Its installed identity also participates in current-invoker EXECUTE grants:
 held calls, views and demanded DEFAULT writes deny after revocation, without
 borrowing a table/view owner's function authority or publishing partial writes.
@@ -847,6 +849,18 @@ no allocation state. Rollback and native catalog controls do not rewind the
 allocator. Uniqueness across random node epochs, physical sessions, Drivers and
 restarts is probabilistic, not a persisted coordination guarantee.
 See [time-generator proof and smoke](reference/catalogs/README.md#installed-uuid-ossp-time-generators).
+
+The name-based generators are IMMUTABLE STRICT PARALLEL SAFE: v3 hashes with
+MD5, v5 with SHA1. They hash the namespace's16 network-order bytes followed by
+the exact UTF8 name bytes, retaining16 digest bytes and setting version/RFC
+variant bits. Empty names and arbitrary/nil namespaces are valid; case,
+whitespace and Unicode composition are not normalized. Either SQL NULL input
+returns SQL NULL. Named/reordered namespace/name arguments use the same sole
+UUID,text overload. These calls require no entropy, clock or generation state.
+Stored defaults, row-dependent generated columns, expression indexes, views and
+grouping retain both operands and actual installed identity through native
+controls and current-invoker EXECUTE checks. See
+[name-generator proof and smoke](reference/catalogs/README.md#installed-uuid-ossp-namespacename-generation).
 
 ## Language catalog — change note
 

@@ -559,7 +559,7 @@ Registered families:
 | Math | `math_bind.go` | `mathNames` | `ExactSpelling`, `SharedGates` |
 | UUID generation | `uuid_generation_bind.go` | `uuidv4`, `uuidv7` | `ExactSpelling`, `SharedGates`; `uuidv7` also `OwnsLabels` |
 | `format` | `format_bind.go` | `format` | `SharedGates` |
-| uuid-ossp | `uuid_ossp_bind.go` | `uuid_generate_v4`, `uuid_generate_v1`, `uuid_generate_v1mc`, `uuid_nil`, `uuid_ns_dns`, `uuid_ns_url`, `uuid_ns_oid`, `uuid_ns_x500` | none |
+| uuid-ossp | `uuid_ossp_bind.go` | `uuid_generate_v4`, `uuid_generate_v1`, `uuid_generate_v1mc`, `uuid_generate_v3`, `uuid_generate_v5`, `uuid_nil`, `uuid_ns_dns`, `uuid_ns_url`, `uuid_ns_oid`, `uuid_ns_x500` | none |
 | Arrays | `array_{inspect,random,transform,search}_bind.go` | `array*Names` | none |
 | Range inspection | `range_inspect_bind.go` | `rangeInspectNames` | none |
 | JSON/JSONB calls | `json_call_bind.go` | `jsonCallNames` | `Claims` |
@@ -1774,8 +1774,8 @@ make check RUN='^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOss
 make check REFERENCE=1 RUN='^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOssp|NumericFormattingUUIDDefaults|SearchPath)'
 ```
 
-The eight-member `UUIDOsspMembers` manifest supplies installed declaration and
-owner-recipe validation. `UUIDGeneration` also hosts the five immutable UUID
+The ten-member `UUIDOsspMembers` manifest supplies explicit signatures, formal
+names, installed declaration and owner-recipe validation. `UUIDGeneration` hosts the five immutable UUID
 constants: literal bytes return before session readiness, entropy or clock
 demand. Stored installed recipes retain their procedure/epoch/ACL carrier,
 symbolic SQL name and dependencies. `FoldNever` governs the generic UUID
@@ -1804,6 +1804,24 @@ make check RUN='^TestUUIDOsspTime(Packing|Clock|Sequence|Entropy|Cancellation|Co
 make check RACE=1 RUN='^(TestUUIDOsspTimeConcurrent|TestReferenceUUIDOsspTimeConcurrency)$'
 make check RUN='^TestReferenceUUIDOsspTime(Identity|Generation|Diagnostics|Consumers|Authority|Controls|Concurrency|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferenceUUIDOsspTime(Identity|Generation|Diagnostics|Consumers|Authority|Controls|Concurrency|FeatureSmoke)$'
+```
+
+V3/v5 add exactly UUID,text overloads with namespace/name formals. The existing
+binder preserves lexical coercion positions while arranging named operands into
+formal order. The common UUID node hashes network-order namespace bytes then raw
+UTF8 text via stdlib MD5/SHA1 and fixed scratch, checks cancellation between
+chunks, discards excess SHA1 bytes and sets version/variant bits. It has no
+readiness/entropy/clock/V1 demand. Strict runtime handling evaluates demanded
+children before NULL eliminates the kernel. Intrinsic immutability is separate
+from child volatility. Installed wrappers retain both children and procedure/ref
+identity across grouping, walk/rebuild/substitution, retag/remap and qualified
+stored rendering; immutable consumers reject volatile name children.
+
+```sh
+make check RUN='^TestUUIDOssp(NameKernel|NameExpressionChildren|NameProviderSignatures)$'
+make check RACE=1 RUN='^TestUUIDOssp(NameKernel|NameExpressionChildren|NameProviderSignatures)$'
+make check RUN='^TestReferenceUUIDOsspName(Values|Bindings|Diagnostics|Identity|Authority|Consumers|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceUUIDOsspName(Values|Bindings|Diagnostics|Identity|Authority|Consumers|Controls|FeatureSmoke)$'
 ```
 
 

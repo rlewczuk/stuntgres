@@ -104,7 +104,7 @@ func ExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	case ConditionalExpr:
 		args(e.Args)
 	case InstalledUUIDOsspExpr:
-		// No argument children.
+		args(e.Args)
 	case InstalledTextExpr:
 		walk(e.Arg)
 	case ExtensionPathsExpr:

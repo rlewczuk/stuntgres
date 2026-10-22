@@ -2107,9 +2107,11 @@ See [PostgreSQL raw encryption](https://www.postgresql.org/docs/18/pgcrypto.html
 
 ## Installed uuid-ossp version 4
 
-The uuid-ossp1.1 provider installs exactly eight native members returning UUID:
+The uuid-ossp1.1 provider installs exactly ten native members returning UUID:
 `uuid_generate_v4()`, `uuid_generate_v1()`, `uuid_generate_v1mc()`, `uuid_nil()`,
-`uuid_ns_dns()`, `uuid_ns_url()`, `uuid_ns_oid()`, `uuid_ns_x500()`. Use quoted `CREATE EXTENSION "uuid-ossp"`
+`uuid_ns_dns()`, `uuid_ns_url()`, `uuid_ns_oid()`, `uuid_ns_x500()`, and
+`uuid_generate_v3(namespace uuid,name text)` /
+`uuid_generate_v5(namespace uuid,name text)`. Use quoted `CREATE EXTENSION "uuid-ossp"`
 with an optional installation schema. Installation uses the existing trusted
 extension/database-CREATE authority: the installer owns the extension, while
 superuser-required members installed by a nonsuperuser belong to the bootstrap
@@ -2137,8 +2139,20 @@ generation-state demand. Their values are respectively
 `6ba7b814-9dad-11d1-80b4-00c04fd430c8`. Nil UUID is an ordinary non-NULL UUID.
 They support generated columns and expression indexes while preserving genuine
 installed identity, current EXECUTE checks and symbolic qualified control recipes.
-All eight overloads have zero arguments; passing NULL is a missing overload.
-Name-based v3/v5 generators and arbitrary shared-library loading remain excluded.
+The original eight overloads have zero arguments; passing NULL to them is a
+missing overload. The two name-based overloads are IMMUTABLE STRICT PARALLEL
+SAFE and propagate SQL NULL from either operand. UUID namespaces may be arbitrary,
+including nil. MD5(v3) / SHA1(v5) hash16 network-order namespace bytes then the
+verbatim UTF8 name; v5 discards the final four digest bytes, and both set UUID
+version/RFC variant bits after hashing. No trimming, case folding, Unicode
+normalization, DNS syntax checking or appended NUL is performed. Empty text is
+valid. Named/reordered arguments are supported; explicit text is not implicitly
+UUID and integer is not implicitly text. No extra overload is supplied.
+Immutable DEFAULT/generated/index/view/group consumers retain both expression
+children and genuine installed identity/EXECUTE authority through controls.
+Volatile children remain volatile and are rejected by immutable consumers.
+Name generation does not access entropy, clocks, V1/session generation state or
+external libraries. Arbitrary shared-library loading remains excluded.
 
 V1 and v1mc are VOLATILE STRICT PARALLEL SAFE time UUID generators. Their shared
 physical-session allocator is nontransactional and survives rollback/Reset/Restore,

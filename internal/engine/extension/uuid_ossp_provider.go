@@ -32,12 +32,12 @@ func (p *UUIDOsspProvider) ValidateExtension(v catalog.Read, ext *catalog.Extens
 		}
 		memberIndex := -1
 		for i, member := range functions.UUIDOsspMembers {
-			if proc.Name() == member.Name && proc.Volatility == member.Volatility {
+			if proc.Name() == member.Name && string(proc.Signature) == member.Signature && proc.Volatility == member.Volatility {
 				memberIndex = i
 				break
 			}
 		}
-		if memberIndex < 0 || seen[memberIndex] || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Implementation != p || proc.Aggregate != nil || proc.Foreign != nil || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || proc.Signature != "" || proc.Result != 2950 || !proc.Strict || proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
+		if memberIndex < 0 || seen[memberIndex] || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Implementation != p || proc.Aggregate != nil || proc.Foreign != nil || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || proc.Result != 2950 || !proc.Strict || proc.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		seen[memberIndex] = true

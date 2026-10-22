@@ -83,7 +83,7 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 			return "", fmt.Errorf("stuntgres: missing stored uuid-ossp namespace")
 		}
 		r.record(n.Ref)
-		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), nil)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
 	case plan.InstalledCryptoExpr:
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored crypto reference")

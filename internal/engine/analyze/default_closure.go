@@ -213,7 +213,15 @@ func ClosedUUIDDefault(node expr.Expr) bool {
 	}
 	switch n := node.(type) {
 	case plan.InstalledUUIDOsspExpr:
-		return ValidInstalledUUIDOsspShape(n)
+		if !ValidInstalledUUIDOsspShape(n) {
+			return false
+		}
+		for _, arg := range n.Args {
+			if arg.Properties().Volatility > expr.Stable || !ClosedUUIDDefault(arg) {
+				return false
+			}
+		}
+		return true
 	case functions.UUIDGeneration:
 		for _, arg := range n.Args {
 			if arg.Properties().Volatility > expr.Stable || !ClosedUUIDDefault(arg) {
@@ -253,14 +261,32 @@ func ClosedUUIDDefault(node expr.Expr) bool {
 // installed uuid-ossp routine.
 func ValidInstalledUUIDOsspShape(n plan.InstalledUUIDOsspExpr) bool {
 	properties := n.Properties()
-	// Group rewriting adds execution-stage dependence to a valid leaf.
+	// Group rewriting adds execution-stage dependence to a valid call.
 	// DEFAULT closure separately rejects that dependence before shape checks.
 	properties.StageDependent = false
 	if n.Procedure == nil {
 		return false
 	}
-	selector, volatility, selected := functions.UUIDOsspLookup(n.Procedure.Name())
-	return selected && n.RoutineReference == n.Procedure && extension.UUIDOsspProviderOf(n.Procedure) == extension.StockUUIDOssp && n.Ref.Address == n.Procedure.Address() && n.Ref.Epoch != 0 && n.Name == selector && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (expr.Properties{Volatility: volatility})
+	member, selected := functions.UUIDOsspLookup(n.Procedure.Name())
+	if !selected || string(n.Procedure.Signature) != member.Signature || n.RoutineReference != n.Procedure || extension.UUIDOsspProviderOf(n.Procedure) != extension.StockUUIDOssp || n.Ref.Address != n.Procedure.Address() || n.Ref.Epoch == 0 || n.Name != member.Selector || n.Timestamp != nil || n.Addition != (sqltype.Arithmetic{}) || n.ResultUsage().Type == nil || n.ResultUsage().Type.ID() != sqltype.UUID || !n.ResultUsage().Valid() {
+		return false
+	}
+	count := 0
+	if member.Signature != "" {
+		count = 2
+	}
+	if len(n.Args) != count {
+		return false
+	}
+	if _, err := functions.NewUUIDGeneration(n.Info, n.Name, n.Args, nil); err != nil {
+		return false
+	}
+	expected := expr.Properties{Volatility: member.Volatility}
+	for _, arg := range n.Args {
+		expected = expr.MergeProperties(expected, arg.Properties())
+	}
+	expected.StageDependent = false
+	return properties == expected
 }
 
 // A selected SQL routine executes inside the existing DEFAULT statement owner.

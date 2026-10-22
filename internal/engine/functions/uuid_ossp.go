@@ -2,29 +2,35 @@ package functions
 
 import "stuntgres/internal/engine/expr"
 
-// UUIDOsspMembers is the bounded native uuid-ossp 1.1 inventory. Every member
-// has an empty signature and a strict, parallel-safe UUID result.
-var UUIDOsspMembers = [...]struct {
-	Name, Selector string
-	Volatility     expr.Volatility
-}{
-	{"uuid_generate_v4", "uuidv4", expr.Volatile},
-	{"uuid_nil", "uuid_nil", expr.Immutable},
-	{"uuid_ns_dns", "uuid_ns_dns", expr.Immutable},
-	{"uuid_ns_url", "uuid_ns_url", expr.Immutable},
-	{"uuid_ns_oid", "uuid_ns_oid", expr.Immutable},
-	{"uuid_ns_x500", "uuid_ns_x500", expr.Immutable},
-	{"uuid_generate_v1", "uuid_generate_v1", expr.Volatile},
-	{"uuid_generate_v1mc", "uuid_generate_v1mc", expr.Volatile},
+// UUIDOsspMember describes one strict, parallel-safe UUID-returning overload.
+type UUIDOsspMember struct {
+	Name, Selector, Signature string
+	Volatility                expr.Volatility
+	ArgumentNames             [2]string
 }
 
-func UUIDOsspLookup(name string) (selector string, volatility expr.Volatility, ok bool) {
+// UUIDOsspMembers preserves installation order and identities of the original
+// eight members; namespace/name generation adds exactly two documented overloads.
+var UUIDOsspMembers = [...]UUIDOsspMember{
+	{Name: "uuid_generate_v4", Selector: "uuidv4", Volatility: expr.Volatile},
+	{Name: "uuid_nil", Selector: "uuid_nil", Volatility: expr.Immutable},
+	{Name: "uuid_ns_dns", Selector: "uuid_ns_dns", Volatility: expr.Immutable},
+	{Name: "uuid_ns_url", Selector: "uuid_ns_url", Volatility: expr.Immutable},
+	{Name: "uuid_ns_oid", Selector: "uuid_ns_oid", Volatility: expr.Immutable},
+	{Name: "uuid_ns_x500", Selector: "uuid_ns_x500", Volatility: expr.Immutable},
+	{Name: "uuid_generate_v1", Selector: "uuid_generate_v1", Volatility: expr.Volatile},
+	{Name: "uuid_generate_v1mc", Selector: "uuid_generate_v1mc", Volatility: expr.Volatile},
+	{Name: "uuid_generate_v3", Selector: "uuid_generate_v3", Signature: "2950,25", Volatility: expr.Immutable, ArgumentNames: [2]string{"namespace", "name"}},
+	{Name: "uuid_generate_v5", Selector: "uuid_generate_v5", Signature: "2950,25", Volatility: expr.Immutable, ArgumentNames: [2]string{"namespace", "name"}},
+}
+
+func UUIDOsspLookup(name string) (UUIDOsspMember, bool) {
 	for _, member := range UUIDOsspMembers {
 		if member.Name == name {
-			return member.Selector, member.Volatility, true
+			return member, true
 		}
 	}
-	return "", expr.Immutable, false
+	return UUIDOsspMember{}, false
 }
 
 func uuidOsspConstant(name string) ([16]byte, bool) {

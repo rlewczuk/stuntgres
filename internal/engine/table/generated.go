@@ -339,7 +339,10 @@ func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	case plan.InstalledLevenshteinExpr:
 		return args(n.Args)
 	case plan.InstalledUUIDOsspExpr:
-		return stored.ValidateInstalledUUIDOssp(n, view)
+		if err := stored.ValidateInstalledUUIDOssp(n, view); err != nil {
+			return err
+		}
+		return args(n.Args)
 	case plan.InstalledCryptoExpr:
 		return args(n.Args)
 	case plan.InstalledTextExpr:

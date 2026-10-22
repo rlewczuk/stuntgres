@@ -47,7 +47,7 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 func TestUUIDOsspProviderIdentity(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.Version != "1.1" || len(ext.Members) != 8 || ext.Namespace() != (ids.ObjectAddress{}) {
+	if ext.Version != "1.1" || len(ext.Members) != 10 || ext.Namespace() != (ids.ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	address := ext.Members[0]
@@ -71,7 +71,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	if count != 8 {
+	if count != 10 {
 		t.Fatal("membership count", count)
 	}
 	for _, mutate := range []func(*catalog.Procedure){

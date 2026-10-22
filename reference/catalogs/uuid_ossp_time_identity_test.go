@@ -50,9 +50,7 @@ func TestReferenceUUIDOsspTimeIdentity(t *testing.T) {
 			uuidOsspTimeRead(t, p, fixture.HeldStatement{Executor: c, Statement: s, SQL: q}, r, pg, q, 1, 1, name == "uuid_generate_v1mc")
 			s.Close()
 		}
-		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_proc WHERE pronamespace="+fixture.Position(int(namespace))+" AND proname IN ('uuid_generate_v3','uuid_generate_v5')", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		}
+		run(fixture.Select("SELECT count(*) FROM pg_proc WHERE pronamespace="+fixture.Position(int(namespace))+" AND proname IN ('uuid_generate_v3','uuid_generate_v5') AND pronargs=2 AND prorettype=2950 AND provolatile='i' AND proisstrict", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
 		run(fixture.Exec("SET search_path TO uuid_ossp_part,public", 0))
 		for _, name := range uuidOsspTimeNames {
 			q := "SELECT " + name + "() AS u"

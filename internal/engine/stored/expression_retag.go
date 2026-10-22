@@ -268,6 +268,10 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 		}
 		rebound = n
 	case plan.InstalledUUIDOsspExpr:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
 		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.UUIDOsspProviderOf(proc) != extension.StockUUIDOssp {
@@ -275,8 +279,10 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 		}
 		changed = changed || n.Procedure != proc
 		n.Procedure = proc
-		n.Info = info
-		err = ValidateInstalledUUIDOssp(n, view)
+		n.UUIDGeneration, err = n.Reconstruct(info, n.Args, nil)
+		if err == nil {
+			err = ValidateInstalledUUIDOssp(n, view)
+		}
 		rebound = n
 	case plan.InstalledCryptoExpr:
 		n.Args = children(n.Args)

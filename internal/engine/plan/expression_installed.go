@@ -69,6 +69,29 @@ func (e InstalledUUIDOsspExpr) Rebuild(info expr.Info, children []expr.Expr) (ex
 	return e, nil
 }
 
+// Retag and Substitute must not promote the kernel's bare-node return values.
+func (e InstalledUUIDOsspExpr) Retag(info expr.Info, children []expr.Expr, changed bool, env expr.Retag) (expr.Expr, bool, error) {
+	node, changed, err := e.UUIDGeneration.Retag(info, children, changed, env)
+	if err != nil {
+		return nil, false, err
+	}
+	e.UUIDGeneration = node.(functions.UUIDGeneration)
+	return e, changed, nil
+}
+
+func (e InstalledUUIDOsspExpr) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	node, err := e.Rebuild(info, children)
+	if err != nil {
+		return nil, err
+	}
+	return node, nil
+}
+
+func (e InstalledUUIDOsspExpr) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(InstalledUUIDOsspExpr)
+	return ok && e.Procedure == o.Procedure && e.Ref == o.Ref && e.UUIDGeneration.SameGroup(o.UUIDGeneration, same, definition)
+}
+
 // InstalledMetaphoneExpr is an installed fuzzystrmatch metaphone-family
 // routine.
 type InstalledMetaphoneExpr struct {

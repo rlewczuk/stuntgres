@@ -569,7 +569,27 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(plan.InstalledUUIDOsspExpr); ok {
-			return children(r.Args, n.Args)
+			if len(r.ArgNames) == 0 {
+				return children(r.Args, n.Args)
+			}
+			member, ok := functions.UUIDOsspLookup(n.Procedure.Name())
+			if !ok || len(r.Args) != 2 || len(n.Args) != 2 {
+				return fmt.Errorf("stuntgres: mismatched named UUID arguments")
+			}
+			var lexical [2]expr.Expr
+			for i := range r.Args {
+				slot := i
+				if i < len(r.ArgNames) && r.ArgNames[i].Text != "" {
+					for j, name := range member.ArgumentNames {
+						if name == r.ArgNames[i].Text {
+							slot = j
+							break
+						}
+					}
+				}
+				lexical[i] = n.Args[slot]
+			}
+			return children(r.Args, lexical[:])
 		}
 		if n, ok := bound.(plan.InstalledCryptoExpr); ok {
 			return children(r.Args, n.Args)

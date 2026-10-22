@@ -317,7 +317,15 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		return true
 	case plan.InstalledUUIDOsspExpr:
 		o, ok := other.(plan.InstalledUUIDOsspExpr)
-		return ok && e.Ref == o.Ref && e.Procedure == o.Procedure && e.Name == o.Name
+		if !ok || e.Ref != o.Ref || e.Procedure != o.Procedure || e.Name != o.Name || len(e.Args) != len(o.Args) {
+			return false
+		}
+		for i := range e.Args {
+			if !same(e.Args[i], o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case plan.InstalledCryptoExpr:
 		o, ok := other.(plan.InstalledCryptoExpr)
 		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
@@ -583,6 +591,10 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		e.Info = info
 		bound = e
 	case plan.InstalledUUIDOsspExpr:
+		e.Args = append([]expr.Expr(nil), e.Args...)
+		for i := range e.Args {
+			e.Args[i] = rewrite(e.Args[i])
+		}
 		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
@@ -724,7 +736,9 @@ func AggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
 			walk(arg)
 		}
 	case plan.InstalledUUIDOsspExpr:
-		// Installed UUID generators and constants are zero-child leaves.
+		for _, arg := range e.Args {
+			walk(arg)
+		}
 	case plan.InstalledCryptoExpr:
 		for _, arg := range e.Args {
 			walk(arg)

@@ -1356,8 +1356,8 @@ make check RUN='^TestReferencePGAggregate(Lifecycle|Prepared)$' RACE=1
 `TestReferenceUUIDOsspGeneration`, `Identity`, `Diagnostics`, `Consumers`,
 `Controls`, `GroupedControls` and `FeatureSmoke` share public direct/held
 scenarios across native and PostgreSQL (historical version4 evidence:18.0).
-Native installs eight selected members, version1.1: uuid_generate_v4(), the
-two time generators and five constants; name-based v3/v5 remain excluded.
+Native installs ten selected members, version1.1: uuid_generate_v4(), the
+two time generators, five constants and the two name-based v3/v5 generators.
 Independent canonical decoding checks non-NULL values, version4 and RFC variant bits,
 while transport metadata is checked before iteration, including empty results.
 Bounded distinctness is a freshness witness, not proof of cryptographic security.
@@ -1496,6 +1496,51 @@ wrong arity yields the complete42883 diagnostic without effects, and native
 Dump/Reset/Restore preserves saved values while subsequent calls remain fresh.
 
 
+
+### Installed uuid-ossp namespace/name generation
+
+The `TestReferenceUUIDOsspName` scenarios specify `Values`, `Bindings`,
+`Diagnostics`, `Identity`, `Authority`, `Consumers`, `Controls` and `FeatureSmoke`.
+The published RFC9562 A.2/A.4 example.com vectors and released
+PostgreSQL widgets vectors are explicit independent UUID expectations. Additional
+vectors use the RFC network-byte namespace/UTF8-name algorithm, independently
+calculated with Python's standard-library uuid3/uuid5 and confirmed by the pinned
+oracle before implementation. Cases include arbitrary/nil namespaces, empty,
+composed/decomposed UTF8, case/whitespace and an8193-byte name.
+
+Direct, fresh prepared, SAME held and fresh-connection calls must preserve UUID
+metadata, deterministic values, strict NULL behavior and named/reordered formals.
+Full diagnostics include direct/prepare failure stages, UTF8 character positions,
+bound-parameter context and post-error held reuse. Installed declarations require
+UUID,text arguments named namespace/name, UUID result, immutable/strict/parallel
+safe attributes and genuine extension membership. Existing eight members remain
+unchanged; the selected provider inventory becomes ten.
+
+Consumer witnesses use actual name-column children in generated columns,
+expression indexes, views, CASE and grouping, including calls with different
+operands. Current-invoker EXECUTE checks cover held calls, views and atomic DEFAULT
+writes. Native-only control phases preserve saved UUIDs, symbolic qualified
+two-argument calls, retained rows/metadata and held continuation through
+Dump/Reset/Restore, and restore into an independent Driver. Malformed owner
+signatures, missing providers, invalid SQL and cancellation must preserve state.
+Reversed named view calls preserve their argument labels in symbolic replay;
+lexical name/namespace operands must never become swapped positional arguments.
+Dump assertions accept valid quoted or unquoted qualified identifiers. Generated
+UUIDs may be reconstructed with DEFAULT rather than emitted as saved literals;
+exact post-Restore table/view values, not incidental dump spelling, prove replay.
+
+Use an external900-second deadline per selected command, PG first:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceUUIDOsspName(Values|Bindings|Diagnostics|Identity|Authority|Consumers|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceUUIDOsspName(Values|Bindings|Diagnostics|Identity|Authority|Consumers|Controls|FeatureSmoke)$'
+```
+
+Feature smoke: `make check RUN='^TestReferenceUUIDOsspNameFeatureSmoke$'`, repeated
+with `REFERENCE=1`. Expected observations are exact RFC outputs and NULLs,
+malformed-bind recovery on the same statement, stored derivations and, natively,
+control replay without losing operands or installed identities. These expectations
+do not replace observed selected dual-mode proof.
 
 ### pg_language selected proof
 

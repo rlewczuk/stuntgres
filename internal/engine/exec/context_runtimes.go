@@ -251,7 +251,7 @@ func PlannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case plan.InstalledLevenshteinExpr:
 		return children(n.Args...)
 	case plan.InstalledUUIDOsspExpr:
-		return n.Procedure.Volatility
+		return merge(n.Procedure.Volatility, children(n.Args...))
 	case plan.InstalledCryptoExpr:
 		return merge(n.Procedure.Volatility, children(n.Args...))
 	case plan.InstalledTextExpr:

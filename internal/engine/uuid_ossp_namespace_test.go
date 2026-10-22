@@ -96,19 +96,23 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 func TestUUIDOsspNamespaceManifest(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
 	view := e.CatalogRead()
-	want := map[string]expr.Volatility{"uuid_generate_v4": expr.Volatile, "uuid_generate_v1": expr.Volatile, "uuid_generate_v1mc": expr.Volatile, "uuid_nil": expr.Immutable, "uuid_ns_dns": expr.Immutable, "uuid_ns_url": expr.Immutable, "uuid_ns_oid": expr.Immutable, "uuid_ns_x500": expr.Immutable}
+	want := map[string]expr.Volatility{"uuid_generate_v4": expr.Volatile, "uuid_generate_v1": expr.Volatile, "uuid_generate_v1mc": expr.Volatile, "uuid_generate_v3": expr.Immutable, "uuid_generate_v5": expr.Immutable, "uuid_nil": expr.Immutable, "uuid_ns_dns": expr.Immutable, "uuid_ns_url": expr.Immutable, "uuid_ns_oid": expr.Immutable, "uuid_ns_x500": expr.Immutable}
 	if len(ext.Members) != len(want) {
-		t.Fatal("eight-member manifest", len(ext.Members))
+		t.Fatal("ten-member manifest", len(ext.Members))
 	}
 	seen := make(map[string]bool)
 	for _, address := range ext.Members {
 		p := view.MustProcedure(address)
 		vol, ok := want[p.Name()]
-		if !ok || seen[p.Name()] || p.Volatility != vol || p.Signature != "" || p.Result != 2950 || !p.Strict || p.Namespace() != ext.TargetNamespace || p.Owner != ext.Owner {
+		signature := catalog.ProcedureSignature("")
+		if p.Name() == "uuid_generate_v3" || p.Name() == "uuid_generate_v5" {
+			signature = "2950,25"
+		}
+		if !ok || seen[p.Name()] || p.Volatility != vol || p.Signature != signature || p.Result != 2950 || !p.Strict || p.Namespace() != ext.TargetNamespace || p.Owner != ext.Owner {
 			t.Fatal("member declaration", p)
 		}
 		seen[p.Name()] = true
-		for _, mutate := range []func(*catalog.Procedure){func(p *catalog.Procedure) { p.ObjectName = "uuid_generate_v5" }, func(p *catalog.Procedure) { p.Volatility = expr.Stable }, func(p *catalog.Procedure) { p.Result = 25 }} {
+		for _, mutate := range []func(*catalog.Procedure){func(p *catalog.Procedure) { p.ObjectName = "uuid_generate_missing" }, func(p *catalog.Procedure) { p.Volatility = expr.Stable }, func(p *catalog.Procedure) { p.Result = 25 }} {
 			bad := *p
 			mutate(&bad)
 			view.State().SetDescriptor(address, &bad)
