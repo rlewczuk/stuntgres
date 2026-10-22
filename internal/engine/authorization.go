@@ -12,6 +12,8 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -60,6 +62,7 @@ var _ analyze.Privileges = AuthorizationView{}
 type AuthorizationView struct {
 	access.View
 	engine     *Engine
+	inputs     *authorityInputs         // Nil unless the engine built the view.
 	definition catalog.DefinitionReader // Cooking-only sparse effects; never SQL execution authority.
 	settings   *session.SettingsStore
 	// Nested schema elements prepend their enclosing namespace without changing settings.
@@ -188,13 +191,32 @@ func operationAuthorization(op *session.Operation) (AuthorizationView, error) {
 	return e.authorizationLocked(op)
 }
 
-// operationAuthority is v with op's environment: the engine, definition
-// reader, session settings, session and materialized population. It is the
-// one constructor of that environment, shared by authorizationLocked and the
-// DML disclosure and write-binding checks over a captured access.View.
+// authorityInputs are the engine values an engine-built AuthorizationView
+// reads: the settings registry, for the boot search_path of a view without
+// session settings, and the published storage, which StorageLocked reads
+// under Engine.mu. The engine holds one by value; views share it by pointer,
+// so building a view allocates nothing.
+type authorityInputs struct {
+	settings *settings.Registry
+	storage  *storage.Store
+}
+
+// authorityView is v as an engine-built view. It is the one constructor of
+// the engine inputs, so a view and its copies and recaptures cannot drift.
+func (e *Engine) authorityView(v access.View) AuthorizationView {
+	return AuthorizationView{View: v, engine: e, inputs: &e.authority}
+}
+
+// operationAuthority is v with op's environment: the definition reader,
+// session settings, session and materialized population. It is shared by
+// authorizationLocked and the DML disclosure and write-binding checks over a
+// captured access.View.
 func (e *Engine) operationAuthority(op *session.Operation, v access.View) AuthorizationView {
 	s := op.Session
-	return AuthorizationView{View: v, engine: e, definition: op.Definition, settings: s.Settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
+	auth := e.authorityView(v)
+	auth.definition, auth.settings, auth.session = op.Definition, s.Settings, s
+	auth.materializedPopulation = operationReplayOrZero(op).materializedPopulation
+	return auth
 }
 
 // Lock order is Engine.mu then Session.mu. Views retain only immutable values.

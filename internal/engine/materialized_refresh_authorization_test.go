@@ -36,7 +36,7 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	owner, caller := refreshUnitPrincipals(e)
 	d.Owner = owner
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.CatalogRead(), RoleRecord: e.roles.published, Catalog: e.CatalogRead(), Roles: e.Roles(), State: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}, engine: e}
+	auth := e.authorityView(access.View{Owner: e.catalog.owner(), PairedCatalog: e.CatalogRead(), RoleRecord: e.roles.published, Catalog: e.CatalogRead(), Roles: e.Roles(), State: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}})
 	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
 		d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
 		err := view.MaterializedRefreshAccess(auth.View, auth, ref)

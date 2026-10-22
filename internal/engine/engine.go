@@ -43,6 +43,7 @@ type Engine struct {
 	sessionMu         sync.Mutex
 	sessions          map[ids.SessionToken]*session.Session
 	settings          settings.Registry // Immutable, initialized once before publication.
+	authority         authorityInputs   // Points at settings and storage; shared by engine-built views.
 	visibility        visibility.Registry
 	indexWaits        index.WaitRegistry
 	exclusions        index.ExclusionRegistry
@@ -86,6 +87,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}}
 	e.analysis = bindingHost{engine: e}
+	e.authority = authorityInputs{settings: &e.settings, storage: &e.storage}
 	e.mu.Lock()
 	e.storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{})
 	e.mu.Unlock()

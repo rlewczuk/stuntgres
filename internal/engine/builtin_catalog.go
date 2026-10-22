@@ -75,10 +75,10 @@ func (e *Engine) installBuiltinDomainChecks() error {
 // which builtin seeds are bound.
 func (e *Engine) bootstrapAuthorization(user authorization.PrincipalRef) AuthorizationView {
 	view := e.catalog.read(e.catalog.state)
-	return AuthorizationView{engine: e, View: access.View{
+	return e.authorityView(access.View{
 		Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
 		Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: user},
-	}}
+	})
 }
 
 // installBuiltinOperators installs the seeded operator descriptors and the
