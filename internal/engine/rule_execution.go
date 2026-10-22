@@ -70,7 +70,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	}
 	for i := range program.Commands {
 		command := &program.Commands[i]
-		if err := e.normalizeRuleCTEsLocked(scope, command.Auth, command.Syntax, &command.Binding); err != nil {
+		if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), command.Auth, command.Syntax, &command.Binding); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

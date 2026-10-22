@@ -352,7 +352,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := scope.validateQuerySources(b.QuerySources); err != nil {
 		return StatementDescription{}, err
 	}
-	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
+	if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), auth, stmt, &b); err != nil {
 		return StatementDescription{}, err
 	}
 	if relation := view.BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
@@ -362,7 +362,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		}
 		for i := range program.Commands {
 			command := &program.Commands[i]
-			if err := e.normalizeRuleCTEsLocked(scope, command.Auth, command.Syntax, &command.Binding); err != nil {
+			if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), command.Auth, command.Syntax, &command.Binding); err != nil {
 				return StatementDescription{}, err
 			}
 		}

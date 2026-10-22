@@ -392,7 +392,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
+	if err := view.NormalizeRuleCTEsLocked(e.catalog.owner(), auth, stmt, &b); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

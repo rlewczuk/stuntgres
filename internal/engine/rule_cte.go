@@ -1,63 +1,13 @@
 package engine
 
 import (
-	"slices"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
-
-// All original bodies have completed ordinary typed analysis and parameter
-// inference. Rewrite modifiers before parent rules, without altering providers.
-func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth view.RuleAuthority, statement parser.Statement, b *analyze.Binding) error {
-	matched := func(relation *catalog.Relation, statement parser.Statement) bool {
-		return relation != nil && slices.ContainsFunc(stored.RulesOf(relation), func(rule stored.Rule) bool { return rule.Event() == stored.RuleEvent(statement) })
-	}
-	needed := b.Rule.Template || matched(view.BindingRuleRelation(*b), statement)
-	for _, definition := range b.CTEs {
-		if mutation, ok := analyze.MutationBinding(definition); ok && matched(view.BindingRuleRelation(*mutation), definition.Statement) {
-			needed = true
-			break
-		}
-	}
-	if !needed {
-		return nil
-	}
-	for _, definition := range b.CTEs {
-		mutation, ok := analyze.MutationBinding(definition)
-		if !ok || view.RuleCTEsOf(b.Rule.CTEs)[definition] != nil {
-			continue
-		}
-		original := *mutation
-		original.Parameters = b.Parameters
-		original.CTEs = b.CTEs
-		program := view.RuleProgram{Count: -1, Returning: -1}
-		if _, err := (view.RuleRewriter{Owner: e.catalog.owner()}).ExpandLocked(auth, definition.Statement, original, nil, &program); err != nil {
-			return err
-		}
-		if err := view.RuleCTEProgramError(program); err != nil {
-			return err
-		}
-		command := program.Commands[0]
-		if b.Rule.CTEs == nil {
-			b.Rule.CTEs = view.RuleCTEsSlotOf(make(map[*plan.CTEDefinition]*view.RuleCTECommand))
-		}
-		view.RuleCTEsOf(b.Rule.CTEs)[definition] = &view.RuleCTECommand{Definition: definition, Command: command, Caller: auth, Events: program.Events, Mutation: -1}
-		b.Dependencies = append(b.Dependencies, program.Events...)
-		if command.Binding.Relation != nil {
-			b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: command.Binding.Ref, Revision: command.Binding.Relation.Revision()})
-		}
-		b.Dependencies = append(b.Dependencies, command.Binding.Dependencies...)
-		b.Prepared.SequenceConstants = append(b.Prepared.SequenceConstants, command.Binding.Prepared.SequenceConstants...)
-		b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, command.Binding.Prepared.RegtypeConstants...)
-	}
-	return nil
-}
 
 // Admit normalized actual targets before canonical CTE static preflight. The
 // original parsed contexts remain present for caller/name/storage fences.
