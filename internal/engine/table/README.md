@@ -244,6 +244,25 @@ pending-grant decision they call live here.
   and the rewrite, none for the scan) and the private write and delete
   roots; the functions take no lock, and expressions may reach host methods
   that take `Engine.mu`, so callers hold nothing.
+- **FK provider plans and validation scans** (24i):
+  `foreign_key_providers.go` holds `InstalledForeignKey`,
+  `AlterForeignKeyIndex` (the parent index an ADD FOREIGN KEY captures
+  before its waits), the OID-ordered provider walks
+  `ForeignKeyTypeProviders` and `ForeignKeyDefinitionProviders`, and
+  `CheckForeignKeyDefinitionProviders`, the post-grant recheck over an
+  `access.View`. `foreign_key_scan.go` holds the initial row scans:
+  `ScanForeignKeys` over `ForeignKeyCheck`s chosen by `AddedForeignKeys` or
+  `ReferencingForeignKeys` (ALTER TABLE), and `ScanRestoredForeignKeys`
+  (Restore, with the bound-slot check). A `ForeignKeyScan` carries the
+  authority, the domain and a `ForeignKeyRowsCapture` callback; the
+  engine's capture takes `Engine.mu`, so callers hold nothing.
+  `RestoredForeignKey.ResolveTarget` is Restore's target-path fallback.
+- **Inheritance drop decisions** (24i; `inheritance_drop.go`):
+  `InheritanceDropClosure`, the OID-ordered tables a DROP of an
+  inheritance participant locks, and `InheritanceAlterPlan.ColumnDropMultiple`,
+  whether a recursive DROP COLUMN deletes more than one physical column.
+  `ValidateInitialTables` (`query_table_create.go`) checks the rows CREATE
+  TABLE AS staged, over the stage's descriptor getter.
 - **Target admission** (24f; `target_admission.go`): `Target` is how a
   statement admits its target relation (name, lock mode, owner, rename,
   IF EXISTS, table-rename and view-replacement flags), decided from syntax.
@@ -306,7 +325,10 @@ functions that stage or wait (`addColumnCandidate`, `alterTypeCandidate`,
 `dropColumnCandidate`, ...), the row evaluation template
 (`alterRowEvaluation`) and projection roots, `Engine.mu` windows,
 lock admission (`acquireDefinitionProviders`, `admitInheritanceAlter`,
-`acquireInheritanceDefinitions`), the identity sequence waits and staging
+`acquireInheritanceDefinitions`, the FK provider grant loops of
+`acquireAlterForeignKeys` and `acquireForeignKeyTypeProviders`, the
+acquire loop and epoch reconciliation of `admitInheritanceDropClosure`),
+the authority captures and row-capture callbacks of the FK scans, the identity sequence waits and staging
 (`stageAlterIdentityTypes`, `alterIdentityTypeSequence`,
 `refreshIdentitySequenceLocked`), the prepare host
 (`inheritancePrepareHost`) and the prepared-node consumers
@@ -330,7 +352,8 @@ superuser 42501, the `Engine.mu` window, the trust checks
 authority), name resolution, and the shared stage tail
 `publishRestoreRepairLocked`; also the pending foreign-key binder
 (`captureRestoredForeignKeys`, `resolveRestoredForeignKeyTargets`,
-`bindRestoredForeignKeys`, `validateRestoredInheritedForeignKey`) and
+`bindRestoredForeignKeys`, `validateRestoredInheritedForeignKey`, around
+`ResolveTarget` and `ScanRestoredForeignKeys`) and
 `restore_replay.go`. FK write-time
 enforcement and FK actions (`foreignKeyJob`, `foreign_action*.go`) and
 `mutation_targets.go` go to `dml`; the materialized snapshot codec is in `view`.
@@ -371,12 +394,20 @@ and a small catalog: `TestPrepareInheritanceNode(PhaseOrder|StopsAtFailedStep)`
 and `TestInheritancePendingGrants`. The 24h scan has
 `TestValidateAddedConstraintRows`; the rewrite and fill tests need an
 engine fixture and stay in the root (`TestAlterAddColumn*`,
-`TestAlterGenerated*`).
+`TestAlterGenerated*`). The 24i decisions have package-local tests over a
+small catalog: `TestForeignKey(TypeProviders|DefinitionProviders|Checks)`,
+`TestScanForeignKeysReplaced`, `TestScanRestoredForeignKeysSlots`,
+`TestRestoredForeignKeyTarget` and `TestInheritanceDropClosure`; the row
+scans themselves need an engine and are reached by the root FK and Restore
+tests (`TestForeignKey*`, `TestRestoreInheritedForeignKey*`), and
+`ColumnDropMultiple` and `ValidateInitialTables` by
+`TestInheritanceMaint*` and `TestMaterializedView*`.
 
 ```sh
 make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost|^TestRelationValidatorsOrder$|^TestGeneratedRemapCheckCapture$'
 make check RUN='^Test(TypedSources|PlanAlterScan|CheckCreateShape|TableTargetAdmission|AdmitTargetAsksEachEntry)$'
 make check RUN='^Test(PrepareInheritanceNode|InheritancePendingGrants|ValidateAddedConstraintRows)'
+make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|ScanForeignKeysReplaced|ScanRestoredForeignKeysSlots|RestoredForeignKeyTarget|InheritanceDropClosure)$'
 make check RUN='^Test(AlterAdd|AlterGenerated|AlterTablespace|AlterType|AlterDefault|IdentityAlter|ConstraintRename|InheritanceAlter|InheritanceRetired|InheritanceMetadata)'
 make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
 make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'

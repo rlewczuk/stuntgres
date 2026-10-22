@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `fdcac17ae` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133 and 134). Steps 8–17 were
+Last verified against `master` at `fd4ba5a12` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134 and 135). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,8 +20,8 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, table family and DML:** 135 (table 24i), 136 (table
-  24j), 137 (dml 29f), 138 (copyfmt 19c), 139 (view 27i), 140 (partition
+- **Fourth round, table family and DML:** 136 (table 24j), 137 (dml
+  29f), 138 (copyfmt 19c), 139 (view 27i), 140 (partition
   25f), 141 (fdw 26f), 142 (index 23f).
 - **Fourth round, statement and session:** 143 (session 13h), 144 (exec
   11g), 145 (regobj 21e).
@@ -223,6 +223,12 @@ Item 134 (table 24h) is done: the ALTER row rewrite, the added-column
 fills and the old-row CHECK/NOT NULL scan are `table.RewriteTypeRows`,
 `PlanAddedColumns` and `ValidateAddedConstraintRows`, over a root
 evaluation template and the private roots, so 135 (table 24i) is ready.
+Item 135 (table 24i) is done: the FK provider walks, the ADD FOREIGN KEY
+parent-index capture, the merged ALTER row scans, Restore's target
+fallback and scan, the inheritance drop closure, the DROP COLUMN
+multiple-deletion test and the initial-table check are `table` functions;
+the grant loops, `Engine.mu` windows and authority captures stay root.
+Only the second closing review (151) needs it.
 
 ## Task tree
 
@@ -2023,8 +2029,18 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      quickcheck and the quick and `REFERENCE=1` ALTER TYPE/ADD COLUMN/ADD
      CONSTRAINT/typed-table selections passed; racecheck/finalcheck
      skipped at user request
-135. [ ] Table 24i: FK provider plans, validation loops and inheritance
+135. [x] Table 24i: FK provider plans, validation loops and inheritance
      decisions — [table](ENGINE-SPLIT-table.md) 24i · needs 134
+     (`82bded1cd`, `9d38f7d39`, then the docs commit) · `table.ForeignKeyTypeProviders`,
+     `ForeignKeyDefinitionProviders`, `CheckForeignKeyDefinitionProviders`,
+     `AlterForeignKeyIndex`, `InstalledForeignKey`, the merged
+     `ScanForeignKeys` and `ScanRestoredForeignKeys` over a row-capture
+     callback, `RestoredForeignKey.ResolveTarget`,
+     `InheritanceDropClosure`, `InheritanceAlterPlan.ColumnDropMultiple`,
+     `ValidateInitialTables`; no aliases · targeted units (also `RACE=1`),
+     quickcheck and the quick and `REFERENCE=1` FK, inheritance DROP and
+     CREATE TABLE AS selections passed; racecheck/finalcheck skipped at
+     user request
 136. [ ] Table 24j: definition-provider collection and deparse inquiries —
      [table](ENGINE-SPLIT-table.md) 24j · needs —
 137. [ ] DML 29f: DML prologue decisions and latest-row readers —

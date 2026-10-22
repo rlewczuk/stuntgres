@@ -426,7 +426,9 @@ directly. The 85a seam (`index.Host`, `index.KeyHost`, `index.DropStage`,
   too: `projectColumnShape`, `transportIndexLayouts`, FK validation.
   (Correction, 24h: `rewriteTypeRows`, `validateAddedConstraintRows` and
   `planAddedColumns` needed only roots and an evaluation template; they
-  are `table` functions now.)
+  are `table` functions now. Correction, 24i: the FK provider walks and
+  the FK validation scans are `table` functions too, over a row-capture
+  callback; the grant loops and the authority captures stay.)
 - **Removal has mixed contracts.** Of `table.DropDependencyReader`'s 18
   methods about 8 are generic reads; `Acquire`, `OwnedExpressionDependencies`
   and `CompositeFieldDependencies` wait, `ApplyViewDependents` takes
@@ -679,6 +681,9 @@ Decisions:
      `resolveRestoredForeignKeyTargets` (`lookupNamespacesSnapshot` skips
      the epoch check that `SearchNamespaces` makes),
      `captureRestoredForeignKeys`, `restore_replay.go`.
+   (Correction, 24i: `bindRestoredForeignKeys` keeps the stage and
+   publication; its target-path fallback and its row scan are
+   `RestoredForeignKey.ResolveTarget` and `table.ScanRestoredForeignKeys`.)
    Restore's unlocked `resolveRelationReference` calls and
    `bindRestoredForeignKeys`'s unlocked `BeginCatalogStage` run on the
    private single-goroutine restore engine; keep them as they are.
@@ -707,6 +712,8 @@ Decisions:
      providers, overlay or publication, conflict recheck), CREATE TABLE AS
      rows and publication (`stageQueryTableRows`, `validateInitialTables`,
      `publishQueryTable`, `executeQueryTableLocked`),
+     (Correction, 24i: the `validateInitialTables` body is
+     `table.ValidateInitialTables`.)
      `renameRelationLocked` (generic relation rename with eight callers;
      optional pure cores), `stageCheckDependents` (test-only; moves to a
      test file), `schemaPartitionTableLocked` (partition 25).
@@ -1132,7 +1139,10 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   `656dc171c`, then the docs commit) · selected unit (also `RACE=1`) and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request; see the 24h record below
-- [ ] 24i — FK provider plans, validation loops and inheritance decisions (linear item 135)
+- [x] 24i — FK provider plans, validation loops and inheritance decisions
+  — linear item 135 (`82bded1cd`, `9d38f7d39`, then the docs commit) · selected
+  unit (also `RACE=1`) and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 24i record below
 - [ ] 24j — Definition-provider collection and deparse inquiries (linear item 136)
 
 Outstanding aliases: none (24a and 24b added none).
@@ -1659,7 +1669,71 @@ green on `make build` and its units; no aliases.
   stay in the root: engine fixture, `queryProbeExpression` and the
   `Engine.mu` TryLock assertion). None moved or deleted.
 
+### 24i record
+
+Started at `42490b71e` (routine parameters merged, after 24h) and rebased
+onto `fd4ba5a12` (collation versions; no overlap). `reach` at the start
+confirmed the plan: every moved body was DIRTY only through
+`StatementScope`, `CatalogStage`, `Engine` or `dropProvider` (outputs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-FK-DECISIONS/`). Two code commits, each
+green on `make build` and its units; no aliases, no new import edge, the
+string-literal multiset of the root and `table` and the vet output equal
+the start. The targeted units passed, also with `RACE=1`; quickcheck
+passed before and after the rebase; the quick and `REFERENCE=1`
+`^TestReference(ForeignKey|AlterTypeForeignKey|InheritanceDrop|InheritanceMaint|InheritanceForeign|InheritanceAlterColumns|QueryTableCreate|MaterializedViewCreate|DumpRoundTrip$)`
+selections passed. racecheck, finalcheck and bench skipped at user
+request (no startup change).
+
+- `82bded1cd` (FK): new `table/foreign_key_providers.go` with
+  `InstalledForeignKey`, `AlterForeignKeyIndex` (the parent-index capture
+  of `acquireAlterForeignKeys`), `ForeignKeyTypeProviders`,
+  `ForeignKeyDefinitionProviders` (the walks and OID sort) and
+  `CheckForeignKeyDefinitionProviders` (the post-grant check over an
+  `access.View` and its `access.Environment`); new
+  `table/foreign_key_scan.go` with `ForeignKeyScan`,
+  `ForeignKeyRowsCapture`, `ForeignKeyCheck`, the selectors
+  `AddedForeignKeys` and `ReferencingForeignKeys`, the merged
+  `ScanForeignKeys` and `ScanRestoredForeignKeys`; and
+  `RestoredForeignKey.ResolveTarget` (target-path fallback, 42P01 and the
+  `Find` recheck). The root keeps one `StatementScope.validateForeignKeys`
+  (authority capture, `captureForeignKeyRows` as the callback), the grant
+  loops of `acquireAlterForeignKeys`, `acquireForeignKeyTypeProviders` and
+  `acquireForeignKeyDefinitionProviders` with its `Engine.mu` recapture,
+  and `bindRestoredForeignKeys`'s stage, `Engine.mu` window, per-declaration
+  authority, committed-storage capture callback and publication.
+- `9d38f7d39` (inheritance): `table.InheritanceDropClosure` (walk and sort;
+  `admitInheritanceDropClosure` keeps the participation check, the acquire
+  loop, the TEMP check and the epoch reconciliation),
+  `InheritanceAlterPlan.ColumnDropMultiple(base, target)` (new
+  `table/inheritance_drop.go`) and `table.ValidateInitialTables(initial,
+  staged, base)`, called by `ValidateCatalogStage` with `s.Get` and
+  `s.Base`; the root `CatalogStage.validateInitialTables` and
+  `dropProvider.inheritanceColumnDropMultiple` were deleted.
+- **Names.** `table.ValidateForeignKeys` already existed (the catalog
+  shape check), so the merged row scan is `ScanForeignKeys`.
+- **Deviation.** The ALTER (`validateAlterForeignKeys`) and Restore scans
+  looked up the parent and index with `MustRelation`; the merged scan
+  returns `ErrCatalogReplaced`, as the ADD path already did. Only a corrupt
+  candidate reaches it. The ADD path keeps its `len(added) == 0` return
+  before the authority capture.
+- **Commits.** The plan's three code commits became two: the Restore part
+  shares the FK scan file with the ALTER part.
+- Tests: new `TestForeignKey(TypeProviders|DefinitionProviders|Checks)`,
+  `TestScanForeignKeysReplaced`, `TestScanRestoredForeignKeysSlots`,
+  `TestRestoredForeignKeyTarget` and `TestInheritanceDropClosure` (table;
+  observed failing to compile first). Adapted to the new entry points,
+  unchanged otherwise: `inheritance_maint_admission_test.go`
+  (`plan.ColumnDropMultiple`) and `materialized_view_test.go`
+  (`table.ValidateInitialTables`). None moved or deleted.
+
 ### Notes for later steps
+
+- 24i for 24j: `definition_providers.go` changed not at all; it still
+  calls `acquireForeignKeyDefinitionProviders` first, which now walks with
+  `table.ForeignKeyDefinitionProviders` and checks with
+  `table.CheckForeignKeyDefinitionProviders`. `admitInheritanceDropClosure`
+  still holds two small pure checks (participation and the private TEMP
+  closure) that could join `InheritanceDropClosure` if a later review wants.
 
 - 24h for 24i: `alter_table.go` changed only at the three call sites
   (`table.PlanAddedColumns`, `table.RewriteTypeRows`,
