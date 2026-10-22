@@ -180,7 +180,7 @@ methods in the `query_*_bind.go` files; the join legality checks; the
 INSERT, COPY FROM, UPDATE, DELETE, MERGE and foreign DML prologues (the
 records and the executors are in [`dml`](../dml/README.md));
 data-modifying CTE
-execution (`completeCTEMutation`); CREATE TABLE AS; SQL cursors and protocol
+execution (completion is `dml.CompleteCTEMutation`); CREATE TABLE AS; SQL cursors and protocol
 portals; rule execution; `statementHost` with the capability bodies,
 `enginePreparation`, query grouping admission (`admitQueryGroupings`, which
 needs `analyze`), and the engine-side helpers that take a `*Context` (the

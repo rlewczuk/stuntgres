@@ -28,6 +28,10 @@ standard library. It never imports the root engine. Layering is in
 - **The private deletion overlay:** `PrivateDeletes` with `DeleteCandidate`
   rows, and `LiveVersion`, the version-liveness rule over a frontier, end
   markers and the overlay.
+- **Repeatable-read fetch conflicts:** `RepeatableConflict` (`repeatable.go`),
+  the 40001 "concurrent update"/"concurrent delete" rule for a row fetched
+  under a stable snapshot, over its frontier and the end markers. The DML
+  latest-row readers and the FK action admission call it.
 - **Write-set merges** (`write_set.go`, 13g): `MergePrivateRows`,
   `MergeDeletions` and `PrepareOwnWrites` combine a statement's staged
   private rows and deletions with the transaction's earlier ones. They never

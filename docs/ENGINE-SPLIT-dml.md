@@ -854,7 +854,9 @@ and the COPY protocol stay in the root. The checks in §8.3 pass. 29e
     commit; see the 29d.6 record)
 - [x] 29e — DML preflights moved (linear item 132) (`7e2bd45bf`, `5ca904eee`, then
   the docs commit; see the 29e record)
-- [ ] 29f — DML prologue decisions and latest-row readers (linear item 137)
+- [x] 29f — DML prologue decisions and latest-row readers (linear item 137)
+  (`773d664c2`, `ad272a0ba`, `eb6429c5c`, `adda24bd7`, `d00a15833`, then
+  the docs commit; see the 29f record)
 
 Outstanding aliases: none (29b added none).
 
@@ -1324,7 +1326,62 @@ Done on `implement-part/PG18-ENGINE-SPLIT-DML-PREFLIGHTS` from `c32d28a09`.
   master (`c32d28a09`; known oracle drift). racecheck, finalcheck and bench skipped at user request (no
   startup change).
 
+### 29f record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-PROLOGUE-DECISIONS` from
+`8b401d705`. `reach` before the cut: `completeCTEMutation` clean; the
+latest-row readers, `repeatableConflict`, `rowDiagnosticDetail`,
+`executeForeignCommandLocked` and `truncateGraphFence.currentLocked` dirty
+through `StatementScope` or `Engine` only.
+
+| Commit | Change |
+|---|---|
+| `773d664c2` | `repeatableConflict` (`transaction_isolation.go`) to `visibility.RepeatableConflict(stable, frontier, head, end)` (`visibility/repeatable.go`); the five callers pass `s.owner.Isolation.Stable()` and `s.owner.Frontier` |
+| `ad272a0ba` | `latestUpdateRowLocked`, `latestDeleteRowLocked`, `latestMergeRowLocked` to `dml.LatestUpdateRow`, `LatestDeleteRow`, `LatestMergeRow` over a `dml.LatestRowSource` (`dml/latest_row.go`); root `LatestRow` keeps the lock, `validateLockedRelation`, the UPDATE/MERGE epoch checks (`latestEpochsCurrentLocked`) and the capture (`latestRowSourceLocked`) |
+| `eb6429c5c` | `dml.FoldDefault` (`dml/default_fold.go`) serves the COPY FROM default loop (`view.ValidateExpressionJoinExecution`) and `PlanForeignActionInput` (`exec.AdmitExpression`); `completeCTEMutation` to `dml.CompleteCTEMutation(o, definition, count, rows)` (`dml/cte_completion.go`) |
+| `adda24bd7` | the disclosure body of `rowDiagnosticDetail` to `dml.RowDiagnosticDetail(access.View, access.Environment, …)` (`dml/row_diagnostic.go`); the ON CONFLICT/CURRENT OF checks, operation and invoker of `executeForeignCommandLocked` to `dml.ForeignCommandPrologue` (`dml/foreign_prologue.go`) |
+| `d00a15833` | `truncateGraphFence.currentLocked`'s body to `dml.TruncateGraph.CheckCurrent(current, journal, published)` (`dml/truncate_fence.go`); the root fence embeds `dml.TruncateGraph` and keeps `Kind`/`currentLocked` |
+
+- **Order and locks.** Every root window keeps its lock and its checks in
+  the old order; the moved bodies take no lock. The latest-row source reads
+  the own-write and own-delete map entries, the commit sequence and the
+  isolation fields up front instead of on demand; all are plain reads under
+  `Engine.mu`. `CheckCurrent` takes the journal itself, so a nil journal
+  behaves as before. `fdw.OperationSupported` stays after the source
+  capture (it needs the wrapper).
+- **Layering.** `dml` gains only `stored` (L11, for `ViewOf` in the
+  invoker walk); `visibility` gains nothing.
+- **Tests.** `TestCTEDMLInvocationOwnership` moved from root
+  `cte_dml_invocation_test.go` to `dml/cte_completion_test.go`, with the
+  int4 descriptor from `builtinType` instead of an engine; assertions
+  unchanged. No other test names the moved code; no reference or engine
+  test matches the old names as stack frames.
+- **Checks.** String-literal multiset of the engine sources unchanged
+  (only new import paths and one doc-comment `""`); selected units after
+  each commit (`^Test(StatementHost|ForeignActions|RowLock|TransactionIsolation|InsertConflictUpdate|MergeDelete|MergeUpdate|QueryLimitLock|UpdateFromQueued)`,
+  also `RACE=1` for the latest-row and isolation tests;
+  `^Test(CTEDML|Copy|ForeignAction|ForeignKey|CTE)`;
+  `^Test(Check|NotNull|ViewCheck|UpdateAuthorization|RangePartitionConstraintPrivacy|GeneratedVirtual|Identity|Error|FDW|RenamePrivileges|AlterNullabilityAuthority)`;
+  `RACE=1 ^Test(Truncate|CatalogFence|Sequence)`); quickcheck (one load
+  flake, `TestReferenceTimeoutTransactionAbortRestore` in `session_state`, a
+  statement/transaction timer race that passed three reruns alone);
+  quick-mode and `REFERENCE=1`
+  `^TestReference(Copy|CTEDML|Truncate|FDW|ForeignActions|UpdateCore|UpdateRow|DeleteCore|MergeUpdate|MergeDelete)`
+  passed, except the `/postgres` halves of
+  `TestReferenceMergeDeleteRepeatableReadFollowup`,
+  `TestReferenceMergeUpdateRepeatableRead` and
+  `TestReferenceMergeUpdateRepeatableReadFollowup`, which fail the same way
+  on master (`8b401d705`; known oracle drift). racecheck, finalcheck
+  and bench skipped at user request (no startup change).
+
 ### Notes for later steps
+
+- 29f, for 151: root DML left after the fourth round is dispatch and the
+  locked prologues and windows (`LatestRow`'s lock and epoch checks, the
+  conflict-update reader, the `rowDiagnosticDetail` authority window, the
+  foreign source captures), source capture, writable-CTE orchestration, the
+  COPY FROM default loop shell and COPY protocol, `WriteStage`, the Finish
+  order, TRUNCATE staging and the `truncateGraphFence` type.
 
 - 29e, for 133: no DML preflight or DDL capture is left in a root or `dml`
   record that does not own it; root DML is now dispatch, the locked

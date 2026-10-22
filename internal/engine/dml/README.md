@@ -192,6 +192,20 @@ it, it never imports the engine, and it never builds a binder. See
   (`NewCopyInsertionState`, `Full`), `CopyInsertionBuffer`,
   `CopyInsertionCursor`, `CopyInsertionDiagnostic`, `CopyRelationKind`,
   `CopyLineTargets`. The COPY codecs are in [`copyfmt`](../copyfmt).
+- **Prologue decisions** (29f), each over values the root captures in its
+  own window: `LatestUpdateRow`, `LatestDeleteRow` and `LatestMergeRow`
+  (`latest_row.go`) read one row over a `LatestRowSource` (the store, own
+  writes and deletes, the commit sequence, the stable flag and frontier;
+  RR conflicts by `visibility.RepeatableConflict`); `FoldDefault`
+  (`default_fold.go`) folds one column default for COPY FROM and FK SET
+  DEFAULT, each passing its own admission check; `CompleteCTEMutation`
+  (`cte_completion.go`) records a finished data-modifying CTE from its
+  count and rows; `RowDiagnosticDetail` (`row_diagnostic.go`) is the
+  failing-row disclosure over an `access.View` and its environment;
+  `ForeignCommandPrologue` (`foreign_prologue.go`) rejects ON CONFLICT and
+  CURRENT OF on a foreign table and picks the operation and invoker;
+  `TruncateGraph.CheckCurrent` (`truncate_fence.go`) is the TRUNCATE
+  fence check at publication (caller holds `Engine.mu`; it takes no lock).
 - **Target admission** (`target_admission.go`): `TargetAdmission`, the
   `table.TargetEntry` of single-table SELECT, COPY, INSERT, MERGE, DELETE and
   UPDATE (also while preparing), which the root registers with the `view` and
@@ -204,10 +218,11 @@ uses keep their lower-case names.
 ## What stays in the engine
 
 Statement dispatch, source capture under `Engine.mu`, `WriteStage` and row
-publication, writable-CTE orchestration (`completeCTEMutation` returns the
-root `Result`) and the COPY protocol (`CopyProtocol`, binding, input
-capture, `copyIO` with `copyReader`/`copyWriter`, COPY TO output and
-`copyCommandError`). INSERT keeps its locked prologue
+publication, writable-CTE orchestration (it passes each command's count
+and rows to `CompleteCTEMutation`) and the COPY protocol (`CopyProtocol`, binding, input
+capture, the COPY FROM default loop (binary receive checks, unselected
+defaults, null-literal clearing) around `FoldDefault`, `copyIO` with
+`copyReader`/`copyWriter`, COPY TO output and `copyCommandError`). INSERT keeps its locked prologue
 (`executeInsertLocked`: snapshots, `capturePartitionInsertLocked`, source
 capture, the unlock, source selection and freezing) and wraps the
 `Outcome` in a `Result`. UPDATE and DELETE keep their locked prologues
@@ -215,12 +230,15 @@ in `execute_bound.go` and thin wrappers (`executeUpdate`, `executeDelete`,
 which also captures the target source) that wrap the `Outcome`. The row
 lock waits (`acquireRow`, `acquireUpdateRowMode`), `WriteStage.Delete`,
 `acquireInheritedMutationTargets`, `validateInheritedReplacements` and the
-row detail (`rowConstraintDetail`, `rowDiagnosticDetail`) are host
-windows and stay. MERGE keeps its locked prologue in `execute_bound.go`
+row detail windows (`rowConstraintDetail`, and `rowDiagnosticDetail`'s
+authority capture under `Engine.mu` before `RowDiagnosticDetail`) are host
+windows and stay. `LatestRow` keeps its lock, `validateLockedRelation`,
+the UPDATE and MERGE epoch checks and the source capture; the
+conflict-update reader (authority and binding check) stays whole. MERGE keeps its locked prologue in `execute_bound.go`
 and the thin wrapper `executeMerge`; foreign DML keeps
-`executeForeignCommandLocked` (the unsupported-form checks, the invoker,
-the foreign target and source captures, the unlock and
-`foreignUnlocked`) and `foreignTableScope`. Finish keeps the FK order
+`executeForeignCommandLocked` (the unlock after `ForeignCommandPrologue`,
+the foreign target and source captures, `fdw.OperationSupported`, the
+unlock and `foreignUnlocked`) and `foreignTableScope`. Finish keeps the FK order
 (exclusion events, `SettleForeignActions`, exclusion events again when an
 action added one, then `CheckForeignKeys` unless the statement only
 projected catalog roots). The FK row and grant bodies (`foreignKeyGrant`,
@@ -228,8 +246,9 @@ projected catalog roots). The FK row and grant bodies (`foreignKeyGrant`,
 admission and `WriteStage.deleteForeignAction`, `writeAuthorizationLocked`,
 the `foreignActionAuth` slot and its readers, and
 `acquireForeignKeyCreation` stay: ALTER TABLE, CREATE TABLE and the write
-stage use them too. TRUNCATE stays. Also root: `truncateGraphFence` (catalog fences implement the
-root `catalogFence` interface; the kind order is in `catalog_fence.go`),
+stage use them too. TRUNCATE stays. Also root: `truncateGraphFence`, which embeds
+`TruncateGraph` (catalog fences implement the root `catalogFence`
+interface; the kind order is in `catalog_fence.go`),
 `mutationTarget` (the admitted target, which statement admission and DDL
 read), `WriteStage` with the `Stage` windows (its public `Apply` checks
 each row and calls `ApplyValidated`), the exclusion projection's `*Locked`
@@ -265,7 +284,8 @@ helpers and `readmitProgramsAfterWait`.
 
 `insert_conflict_predicate_test.go` and `insert_conflict_truth_test.go`
 cover the predicate proofs here, `TestDMLTargetAdmission` the
-target-admission entry. Every other DML unit test builds an engine
+target-admission entry, `TestCTEDMLInvocationOwnership`
+(`cte_completion_test.go`) `CompleteCTEMutation`. Every other DML unit test builds an engine
 and stays in the root package, naming the moved code as `dml.X`; the host
 seam tests are `statement_host_dml_test.go` (`LatestRow` per kind,
 `StageReplacement` stale/flush/drop, `PrepareReplacement` order, the
@@ -294,7 +314,7 @@ tests, which call `dml.PreflightUpdate`, `dml.PreflightMerge` and
 `dml.PreflightConflictUpdate`.
 
 ```sh
-make check RUN='^TestInsertConflictPredicate|^TestDMLTargetAdmission$'
+make check RUN='^TestInsertConflictPredicate|^TestDMLTargetAdmission$$|^TestCTEDMLInvocationOwnership$'
 make check RUN='^TestStatementHost'
 make check RUN='^Test(UpdateCore|UpdateFrom|UpdateRow|RuleStaticOperatorPreflight|MergeNothing|InsertConflictUpdate|InsertReturning)'
 make check RUN='^Test(Insert|Update|Merge|Delete|Truncate|Copy|Foreign|InheritanceDML|CTE)'
