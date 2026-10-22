@@ -811,7 +811,8 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
     docs commit; see the 29d.3 record)
   - [x] 29d.4 — UPDATE and DELETE (110d) (`d781cc23f`, `d2b5df053`, then the docs
     commit; see the 29d.4 record)
-  - [ ] 29d.5 — MERGE and foreign DML (110e)
+  - [x] 29d.5 — MERGE and foreign DML (110e) (`73fbd9b0f`, `4ad348751`, then the docs
+    commit; see the 29d.5 record)
   - [ ] 29d.6 — FK enforcement and actions; close step 29 (110f)
 - [ ] 29e — DML preflights moved (linear item 132)
 
@@ -1123,7 +1124,67 @@ Done on `implement-part/PG18-ENGINE-SPLIT-DML-UPDATE-DELETE` from `d5e1343cf`.
   too). racecheck, finalcheck and bench skipped at user request (no startup
   change).
 
+### 29d.5 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-MERGE-FOREIGN` from `fd2a7a253`,
+rebased onto `307583de0`.
+
+| Commit | Change |
+|---|---|
+| `73fbd9b0f` | Port in place: `ExecuteMerge` over a `MergeInput`, `AssembleMergeRows`, `StageMergeRows`, `appendMergeAction`, `mergeFollowChainStrong`, `newMergeReturningOutput`, and `ExecuteForeign` over a `ForeignCommand` with `foreignInsertResult`, `finishForeignResult`, `foreignTargetRows`, `executeForeignRowMutation`, as root functions over `h dml.Host` in `dmlmv_*.go` staging files with final names; `executeMerge` and `executeForeignCommandLocked` call them through `outcomeResult`; the root `acquireUpdateRow` goes; 7 MERGE test files follow |
+| `4ad348751` | Move: `dml/merge_execute.go` (`ExecuteMerge`, `MergeInput`), `dml/merge_rows.go` (`AssembleMergeRows`, `StageMergeRows` and the unexported helpers), `dml/foreign.go` (`ExecuteForeign`, `ForeignCommand` and the unexported helpers); root callers and tests name `dml.X` |
+
+- **Deviations.**
+  - No seam commit: every host method already existed (`AcquireRow`,
+    `AcquireUpdateRow`, `LatestRow` with `MergeRowRequest`,
+    `PhysicalRowEvent`, `EndExclusionRow`, `Delete`, `Command`,
+    `Environments`, `Context`, `CTEInvocation`, `CaptureRegclassOutput`,
+    and `fdw.WriteRuntime` for the modification calls).
+  - `assembleMergeRows` read the statement's comment catalog
+    (`scope.inquiry.commentCatalog`) per INSERT arm row; `MergeInput.Catalog`
+    carries it, filled by the root `StatementScope.mergeInput` when
+    `executeMerge` runs. The same value: the dispatch captures it under
+    `Engine.mu` before the unlock, nothing sets it lazily afterwards, and
+    SQL routine bodies restore it on return. The MERGE tests build their
+    input with `scope.mergeInput`.
+  - `scope.RLS.Proposal` is written through `h.Command().RLS` (the active
+    slot, read at call time); `s.input`/`s.output` are read through
+    `h.Environments()` at each original read site, because SQL routines
+    swap them.
+  - `executeMerge` stays the tests' entry; `AssembleMergeRows` and
+    `StageMergeRows` are exported because 7 engine tests call them.
+    `stageMergeRows` took the `*WriteStage`; `StageMergeRows` stages
+    deletions through `Stage.Delete`, which is the same `WriteStage.Delete`.
+  - Foreign DML splits after `foreignUnlocked`, as decision 9 said; the
+    root keeps `defer inputs.Close()`, so the memberships still release
+    before the inputs close. `foreignTableScope` stays in `fdw_execute.go`.
+- **Per-row cost.** The `-gcflags=-m` "moved to heap" set is master's, with
+  the five MERGE and foreign entries (`cursor`, `evaluation`, `rowContext`,
+  `stage`) now reported from `dml`.
+- **Tests.** Rewritten to the new names: `merge_test.go`,
+  `merge_returning_test.go`, `merge_nothing_test.go`,
+  `merge_update_source_test.go`, `merge_delete_source_test.go`,
+  `merge_returning_demand_test.go`,
+  `generated_virtual_merge_identity_test.go`. None moved or deleted: they
+  all build an engine.
+- **Checks.** String-literal multiset unchanged (only import paths moved);
+  selected units after every commit
+  (`^Test(Merge|GeneratedVirtualMerge|FDW|Foreign|StatementHost|Update|Delete|Insert)`);
+  `RACE=1` `^Test(Merge|GeneratedVirtualMerge|FDWModify|FDWTransaction|FDWStage)`;
+  quickcheck; quick-mode and `REFERENCE=1` `^TestReference(Merge|FDWWrite)`
+  passed apart from the known oracle-side MERGE REPEATABLE READ drift
+  (`TestReferenceMerge(UpdateRepeatableRead|UpdateRepeatableReadFollowup|SourceUpdateRepeatableRead|DeleteRepeatableReadFollowup)`,
+  `/postgres` leaves only; they fail the same way on master).
+  racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
 ### Notes for later steps
+
+- 29d.5, for 29d.6: every executor now lives in `dml`; only FK enforcement
+  and actions (`settleForeignActions`, `checkForeignKeys`) and TRUNCATE
+  remain root DML. `dml.ValidateMutationRow` and `dml.ReplaceRows` are
+  ready for the FK actions; `executeMerge`, `executeUpdate`,
+  `executeDelete` stay thin root wrappers for the engine tests.
 
 - 29d.4, for 29d.5: MERGE still calls the root `acquireUpdateRow` and
   `acquireRow` (`merge_rows.go`); through the host they are

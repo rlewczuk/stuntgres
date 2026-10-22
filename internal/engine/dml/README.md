@@ -6,10 +6,11 @@ outputs, MERGE and UPDATE/DELETE records, inheritance target helpers,
 TRUNCATE records, foreign-key action records and COPY insertion batching,
 plus the command state `Command`, the executors' host `Host`, the unique
 and exclusion probing and staging loops, and the INSERT, ON CONFLICT DO
-UPDATE, COPY FROM, UPDATE and DELETE executors that run over it. Step 29
-of the engine split created it (29b moved the clean set, 29d.1 added the
-seam, 29d.2 moved the probing and staging loops, 29d.3 the INSERT and COPY
-FROM executors, 29d.4 the UPDATE and DELETE executors). It sits at L13 in
+UPDATE, COPY FROM, UPDATE, DELETE, MERGE and foreign DML executors that
+run over it. Step 29 of the engine split created it (29b moved the clean
+set, 29d.1 added the seam, 29d.2 moved the probing and staging loops,
+29d.3 the INSERT and COPY FROM executors, 29d.4 the UPDATE and DELETE
+executors, 29d.5 the MERGE and foreign DML executors). It sits at L13 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (payload types and pure functions only),
 `authorization`, `catalog`, `copyfmt`, `exec`, `expr`, `fdw`, `ids`,
@@ -112,10 +113,27 @@ it, it never imports the engine, and it never builds a binder. See
   captured `DeleteInput` (target source, query sources, parameters) the
   same way and stages each row through `Stage.Delete`; DELETE ... USING
   freezes the qualifying target/source pairs first.
+- **MERGE** (`merge_execute.go`, `merge_rows.go`): `ExecuteMerge` runs a
+  captured `MergeInput` (target source, query sources, parameters, schema
+  and the catalog the INSERT arms' value errors use). `AssembleMergeRows`
+  completes the source and evaluates ON before any action wait, then per
+  candidate selects the arm, takes the row lock (`AcquireRow` for DELETE,
+  `AcquireUpdateRow` otherwise), rereads the row (`RowMerge`), follows
+  the update chain and reclassifies, and builds the actions;
+  `StageMergeRows` stages them in action order (each DELETE through
+  `Stage.Delete`, runs of INSERTs through `ApplyValidated` and of UPDATEs
+  through `ReplaceRows`).
+- **Foreign DML** (`foreign.go`): `ExecuteForeign` runs a captured
+  `ForeignCommand` (the foreign target, query sources, parameters,
+  statement evaluation, INSERT ... SELECT root, catalog and VALUES rows):
+  it plans and enters the modification, then inserts the evaluated rows,
+  or updates and deletes the rows of the identity scan, checking view
+  options and projecting RETURNING per row. Foreign callbacks run with the
+  caller holding nothing.
 - **RETURNING** (`returning.go`, `returning_preflight.go`):
   `InsertReturningOutput`, `MergeReturningOutput` (`Project`),
   `ForeignMutationRow`, `ProjectForeignReturning`, `PreflightReturning`.
-- **MERGE, UPDATE, DELETE** (`merge.go`, `candidates.go`): `MergeRows`,
+- **MERGE, UPDATE, DELETE records** (`merge.go`, `candidates.go`): `MergeRows`,
   `MergeActionRow`, `MergeCandidate`, `MergeMatches`, `SelectMergeArm`,
   `MergeCardinalityError`, `MergeOnTruth`, `MergeHasVirtualReads`,
   `UpdateCandidate`, `DeleteUsingCandidate`, `StatementCTERoot`,
@@ -157,16 +175,19 @@ which also captures the target source) that wrap the `Outcome`. The row
 lock waits (`acquireRow`, `acquireUpdateRowMode`), `WriteStage.Delete`,
 `acquireInheritedMutationTargets`, `validateInheritedReplacements` and the
 row detail (`rowConstraintDetail`, `rowDiagnosticDetail`) are host
-windows and stay. The other executors (`executeMerge`, TRUNCATE, FK
-enforcement and actions, foreign DML) stay until 29d.5–29d.6, and so do
-`stageMergeRows` and `preflightConflictUpdate`. Also root: `truncateGraphFence` (catalog fences implement the
+windows and stay. MERGE keeps its locked prologue in `execute_bound.go`
+and the thin wrapper `executeMerge`; foreign DML keeps
+`executeForeignCommandLocked` (the unsupported-form checks, the invoker,
+the foreign target and source captures, the unlock and
+`foreignUnlocked`) and `foreignTableScope`. TRUNCATE, FK enforcement and
+actions (until 29d.6) and `preflightConflictUpdate` stay. Also root: `truncateGraphFence` (catalog fences implement the
 root `catalogFence` interface; the kind order is in `catalog_fence.go`),
 `mutationTarget` (the admitted target, which statement admission and DDL
 read), `WriteStage` with the `Stage` windows (its public `Apply` checks
 each row and calls `ApplyValidated`), the exclusion projection's `*Locked`
 helpers, `readmitProgramsAfterWait`, and `preflightUpdate`/`preflightMerge`
-(root query preflight). 29d moves the remaining executors behind `Host`
-in steps (29d.5–29d.6).
+(root query preflight). 29d.6 moves FK enforcement and actions behind
+`FinishHost`.
 
 ## Invariants
 
@@ -207,7 +228,10 @@ covered by the engine's INSERT, COPY, protocol COPY and partition
 publication tests; the latter match the `dml.ApplyInsertValidated` frame.
 UPDATE and DELETE are covered by the engine's UPDATE, DELETE, inheritance
 DML, row-lock wait and cancellation tests; the DELETE tests call
-`dml.ExecuteDelete` over the scope's host.
+`dml.ExecuteDelete` over the scope's host. MERGE is covered by the
+engine's MERGE tests, which call `executeMerge` or
+`dml.AssembleMergeRows` and `dml.StageMergeRows` over the scope's host;
+foreign DML by the FDW modification tests.
 
 ```sh
 make check RUN='^TestInsertConflictPredicate'
@@ -218,6 +242,7 @@ make check RACE=1 RUN='^Test(Unique|Exclusion|InsertConflict)'
 make check RACE=1 RUN='^Test(Truncate|ForeignAction|Copy)'
 make check RACE=1 RUN='^Test(ProtocolCopy|ProtocolTerminal|InsertReturning|InsertSelect|(Range|List)PartitionPublication)'
 make check RACE=1 RUN='^Test(Update|Delete)(Lock|Contention|Cancellation|Core|From|Using)|^TestInheritanceDML'
+make check RACE=1 RUN='^Test(Merge|GeneratedVirtualMerge|FDWModify|FDWTransaction|FDWStage)'
 ```
 
 Public behavior is covered by the dual-mode reference suite:
@@ -226,4 +251,5 @@ Public behavior is covered by the dual-mode reference suite:
 make check RUN='^TestReference(Insert|Update|Delete|Merge|Copy|Truncate)'
 make check RUN='^TestReference(CTE|ForeignKey|ForeignAction)'
 make check RUN='^TestReference(InheritanceDML|GeneratedStoredUpdate|ViewCheck)'
+make check RUN='^TestReferenceFDWWrite'
 ```

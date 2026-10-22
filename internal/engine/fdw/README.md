@@ -116,9 +116,10 @@ validations and publication); `InstallForeignDefinitions`
 and `RegistrationError`; scan capture (`captureForeignSourceLocked`) and
 participant enlistment (`enlistForeign`, `TouchForeignScan`), which need the
 statement scope; the commit and savepoint call sites; and the scope slot
-`foreignTableScope`, which holds engine cursors. Foreign DML execution
-(`fdw_execute.go`, foreign TRUNCATE and COPY FROM) moves to `dml` (step 29),
-which will import this package.
+`foreignTableScope`, which holds engine cursors. Foreign INSERT, UPDATE
+and DELETE execution is `dml.ExecuteForeign` (step 29d.5), which imports
+this package; its locked prologue (`executeForeignCommandLocked`), foreign
+TRUNCATE and COPY FROM stay in the engine.
 
 ## Testing
 
