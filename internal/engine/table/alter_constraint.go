@@ -108,7 +108,7 @@ func PrepareAddedChecks(h AlterHost, plan *InheritanceAlterPlan, auth ddl.Author
 			}
 		}
 	}
-	if err := h.BindAddedChecks(auth, &next, raw, inherited); err != nil {
+	if err := BindChecks(h, auth, &next, raw, h.Input(), true, inherited); err != nil {
 		return prepared, err
 	}
 	if err := plan.OnlyCreatedConstraint(parent, &next); err != nil {

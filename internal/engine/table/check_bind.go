@@ -1,39 +1,35 @@
-package engine
+package table
 
 import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindCreateChecks(op *session.Operation, auth AuthorizationView, syntax *parser.CreateTable, d *catalog.Relation, input sqltype.InputEnvironment, inherited map[string]catalog.CheckConstraint) error {
-	return e.bindColumnChecks(op, auth, table.CreateCheckSyntax(syntax), d, input, false, inherited)
-}
-
-// With altering (ALTER TABLE ADD CONSTRAINT) the caller holds Engine.mu.
-func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *catalog.Relation, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error {
+// BindChecks binds the raw CHECK constraints of CREATE TABLE (altering false)
+// or ALTER TABLE ADD CONSTRAINT (altering true) into relation: it names them,
+// merges them with the parents' checks in inherited, rejects duplicates,
+// assigns ordinals after the installed ones and renders their dependencies.
+// The host binds each expression. With altering, an authority that no longer
+// reads the live catalog fails with ids.ErrCatalogReplaced and binding errors
+// lose their position. Called with Engine.mu held.
+func BindChecks(h Host, auth ddl.Authority, d *catalog.Relation, raw []*parser.CheckConstraint, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	columns := make([]analyze.QueryColumn, len(d.Columns))
-	for i, c := range d.Columns {
-		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
-	}
-	qualifier := analyze.QueryQualifier{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}
-	ns := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: d.Columns}
-	used := catalog.ConstraintNames(auth.Catalog, d.Namespace(), d)
+	view := h.AccessView(auth)
+	used := catalog.ConstraintNames(view.Catalog, d.Namespace(), d)
 	installed := make(map[string]bool, len(d.Constraints.NotNull)+len(d.Constraints.Check))
 	start := 0
 	for _, c := range d.Constraints.Check {
@@ -63,25 +59,19 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 			return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
 		}
 		ordinal := start + offset
-		binder := newExpressionBinder(op.Context(), e, input, op, nil)
-		binder.Consumer.CheckConsumer, binder.Params.NoParameters = true, true
-		binder.Query.Auth = &auth
-		binder.Query.Namespace = &ns
-		binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
-		if altering && auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+		if altering && view.Catalog.Epoch() != h.LiveEpoch() {
 			return ids.ErrCatalogReplaced
 		}
-		node, err := binder.BindBoolean(c.Expression, analyze.ProjectionContext, "CHECK")
+		node, uses, err := h.BindCheckExpression(auth, d, c.Expression, input)
 		if err != nil {
 			if altering {
-				err = table.AlterCookingError(err)
+				err = AlterCookingError(err)
 			}
 			return err
 		}
 		name := c.Name.Text
 		if name == "" {
 			column := ""
-			uses := binder.Query.Sources[0].Uses
 			if len(uses) == 1 {
 				column = d.Columns[uses[0]].Name
 			}
@@ -102,7 +92,7 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on relation "%s"`, name, d.Name()))
 			}
 			current[name] = true
-			op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging constraint "%s" with inherited definition`, name)})
+			h.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging constraint "%s" with inherited definition`, name)})
 			continue
 		}
 		if installed[name] {
@@ -133,14 +123,14 @@ func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView,
 		current[name], used[name] = true, true
 		definition := catalog.CheckConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, Ordinal: ordinal, Expression: node}
 		var dependencies []ids.ObjectRef
-		if _, err := (stored.ScalarRenderer{Definition: op.Definition, ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: d, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(op.Context(), auth.Catalog, node); err != nil {
+		if _, err := (stored.ScalarRenderer{Definition: h.OperationDefinition(), ACLOutput: regobj.ACLItemOutput{Owner: view.Owner, Roles: view.Roles}, Owner: d, Dependencies: &dependencies, CommentSnapshot: &definition.CommentSnapshot, VisibilitySnapshot: &definition.VisibilitySnapshot}).SQL(h.Context(), view.Catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {
 			address := ref.Address
 			address.SubID = 0
 			revision := d.Revision()
-			if descriptor, ok := auth.Catalog.Descriptor(address); ok {
+			if descriptor, ok := view.Catalog.Descriptor(address); ok {
 				revision = descriptor.Revision()
 			}
 			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})

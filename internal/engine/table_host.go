@@ -4,6 +4,8 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/table"
@@ -68,6 +70,22 @@ func (h ddlHost) BindGenerations(a ddl.Authority, relation *catalog.Relation, de
 	return h.e.bindCreateGenerations(h.op, ddlAuthorityOf(a), relation, declarations, input)
 }
 
-func (h ddlHost) BindChecks(a ddl.Authority, relation *catalog.Relation, raw []*parser.CheckConstraint, input sqltype.InputEnvironment, inherited map[string]catalog.CheckConstraint) error {
-	return h.e.bindColumnChecks(h.op, ddlAuthorityOf(a), raw, relation, input, false, inherited)
+func (h ddlHost) BindCheckExpression(a ddl.Authority, relation *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, []int, error) {
+	auth := ddlAuthorityOf(a)
+	ref := h.e.catalog.Domain.Ref(auth.Catalog.Epoch(), relation.Address())
+	namespace := analyze.RelationNamespace(auth.Catalog, relation, ref, 0)
+	binder := newExpressionBinder(h.op.Context(), h.e, input, h.op, nil)
+	binder.Consumer.CheckConsumer, binder.Params.NoParameters = true, true
+	binder.Query.Auth = &auth
+	binder.Query.Namespace = &namespace
+	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: relation}}
+	node, err := binder.BindBoolean(raw, analyze.ProjectionContext, "CHECK")
+	if err != nil {
+		return nil, nil, err
+	}
+	return node, binder.Query.Sources[0].Uses, nil
 }
+
+func (h ddlHost) OperationDefinition() catalog.DefinitionReader { return h.op.Definition }
+
+func (h ddlHost) LiveEpoch() ids.CatalogEpoch { return h.e.catalog.state.Epoch() }

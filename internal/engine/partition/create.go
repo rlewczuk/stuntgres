@@ -317,7 +317,7 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 			inherited[definition.Name] = definition
 		}
 	}
-	if err = h.BindChecks(auth, d, table.CreateCheckSyntax(syntax), input, inherited); err != nil {
+	if err = table.BindChecks(h, auth, d, table.CreateCheckSyntax(syntax), input, false, inherited); err != nil {
 		return nil, err
 	}
 	if err = table.AssignDefinitionOIDs(h, d); err != nil {

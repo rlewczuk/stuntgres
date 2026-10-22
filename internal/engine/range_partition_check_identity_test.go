@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -39,7 +40,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		definition.Constraints.Check = nil
 		syntax := statement(t, "CREATE TABLE leaf(k INT,CONSTRAINT actual CHECK("+test.expression+"))").(*parser.CreateTable)
 		e.mu.Lock()
-		err := e.bindCreateChecks(op, auth, syntax, &definition, sqltype.InputEnvironment{}, nil)
+		err := table.BindChecks(ddlHost{e: e, op: op}, auth, &definition, table.CreateCheckSyntax(syntax), sqltype.InputEnvironment{}, false, nil)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(test, err)

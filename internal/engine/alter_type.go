@@ -48,7 +48,6 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Oper
 	return stage, nil
 }
 
-
 // prepareAlterTypeLocked admits and completes one TYPE action; the caller holds
 // Engine.mu. suppliedUsage is used only by typed propagation of an already
 // resolved type.

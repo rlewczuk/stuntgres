@@ -213,7 +213,7 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 	if err := h.BindGenerations(auth, d, b.Create.Declarations, input); err != nil {
 		return err
 	}
-	if err := h.BindChecks(auth, d, CreateCheckSyntax(s), input, nil); err != nil {
+	if err := BindChecks(h, auth, d, CreateCheckSyntax(s), input, false, nil); err != nil {
 		return err
 	}
 	if err := StageLikeChecks(h, auth, d, b.Create.Likes); err != nil {

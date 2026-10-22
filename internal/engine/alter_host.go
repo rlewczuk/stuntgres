@@ -28,8 +28,6 @@ var _ table.AlterHost = alterHost{}
 
 func (h alterHost) Input() sqltype.InputEnvironment { return h.scope.input }
 
-func (h alterHost) LiveEpoch() ids.CatalogEpoch { return h.e.catalog.state.Epoch() }
-
 func (h alterHost) CaptureTypeDiagnosticName(a ddl.Authority) error {
 	name, err := h.e.captureTypeDiagnosticName(ddlAuthorityOf(a))
 	if err != nil {
@@ -62,10 +60,6 @@ func (h alterHost) BindGeneration(a ddl.Authority, relation *catalog.Relation, s
 	return h.e.bindGeneration(h.op, auth, relation, slot, raw, h.scope.input, &namespace)
 }
 
-func (h alterHost) BindAddedChecks(a ddl.Authority, relation *catalog.Relation, raw []*parser.CheckConstraint, inherited map[string]catalog.CheckConstraint) error {
-	return h.e.bindColumnChecks(h.op, ddlAuthorityOf(a), raw, relation, h.scope.input, true, inherited)
-}
-
 func (h alterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr) (expr.Expr, error) {
 	auth := ddlAuthorityOf(a)
 	namespace := analyze.RelationNamespace(auth.Catalog, relation, ref, 0)
@@ -90,8 +84,6 @@ func (h alterHost) BindAlterTypeUsing(a ddl.Authority, original *catalog.Relatio
 	}
 	return node, binder.Dependencies, err
 }
-
-func (h alterHost) OperationDefinition() catalog.DefinitionReader { return h.op.Definition }
 
 // TypeChangeDependents reads the stage's dependent views when one is begun;
 // before that, the authority's catalog alone.
