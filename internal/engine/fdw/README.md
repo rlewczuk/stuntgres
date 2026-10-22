@@ -43,8 +43,9 @@ never imports it. The engine and the driver import it. See
   `Commit`, `Pending`, `Savepoint`); `Participant`, `ParticipantKey`,
   `Rollback`, `MarkName` and `CapabilityError`.
 - **DDL helpers** (`ddl.go`, `import.go`, `table.go`, `scan.go`): object
-  lookup (`Find`, `Class`, `IsCatalogClass`, `CommandTag`,
-  `ObjectRef`, `GrantKind`), mapping and ownership authority over an
+  lookup (`Find`, `Class`, `IsCatalogClass`, `ObjectRef`; the command tag
+  and grant-kind test are `session.ForeignDDLTag` and
+  `session.ForeignGrantKind`), mapping and ownership authority over an
   `access.View` (`MappedRole`, `MappingAuthority`, `MappingDiagnostic`,
   `MappingFor`; the owner change rule is `access.ForeignOwnershipEligibility`,
   which REASSIGN OWNED shares), validator jobs (`Validation`,

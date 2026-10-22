@@ -28,6 +28,12 @@ standard library. It never imports the root engine. Layering is in
 - **The private deletion overlay:** `PrivateDeletes` with `DeleteCandidate`
   rows, and `LiveVersion`, the version-liveness rule over a frontier, end
   markers and the overlay.
+- **Write-set merges** (`write_set.go`, 13g): `MergePrivateRows`,
+  `MergeDeletions` and `PrepareOwnWrites` combine a statement's staged
+  private rows and deletions with the transaction's earlier ones. They never
+  mutate either input or write into a prefix an earlier view retains;
+  insert-only merges append, and `PrepareOwnWrites` sizes the vector headers
+  and capacity before the final preflight writes the tails.
 - **SSI evidence:** `SerializableTx` nodes, `SerializableWrite` events and
   rw-conflict edges, finalization order, safe-snapshot candidates
   (`SafeSnapshotBlocker`) and SIRead holders (`PredicateLockHolder`, for
@@ -102,8 +108,7 @@ The transaction owner's orchestration (the per-session state machine's
 transitions and its CHAIN and characteristic rules; the owner state itself
 is `session.TransactionOwner`), savepoints, publication of the catalog journal (the
 journal itself is `session.Journal`), prepared transactions (2PC),
-`StatementScope` and write staging. The write-set merges (`mergeDeletions`,
-`mergePrivateRows`) are clean and move here in session 13g (item 129).
+`StatementScope` and write staging.
 Also every entry point that combines visibility with the catalog, storage,
 locks or sessions:
 
@@ -123,8 +128,7 @@ The SQL functions (`age`, `pg_current_xact_id*`, `pg_xact_status`, the
 commit-timestamp functions) stay in the engine. The publication sites
 interleave `commitSeq` advances with catalog and storage installation and
 stay inline (`catalog.go`, `transaction_publication.go`). Isolation levels
-are `session.Isolation`; the root's `stableIsolation` becomes its method in
-13g.
+are `session.Isolation` (`Stable` reports a transaction snapshot).
 
 ## Testing
 
@@ -132,6 +136,7 @@ Package seam tests:
 
 ```sh
 make check RACE=1 RUN='^Test(Registry|NextFullXID|LiveVersion|SafeSnapshot|View|SerializableGraph|SerializablePrecommit)'
+make check RUN='^TestWriteSetMerges'
 ```
 
 Engine tests exercise the registry through sessions, publication and SQL

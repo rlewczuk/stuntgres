@@ -51,11 +51,12 @@ import this package directly.
 
 ## What stays in the engine
 
-SET/RESET/SHOW execution, `current_setting`/`set_config`,
-`sessionPresentation`, RESET ALL and the `pg_settings` producer. Per-session
-storage and the SET LOCAL action stack (`SettingsStore`), command admission,
-timeout publication and notice levels and emission live in
-[`session`](../session/README.md) (engine-split step 13d.6).
+SET/RESET/SHOW execution, `current_setting`/`set_config`, RESET ALL and the
+`pg_settings` producer. Per-session storage and the SET LOCAL action stack
+(`SettingsStore`), command admission, timeout publication, notice levels and
+emission (13d.6), and the presentation capture, definition lookup, value
+parse, SET input and access-class check (13g) live in
+[`session`](../session/README.md).
 
 ## Testing
 

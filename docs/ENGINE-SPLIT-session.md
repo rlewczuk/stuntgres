@@ -943,7 +943,9 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
   (linear item 78) (`c639cc64d`, `8473b1789`, `4a6bea8d3`, then the docs commit) *(selected
   unit/`RACE=1` and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request)*
-- [ ] 13g — Settings and statement classification moved (linear item 129)
+- [x] 13g — Settings and statement classification moved (linear item 129)
+  (`a82279626`, `443bf6b00`, `42c1c25e1`, `530c173c9`, then the docs commit) *(selected unit/`RACE=1` and dual-mode proof
+  and quickcheck passed; racecheck/finalcheck skipped at user request)*
 
 Outstanding aliases: none. 13e removed the 46 aliases of
 `session_aliases.go` (24 type, 22 constant); the driver and `cmd/stuntgres`
@@ -1031,6 +1033,26 @@ Notes for later steps:
   (`finishNotificationBoundary`), publication fanout and
   `sessionNotifications` stay in the root: they take `Engine.mu`.
 
+- 13g (done, measured at `f36e46aae`, branched at `30e4f7f5a`): settings
+  cores in `session/settings_presentation.go` (`SettingsStore.Presentation`),
+  `session/setting_values.go` (`SettingsStore.LookupDefinition` over the
+  registry, `SettingsStore.ParseValue`, `SetInput`) and
+  `session/setting_access.go` (`SettingAccess(d, allowed)`);
+  `Operation.StatementStart` and `Isolation.Stable` are methods. The root
+  keeps `applySetting`/`executeSetting` with their `Engine.mu`, `owner.Mu`
+  and `Session.Mu` windows, and `settingAccess(d, op)` as the binding of
+  `allowed` to `parameterSetAllowed` (its unit tests call it unchanged).
+  Statement classification in `session/command_tag.go` and
+  `session/statement_class.go`; `fdw.CommandTag`/`GrantKind` became
+  `session.ForeignDDLTag`/`ForeignGrantKind` (only the root used them).
+  The read-only and explicit-transaction admission checks and their errors
+  stay in the root. The write-set merges are `visibility.MergeDeletions`,
+  `MergePrivateRows` and `PrepareOwnWrites` (`visibility/write_set.go`).
+  The docs bullet (README layer L7, `index.Journal`) was already done by
+  the item 114 commit. No test moved or was deleted;
+  `update_allocation_test.go` and the presentation tests only renamed
+  calls. New unit tests: `TestSettingAccessAllowedCallback` (`session`),
+  `TestWriteSetMerges*` (`visibility`).
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it
   stays in the root): each declares a host interface implemented on

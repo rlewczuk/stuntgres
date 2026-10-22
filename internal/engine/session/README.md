@@ -34,11 +34,11 @@ so either import would form a cycle.
   `protocol_input_context.go`): `Operation` (contexts, command budgets, lock
   timeouts, notices, the copy-input context, the statement lease and the
   replay and analysis slots), command admission (`Session.AcquireCommand`,
-  `RefreshStatementBudget`, `CommandError`), notice levels (`NoticeLevel`,
-  `LevelDebug5`…`LevelError`) and emission.
+  `RefreshStatementBudget`, `CommandError`, `StatementStart`), notice levels
+  (`NoticeLevel`, `LevelDebug5`…`LevelError`) and emission.
 - **The transaction owner** (`owner.go`, `savepoint_marks.go`,
   `protocol_cycle.go`): `TransactionOwner` with its state, characteristics,
-  admission and the journal it holds; `TxState`, `Isolation`, `TxOptions`;
+  admission and the journal it holds; `TxState`, `Isolation` (`Stable`), `TxOptions`;
   `Validate`, `AcquireAdmission`, `InBlock`, `RetainsTransaction`,
   `TruncateSavepoints`; `SavepointMark`; `ProtocolCycle`. Setting text of
   an isolation level (`isolation_text.go`: `IsolationFromText`,
@@ -53,6 +53,21 @@ so either import would form a cycle.
   Providers are called once at physical startup, never by metadata/RESET.
   Boot-equal present responses still have client provenance; absent responses
   remain defaults. Teardown clears the owned provenance map with value storage.
+  The settings cores (13g): `Presentation` captures the typed input and
+  output environments (`settings_presentation.go`); `LookupDefinition`
+  resolves a name against the registry and placeholders, `ParseValue`
+  parses an input without installing it, `SetInput` normalises SET
+  arguments and emits its warnings (`setting_values.go`), and
+  `SettingAccess` checks the access class, asking an `allowed` callback for
+  the `lc_messages` parameter grant (`setting_access.go`). The root keeps
+  the install windows (`Engine.mu`, `SettingsStore.Mu`, `Session.Mu`) and
+  the authorization behind `allowed`.
+- **Statement classification** (13g, pure AST functions): command tags
+  (`command_tag.go`: `ClassifyCommandTag`, `QueryCreationUtilityTag`,
+  `ForeignDDLTag`) and the admission predicates (`statement_class.go`:
+  `ModifyingTag` for read-only refusal, `ExplicitUtility`,
+  `EarlyIndexUtility`, `ForeignGrantKind`). The root dispatch keeps the
+  admission checks, their exceptions and their errors.
 - **Timeouts** (`timeout.go`): transaction, idle-in-transaction and idle
   session budgets and their timers; `TimeoutFatal`.
 - **Records and delegates**: `Notification` and `NotificationAction`
@@ -166,6 +181,7 @@ the binding host).
 make check RUN='^TestJournal'
 make check RUN='^(TestNoticesFilter|TestSettingsLocal(Actions|EndedCleanup))$'
 make check RUN='^TestNotificationQueue'
+make check RUN='^TestSettingAccessAllowedCallback$'
 make check RACE=1 RUN='^TestSessionHost'
 make check RACE=1 RUN='^(TestSessionPayload|TestOwnerExtension|TestExclusionMark|TestOperation(AnalysisSlot|ReplaySlot))'
 make check RUN='^(TestCatalogFences|TestCatalogTypeJournalSlotsCopyOnWrite|TestEnumProvenanceSavepoints)'
