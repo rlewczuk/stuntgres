@@ -110,10 +110,10 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 			ownWrites = make(map[ids.ObjectAddress][]storage.RowVersion, len(s.stage.rows))
 		}
 		for address, rows := range s.stage.rows {
-			ownWrites[address] = mergePrivateRows(ownWrites[address], rows, true)
+			ownWrites[address] = visibility.MergePrivateRows(ownWrites[address], rows, true)
 		}
 	}
-	ownDeletes := mergeDeletions(saved.ownDeletes, s.stage.deletes)
+	ownDeletes := visibility.MergeDeletions(saved.ownDeletes, s.stage.deletes)
 	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead})
 	s.input.LockedDomainInput, s.input.DomainChecks = s, s
 	return func(primary error) error {

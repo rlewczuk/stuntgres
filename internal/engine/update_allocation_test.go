@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"unsafe"
@@ -63,7 +64,7 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 		stage := []storage.RowVersion{old[n-1]}
 		stage[0].Version++
 		private = allocated(func() {
-			next := mergePrivateRows(old, stage, true)
+			next := visibility.MergePrivateRows(old, stage, true)
 			if len(next) != n || next[n-1].Version != stage[0].Version || old[n-1].Version == stage[0].Version {
 				t.Fatal("private merge changed predecessor")
 			}

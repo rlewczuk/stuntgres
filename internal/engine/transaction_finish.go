@@ -122,7 +122,7 @@ func (s *StatementScope) Finish(err error) error {
 			if s.projectedRoots {
 				writes, deletes = s.stage.rows, s.stage.deletes
 			} else {
-				deletes = mergeDeletions(t.Deletes, s.stage.deletes)
+				deletes = visibility.MergeDeletions(t.Deletes, s.stage.deletes)
 			}
 			t.Mu.Unlock()
 			err = s.validatePrivateIndexExpressions(catalog, deletes)
@@ -132,7 +132,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.Mu.Lock()
 			if err == nil {
 				if !s.projectedRoots {
-					writes = prepareOwnWrites(t.Writes, s.stage.rows, s.stage.replacing)
+					writes = visibility.PrepareOwnWrites(t.Writes, s.stage.rows, s.stage.replacing)
 				}
 				notificationActions := t.NotificationActions
 				if len(notificationActions) == 0 {

@@ -195,7 +195,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 		if appendOnly {
 			w.rows[ref.Address] = distinctRows
 		} else {
-			w.rows[ref.Address] = mergePrivateRows(w.rows[ref.Address], versions, true)
+			w.rows[ref.Address] = visibility.MergePrivateRows(w.rows[ref.Address], versions, true)
 		}
 		w.replacing = true
 		for i, next := range versions {

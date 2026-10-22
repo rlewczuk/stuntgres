@@ -736,38 +736,6 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	return s.engine().executeStatement(s, stmt, count, importFrame)
 }
 
-// Prepare only vector headers/capacity. Tail writes follow the final preflight.
-func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]storage.RowVersion, replacing bool) map[ids.ObjectAddress][]storage.RowVersion {
-	if len(staged) == 0 {
-		return previous
-	}
-	next := make(map[ids.ObjectAddress][]storage.RowVersion, len(previous)+len(staged))
-	for a, rows := range previous {
-		next[a] = rows
-	}
-	for a, rows := range staged {
-		old := previous[a]
-		if replacing {
-			next[a] = mergePrivateRows(old, rows, true)
-			continue
-		}
-		if len(old) == 0 {
-			next[a] = rows
-			continue
-		}
-		size := len(old) + len(rows)
-		if size <= cap(old) {
-			next[a] = old[:size]
-			continue
-		}
-		capacity := max(size, cap(old)*2)
-		dst := make([]storage.RowVersion, size, capacity)
-		copy(dst, old)
-		next[a] = dst
-	}
-	return next
-}
-
 func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope *StatementScope) error {
 	t.Mu.Lock()
 	x := ownerExtensionOf(t)

@@ -166,9 +166,9 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 				data.Own = make(map[ids.ObjectAddress][]storage.RowVersion, len(scope.stage.rows))
 			}
 			for address, rows := range scope.stage.rows {
-				data.Own[address] = mergePrivateRows(originalWrites[address], rows, false)
+				data.Own[address] = visibility.MergePrivateRows(originalWrites[address], rows, false)
 			}
-			data.Deleted = mergeDeletions(originalDeletes, scope.stage.deletes)
+			data.Deleted = visibility.MergeDeletions(originalDeletes, scope.stage.deletes)
 			if scope.view != originalView {
 				scope.view.Release()
 			}
