@@ -66,7 +66,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err := checkRowSecurityBinding(scope, auth, b); err != nil {
+	if err := view.CheckRowSecurityBinding(scope.rowSecurity, auth.View, b); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

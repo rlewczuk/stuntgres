@@ -284,7 +284,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		}
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
-	if err = checkRowSecurityBinding(scope, auth, b); err != nil {
+	if err = view.CheckRowSecurityBinding(scope.rowSecurity, auth.View, b); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

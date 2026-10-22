@@ -151,7 +151,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			return nil, err
 		}
 		commands[i].Auth = current
-		if err := checkRowSecurityBinding(scope, current, commands[i].Binding); err != nil {
+		if err := view.CheckRowSecurityBinding(scope.rowSecurity, current.View, commands[i].Binding); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}

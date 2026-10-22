@@ -60,7 +60,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			return nil, err
 		}
 		mutation, _ := analyze.MutationBinding(rewrite.Definition)
-		if err := checkRowSecurityBinding(scope, caller, *mutation); err != nil {
+		if err := view.CheckRowSecurityBinding(scope.rowSecurity, caller.View, *mutation); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}

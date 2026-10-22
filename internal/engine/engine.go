@@ -387,7 +387,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 				return StatementDescription{}, err
 			}
 		}
-		if err := checkRowSecurityRuleProgram(scope, auth, b, program); err != nil {
+		if err := view.CheckRowSecurityRuleProgram(scope.rowSecurity, auth.View, b, program); err != nil {
 			return StatementDescription{}, err
 		}
 		b.Dependencies = append(b.Dependencies, program.Events...)
@@ -397,7 +397,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			}
 			b.Dependencies = append(b.Dependencies, command.Binding.Dependencies...)
 		}
-	} else if err := checkRowSecurityBinding(scope, auth, b); err != nil {
+	} else if err := view.CheckRowSecurityBinding(scope.rowSecurity, auth.View, b); err != nil {
 		return StatementDescription{}, err
 	}
 	var results []catalog.Column

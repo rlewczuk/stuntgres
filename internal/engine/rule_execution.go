@@ -79,7 +79,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			return Result{}, err
 		}
 	}
-	if err := checkRowSecurityRuleProgram(scope, auth, b, program); err != nil {
+	if err := view.CheckRowSecurityRuleProgram(scope.rowSecurity, auth.View, b, program); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
