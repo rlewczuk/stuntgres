@@ -99,7 +99,7 @@ func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target st
 	class, name, role, server, wrapper := target.class, target.name, target.role, target.server, target.wrapper
 	old, _ := Find(view.Catalog, class, name)
 	if s.Action == "create" && old != nil {
-		message := fmt.Sprintf(`%s "%s" already exists`, Label(class), name)
+		message := fmt.Sprintf(`%s "%s" already exists`, catalog.ForeignLabel(class), name)
 		if class == ids.ForeignMappingClassID {
 			message = MappingDiagnostic(view, role, server, true)
 		}
@@ -214,7 +214,7 @@ func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target st
 		next.Owner = successor
 	}
 	if a := h.Stage().LookupName(catalog.DescriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.Address()) {
-		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, Label(class), next.Name()))
+		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, catalog.ForeignLabel(class), next.Name()))
 	}
 	h.AddDomainBase(wrapper)
 	var jobs []Validation

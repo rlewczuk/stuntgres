@@ -32,25 +32,12 @@ func Class(kind string) ids.OID {
 	}
 }
 
-func Label(class ids.OID) string {
-	switch class {
-	case ids.ForeignWrapperClassID:
-		return "foreign-data wrapper"
-	case ids.ForeignServerClassID:
-		return "server"
-	case ids.ForeignMappingClassID:
-		return "user mapping"
-	default:
-		return "foreign table"
-	}
-}
-
-func Find(catalog catalog.Read, class ids.OID, name string) (*catalog.ForeignObject, error) {
-	a := catalog.NameAddress(ids.NameKey{ClassID: class, Name: name})
-	if d, ok := catalog.Foreign(a); ok {
+func Find(read catalog.Read, class ids.OID, name string) (*catalog.ForeignObject, error) {
+	a := read.NameAddress(ids.NameKey{ClassID: class, Name: name})
+	if d, ok := read.Foreign(a); ok {
 		return d, nil
 	}
-	return nil, sqlError("42704", fmt.Sprintf(`%s "%s" does not exist`, Label(class), name))
+	return nil, sqlError("42704", fmt.Sprintf(`%s "%s" does not exist`, catalog.ForeignLabel(class), name))
 }
 
 func ObjectRef(view access.View, d catalog.Descriptor) ids.ObjectRef {

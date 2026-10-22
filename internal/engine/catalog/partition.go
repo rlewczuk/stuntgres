@@ -39,3 +39,32 @@ type PartitionMembership struct {
 	Lower, Upper       []PartitionDatum
 	Values             []PartitionDatum
 }
+
+// PartitionKeyDependsOn reports whether relation's partition key uses target:
+// a key type or collation, a key column, or an expression key dependency.
+func PartitionKeyDependsOn(relation *Relation, target ids.ObjectAddress) bool {
+	if relation.Partition == nil {
+		return false
+	}
+	for _, key := range relation.Partition.Keys {
+		if target.ClassID == ids.TypeClassID && ids.OID(key.Usage.Type.ID()) == target.ObjectID {
+			return true
+		}
+		if target.ClassID == ids.CollationClassID && target.SubID == 0 && target.ObjectID != 0 &&
+			(ids.OID(key.Usage.Collation.ID) == target.ObjectID || ids.OID(key.Collation) == target.ObjectID) {
+			return true
+		}
+		if key.Attribute != 0 && target.ClassID == ids.RelationClassID && target.ObjectID == relation.Address().ObjectID && target.SubID == key.Attribute {
+			return true
+		}
+		if key.Derived != nil {
+			for _, ref := range key.Derived.Dependencies {
+				address := ref.Address
+				if address.ClassID == target.ClassID && address.ObjectID == target.ObjectID && (target.SubID == 0 || address.SubID == target.SubID) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}

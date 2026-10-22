@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
@@ -238,7 +237,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				if d.Membership != nil && d.Membership.Parent == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Automatic: true})
 				}
-				if partition.DependsOn(d, target) {
+				if catalog.PartitionKeyDependsOn(d, target) {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Relation: d, Label: "table " + dependencyRelationName(provider.base, d, provider.path)})
 					continue
 				}

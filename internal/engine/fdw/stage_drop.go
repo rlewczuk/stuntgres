@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -35,7 +36,7 @@ func stageDrop(h Host, auth ddl.Authority, s *parser.ForeignDDL, target stageTar
 				return nil, sqlError("42704", message)
 			}
 			if s.IfExists {
-				ddl.Notice(h, "00000", fmt.Sprintf(`%s "%s" does not exist, skipping`, Label(class), n.Parts[0].Text))
+				ddl.Notice(h, "00000", fmt.Sprintf(`%s "%s" does not exist, skipping`, catalog.ForeignLabel(class), n.Parts[0].Text))
 				continue
 			}
 			return nil, er

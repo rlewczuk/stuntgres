@@ -85,3 +85,18 @@ func (p ForeignCatalogProvider) Validate(v Read, descriptor Descriptor) error {
 	}
 	return nil
 }
+
+// ForeignLabel is the object kind PostgreSQL diagnostics name for a SQL/MED
+// class: a wrapper, server, user mapping or foreign table.
+func ForeignLabel(class ids.OID) string {
+	switch class {
+	case ids.ForeignWrapperClassID:
+		return "foreign-data wrapper"
+	case ids.ForeignServerClassID:
+		return "server"
+	case ids.ForeignMappingClassID:
+		return "user mapping"
+	default:
+		return "foreign table"
+	}
+}

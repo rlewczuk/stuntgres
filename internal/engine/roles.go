@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
@@ -162,7 +161,7 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 		kind = "text search dictionary "
 	}
 	if foreign, ok := d.(*catalog.ForeignObject); ok {
-		kind = fdw.Label(foreign.Address().ClassID) + " "
+		kind = catalog.ForeignLabel(foreign.Address().ClassID) + " "
 		if foreign.Address().ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
 			mapped, _ := auth.Roles.Descriptor(foreign.MappedRole)
