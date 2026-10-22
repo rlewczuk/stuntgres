@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -74,51 +73,5 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *analyze.Binding, row 
 	if err != nil {
 		return "", err
 	}
-	whole, err := auth.Effective(b.Ref, false)
-	if err != nil {
-		return "", err
-	}
-	if whole&authorization.SelectPrivilege != 0 {
-		return exec.FailingRowDetail(row, s.output, nil, nil, b.Relation)
-	}
-	// Preserve the small/wide supplied-column manifest convention. Assignment
-	// order can differ from physical order, which governs diagnostic disclosure.
-	var small uint64
-	var modified []uint64
-	var visibleColumns [64]int
-	visible := visibleColumns[:0]
-	if len(b.Relation.Columns) > 64 {
-		modified = make([]uint64, (len(b.Relation.Columns)+63)/64)
-		visible = make([]int, 0, len(b.Relation.Columns))
-	}
-	for _, index := range b.Targets {
-		word := &small
-		if modified != nil {
-			word = &modified[index/64]
-		}
-		*word |= uint64(1) << uint(index%64)
-	}
-	for index, attribute := range b.Relation.Attributes {
-		word := small
-		if modified != nil {
-			word = modified[index/64]
-		}
-		if word&(uint64(1)<<uint(index%64)) != 0 {
-			visible = append(visible, index)
-			continue
-		}
-		ref := b.Ref
-		ref.Address.SubID = attribute
-		rights, err := auth.Effective(ref, false)
-		if err != nil {
-			return "", err
-		}
-		if rights&authorization.SelectPrivilege != 0 {
-			visible = append(visible, index)
-		}
-	}
-	if suppressEmpty && len(visible) == 0 {
-		return "", nil
-	}
-	return exec.FailingRowDetail(row, s.output, b.Relation.Columns, visible, b.Relation)
+	return dml.RowDiagnosticDetail(auth.View, auth, b, row, s.output, suppressEmpty)
 }

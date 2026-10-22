@@ -1,13 +1,10 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -16,29 +13,10 @@ import (
 // admission but before any physical data view or row-version acquisition.
 func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, parameters []sqltype.Value) (Result, error) {
 	b := execution.binding
-	if b.Insert.Conflict != nil {
+	op, invoker, err := dml.ForeignCommandPrologue(stmt, &b, execution.auth.State.CurrentUser)
+	if err != nil {
 		e.mu.Unlock()
-		return Result{}, sqlError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")
-	}
-	if b.CurrentOf != "" {
-		e.mu.Unlock()
-		return Result{}, sqlError("0A000", "positioned foreign modification is unsupported in embedded mode")
-	}
-	op := catalog.ForeignInsert
-	switch stmt.(type) {
-	case *parser.Update:
-		op = catalog.ForeignUpdate
-	case *parser.Delete:
-		op = catalog.ForeignDelete
-	}
-	invoker := execution.auth.State.CurrentUser
-	if b.ViewWrite != nil {
-		for _, layer := range view.ViewWriteOf(b.ViewWrite).Layers {
-			invoker = layer.Relation.Owner
-			if stored.ViewOf(layer.Relation).Invoker() {
-				invoker = execution.auth.State.CurrentUser
-			}
-		}
+		return Result{}, err
 	}
 	target, err := e.captureForeignSourceLocked(s, b.Ref, b.Relation, invoker, nil, plan.RowMark{})
 	if err != nil {
