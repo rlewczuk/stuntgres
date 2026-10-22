@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-// GeometryConversion identifies only the nine released constructor signatures.
+// GeometryConversion identifies only the seventeen released constructor signatures.
 // It does not add casts, arrays or default comparison capabilities.
 type GeometryConversion uint8
 
@@ -20,6 +20,14 @@ const (
 	CirclePoint
 	CirclePolygon
 	LinePoints
+	LsegBox
+	LsegPoints
+	PathPolygon
+	PointCoordinates
+	PointBox
+	PointCircle
+	PointLseg
+	PointPolygon
 )
 
 var geometryConversions = [...]struct {
@@ -37,6 +45,14 @@ var geometryConversions = [...]struct {
 	{"circle", [2]ID{Point, Float8}, Circle, 2},
 	{"circle", [2]ID{Polygon}, Circle, 1},
 	{"line", [2]ID{Point, Point}, Line, 2},
+	{"lseg", [2]ID{Box}, Lseg, 1},
+	{"lseg", [2]ID{Point, Point}, Lseg, 2},
+	{"path", [2]ID{Polygon}, Path, 1},
+	{"point", [2]ID{Float8, Float8}, Point, 2},
+	{"point", [2]ID{Box}, Point, 1},
+	{"point", [2]ID{Circle}, Point, 1},
+	{"point", [2]ID{Lseg}, Point, 1},
+	{"point", [2]ID{Polygon}, Point, 1},
 }
 
 func (op GeometryConversion) Name() string {
@@ -67,7 +83,7 @@ func geometryConversionOwner(d *Descriptor) *Descriptor {
 		return d.pointFloat
 	case Circle:
 		return d.circleFloat
-	case Box, Line:
+	case Box, Line, Lseg, Path:
 		if d.geometryPoint != nil {
 			return d.geometryPoint.pointFloat
 		}
@@ -124,7 +140,45 @@ func (p GeometryConversionPlan) Evaluate(ctx context.Context, values [2]Value) (
 	var c [4]float64
 	a := values[0]
 	switch p.operation {
-	case BoxPoint, BoxPoints, LinePoints:
+	case LsegBox:
+		if a.geometry == nil {
+			return Value{}, fmt.Errorf("missing BOX payload")
+		}
+		return Value{typ: p.result, geometry: a.geometry}, nil
+	case PointCoordinates:
+		return pointValue(p.result, a.floating, values[1].floating), nil
+	case PointCircle:
+		return pointValue(p.result, a.circle.x, a.circle.y), nil
+	case PathPolygon:
+		if !a.validPolygon() {
+			return Value{}, fmt.Errorf("missing polygon payload")
+		}
+		points := make([][2]float64, len(a.polygon.points))
+		for i, v := range a.polygon.points {
+			if err := ctx.Err(); err != nil {
+				return Value{}, err
+			}
+			points[i] = [2]float64{v.x, v.y}
+		}
+		return Value{typ: p.result, path: &pathPayload{closed: true, points: points}}, nil
+	case PointBox, PointLseg:
+		if a.geometry == nil {
+			return Value{}, fmt.Errorf("missing geometry payload")
+		}
+		c = a.geometry.coordinates
+		var center [2]float64
+		for i := range 2 {
+			n, err := checkedFloatingBinary(ArithmeticAdd, Float8, c[i], c[i+2])
+			if err != nil {
+				return Value{}, err
+			}
+			center[i], err = checkedFloatingBinary(ArithmeticDivide, Float8, n, 2)
+			if err != nil {
+				return Value{}, err
+			}
+		}
+		return pointValue(p.result, center[0], center[1]), nil
+	case BoxPoint, BoxPoints, LinePoints, LsegPoints:
 		c[0], c[1] = pointCoordinates(a)
 		c[2], c[3] = c[0], c[1]
 		if p.operation != BoxPoint {
@@ -218,53 +272,66 @@ func (p GeometryConversionPlan) Evaluate(ctx context.Context, values [2]Value) (
 			return Value{}, err
 		}
 		return Value{typ: p.result, circle: circleDatum{x: center[0], y: center[1], radius: radius}}, nil
-	case CirclePolygon:
-		if !a.validPolygon() {
-			return Value{}, fmt.Errorf("missing polygon payload")
-		}
-		var center circleDatum
-		for _, v := range a.polygon.points {
-			if err := ctx.Err(); err != nil {
-				return Value{}, err
-			}
-			var err error
-			center.x, err = checkedFloatingBinary(ArithmeticAdd, Float8, center.x, v.x)
-			if err != nil {
-				return Value{}, err
-			}
-			center.y, err = checkedFloatingBinary(ArithmeticAdd, Float8, center.y, v.y)
-			if err != nil {
-				return Value{}, err
-			}
-		}
-		n := float64(len(a.polygon.points))
-		var err error
-		center.x, err = checkedFloatingBinary(ArithmeticDivide, Float8, center.x, n)
+	case CirclePolygon, PointPolygon:
+		center, err := polygonConversionCircle(ctx, a)
 		if err != nil {
 			return Value{}, err
 		}
-		center.y, err = checkedFloatingBinary(ArithmeticDivide, Float8, center.y, n)
-		if err != nil {
-			return Value{}, err
-		}
-		for _, v := range a.polygon.points {
-			if err := ctx.Err(); err != nil {
-				return Value{}, err
-			}
-			d, err := geometryDistance(v.x, v.y, center.x, center.y)
-			if err != nil {
-				return Value{}, err
-			}
-			center.radius, err = checkedFloatingBinary(ArithmeticAdd, Float8, center.radius, d)
-			if err != nil {
-				return Value{}, err
-			}
-		}
-		center.radius, err = checkedFloatingBinary(ArithmeticDivide, Float8, center.radius, n)
-		if err != nil {
-			return Value{}, err
+		if p.operation == PointPolygon {
+			return pointValue(p.result, center.x, center.y), nil
 		}
 		return Value{typ: p.result, circle: center}, nil
 	}
 	return Value{typ: p.result, geometry: &geometryPayload{coordinates: c}}, nil
+}
+
+// PostgreSQL poly_center computes the complete enclosing circle, including
+// radius arithmetic that can fail even when the center itself is finite.
+func polygonConversionCircle(ctx context.Context, a Value) (circleDatum, error) {
+	if !a.validPolygon() {
+		return circleDatum{}, fmt.Errorf("missing polygon payload")
+	}
+	var center circleDatum
+	for _, v := range a.polygon.points {
+		if err := ctx.Err(); err != nil {
+			return circleDatum{}, err
+		}
+		var err error
+		center.x, err = checkedFloatingBinary(ArithmeticAdd, Float8, center.x, v.x)
+		if err != nil {
+			return circleDatum{}, err
+		}
+		center.y, err = checkedFloatingBinary(ArithmeticAdd, Float8, center.y, v.y)
+		if err != nil {
+			return circleDatum{}, err
+		}
+	}
+	n := float64(len(a.polygon.points))
+	var err error
+	center.x, err = checkedFloatingBinary(ArithmeticDivide, Float8, center.x, n)
+	if err != nil {
+		return circleDatum{}, err
+	}
+	center.y, err = checkedFloatingBinary(ArithmeticDivide, Float8, center.y, n)
+	if err != nil {
+		return circleDatum{}, err
+	}
+	for _, v := range a.polygon.points {
+		if err := ctx.Err(); err != nil {
+			return circleDatum{}, err
+		}
+		d, err := geometryDistance(v.x, v.y, center.x, center.y)
+		if err != nil {
+			return circleDatum{}, err
+		}
+		center.radius, err = checkedFloatingBinary(ArithmeticAdd, Float8, center.radius, d)
+		if err != nil {
+			return circleDatum{}, err
+		}
+	}
+	center.radius, err = checkedFloatingBinary(ArithmeticDivide, Float8, center.radius, n)
+	if err != nil {
+		return circleDatum{}, err
+	}
+	return center, nil
 }

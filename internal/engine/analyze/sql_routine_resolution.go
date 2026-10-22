@@ -174,7 +174,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 				selection.args = []expr.Expr{operands[0].Node}
 				return selection, true, nil
 			}
-		} else if len(operands) == 1 && (name == "box" || name == "circle") && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
+		} else if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point") && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
 			annotation := parser.TypeName{Name: name, Pos: raw.Pos}
 			if len(raw.Name.Parts) == 2 {
 				annotation.Schema = &raw.Name.Parts[0]
@@ -389,11 +389,10 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		operand, target := selected.typeNameOperand, selected.typeNameTarget
 		arg := functions.Argument{Expression: operand.Node, Raw: operand.raw}
-		if operand.descriptor() == nil {
-			return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: target})
+		if operand.descriptor() != nil {
+			arg.Usage = operand.Node.ResultUsage()
 		}
-		arg.Usage = operand.Node.ResultUsage()
-		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true})
+		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true, TypeNameCallPosition: raw.Pos})
 	}
 	d := selected.Procedure
 	if d != nil && d.SQL != nil {

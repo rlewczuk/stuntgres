@@ -354,9 +354,10 @@ not a claim that this implementation round has already passed them.
 
 ### Geometric constructor/conversion contract
 
-Nine shared definitions cover exactly nine signatures, independently expected
-values and BOX/CIRCLE/LINE metadata; all typed parameter signatures; full
-diagnostics; fixed routine facts; constructor consumers/default/CHECK/view and
+Nine A and six B shared definitions cover exactly seventeen signatures,
+independently expected values and BOX/CIRCLE/LINE/LSEG/PATH/POINT metadata; all
+typed parameter signatures; full diagnostics; fixed routine facts;
+constructor consumers/default/CHECK/view and
 native replay through existing carriers. Ordinary negative CIRCLE text/binary
 input remains invalid while `circle(point,float8)` accepts negative radii.
 The tests use existing `::circle` input syntax and circle-only containment,
@@ -394,6 +395,40 @@ and radii -1/-2. The mixed-provenance unit combines authentic stored-domain NULL
 and negative-array provenance in one carrier cell with exact identity/leaves.
 Root runs both selected modes and whole-project Docker-free `make quickcheck`;
 readiness is not verification.
+
+The B definitions retain ordered/coincident LSEG endpoints and raw BOX diagonals,
+closed PATH vertex counts/order/duplicates, coordinate/circle-center copies and
+checked means. Polygon POINT executes the full circle kernel: hidden radius
+overflow is required even when the center would be finite. Routine proof uses
+canonical `oid::regprocedure` signatures and supported fixed catalog columns,
+including `prokind='f'`, plus actual scalar execution. Native `pg_proc` does not
+project `proargtypes`, `proretset`, `pronargdefaults` or `provariadic`; private
+declaration units independently assert exact formal OIDs, ReturnsSet=false,
+Defaults=0 and Variadic=0 for every overload. Fast precancel context error
+identity is native-only; arithmetic atomicity and held recovery are shared.
+
+Bindings metadata pairs each of B's eight fixed routine OIDs with exact
+`pg_proc.prorettype` (601/602/600) and checks actual result DatabaseTypeName
+for populated, all-NULL and empty results; it does not require geometry
+`pg_typeof` overloads. Every formal has a nil-interface NULL witness, including
+both FLOAT8 coordinates individually and together. Geometry-bound typed-nil
+bytes additionally mean NULL; FLOAT8 retains the existing native adapter's
+empty-text fallback for typed-nil bytes, so that is not a shared NULL witness.
+Nonnil empty bytes still require exact 22P02 codec errors for every formal,
+including both coordinates, followed by same-held-handle NULL/valid recovery.
+
+```sh
+make check RUN='^TestReferenceGeometryConversionB(Values|BindingsMetadata|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceGeometryConversionB(Values|BindingsMetadata|Diagnostics)$'
+make check RUN='^TestReferenceGeometryConversionB(RoutinesResolution|Consumers|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceGeometryConversionB(RoutinesResolution|Consumers|FeatureSmoke)$'
+make check RUN='^(TestGeometryConversion(Kernel|BEdges|ProviderLifecycle|Declarations)|TestCircleConstructorReplay)$'
+```
+
+The B feature smoke checks all eight exact values/types direct and prepared,
+held coordinate valid/NULL/invalid/recovery, closed PATH duplicate/singleton/NULL
+and polygon hidden-radius overflow followed by same-handle valid recovery.
+
 
 ### Circle scalar contract
 

@@ -78,9 +78,9 @@ Representation identity compares all three IEEE bit patterns independently of
 fuzzy SQL geometry. Area and edge arithmetic reuse checked float operations;
 center distance follows the released scaled hypot order.
 
-`GeometryConversionPlan` owns exactly nine BOX/CIRCLE/LINE constructors, with
-fixed typed operands and the same catalog's float8 authority. It reads immutable
-geometry directly, preserves raw inverted BOX corners and checks cancellation
+`GeometryConversionPlan` owns exactly seventeen BOX/CIRCLE/LINE/LSEG/PATH/POINT
+constructors, with fixed typed operands and the same catalog's float8 authority.
+It reads immutable geometry directly, preserves raw inverted BOX corners and checks cancellation
 in polygon loops. `circle(point,float8)` creates legitimate negative-radius
 datums without relaxing text22P02 or binary22P03 input checks. Existing circle
 consumers accept those datums. Negative CIRCLE `SQLLiteral` uses a closed,
@@ -91,6 +91,11 @@ Known TEXT-to-CIRCLE typename input uses the existing viaIO representation only
 in Explicit context, including normal domain recursion and generation Rebind.
 It calls ordinary circleInput, retaining negative text rejection; no implicit,
 assignment, reverse or cross-geometry route is admitted by that correction.
+LSEG retains ordered/coincident endpoints and shares immutable raw BOX diagonals.
+PATH owns one closed vertex slice copied from POLYGON, preserving all vertices.
+POINT copies coordinates/circle centers inline; BOX/LSEG means use checked sums
+then division. Both polygon center and circle use the full shared circle kernel,
+including checked radius arithmetic and cancellation, not a mean-only shortcut.
 
 
 `Citext` is a catalog-generation-owned scalar using Value's immutable string,

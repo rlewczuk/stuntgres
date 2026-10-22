@@ -94,6 +94,9 @@ func (e GeometryConversion) SameGroup(other expr.Expr, same func(expr.Expr, expr
 }
 func (e GeometryConversion) Render() (expr.Rendering, error) {
 	spec := callRendering("GeometryConversion "+e.Plan.Operation().Name()+" namespace "+e.Namespace, e.Children(), e.Plan.Operation().Name(), e.Children())
+	// Quoted geometry and NULL literals must retain their selected formal type;
+	// otherwise replay can select a typename input cast or another overload.
+	transportArgs(spec.Args, expr.TransportLiteral)
 	spec.Namespace = e.Namespace
 	spec.Replay.QuoteNamespace = true
 	spec.Replay.Validate = e.Validate

@@ -36,6 +36,14 @@ func TestGeometryConversionKernel(t *testing.T) {
 		{CirclePoint, [2]string{"(0,0)", "-1"}, "<(0,0),-1>"},
 		{CirclePolygon, [2]string{"((0,0),(1,3),(2,0))"}, "<(1,1),1.6094757082487299>"},
 		{LinePoints, [2]string{"(-1,0)", "(1,0)"}, "{0,-1,0}"},
+		{LsegBox, [2]string{"(1,0),(-1,0)"}, "[(1,0),(-1,0)]"},
+		{LsegPoints, [2]string{"(-1,0)", "(1,0)"}, "[(-1,0),(1,0)]"},
+		{PathPolygon, [2]string{"((0,0),(1,1),(2,0))"}, "((0,0),(1,1),(2,0))"},
+		{PointCoordinates, [2]string{"23.4", "-44.5"}, "(23.4,-44.5)"},
+		{PointBox, [2]string{"(6,8),(0,0)"}, "(3,4)"},
+		{PointCircle, [2]string{"<(2,3),4>"}, "(2,3)"},
+		{PointLseg, [2]string{"[(2,4),(8,10)]"}, "(5,7)"},
+		{PointPolygon, [2]string{"((0,0),(0,0),(6,0))"}, "(2,0)"},
 	} {
 		t.Run(tc.op.Name()+tc.want, func(t *testing.T) {
 			p := conversionUnitPlan(t, types, tc.op)

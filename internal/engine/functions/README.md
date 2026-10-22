@@ -104,22 +104,29 @@ dual-mode smoke belong to
 
 ## Geometric constructor/conversion provider
 
-`GeometryConversion` owns the nine selected `box`, `bound_box`, `circle` and
-`line` signatures with fixed operands and captured routine authority. Binding
+`GeometryConversion` owns the seventeen selected `box`, `bound_box`, `circle`,
+`line`, `lseg`, `path` and `point` signatures with fixed operands and captured routine authority. Binding
 analyzes operands once, probes coercions without evaluating, selects a bounded
 formal signature, then coerces only the winner. Unary typename calls retain
 identity/string/unknown-Const precedence, including domain-to-base relabels,
 through the existing explicit plan's `FunctionCastShortcut()` policy rather
 than type-ID approximations. Unresolved parameters are not Const.
 `TypeNameCastArgument` shares the existing explicit coercion assembly and
-provenance, without parser introducer syntax or cross-geometry cast edges. Known
+provenance, without parser introducer syntax or cross-geometry cast edges. Its
+call position and original operand also synchronize stored typename recipes to
+the selected qualified explicit cast after successful finalization/coercion,
+including folded unknown string/NULL literals. Known
 TEXT-to-CIRCLE uses only the explicit directional input route and ordinary
 circle codec, not implicit/assignment or reverse conversion admission. With visible SQL
 overloads, the analyzer applies the same policy after exact declarations and
 before implicit/unknown ranking, retaining the already analyzed operand.
 Stored reconstruction, render, capture and group identity retain the selected
-operation/formal types. Circle replay admission accepts only the emitted
-qualified two-literal codec shape, not arbitrary executable calls.
+operation/formal types. Ordinary literal argument transport writes explicit
+types for stored scalar calls, including geometry and NULL operands, so replay
+cannot reinterpret a selected conversion as a typename input cast or choose
+another overload. Capture and original argument recipes remain unchanged.
+Circle replay admission accepts only the emitted qualified two-literal codec
+shape, not arbitrary executable calls.
 
 ### Testing
 

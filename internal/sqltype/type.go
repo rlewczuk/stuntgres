@@ -333,7 +333,7 @@ func Builtins() []*Descriptor {
 		}
 	}
 	for _, d := range types {
-		if d.id == Box || d.id == Lseg || d.id == Line {
+		if d.id == Box || d.id == Lseg || d.id == Line || d.id == Path {
 			d.geometryPoint = geometryPoint
 		}
 		if IsNetwork(d.id) {

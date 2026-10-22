@@ -26,6 +26,8 @@ func conversionProviderUnit(t *testing.T, op sqltype.GeometryConversion) (Geomet
 			text = "<(0,0),2>"
 		case sqltype.Polygon:
 			text = "((0,0),(1,3),(2,0))"
+		case sqltype.Lseg:
+			text = "[(2,4),(8,10)]"
 		case sqltype.Float8:
 			text = "-1"
 		case sqltype.Point:
@@ -47,7 +49,7 @@ func conversionProviderUnit(t *testing.T, op sqltype.GeometryConversion) (Geomet
 }
 
 func TestGeometryConversionProviderLifecycle(t *testing.T) {
-	for op := sqltype.BoxCircle; op <= sqltype.LinePoints; op++ {
+	for op := sqltype.BoxCircle; op <= sqltype.PointPolygon; op++ {
 		n, c, order := conversionProviderUnit(t, op)
 		fresh, _, _ := conversionProviderUnit(t, op)
 		if n.ValidateStoredProvider() != nil || n.IntrinsicVolatility() != expr.Immutable || !n.LooksLikeFunction() {

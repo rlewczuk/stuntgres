@@ -1640,11 +1640,36 @@ func (b *Binder) CoerceArgument(argument functions.Argument, request functions.C
 		return b.CoerceConditional(operand, request.Target, request.Label)
 	case functions.JSONFormattedArgument, functions.TypeNameCastArgument:
 		node := argument.Expression
-		info, err := b.coercionInfo(b.Info(request.Target, node.SourcePosition(), CoercionProperties(node, request.Plan)), node)
+		var err error
+		if request.Intent == functions.TypeNameCastArgument && argument.Usage.Type == nil {
+			node, err = b.finalizeOperand(operand, request.Target.Type)
+		} else {
+			var info expr.Info
+			info, err = b.coercionInfo(b.Info(request.Target, node.SourcePosition(), CoercionProperties(node, request.Plan)), node)
+			if err == nil {
+				node = plan.CoercionExpr{Info: info, Child: node, Plan: request.Plan, Mode: sqltype.Explicit}
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		return plan.CoercionExpr{Info: info, Child: node, Plan: request.Plan, Mode: sqltype.Explicit}, nil
+		if request.Intent == functions.TypeNameCastArgument && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+			// Resolution selected a cast, not an executable routine. Synchronize
+			// the frozen recipe with that selection while retaining the written
+			// child; later overloads must not reinterpret the call on replay.
+			if b.Stored.Syntax == nil {
+				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+			}
+			target := request.Target.Type
+			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: request.TypeNameCallPosition}] = parser.CastExpr{
+				Child: argument.Raw,
+				TypeName: parser.TypeName{
+					Name: target.Name(), Schema: &parser.Identifier{Text: target.NamespaceName()}, Pos: request.TypeNameCallPosition,
+				},
+				Syntax: parser.StandardCast, Pos: request.TypeNameCallPosition,
+			}
+		}
+		return node, nil
 	case functions.BareFormalArgument:
 		node := argument.Expression
 		if node == nil || !request.Planned {

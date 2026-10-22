@@ -171,6 +171,9 @@ type CoercionRequest struct {
 	Target  sqltype.Usage
 	Plan    sqltype.CoercionPlan
 	Planned bool
+	// TypeNameCallPosition identifies the selected ordinary typename call.
+	// Argument.Raw retains its original operand for stored cast reconstruction.
+	TypeNameCallPosition parser.Position
 	// PreserveProperties retains analyzed argument flags instead of deriving
 	// conversion flags. BareFormalArgument still omits cast routine provenance.
 	PreserveProperties bool

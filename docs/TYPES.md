@@ -117,11 +117,14 @@ from these operators. See [circle reference proof](../reference/types/README.md#
 
 ## Geometric constructors and conversions
 
-Exactly nine strict signatures execute: `box(circle)`, `box(point)`,
+Exactly seventeen strict signatures execute: `box(circle)`, `box(point)`,
 `box(point,point)`, `box(polygon)`, `bound_box(box,box)`, `circle(box)`,
-`circle(point,float8)`, `circle(polygon)` and `line(point,point)`.
-Results retain BOX603, CIRCLE718 or LINE628 metadata through direct, prepared,
-stored and native logical replay paths. Typed NULL at any formal returns typed NULL.
+`circle(point,float8)`, `circle(polygon)`, `line(point,point)`, `lseg(box)`,
+`lseg(point,point)`, `path(polygon)`, `point(float8,float8)`, `point(box)`,
+`point(circle)`, `point(lseg)` and `point(polygon)`.
+Results retain BOX603, CIRCLE718, LINE628, LSEG601, PATH602 or POINT600 metadata
+through direct, prepared, stored and native logical replay paths.
+Typed NULL at any formal returns typed NULL.
 
 `box(circle)` is inscribed (radius/sqrt(2) on each axis); `circle(box)` encloses
 the corners with midpoint center and half-diagonal radius. Two-point BOX normalizes
@@ -131,6 +134,15 @@ of vertices, counting duplicates, then their mean distance from that center:
 it need not enclose every vertex. Float8 checks retain released operation order.
 LINE uses fuzzy vertical/horizontal detection and slope/intercept construction;
 coincident endpoints fail22023, while coincident text-input endpoints retain22P02.
+
+LSEG copies ordered endpoints, including coincident points; BOX-to-LSEG copies
+raw high then low corners without normalization. Polygon-to-PATH creates a closed
+path retaining vertex order/count, duplicates and repeated closing vertices.
+Coordinate and circle-center POINT constructors copy binary64 bits without
+arithmetic or radius validation. BOX/LSEG centers use checked `(a+b)/2`, not
+overflow-avoiding midpoints. Polygon POINT counts every vertex in its sequential
+mean and computes the complete polygon-to-circle radius before discarding it:
+radius overflow can fail even with a finite center. No area centroid is used.
 
 `circle(point,float8)` copies the radius, including negative finite values,
 -Infinity, NaN and signed zero. Existing circle consumers accept these typed

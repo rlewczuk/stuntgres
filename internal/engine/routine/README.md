@@ -165,7 +165,7 @@ The Emit entry `emitDumpOperatorLinks`, the `control.Presenter` and
 
 ## Testing
 
-The nine REL_18_6 geometric conversion declarations retain fixed OIDs, exact
+The seventeen REL_18_6 geometric conversion declarations retain fixed OIDs, exact
 input/result signatures, strict immutable parallel-safe function attributes and
 the dedicated `GeometryConversionRoutineProvider` association. No lookup-only
 adjacent constructor or operator becomes executable.

@@ -43,7 +43,7 @@ type Definition struct {
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
 	{Names: []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained"}, ExactSpelling: true, SharedGates: true, Bind: bindFTS},
-	{Names: []string{"box", "bound_box", "circle", "line"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryConversion},
+	{Names: []string{"box", "bound_box", "circle", "line", "lseg", "path", "point"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryConversion},
 	{Names: []string{"line_eq"}, ExactSpelling: true, SharedGates: true, Bind: bindLineEquality},
 	{Names: []string{"macaddr8_eq", "macaddr8_ne", "macaddr8_lt", "macaddr8_le", "macaddr8_gt", "macaddr8_ge"}, ExactSpelling: true, SharedGates: true, Bind: bindMACADDR8Comparison},
 	{Names: []string{"radius", "circle_eq", "circle_ne", "circle_lt", "circle_gt", "circle_le", "circle_ge", "circle_same", "circle_left", "circle_right", "circle_overleft", "circle_overright", "circle_below", "circle_above", "circle_overbelow", "circle_overabove", "circle_contain", "circle_contained", "circle_overlap", "circle_distance"}, ExactSpelling: true, SharedGates: true, Bind: bindCircle},

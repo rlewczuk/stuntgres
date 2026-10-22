@@ -45,7 +45,7 @@ func bindGeometryConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error
 	}
 	var selected sqltype.GeometryConversion
 	matches, best := 0, -1
-	for op := sqltype.BoxCircle; op <= sqltype.LinePoints; op++ {
+	for op := sqltype.BoxCircle; op <= sqltype.PointPolygon; op++ {
 		if op.Name() != name || op.Arity() != len(operands) {
 			continue
 		}
@@ -75,11 +75,20 @@ func bindGeometryConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error
 	}
 	// Function resolution step 3 applies after exact signatures, before best
 	// implicit matching. An unresolved external parameter is not a Const.
-	if len(operands) == 1 && (name == "box" || name == "circle") && best < 1 {
+	if len(operands) == 1 && (name == "box" || name == "circle" || name == "lseg" || name == "path" || name == "point") && best < 1 {
 		arg := operands[0]
-		id := sqltype.Box
-		if name == "circle" {
+		var id sqltype.ID
+		switch name {
+		case "box":
+			id = sqltype.Box
+		case "circle":
 			id = sqltype.Circle
+		case "lseg":
+			id = sqltype.Lseg
+		case "path":
+			id = sqltype.Path
+		case "point":
+			id = sqltype.Point
 		}
 		target := b.Type(id).Usage()
 		cast := arg.Kind == DeferredStringArgument || arg.Kind == DeferredNullArgument
@@ -93,10 +102,7 @@ func bindGeometryConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error
 			if err := CallDecorationError(raw); err != nil {
 				return nil, err
 			}
-			if arg.Usage.Type == nil {
-				return b.CoerceArgument(arg, CoercionRequest{Intent: FinalizeArgument, Target: target})
-			}
-			return b.CoerceArgument(arg, CoercionRequest{Intent: TypeNameCastArgument, Target: target, Plan: plan, Planned: true})
+			return b.CoerceArgument(arg, CoercionRequest{Intent: TypeNameCastArgument, Target: target, Plan: plan, Planned: true, TypeNameCallPosition: raw.Pos})
 		}
 	}
 	if matches != 1 {

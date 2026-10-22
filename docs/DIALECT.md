@@ -17,8 +17,9 @@ Coordinates and closure do not affect these predicates. There is no PATH
 Scalar equality does not establish default sorting/grouping/hash/index classes.
 Companion `_path` is lookup-only, not an admitted POINT array or subscript
 provider. Published receive/send identities do not enable binary codecs.
-Other PostgreSQL geometric functions/operators, arrays and physical geometric
-indexes remain native provider boundaries, not claims of PostgreSQL absence.
+`path(polygon)` creates a closed path retaining all vertices. Other PostgreSQL
+geometric functions/operators, arrays and physical geometric indexes remain
+native provider boundaries, not claims of PostgreSQL absence.
 Native logical Dump/Reset/Restore preserves coordinates and closure but is
 not a PostgreSQL host-control API or physical durability mechanism.
 See [PATH proof](../reference/types/README.md#path-scalar-contract).
@@ -73,7 +74,8 @@ comparisons and zero-based POINT endpoint reads/writes. Equality compares
 corresponding endpoints; the four inequalities compare epsilon-adjusted lengths.
 These scalar operators do not enable ORDER BY, DISTINCT/GROUP BY, default
 B-tree/hash indexes or serialized-text fallback comparisons.
-`_lseg` remains lookup-only. Spatial operators/functions, constructors,
+`lseg(box)` and `lseg(point,point)` admit raw diagonals and ordered/coincident
+endpoints. `_lseg` remains lookup-only. Other spatial operators/functions,
 adjacent geometry conversions and SQL LSEG arrays are outside this provider.
 In particular `~=` and `&&` have no LSEG overload and report42883.
 Public database/sql text bindings/results and native logical Dump/Reset/Restore
@@ -108,7 +110,7 @@ provide ordinary equality `=` or `< <= > >=`, default ordering/grouping/hash
 authority or an index class. Unsupported calls fail rather than comparing
 serialized text. Geometric tolerance is not exact datum identity.
 
-The [nine selected geometric constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
+The [seventeen selected geometric constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
 are explicit exceptions to the remaining constructor/cross-geometry limits.
 Other arithmetic/distance and cross-geometry operations, companion SQL arrays,
 binary receive/send, physical geometric indexes/storage, WAL and a native
@@ -128,10 +130,10 @@ The six ordinary predicates compare fuzzy areas and do not provide default
 equality/ordering capabilities: ORDER BY, DISTINCT/GROUP BY and default
 B-tree/hash operator classes remain unavailable. NaN area predicates are all
 false, including `<>`. The
-[nine selected constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
-are admitted separately. Center-returning operations, other adjacent-geometry
-constructors/conversions, transformations, area/diameter functions, circle arrays
-and spatial indexes remain unavailable.
+[seventeen selected constructors/conversions](TYPES.md#geometric-constructors-and-conversions)
+are admitted separately, including `point(circle)` center copies. Other
+adjacent-geometry constructors/conversions, transformations, area/diameter
+functions, circle arrays and spatial indexes remain unavailable.
 Text and 24-byte binary codecs, metadata and native logical controls share the
 [type-owned circle contract](TYPES.md#circle).
 
@@ -148,8 +150,8 @@ behavior or new path execution is asserted here.
 PostgreSQL itself has no ordinary polygon `= <> != < <= > >=` overloads and no
 `area(polygon)`. Such calls fail rather than comparing serialized strings;
 ORDER BY, DISTINCT/GROUP BY and default equality/order/hash/index classes are
-unavailable. `box(polygon)` and `circle(polygon)` are the selected conversion
-exceptions in the [nine-signature family](TYPES.md#geometric-constructors-and-conversions).
+unavailable. `box(polygon)`, `circle(polygon)`, `path(polygon)` and `point(polygon)`
+are selected exceptions in the [seventeen-signature family](TYPES.md#geometric-constructors-and-conversions).
 Other polygon spatial operators/functions and conversions exist in PostgreSQL
 but remain unimplemented. Polygon arrays, subscripting and binary codecs remain
 outside this bounded provider.

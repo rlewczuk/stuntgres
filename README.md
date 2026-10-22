@@ -16,10 +16,12 @@ documented [native compatibility limits](docs/DIALECT.md). Consult the
 
 ## Geometric constructors and conversions — change note
 
-Nine selected BOX/CIRCLE/LINE signatures now execute through typed providers,
-including inscribed circle-to-box, enclosing box-to-circle, vertex-mean polygon
-conversion and two-point infinite-line construction. Negative constructor radii
-are valid typed CIRCLE values; ordinary negative text/binary input stays invalid.
+Seventeen selected BOX/CIRCLE/LINE/LSEG/PATH/POINT signatures execute through typed
+providers, including ordered/coincident segments, raw box diagonals, closed polygon
+paths, coordinate copies and checked centers (polygon centers compute the full
+circle conversion, including radius failures). The family also includes inscribed
+circle-to-box, enclosing box-to-circle and two-point infinite-line construction.
+Negative constructor radii are valid typed CIRCLE values; ordinary negative text/binary input stays invalid.
 Native logical replay uses a closed constructor recipe for those values.
 See [type semantics](docs/TYPES.md#geometric-constructors-and-conversions) and
 [selected proof](reference/types/README.md#geometric-constructor-conversion-contract).
