@@ -5,7 +5,6 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -37,89 +36,13 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		e.mu.Unlock()
 		return nil
 	}
-	seen := make(map[ids.ObjectRef]lock.Mode)
-	var refs []ids.ObjectRef
-	var retainedViews []*catalog.Relation
-	hasMaterializedSource := false
-	var visit func(ids.ObjectRef, lock.Mode) error
-	visit = func(ref ids.ObjectRef, mode lock.Mode) error {
-		prior, visited := seen[ref]
-		if ref == (ids.ObjectRef{}) || visited && exec.StrongerQueryRowMode(prior, mode) == prior {
-			return nil
-		}
-		seen[ref] = exec.StrongerQueryRowMode(prior, mode)
-		d, ok := catalogView.Relation(ref.Address)
-		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || !ok {
-			return ids.ErrCatalogReplaced
-		}
-		if s.materializedOrZero().Refresh && !visited {
-			s.materialized().Sources = append(s.materializedOrZero().Sources, d)
-			if ref != s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
-				hasMaterializedSource = true
-			}
-		}
-		admitted := ref == s.lockedRef
-		admittedMode := lock.Mode(0)
-		for _, leaf := range s.querySources {
-			if leaf.Ref == ref {
-				admitted = true
-				admittedMode = exec.StrongerQueryRowMode(admittedMode, leaf.Mark.Mode)
-			}
-		}
-		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
-			refs = append(refs, ref)
-		}
-		if d.RelationKind == catalog.ViewRelation || s.materializedOrZero().Refresh && ref == s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
-			if stored.ViewOf(d).Temporary() != (ids.SessionToken{}) {
-				for old := range stored.ViewOf(d).References() {
-					if old.Epoch != e.catalog.state.Epoch() {
-						retainedViews = append(retainedViews, d)
-						break
-					}
-				}
-			}
-			for i, leaf := range stored.ViewOf(d).Sources() {
-				use, err := stored.ViewUseReference(catalogView, d, leaf.Ref)
-				if err != nil {
-					return err
-				}
-				if err := visit(use, stored.ViewLeafRowMark(stored.ViewOf(d), i, plan.RowMark{Mode: mode}).Mode); err != nil {
-					return err
-				}
-			}
-			for _, dependency := range stored.ViewOf(d).Dependencies() {
-				if dependency.Ref.Address.ClassID == ids.RelationClassID {
-					child, err := stored.ViewUseReference(catalogView, d, dependency.Ref)
-					if err != nil {
-						return err
-					}
-					child.Address.SubID = 0
-					if err := visit(child, 0); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		return nil
+	closure, err := view.SourceWalk{Catalog: catalogView, Domain: e.catalog.Domain, Epoch: e.catalog.state.Epoch(), Locked: s.lockedRef, Leaves: s.querySources, Refresh: s.materializedOrZero().Refresh}.Closure()
+	if s.materializedOrZero().Refresh {
+		s.materialized().Sources = append(s.materializedOrZero().Sources, closure.Sources...)
 	}
-	err = visit(s.lockedRef, 0)
-	for _, leaf := range s.querySources {
-		if err != nil {
-			break
-		}
-		err = visit(leaf.Ref, leaf.Mark.Mode)
-	}
-	if err == nil && s.materializedOrZero().Refresh && hasMaterializedSource {
-		var leaves []exec.Leaf
-		for ref := range seen {
-			if ref == s.lockedRef {
-				continue
-			}
-			relation := catalogView.MustRelation(ref.Address)
-			if relation.RelationKind.Stored() {
-				leaves = append(leaves, exec.Leaf{Ref: ref})
-			}
-		}
+	seen, refs, retainedViews := closure.Modes, closure.Refs, closure.Retained
+	if err == nil && s.materializedOrZero().Refresh && closure.MaterializedSource {
+		leaves := closure.StoredLeaves(catalogView, s.lockedRef)
 		var physical []ids.ObjectRef
 		if err = e.captureCommentSnapshotLocked(s); err == nil {
 			collectAuth := s.inquiry.deparseAuth
@@ -221,31 +144,5 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 }
 
 func (s *StatementScope) acquireViewDefinitionReferences(b analyze.Binding) error {
-	var refs []ids.ObjectRef
-	seen := make(map[ids.ObjectRef]bool)
-	add := func(ref ids.ObjectRef) {
-		if ref.Address.ClassID != ids.RelationClassID {
-			return
-		}
-		ref.Address.SubID = 0
-		if ref == s.lockedRef || seen[ref] {
-			return
-		}
-		for _, leaf := range s.querySources {
-			if ref == leaf.Ref {
-				return
-			}
-		}
-		seen[ref] = true
-		refs = append(refs, ref)
-	}
-	for _, dependency := range b.Dependencies {
-		add(dependency.Ref)
-	}
-	for _, constant := range b.Prepared.SequenceConstants {
-		if constant.Represented {
-			add(constant.Ref)
-		}
-	}
-	return s.acquireBoundViewRelations(refs)
+	return s.acquireBoundViewRelations(view.DefinitionReferences(b, s.lockedRef, s.querySources))
 }
