@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -55,7 +56,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	e.mu.Lock()
 	binding, err := e.describeSettingCall(op.Ctx, s, &input, op)
 	typ, typeOK := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
-	view := e.catalog.read(e.catalog.state)
+	read := e.catalog.read(e.catalog.state)
 	auth, authErr := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {
@@ -73,9 +74,9 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	frame := make([]sqltype.Value, count)
 	scope, _ := input.LockedDomainInput.(*StatementScope)
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: hostOf(scope), Catalog: view}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: hostOf(scope), Catalog: read}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
 	if scope != nil {
-		scope.domains.inputCatalog = view
+		scope.domains.inputCatalog = read
 	}
 	for _, usage := range info.Types {
 		if sqltype.ContainsDomainConstraints(usage.Type) {
@@ -97,7 +98,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		}
 	}
 	for _, expression := range bound {
-		if err := validateExpressionJoinExecution(&evaluation, expression, view); err != nil {
+		if err := view.ValidateExpressionJoinExecution(&evaluation, expression, read); err != nil {
 			return Result{}, err
 		}
 	}
@@ -127,7 +128,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		e.mu.Unlock()
 		return Result{}, captureErr
 	}
-	if current.Catalog.Owner() != view.Owner() || current.Catalog.Epoch() != view.Epoch() {
+	if current.Catalog.Owner() != read.Owner() || current.Catalog.Epoch() != read.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -142,7 +143,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	for _, expression := range bound {
 		plan.WalkExpression(expression, func(node expr.Expr) {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(node.ResultUsage().Type.ID())}
-			if provider, exists := view.Descriptor(address); exists {
+			if provider, exists := read.Descriptor(address); exists {
 				validInputs = validInputs && current.Catalog.Get(address) == provider
 			}
 		})

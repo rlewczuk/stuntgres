@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -153,8 +154,8 @@ func TestSeriesOverflow(t *testing.T) {
 
 func TestSeriesExpressionHooks(t *testing.T) {
 	e := New()
-	view := e.CatalogRead()
-	d, _ := view.LookupType(sqltype.Int4)
+	read := e.CatalogRead()
+	d, _ := read.LookupType(sqltype.Int4)
 	original := seriesUnit(t, d, 1, 3, 1)
 	t.Run("strict-arithmetic-constant-null", func(t *testing.T) {
 		arithmetic, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, d, d, d)
@@ -163,7 +164,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		}
 		null := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: sqltype.Null(d)}
 		wrapper := plan.ArithmeticExpr{Info: original.Info, Left: original, Right: null, Provider: arithmetic, Operator: sqltype.ArithmeticAdd}
-		ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}}
+		ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: read}}
 		for _, fold := range []func() (expr.Expr, bool, error){
 			func() (expr.Expr, bool, error) { return exec.PreflightCoercions(ctx, wrapper) },
 			func() (expr.Expr, bool, error) { return exec.SimplifyConditional(ctx, wrapper, false) },
@@ -190,7 +191,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		lowered, err := preflightQuerySet(ctx, root.(*plan.SetProjectNode))
+		lowered, err := view.PreflightQuery(ctx, root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -200,7 +201,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		}
 	})
 	fresh := seriesUnitType(t, sqltype.Int4)
-	mapped, changed, err := stored.RetagTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := stored.RetagTypes(read, original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == sqltype.Int4 {
 			return fresh
 		}
@@ -245,7 +246,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	if err != nil || !analyze.SameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}
-	text, err := (stored.Deparser{View: view}).SQL(context.Background(), original, stored.DeparseParent{})
+	text, err := (stored.Deparser{View: read}).SQL(context.Background(), original, stored.DeparseParent{})
 	if err != nil || !strings.Contains(text, "generate_series(") || strings.Count(text, ",") != 2 {
 		t.Fatal(text, err)
 	}
@@ -263,7 +264,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	}
 	root := &plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: d.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{original}}
 	rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
-		return stored.MapExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
+		return stored.MapExpression(read, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return seriesUnit(t, d, 2, 3).Args[0], true, nil
 			}

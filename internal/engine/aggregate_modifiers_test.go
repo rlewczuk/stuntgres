@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -310,7 +311,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	if changed.Order[0].Slot != original.Order[0].Slot || changed.Order[0].Cache != original.Order[0].Cache || changed.StageWidth != original.StageWidth {
 		t.Fatal("target reuse lost across rewrite")
 	}
-	folded, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
+	folded, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, node)
 	if err != nil || folded != node {
 		t.Fatal("unchanged preflight mutated immutable plan", folded, err)
 	}

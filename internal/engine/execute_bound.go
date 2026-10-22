@@ -137,18 +137,18 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				b.Update, err = preflightUpdate(&evaluation, b.Update)
 			}
 			if err == nil && b.Update.From != nil {
-				err = validateQueryJoinExecution(&evaluation, b.Update.From, auth.Catalog, 0)
+				err = view.ValidateQueryJoinExecution(&evaluation, b.Update.From, auth.Catalog, 0)
 			}
 		} else if b.Query != nil {
-			queryRoot, err = preflightQuery(&evaluation, b.Query.Root)
+			queryRoot, err = view.PreflightQuery(&evaluation, b.Query.Root)
 			if err == nil {
-				err = validateQueryJoinExecution(&evaluation, queryRoot, auth.Catalog, 0)
+				err = view.ValidateQueryJoinExecution(&evaluation, queryRoot, auth.Catalog, 0)
 			}
 		} else if deleting {
 			if b.Delete.Using != nil {
-				b.Delete.Using, err = preflightQuery(&evaluation, b.Delete.Using)
+				b.Delete.Using, err = view.PreflightQuery(&evaluation, b.Delete.Using)
 				if err == nil {
-					err = validateQueryJoinExecution(&evaluation, b.Delete.Using, auth.Catalog, 0)
+					err = view.ValidateQueryJoinExecution(&evaluation, b.Delete.Using, auth.Catalog, 0)
 				}
 			}
 			if err == nil && b.Predicate != nil {
@@ -159,7 +159,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			b.Returning, err = dml.PreflightReturning(&evaluation, b.Returning)
 		}
 		if err == nil && (inserting || b.Update != nil || deleting || b.Merge != nil) {
-			err = validateMutationJoinExecution(&evaluation, &b, expressions, auth.Catalog)
+			err = view.ValidateMutationJoinExecution(&evaluation, &b, expressions, auth.Catalog)
 		}
 		if err != nil {
 			return Result{}, err
@@ -205,7 +205,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			if foldErr != nil {
 				return Result{}, foldErr
 			}
-			if err := validateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); err != nil {
+			if err := view.ValidateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); err != nil {
 				return Result{}, err
 			}
 			if changed {

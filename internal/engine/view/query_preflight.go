@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"fmt"
@@ -7,12 +7,12 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/stored"
 )
 
-// preflightQuery retains schemas and source identity from analysis. Only paths
+// PreflightQuery retains schemas and source identity from analysis. Only paths
 // containing folded coercions are copied for this execution.
-func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
+func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 	if err := exec.EvaluationContext(c); err != nil {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			if child == n {
 				return child, nil
 			}
-			return preflightQuery(c, child)
+			return PreflightQuery(c, child)
 		})
 	case *plan.SetNode:
 		return preflightSet(c, n)
@@ -62,7 +62,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		if !c.PlanStaticOperators || n.Query == nil {
 			return n, nil
 		}
-		root, err := preflightQuery(c, n.Query.Root)
+		root, err := PreflightQuery(c, n.Query.Root)
 		if err != nil {
 			return nil, err
 		}
@@ -74,7 +74,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		copy.Query = &query
 		return &copy, nil
 	case *plan.LimitNode:
-		child, err := preflightQuery(c, n.Child)
+		child, err := PreflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +87,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		}
 		return n, nil
 	case *plan.EvaluationNode:
-		child, err := preflightQuery(c, n.Child)
+		child, err := PreflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +117,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		}
 		return n, nil
 	case *plan.RowLockNode:
-		child, err := preflightQuery(c, n.Child)
+		child, err := PreflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +161,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		}
 	case *plan.AggregateNode:
 		if n.PresenceOnly {
-			child, err := preflightQuery(c, n.Child)
+			child, err := PreflightQuery(c, n.Child)
 			if err != nil {
 				return nil, err
 			}
@@ -230,7 +230,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 				calls[i].Order = order
 			}
 		}
-		child, err := preflightQuery(c, n.Child)
+		child, err := PreflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +250,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		child, err := preflightQuery(c, n.Child)
+		child, err := PreflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
@@ -261,7 +261,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		}
 	case *plan.SortNode:
 		if n.PresenceOnly {
-			child, err := preflightQuery(c, n.Child)
+			child, err := PreflightQuery(c, n.Child)
 			if err != nil {
 				return nil, err
 			}
@@ -301,7 +301,7 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 				outputs[i] = folded
 			}
 		}
-		child, err := preflightQuery(c, n.Child)
+		child, err := PreflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
@@ -347,13 +347,13 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 			// Use surviving scalar recipes, not dead conditional branches, to
 			// choose child payload demand. Scalar preparation keeps its usual
 			// precedence over opening/preparing the source.
-			demanded, err := view.RuleQueryProducerDemand(n, nil, 0)
+			demanded, err := RuleQueryProducerDemand(n, nil, 0)
 			if err != nil {
 				return nil, err
 			}
 			n, node = demanded.(*plan.ProjectNode), demanded
 		}
-		child, err := preflightQuery(c, n.Child)
+		child, err := PreflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
@@ -383,11 +383,11 @@ func preflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 }
 
 func preflightJoin(c *exec.Context, n *plan.JoinNode) (plan.Node, error) {
-	left, err := preflightQuery(c, n.Left)
+	left, err := PreflightQuery(c, n.Left)
 	if err != nil {
 		return nil, err
 	}
-	right, err := preflightQuery(c, n.Right)
+	right, err := PreflightQuery(c, n.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -424,11 +424,11 @@ func preflightJoin(c *exec.Context, n *plan.JoinNode) (plan.Node, error) {
 }
 
 func preflightSet(c *exec.Context, n *plan.SetNode) (plan.Node, error) {
-	left, err := preflightQuery(c, n.Left)
+	left, err := PreflightQuery(c, n.Left)
 	if err != nil {
 		return nil, err
 	}
-	right, err := preflightQuery(c, n.Right)
+	right, err := PreflightQuery(c, n.Right)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +466,7 @@ func preflightSet(c *exec.Context, n *plan.SetNode) (plan.Node, error) {
 
 func preflightDistinct(c *exec.Context, n *plan.DistinctNode) (plan.Node, error) {
 	if n.PresenceOnly {
-		child, err := preflightQuery(c, n.Child)
+		child, err := PreflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
 		}
@@ -477,7 +477,7 @@ func preflightDistinct(c *exec.Context, n *plan.DistinctNode) (plan.Node, error)
 		copy.Child = child
 		return &copy, nil
 	}
-	child, err := preflightQuery(c, n.Child)
+	child, err := PreflightQuery(c, n.Child)
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +509,7 @@ func preflightDistinct(c *exec.Context, n *plan.DistinctNode) (plan.Node, error)
 }
 
 func preflightDistinctOn(c *exec.Context, n *plan.DistinctOnNode) (plan.Node, error) {
-	child, err := preflightQuery(c, n.Child)
+	child, err := PreflightQuery(c, n.Child)
 	if err != nil {
 		return nil, err
 	}
@@ -571,4 +571,53 @@ func preflightFunctionFrom(c *exec.Context, n *plan.FunctionFromNode) (plan.Node
 	copy := *source
 	copy.ScalarNull = scalarNull
 	return &copy, nil
+}
+
+// Legality and source opening consume the same execution-owned projection and
+// scheduled producers. Frozen authorization reads and dependencies are unchanged.
+func PrepareStoredExecutionRoot(c *exec.Context, definition *stored.View, outputUses []int) (plan.Node, map[int][]int32, error) {
+	demanded := definition.Query().Root
+	if project, ok := demanded.(*plan.ProjectNode); ok {
+		var err error
+		demanded, err = StoredProjectionDemand(project, outputUses)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		for _, slot := range outputUses {
+			if slot < 0 || slot >= len(demanded.Schema()) {
+				return nil, nil, fmt.Errorf("stuntgres: invalid stored projection use")
+			}
+		}
+	}
+	root, err := PreflightQuery(c, demanded)
+	if err != nil {
+		return nil, nil, err
+	}
+	reads := analyze.QueryExecutionSourceReads(root, nil)
+	if source, ok := root.(*plan.SourceNode); ok {
+		if source.Occurrence < 0 || source.Occurrence >= len(definition.Sources()) {
+			return nil, nil, fmt.Errorf("stuntgres: invalid stored source occurrence")
+		}
+		attributes := definition.Sources()[source.Occurrence].Attributes
+		if outputUses == nil {
+			reads[source.Occurrence] = attributes
+		} else {
+			items := make([]int32, 0, len(outputUses))
+			for _, slot := range outputUses {
+				if slot >= len(attributes) {
+					return nil, nil, fmt.Errorf("stuntgres: invalid stored source attribute")
+				}
+				found := false
+				for _, attribute := range items {
+					found = found || attribute == attributes[slot]
+				}
+				if !found {
+					items = append(items, attributes[slot])
+				}
+			}
+			reads[source.Occurrence] = items
+		}
+	}
+	return root, reads, nil
 }

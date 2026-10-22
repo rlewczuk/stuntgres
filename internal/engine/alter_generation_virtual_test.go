@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -154,7 +155,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 		t.Fatal("bound virtual column lost owning generation", node)
 	}
 	authority := evaluation.RoutineAuthority
-	if err := validateExpressionJoinExecution(&evaluation, column, evaluation.Catalog); err != nil {
+	if err := view.ValidateExpressionJoinExecution(&evaluation, column, evaluation.Catalog); err != nil {
 		t.Fatal("original generation admission", err)
 	}
 	if evaluation.RoutineAuthority != authority {
@@ -167,11 +168,11 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	missing.VirtualOwner = &owner
 	definition.Dependencies = nil
 	owner.ColumnMeta.Generations[column.VirtualAttribute] = definition
-	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.Catalog); err == nil {
+	if err := view.ValidateExpressionJoinExecution(&evaluation, missing, evaluation.Catalog); err == nil {
 		t.Fatal("generation recovered a missing original manifest from enclosing query or current OID")
 	}
 	missing.VirtualOwner = nil
-	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.Catalog); err == nil {
+	if err := view.ValidateExpressionJoinExecution(&evaluation, missing, evaluation.Catalog); err == nil {
 		t.Fatal("SQL virtual column admitted without its original owner")
 	}
 	// Context selection is evaluator-local and cannot borrow a definer view's
@@ -187,7 +188,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	}
 	invoker := evaluation
 	invoker.RoutineAuthority = &readerAuthority
-	err = validateExpressionJoinExecution(&invoker, column, readerAuthority.Catalog)
+	err = view.ValidateExpressionJoinExecution(&invoker, column, readerAuthority.Catalog)
 	var denied interface{ SQLState() string }
 	if !errors.As(err, &denied) || denied.SQLState() != "42501" {
 		t.Fatal("generation did not enforce current invoker", err)

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -149,7 +150,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 		return err
 	}
 	evaluation := c.state.Evaluation(s.op.Context())
-	return validateQueryJoinExecution(&evaluation, c.root, auth.Catalog, 0)
+	return view.ValidateQueryJoinExecution(&evaluation, c.root, auth.Catalog, 0)
 }
 
 func (c *sqlCursor) openProducer(s *StatementScope) error {

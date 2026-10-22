@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -164,7 +165,7 @@ func TestStringSplitExpansion(t *testing.T) {
 						t.Fatal(err)
 					}
 					owner := &plan.ProjectNode{QuerySchema: schema, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
-					private, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: binder.BindingCatalog()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, owner)
+					private, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: binder.BindingCatalog()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -874,7 +875,7 @@ func TestStringSplitPreflight(t *testing.T) {
 				templateSteps := append([]plan.SetStep(nil), retained.Template.Steps...)
 				owner := &plan.ProjectNode{QuerySchema: schema, Child: child, Expressions: expressions, Frame: 1, HasTargetSet: true}
 				for range 3 {
-					private, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, owner)
+					private, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, owner)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -984,7 +985,7 @@ func TestStringSplitPreflight(t *testing.T) {
 		for range 3 {
 			ctx, cancel := context.WithCancel(context.Background())
 			evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			private, err := preflightQuery(evaluation, root)
+			private, err := view.PreflightQuery(evaluation, root)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1046,7 +1047,7 @@ func TestStringSplitPreflightSiblingError(t *testing.T) {
 		t.Fatal("immutable sibling error moved into lowering", err)
 	}
 	retained := root.(*plan.SetProjectNode)
-	_, err = preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, retained)
+	_, err = view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, retained)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22023" {
 		t.Fatal("strict NULL suppressed immutable sibling error", err)

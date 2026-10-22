@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -208,7 +209,7 @@ func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 			if err != nil {
 				return err
 			}
-			if err := validateExpressionJoinExecution(&checkEvaluation, node, domainCatalog(&checkEvaluation)); err != nil {
+			if err := view.ValidateExpressionJoinExecution(&checkEvaluation, node, domainCatalog(&checkEvaluation)); err != nil {
 				return err
 			}
 			if changed {

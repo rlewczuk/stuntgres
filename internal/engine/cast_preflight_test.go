@@ -14,6 +14,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -129,7 +130,7 @@ func TestCastCoercionQueryPreflightSharing(t *testing.T) {
 	source := &plan.SourceNode{}
 	unchanged := preflightCast(t, "SELECT $1::text FROM t")
 	project := &plan.ProjectNode{Child: source, Expressions: []expr.Expr{unchanged}}
-	root, err := preflightQuery(&evaluation, project)
+	root, err := view.PreflightQuery(&evaluation, project)
 	if err != nil || root != project {
 		t.Fatal(root, err)
 	}
@@ -138,7 +139,7 @@ func TestCastCoercionQueryPreflightSharing(t *testing.T) {
 	sort := &plan.SortNode{Child: filter, Keys: []plan.SortKey{{Expression: unchanged, Slot: 3, Cache: -1, Desc: true}}}
 	project.Child = sort
 	for range 2 {
-		root, err = preflightQuery(&evaluation, project)
+		root, err = view.PreflightQuery(&evaluation, project)
 		if err != nil || root == project {
 			t.Fatal(root, err)
 		}
@@ -156,7 +157,7 @@ func TestCastCoercionQueryPreflightSharing(t *testing.T) {
 		}
 	}
 	project.Expressions = []expr.Expr{constant, unchanged}
-	root, err = preflightQuery(&evaluation, project)
+	root, err = view.PreflightQuery(&evaluation, project)
 	if err != nil || &root.(*plan.ProjectNode).Expressions[0] == &project.Expressions[0] {
 		t.Fatal("changed expressions not copied", err)
 	}
@@ -299,7 +300,7 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		root, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}, project)
+		root, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}, project)
 		if !reflect.DeepEqual(project.Expressions[0], original) || !reflect.DeepEqual(project.Schema(), schema) {
 			t.Fatal("analyzed query mutated")
 		}
@@ -339,7 +340,7 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 		return original.Child.ResultUsage().Type.Input(c.Context, "42", -1)
 	})
 	private.Expressions = []expr.Expr{original}
-	root, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, &private)
+	root, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, &private)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -421,7 +422,7 @@ func TestCastCoercionPreflightIntegratedParents(t *testing.T) {
 		})
 	}
 	singleton := &plan.SingletonNode{}
-	root, err := preflightQuery(&evaluation, singleton)
+	root, err := view.PreflightQuery(&evaluation, singleton)
 	if err != nil || root != singleton {
 		t.Fatal("singleton preflight changed source", root, err)
 	}

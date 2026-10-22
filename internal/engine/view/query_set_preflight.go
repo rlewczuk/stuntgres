@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"fmt"
@@ -53,7 +53,7 @@ func preflightQuerySet(c *exec.Context, n *plan.SetProjectNode) (plan.Node, erro
 		}
 		base = child.Child
 	}
-	base, err := preflightQuery(c, base)
+	base, err := PreflightQuery(c, base)
 	if err != nil {
 		return nil, err
 	}

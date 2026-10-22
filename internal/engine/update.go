@@ -82,7 +82,7 @@ func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 				return nil, err
 			}
 		}
-		folded, err := preflightQuery(c, from)
+		folded, err := view.PreflightQuery(c, from)
 		if err != nil {
 			return nil, err
 		}

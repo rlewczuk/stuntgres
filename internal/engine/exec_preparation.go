@@ -16,12 +16,12 @@ func init() { exec.InstallPreparation(enginePreparation{}) }
 
 type enginePreparation struct{}
 
-func (enginePreparation) AdmitExpression(c *exec.Context, e expr.Expr, view catalog.Read) error {
-	return validateExpressionJoinExecution(c, e, view)
+func (enginePreparation) AdmitExpression(c *exec.Context, e expr.Expr, read catalog.Read) error {
+	return view.ValidateExpressionJoinExecution(c, e, read)
 }
 
 func (enginePreparation) PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
-	return preflightQuery(c, node)
+	return view.PreflightQuery(c, node)
 }
 
 func (enginePreparation) PrepareDomainConversion(c *exec.Context, source, target *sqltype.Descriptor) error {

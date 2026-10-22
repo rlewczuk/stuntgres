@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -55,9 +56,9 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 	} {
 		sessionSQL(t, owner, q)
 	}
-	view := e.CatalogRead()
-	ref := catalogRef(t, e, view, "expr_preflight_v")
-	definition := stored.ViewOf(view.MustRelation(ref.Address))
+	read := e.CatalogRead()
+	ref := catalogRef(t, e, read, "expr_preflight_v")
+	definition := stored.ViewOf(read.MustRelation(ref.Address))
 	frozen := definition.Query().Root
 	for _, tc := range []struct {
 		name, q string
@@ -74,7 +75,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 				t.Fatal("ordinary source occurrence uses", bound.QuerySources, tc.uses)
 			}
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.Query.Root.(*plan.ProjectNode).Frame}}
-			err := validateQueryJoinExecution(&evaluation, bound.Query.Root, e.CatalogRead(), 0)
+			err := view.ValidateQueryJoinExecution(&evaluation, bound.Query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -69,7 +70,7 @@ func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 	schema := []catalog.Column{{Name: "column1", Usage: expression.ResultUsage()}}
 	original := &plan.ValuesNode{QuerySchema: schema, Rows: [][]expr.Expr{{expression}, {expression}}}
 	for range 2 {
-		root, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
+		root, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)
 		if err != nil || root == original {
 			t.Fatal(root, err)
 		}
@@ -92,6 +93,6 @@ func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 		}
 	}
 	bad := &plan.ValuesNode{Rows: [][]expr.Expr{{preflightCast(t, "SELECT int4('bad'::text) FROM t")}}}
-	_, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bad)
+	_, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, bad)
 	state(t, err, "22P02")
 }

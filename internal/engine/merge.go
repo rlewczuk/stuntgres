@@ -20,18 +20,18 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	var err error
-	merge.Source, err = preflightQuery(&owner, merge.Source)
+	merge.Source, err = view.PreflightQuery(&owner, merge.Source)
 	if err != nil {
 		return err
 	}
-	if err := validateQueryJoinExecution(&owner, merge.Source, catalog, 0); err != nil {
+	if err := view.ValidateQueryJoinExecution(&owner, merge.Source, catalog, 0); err != nil {
 		return err
 	}
 	merge.On, _, err = exec.PreflightCoercions(&owner, merge.On)
 	if err != nil {
 		return err
 	}
-	if err := validateExpressionJoinExecution(&owner, merge.On, catalog); err != nil {
+	if err := view.ValidateExpressionJoinExecution(&owner, merge.On, catalog); err != nil {
 		return err
 	}
 	for i := range merge.Arms {
@@ -40,7 +40,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 		if err != nil {
 			return err
 		}
-		if err := validateExpressionJoinExecution(&owner, arm.Condition, catalog); err != nil {
+		if err := view.ValidateExpressionJoinExecution(&owner, arm.Condition, catalog); err != nil {
 			return err
 		}
 		if arm.Action == parser.MergeUpdateAction {
@@ -48,7 +48,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 			if err != nil {
 				return err
 			}
-			if err := validateMutationJoinExecution(&owner, &arm.Input, nil, catalog); err != nil {
+			if err := view.ValidateMutationJoinExecution(&owner, &arm.Input, nil, catalog); err != nil {
 				return err
 			}
 			continue
@@ -77,7 +77,7 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 				return err
 			}
 		}
-		if err := validateMutationJoinExecution(&owner, &arm.Input, arm.Input.Expressions, catalog); err != nil {
+		if err := view.ValidateMutationJoinExecution(&owner, &arm.Input, arm.Input.Expressions, catalog); err != nil {
 			return err
 		}
 	}

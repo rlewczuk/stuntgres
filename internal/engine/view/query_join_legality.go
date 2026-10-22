@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"fmt"
@@ -17,17 +17,17 @@ import (
 // Planning-only restrictions run on execution-owned parameters, never Prepare.
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
-func validateQueryJoinExecution(c *exec.Context, node plan.Node, catalog catalog.Read, inherited lock.Mode) error {
+func ValidateQueryJoinExecution(c *exec.Context, node plan.Node, catalog catalog.Read, inherited lock.Mode) error {
 	reads := analyze.QueryExecutionSourceReads(node, nil)
 	if source, ok := node.(*plan.SourceNode); ok {
 		reads[source.Occurrence] = nil
 	}
-	return validateMarkedQueryJoin(c, node, catalog, nil, plan.RowMark{Mode: inherited}, false, nil, reads)
+	return ValidateMarkedQueryJoin(c, node, catalog, nil, plan.RowMark{Mode: inherited}, false, nil, reads)
 }
 
 // Mutation targets and RETURNING are planned even when their input selects no
 // rows. Walk only the execution-owned expressions that the binding consumes.
-func validateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressions [][]expr.Expr, catalog catalog.Read) error {
+func ValidateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressions [][]expr.Expr, catalog catalog.Read) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	validateTargets := func(targets []*plan.ArrayAssignmentTarget) error {
@@ -35,7 +35,7 @@ func validateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressi
 			for path := target; path != nil; path = path.Next {
 				var storage [13]expr.Expr
 				for _, child := range plan.SubscriptChildren(path.Node, &storage) {
-					if err := validateExpressionJoinExecution(&owner, child, catalog); err != nil {
+					if err := ValidateExpressionJoinExecution(&owner, child, catalog); err != nil {
 						return err
 					}
 				}
@@ -55,14 +55,14 @@ func validateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressi
 			return err
 		}
 		for _, expression := range action.Assignments {
-			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
+			if err := ValidateExpressionJoinExecution(&owner, expression, catalog); err != nil {
 				return err
 			}
 		}
-		if err := validateExpressionJoinExecution(&owner, action.Predicate, catalog); err != nil {
+		if err := ValidateExpressionJoinExecution(&owner, action.Predicate, catalog); err != nil {
 			return err
 		}
-	} else if err := validateExpressionJoinExecution(&owner, b.Predicate, catalog); err != nil {
+	} else if err := ValidateExpressionJoinExecution(&owner, b.Predicate, catalog); err != nil {
 		return err
 	}
 	for _, row := range expressions {
@@ -70,14 +70,14 @@ func validateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressi
 			if len(expressions) == 1 && len(b.Insert.IdentityDiscard) != 0 && b.Insert.IdentityDiscard[b.Targets[j]] {
 				continue
 			}
-			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
+			if err := ValidateExpressionJoinExecution(&owner, expression, catalog); err != nil {
 				return err
 			}
 		}
 	}
 	if b.Returning != nil {
 		for _, expression := range b.Returning.Expressions {
-			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
+			if err := ValidateExpressionJoinExecution(&owner, expression, catalog); err != nil {
 				return err
 			}
 		}
@@ -85,7 +85,7 @@ func validateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressi
 	return nil
 }
 
-func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, catalog catalog.Read) error {
+func ValidateExpressionJoinExecution(c *exec.Context, expression expr.Expr, catalog catalog.Read) error {
 	if expression == nil {
 		return nil
 	}
@@ -120,12 +120,12 @@ func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 		if subquery.PresenceOnly {
 			ignored = project
 		}
-		if err := validateMarkedQueryJoin(&child, project, catalog, nil, plan.RowMark{}, false, ignored, analyze.QueryExecutionSourceReads(project, ignored)); err != nil {
+		if err := ValidateMarkedQueryJoin(&child, project, catalog, nil, plan.RowMark{}, false, ignored, analyze.QueryExecutionSourceReads(project, ignored)); err != nil {
 			return err
 		}
 	}
 	if logical, ok := expression.(plan.LogicalExpr); ok {
-		if err := validateExpressionJoinExecution(c, logical.Left, catalog); err != nil {
+		if err := ValidateExpressionJoinExecution(c, logical.Left, catalog); err != nil {
 			return err
 		}
 		if logical.QueryRight {
@@ -134,17 +134,17 @@ func validateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 				return err
 			}
 		}
-		return validateExpressionJoinExecution(c, logical.Right, catalog)
+		return ValidateExpressionJoinExecution(c, logical.Right, catalog)
 	}
 	var failure error
 	plan.ExpressionChildren(expression, func(child expr.Expr) {
 		if failure == nil {
-			failure = validateExpressionJoinExecution(c, child, catalog)
+			failure = ValidateExpressionJoinExecution(c, child, catalog)
 		}
 	})
 	return failure
 }
-func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read, marks []plan.RowMark, inherited plan.RowMark, emptyInput bool, ignoredProject *plan.ProjectNode, reads map[int][]int32) error {
+func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read, marks []plan.RowMark, inherited plan.RowMark, emptyInput bool, ignoredProject *plan.ProjectNode, reads map[int][]int32) error {
 
 	if node == nil {
 		return nil
@@ -158,7 +158,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 		var failure error
 		validate := func(expression expr.Expr) {
 			if failure == nil {
-				failure = validateExpressionJoinExecution(c, expression, view)
+				failure = ValidateExpressionJoinExecution(c, expression, view)
 			}
 		}
 		if source, ok := node.(*plan.FunctionFromNode); ok {
@@ -263,10 +263,10 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				}
 			}
 		}
-		if err := validateMarkedQueryJoin(c, set.Left, view, nil, plan.RowMark{}, emptyInput, nil, reads); err != nil {
+		if err := ValidateMarkedQueryJoin(c, set.Left, view, nil, plan.RowMark{}, emptyInput, nil, reads); err != nil {
 			return err
 		}
-		return validateMarkedQueryJoin(c, set.Right, view, nil, plan.RowMark{}, emptyInput, nil, reads)
+		return ValidateMarkedQueryJoin(c, set.Right, view, nil, plan.RowMark{}, emptyInput, nil, reads)
 	case *plan.WorktableScanNode:
 		return nil
 	case *plan.SourceNode:
@@ -283,11 +283,11 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 			child.QuoteOrigin = exec.QuoteOrigin{Owner: n.Ref, Definition: stored.ViewOf(d).RuleOID(), Revision: stored.ViewOf(d).QuoteRevision()}
 			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = stored.ViewOf(d).Dependencies(), nil, d
 			child.RoutineRecipe, child.RoutineGraft = true, false
-			root, storedReads, err := prepareStoredExecutionRoot(&child, stored.ViewOf(d), outputUses)
+			root, storedReads, err := PrepareStoredExecutionRoot(&child, stored.ViewOf(d), outputUses)
 			if err != nil {
 				return err
 			}
-			return validateMarkedQueryJoin(&child, root, view, nil, mark, emptyInput, nil, storedReads)
+			return ValidateMarkedQueryJoin(&child, root, view, nil, mark, emptyInput, nil, storedReads)
 		}
 		return nil
 	case *plan.DerivedNode:
@@ -305,11 +305,11 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 		child := *c
 		child.Scope, child.Frame = 1, project.Frame
 		child.Row, child.OrderValues, child.Outer = nil, nil, c.Outer
-		root, err := preflightQuery(&child, project)
+		root, err := PreflightQuery(&child, project)
 		if err != nil {
 			return err
 		}
-		return validateMarkedQueryJoin(&child, root, view, marks, inherited, emptyInput, nil, reads)
+		return ValidateMarkedQueryJoin(&child, root, view, marks, inherited, emptyInput, nil, reads)
 	case *plan.JoinNode:
 		mark := plan.RowMark{}
 		if n.Kind == parser.JoinLeft || n.Kind == parser.JoinFull {
@@ -375,10 +375,10 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 		}
 	}
 	left, right := plan.QueryInputs(node)
-	if err := validateMarkedQueryJoin(c, left, view, marks, inherited, emptyInput, ignoredProject, reads); err != nil {
+	if err := ValidateMarkedQueryJoin(c, left, view, marks, inherited, emptyInput, ignoredProject, reads); err != nil {
 		return err
 	}
-	return validateMarkedQueryJoin(c, right, view, marks, inherited, emptyInput, ignoredProject, reads)
+	return ValidateMarkedQueryJoin(c, right, view, marks, inherited, emptyInput, ignoredProject, reads)
 }
 
 // Query equality is caller-checked; index/hash support and native semantic-tree

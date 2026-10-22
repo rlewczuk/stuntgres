@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -95,7 +96,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT 1/(2-2) FROM t")
 		defer source.Close()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
-		_, err := preflightQuery(&evaluation, query.Root)
+		_, err := view.PreflightQuery(&evaluation, query.Root)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 			t.Fatal("closed immutable error escaped planning", err)
@@ -113,7 +114,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		probe.Property.Volatility = expr.Volatile
 		original.Expressions[0] = probe
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
-		prepared, err := preflightQuery(&evaluation, original)
+		prepared, err := view.PreflightQuery(&evaluation, original)
 		if err != nil {
 			source.Close()
 			t.Fatal(err)

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -195,7 +196,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			if err != nil {
 				return err
 			}
-			if err := validateExpressionJoinExecution(&evaluation, prepared, auth.Catalog); err != nil {
+			if err := view.ValidateExpressionJoinExecution(&evaluation, prepared, auth.Catalog); err != nil {
 				return err
 			}
 			nodes[i] = prepared

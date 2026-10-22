@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -143,11 +144,11 @@ func TestQueryOuterJoinsFullLegality(t *testing.T) {
 		t.Run(tc.condition, func(t *testing.T) {
 			e, query, _ := queryJoinsFixture(t, "SELECT a.k FROM a FULL JOIN b ON "+tc.condition)
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			root, err := preflightQuery(&evaluation, query.Root)
+			root, err := view.PreflightQuery(&evaluation, query.Root)
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = validateQueryJoinExecution(&evaluation, root, e.CatalogRead(), 0)
+			err = view.ValidateQueryJoinExecution(&evaluation, root, e.CatalogRead(), 0)
 			if tc.legal && err != nil || !tc.legal && err == nil {
 				t.Fatal(tc, err)
 			}
@@ -167,11 +168,11 @@ func TestQueryOuterJoinsNestedMergedKeyDependencies(t *testing.T) {
 	} {
 		e, query, _ := queryJoinsFixture(t, queryText)
 		c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		root, err := preflightQuery(&c, query.Root)
+		root, err := view.PreflightQuery(&c, query.Root)
 		if err != nil {
 			t.Fatal(queryText, err)
 		}
-		if err := validateQueryJoinExecution(&c, root, e.CatalogRead(), 0); err != nil {
+		if err := view.ValidateQueryJoinExecution(&c, root, e.CatalogRead(), 0); err != nil {
 			t.Fatal(queryText, err)
 		}
 	}
@@ -182,11 +183,11 @@ func TestQueryOuterJoinsExecutionRowmarkModes(t *testing.T) {
 		for _, clause := range []string{"FOR KEY SHARE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR UPDATE"} {
 			e, query, _ := queryJoinsFixture(t, "SELECT a.k FROM a "+kind+" JOIN b ON a.k=b.k LIMIT 0 "+clause)
 			c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			root, err := preflightQuery(&c, query.Root)
+			root, err := view.PreflightQuery(&c, query.Root)
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = validateQueryJoinExecution(&c, root, e.CatalogRead(), 0)
+			err = view.ValidateQueryJoinExecution(&c, root, e.CatalogRead(), 0)
 			state(t, err, "0A000")
 			var diagnostic *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: clause + " cannot be applied to the nullable side of an outer join"}

@@ -123,7 +123,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		derived := &plan.DerivedNode{QuerySchema: schema, Query: &plan.Query{Root: child}, ScanFrame: 1}
 		outer := &plan.ProjectNode{QuerySchema: schema, Child: derived, Expressions: []expr.Expr{good}, Frame: 1}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
-		prepared, err := preflightQuery(&evaluation, outer)
+		prepared, err := view.PreflightQuery(&evaluation, outer)
 		if err != nil {
 			t.Fatalf("unused pure child was prepared: %v", err)
 		}
@@ -140,7 +140,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			Info:  expr.Info{Usage: bad.ResultUsage(), Property: expr.Properties{RowDependent: true}},
 			Frame: 1, Slot: 0,
 		}}
-		_, err = preflightQuery(&evaluation, &demanded)
+		_, err = view.PreflightQuery(&evaluation, &demanded)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 			t.Fatalf("demanded child was not prepared: %v", err)
 		}
@@ -236,7 +236,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				t.Fatal("unit did not reach the real correlated rule invocation")
 			}
 			planning := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: auth.Catalog, PlanStaticOperators: true}}
-			prepared, err := preflightQuery(&planning, composed.Query.Root)
+			prepared, err := view.PreflightQuery(&planning, composed.Query.Root)
 			if err != nil {
 				t.Fatalf("row-dependent payload was evaluated during planning: %v", err)
 			}
@@ -310,7 +310,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		// Match DELETE's established order: source preparation first, then
 		// predicate preparation. Liveness must not evaluate the predicate early.
-		prepared, err := preflightQuery(&evaluation, private.Delete.Using)
+		prepared, err := view.PreflightQuery(&evaluation, private.Delete.Using)
 		if err != nil {
 			t.Fatalf("dead CASE revived source payload demand: %v", err)
 		}

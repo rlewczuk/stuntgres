@@ -182,7 +182,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if planErr != nil {
 			return 0, planErr
 		}
-		if planErr = validateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); planErr != nil {
+		if planErr = view.ValidateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); planErr != nil {
 			return 0, planErr
 		}
 		b.Insert.Defaults[i] = folded

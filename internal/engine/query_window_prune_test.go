@@ -40,7 +40,7 @@ func TestQueryWindowSurvivingOccurrences(t *testing.T) {
 			original := pruningTestWindow(t, query.Root)
 			calls := append([]plan.WindowCall(nil), original.Calls...)
 			for range 2 {
-				prepared, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: query.Root.(*plan.ProjectNode).Frame}}, query.Root)
+				prepared, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: query.Root.(*plan.ProjectNode).Frame}}, query.Root)
 				if err != nil {
 					t.Fatal(err)
 				}

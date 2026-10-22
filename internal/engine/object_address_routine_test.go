@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -197,7 +198,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			originalCalls := append([]expr.Expr(nil), source.Calls...)
 			originalSchema := append(plan.QuerySchema(nil), source.QuerySchema...)
 			originalManifest := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
-			planned, err := preflightFunctionFrom(&evaluation, source)
+			planned, err := view.PreflightQuery(&evaluation, source)
 			if err != nil {
 				t.Fatal("source preflight", err)
 			}
@@ -224,7 +225,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			probe := evaluation
 			probe.RoutineChecks = []catalog.ExpressionDependency{}
 			for _, empty := range []bool{true, false} {
-				err := validateMarkedQueryJoin(&probe, execution, evaluation.Catalog, nil, plan.RowMark{}, empty, nil, nil)
+				err := view.ValidateMarkedQueryJoin(&probe, execution, evaluation.Catalog, nil, plan.RowMark{}, empty, nil, nil)
 				if (err == nil) != (tc.pruned || empty) {
 					t.Fatal("execution demand versus original lifetime", empty, tc.pruned, err)
 				}
@@ -234,7 +235,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				// Removing it on a private copy exposes the original missing refs.
 				unpruned := *execution
 				unpruned.ScalarNull = nil
-				if err := validateMarkedQueryJoin(&probe, &unpruned, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
+				if err := view.ValidateMarkedQueryJoin(&probe, &unpruned, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
 					t.Fatal("nonpruned original graph did not demand its manifest")
 				}
 				cursor, err := exec.OpenFunctionCall(&probe, execution, 0)
@@ -249,7 +250,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 					}
 					again := evaluation
 					again.Parameters = []sqltype.Value{value}
-					replanned, err := preflightFunctionFrom(&again, source)
+					replanned, err := view.PreflightQuery(&again, source)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -258,12 +259,12 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 						t.Fatal("original source retained a prior NULL frame")
 					}
 					again.RoutineChecks = []catalog.ExpressionDependency{}
-					if err := validateMarkedQueryJoin(&again, fresh, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
+					if err := view.ValidateMarkedQueryJoin(&again, fresh, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
 						t.Fatal("non-NULL frame borrowed NULL admission")
 					}
 				}
 			}
-			if err := validateMarkedQueryJoin(&evaluation, execution, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
+			if err := view.ValidateMarkedQueryJoin(&evaluation, execution, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
 				t.Fatal("intact original manifest", err)
 			}
 			sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")
@@ -277,7 +278,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			cancel()
 			canceled := evaluation
 			canceled.Context = ctx
-			if _, err := preflightFunctionFrom(&canceled, source); !errors.Is(err, context.Canceled) {
+			if _, err := view.PreflightQuery(&canceled, source); !errors.Is(err, context.Canceled) {
 				t.Fatal("cancellation before source pruning", err)
 			}
 			if !reflect.DeepEqual(source.Calls, originalCalls) || !reflect.DeepEqual(source.QuerySchema, originalSchema) || !reflect.DeepEqual(binder.Dependencies, originalManifest) {
@@ -376,7 +377,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		sourceManifest := append([]catalog.ExpressionDependency(nil), sourceBinder.Dependencies...)
 		sourceEvaluation := evaluation
 		sourceEvaluation.RoutineChecks = sourceBinder.Dependencies
-		planned, err := preflightFunctionFrom(&sourceEvaluation, source)
+		planned, err := view.PreflightQuery(&sourceEvaluation, source)
 		if err != nil {
 			t.Fatal("literal sibling source pruning", err)
 		}
@@ -411,7 +412,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			}
 			sourceEvaluation := evaluation
 			sourceEvaluation.RoutineChecks = sourceBinder.Dependencies
-			_, err = preflightQuery(&sourceEvaluation, query.Root)
+			_, err = view.PreflightQuery(&sourceEvaluation, query.Root)
 			nullCountUnitDiagnostic(t, err, want)
 		}
 	}
@@ -502,17 +503,17 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				}
 				manifest := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 				evaluation.RoutineChecks = binder.Dependencies
-				root, err := preflightQuery(&evaluation, query.Root)
+				root, err := view.PreflightQuery(&evaluation, query.Root)
 				if err != nil {
 					t.Fatal("child preflight before source pruning", err)
 				}
 				probe := evaluation
 				probe.RoutineChecks = []catalog.ExpressionDependency{}
-				err = validateMarkedQueryJoin(&probe, root, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil)
+				err = view.ValidateMarkedQueryJoin(&probe, root, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil)
 				if (err == nil) != route.pruned {
 					t.Fatal("proven source demand", route.name, err)
 				}
-				if err := validateMarkedQueryJoin(&evaluation, root, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
+				if err := view.ValidateMarkedQueryJoin(&evaluation, root, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
 					t.Fatal("intact original authority", err)
 				}
 				if !reflect.DeepEqual(binder.Dependencies, manifest) {

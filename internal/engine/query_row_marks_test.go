@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -59,11 +60,11 @@ func TestQueryLockNullableNormalizedDiagnostics(t *testing.T) {
 		t.Run(tc.q, func(t *testing.T) {
 			e, query, _ := queryJoinsFixture(t, tc.q)
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			root, err := preflightQuery(&evaluation, query.Root)
+			root, err := view.PreflightQuery(&evaluation, query.Root)
 			if err != nil {
 				t.Fatal(err)
 			}
-			waitsDiagnostic(t, validateQueryJoinExecution(&evaluation, root, e.CatalogRead(), 0), "0A000", tc.mode+" cannot be applied to the nullable side of an outer join")
+			waitsDiagnostic(t, view.ValidateQueryJoinExecution(&evaluation, root, e.CatalogRead(), 0), "0A000", tc.mode+" cannot be applied to the nullable side of an outer join")
 		})
 	}
 }

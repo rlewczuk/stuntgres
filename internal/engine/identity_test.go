@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -204,7 +205,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 				t.Fatal("discard lost assigned schema", project.Schema())
 			}
 			value := sqltype.String(bound.Parameters.Types[0].Type, "bad")
-			_, err = preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: []sqltype.Value{value}}}, bound.Query.Root)
+			_, err = view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: []sqltype.Value{value}}}, bound.Query.Root)
 			if tc.fails {
 				state(t, err, "22P02")
 			} else if err != nil {

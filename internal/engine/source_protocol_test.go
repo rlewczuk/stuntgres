@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -375,7 +376,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "record", Usage: call.Usage}}, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
-	planned, err := preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: engine.CatalogRead()}}, project)
+	planned, err := view.PreflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: engine.CatalogRead()}}, project)
 	if err != nil {
 		t.Fatal(err)
 	}

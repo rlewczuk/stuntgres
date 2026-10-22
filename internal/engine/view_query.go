@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
@@ -36,9 +35,9 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	evaluation.RoutineRecipe, evaluation.RoutineConsumer = true, consumer
 	evaluation.RoutineChecks = definition.Dependencies()
 	evaluation.RoutineAuthority = &auth
-	root, reads, err := prepareStoredExecutionRoot(&evaluation, definition, outputUses)
+	root, reads, err := view.PrepareStoredExecutionRoot(&evaluation, definition, outputUses)
 	if err == nil {
-		err = validateMarkedQueryJoin(&evaluation, root, catalog, nil, plan.RowMark{}, false, nil, reads)
+		err = view.ValidateMarkedQueryJoin(&evaluation, root, catalog, nil, plan.RowMark{}, false, nil, reads)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -139,53 +138,4 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		source.RoutineChecks = recipe.Dependencies()
 	}
 	return root, source, nil
-}
-
-// Legality and source opening consume the same execution-owned projection and
-// scheduled producers. Frozen authorization reads and dependencies are unchanged.
-func prepareStoredExecutionRoot(c *exec.Context, definition *stored.View, outputUses []int) (plan.Node, map[int][]int32, error) {
-	demanded := definition.Query().Root
-	if project, ok := demanded.(*plan.ProjectNode); ok {
-		var err error
-		demanded, err = view.StoredProjectionDemand(project, outputUses)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		for _, slot := range outputUses {
-			if slot < 0 || slot >= len(demanded.Schema()) {
-				return nil, nil, fmt.Errorf("stuntgres: invalid stored projection use")
-			}
-		}
-	}
-	root, err := preflightQuery(c, demanded)
-	if err != nil {
-		return nil, nil, err
-	}
-	reads := analyze.QueryExecutionSourceReads(root, nil)
-	if source, ok := root.(*plan.SourceNode); ok {
-		if source.Occurrence < 0 || source.Occurrence >= len(definition.Sources()) {
-			return nil, nil, fmt.Errorf("stuntgres: invalid stored source occurrence")
-		}
-		attributes := definition.Sources()[source.Occurrence].Attributes
-		if outputUses == nil {
-			reads[source.Occurrence] = attributes
-		} else {
-			items := make([]int32, 0, len(outputUses))
-			for _, slot := range outputUses {
-				if slot >= len(attributes) {
-					return nil, nil, fmt.Errorf("stuntgres: invalid stored source attribute")
-				}
-				found := false
-				for _, attribute := range items {
-					found = found || attribute == attributes[slot]
-				}
-				if !found {
-					items = append(items, attributes[slot])
-				}
-			}
-			reads[source.Occurrence] = items
-		}
-	}
-	return root, reads, nil
 }
