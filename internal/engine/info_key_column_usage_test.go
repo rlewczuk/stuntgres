@@ -267,31 +267,91 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 		}
 	}
 }
+
+// This wrapper delegates every metadata/privilege result to the real runtime.
+// Only cancellation timing is controlled, at actual column/index walk entries.
+type kcuCancelRuntime struct {
+	engineCatalogRuntime
+	child                        ids.ObjectAddress
+	cancel                       context.CancelFunc
+	effectiveCalls, indexCalls   int
+	cancelEffective, cancelIndex int
+}
+
+func (r *kcuCancelRuntime) Effective(ref ids.ObjectRef, owner bool) (authorization.Privileges, error) {
+	if ref.Address.ClassID == r.child.ClassID && ref.Address.ObjectID == r.child.ObjectID {
+		r.effectiveCalls++
+		if r.effectiveCalls == r.cancelEffective {
+			r.cancel()
+		}
+	}
+	return r.engineCatalogRuntime.Effective(ref, owner)
+}
+
+func (r *kcuCancelRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
+	r.indexCalls++
+	if r.indexCalls == r.cancelIndex {
+		r.cancel()
+	}
+	return r.engineCatalogRuntime.IndexSimpleAttribute(parent, key)
+}
+
 func TestInfoKeyColumnUsageCancellation(t *testing.T) {
 	f := newKCUUnitFixture(t)
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.KeyColumnUsageOID)
-	// Cover every deterministic checkpoint, including those after a row would
-	// otherwise have been appended. No cancellation may publish a prefix.
-	limit := 100
-	for range f.f.e.catalog.read(f.state).Descriptors() {
-		limit++
-	}
-	for remaining := 1; remaining < limit; remaining++ {
-		in := f.input(t, f.state, f.f.owner)
+	// A constant number of captures keeps this proof linear in catalog size.
+	// Check entry and descriptor enumeration without rebuilding authority per
+	// descriptor or sweeping every possible cancellation checkpoint.
+	base := f.input(t, f.state, f.f.owner)
+	for _, remaining := range []int{1, 4} {
+		in := base
 		in.Context = &dtpCancelContext{Context: context.Background(), remaining: remaining}
+		if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) {
+			t.Fatal("entry/descriptor cancellation exposed rows", remaining, rows, err)
+		}
+	}
+	if rows, err := produce(base); err != nil || len(rows) != 4 {
+		t.Fatal("successful populated capture", rows, err)
+	}
+	// Make the child's first member reference index key 1 and its second
+	// member reference key 2. The second member therefore starts only after
+	// one complete child row, regardless of catalog traversal order.
+	state := catalog.CloneState(f.state)
+	child := *f.child
+	child.Constraints.ForeignKeys = append([]catalog.ForeignKeyConstraint(nil), child.Constraints.ForeignKeys...)
+	child.Constraints.ForeignKeys[0].Referenced = []int32{3, 1}
+	child.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.SelectPrivilege, 0)}}
+	state.SetDescriptor(child.Address(), &child)
+	for _, stage := range []string{"column", "index"} {
+		actor := f.f.owner
+		if stage == "column" {
+			actor = f.f.reader
+		}
+		in := f.input(t, state, actor)
+		ctx, cancel := context.WithCancel(t.Context())
+		in.Context = ctx
+		runtime := &kcuCancelRuntime{engineCatalogRuntime: in.Runtime.(engineCatalogRuntime), child: child.Address(), cancel: cancel}
+		if stage == "column" {
+			runtime.cancelEffective = 2
+		} else {
+			runtime.cancelIndex = 2
+		}
+		in.Runtime = runtime
 		rows, err := produce(in)
-		if err == nil {
-			if len(rows) != 4 {
-				t.Fatal("successful capture", rows)
-			}
-			break
-		}
+		cancel()
 		if rows != nil || !errors.Is(err, context.Canceled) {
-			t.Fatal("canceled prefix", remaining, rows, err)
+			t.Fatal("column/index cancellation exposed prefix", stage, rows, err)
 		}
-		if remaining == limit-1 {
-			t.Fatal("no successful checkpoint traversal")
+		if stage == "column" && (runtime.effectiveCalls != 2 || runtime.indexCalls != 1) {
+			t.Fatal("column cancellation did not follow first complete row", runtime.effectiveCalls, runtime.indexCalls)
 		}
+		if stage == "index" && runtime.indexCalls != 2 {
+			t.Fatal("index cancellation did not follow first complete row", runtime.indexCalls)
+		}
+	}
+	empty := f.input(t, catalog.CloneState(f.f.e.catalog.state), f.f.owner)
+	if rows, err := produce(empty); err != nil || rows == nil || len(rows) != 0 {
+		t.Fatal("successful empty capture", rows, err)
 	}
 	in := f.input(t, catalog.CloneState(f.f.e.catalog.state), f.f.owner)
 	ctx, cancel := context.WithCancel(t.Context())
