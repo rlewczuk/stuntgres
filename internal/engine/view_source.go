@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -90,24 +91,24 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	return auth, authorizeViewSourceSnapshot(auth, ref, definition, invoker, mark)
+	return auth, authorizeViewSourceSnapshot(auth.View, auth, ref, definition, invoker, mark)
 }
 
 // The source collector and execution fences use the same captured owner/invoker
 // checks; neither substitutes a live role/catalog sample during recursion.
-func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark) error {
-	d, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.Owner.Domain || ref.Epoch != auth.Catalog.Epoch() || stored.ViewOf(d) != definition {
+func authorizeViewSourceSnapshot(a access.View, env access.Environment, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark) error {
+	d, ok := a.Catalog.Relation(ref.Address)
+	if !ok || ref.Domain() != a.Owner.Domain || ref.Epoch != a.Catalog.Epoch() || stored.ViewOf(d) != definition {
 		return ids.ErrCatalogReplaced
 	}
 	principal := d.Owner
 	if definition.Invoker() {
 		principal = invoker
 	}
-	auth.State.CurrentUser = principal
+	a.State.CurrentUser = principal
 	for _, leaf := range definition.Sources() {
-		source, ok := auth.Catalog.Relation(leaf.Ref.Address)
-		if !ok || !stored.ViewReferenceValid(auth.Catalog, d, leaf.Ref) {
+		source, ok := a.Catalog.Relation(leaf.Ref.Address)
+		if !ok || !stored.ViewReferenceValid(a.Catalog, d, leaf.Ref) {
 			return ids.ErrCatalogReplaced
 		}
 		if leaf.AnalysisOnly {
@@ -127,16 +128,16 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 				return fmt.Errorf("stuntgres: missing view source attribute")
 			}
 		}
-		use, err := stored.ViewUseReference(auth.Catalog, d, leaf.Ref)
+		use, err := stored.ViewUseReference(a.Catalog, d, leaf.Ref)
 		if err != nil {
 			return err
 		}
-		if err := auth.CheckColumns(use, source, authorization.SelectPrivilege, indices); err != nil {
+		if err := a.CheckColumns(env, use, source, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
 	}
-	if mark.Mode != 0 || stored.ViewHasRowMarks(d, auth.Catalog) {
-		return auth.checkViewRowMarks(d, mark, invoker)
+	if mark.Mode != 0 || stored.ViewHasRowMarks(d, a.Catalog) {
+		return checkViewRowMarks(a, env, d, mark, invoker)
 	}
 	return nil
 }

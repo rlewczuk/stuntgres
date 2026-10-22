@@ -120,7 +120,7 @@ func (s *StatementScope) stageTruncate() error {
 			err = ids.ErrCatalogReplaced
 			break
 		}
-		if err = checkTruncate(auth, ref, d, selected.Privilege, false); err != nil {
+		if err = checkTruncate(auth.View, auth, ref, d, selected.Privilege, false); err != nil {
 			break
 		}
 		if err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE"); err != nil {

@@ -98,7 +98,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 		auth := catalogAuthorization(e, e.CatalogRead())
 		auth.State.CurrentUser = reader
 		d := e.catalog.state.MustRelation(refs[name].Address)
-		err := auth.checkViewRowMarks(d, inherited, reader)
+		err := checkViewRowMarks(auth.View, auth, d, inherited, reader)
 		if denied == "" {
 			if err != nil {
 				t.Fatal(name, err)

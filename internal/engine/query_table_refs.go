@@ -37,7 +37,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 		}
 		mark = exec.EffectiveQueryRowMark(relation, mark)
-		if err := authorizeViewSourceSnapshot(auth, ref, stored.ViewOf(relation), sourceInvoker, mark); err != nil {
+		if err := authorizeViewSourceSnapshot(auth.View, auth, ref, stored.ViewOf(relation), sourceInvoker, mark); err != nil {
 			return err
 		}
 		active = append(active, ref)

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -121,14 +122,14 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 	return nil
 }
 
-func (v AuthorizationView) checkViewRowMarks(d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
-	if _, err := stored.ValidateViewReadGraph(v.Catalog, []exec.Leaf{{Relation: d}}); err != nil {
+func checkViewRowMarks(a access.View, env access.Environment, d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
+	if _, err := stored.ValidateViewReadGraph(a.Catalog, []exec.Leaf{{Relation: d}}); err != nil {
 		return err
 	}
-	return v.checkViewRowMarksExpanded(d, inherited, invoker)
+	return checkViewRowMarksExpanded(a, env, d, inherited, invoker)
 }
 
-func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
+func checkViewRowMarksExpanded(a access.View, env access.Environment, d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
 	if d.RelationKind != catalog.ViewRelation {
 		return nil
 	}
@@ -139,11 +140,11 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 	if stored.ViewOf(d).Invoker() {
 		principal = invoker
 	}
-	v.State.CurrentUser = principal
+	a.State.CurrentUser = principal
 	for i, leaf := range stored.ViewOf(d).Sources() {
 		mark := stored.ViewLeafRowMark(stored.ViewOf(d), i, inherited)
-		child, ok := v.Catalog.Relation(leaf.Ref.Address)
-		if !ok || !stored.ViewReferenceValid(v.Catalog, d, leaf.Ref) {
+		child, ok := a.Catalog.Relation(leaf.Ref.Address)
+		if !ok || !stored.ViewReferenceValid(a.Catalog, d, leaf.Ref) {
 			return ids.ErrCatalogReplaced
 		}
 		indices := make([]int, 0, len(leaf.Reads))
@@ -160,19 +161,19 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 				return fmt.Errorf("stuntgres: missing view source attribute")
 			}
 		}
-		use, err := stored.ViewUseReference(v.Catalog, d, leaf.Ref)
+		use, err := stored.ViewUseReference(a.Catalog, d, leaf.Ref)
 		if err != nil {
 			return err
 		}
-		if err := v.CheckColumns(use, child, authorization.SelectPrivilege, indices); err != nil {
+		if err := a.CheckColumns(env, use, child, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
 		if exec.EffectiveQueryRowMark(child, mark).Mode != 0 {
-			if err := v.CheckColumns(use, child, authorization.UpdatePrivilege, nil); err != nil {
+			if err := a.CheckColumns(env, use, child, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}
-		if err := v.checkViewRowMarksExpanded(child, mark, invoker); err != nil {
+		if err := checkViewRowMarksExpanded(a, env, child, mark, invoker); err != nil {
 			return err
 		}
 	}

@@ -15,15 +15,21 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Caller rights are checked on the original logical target. Each nested layer
-// then uses its current owner or the original invoker, never the outer owner.
+// CheckViewWrite implements analyze.Privileges for writes through views.
 func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Statement) error {
+	return checkViewWrite(v, v.View, v, b, stmt)
+}
+
+// Caller rights are checked on the original logical target through binding,
+// which also checks its query sources. Each nested layer then uses its current
+// owner or the original invoker, never the outer owner.
+func checkViewWrite(binding analyze.Privileges, a access.View, env access.Environment, b analyze.Binding, stmt parser.Statement) error {
 	w := view.ViewWriteOf(b.ViewWrite)
 	logical := w.Logical
-	if err := analyze.CheckBinding(v, logical, stmt); err != nil {
+	if err := analyze.CheckBinding(binding, logical, stmt); err != nil {
 		return err
 	}
-	invoker := v.State.CurrentUser
+	invoker := a.State.CurrentUser
 	mask := authorization.UpdatePrivilege
 	switch stmt.(type) {
 	case *parser.Insert:
@@ -33,24 +39,24 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 	}
 	reads := b.Returning != nil || len(logical.UsedColumns) != 0 || logical.Insert.Conflict != nil && len(logical.Insert.Conflict.Reads) != 0
 	for _, layer := range w.Layers {
-		current, ok := v.Catalog.Relation(layer.Ref.Address)
+		current, ok := a.Catalog.Relation(layer.Ref.Address)
 		if !ok || current.View != layer.Relation.View {
 			return ids.ErrCatalogReplaced
 		}
-		authority := v
+		authority := a
 		authority.State.CurrentUser = current.Owner
 		if stored.ViewOf(current).Invoker() {
 			authority.State.CurrentUser = invoker
 		}
-		source, ok := v.Catalog.Relation(layer.SourceRef.Address)
+		source, ok := a.Catalog.Relation(layer.SourceRef.Address)
 		if !ok || !index.SameRelationRowShape(source, layer.Source) {
 			return ids.ErrCatalogReplaced
 		}
 		if mask == authorization.DeletePrivilege {
-			if err := authority.Check(access.Requirement{Object: layer.SourceRef, Privileges: mask}); err != nil {
+			if err := authority.Check(env, access.Requirement{Object: layer.SourceRef, Privileges: mask}); err != nil {
 				return err
 			}
-		} else if err := authority.CheckColumns(layer.SourceRef, source, mask, layer.Targets); err != nil {
+		} else if err := authority.CheckColumns(env, layer.SourceRef, source, mask, layer.Targets); err != nil {
 			return err
 		}
 		for occurrence, leaf := range stored.ViewOf(current).Sources() {
@@ -60,11 +66,11 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 			if occurrence == layer.MainOccurrence && !reads {
 				continue
 			}
-			relation, ok := v.Catalog.Relation(leaf.Ref.Address)
+			relation, ok := a.Catalog.Relation(leaf.Ref.Address)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			use, err := stored.ViewUseReference(v.Catalog, current, leaf.Ref)
+			use, err := stored.ViewUseReference(a.Catalog, current, leaf.Ref)
 			if err != nil {
 				return err
 			}
@@ -82,7 +88,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 					return ids.ErrCatalogReplaced
 				}
 			}
-			if err := authority.CheckColumns(use, relation, authorization.SelectPrivilege, indices); err != nil {
+			if err := authority.CheckColumns(env, use, relation, authorization.SelectPrivilege, indices); err != nil {
 				return err
 			}
 			if occurrence == layer.MainOccurrence {
@@ -90,14 +96,14 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 			}
 			mark := stored.ViewLeafRowMark(stored.ViewOf(current), occurrence, plan.RowMark{})
 			if mark.Mode != 0 {
-				if err := authority.CheckColumns(use, relation, authorization.UpdatePrivilege, nil); err != nil {
+				if err := authority.CheckColumns(env, use, relation, authorization.UpdatePrivilege, nil); err != nil {
 					return err
 				}
 			}
 			// This existing visitor checks child definition SELECT records and
 			// applicable row marks under each child's owner/original invoker.
 			if relation.RelationKind == catalog.ViewRelation {
-				if err := authority.checkViewRowMarks(relation, mark, invoker); err != nil {
+				if err := checkViewRowMarks(authority, env, relation, mark, invoker); err != nil {
 					return err
 				}
 			}

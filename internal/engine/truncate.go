@@ -18,20 +18,20 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation, privilege, only bool) error {
+func checkTruncate(a access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation, privilege, only bool) error {
 	if analyze.GuardedCatalogRelation(d) {
-		return guardedCatalogMutationError(auth, d, true)
+		return guardedCatalogMutationError(a, d, true)
 	}
 	if d.RelationKind == catalog.ForeignRelation {
-		server, ok := auth.Catalog.Foreign(d.Foreign.Server)
+		server, ok := a.Catalog.Foreign(d.Foreign.Server)
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
-		wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
+		wrapper, ok := a.Catalog.Foreign(server.Wrapper)
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
-		handler, err := fdw.HandlerFor(auth.Catalog, wrapper)
+		handler, err := fdw.HandlerFor(a.Catalog, wrapper)
 		if err != nil {
 			return err
 		}
@@ -43,7 +43,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relatio
 		return sqlError("42809", fmt.Sprintf("%q is not a table", d.Name()))
 	}
 	if privilege {
-		if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.TruncatePrivilege}); err != nil {
+		if err := a.Check(env, access.Requirement{Object: ref, Privileges: authorization.TruncatePrivilege}); err != nil {
 			return err
 		}
 	}
@@ -84,7 +84,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 						otherTemporary, err = dml.TruncateOtherTemporary(auth.Catalog, before, s.op.Session.SessionToken)
 					}
 					if err == nil && !otherTemporary {
-						err = checkTruncate(auth, ref, before, privilege && !cascade, only)
+						err = checkTruncate(auth.View, auth, ref, before, privilege && !cascade, only)
 						if err == nil && privilege {
 							err = access.CheckTemporaryStorageAccess(auth.Catalog, before, s.op.Session.SessionToken)
 						}
@@ -147,7 +147,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
 			}
 			if err == nil {
-				err = checkTruncate(auth, ref, d, privilege, only)
+				err = checkTruncate(auth.View, auth, ref, d, privilege, only)
 			}
 			if err == nil {
 				err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE")

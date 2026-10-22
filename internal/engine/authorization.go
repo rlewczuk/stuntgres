@@ -97,7 +97,7 @@ func (v AuthorizationView) CheckViewRowMarks(relation *catalog.Relation, mark pl
 	if mark.Mode == 0 && !stored.ViewHasRowMarks(relation, v.Catalog) {
 		return nil
 	}
-	return v.checkViewRowMarks(relation, mark, v.State.CurrentUser)
+	return checkViewRowMarks(v.View, v, relation, mark, v.State.CurrentUser)
 }
 
 // TemporaryNamespace implements access.Environment: the session's own TEMP

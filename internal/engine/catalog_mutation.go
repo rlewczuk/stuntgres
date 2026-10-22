@@ -3,14 +3,15 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 )
 
 // Binding and frame import have completed before mutation admission. Recheck
 // the coherent effective actor at execution, including held SET ROLE commands.
 // System-catalog TRUNCATE has its own released English diagnostic.
-func guardedCatalogMutationError(auth AuthorizationView, d *catalog.Relation, truncate bool) error {
-	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
+func guardedCatalogMutationError(a access.View, d *catalog.Relation, truncate bool) error {
+	actor, err := a.Roles.Descriptor(a.State.CurrentUser)
 	if err != nil {
 		return err
 	}
