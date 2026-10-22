@@ -141,7 +141,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	if store == nil {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
-	fills, perRowAdd, err := planAddedColumns(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), mutation.additions)
+	fills, perRowAdd, err := table.PlanAddedColumns(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), mutation.additions)
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	if rewrite {
 		writes, deletes := scope.columnProjectionRoots(old.Address())
-		replacement, _, _, err = rewriteTypeRows(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), old, next, store, frontier, writes, deletes, mutation.transforms, mutation.additions, nil, validator)
+		replacement, _, _, err = table.RewriteTypeRows(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), old, next, store, frontier, writes, deletes, mutation.transforms, mutation.additions, nil, validator)
 	} else if !slices.Equal(old.Attributes, next.Attributes) {
 		projection, projectionErr := session.NewColumnProjection(old, next, fills)
 		if projectionErr != nil {

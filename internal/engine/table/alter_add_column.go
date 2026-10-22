@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
@@ -40,6 +41,43 @@ func AlterCookingError(err error) error {
 		return &copy
 	}
 	return err
+}
+
+// PlanAddedColumns prepares the ADD COLUMN DEFAULT recipes and captures each
+// nonvolatile value once; perRow reports a DEFAULT that needs a row rewrite.
+func PlanAddedColumns(evaluation exec.Context, additions []AddedColumn) (map[int32]sqltype.Value, bool, error) {
+	var fills map[int32]sqltype.Value
+	perRow := false
+	for i := range additions {
+		added := &additions[i]
+		if added.Expression != nil {
+			recipe := evaluation
+			recipe.RoutineRecipe, recipe.RoutineGraft = true, false
+			recipe.RoutineReferences, recipe.RoutineConsumer = added.Dependencies, added.Consumer
+			planned, _, err := exec.PreflightCoercionsWithPolicy(&recipe, added.Expression, true)
+			if err != nil {
+				return nil, false, AlterCookingError(err)
+			}
+			if err := exec.AdmitExpression(&recipe, planned, recipe.Catalog); err != nil {
+				return nil, false, AlterCookingError(err)
+			}
+			added.Expression = planned
+			properties := planned.Properties()
+			if properties.Volatility > expr.Stable || properties.RuntimeDomainConversion {
+				perRow = true
+				continue
+			}
+			added.Value, err = planned.Eval(&evaluation)
+			if err != nil {
+				return nil, false, AlterCookingError(err)
+			}
+		}
+		if fills == nil {
+			fills = make(map[int32]sqltype.Value, len(additions))
+		}
+		fills[added.Attribute] = added.Value
+	}
+	return fills, perRow, nil
 }
 
 // AddColumnCandidate is old with the ADD COLUMN of action, and the column's
