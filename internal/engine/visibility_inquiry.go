@@ -4,10 +4,8 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
@@ -47,43 +45,8 @@ func (h *statementHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, 
 	if scope.inquiry.visibilityCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
 	}
-	d, exists := scope.inquiry.visibilityCatalog.Descriptor(ids.ObjectAddress{ClassID: kind.Class(), ObjectID: ids.OID(oid)})
-	if !exists {
-		if kind == functions.CollationVersionInquiry || kind == functions.DatabaseCollationVersionInquiry {
-			objectKind := "collation"
-			if kind == functions.DatabaseCollationVersionInquiry {
-				objectKind = "database"
-			}
-			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("%s with OID %d does not exist", objectKind, oid))
-		}
-		return sqltype.Null(result), nil
-	}
-	if kind == functions.CollationVersionInquiry || kind == functions.DatabaseCollationVersionInquiry {
-		var version *string
-		if kind == functions.DatabaseCollationVersionInquiry {
-			version, err = pgcatalog.DatabaseCollationActualVersion()
-		} else {
-			version, err = pgcatalog.CollationActualVersion(d.(*catalog.Collation))
-		}
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if version == nil {
-			return sqltype.Null(result), nil
-		}
-		return sqltype.String(result, *version), nil
-	}
-	path := scope.inquiry.visibilityRelationPath
-	if kind == functions.CollationVisibility || kind == functions.ConversionVisibility {
-		path = scope.inquiry.visibilityOtherPath
-	}
-	visible := false
-	if kind == functions.CollationVisibility {
-		visible = regobj.VisibleCollation(scope.inquiry.visibilityCatalog, path, d)
-	} else {
-		visible = regobj.NamedObjectVisible(scope.inquiry.visibilityCatalog, path, d)
-	}
-	return sqltype.Boolean(result, visible), nil
+	in := &scope.inquiry
+	return regobj.VisibilityInquiry(in.visibilityCatalog, in.visibilityRelationPath, in.visibilityOtherPath, kind, oid, result)
 }
 
 // Engine.mu is held. The execution frontier owns catalog and path, never mutable
