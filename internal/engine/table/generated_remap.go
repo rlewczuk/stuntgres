@@ -1,4 +1,4 @@
-package engine
+package table
 
 import (
 	"context"
@@ -10,13 +10,19 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 )
 
+// RecomputeRemappedGenerations recomputes the stored generated columns that
+// read their owner's table OID, for every relation the remap moved.
 // Replacement candidates own detached vectors; the source and retained TEMP
 // roots are never modified. Only owner-dependent stored cells are recomputed.
-func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval exec.Context, changed map[ids.ObjectAddress]map[int32]bool) error {
+//
+// capture, when not nil, records the CHECK snapshots of a relation's valid
+// CHECK traversal before its rows are evaluated; it runs with no lock held
+// by this function and may take the engine lock. A nil capture skips it (no
+// statement scope).
+func RecomputeRemappedGenerations(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval exec.Context, changed map[ids.ObjectAddress]map[int32]bool, capture func(*catalog.Relation) error) error {
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -44,17 +50,10 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 			return fmt.Errorf("stuntgres: missing generated replacement storage")
 		}
 		schema := next.Get(descriptor.Namespace()).Name()
-		historical := table.ValidCheckTraversal(descriptor)
-		requiredNotNull := table.NewAlterRowValidator(descriptor, schema).NotNull
-		if scope := scopeOf(eval.Host); scope != nil {
-			stage := scope.engine()
-			stage.mu.Lock()
-			err := stage.captureCheckCommentSnapshotLocked(scope, historical)
-			if err == nil {
-				err = stage.captureCheckVisibilitySnapshotLocked(scope, historical)
-			}
-			stage.mu.Unlock()
-			if err != nil {
+		historical := ValidCheckTraversal(descriptor)
+		requiredNotNull := NewAlterRowValidator(descriptor, schema).NotNull
+		if capture != nil {
+			if err := capture(historical); err != nil {
 				return err
 			}
 		}
@@ -81,12 +80,12 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 				return err
 			}
 			row := append([]sqltype.Value(nil), rows.Versions[i].Values...)
-			if err := table.EvaluateGenerations(ctx, &filtered, row, &eval); err != nil {
+			if err := EvaluateGenerations(ctx, &filtered, row, &eval); err != nil {
 				return err
 			}
 			for _, slot := range requiredNotNull {
 				column := descriptor.Columns[slot]
-				value, err := table.LogicalColumnValue(descriptor, slot, row, &eval)
+				value, err := LogicalColumnValue(descriptor, slot, row, &eval)
 				if err != nil {
 					return err
 				}
@@ -95,15 +94,15 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 					if err != nil {
 						return err
 					}
-					return table.NotNullDetailError(schema, descriptor.Name(), column.Name, detail)
+					return NotNullDetailError(schema, descriptor.Name(), column.Name, detail)
 				}
 			}
-			constraint, err := table.ValidateCheckRow(historical, row, &eval)
+			constraint, err := ValidateCheckRow(historical, row, &eval)
 			if err != nil {
 				return err
 			}
 			if constraint != nil {
-				return table.CheckDetailError(schema, descriptor.Name(), constraint.Name, "")
+				return CheckDetailError(schema, descriptor.Name(), constraint.Name, "")
 			}
 			for slot, comparison := range comparisons {
 				before := rows.Versions[i].Values[slot]

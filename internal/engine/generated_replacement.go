@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -101,7 +102,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.catalog.read(candidate)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	changed := indexes.TrackedGenerations(candidate)
 	if err == nil {
-		err = recomputeRemappedGenerations(ctx, candidate, relations, mapping, evaluation, changed)
+		err = table.RecomputeRemappedGenerations(ctx, candidate, relations, mapping, evaluation, changed, remapCheckCapture(evaluation.Host))
 	}
 	var moved map[ids.ObjectAddress]bool
 	if err == nil {
@@ -120,4 +121,24 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	// Deferred reacquisition checks captured catalog, role incarnations and TEMP
 	// membership atomically with the caller's remaining installation work.
 	return installedStage, ctx.Err()
+}
+
+// remapCheckCapture captures the CHECK comment and visibility snapshots of a
+// remapped relation for the statement behind host, in one Engine.mu window.
+// It returns nil when host has no statement scope.
+func remapCheckCapture(host exec.Host) func(*catalog.Relation) error {
+	scope := scopeOf(host)
+	if scope == nil {
+		return nil
+	}
+	return func(historical *catalog.Relation) error {
+		stage := scope.engine()
+		stage.mu.Lock()
+		err := stage.captureCheckCommentSnapshotLocked(scope, historical)
+		if err == nil {
+			err = stage.captureCheckVisibilitySnapshotLocked(scope, historical)
+		}
+		stage.mu.Unlock()
+		return err
+	}
 }

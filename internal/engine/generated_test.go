@@ -232,7 +232,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	candidate.SetDescriptor(d.Address(), d)
 	relations := map[ids.ObjectAddress]*storage.Relation{d.Address(): rows}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
-	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, nil); err != nil {
+	if err := table.RecomputeRemappedGenerations(context.Background(), candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {
@@ -243,15 +243,70 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := recomputeRemappedGenerations(canceled, candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, nil); !errors.Is(err, context.Canceled) {
+	if err := table.RecomputeRemappedGenerations(canceled, candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: canceled}}, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
 	d.Constraints.Check = []catalog.CheckConstraint{{Name: "blocked", Expression: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}}
-	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, nil); err == nil {
+	if err := table.RecomputeRemappedGenerations(context.Background(), candidate, relations, mapping, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, nil, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {
 		t.Fatal("constraint failure mutated source")
+	}
+}
+
+// The remap capture sees each remapped relation once, as its valid CHECK
+// traversal, before any row changes; its error stops the remap.
+func TestGeneratedRemapCheckCapture(t *testing.T) {
+	e, view, d := generatedUnitDescriptor(t)
+	oid, _ := view.LookupType(sqltype.Oid)
+	boolean, _ := view.LookupType(sqltype.Bool)
+	oldAddress := d.Address()
+	d.ObjectAddress.ObjectID = 26000
+	d.Columns[1].Usage = oid.Usage()
+	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
+	leaf := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
+	literal := func(value bool) expr.Expr {
+		return plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, value)}
+	}
+	d.Constraints.Check = []catalog.CheckConstraint{{Name: "held", Expression: literal(true)}, {Name: "pending", Expression: literal(false), NotValid: true}}
+	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
+	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
+	rows := &storage.Relation{Versions: []storage.RowVersion{{Values: []sqltype.Value{base, oldOID}}}}
+	candidate := catalog.CloneState(view.State())
+	candidate.SetDescriptor(d.Address(), d)
+	relations := map[ids.ObjectAddress]*storage.Relation{d.Address(): rows}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
+	unchanged := func() bool {
+		n, _ := rows.Versions[0].Values[1].OID()
+		return n == uint32(oldAddress.ObjectID)
+	}
+	var captured []*catalog.Relation
+	capture := func(historical *catalog.Relation) error {
+		if !unchanged() {
+			t.Fatal("capture ran after row evaluation")
+		}
+		captured = append(captured, historical)
+		return nil
+	}
+	if err := table.RecomputeRemappedGenerations(context.Background(), candidate, relations, mapping, eval, nil, capture); err != nil {
+		t.Fatal(err)
+	}
+	if len(captured) != 1 || captured[0].Address() != d.Address() || len(captured[0].Constraints.Check) != 1 || captured[0].Constraints.Check[0].Name != "held" {
+		t.Fatal("capture did not see the valid CHECK traversal", captured)
+	}
+	if unchanged() {
+		t.Fatal("owner not recomputed")
+	}
+	rows.Versions[0].Values = []sqltype.Value{base, oldOID}
+	failed := errors.New("capture failed")
+	if err := table.RecomputeRemappedGenerations(context.Background(), candidate, relations, mapping, eval, nil, func(*catalog.Relation) error { return failed }); !errors.Is(err, failed) {
+		t.Fatal("capture error not returned", err)
+	}
+	if !unchanged() {
+		t.Fatal("capture failure changed rows")
 	}
 }

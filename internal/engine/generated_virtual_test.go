@@ -174,7 +174,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
 	next.SetDescriptor(d.Address(), d)
-	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, exec.Context{}, nil); err != nil {
+	if err := table.RecomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, exec.Context{}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !store.Versions[0].Values[1].IsNull() {
