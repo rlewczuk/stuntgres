@@ -122,6 +122,17 @@ engine-seeded catalog.
   (`stored.*DependRefs`), and `Pinned` (`stored.DependPinned`, which also
   reads unpublished definition state).
 
+## Large-object metadata
+
+`pg_largeobject.go` projects genuine large-object descriptors into relation2995:
+exact object OID, effective creator's owner OID and raw `ClassACL`. Absent ACLs
+are NULL, explicit-empty ACLs are `{}`, and populated ACL order, grantors and
+grant options are preserved. The ordinary PUBLIC-readable catalog exposes all
+metadata rows without per-object privilege filtering or ACL redaction.
+`ValidateACL` validates integrity; it does not authorize byte access.
+The same transaction-visible descriptors drive real create, grant/revoke and
+unlink operations; no metadata-only object store or payload relation is added.
+
 ## Transform metadata
 
 `pg_transform.go` owns the relation3576 producer. No implemented transforms
@@ -133,6 +144,20 @@ row/array descriptors. Index-presence and pg_tables inclusion remain separate
 metadata predicates. No new runtime interface or provider registry is needed.
 
 ## Testing
+Public metadata acceptance belongs in `reference/object_grants`, not internal
+SQL tests. It checks empty/populated descriptors, unrelated-role visibility,
+byte denials and one retained statement through drop/recreation. Existing
+Transactions and Restore cover private visibility and native-control replay.
+See the [owning Testing section](../../../reference/object_grants/README.md#large-object-metadata)
+for the public feature smoke and independent outcomes. Selected proof:
+
+```sh
+make check RUN='^TestReferenceLargeObjectMetadata(Shape|Visibility|Lifecycle)$'
+make check RUN='^TestReferenceLargeObjectMetadata(Shape|Visibility|Lifecycle)$' REFERENCE=1
+make check RUN='^TestReferenceLargeObject(Privileges|Transactions|Prepared|Restore)$'
+make check RUN='^TestReferenceLargeObject(Privileges|Transactions|Prepared|Restore)$' REFERENCE=1
+```
+
 
 Transform producer invariants and initialized ownership are covered by engine
 units; public SQL/API coverage stays in reference/catalogs:

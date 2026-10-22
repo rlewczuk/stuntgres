@@ -540,9 +540,15 @@ snapshot; body visibility does not leak into subsequent outer direct reads.
 Numeric equality with a relation/TEMP OID is legal and remains so after Restore.
 
 Only object SELECT/UPDATE ACLs authorize byte reads/writes; put needs both.
-`pg_largeobject_metadata` exposes actual oid/lomowner/raw lomacl; `pg_get_acl`
-returns the same raw state. The full page relation, durability, descriptor
-client API, import/export, truncate and standalone ALTER OWNER are not added.
+`pg_catalog.pg_largeobject_metadata` exposes exactly `oid OID`, `lomowner OID`
+and `lomacl ACLITEM[]` for real objects. PUBLIC can read every row and its complete
+raw ACL even without object-byte privileges; there is no per-object metadata
+filter or ACL redaction. NULL, explicit-empty and ordered populated ACLs remain
+distinct; `pg_get_acl` returns the same raw state. Held metadata queries observe
+create, grant/revoke, unlink and same-OID recreation at each execution. Unlink
+requires ownership, not merely UPDATE. The full page relation, durability,
+descriptor client API, import/export, truncate and standalone ALTER OWNER are
+not added.
 
 
 Qualified TEMP namespace/REGCLASS lookup follows normal captured role authority;

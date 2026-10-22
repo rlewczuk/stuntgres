@@ -64,6 +64,7 @@ func TestReferenceLargeObjectRestore(t *testing.T) {
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 				t.Fatal(err)
 			}
+			run(fixture.Select("SELECT oid,lomowner,lomacl FROM pg_catalog.pg_largeobject_metadata WHERE oid IN (910071,910072,910073,910074) ORDER BY oid", []string{"oid", "lomowner", "lomacl"}, []string{"OID", "OID", "_ACLITEM"}, nil))
 			run(largeObjectMissing("SELECT lo_get(910071::oid)", 910071))
 			// Restrictive destination defaults must not add/remove imported raw
 			// ACLs or stop trusted byte replay under the original owner directive.
@@ -73,6 +74,7 @@ func TestReferenceLargeObjectRestore(t *testing.T) {
 				t.Fatal(err)
 			}
 			verify()
+			run(fixture.Select("SELECT oid,lomowner,lomacl FROM pg_catalog.pg_largeobject_metadata WHERE oid=910074::oid", []string{"oid", "lomowner", "lomacl"}, []string{"OID", "OID", "_ACLITEM"}, nil))
 			run(largeObjectMissing("SELECT lo_get(910074::oid)", 910074))
 			run(largeObjectValue("lo_from_bytea(910075::oid,decode('5a00','hex'))", "OID", int64(910075)))
 			// Valid prefix replay mutates only the private stage before each

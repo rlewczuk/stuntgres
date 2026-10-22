@@ -2,6 +2,56 @@
 
 ## Testing
 
+### Large-object metadata
+
+`TestReferenceLargeObjectMetadataShape`, `MetadataVisibility` and
+`MetadataLifecycle` exercise the existing real-object projection through shared
+direct/prepared SQL and an actual retained metadata statement. The catalog's
+[three columns](https://www.postgresql.org/docs/18/catalog-pg-largeobject-metadata.html)
+are `oid OID`, `lomowner OID`, `lomacl ACLITEM[]`. PUBLIC SELECT exposes all
+rows and complete raw ACLs, including to unrelated roles without byte rights.
+This differs from the protected payload catalog; no row filter, ACL redaction
+or payload imitation is added.
+
+Shape checks empty and populated descriptors before iteration, saved
+`ColumnType` objects after Close, native int64/int64/string ScanTypes and known
+false/false/true nullability. The pinned PostgreSQL18.6 oracle discovery matched
+pq's any ScanTypes and unknown nullability; neither adapter reports length or
+decimal precision. Raw OID/ACL carriers are checked before fixture normalization.
+Visibility distinguishes NULL, explicit owner-only, ordered grant-option and
+empty ACLs while independently allowing/denying real byte operations with exact
+42501 diagnostics. Lifecycle retains one metadata SELECT from before creation
+through grant/revoke, unlink and same-ID recreation by a different owner;
+missing byte access is42704. Restore additionally checks that Reset removes
+metadata and committed Restore excludes the transaction-private-created ID.
+
+Run from the worktree with an external900-second deadline for each command:
+
+```sh
+make check RUN='^TestReferenceLargeObjectMetadata(Shape|Visibility|Lifecycle)$'
+make check RUN='^TestReferenceLargeObjectMetadata(Shape|Visibility|Lifecycle)$' REFERENCE=1
+make check RUN='^TestReferenceLargeObject(Privileges|Transactions|Prepared|Restore)$'
+make check RUN='^TestReferenceLargeObject(Privileges|Transactions|Prepared|Restore)$' REFERENCE=1
+```
+
+Both modes must use the same completed definitions after affected edits. Use
+`make quickcheck` for whole-project Docker-free verification, not discovery.
+The metadata feature smoke is a separate throwaway public Go program supplied
+in session evidence, run as `timeout 900s go run "$SMOKE_GO"` from the worktree.
+It retains one metadata statement, creates actual bytes, checks PUBLIC metadata
+against byte denials, grant/revoke ACLs, public Dump/Reset/Restore, unlink and
+same-ID recreation as another role. It asserts before printing these expected
+lines (instructions, not a claim of a completed smoke run):
+
+```text
+metadata-before-create=empty
+public-metadata=null-acl bytes=42501
+grant=visible bytes=6100ff
+revoke=visible bytes=42501
+reset=empty restore=exact bytes=6100ff
+unlink=empty recreate=reader/null bytes=7a
+```
+
 ### Transactional large-object byte storage
 
 The shared direct/prepared scenarios cover the seven selected signatures of
