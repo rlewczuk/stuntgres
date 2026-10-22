@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// These two fixtures alone may replace an owner before their decisive operation.
+// Assignment, AbortRestore and completion fixtures may replace pre-decisive owners.
 // The child allowance never borrows the four seconds reserved for semantics.
 func (f *timeoutReferenceFixture) transactionSetupContext() (context.Context, context.CancelFunc) {
 	f.t.Helper()

@@ -499,6 +499,55 @@ independently recorded consumed columns, raw values, rows and cursor closure.
 These checks inspect the single actual operation within the same child context;
 they neither replay SQL nor turn assertion failures into setup-expiry retries.
 
+Completion/detached-row preparation has its own fixed250ms contract. At most
+three **full fresh-owner** attempts share the existing six-second setup allowance,
+capped at the parent deadline minus four seconds. Every passing attempt retains
+the actual native SELECT7 cursor across350ms without owner SQL and SHOW250,
+then uses that same physical owner for armed BEGIN/INSERT8/COMMIT. PostgreSQL
+drains its streaming cursor before transport reuse. Successful command counts,
+unsupported LastInsertId, TEXT metadata/raw/middleware streams and retained-row
+assertions are monotone: none can trigger a retry.
+
+Only an actual pre-COMMIT command error with nil output, a healthy setup context,
+bracket-proven elapsed250ms, exact fatal/dead handle and independently completed
+peer exact7 permits physical replacement with fresh identity/oracle provenance.
+For this setup's INSERT alone, complete native diagnostics or exact current
+PID/incarnation server lines have two predefined alternatives: absent Position
+or Position13. All other setup positions and the complete matrix/CPU diagnostic
+positions remain unchanged. Wrong data, published-row iteration/close failures,
+identity failures and context expiry are final. No committed8 is deleted/replayed.
+Successful COMMIT closes adaptation **before Result assertions**;350ms without
+owner SQL, exact ordered7,8, unchanged identity and SHOW250 then run once.
+
+Command/idle before-and-after brackets, BEGIN/deadline brackets and the COMMIT
+fence distinguish completed implicit SELECT ownership from still-armed explicit
+preparation. These are client observations, not exact server publication times.
+Failure reports retain phase history; every accepted expiry is logged even if a
+later complete witness passes. Terminal evidence uses actual fatal/dead-owner
+contracts and bounded short oracle observations, not an extended idle sleep.
+
+Selected completion proof includes the unchanged complete Boundaries matrix/CPU
+and both established setup-helper consumers (root runs oracle-first, then native
+and selected race; no slash narrowing):
+
+```sh
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceTimeout(TransactionBoundaries|TransactionAssignments|TransactionAbortRestore)$'
+timeout 900s make check RUN='^TestReferenceTimeout(TransactionBoundaries|TransactionAssignments|TransactionAbortRestore)$'
+timeout 900s make check RACE=1 RUN='^TestReferenceTimeout(TransactionBoundaries|TransactionAssignments|TransactionAbortRestore)$'
+```
+
+The ephemeral public completion smoke runs as `timeout 900s go run
+./.completion-smoke` after root installs the session source temporarily; it is
+not the fatal/replacement `TimeoutFeatureSmoke` definition. It independently
+checks detached7, SHOW250, same-owner armed COMMIT, post350 exact7,8, metadata,
+counts, diagnostics and identity. Root's finite cohorts use two baseline runs,
+two GOMAXPROCS=1 runs, two runs with eight owned CPU workers, two combined runs,
+then one post-contention run after all workers join. Require observed worker
+activity overlapping each contention body, preserve failures and join workers
+on every path. Finite load success cannot prove arbitrary-starvation resilience;
+report any unobserved accepted-expiry branches. Whole unchanged-coverage
+quickcheck remains bounded externally900s, postintegration finalcheck1800s.
+
 AbortRestore retains SET500 before BEGIN and child SAVEPOINT capture of500.
 Private locking/INSERT8, SAVEPOINT and peer holder acquisition run with short
 timers0. Before the actual semantic INSERT or short arm, an elapsed BEGIN-before

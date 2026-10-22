@@ -164,23 +164,7 @@ func TestReferenceTimeoutTransactionBoundaries(t *testing.T) {
 	t.Run("completion-and-detached-rows", func(t *testing.T) {
 		timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			f := newTimeoutReferenceFixture(t, p, b)
-			f.set("transaction_timeout", "250ms")
-			rows, err := f.owner.QueryContext(p.Ctx, "SELECT v FROM timeout_sentinel")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer rows.Close()
-			check := settingsTimeoutCursor(t, rows, b.PG)
-			timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-			f.show("transaction_timeout", "250ms")
-			if !b.PG {
-				check()
-			}
-			f.exec(f.owner, "BEGIN", 0)
-			f.exec(f.owner, "INSERT INTO timeout_sentinel VALUES(8)", 1)
-			f.exec(f.owner, "COMMIT", 0)
-			timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-			f.rows(f.owner, 7, 8)
+			f.completedTransactionRows()
 		})
 	})
 }
