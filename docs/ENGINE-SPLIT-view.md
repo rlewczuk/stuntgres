@@ -903,7 +903,10 @@ in the root. The checks in §8.3 pass.
   `8a57be8b2`, `a8c587827`, `871265d68`, `bf98b6d7a`, `1685a9fd5`, then the
   docs commit) · selected unit and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 27g record below
-- [ ] 27h — Lock walks and materialized checks moved (linear item 118)
+- [x] 27h — Lock walks and materialized checks moved (linear item 118)
+  (`12af345ea`, `e63ef11e2`, `dd8a270f4`, then the docs commit) · selected
+  unit, `RACE=1` and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 27h record below
 
 Outstanding aliases: none (27b added none).
 
@@ -1205,7 +1208,73 @@ Deviations and notes:
   code; `ref-real.log`). racecheck, finalcheck and bench skipped at user
   request (no startup change).
 
+### 27h record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-VIEW-LOCK-WALKS`, started at
+`c28bc8a13` (27g merged). Re-measured on the current code: the walk, the
+collection, `normalizeRuleCTEsLocked` and the checks read only the
+catalog read, the catalog domain and epoch, the scope's locked target and
+query leaves, and the catalog owner. No reference cancellation fixture
+matches a moved frame name.
+
+| Commit | Change |
+|---|---|
+| `12af345ea` | `view.SourceWalk.Closure` with `view.SourceClosure` (`Modes`, `Refs`, `Retained`, `Sources`, `MaterializedSource`) and `StoredLeaves`; `view.DefinitionReferences` (`source_locks.go`) |
+| `e63ef11e2` | `normalizeRuleCTEsLocked` → `view.NormalizeRuleCTEsLocked(owner, auth, statement, b)` (`rule_cte.go`); the five root callers pass `e.catalog.owner()` |
+| `dd8a270f4` | `view.ParseMaterializedSnapshot`, `view.MaterializedSnapshotInsert` (`materialized_snapshot.go`); `view.CheckMaterializedRows`, `view.MaterializedIndexCount` (`materialized_replacement.go`) |
+
+Deviations and notes:
+
+- **Walk result.** `SourceWalk.Closure` returns its partial result with
+  an error, so the root appends the observed refresh sources to the scope
+  slot exactly as the in-walk append did. The domain and epoch are the
+  engine's (`e.catalog.Domain`, `e.catalog.state.Epoch()`), not the
+  private read's, as before.
+- **Stored leaves.** The refresh's stored-leaf collection over the visited
+  set (`for ref := range seen`) moved too, as `SourceClosure.StoredLeaves`.
+  The root keeps the comment snapshot capture, the `queryTableRefsLocked`
+  call (its engine and catalog owner check), the data views, every wait
+  and the post-wait revalidation.
+- **Unused parameter.** `normalizeRuleCTEsLocked` never read its
+  `*StatementScope`; the `view` function has no scope parameter.
+- **Error order.** `MaterializedSnapshotInsert` runs per statement inside
+  the root loop, so a later statement's shape error still follows an
+  earlier statement's evaluation error. The unpopulated-rows check and the
+  target lookup stay before the parse in the root.
+- **Stays root.** `acquireBoundViewRelationModes`, the acquire loops,
+  `admitRuleCTEsLocked` (lock admission, `Engine.mu` release), the stage,
+  epoch and generation checks of `stageMaterializedRows`, and the row
+  evaluation and installation of `importMaterializedSnapshots`.
+- **Imports.** `view` imports nothing new (`go list`).
+- **Tests.** `rule_cte_test.go` calls `view.NormalizeRuleCTEsLocked`. The
+  other callers (`inheritance_query_stored_view_test.go`,
+  `materialized_view_test.go`, `materialized_refresh*_test.go`,
+  `materialized_alter_test.go`) use the unchanged root entry points; every
+  moved check is reached by `TestMaterializedViewSnapshotImport` and
+  `TestMaterializedRefreshPublicationFences`. None added, moved or deleted.
+- **Checks.** Every commit builds; vet output equals master's; the
+  string-literal multiset of the touched files is unchanged
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-LOCK-WALKS/lits-*.txt`). The view,
+  rule, materialized, policy, RLS, CTE, inheritance query, query lock and
+  set, truncate and temporary table units passed, and with `RACE=1` the
+  concurrent refresh, stored-view inheritance, rule, CTE and query set
+  lock units. quickcheck passed at `dd8a270f4`. `REFERENCE=1` on
+  `^TestReference(View|Rule|Materialized|RLSBase|AccessRoleRLS|InheritanceQueryRLS|InheritanceDMLRLS|DriverBatchPolicy|DumpRoundTrip$|RowLock|QueryLock|QuerySet|CTE)`
+  passed except one run of `TestReferenceRuleReviewTemporaryProvenance/held=false`,
+  whose fixture schema reset got `deadlock detected` (40P01) from the real
+  server; it passed alone twice and in a second
+  `^TestReference(View|Rule|Materialized|RLSBase|CTE)` run (`ref-*.log`).
+  racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
 ### Notes for later steps
+
+- 133 (from 27h): `view_locks.go` now holds only the acquire loops and the
+  refresh source capture. The refresh still calls the root
+  `queryTableRefsLocked`, not `view.QueryTableRefs`: it runs after
+  `captureCommentSnapshotLocked` on the recaptured deparse authority and
+  needs the wrapper's engine and catalog owner check. Step 27 has no
+  planned sub-step left.
 
 - 27g, 27h (from 27f): `view_locks.go` still calls the root
   `queryTableRefsLocked` (now a forwarder to `view.QueryTableRefs`); a

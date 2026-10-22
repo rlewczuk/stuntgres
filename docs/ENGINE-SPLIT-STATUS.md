@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `435f5c29f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 111, 112, 113, 114, 115 and 116). Steps 8–17 were
+Last verified against `master` at `c28bc8a13` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 111, 112, 113, 114, 115, 116, 117 and 118). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -18,8 +18,8 @@ as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
 - **DML, executors:** 110d (dml 29d.4); 110e and 110f follow in order.
-- **Third round, view:** 118 (27h, lock walks); 115, 116 and 117 are
-  done.
+- **Third round, view:** none; 115, 116, 117 and 118 are done, so
+  step 27 has no planned sub-step left.
   125 (table 24g) still waits for 124, and 132 (dml 29e) for 110f.
 - **Third round, stored and control:** 119 (22e, type provider
   validation; then 120), 121 (30e, definition OID remap; then 122).
@@ -182,6 +182,12 @@ and the drop diagnostics) lives in `view` behind `view.DropReader`, which
 `dropProvider` implements; the object descriptions are
 `stored.DependencyObject` and the role ones `role.DependencyDescription`.
 No item waits only for it; 118 (27h) stays ready.
+Item 118 (view 27h) is done: the view source closure walk
+(`view.SourceWalk.Closure`), the definition reference collection
+(`view.DefinitionReferences`), `view.NormalizeRuleCTEsLocked` and the
+materialized snapshot and refresh row checks live in `view`; the acquire
+loops stay in the root. No item waits only for it; the closing review (133)
+still waits for its other items.
 
 ## Task tree
 
@@ -725,8 +731,9 @@ No item waits only for it; 118 (27h) stays ready.
   - [x] 27g — DROP read side moved ([view](ENGINE-SPLIT-view.md))
     (`55cb5b5a9`, `8a57be8b2`, `a8c587827`, `871265d68`, `bf98b6d7a`,
     `1685a9fd5`, then the docs commit)
-  - [ ] 27h — Lock walks and materialized checks moved
-    ([view](ENGINE-SPLIT-view.md))
+  - [x] 27h — Lock walks and materialized checks moved
+    ([view](ENGINE-SPLIT-view.md)) (`12af345ea`, `e63ef11e2`, `dd8a270f4`,
+    then the docs commit)
   - [ ] 22e — Type provider validation moved ([stored](ENGINE-SPLIT-stored.md))
   - [ ] 30d — Dump Collect tables moved ([control](ENGINE-SPLIT-control.md))
   - [ ] 30e — Definition OID remap moved ([control](ENGINE-SPLIT-control.md))
@@ -1718,10 +1725,16 @@ branches.
      `role.DependencyDescription`; no aliases · targeted units, quickcheck
      and the quick and `REFERENCE=1` view/drop selections passed;
      racecheck/finalcheck skipped at user request
-118. [ ] View 27h: lock walks and materialized checks —
-     [view](ENGINE-SPLIT-view.md) 27h · needs — · the closure walks of
-     `view_locks.go`, `normalizeRuleCTEsLocked`, the materialized snapshot
-     and refresh checks (about 0.25k lines)
+118. [x] View 27h: lock walks and materialized checks —
+     [view](ENGINE-SPLIT-view.md) 27h · needs — (`12af345ea`, `e63ef11e2`,
+     `dd8a270f4`, then the docs commit) · `view.SourceWalk.Closure` with
+     `SourceClosure` and `StoredLeaves`, `view.DefinitionReferences`,
+     `view.NormalizeRuleCTEsLocked`, `view.ParseMaterializedSnapshot`,
+     `view.MaterializedSnapshotInsert`, `view.CheckMaterializedRows`,
+     `view.MaterializedIndexCount`; the acquire loops stay root; no aliases
+     · targeted units, quickcheck and the quick and `REFERENCE=1`
+     view/query selections passed; racecheck/finalcheck skipped at user
+     request
 119. [ ] Stored 22e: type provider validation —
      [stored](ENGINE-SPLIT-stored.md) 22e · needs — · `typeProvider`, the
      domain default and check validators, `reownCatalogScalarTypes`,

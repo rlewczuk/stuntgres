@@ -84,6 +84,8 @@ never imports `view`.
   `AuthorizationView` implements it; `ruleAuthorizationOf` (root) recovers
   the full view at execution time.
 - **Rule CTEs** (`rule_cte*.go`): `RuleCTECommand`, `RuleCTEProgramError`,
+  `NormalizeRuleCTEsLocked` (expands each data-modifying CTE's rules into
+  the binding's rule CTE recipes, over the catalog owner),
   `ValidateRuleActionCTEs`, `IsolateRuleCTEFrames`,
   `RetainRuleCTEPresentation`, `RefreshRuleActionCTEs`.
 - **Rule DDL checks** (`rule_definition.go`, `rule_dependencies.go`,
@@ -105,6 +107,13 @@ never imports `view`.
   `RequestedViewPersistence`, `AlterViewAuthority`, `ViewDropMissing`,
   `ViewDropOwner`, `ValidateViewDefinition`, `ViewDepends`,
   `DependencyEdge`, `TransformViewOptions` and `StoredProjectionDemand`.
+- **Lock walks** (`source_locks.go`): `SourceWalk.Closure` walks the view
+  definitions reachable from a statement's locked target and query leaves
+  and returns a `SourceClosure`: the strongest row mode per relation, the
+  relations still to acquire, the temporary views to revalidate and, for a
+  refresh, the observed sources; `StoredLeaves` lists the visited stored
+  relations. `DefinitionReferences` lists the relations a binding's
+  dependencies and sequence constants name. The root acquires them.
 - **The DROP read side** (`drop_reader.go`, `drop_closure.go`,
   `dependents.go`, `drop_diagnostics.go`): `DropReader` is the drop stage
   (the base catalog, the staged or prepared replacements and removals, the
@@ -128,10 +137,13 @@ never imports `view`.
   `MaterializedConcurrentRows`, `MaterializedDuplicatePreflight`,
   `MaterializedNewEntries`, `SameMaterializedLineage`), the snapshot codec
   (`MaterializedSnapshot`, `EmitMaterializedSnapshot`,
-  `DecodeMaterializedSnapshot`, the `stuntgres-matview-v1` comment),
+  `DecodeMaterializedSnapshot`, the `stuntgres-matview-v1` comment) and
+  its import checks (`ParseMaterializedSnapshot`,
+  `MaterializedSnapshotInsert`),
   `MaterializedExtensionDepends`, and the replacement cores
   (`materialized_replacement.go`): `ConcurrentPrevious`,
-  `ValidateMaterializedReplacement`, `MaterializedReplacement.Current`.
+  `ValidateMaterializedReplacement`, `MaterializedReplacement.Current`,
+  `CheckMaterializedRows` and `MaterializedIndexCount`.
 - **Policies and RLS** (`policy*.go`, `rls_base.go`): `ValidatePolicies`,
   `PolicyClauses`, `PolicyDuplicate`, `PolicyIndex`, `PolicyMissing`,
   `PolicyOwnerNoun`, `PolicyPreflight`, `ResolvePolicyRoles`,
@@ -150,7 +162,8 @@ lower-case names.
 
 ## What stays in the engine
 
-Dispatch (`execute.go`), `Engine.mu`, lock waits (`view_locks.go`,
+Dispatch (`execute.go`), `Engine.mu`, lock waits (the acquire loops of
+`view_locks.go`,
 `acquireViewWriteTarget`, `acquireMaterializedRefresh`) and
 `relation_scope.go` admission with `prepareViewCreation` (it binds the view
 query with the scope's lock admission). The handler skeletons
@@ -166,8 +179,10 @@ program execution and admission (they run DML), `prepareStoredQueryLocked`
 authorization capture around `AuthorizeSource` (`view_source.go`), refresh
 row production and
 staging (`refreshMaterializedLocked`, `materializedRefreshRowsLocked`,
-`stageMaterializedRows`), the `CatalogStage` replacement wrappers, the
-materialized source fence and its kind, `importMaterializedSnapshots`,
+`stageMaterializedRows` with its stage, epoch and generation checks), the
+`CatalogStage` replacement wrappers, the materialized source fence and its
+kind, `importMaterializedSnapshots` (target lookup, row evaluation and
+installation), `admitRuleCTEsLocked`,
 `stageRowSecurityFlagsLocked`, `configureRowSecurityLocked` and
 `rowSecurityInputLocked` as authority wrappers, `ruleActionScope`, the RLS
 setting walkers (`row_security_setting.go`), `dropProvider`'s staging,
@@ -177,7 +192,7 @@ label choosers read the preparation's live descriptors), and the slot
 accessors on `CatalogStage` and `StatementScope`. The third round moves the
 clean parts here: query preflight (27e, done), the privilege walkers over
 `access.View` (27f, done), the DROP read side behind `DropReader` (27g,
-done), and the closure walks and materialized checks (27h). See
+done), and the closure walks and materialized checks (27h, done). See
 [ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md) 27d.
 
 ## Invariants
@@ -197,7 +212,8 @@ done), and the closure walks and materialized checks (27h). See
   holds `Engine.mu` until it returns.
 - The package holds no engine state and no mutex. Functions here never
   wait; `RuleRewriter.ExpandLocked` reads live storage through the rule
-  authority, so its caller holds `Engine.mu`.
+  authority, so its caller (and `NormalizeRuleCTEsLocked`'s) holds
+  `Engine.mu`.
 
 ## Testing
 
