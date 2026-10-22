@@ -38,11 +38,12 @@ binder. Partitioned indexes are `index` code. See
   statement's partition slot (cached `Programs`, the attach
   `ValidationView`); the root's `StatementScope` holds it.
 - **CREATE, ATTACH, DETACH, DROP helpers** (`create.go`, `attach.go`,
-  `detach.go`, `drop.go`, `exclusion.go`, `locks.go`): `Boundary` and
+  `detach.go`, `exclusion.go`, `locks.go`): `Boundary` and
   `TupleSQL` for overlap diagnostics; `AttachEligibility`,
   `AttachKindError`, `AttachSchema`, the attach scan jobs `AttachScan`
   and `AttachRowConstraint`; `DetachMembership`, `DetachKindError`;
-  `DependsOn`; `ExclusionAddActions`; `AppendCompatible`,
+  `ExclusionAddActions`; the key dependency check is
+  `catalog.PartitionKeyDependsOn`; `AppendCompatible`,
   `KeyUsesAttribute`, `WriteExtensionBoundary`.
 - **Proofs and retained checks** (`proof.go`, `retained_checks.go`):
   `ConstraintProven` proves a child's constraints imply its partition

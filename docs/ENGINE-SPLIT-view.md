@@ -899,7 +899,10 @@ in the root. The checks in §8.3 pass.
   (`e7c4722fd`, `00d76479e`, `789f3b430`, `435f5c29f`, then the docs commit)
   · selected unit and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 27f record below
-- [ ] 27g — DROP read side moved (linear item 117)
+- [x] 27g — DROP read side moved (linear item 117) (`55cb5b5a9`,
+  `8a57be8b2`, `a8c587827`, `871265d68`, `bf98b6d7a`, `1685a9fd5`, then the
+  docs commit) · selected unit and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 27g record below
 - [ ] 27h — Lock walks and materialized checks moved (linear item 118)
 
 Outstanding aliases: none (27b added none).
@@ -1135,6 +1138,73 @@ Deviations and notes:
   (known drift; the stuntgres subtests pass). racecheck, finalcheck and
   bench skipped at user request (no startup change).
 
+### 27g record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-VIEW-DROP-READ`, started at
+`eefd64965`. Re-measured with `frontier`: the move set (`drop_diagnostics.go`
+and the `dropProvider` methods `DependencyClosure`, `restrictError`,
+`policyDependents`, `ruleDependents`, `viewClosure` and
+`passiveViewTypeDependency`) used only `dropProvider` reads and
+`stageDefinitionReader`. No reference cancellation fixture matches a moved
+frame name.
+
+| Commit | Change |
+|---|---|
+| `55cb5b5a9` | `fdw.Label` → `catalog.ForeignLabel`, `partition.DependsOn` → `catalog.PartitionKeyDependsOn`; `partition/drop.go` deleted |
+| `8a57be8b2` | `dependencyObject`, `dependencyRelationName` → `stored.DependencyObject`, `stored.DependencyRelationName` (`dependency_object.go`) |
+| `a8c587827` | Seam: `view.DropReader` (`drop_reader.go`); `dropProvider.Path`, `DefinitionInput` and the exported `RetirementDescriptor`; `TestDropReaderSeam` |
+| `871265d68` | `drop_diagnostics.go` → `view/drop_diagnostics.go`: `Dependent` (`OID`, `Label`), `DependentLabels`, `DependentLabelsWithPolicies`, `DependentsRestrictError`, `EmitCascade`, `RuleDependentLabels(From)`, `PolicyDependentLabels(From)` |
+| `bf98b6d7a` | `DropClosure`, `RestrictError`, `PassiveTypeDependency` (`drop_closure.go`); `DependentViews`, `DropPolicyDependents`, `DropRuleDependents`, `TypeChangeError` (`dependents.go`); root `policy_dependencies.go` and `rule_dependencies.go` deleted |
+| `1685a9fd5` | `dependencyDescription` → `role.DependencyDescription` over the `access.View` and the reference path |
+
+Deviations and notes:
+
+- **Object descriptions in `stored`.** `dependencyDescription` calls
+  `dependencyObject`, and `role` never imports `view`, so
+  `dependencyObject` and `dependencyRelationName` went to `stored` (the
+  lowest owner: it has `RelationDiagnosticNameAt` and `ConstraintParent`).
+  The rest of `drop_diagnostics.go` went to `view` as planned.
+- **Names.** The `dropProvider.DependencyClosure` body is
+  `view.DropClosure` (27d's `view.DependencyClosure` is the view closure);
+  `dropProvider` keeps a one-line `DependencyClosure` for
+  `table.DropDependencyReader`. `viewClosure` is `DependentViews`.
+  `PassiveTypeDependency` reads SQL dependencies through
+  `DropReader.DefinitionInput` (the preparation, a `stageDefinitionReader`
+  or nil, with the same error).
+- **ALTER TYPE dependents.** `alterHost.TypeChangeDependents` keeps the
+  policy check and resolves the lookup path once (it resolved it twice);
+  `view.TypeChangeError` reads the rule labels, then the dependent views,
+  over a `dropProvider{base, path, stage}`, in the same error order.
+- **Role descriptions.** `ddlHost.DescribeRoleDependency` resolves the
+  reference path once, before the call (it was resolved lazily in most
+  branches; a pure read whose error was ignored, as now).
+- **Stays root.** `viewDependents` (it removes the views, records the
+  CASCADE notices and reads the inheritance scope), the
+  `dropProvider.{rule,policy}DependentLabels` choosers (they read the
+  preparation's live descriptors and `observe`; both are in
+  `drop_provider.go` now), `ExpressionDependencies`,
+  `domainDependencyClosure`, `domainRestrictError` and
+  `viewDependencyClosure`.
+- **Imports.** `view` now also imports `pgcatalog` and `routine` (both
+  lower layers); it imports no `fdw`, `partition`, `role`, `dml`, `control`
+  or root package, and `role` imports no `view` (`go list`).
+- **Tests.** New `drop_reader_test.go` (`TestDropReaderSeam`).
+  `regclass_dependency_test.go` and `domain_default_view_dependency_test.go`
+  call `view.DependentLabels` and `view.PassiveTypeDependency`;
+  `conversion_descriptor_test.go` and `rule_named_dependency_test.go` call
+  `stored.DependencyObject`; `domain_test.go` and `role_grant_test.go`
+  describe through `ddlHost.DescribeRoleDependency`. None moved or deleted.
+- **Checks.** Every commit builds and vets; the production string-literal
+  multiset is unchanged after every commit
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-DROP-READ/lits-*.txt`); the targeted
+  drop, domain, rule, view, policy, role, regclass and ALTER TYPE units and
+  the seam test passed; quickcheck passed before and after the rebase onto
+  view 27f (`eefd64965`). `REFERENCE=1` on
+  `^TestReference(View|Rule|Materialized|RLSBase|AccessRoleRLS|InheritanceQueryRLS|InheritanceDMLRLS|DriverBatchPolicy|DumpRoundTrip$|DomainDependencies|DomainDefaultDependencies|CollationDependencies|CompositeDependencies|ExtensionDrop|FDWDependencies|AlterTypeViewDependencies|AlterDropColumnExternalDependencies|InheritanceDropRestrict|RLSPolicyDependencies|RoleDependency|RoleDrop|RoleOwnership)`
+  passed in full at the pre-rebase tip (27f touched none of the changed
+  code; `ref-real.log`). racecheck, finalcheck and bench skipped at user
+  request (no startup change).
+
 ### Notes for later steps
 
 - 27g, 27h (from 27f): `view_locks.go` still calls the root
@@ -1210,10 +1280,11 @@ Deviations and notes:
   `row_security_setting.go`) import `view`.
 - `dml` (29b) needs the rule action records; they are in `stored` (22c),
   not here, so `dml` does not need `view` for them.
-- `table` (24) calls the drop diagnostics (`emitViewCascade`,
-  `ruleDependentLabels`, `policyDependentLabels`) from ALTER TABLE and
-  ALTER TYPE; they stay in the root, so table's Part B reaches them
-  through its host.
+- `table` (24) calls the drop diagnostics (`view.EmitCascade`,
+  `view.RuleDependentLabels`, `view.PolicyDependentLabels` since 27g) from
+  ALTER TABLE and ALTER TYPE; `view` sits above `table`, so table's code
+  reaches them through its host (`TypeChangeDependents`, the root
+  handlers).
 - The RLS action rules go to `access` in B6; only ALTER TABLE code
   (`alter_table_prepare.go`, `alter_table.go`, `partition_locks.go`,
   `table_inheritance_guards.go`, `control.go`) uses them, so B6 must land

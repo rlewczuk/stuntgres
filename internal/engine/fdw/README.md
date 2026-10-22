@@ -43,7 +43,7 @@ never imports it. The engine and the driver import it. See
   `Commit`, `Pending`, `Savepoint`); `Participant`, `ParticipantKey`,
   `Rollback`, `MarkName` and `CapabilityError`.
 - **DDL helpers** (`ddl.go`, `import.go`, `table.go`, `scan.go`): object
-  lookup (`Find`, `Class`, `Label`, `IsCatalogClass`, `CommandTag`,
+  lookup (`Find`, `Class`, `IsCatalogClass`, `CommandTag`,
   `ObjectRef`, `GrantKind`), mapping and ownership authority over an
   `access.View` (`MappedRole`, `MappingAuthority`, `MappingDiagnostic`,
   `MappingFor`; the owner change rule is `access.ForeignOwnershipEligibility`,

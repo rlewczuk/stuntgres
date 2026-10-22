@@ -18,8 +18,8 @@ as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
 - **DML, executors:** 110d (dml 29d.4); 110e and 110f follow in order.
-- **Third round, view:** 117 (27g, DROP read side), 118 (27h, lock
-  walks); 115 and 116 are done.
+- **Third round, view:** 118 (27h, lock walks); 115, 116 and 117 are
+  done.
   125 (table 24g) still waits for 124, and 132 (dml 29e) for 110f.
 - **Third round, stored and control:** 119 (22e, type provider
   validation; then 120), 121 (30e, definition OID remap; then 122).
@@ -176,6 +176,12 @@ and view writes (`view.CheckWrite`, `AuthorizeSource`, `CheckRowMarks`) and
 TRUNCATE target checks are `dml.CheckTruncate` and
 `dml.GuardedCatalogMutationError`; `access.CheckTemporaryStorageAccess`
 moved down. 117 and 118 never needed 116; no item waits only for it.
+Item 117 (view 27g) is done: the DROP read side (`view.DropClosure`,
+`RestrictError`, the view, rule and policy dependents, `TypeChangeError`
+and the drop diagnostics) lives in `view` behind `view.DropReader`, which
+`dropProvider` implements; the object descriptions are
+`stored.DependencyObject` and the role ones `role.DependencyDescription`.
+No item waits only for it; 118 (27h) stays ready.
 
 ## Task tree
 
@@ -713,9 +719,12 @@ moved down. 117 and 118 never needed 116; no item waits only for it.
   round"); each is a sub-step of an existing prompt file
   - [x] 27e — Query preflight moved ([view](ENGINE-SPLIT-view.md))
     (`eb135c0fe`, `ad9c2b8ac`, then the docs commit)
-  - [ ] 27f — Privilege walkers and query table refs moved
-    ([view](ENGINE-SPLIT-view.md))
-  - [ ] 27g — DROP read side moved ([view](ENGINE-SPLIT-view.md))
+  - [x] 27f — Privilege walkers and query table refs moved
+    ([view](ENGINE-SPLIT-view.md)) (`e7c4722fd`, `00d76479e`, `789f3b430`,
+    `435f5c29f`, then the docs commit)
+  - [x] 27g — DROP read side moved ([view](ENGINE-SPLIT-view.md))
+    (`55cb5b5a9`, `8a57be8b2`, `a8c587827`, `871265d68`, `bf98b6d7a`,
+    `1685a9fd5`, then the docs commit)
   - [ ] 27h — Lock walks and materialized checks moved
     ([view](ENGINE-SPLIT-view.md))
   - [ ] 22e — Type provider validation moved ([stored](ENGINE-SPLIT-stored.md))
@@ -1697,12 +1706,18 @@ branches.
      check); no aliases · targeted units, quickcheck and the quick and
      `REFERENCE=1` view/query/truncate selections passed; racecheck/finalcheck
      skipped at user request
-117. [ ] View 27g: DROP read side (pattern 6) —
-     [view](ENGINE-SPLIT-view.md) 27g · needs — · `DependencyClosure`,
-     `restrictError`, the view, rule and policy dependents and
-     `drop_diagnostics.go` over a view-local reader; `fdw.Label` and
-     `partition.DependsOn` to `catalog`; `dependencyDescription` to `role`
-     (about 1.3k lines)
+117. [x] View 27g: DROP read side (pattern 6) —
+     [view](ENGINE-SPLIT-view.md) 27g · needs — (`55cb5b5a9`, `8a57be8b2`,
+     `a8c587827`, `871265d68`, `bf98b6d7a`, `1685a9fd5`, then the docs
+     commit) · `view.DropReader` on `dropProvider`; `DropClosure`,
+     `RestrictError`, `PassiveTypeDependency`, `DependentViews`,
+     `DropPolicyDependents`, `DropRuleDependents`, `TypeChangeError` and the
+     drop diagnostics (`Dependent`, labels, `EmitCascade`) in `view`;
+     `catalog.ForeignLabel`, `catalog.PartitionKeyDependsOn`;
+     `stored.DependencyObject` (not `view`: `role` uses it);
+     `role.DependencyDescription`; no aliases · targeted units, quickcheck
+     and the quick and `REFERENCE=1` view/drop selections passed;
+     racecheck/finalcheck skipped at user request
 118. [ ] View 27h: lock walks and materialized checks —
      [view](ENGINE-SPLIT-view.md) 27h · needs — · the closure walks of
      `view_locks.go`, `normalizeRuleCTEsLocked`, the materialized snapshot

@@ -163,7 +163,9 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   `sqlError` copy in `sql_error.go`); `ExtensionMembership` and
   `NamespaceChildren`; `InstallParameterGrant`; the definition-OID checks
   `DefinitionOIDUsed`, `ReserveDefinitionOIDs` and `ValidateDefinitionOIDs`
-  (`definition_identity.go`).
+  (`definition_identity.go`); `ForeignLabel` (the SQL/MED object kind in
+  diagnostics, `foreign_catalog.go`) and `PartitionKeyDependsOn`
+  (`partition.go`), which DROP shares with `fdw` and `partition`.
 - **Principal remap** (`principal_remap.go`). `RemapPrincipals` rewrites the
   owners, ACLs, policy roles and default ACL records of an unpublished
   private candidate through a `PrincipalRemap` (principal and seeded-owner

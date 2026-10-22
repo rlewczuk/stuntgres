@@ -6,17 +6,18 @@ stored-projection demand, view options, concurrent materialized refresh and
 the materialized snapshot codec, policy validation and RLS layer selection,
 and the view, rule and policy dependency checks, the view, rule and policy
 DDL decisions behind `Host` and `StageHost`, the execution-time query
-preflight and join legality, and the privilege walkers over view
-definitions and view writes. Step 27 of the engine split created it (27b
-moved the clean set, 27d the handler decisions, 27e the query preflight,
-27f the privilege walkers and query table refs). It is an upper feature in
+preflight and join legality, the privilege walkers over view definitions
+and view writes, and the read side of DROP behind `DropReader`. Step 27 of
+the engine split created it (27b moved the clean set, 27d the handler
+decisions, 27e the query preflight, 27f the privilege walkers and query
+table refs, 27g the DROP read side). It is an upper feature in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (types and pure functions only),
 `authorization`, `catalog`, `ddl`, `exec`, `expr`, `functions`, `ids`, `index`,
-`plan`, `sequence`, `session`, `storage`, `stored`, `table`, `typedef`,
-`visibility`, `parser`, `sqlstate`, `sqltype` and the standard library. It
-never imports the engine, `partition`, `dml` or `control`, and it never
-builds a binder. See
+`pgcatalog`, `plan`, `routine`, `sequence`, `session`, `storage`, `stored`,
+`table`, `typedef`, `visibility`, `parser`, `sqlstate`, `sqltype` and the
+standard library. It never imports the engine, `fdw`, `partition`, `role`,
+`dml` or `control`, and it never builds a binder. See
 [ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md).
 
 ## What `stored` owns instead
@@ -103,9 +104,22 @@ never imports `view`.
   VIEW scope record), `CheckViewOutputNames`, `CheckViewPrefix`,
   `RequestedViewPersistence`, `AlterViewAuthority`, `ViewDropMissing`,
   `ViewDropOwner`, `ValidateViewDefinition`, `ViewDepends`,
-  `DependencyEdge`, `TransformViewOptions`, `StoredProjectionDemand`, and
-  the pure dependents cores of DROP (`dependents.go`):
-  `DependencyClosure`, `KeepRules`, `KeepPolicies`.
+  `DependencyEdge`, `TransformViewOptions` and `StoredProjectionDemand`.
+- **The DROP read side** (`drop_reader.go`, `drop_closure.go`,
+  `dependents.go`, `drop_diagnostics.go`): `DropReader` is the drop stage
+  (the base catalog, the staged or prepared replacements and removals, the
+  diagnostic path and `DefinitionInput`) that the root's `dropProvider`
+  implements, as it implements `table.DropDependencyReader`. `DropClosure`
+  is the dependency closure (its edges are `table.DomainDependency`),
+  `RestrictError` its RESTRICT error and `PassiveTypeDependency` the
+  passive view type capture check. `DependencyClosure`, `DependentViews`,
+  `KeepRules`, `KeepPolicies`, `DropPolicyDependents` and
+  `DropRuleDependents` are the view, rule and policy dependents;
+  `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view. The
+  diagnostics: `Dependent` with `DependentLabels`,
+  `DependentLabelsWithPolicies`, `DependentsRestrictError`,
+  `RuleDependentLabels(From)`, `PolicyDependentLabels(From)` and
+  `EmitCascade`. Object descriptions are `stored.DependencyObject`.
 - **Materialized views** (`materialized_*.go`): the refresh scope and stage
   records (`MaterializedRefreshScope`, `MaterializedReplacement`,
   `MaterializedStage`), `MaterializedRefreshAccess`,
@@ -156,14 +170,14 @@ staging (`refreshMaterializedLocked`, `materializedRefreshRowsLocked`,
 materialized source fence and its kind, `importMaterializedSnapshots`,
 `stageRowSecurityFlagsLocked`, `configureRowSecurityLocked` and
 `rowSecurityInputLocked` as authority wrappers, `ruleActionScope`, the RLS
-setting walkers (`row_security_setting.go`), the drop
-diagnostics and `dropProvider` (it collects the live descriptors and stages
-the dependents), and the slot accessors on `CatalogStage` and
-`StatementScope`. The third round moves the clean parts here: query
-preflight (27e, done), the privilege walkers over `access.View` (27f,
-done), the drop
-diagnostics and `dropProvider`'s read side behind a reader (27g), and the
-closure walks and materialized checks (27h). See
+setting walkers (`row_security_setting.go`), `dropProvider`'s staging,
+removal and lock-wait core (`viewDependents` removes the dependent views and
+records the CASCADE notices; `ExpressionDependencies` acquires locks; the
+label choosers read the preparation's live descriptors), and the slot
+accessors on `CatalogStage` and `StatementScope`. The third round moves the
+clean parts here: query preflight (27e, done), the privilege walkers over
+`access.View` (27f, done), the DROP read side behind `DropReader` (27g,
+done), and the closure walks and materialized checks (27h). See
 [ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md) 27d.
 
 ## Invariants
@@ -190,10 +204,12 @@ closure walks and materialized checks (27h). See
 `binding_slots_test.go` covers the slot helpers. Every other view, rule,
 policy, materialized-view and query preflight unit test builds an engine and
 stays in the root package, naming the moved code as `view.X`; `view_host_test.go`
-(`TestViewHostSeam`) pins the host seam.
+(`TestViewHostSeam`) pins the host seam and `drop_reader_test.go`
+(`TestDropReaderSeam`) the `DropReader` seam.
 
 ```sh
 make check RUN='^Test(BindingSlots|ViewWriteSlot|Rule|View|Materialized|Polic|RLS|RowSecurity)'
+make check RUN='^Test(DropReaderSeam|Regclass|Domain|AlterType|Collation|Composite|Extension.*Drop|PGDepend)'
 make check RUN='^Test(Query(OuterJoins|Lock|Set|Window)|CastCoercion.*Preflight|ExprCollation|ObjectAddress|Series|StringSplit|SourceProtocol)'
 make check RACE=1 RUN='^TestMaterializedRefreshConcurrent'
 ```

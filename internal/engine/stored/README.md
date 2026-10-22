@@ -98,6 +98,10 @@ query/default plans after descriptor generations change.
   (`ViewWriteShape`, `ViewDirectColumn`, `SameViewRelation`,
   `RewriteViewExpression`). Rule validation (`ValidateRules`) and the
   constraint names rules depend on (`ConstraintName`, `ConstraintParent`).
+  Dependency object descriptions (`dependency_object.go`):
+  `DependencyObject` (PostgreSQL's getObjectDescription for DROP and
+  role diagnostics) and `DependencyRelationName`; `view` and `role` both
+  call them (view 27g).
 
 ## Names
 

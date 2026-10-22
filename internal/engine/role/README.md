@@ -63,7 +63,11 @@ never the engine, `analyze`'s binder or another upper feature. See
   ACL records and the role candidate). The engine's `*CatalogStage`
   implements both.
 - **Diagnostics** (`diagnostics.go`): `Diagnostic`, `LoginError`,
-  `ConnectionLimitError` and `EmitPasswordNotice`.
+  `ConnectionLimitError`, `EmitPasswordNotice` and
+  `DependencyDescription` (the DROP ROLE and DROP OWNED detail lines over
+  the `access.View` and the reference path, rendered with
+  `stored.DependencyObject`; the root's `DescribeRoleDependency` resolves
+  the path).
 
 ## Invariants
 
@@ -71,7 +75,7 @@ never the engine, `analyze`'s binder or another upper feature. See
   `access.View` (and an `access.Environment` where it needs the reference
   path), or a `ddl.Authority` it reads through the host; none captures or
   caches authority. `PlanOwned` names objects through a `describe`
-  callback, so the root's DROP diagnostics stay there.
+  callback, which the root builds over `stored.DependencyObject`.
 - **No locks, no publication.** The package adds no mutex and publishes
   nothing. Every `Host` and `StageHost` method runs with `Engine.mu` held;
   none takes, releases or waits on a lock. Plans return candidates and
@@ -89,10 +93,7 @@ never the engine, `analyze`'s binder or another upper feature. See
 capture, `roleStore` publication and `installOperationRolesLocked`,
 `SetObjectACL`/`SetRoleReferences`, the host adapter (`role_host.go`) and
 the `*CatalogStage` adapters (`owned_stage.go`), the parameter targets
-(`parameter_catalog.go`), `dependencyDescription` and `dependencyObject`
-(both are clean but for `referencePath`; view 27g, item 117, moves
-`dependencyObject` to `view` and `dependencyDescription` here),
-and the orchestration: `initialRole`, `executeRole` (dispatch, the SET LOCAL
+(`parameter_catalog.go`), and the orchestration: `initialRole`, `executeRole` (dispatch, the SET LOCAL
 warning, session mutation, `publishDroppedRolesLocked`),
 `executeRoleAttributes`, `membershipLocked`, `objectGrantLocked`,
 `executeDatabaseGrant` and `alterDefaultPrivilegesLocked` (warnings,
