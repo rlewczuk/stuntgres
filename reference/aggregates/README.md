@@ -6,6 +6,32 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Ordered-set cancellation fixture ownership
+
+`TestReferenceOrderedSetAggregateActiveCancellation` creates an independent
+fixture before each direct/prepared route. Each retains the complete dependent
+sequence: stored seed64, genuine active cancellation, unchanged source count64,
+then the SAME held FLOAT8 query with bind2 yielding4.5. Scenario30s and admission15s
+remain unchanged; neither deadline is refreshed during that sequence.
+Native observation matches the executing goroutine's exact identity and live
+`sortOrderedAggregate` frame in complete samples. Reusable byte storage and a
+context-aware5ms wait after misses limit observation work; sampling still has a
+finite-window limitation and early completion fails. PostgreSQL retains exact
+PID/query admission, acknowledged cancellation and full57014 diagnostics.
+The pure `TestOrderedSetWorkerSorting` supplements, not replaces, public proof.
+
+```sh
+make check RUN='^TestReferenceOrderedSetAggregateActiveCancellation$' REFERENCE=1
+make check RUN='^TestReferenceOrderedSetAggregateActiveCancellation$'
+make check RUN='^TestReferenceOrderedSetAggregateActiveCancellation$' RACE=1
+make check RUN='^TestOrderedSetWorkerSorting$'
+make check RUN='^TestOrderedSetWorkerSorting$' RACE=1
+```
+
+Use external900-second deadlines. Standalone public smoke evidence must observe
+actual native sort admission, nil canceled outputs, count64 and SAME-held4.5;
+an observer-disabled successful timing run is not cancellation acceptance.
+
 ### Correlation, covariance and regression finalizers
 
 The untagged `correlation_regression*_test.go` definitions cover exactly `corr`,

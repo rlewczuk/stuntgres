@@ -7,7 +7,33 @@ import (
 )
 
 func TestReferenceRoleOwnershipExtensionDrop(t *testing.T) {
+	t.Run("lifecycle", func(t *testing.T) {
 	ownershipProviderCases(t, func(s *membershipScenario, database string) {
+		ownershipExtensionSurvivor(s, database)
+		ownershipProviderOwners(s, "own_target", "own_target")
+		ownershipProviderMemberOwners(s, "own_source")
+		ownershipProviderOwners(s, "own_target", "own_source")
+		s.clearNotices()
+		s.exec("DROP OWNED BY own_source,own_target,own_source RESTRICT")
+		ownershipNotices(s)
+		ownershipProviderGone(s)
+		ownershipRows(s, "own_ext_sentinel")
+		ownershipSelect(s, "SELECT id,v FROM own_ext_consumer ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "Hotel"}, {int64(9), ""}, {int64(10), nil}})
+	})
+	})
+	for _, member := range ownershipProviderMembers {
+		t.Run(member.kind+"_"+member.sqlIdentity, func(t *testing.T) {
+			ownershipProviderCases(t, func(s *membershipScenario, database string) {
+				ownershipExtensionSurvivor(s, database)
+				ownershipExtensionMember(s, member)
+			})
+		})
+	}
+}
+
+// Reproduce authentic dependencies and retain the original consumer table
+// continuously through refusal, cascade, fresh writes and reinstallation.
+func ownershipExtensionSurvivor(s *membershipScenario, database string) {
 		ownershipProviderSetup(s, database, false)
 		ownershipProviderOwners(s, "own_source", s.bootstrap)
 		ids := ownershipProviderIDs(s)
@@ -59,62 +85,45 @@ func TestReferenceRoleOwnershipExtensionDrop(t *testing.T) {
 		ownershipProviderOwners(s, "own_source", "own_source")
 		s.exec("REASSIGN OWNED BY own_source TO own_target")
 		ownershipProviderOwners(s, "own_target", "own_target")
-		// Isolate each independent member root. The shared-dependency index has
-		// no class/object tie order, so an all-member first-refusal golden is not
-		// portable even though every member is protected by the same e-edge.
-		for _, member := range ownershipProviderMembers {
-			s.t.Run(member.kind+"_"+member.sqlIdentity, func(t *testing.T) {
-				child := *s
-				child.t = t
-				c := &child
-				ownershipProviderMemberOwners(c, "own_source", member)
-				defer ownershipProviderMemberOwners(c, "own_target", member)
-				members := ownershipProviderIDs(c)
-				checkOwners := func() {
-					ownershipSelect(c, "SELECT r.rolname FROM pg_extension e JOIN pg_roles r ON r.oid=e.extowner WHERE e.extname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_target"}})
-					sourceProcedures, targetProcedures := int64(1), int64(3)
-					dictionaryOwner := "own_target"
-					if member.kind == "dictionary" {
-						sourceProcedures, targetProcedures = 0, 4
-						dictionaryOwner = "own_source"
-					}
-					for _, expected := range []struct {
-						role  string
-						count int64
-					}{{"own_source", sourceProcedures}, {"own_target", targetProcedures}} {
-						ownershipCount(c, "SELECT count(*) FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE (p.proname='unaccent' OR p.proname='unaccent_init' OR p.proname='unaccent_lexize') AND r.rolname='"+expected.role+"'", expected.count)
-					}
-					ownershipSelect(c, "SELECT r.rolname FROM pg_ts_dict d JOIN pg_roles r ON r.oid=d.dictowner WHERE d.dictname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{dictionaryOwner}})
-					if c.backend.PG && member.kind == "procedure" {
-						ownershipSelect(c, "SELECT r.rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.proname='"+member.name+"' AND p.proargtypes::TEXT='"+strings.ReplaceAll(member.signature, ",", " ")+"'", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_source"}})
-					}
-				}
-				checkOwners()
-				noun := "function own_provider." + member.sqlIdentity
-				if member.kind == "dictionary" {
-					noun = "text search dictionary own_provider.unaccent"
-				}
-				refusal := fixture.Diagnostic{Code: "2BP01", Message: "cannot drop " + noun + " because extension unaccent requires it", Hint: "You can drop extension unaccent instead."}
-				for _, mode := range []string{"RESTRICT", "CASCADE"} {
-					c.clearNotices()
-					ownershipFailure(c, "DROP OWNED BY own_source "+mode, refusal)
-					ownershipNotices(c)
-					checkOwners()
-					ownershipProviderStable(c, members)
-					ownershipHotel(c, "SELECT own_provider.unaccent('Hôtel') AS v")
-					ownershipRows(c, "own_ext_sentinel")
-					ownershipSelect(c, "SELECT id,v FROM own_ext_consumer ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "Hotel"}, {int64(9), ""}, {int64(10), nil}})
-				}
-			})
+}
+
+func ownershipExtensionMember(s *membershipScenario, member ownershipProviderMember) {
+	c := s
+	ownershipProviderMemberOwners(c, "own_source", member)
+	members := ownershipProviderIDs(c)
+	checkOwners := func() {
+		ownershipSelect(c, "SELECT r.rolname FROM pg_extension e JOIN pg_roles r ON r.oid=e.extowner WHERE e.extname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_target"}})
+		sourceProcedures, targetProcedures := int64(1), int64(3)
+		dictionaryOwner := "own_target"
+		if member.kind == "dictionary" {
+			sourceProcedures, targetProcedures = 0, 4
+			dictionaryOwner = "own_source"
 		}
-		ownershipProviderOwners(s, "own_target", "own_target")
-		ownershipProviderMemberOwners(s, "own_source")
-		ownershipProviderOwners(s, "own_target", "own_source")
-		s.clearNotices()
-		s.exec("DROP OWNED BY own_source,own_target,own_source RESTRICT")
-		ownershipNotices(s)
-		ownershipProviderGone(s)
-		ownershipRows(s, "own_ext_sentinel")
-		ownershipSelect(s, "SELECT id,v FROM own_ext_consumer ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "Hotel"}, {int64(9), ""}, {int64(10), nil}})
-	})
+		for _, expected := range []struct {
+			role string
+			count int64
+		}{{"own_source", sourceProcedures}, {"own_target", targetProcedures}} {
+			ownershipCount(c, "SELECT count(*) FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE (p.proname='unaccent' OR p.proname='unaccent_init' OR p.proname='unaccent_lexize') AND r.rolname='"+expected.role+"'", expected.count)
+		}
+		ownershipSelect(c, "SELECT r.rolname FROM pg_ts_dict d JOIN pg_roles r ON r.oid=d.dictowner WHERE d.dictname='unaccent'", []string{"rolname"}, []string{"NAME"}, [][]any{{dictionaryOwner}})
+		if c.backend.PG && member.kind == "procedure" {
+			ownershipSelect(c, "SELECT r.rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.proname='"+member.name+"' AND p.proargtypes::TEXT='"+strings.ReplaceAll(member.signature, ",", " ")+"'", []string{"rolname"}, []string{"NAME"}, [][]any{{"own_source"}})
+		}
+	}
+	checkOwners()
+	noun := "function own_provider." + member.sqlIdentity
+	if member.kind == "dictionary" {
+		noun = "text search dictionary own_provider.unaccent"
+	}
+	refusal := fixture.Diagnostic{Code: "2BP01", Message: "cannot drop " + noun + " because extension unaccent requires it", Hint: "You can drop extension unaccent instead."}
+	for _, mode := range []string{"RESTRICT", "CASCADE"} {
+		c.clearNotices()
+		ownershipFailure(c, "DROP OWNED BY own_source "+mode, refusal)
+		ownershipNotices(c)
+		checkOwners()
+		ownershipProviderStable(c, members)
+		ownershipHotel(c, "SELECT own_provider.unaccent('Hôtel') AS v")
+		ownershipRows(c, "own_ext_sentinel")
+		ownershipSelect(c, "SELECT id,v FROM own_ext_consumer ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "Hotel"}, {int64(9), ""}, {int64(10), nil}})
+	}
 }

@@ -166,8 +166,10 @@ func pgAttributeNameCastWitness(t *testing.T, p *fixture.Pair, b fixture.Backend
 }
 
 func TestReferencePGAttributeShape(t *testing.T) {
-	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		for _, q := range []string{"SELECT * FROM pg_catalog.pg_attribute WHERE FALSE", "SELECT * FROM pg_attribute WHERE attrelid=4294967295::oid"} {
+	// Independent matrices own their fixture before either backend starts.
+	for i, q := range []string{"SELECT * FROM pg_catalog.pg_attribute WHERE FALSE", "SELECT * FROM pg_attribute WHERE attrelid=4294967295::oid"} {
+		t.Run("empty-"+strconv.Itoa(i+1), func(t *testing.T) {
+			pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			s := fixture.Select(q, pgAttributeColumns, pgAttributeTypes, nil)
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgAttributeMetadata(t, rows, b.PG) }
 			for _, plain := range []bool{false, true} {
@@ -179,29 +181,49 @@ func TestReferencePGAttributeShape(t *testing.T) {
 			held := fixture.ViewHold(t, p, b, q)
 			pgAttributeCheck(t, p, b, held, s)
 			pgAttributeCheck(t, p, b, held, s)
-		}
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_shape(a integer)")
-		id := pgAttributeID(t, p, b.DB, "pa18_shape")
+			})
+		})
+	}
+	tableCase := func(name string, body func(*testing.T, *fixture.Pair, fixture.Backend, int64)) {
+		t.Run(name, func(t *testing.T) {
+			pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+				pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_shape(a integer)")
+				id := pgAttributeID(t, p, b.DB, "pa18_shape")
+				body(t, p, b, id)
+			})
+		})
+	}
+	tableCase("populated", func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
 		pgAttributeRead(t, p, b, b.DB, id, " AND attnum>0", [][]any{pgAttributeRow(id, "a", 23, 4, 1, -1, 0, true, "i", "p", false, 0)})
-		for _, q := range []string{
+	})
+	for i, q := range []string{
 			"SELECT attmissingval AS missing FROM pg_attribute WHERE attrelid=$1 AND attnum>0",
 			"SELECT missing FROM (SELECT attmissingval AS missing FROM pg_attribute WHERE attrelid=$1 AND attnum>0) s",
 			"SELECT (SELECT attmissingval FROM pg_attribute WHERE attrelid=$1 AND attnum=0) AS missing",
 			"SELECT absent.attmissingval AS missing FROM pg_attribute present LEFT JOIN pg_attribute absent ON absent.attrelid=present.attrelid AND absent.attnum=0 WHERE present.attrelid=$1 AND present.attnum=1",
 		} {
+		tableCase("anyarray-"+strconv.Itoa(i+1), func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
 			s := fixture.Select(q, []string{"missing"}, []string{"ANYARRAY"}, [][]any{{nil}}, id)
 			pgAttributeCheck(t, p, b, b.DB, s)
 			pgAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
 			held := fixture.ViewHold(t, p, b, q)
 			pgAttributeCheck(t, p, b, held, s)
-		}
+		})
+	}
+	tableCase("null-aggregates", func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
 		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT COUNT(attmissingval) AS present FROM pg_attribute WHERE attrelid=$1", []string{"present"}, []string{"INT8"}, [][]any{{int64(0)}}, id))
 		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT attmissingval IS NULL AS absent FROM pg_attribute WHERE attrelid=$1 AND attnum=1", []string{"absent"}, []string{"BOOL"}, [][]any{{true}}, id))
+	})
+	tableCase("rejected-ctas", func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
 		rejected := fixture.ImplicitError("CREATE TABLE pa18_shape_missing_copy AS SELECT attmissingval AS a FROM pg_attribute WHERE attrelid=$1 AND attnum=1", fixture.Diagnostic{Code: "42P16", Message: "column \"a\" has pseudo-type anyarray"}, id)
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, rejected)
 		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT relname FROM pg_class WHERE relname='pa18_shape_missing_copy'", []string{"relname"}, []string{"NAME"}, nil))
+	})
+	t.Run("builtin-identities", func(t *testing.T) {
+		pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT oid,reltype FROM pg_class WHERE oid=1249", []string{"oid", "reltype"}, []string{"OID", "OID"}, [][]any{{int64(1249), int64(75)}}))
 		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT 'pg_catalog.pg_attribute[]'::regtype::oid AS array_type", []string{"array_type"}, []string{"OID"}, [][]any{{int64(270)}}))
+		})
 	})
 }
 

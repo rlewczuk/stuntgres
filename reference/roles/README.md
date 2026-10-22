@@ -6,6 +6,31 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Extension ownership fixture boundaries
+
+`TestReferenceRoleOwnershipExtensionDrop` owns one continuous lifecycle and
+five independently constructed member-root fixtures, each retaining both DDL
+routes/backends. A selected-local recipe creates real extension dependencies,
+checks RESTRICT atomicity/stable identities, cascades the five dependents,
+retains the original consumer table through fresh9/empty and10/NULL writes,
+then reinstalls/reassigns the provider without replacing that table.
+The lifecycle additionally consumes the complete member/source+target
+duplicate-role DROP OWNED union. Each member fixture checks both protection
+refusals, unchanged identities/notices and original7/Hotel plus fresh survivors.
+It needs no member-owner restoration in a fixture about to be discarded.
+Existing independently bounded authority/role/schema cleanup remains in force;
+no assertion uses a replacement context after expiry.
+
+```sh
+make check RUN='^TestReferenceRoleOwnershipExtensionDrop$' REFERENCE=1
+make check RUN='^TestReferenceRoleOwnershipExtensionDrop$'
+make check RUN='^TestReferenceRoleOwnershipExtensionDrop$' RACE=1
+```
+
+Use external900-second deadlines. Standalone public smoke must check exact
+refusal/notice fields, actual member-owner replay where needed, stable IDs,
+consumer/sentinel survivors and publicly observed role/schema absence.
+
 ### Role membership and row-security inquiries
 
 The `TestReferenceAccessRole` family independently specifies all six

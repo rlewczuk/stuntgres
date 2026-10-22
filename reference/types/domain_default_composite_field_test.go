@@ -2,9 +2,11 @@ package reference_test
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"strings"
 	"testing"
+	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -17,7 +19,10 @@ func TestReferenceDomainDefaultCompositeFieldDependencies(t *testing.T) {
 			route = "prepared"
 		}
 		t.Run(route, func(t *testing.T) {
-			domainReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder, notices *[]fixture.Diagnostic) {
+			var dumpText string
+			var exercise func(*testing.T, *fixture.Pair, fixture.Executor, *fixture.Recorder)
+			sourceOK := t.Run("source", func(t *testing.T) {
+			domainCompositeFieldScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder, notices *[]fixture.Diagnostic) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 				for _, query := range []string{
 					"CREATE TYPE domain_s.dd_pair AS(a integer,b integer)",
@@ -144,7 +149,7 @@ func TestReferenceDomainDefaultCompositeFieldDependencies(t *testing.T) {
 				if b.PG {
 					return
 				}
-				assertSurvivors := func(pair *fixture.Pair, e fixture.Executor, rec *fixture.Recorder, restored, fresh bool) {
+				assertSurvivors := func(t *testing.T, pair *fixture.Pair, e fixture.Executor, rec *fixture.Recorder, restored, fresh bool) {
 					wantDefault := "(ROW(17, 18)::domain_s.dd_pair).b"
 					if restored {
 						wantDefault = "(ROW(18)::domain_s.dd_pair).b"
@@ -190,31 +195,70 @@ func TestReferenceDomainDefaultCompositeFieldDependencies(t *testing.T) {
 					missing.Position = "31"
 					fixture.RunStep(t, pair.Ctx, e, rec, domainDefaultFailure("SELECT id,own,child,keep FROM domain_s.dd_view ORDER BY id", missing, false, true))
 				}
-				assertSurvivors(p, c, r, false, false)
+				assertSurvivors(t, p, c, r, false, false)
 				var dump bytes.Buffer
 				if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 					t.Fatal(err)
 				}
-				assertSurvivors(p, c, r, false, false)
+				dumpText = dump.String()
+				assertSurvivors(t, p, c, r, false, false)
 				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 					t.Fatal(err)
 				}
 				if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump.String())); err != nil {
 					t.Fatal(err)
 				}
-				exercise := func(pair *fixture.Pair, e fixture.Executor, rec *fixture.Recorder) {
-					assertSurvivors(pair, e, rec, true, false)
+				exercise = func(t *testing.T, pair *fixture.Pair, e fixture.Executor, rec *fixture.Recorder) {
+					assertSurvivors(t, pair, e, rec, true, false)
 					fixture.RunStep(t, pair.Ctx, e, rec, fixture.Prepared(fixture.Exec("INSERT INTO domain_s.dd_rows(id,keep) VALUES(5,105)", 1)))
 					fixture.RunStep(t, pair.Ctx, e, rec, fixture.Prepared(fixture.Exec("INSERT INTO domain_s.dd_survivor(id) VALUES(3)", 1)))
-					assertSurvivors(pair, e, rec, true, true)
+					assertSurvivors(t, pair, e, rec, true, true)
 				}
-				exercise(p, c, r)
+				exercise(t, p, c, r)
+			})
+			})
+			if !sourceOK {
+				return
+			}
+			t.Run("fresh-target", func(t *testing.T) {
+				if dumpText == "" || exercise == nil {
+					t.Fatal("source produced no native replay payload")
+				}
 				target := fixture.NewFixture(t, false, true)
-				if err := stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(dump.String())); err != nil {
+				if err := stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(dumpText)); err != nil {
 					t.Fatal(err)
 				}
-				exercise(target, target.Memory, target.MemoryRecord)
+				exercise(t, target, target.Memory, target.MemoryRecord)
 			})
+		})
+	}
+}
+
+// This selected scenario owns cleanup independently of its assertion budget.
+// Register teardown before notice-pool handles, which must close first.
+func domainCompositeFieldScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fixture.Recorder, *[]fixture.Diagnostic)) {
+	t.Helper()
+	p := fixture.NewScenario(t)
+	for _, b := range p.Backends() {
+		t.Run(b.Name, func(t *testing.T) {
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				for _, schema := range []string{"domain_external", "domain_other", "domain_s"} {
+					if _, err := b.DB.ExecContext(ctx, "DROP SCHEMA IF EXISTS "+schema+" CASCADE"); err != nil {
+						t.Error(err)
+					}
+				}
+				if _, err := b.DB.ExecContext(ctx, "DROP TABLE IF EXISTS public.one"); err != nil {
+					t.Error(err)
+				}
+			})
+			var notices []fixture.Diagnostic
+			_, conn, recorder := fixture.NoticeReferencePool(t, p, b.PG, &notices)
+			fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("CREATE SCHEMA domain_s", 0))
+			fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("CREATE TABLE public.one (v integer)", 0))
+			fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("INSERT INTO public.one VALUES (1)", 1))
+			body(t, p, b, conn, recorder, &notices)
 		})
 	}
 }

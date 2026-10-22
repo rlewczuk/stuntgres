@@ -6,6 +6,35 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Composite-field domain-default fixture ownership
+
+`TestReferenceDomainDefaultCompositeFieldDependencies` keeps each direct/prepared
+DDL source lifecycle continuous: copied defaults/dependencies, exact RESTRICT
+and no mutation/fresh default write, CASCADE and original-object survivors,
+Dump/no mutation, SAME-attachment Reset/Restore and fresh replay writes.
+Only after that source subtest closes does a fresh native target fixture consume
+its actual emitted dump and repeat complete survivor/dependency/metadata and
+fresh-write assertions. These native control phases have no fabricated
+PostgreSQL API; the shared SQL lifecycle independently runs on PostgreSQL.
+The selected-local runner closes notice/connection handles before teardown and
+uses a separate15s cleanup-only context. It does not refresh scenario30s or alter
+the shared domain fixture or its other consumers.
+
+```sh
+make check RUN='^TestReferenceDomainDefaultCompositeFieldDependencies$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefaultCompositeFieldDependencies$'
+make check RUN='^TestReferenceDomainDefaultCompositeFieldDependencies$' RACE=1
+# Unchanged companion explicitly owns failed/canceled restore acceptance.
+make check RUN='^TestReferenceDomainDefaultNativeControls$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefaultNativeControls$'
+make check RUN='^TestReferenceDomainDefaultNativeControls$' RACE=1
+```
+
+Use external900-second deadlines. Standalone public smoke must consume real dump
+bytes on the same attachment and an independent Driver, observe fresh18 writes,
+and verify failed23502/canceled Restore preserves sentinel42/no bad_restore plus
+a subsequent valid default write. Selected companion proof retains full v22/p52.
+
 ### LINE scalar contract
 
 Independent pinned18.6 oracle-first scenarios cover coefficient preservation,

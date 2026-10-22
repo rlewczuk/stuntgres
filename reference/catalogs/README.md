@@ -6,6 +6,27 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Independently owned pg_attribute shape matrices
+
+`TestReferencePGAttributeShape` owns ten fixtures, created before backend work:
+two empty shapes, populated metadata, four ANYARRAY NULL compositions, NULL
+aggregates, rejected CTAS plus absence, and builtin identities. No live context
+is refreshed. Each empty shape retains direct/fresh-prepared Context and actual
+plain methods plus two reads through the SAME held statement. Literal25-column
+labels/types, raw descriptors and native label ownership remain exact.
+Each NULL composition keeps direct/fresh-prepared/held routes; count0/isnulltrue,
+CTAS42P16/no publication and builtin1249/75/270 remain independent expectations.
+
+```sh
+make check RUN='^TestReferencePGAttributeShape$' REFERENCE=1
+make check RUN='^TestReferencePGAttributeShape$'
+make check RUN='^TestReferencePGAttributeShape$' RACE=1
+```
+
+Use external900-second deadlines. Standalone public smoke should inspect actual
+empty raw metadata, scalar/LEFT JOIN ANYARRAY NULL,0/true and rejected CTAS
+absence, not infer them from source structure or backend parity.
+
 ### LINE catalog admission
 
 LINE scalar628 and lookup-only companion629 join the independent type-admission

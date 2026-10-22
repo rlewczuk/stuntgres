@@ -13,23 +13,22 @@ import (
 )
 
 func TestReferenceTimestampDiagnosticsAndAtomicity(t *testing.T) {
-	p := newTimestampReferenceScenario(t)
-	for _, b := range p.Backends() {
-		t.Run(b.Name, func(t *testing.T) {
-			run := func(s fixture.Step) { fixture.TemporalRunStep(t, p.Ctx, b.DB, b.Recorder, s) }
-			run(fixture.Exec("CREATE TABLE t(v TIMESTAMP NOT NULL)", 0))
-			for _, tc := range timestampBadInputs {
+	for _, tc := range timestampBadInputs {
+		t.Run(tc.input, func(t *testing.T) {
+			p := newTimestampReferenceScenario(t)
+			for _, b := range p.Backends() {
+				t.Run(b.Name, func(t *testing.T) {
+					// Bind assertions to this backend child, never its parent.
+					run := func(s fixture.Step) { fixture.TemporalRunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+					run(fixture.Exec("CREATE TABLE t(v TIMESTAMP NOT NULL)", 0))
 				q := "/*é*/ SELECT TIMESTAMP '" + tc.input + "' FROM t"
 				position := strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "'")]) + 1)
 				step := fixture.ImplicitError(q, fixture.Diagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: position})
 				step.SelectRows = true
 				step.ErrorStage = "prepare"
 				run(fixture.Prepared(step))
-			}
 			run(fixture.Exec("INSERT INTO t VALUES('epoch')", 1))
 			unchanged := fixture.Select("SELECT v FROM t", []string{"v"}, []string{"TIMESTAMP"}, [][]any{{time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)}})
-			for _, tc := range timestampBadInputs {
-				t.Run(tc.input, func(t *testing.T) {
 					for _, q := range []string{"INSERT INTO t VALUES ('" + tc.input + "')", "/*é*/ SELECT TIMESTAMP '" + tc.input + "' FROM t", "INSERT INTO t VALUES('2000-01-01'),('" + tc.input + "')"} {
 						position := strconv.Itoa(utf8.RuneCountInString(q[:strings.LastIndex(q, "'"+tc.input)]) + 1)
 						step := fixture.ImplicitError(q, fixture.Diagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: position})
@@ -59,7 +58,6 @@ func TestReferenceTimestampDiagnosticsAndAtomicity(t *testing.T) {
 					}
 				})
 			}
-
 		})
 	}
 }
