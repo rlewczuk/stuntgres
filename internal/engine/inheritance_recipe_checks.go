@@ -27,7 +27,7 @@ func (e *Engine) pairRestoredGeneration(op *session.Operation, raw *parser.Alter
 	if err != nil {
 		return err
 	}
-	return table.PairRestoredGeneration(auth.Catalog, relationProvider{}, ref, raw, origins)
+	return table.PairRestoredGeneration(auth.Catalog, relationProvider, ref, raw, origins)
 }
 
 func (e *Engine) captureRestoredGeneration(op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
@@ -69,7 +69,7 @@ func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterT
 	if err != nil {
 		return err
 	}
-	return table.InheritedCheckRecipe(auth.Catalog, relationProvider{}, ref, repairs)
+	return table.InheritedCheckRecipe(auth.Catalog, relationProvider, ref, repairs)
 }
 
 func (e *Engine) closeRestoredRecipesForData(op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {

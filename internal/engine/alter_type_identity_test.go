@@ -116,10 +116,10 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				if generator.Last != oldGenerator.Last || generator.Called != oldGenerator.Called || generator.Generation == oldGenerator.Generation || nextSequence.Revision() <= sequence.Revision() {
 					t.Fatal("AS restarted state or retained generation", oldGenerator, generator, sequence.Revision(), nextSequence.Revision())
 				}
-				if err := (relationProvider{}).Validate(e.CatalogRead(), after); err != nil {
+				if err := (relationProvider).Validate(e.CatalogRead(), after); err != nil {
 					t.Fatal(err)
 				}
-				if err := (relationProvider{}).Validate(e.CatalogRead(), nextSequence); err != nil {
+				if err := (relationProvider).Validate(e.CatalogRead(), nextSequence); err != nil {
 					t.Fatal(err)
 				}
 			})

@@ -68,7 +68,7 @@ func TestPGDependShape(t *testing.T) {
 	if _, ok := source.Index["oid"]; ok {
 		t.Fatal("fabricated oid")
 	}
-	if err := (relationProvider{}).Validate(view, source); err != nil {
+	if err := (relationProvider).Validate(view, source); err != nil {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(view.State().Epoch(), address)

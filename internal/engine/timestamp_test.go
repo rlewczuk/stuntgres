@@ -243,7 +243,7 @@ func TestTimestampCatalogModifierValidation(t *testing.T) {
 	}
 	descriptor, _ := view.Descriptor(matches[0])
 	original := descriptor.(*catalog.Relation)
-	provider := relationProvider{}
+	provider := relationProvider
 	if err := provider.Validate(view, original); err != nil {
 		t.Fatal("valid precision rejected", err)
 	}

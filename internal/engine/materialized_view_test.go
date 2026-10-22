@@ -56,24 +56,24 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	if !d.RelationKind.Stored() || d.Populated || d.View == nil || stored.ViewOf(d).RuleOID() == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
-	if err := (relationProvider{}).Validate(view, d); err != nil {
+	if err := (relationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	populated := *d
 	populated.Populated = true
-	if err := (relationProvider{}).Validate(view, &populated); err != nil {
+	if err := (relationProvider).Validate(view, &populated); err != nil {
 		t.Fatal("empty populated descriptor:", err)
 	}
 	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.ViewRelation, catalog.CatalogRelation} {
 		invalid := populated
 		invalid.RelationKind = kind
-		if err := (relationProvider{}).Validate(view, &invalid); err == nil {
+		if err := (relationProvider).Validate(view, &invalid); err == nil {
 			t.Fatalf("accepted populated non-materialization %v", kind)
 		}
 	}
 	invalid := *d
 	invalid.View = nil
-	if err := (relationProvider{}).Validate(view, &invalid); err == nil {
+	if err := (relationProvider).Validate(view, &invalid); err == nil {
 		t.Fatal("accepted missing definition")
 	}
 }

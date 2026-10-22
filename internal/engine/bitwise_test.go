@@ -20,7 +20,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	old := view.MustRelation(ref.Address)
-	if err := (relationProvider{}).Validate(view, old); err != nil {
+	if err := (relationProvider).Validate(view, old); err != nil {
 		t.Fatal(err)
 	}
 	root := old.ColumnMeta.Defaults[1].Expression.(plan.BitwiseExpr)
@@ -294,7 +294,7 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 	if err != nil || before != after {
 		t.Fatal(before, after, err)
 	}
-	if err := (relationProvider{}).Validate(view, table); err != nil {
+	if err := (relationProvider).Validate(view, table); err != nil {
 		t.Fatal(err)
 	}
 }

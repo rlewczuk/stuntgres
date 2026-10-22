@@ -250,7 +250,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			// preflight. No flag or execution-folded node leaks into the catalog.
 			_, _, err = exec.PreflightCoercions(c, original.Expression)
 			state(t, err, "22P02")
-			if err := (relationProvider{}).Validate(view, d); err != nil {
+			if err := (relationProvider).Validate(view, d); err != nil {
 				t.Fatal("execution planning changed the stored definition", err)
 			}
 			if !reflect.DeepEqual(d.ColumnMeta.Defaults[d.Attributes[0]], original) {

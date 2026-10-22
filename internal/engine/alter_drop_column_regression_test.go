@@ -132,7 +132,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	lockAwait(t, queued, ids.ErrCatalogReplaced)
 	unblock.Do(func() { close(release) })
 	lockAwait(t, dropping, ids.ErrCatalogReplaced)
-	e.catalog.Providers[ids.RelationClassID] = relationProvider{}
+	e.catalog.Providers[ids.RelationClassID] = relationProvider
 	run(t, e, "CREATE TABLE t(replacement INT)")
 	result := run(t, e, "SELECT * FROM t")
 	if result.Count != 0 || result.Rows.Schema()[0].Name != "replacement" {

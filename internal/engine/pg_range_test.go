@@ -97,7 +97,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10100 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != d.Owner || array.Owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
-		if err := (relationProvider{}).Validate(view, d); err != nil {
+		if err := (relationProvider).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 	}

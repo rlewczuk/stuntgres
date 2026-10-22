@@ -114,7 +114,7 @@ func TestMaterializedAlterExtensionAuthority(t *testing.T) {
 	for _, addresses := range [][]ids.ObjectAddress{{{ClassID: ids.ProcedureClassID, ObjectID: ext.Members[0].ObjectID}}, {ext.Address(), ext.Address()}, {{ClassID: ids.ExtensionClassID, ObjectID: ext.Address().ObjectID, SubID: 1}}, {{ClassID: ids.ExtensionClassID, ObjectID: 999999}}} {
 		bad := *next
 		bad.AutoExtensions = addresses
-		if err := (relationProvider{}).Validate(e.CatalogRead(), &bad); err == nil {
+		if err := (relationProvider).Validate(e.CatalogRead(), &bad); err == nil {
 			t.Fatal("malformed authority accepted", addresses)
 		}
 	}

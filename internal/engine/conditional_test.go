@@ -726,7 +726,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			if r := run(t, e, "INSERT INTO d(k) SELECT i FROM src"); r.Count != 1 {
 				t.Fatal(r.Count)
 			}
-			if err := (relationProvider{}).Validate(view, d); err != nil {
+			if err := (relationProvider).Validate(view, d); err != nil {
 				t.Fatal("stored definition invalid", err)
 			}
 			if !reflect.DeepEqual(d.ColumnMeta.Defaults[d.Attributes[0]], original) {

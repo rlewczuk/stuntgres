@@ -75,12 +75,12 @@ func TestPGDescriptionShape(t *testing.T) {
 	if _, exists := d.Index["oid"]; exists {
 		t.Fatal("fabricated row oid")
 	}
-	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
+	if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal("virtual catalog metadata must validate without physical constraints", err)
 	}
 	physical := *d
 	physical.RelationKind = catalog.TableRelation
-	if err := (relationProvider{}).Validate(e.CatalogRead(), &physical); err == nil {
+	if err := (relationProvider).Validate(e.CatalogRead(), &physical); err == nil {
 		t.Fatal("physical table NOT NULL metadata requires constraint identities")
 	}
 	foreignType, _ := New().CatalogRead().LookupType(sqltype.Oid)
@@ -99,7 +99,7 @@ func TestPGDescriptionShape(t *testing.T) {
 			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Attributes = append([]int32(nil), d.Attributes...)
 			tc.invalidate(&invalid)
-			if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
+			if err := (relationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
 				t.Fatal("virtual-source exemption bypassed descriptor validation")
 			}
 		})

@@ -105,7 +105,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.NamespaceProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(relationProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(relationProvider); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(stored.TypeProvider{}); err != nil {

@@ -50,7 +50,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 				t.Fatal("foreign generation accepted", i, source, err)
 			}
 		}
-		if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
+		if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
 		row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row})

@@ -85,7 +85,7 @@ func TestPGNamespaceShape(t *testing.T) {
 			t.Fatal("row/array reciprocal owner", id, typ)
 		}
 	}
-	if err := (relationProvider{}).Validate(c, d); err != nil {
+	if err := (relationProvider).Validate(c, d); err != nil {
 		t.Fatal(err)
 	}
 	toast := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})

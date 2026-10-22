@@ -45,7 +45,7 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 		if e.storage.Sequences[seq.Address()].Called || e.storage.Sequences[seq.Address()].Last != 1 {
 			t.Fatal("CREATE evaluated nextval")
 		}
-		if err := (relationProvider{}).Validate(view, d); err != nil {
+		if err := (relationProvider).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(functions.SequenceCall) functions.SequenceCall{
@@ -79,7 +79,7 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 	}
 	// Rename does not replace the bound identity or stale-name cached SQL.
 	run(t, e, `ALTER SEQUENCE t_b_seq RENAME TO renamed`)
-	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
+	if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	text, err := stored.DefaultSQL(context.Background(), e.CatalogRead(), d.ColumnMeta.Defaults[2].Expression)
@@ -127,7 +127,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			if next.Ref.Address == temp || next.Ref.Domain() != dest.catalog.Domain || next.Ref.Epoch != dest.catalog.state.Epoch() || !analyze.ClosedSequenceDefault(d.ColumnMeta.Defaults[1].Expression) {
 				t.Fatal("default not remapped", next.Ref)
 			}
-			if err := (relationProvider{}).Validate(dest.CatalogRead(), d); err != nil {
+			if err := (relationProvider).Validate(dest.CatalogRead(), d); err != nil {
 				t.Fatal(err)
 			}
 			sessionSQL(t, b, `INSERT INTO portable.t DEFAULT VALUES`)
@@ -140,7 +140,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			if serialLeaf(original.ColumnMeta.Defaults[1].Expression).Ref != leaf.Ref {
 				t.Fatal("source default mutated")
 			}
-			if err := (relationProvider{}).Validate(source.CatalogRead(), original); err != nil {
+			if err := (relationProvider).Validate(source.CatalogRead(), original); err != nil {
 				t.Fatal(err)
 			}
 		})

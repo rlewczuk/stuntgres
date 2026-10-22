@@ -69,19 +69,19 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 func TestTemporaryTableProviderAction(t *testing.T) {
 	e, _, c, table := temporaryCatalogCandidate(t, parser.OnCommitDelete)
 	view := e.privateCatalogLocked(c)
-	if err := (relationProvider{}).Validate(view, table); err != nil {
+	if err := (relationProvider).Validate(view, table); err != nil {
 		t.Fatal(err)
 	}
 	invalid := *table
 	invalid.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	c2 := c.Clone()
 	e.catalogChangeLocked(c2, table.Address(), &invalid)
-	if err := (relationProvider{}).Validate(e.privateCatalogLocked(c2), &invalid); err == nil {
+	if err := (relationProvider).Validate(e.privateCatalogLocked(c2), &invalid); err == nil {
 		t.Fatal("persistent action descriptor accepted")
 	}
 	invalid = *table
 	invalid.OnCommit = parser.OnCommitAction(255)
-	if err := (relationProvider{}).Validate(view, &invalid); err == nil {
+	if err := (relationProvider).Validate(view, &invalid); err == nil {
 		t.Fatal("unknown action accepted")
 	}
 }
