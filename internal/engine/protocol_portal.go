@@ -288,7 +288,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.inquiry.commentCatalog, roles: s.inquiry.commentRoles, routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog, visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
-	c.state = exec.State{Source: source, Parameters: values, Input: s.input, Output: s.output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: values, Input: s.input, Output: s.output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
 	c.state.Output.Regproc, c.state.Output.Regrole, c.state.Output.Operator = nil, nil, nil
@@ -296,6 +296,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
 	regobj.DetachCursorInput(&c.state.Input, c.authority)
 	c.foreignOwner = s.foreignTablesSlot.takeOwner()
+	s.takeRowSecurityPrograms(c)
 	bind := s.protocolOrZero().bind
 	bind.producer = c
 	bind.completionBase, bind.completionCounted = "SELECT", true

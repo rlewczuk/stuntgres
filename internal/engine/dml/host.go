@@ -321,3 +321,31 @@ type Outcome struct {
 	Count int64
 	Rows  *exec.FinalRows
 }
+
+// Rowwise commands have no final query stage to finish scalar-only captures.
+// A required producer close can veto their result, never a primary failure.
+func (out *Outcome) finishSources(state *exec.State, err *error) {
+	*err = state.FinishSources(*err)
+	if *err != nil {
+		if out.Rows != nil {
+			out.Rows.Close()
+		}
+		*out = Outcome{}
+	}
+}
+
+// A local FROM/USING stage can consume its producer's first required Close
+// error. Settle that error before the outer source owner finishes; a later
+// idempotent Close cannot recover it. An existing primary failure always wins.
+func (out *Outcome) finishStage(stage *exec.Stage, err *error) {
+	closeErr := stage.Close()
+	if *err == nil {
+		*err = closeErr
+	}
+	if *err != nil {
+		if out.Rows != nil {
+			out.Rows.Close()
+		}
+		*out = Outcome{}
+	}
+}

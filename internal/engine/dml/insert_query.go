@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -36,7 +35,7 @@ func EvaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.So
 		}
 		unique = len(bound.Keys) != 0 || bound.Checked
 	}
-	state := &exec.State{Source: source, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
+	state := &exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
 	defer state.ReleaseMemberships()
 	stage, err := exec.OpenQueryProjectStage(ctx, state, project)
 	if err != nil {
@@ -164,7 +163,7 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			continue
 		}
 		if command != nil {
-			if err := access.RowSecurityProposal(command.RLS.Proposal, command.RLS.ProposalTable); err != nil {
+			if err := command.RLS.CheckProposal(row, &evaluation); err != nil {
 				return index.WriteBatch{}, err
 			}
 		}

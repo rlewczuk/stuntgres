@@ -115,7 +115,13 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 		}
 	}
 	if marked {
-		scope.queryLocks = &exec.LockContext{}
+		if scope.queryLocks == nil {
+			scope.queryLocks = &exec.LockContext{}
+		} else {
+			// Imported policy roots extend the same physical occurrence
+			// manifest; never discard earlier leaves or a cursor's identities.
+			scope.queryLocks.IdentityOnly = false
+		}
 	}
 	return nil
 }

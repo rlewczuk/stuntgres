@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
@@ -42,11 +43,11 @@ func TemporarySet(current catalog.Read, next *catalog.State) (map[ids.ObjectAddr
 }
 
 // CheckTemporaryDependencies rejects a candidate that would substitute an
-// imported object for an exact dependency of a retained temporary relation:
-// a policy source or dependency, or a user domain under an array column.
-// Persistent replacement cannot substitute imported domains for a live TEMP
-// array's exact dependency identities, so this runs before any allocator or
-// candidate state work.
+// imported object for an exact dependency of a retained temporary relation.
+// The candidate's builtin codecs have already been restored by the existing
+// RetainTemporaryBuiltinTypes phase. Only that exact retained generation and
+// certified release declarations can bridge reconstructed descriptor pointers.
+// This still precedes allocator or publication work.
 func CheckTemporaryDependencies(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, descriptor := range temporary {
 		relation, ok := descriptor.(*catalog.Relation)
@@ -72,7 +73,7 @@ func CheckTemporaryDependencies(current catalog.Read, next *catalog.State, tempo
 					if _, retained := temporary[address]; retained {
 						continue
 					}
-					if next.Get(address) != current.State().Get(address) {
+					if next.Get(address) != current.State().Get(address) && !compatibleTemporaryPolicyBuiltin(current, next, address) {
 						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
 					}
 				}
@@ -89,6 +90,34 @@ func CheckTemporaryDependencies(current catalog.Read, next *catalog.State, tempo
 		}
 	}
 	return nil
+}
+
+// Full execution manifests also name builtin usage types/collations and release
+// callables that pg_depend omits. This is declaration/lifetime compatibility,
+// never a global pinned exemption: other providers require retained identity.
+func compatibleTemporaryPolicyBuiltin(current catalog.Read, next *catalog.State, address ids.ObjectAddress) bool {
+	candidate := current.WithState(next)
+	if !stored.DependPinned(current, nil, address) || !stored.DependPinned(candidate, nil, address) {
+		return false
+	}
+	switch old := current.Get(address).(type) {
+	case *catalog.Procedure:
+		replacement, ok := next.Get(address).(*catalog.Procedure)
+		return ok && exec.SameRoutineDeclaration(replacement, old) && (stored.ProcedureProvider{}).Validate(current, old) == nil && (stored.ProcedureProvider{}).Validate(candidate, replacement) == nil
+	case *catalog.Type:
+		// Reuse the exact-generation/header rule of retained array codecs.
+		// Row types, domains and user elements have no builtin survivor route.
+		return old.OwningRelation == (ids.ObjectAddress{}) && !old.SQLType.IsUserDefined() && !old.SQLType.IsDomain() && retainedArrayDependencies(current.State(), next, old.SQLType)
+	case *catalog.Collation:
+		replacement, ok := next.Get(address).(*catalog.Collation)
+		if !ok {
+			return false
+		}
+		before, beforeErr := old.Usage()
+		after, afterErr := replacement.Usage()
+		return beforeErr == nil && afterErr == nil && before == after && (catalog.CollationProvider{}).Validate(current, old) == nil && (catalog.CollationProvider{}).Validate(candidate, replacement) == nil
+	}
+	return false
 }
 
 func arrayDomainDependency(typ *sqltype.Descriptor) bool {

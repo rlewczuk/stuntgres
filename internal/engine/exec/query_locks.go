@@ -150,7 +150,14 @@ func RecheckLockedSource(source *Source, rows [][]sqltype.Value, evaluation *Con
 		child.BindQueryIdentity(lineage.Stage, frozenIndex)
 		return RecheckLockedQuery(lineage.Root, lineage.Inputs, rows, &child, scratch, offset, frozen)
 	}
-	return rows[source.Occurrence], true, nil
+	row := rows[source.Occurrence]
+	if source.RLS != nil && row != nil {
+		pass, _, err := EvaluateRowSecurity(source.RLS, evaluation, row)
+		if err != nil || !pass {
+			return nil, false, err
+		}
+	}
+	return row, true, nil
 }
 
 func RecheckLockedQuery(node plan.Node, inputs *Source, rows [][]sqltype.Value, evaluation *Context, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {

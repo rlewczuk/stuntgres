@@ -11,27 +11,54 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// prepareStoredQueryLocked consumes Engine.mu on all returns. Both ordinary
-// views and refresh execute the frozen tree through current attribute bridges.
+// prepareStoredQueryLocked consumes Engine.mu on every return. Standalone view
+// and refresh callers use the same complete preparation/materialization split.
 func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (plan.Node, *exec.Source, error) {
+	scope.rlsAdmissionDepth++
+	prepared, err := e.prepareStoredSourceLocked(scope, ref, definition, invoker, mark, outputUses)
+	err = e.endRowSecurityAdmissionLocked(scope, err)
+	if err == nil {
+		err = e.materializePolicySourcesLocked(scope)
+	}
+	if err != nil {
+		e.mu.Unlock()
+		return nil, nil, err
+	}
+	if locks == nil {
+		locks = scope.queryLocks
+	}
+	source, err := e.captureStoredSourceLocked(scope, prepared, locks)
+	if err == nil {
+		err = e.fenceRowSecurityProgramsLocked(scope)
+	}
+	if err != nil && source != nil {
+		e.closeQuerySourceSetLocked(scope.op.Context(), source, nil)
+		source = nil
+	}
+	e.mu.Unlock()
+	return prepared.root, source, err
+}
+
+// Metadata only: provider preflight and the complete selected source closure
+// finish before any tuple prefix is pinned. Returns with Engine.mu held.
+func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, outputUses []int) (*storedSourcePreparation, error) {
 	ctx := scope.op.Context()
 	if scope.authority == nil {
 		scope.authority = &exec.Authority{Host: hostOf(scope)}
 	}
 	auth, err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark)
 	if err != nil {
-		e.mu.Unlock()
-		return nil, nil, err
+		return nil, err
 	}
 	catalog := e.privateCatalogLocked(scope.owner.Catalog)
+	consumer, ok := catalog.Relation(ref.Address)
+	if !ok || stored.ViewOf(consumer) != definition {
+		return nil, ids.ErrCatalogReplaced
+	}
 	e.mu.Unlock()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.QuoteCaptures = scope.quoteCaptures
 	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.QuoteRevision()}
-	consumer, ok := catalog.Relation(ref.Address)
-	if !ok || stored.ViewOf(consumer) != definition {
-		return nil, nil, ids.ErrCatalogReplaced
-	}
 	evaluation.RoutineRecipe, evaluation.RoutineConsumer = true, consumer
 	evaluation.RoutineChecks = definition.Dependencies()
 	evaluation.RoutineAuthority = &auth
@@ -39,13 +66,12 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	if err == nil {
 		err = view.ValidateMarkedQueryJoin(&evaluation, root, catalog, nil, plan.RowMark{}, false, nil, reads)
 	}
-	if err != nil {
-		return nil, nil, err
-	}
 	e.mu.Lock()
+	if err != nil {
+		return nil, err
+	}
 	if auth, err = e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark); err != nil {
-		e.mu.Unlock()
-		return nil, nil, err
+		return nil, err
 	}
 	catalog = e.privateCatalogLocked(scope.owner.Catalog)
 	consumer = catalog.MustRelation(ref.Address)
@@ -58,32 +84,39 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		relation := catalog.MustRelation(leaf.Ref.Address)
 		use, err := stored.ViewUseReference(catalog, consumer, leaf.Ref)
 		if err != nil {
-			e.mu.Unlock()
-			return nil, nil, err
+			return nil, err
 		}
 		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, Principal: relationPrincipal, Storage: e.privateStorageLocked(scope.owner.Catalog, leaf.Ref.Address), Mark: stored.ViewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.AnalysisOnly}
 		leaves[i].Uses, err = analyze.QuerySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {
-			e.mu.Unlock()
-			return nil, nil, err
+			return nil, err
 		}
 	}
 	if scope.materializedOrZero().Refresh && ref == scope.lockedRef {
 		if err := e.initializeQueryLocksLocked(scope, root, leaves); err != nil {
-			e.mu.Unlock()
-			return nil, nil, err
+			return nil, err
 		}
 		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || definition.Query().VisibilitySnapshot
-		locks = scope.queryLocks
 	}
-	source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, plan.RowMark{}, locks)
-	e.mu.Unlock()
+	sources, err := e.prepareQuerySourcesLocked(scope, leaves, len(leaves) == 0, invoker, plan.RowMark{})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+	return &storedSourcePreparation{root: root, definition: definition, consumer: consumer, sources: sources}, nil
+}
+
+func (e *Engine) captureStoredSourceLocked(scope *StatementScope, prepared *storedSourcePreparation, locks *exec.LockContext) (*exec.Source, error) {
+	ctx := scope.op.Context()
+	definition, consumer, leaves := prepared.definition, prepared.consumer, prepared.sources.leaves
+	source, err := e.capturePreparedQuerySourcesLocked(scope, prepared.sources, locks)
+	e.mu.Unlock()
+	defer e.mu.Lock()
+	if err != nil {
+		return nil, err
 	}
 	if err = exec.SelectQuerySources(ctx, source); err != nil {
 		source.Close()
-		return nil, nil, err
+		return nil, err
 	}
 	// Detach bundle ownership before replacing execution-local occurrences.
 	sources := source.Sources
@@ -137,5 +170,5 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	if recipe := stored.ViewOf(consumer); recipe != nil {
 		source.RoutineChecks = recipe.Dependencies()
 	}
-	return root, source, nil
+	return source, nil
 }

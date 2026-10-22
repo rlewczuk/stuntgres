@@ -1828,6 +1828,18 @@ checks moved-child40001 from an admitted stable image even when its successor
 commits before action discovery. The owner/FORCE reporting unit installs an
 immutable owner descriptor through the existing validated catalog-stage API;
 it does not imply public ALTER TABLE OWNER support.
+`TestReferenceForeignActionsDiagnosticsNested` is the public reporting witness,
+using a child genuinely created under its owner after explicit schema
+USAGE/CREATE grants, not a catalog ownership mutation or namespace-owner helper.
+Its nine NOT NULL/CHECK/child-FK × disabled/enabled-unforced/FORCE shapes retain
+direct/prepared routes, complete diagnostics/SPI context, current_user/session_user preservation,
+and unchanged complete child/parent rows after each failed action. Select
+`make check REFERENCE=1 RUN='^TestReferenceForeignActionsDiagnosticsNested$'`,
+then the identical selector without `REFERENCE=1`. Pinned18.6 discovery confirms
+owner-visible local NN/CHECK Detail/SPI Context even under FORCE; FK after-event
+key disclosure remains independently suppressed where required.
+The native owner supplement also rejects marker-only, nonsettling, read-only,
+nonowner and view-check contexts as a route around ordinary RLS disclosure.
 Keep incumbent late-postpublication cancellation and conflict UPDATE regression
 bodies unchanged and select
 `make check RUN='^(TestDeleteCorePublicationCancellation|TestDeleteReturningCancellation|TestUpdateReturningCancellation|TestInsertConflictUpdateIdentity|TestInsertConflictUpdateDistinctStage|TestInsertConflictUpdateCursorFailure)'`.

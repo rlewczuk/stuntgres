@@ -55,6 +55,7 @@ type sqlRoutineScratch struct {
 	input                sqltype.InputEnvironment
 	output               sqltype.OutputEnvironment
 	view, partitionView  *visibility.View
+	rlsDataRefs          []ids.ObjectRef // Same lexical snapshot owner as view; not a global source cache.
 	ownWrites            map[ids.ObjectAddress][]storage.RowVersion
 	ownDeletes           map[ids.ObjectAddress]*visibility.PrivateDeletes
 	domainEvaluation     *exec.Context
@@ -78,6 +79,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		domainEvaluation: s.domains.evaluation, domainInputCatalog: s.domains.inputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
 		presentation: s.presentationSlot, identity: s.identity,
 		largeObjectRead: s.largeObjectRead,
+		rlsDataRefs:     s.rlsDataRefs,
 	}
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
@@ -97,6 +99,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.setForeignLexical(c.foreignOwner, c.foreignCursor)
 	s.presentationSlot, s.identity = c.presentation, c.identity
 	s.largeObjectRead = c.largeObjectRead
+	s.rlsDataRefs = c.rlsDataRefs
 }
 
 func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectRead catalog.Read) func(error) error {

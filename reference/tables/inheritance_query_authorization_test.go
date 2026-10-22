@@ -95,13 +95,7 @@ func TestReferenceInheritanceQueryRLS(t *testing.T) {
 		s.exec("ALTER TABLE p ENABLE ROW LEVEL SECURITY", 0)
 		s.exec("CREATE POLICY keep_child ON p TO inherit_query_rls USING(a=2)", 0)
 		s.exec("SET ROLE inherit_query_rls", 0)
-		if s.b.PG {
-			read([][]any{{int64(2)}})
-		} else {
-			step := fixture.ImplicitError("SELECT a FROM p ORDER BY a", fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"})
-			step.SelectRows, step.ErrorStage = true, "execute"
-			s.run(step)
-		}
+		read([][]any{{int64(2)}})
 		s.exec("SET ROLE NONE", 0)
 	})
 }

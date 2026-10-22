@@ -130,8 +130,8 @@ func UniqueKeyDetailAllowed(view access.View, env access.Environment, ref ids.Ob
 	if !ok || !relation {
 		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
 	}
-	decision, err := access.RowSecurityDecision(view.Roles, parent, view.State.CurrentUser, catalog.PolicySelect, false)
-	if err != nil || decision != access.RLSUnrestricted {
+	applies, err := access.RowSecurityApplies(view.Roles, parent, view.State.CurrentUser)
+	if err != nil || applies {
 		return false, err
 	}
 	rights, err := view.Effective(env, ref, false)

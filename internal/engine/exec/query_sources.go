@@ -265,7 +265,7 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 	if _, ok := n.Child.(*plan.SourceNode); !ok {
 		return nil, nil
 	}
-	if source == nil || len(source.HashIndexes) == 0 || source.Count() == 0 || source.Input != nil || source.Final != nil || source.Materialized || source.NestedRoot != nil || len(source.Own) != 0 || state.Source.Sources != nil {
+	if source == nil || source.RLS != nil || len(source.HashIndexes) == 0 || source.Count() == 0 || source.Input != nil || source.Final != nil || source.Materialized || source.NestedRoot != nil || len(source.Own) != 0 || state.Source.Sources != nil {
 		return nil, nil
 	}
 	predicate, ok := n.Predicate.(plan.ComparisonExpr)

@@ -13,15 +13,13 @@ func (c *Context) subqueryUpdateOutputs(e plan.SubqueryExpr) (value sqltype.Valu
 	if len(c.UpdateOutputs) != e.UpdateWidth {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing UPDATE tuple output owner")
 	}
-	state := State{Source: c.Query.Source, Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
+	state := State{Source: c.Query.Source, SourceMode: c.Query.subquerySourceMode(), Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
 	stage, err := OpenQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	defer func() {
-		if closeErr := stage.Close(); err == nil {
-			err = closeErr
-		}
+		err = state.finishInvocation(&stage, err)
 		if err != nil {
 			c.UpdateOutputsReady = false
 		}

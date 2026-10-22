@@ -84,8 +84,8 @@ independently cover canonical Boolean values, ordinary USERSET authority,
 default-deny on versus off/42501, FORCE owner hints, current held authority,
 dead/empty sources, exact pg_settings metadata/provenance and transactional
 restoration. This scenario filters row_security within the complete registered
-pg_settings inventory; native applicable policy expressions with on retain the
-explicit 0A000 boundary.
+pg_settings inventory; ordinary policy-expression runtime with on is covered
+by the combination regressions below, separately from metadata-only inquiries.
 See [settings](../../docs/SETTINGS.md#row-security-and-pg_settings).
 
 Rewritten mutations distinguish physical RLS targets from logical view
@@ -852,16 +852,15 @@ make check REFERENCE=1 RUN='^TestReferenceRLSPolicy'
 make check RUN='^TestRLSPolicy'
 make check RACE=1 RUN='^TestReferenceRLSPolicy(Ownership|Controls|Lifecycle|ConditionalRename)$'
 make check RACE=1 RUN='^TestRLSPolicy(Publication|Remap)'
-make check REFERENCE=1 RUN='^TestReferenceRLSPolicyDefaultDenyPostgres$'
+make check RUN='^TestReferenceRLSPolicyDefaultDeny$'
+make check REFERENCE=1 RUN='^TestReferenceRLSPolicyDefaultDeny$'
 ```
 
-The original last selector is intentionally PostgreSQL-only: its applicable
-USING(TRUE) pre-drop reader witness requires expression enforcement. Shared
-`TestReferenceRLSBaseLastPolicyDrop` separately certifies native last-policy DROP,
-retained enabled/forced flags and actual default deny with honest bypass and
-role-inapplicability before DROP. Metadata-only policy conditions do not certify
-FILTER/CHECK. Controls retain explicit native API phases; PostgreSQL independently
-checks SQL and genuine emitted-stream replay, not an invented Restore API.
+`TestReferenceRLSPolicyDefaultDeny` shares the applicable USING(TRUE) pre-drop
+reader, nonowner default-deny after DROP, and owner-bypass outcomes across modes.
+`TestReferenceRLSBaseLastPolicyDrop` additionally certifies retained enabled/forced
+flags. Controls retain explicit native API phases; PostgreSQL independently checks
+SQL and genuine emitted-stream replay, not an invented Restore API.
 The commands specify required proof, not a claim that all selected checks passed.
 
 ### Row-security BASE oracle-first contracts
@@ -879,23 +878,20 @@ make check RUN='^TestReferenceRLSBase(PolicyPreservation|PredefinedReadAllData|L
 make check RUN='^TestReferenceRLSBase(AuthorityWaits|ProposalPrecedence|ExpressionUses|ControlsReplay|Syntax)$'
 make check RUN='^TestReferenceRLSBase(FreshAuthority|PredefinedNoInherit|InheritanceFlags|ProposedReadConjunction|DefaultAndCoercion|NestedWritablePrincipals)$'
 make check RUN='^TestReferenceRLSBase(MixedAlterBoundary|EmptyExpressionBoundary|SQLPreparedExpressionBoundary|ReadBeforeProposalBoundary)$'
-make check RUN='^TestReference(PredefinedRLSBoundary|PredefinedBoundaryFeatureSmoke|RLSPolicyDefaultDenyPostgres)$'
+make check RUN='^TestReference(PredefinedRLSBoundary|PredefinedBoundaryFeatureSmoke|RLSPolicyDefaultDeny)$'
 make check RUN='^TestRLSBase(Grammar|FlagsAndPublication|Decision|Controls|CancellationAndLocks|OwnerPublicationFreshness|DeniedTargetHistory)$'
 make check RUN='^TestRLSBase(FlagsAndPublication|CancellationAndLocks|OwnerPublicationFreshness|DeniedTargetHistory)$' RACE=1
 make check RUN='^TestReferenceRLSBase(AuthorityWaits|LocksAndCancellation|Freshness|Controls)$' RACE=1
 ```
 
-No discovery skips remain in BASE definitions. Applicable-expression scenarios
-assert native Execute0A000 `row-security policy expression enforcement is unsupported`
-(ERROR severities, all optional fields empty), and independently specify pinned
-PG outcomes. TRUE/FALSE/NULL are not native evaluator shortcuts. Restrictive-only,
-omitted qualifiers and role/command-inapplicability really default-deny.
-The review-boundary definitions independently retain successful mixed flag/column
-metadata ALTER, applicable-expression rejection on physically empty input,
-successful SQL PREPARE followed by the EXECUTE boundary, and source/target-read
-enforcement preceding a default-denied INSERT proposal. Native full diagnostics
-remain distinct from PostgreSQL's real query/proposal outcomes; failed writes
-retain exact destination and source rows.
+Applicable ordinary expression scenarios specify the same independently expected
+SQL outcomes in both modes, including TRUE/FALSE/NULL and actual default deny for
+restrictive-only, omitted-qualifier and role/command-inapplicable policies.
+The review-boundary definitions retain successful mixed flag/column metadata
+ALTER, empty expression-backed input and count zero, SQL PREPARE/EXECUTE results,
+and source enforcement preceding default-denied INSERT proposals. The adjacent
+MERGE target-expression route alone retains native Execute0A000 versus the real
+PostgreSQL proposal error. Failed writes retain exact destination and source rows.
 Virtual generated-column creation retains native Execute0A000; the PG virtual
 proposal witness does not pretend native virtual columns exist. TABLE OWNER TO
 retains native Prepare0A000, while a real private catalog-stage owner publication
@@ -1013,3 +1009,138 @@ make check RUN='^TestReferenceRLSPolicyExpressionsRegtype$'
 The existing direct/prepared feature smoke is the public panic regression;
 internal presentation tests supplement, not replace, its dual-mode proof.
 These commands describe required verification, not observed passing outcomes.
+
+### Row-security applicability and combination regressions
+
+The untagged `rls_combination_*_test.go` family specifies role alternatives,
+PUBLIC and inherited applicability, INHERIT-false path interruption, effective
+identity on SAME prepared handles, command-class conjunction, permissive OR and
+restrictive AND with true-only NULL handling. OLD filtering and atomic NEW checks
+cover VALUES, INSERT SELECT, UPDATE and INSERT RETURNING; restrictive failures
+retain their policy name. Runtime witnesses use correlated helper sources, stable
+source identity across rename/replacement, target-attribute rename, domain casts,
+session identity and a sequence provider without binding-time effects. Source
+guards precede outer joins, aggregation, unsafe user predicates and mutation work;
+latest-row cases synchronize on an observed lock wait and join cancellation.
+HeldRole additionally retains a lazy correlated-policy cursor across opening
+statement Finish and SET ROLE, contrasting its admitted quals with a fresh held
+execution and checking current FETCH identity callbacks. PolicyRowMarks observes
+actual helper/target tuple locks, required helper UPDATE privilege, NOWAIT,
+SKIP LOCKED and deterministic cancellation without sleeps or middleware barriers.
+Adjacent MERGE/ON CONFLICT action expressions retain explicit native capability
+boundaries, not a promise of their implementation.
+
+Root-selected proof (external 900-second deadline for each):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRLSCombination'
+make check RUN='^TestReferenceRLSCombination'
+make check RACE=1 RUN='^TestReferenceRLSCombination(LatestRow|HeldRole|HeldPolicy|StoredRuntime|PolicyRowMarks)$'
+```
+
+These are required checks, not passing-evidence claims. The completed definitions
+contain no oracle-discovery backend filters; native red and final dual-mode
+verification execute the same shared bodies.
+
+Supplementary package-function proofs (not public SQL substitutes):
+
+```sh
+make check RUN='^(TestRLSSelection|TestRLSComposition|TestRLSRuntimeImport|TestRLSPolicyImportedViewDemand|TestRLSRoutedProposalLayout|TestRLSPolicyLifetimeManifest|TestRLSPolicySourcePreparation|TestRLSPolicyMutationSourcePreparation|TestRLSSourceGuard|TestRLSPolicyFrame|TestRLSPolicyFreshness|TestRLSPolicyDependencyFreshness|TestRLSPolicyOriginalAuthority|TestRLSAuthorityFrame|TestRLSCursorOwnership|TestRLSCursorPublication|TestRLSCursorSourceAuthority|TestRLSEagerDetach|TestRLSPolicyRowMarks|TestRLSFirstPolicyMark|TestRLSBase.*|TestAccessInquiry.*)$'
+make check RACE=1 RUN='^(TestRLSPolicy(Freshness|DependencyFreshness|OriginalAuthority|Frame|RowMarks)|TestRLSAuthorityFrame|TestRLSCursor.*|TestRLSEagerDetach|TestRLSFirstPolicyMark|TestReferenceRLSCombination(LatestRow|HeldRole|HeldPolicy|StoredRuntime|PolicyRowMarks))$'
+```
+
+`TestRLSPolicyFreshness` deterministically parks the actual native importer on a
+captured helper lock: changing the selected group membership invalidates the
+program without publishing an executable stale grant, while an unrelated role
+revision preserves the same program with fresh authority. This native
+admission-replacement boundary is not asserted as PostgreSQL SQLSTATE parity.
+
+Native lifetime/manifest units supplement the shared public witnesses: protocol
+ownership transfer, canceled SQL publication retaining statement ownership, eager
+detach, additive identity-only promotion, distinct private/global source slots,
+and first-mark discovery in a later outer source. Their commands are proof
+requirements, not readiness-as-verification claims.
+
+`TestRLSPolicyDependencyFreshness` additionally fences an earlier guarded,
+bypassed or transitive program when a later sibling waits, including cancellation
+depth cleanup. `TestRLSPolicyOriginalAuthority` keeps PUBLIC policy selection
+unchanged while inherited original SELECT rights are revoked or remain available;
+the narrow new-wait check produces existing42501 or allows current authority.
+`TestRLSAuthorityFrame` checks lexical rule/routine restoration without replaying
+historical declarations or losing an outer command's pending wait boundary.
+
+`TestRLSCursorSourceAuthority` covers nil-opening/fallback and distinct nested
+authorities, retained child adapters, current shared FETCH host resolution and
+exact-once stage teardown. It supplements the actual protocol installation test,
+not a synthetic public SQL oracle.
+
+`TestRLSPolicyLifetimeManifest` distinguishes the complete original execution
+manifest (including pinned operator/function callables) from filtered catalog
+dependency edges. Real scalar/correlated/domain/REGTYPE expressions must admit,
+missing callable lifetimes and invalid extra identities must still fail, and
+`pg_depend` pinned suppression remains separate. Nested policy rowmarks report
+the selected clause in read-only25006, for example `SELECT FOR SHARE`.
+
+`TestRLSPolicySourcePreparation` inspects the real nested policy/helper/view/leaf
+closure before and after capture: no early data snapshot or clause inputs, exactly
+the required physical roots, no unrelated/DynamicRoots capture, no second program
+selection, and consume-once occurrence ownership.
+`TestRLSPolicyMutationSourcePreparation` covers the same target/helper closure
+for UPDATE without a SQL FROM source. These are native ownership/MVCC assertions,
+not substitutes for the shared SQL oracle witnesses. `TestRLSAuthorityFrame`
+also preserves the lexical reference union with the SQL routine's data view while
+the imported-source wait counter remains scope-global.
+
+`TestReferenceRLSCombinationViewDemand` specifies imported view-output demand:
+correlated EXISTS through a projected helper view returns1,3; NOT EXISTS
+returns2,4. The helper has a sparse source attribute layout and the key is its
+second projected output; retained helper/view/target renames and same-name
+shadow objects must not retarget the stored policy. An unrequested dangerous
+projection must remain pruned. Presence-only EXISTS returns all four target
+rows and NOT EXISTS returns none without evaluating that projection. The same
+body exercises ordinary updatable-view predicate grafting: UPDATE changes only
+helper-matching rows1,3 and leaves the complete base table independently checked.
+Direct and fresh-prepared routes share the independently specified bodies.
+Select `make check REFERENCE=1 RUN='^TestReferenceRLSCombinationViewDemand$'`
+and the identical selector without `REFERENCE=1` for selected dual proof.
+Initial pinned18.6 discovery confirmed these independently specified outcomes;
+the temporary callback filter is removed. Root subsequently observed native
+EXISTS incorrectly empty and NOT EXISTS incorrectly granting all four; corrected
+production requires fresh dual proof. `TestRLSPolicyImportedViewDemand` checks
+actual grafted key/presence/all-read Uses, retained renamed source identity and
+immutable frozen manifests; `TestRLSRoutedProposalLayout` supplements the routing
+SQL witnesses with private no-program/finalized-NEW buffer/layout invariants.
+
+`TestViewProducerReentry`/`TestViewProducerFailure` supplement the public
+view-backed policy witness with actual nested-producer lifetime/count invariants.
+Short-circuiting EXISTS must not close a source-owned producer after its first
+matching row; later invocations replay a cached range and resume remaining
+rows, without eager drain or identity-index copies. Stable replay, demanded
+volatile reset, lineage, terminal failure/cancel and exact-once owner disposal
+are selected with `make check RUN='^TestViewProducer(Reentry|Failure)$'`.
+
+`TestReferenceRLSCombinationSetViewDemand` composes the same sparse helper-view
+fixture through a policy subquery's UNION ALL arms. The nonconstant second arm
+is false for the target rows: EXISTS independently grants1,3 and NOT EXISTS
+grants2,4. Direct/fresh-prepared execution and one retained prepared statement
+keep those results after helper/view/target attribute renames and same-name
+shadows. Initial pinned PostgreSQL observation confirmed these expectations;
+the sole discovery filter is removed. Root then observed native EXISTS1 rather
+than1,3 and NOT EXISTS2,3,4 rather than2,4. Shared set-arm ownership and first
+local DML close propagation remedies require fresh selected dual/native proof.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRLSCombination(SetViewDemand|ViewDemand)$'
+make check RUN='^TestReferenceRLSCombination(SetViewDemand|ViewDemand)$'
+make check RUN='^(TestSetArmSourceOwnership|TestCorrelatedJoinSourceOwnership|TestDMLSourceStageClose)$'
+```
+
+The native supplements exercise actual UNION ALL/recursive seed-arm ownership
+and actual UPDATE FROM/DELETE USING local stage completion. Borrowed arm close
+must preserve the helper frontier, actual owners return required close vetoes
+once, and DML primary RETURNING failures beat secondary cleanup. Failed DML must
+discard output and roll back staged mutations. Existing public UPDATE FROM and
+DELETE USING/output atomicity definitions remain the SQL-level controls.
+`TestCorrelatedJoinSourceOwnership` additionally exercises repeated raw-view
+right-side invocations under the actual correlated-join stage: reusable/borrowed
+parents preserve the shared helper, while default one-shot close vetoes remain.

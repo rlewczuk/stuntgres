@@ -138,18 +138,9 @@ func TestReferenceInheritanceDMLRLS(t *testing.T) {
 		s.exec("ALTER TABLE p ENABLE ROW LEVEL SECURITY", 0)
 		s.exec("CREATE POLICY selected ON p TO inherit_dml_rls USING(a=5) WITH CHECK(a<10)", 0)
 		s.exec("SET ROLE inherit_dml_rls", 0)
-		if s.b.PG {
-			s.fail("UPDATE p SET a=a+1", fixture.Diagnostic{Code: "42501", Message: `new row violates row-level security policy for table "p"`})
-			// The implicit SELECT policy also checks visibility of the proposed row:
-			// a=5 remains visible, whereas a+1=6 would violate USING(a=5).
-			s.exec("UPDATE p SET a=a", 1)
-		} else {
-			for _, q := range []string{"UPDATE p SET a=a+1", "UPDATE p SET a=a"} {
-				step := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"})
-				step.ErrorStage = "execute"
-				s.run(step)
-			}
-		}
+		s.fail("UPDATE p SET a=a+1", fixture.Diagnostic{Code: "42501", Message: `new row violates row-level security policy for table "p"`})
+		// SELECT visibility also checks the proposed row.
+		s.exec("UPDATE p SET a=a", 1)
 		s.exec("SET ROLE NONE", 0)
 		s.values("SELECT a FROM p ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(4)}, {int64(5)}})
 	})

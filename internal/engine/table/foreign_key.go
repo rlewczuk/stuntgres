@@ -234,11 +234,11 @@ func ForeignKeyDiagnostic(ctx context.Context, view access.View, env access.Envi
 		d.Message = fmt.Sprintf(`update or delete on table "%s" violates foreign key constraint "%s" on table "%s"`, parent.Name(), f.Name, child.Name())
 		violating, attributes, suffix = parent, f.Referenced, fmt.Sprintf(` is still referenced from table "%s".`, child.Name())
 	}
-	disposition, err := access.RowSecurityDecision(view.Roles, violating, view.State.CurrentUser, catalog.PolicySelect, false)
+	applies, err := access.RowSecurityApplies(view.Roles, violating, view.State.CurrentUser)
 	if err != nil {
 		return err
 	}
-	if disposition != access.RLSUnrestricted {
+	if applies {
 		d.Detail = "Key" + suffix
 		return d
 	}

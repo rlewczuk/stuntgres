@@ -37,15 +37,16 @@ type ForeignCommand struct {
 // Engine.mu and the replacement read: it plans the modification, enters it,
 // then inserts the evaluated rows or updates and deletes the rows the
 // identity scan returns. The caller closes Inputs.
-func ExecuteForeign(h Host, in ForeignCommand) (Outcome, error) {
+func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	b, op, inputs, parameters := in.Binding, in.Op, in.Inputs, in.Parameters
 	m, err := fdw.PlanModification(h.Context(), in.Foreign, op, false)
 	if err != nil {
 		return Outcome{}, err
 	}
 	input, output := h.Environments()
-	state := &exec.State{Source: inputs, Parameters: parameters, Input: input, Output: output, Ctes: h.CTEInvocation()}
+	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Ctes: h.CTEInvocation()}
 	defer state.ReleaseMemberships()
+	defer outcome.finishSources(state, &err)
 	m.Request.Parameters, err = exec.ForeignParameters(h.Context(), state, in.Foreign)
 	if err != nil {
 		return Outcome{}, err
@@ -216,7 +217,7 @@ func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]Fore
 	}
 	return rows, nil
 }
-func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (Outcome, error) {
+func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (outcome Outcome, err error) {
 	ctx := h.Context()
 	rows, err := foreignTargetRows(ctx, h, m)
 	if err != nil {
@@ -252,7 +253,7 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 		if err != nil {
 			return Outcome{}, err
 		}
-		defer stage.Close()
+		defer outcome.finishStage(&stage, &err)
 		if err := stage.Drain(ctx); err != nil {
 			return Outcome{}, err
 		}

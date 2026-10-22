@@ -63,17 +63,8 @@ func TestReferencePartitionPruningErrors(t *testing.T) {
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		run(fixture.Exec("CREATE POLICY pp_visible ON pp_range FOR SELECT TO pp_reader USING(k=3)", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION pp_reader", 0))
-		if b.PG {
-			referencePruningKeys(run, true, "SELECT k FROM pp_range WHERE k=1 OR k=3", int64(3))
-		} else {
-			// Policy-expression enforcement is an existing native capability
-			// boundary; pruning must not suppress it even for empty candidates.
-			for _, query := range []string{"SELECT k FROM pp_range WHERE k=1 OR k=3", "SELECT k FROM pp_range WHERE k=99"} {
-				s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"})
-				s.SelectRows, s.ErrorStage = true, "execute"
-				run(s)
-			}
-		}
+		referencePruningKeys(run, b.PG, "SELECT k FROM pp_range WHERE k=1 OR k=3", int64(3))
+		referencePruningKeys(run, b.PG, "SELECT k FROM pp_range WHERE k=99")
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		run(fixture.Exec("REVOKE SELECT ON pp_range FROM pp_reader", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION pp_reader", 0))

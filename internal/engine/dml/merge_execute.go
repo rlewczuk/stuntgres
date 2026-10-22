@@ -27,7 +27,7 @@ type MergeInput struct {
 // sources and released Engine.mu: it completes the source, assembles every
 // action in candidate order (row locks, latest reads and validation), then
 // stages them.
-func ExecuteMerge(h Host, in MergeInput) (Outcome, error) {
+func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 	ctx, b, target, inputs := in.Context, in.Binding, in.Target, in.Inputs
 	defer target.Close()
 	defer inputs.Close()
@@ -39,13 +39,14 @@ func ExecuteMerge(h Host, in MergeInput) (Outcome, error) {
 		return Outcome{}, err
 	}
 	input, output := h.Environments()
-	state := &exec.State{Source: inputs, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, VirtualReads: MergeHasVirtualReads(b.Merge)}
+	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, VirtualReads: MergeHasVirtualReads(b.Merge)}
 	if b.Returning != nil {
 		for _, expr := range b.Returning.Expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
 		}
 	}
 	defer state.ReleaseMemberships()
+	defer outcome.finishSources(state, &err)
 	cursor, err := exec.OpenNode(ctx, state, b.Merge.Source)
 	if err != nil {
 		return Outcome{}, err

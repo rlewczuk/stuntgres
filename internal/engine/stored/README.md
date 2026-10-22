@@ -106,6 +106,23 @@ after the matching domain-consumer remedy.
   `Presentation`, `ModifierPresentations`). A rule's `OID` and `Name` stay
   exported fields. Maps and slices are shared, not copied: callers never
   write through an accessor.
+  Ordinary policy runtime consumes `Policy.Expression`/`Presentation` through
+  `RewriteViewExpression`/`MapExpression` and the view package's common source
+  graft. Execution-owned programs never mutate these payloads or reparse their
+  rendered SQL; stable target/source/provider identities survive renames.
+  Policy presentations retain the full binder execution manifest, including
+  pinned callable providers. PostgreSQL-style `pg_depend` expression edges are
+  a separate filtered set; validation requires their inclusion, not equal size.
+  Runtime admission still rejects missing callable lifetimes.
+  TEMP replacement checks distinguish these full runtime lifetimes from catalog
+  edges: exact retained builtin type generations, genuine seeded collation
+  capabilities and unchanged seeded procedure declarations may bridge
+  reconstructed wrappers. User providers/operators and physical sources remain
+  exact; full manifest remapping and final validation still run.
+  No lifetime is removed to make replacement pass.
+  Imported helper rowmarks retain the ordinary shared lock manifest. The engine,
+  not these immutable payloads, owns the complete-program admission records,
+  fresh post-wait selection/ACL fences and lazy producer pin lifetime.
 - **Renderers.** `Deparser` with `DeparseParent` (`deparse_renderer.go`,
   `deparse_rendering.go`): expressions in the style of PostgreSQL's
   `ruleutils.c`, plus `ForeignKeyConstraintSQL` and `UniqueConstraintSQL`

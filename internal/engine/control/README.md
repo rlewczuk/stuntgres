@@ -127,12 +127,18 @@ no state between calls. Step 30 of the split created it; see
   extension installation is not portable). Then, over `current` (the
   published catalog) and `next` (the candidate): `TemporarySet` collects
   the temporary namespaces and their members and rejects a candidate
-  that rebinds a live temporary extension's name; `CheckTemporaryDependencies`
-  rejects a candidate that changes a retained policy's sources or
-  dependencies or a user domain under a retained array column;
-  `RetainTemporaryBuiltinTypes` keeps in `next` the exact builtin type
-  generations retained objects use and reports whether it changed
-  anything; `TemporaryCollisionMapping(next, temporary, allocate)` gives
+  that rebinds a live temporary extension's name. Before dependency checking,
+  `RetainTemporaryBuiltinTypes` restores in the private candidate the exact
+  builtin codec generations retained objects use and reports whether it changed
+  anything. `CheckTemporaryDependencies` then rejects changed policy sources,
+  user providers or user domains under retained array columns. Full runtime
+  manifests also name builtin usage types/collations and release callables:
+  compatibility requires exact retained type generations/headers, equal genuine
+  seeded collation capabilities, or unchanged genuine seeded procedure
+  declarations, with both declaration providers validated. User/custom operators
+  and physical sources remain exact. Full manifests, remapping and final
+  validation are not bypassed. These phases precede allocator/publication work.
+  `TemporaryCollisionMapping(next, temporary, allocate)` gives
   each imported identity (and aggregate helper) that collides with a
   retained OID a fresh one and returns the mapping;
   `RemapReplacementIdentities` moves the mapped descriptors, their

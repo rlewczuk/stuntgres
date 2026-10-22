@@ -75,9 +75,7 @@ func TestReferenceAccessRoleRLSPolicies(t *testing.T) {
 		s.exec("CREATE POLICY ar_policy ON ar_t TO ar_actor USING(true)")
 		s.actor("ar_actor")
 		accessRoleBool(s, "SELECT row_security_active('ar_t') AS v", true)
-		if !s.backend.PG {
-			predefinedFailure(s, "SELECT id FROM ar_t", fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"}, true, "execute")
-		}
+		predefinedSelect(s, "SELECT id FROM ar_t", []string{"id"}, []string{"INT4"}, nil)
 	})
 }
 

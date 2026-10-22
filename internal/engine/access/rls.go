@@ -8,18 +8,17 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// RLSDisposition is the row-security outcome for one relation and command:
-// no restriction, default deny, or policy expressions to enforce.
-type RLSDisposition uint8
+// AdjacentRLSDisposition is used only by the MERGE/ON CONFLICT action gate.
+// Ordinary commands retain selected expression groups and evaluate actual rows.
+type AdjacentRLSDisposition uint8
 
 const (
-	RLSUnrestricted RLSDisposition = iota
-	RLSDefaultDeny
-	RLSNeedsExpressions
+	AdjacentRLSUnrestricted AdjacentRLSDisposition = iota
+	AdjacentRLSDefaultDeny
+	AdjacentRLSNeedsExpressions
 )
 
-// Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
-// adjacent expression-enforcement capability; nil clauses contribute nothing.
+// RowSecurityApplies is metadata only, independent of policy contents.
 func RowSecurityApplies(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef) (bool, error) {
 	if !d.Security.RLSEnabled {
 		return false, nil
@@ -65,77 +64,32 @@ func RowSecuritySettingGuard(enabled bool, roles authorization.Read, d *catalog.
 	return diagnostic
 }
 
-// RowSecurityDecision selects the permissive policies of d that apply to
-// principal for command. proposed selects the WITH CHECK side for new rows.
-func RowSecurityDecision(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool) (RLSDisposition, error) {
-	applies, err := RowSecurityApplies(roles, d, principal)
-	if err != nil || !applies {
-		return RLSUnrestricted, err
-	}
-	for _, policy := range d.Security.Policies {
-		if !policy.Permissive || policy.Command != catalog.PolicyAll && policy.Command != command {
-			continue
-		}
-		expression := policy.Using
-		if proposed && command != catalog.PolicySelect {
-			expression = policy.Check
-			if expression == nil && (policy.Command == catalog.PolicyAll || policy.Command == catalog.PolicyUpdate) {
-				expression = policy.Using
-			}
-		}
-		if expression == nil {
-			continue
-		}
-		for _, role := range policy.Roles {
-			if role.Public {
-				return RLSNeedsExpressions, nil
-			}
-			applies, err := roles.InheritsRole(principal, role.Ref)
-			if err != nil {
-				return RLSUnrestricted, err
-			}
-			if applies {
-				return RLSNeedsExpressions, nil
-			}
-		}
-	}
-	return RLSDefaultDeny, nil
-}
-
-// RowSecurityGroups is RowSecurityDecision for command, combined with the
-// SELECT decision when the command also reads rows (selectRead).
-func RowSecurityGroups(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed, selectRead bool) (RLSDisposition, error) {
-	decision, err := RowSecurityDecision(roles, d, principal, command, proposed)
-	if err != nil || !selectRead || command == catalog.PolicySelect {
-		return decision, err
-	}
-	read, err := RowSecurityDecision(roles, d, principal, catalog.PolicySelect, proposed)
+// AdjacentRowSecurityGroups summarizes selected groups only for unsupported
+// action-specific MERGE/ON CONFLICT execution. It is never an ordinary row filter.
+func AdjacentRowSecurityGroups(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed, selectRead bool) (AdjacentRLSDisposition, error) {
+	selection, err := SelectRowSecurity(roles, d, principal, command, proposed, selectRead)
 	if err != nil {
-		return RLSUnrestricted, err
+		return AdjacentRLSUnrestricted, err
 	}
-	if decision == RLSDefaultDeny || read == RLSDefaultDeny {
-		return RLSDefaultDeny, nil
+	if selection.Denied() {
+		return AdjacentRLSDefaultDeny, nil
 	}
-	if decision == RLSNeedsExpressions || read == RLSNeedsExpressions {
-		return RLSNeedsExpressions, nil
+	if selection.Count != 0 {
+		return AdjacentRLSNeedsExpressions, nil
 	}
-	return RLSUnrestricted, nil
+	return AdjacentRLSUnrestricted, nil
 }
 
-// RowSecurityExpressionError reports that policy expressions must be enforced,
-// which is unsupported.
-func RowSecurityExpressionError() error {
+func AdjacentRowSecurityExpressionError() error {
 	return sqlError("0A000", "row-security policy expression enforcement is unsupported")
 }
 
-// RowSecurityProposal returns the error for a proposed new row of table under
-// decision, or nil when the row is unrestricted.
-func RowSecurityProposal(decision RLSDisposition, table string) error {
+func AdjacentRowSecurityProposal(decision AdjacentRLSDisposition, table string) error {
 	switch decision {
-	case RLSDefaultDeny:
+	case AdjacentRLSDefaultDeny:
 		return sqlError("42501", fmt.Sprintf(`new row violates row-level security policy for table "%s"`, table))
-	case RLSNeedsExpressions:
-		return RowSecurityExpressionError()
+	case AdjacentRLSNeedsExpressions:
+		return AdjacentRowSecurityExpressionError()
 	default:
 		return nil
 	}

@@ -110,6 +110,9 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			s.admissionWaited = true
+			if len(s.rlsActive) != 0 {
+				s.rlsImportWaits++
+			}
 			if s.replacementRead {
 				e.replacementMu.RUnlock()
 				s.replacementRead = false

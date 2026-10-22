@@ -83,9 +83,9 @@ func ValidatePolicy(view catalog.Read, owner *catalog.Relation, expression *Poli
 	if err != nil {
 		return err
 	}
-	if len(references) != len(frozen.dependencies) {
-		return fmt.Errorf("stuntgres: invalid policy dependency manifest")
-	}
+	// Catalog dependency recording excludes pinned providers; the execution
+	// manifest must retain them. Every provider above is still validated, and
+	// every semantic expression edge below must remain represented.
 	for _, address := range references {
 		found := false
 		for _, dependency := range frozen.dependencies {

@@ -19,12 +19,15 @@ import (
 )
 
 type preparedCommandExecution struct {
-	binding     analyze.Binding
+	binding     analyze.Binding // Original logical authority; physical consumers lower local copies.
 	auth        AuthorizationView
 	evaluation  exec.Context
 	queryRoot   plan.Node
 	expressions [][]expr.Expr
 	primaryTag  string
+	syntax      parser.Statement
+	policyWaits uint64                  // Last successful original binding check's policy-import frontier.
+	sources     *querySourcePreparation // Complete admitted SQL occurrence tree, consumed once.
 }
 
 // Enter with Engine.mu held; every outcome releases it. Binding, signature and
@@ -289,6 +292,12 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	// Preserve the already-checked logical authority before physical lowering.
+	// Nested command activation restores this pointer, not historical ACLs.
+	execution := preparedCommandExecution{binding: b, auth: auth, syntax: stmt, policyWaits: scope.rlsImportWaits}
+	previousRLSCommand := scope.rlsCommand
+	scope.rlsCommand = &execution
+	defer func() { scope.rlsCommand = previousRLSCommand }()
 	if scope.Expected != nil && b.Parameters.Count == 0 && quoteCaptures.Private {
 		scope.Expected.quotes = quoteCaptures.Entries
 		scope.Expected.quoteGeneration = op.Session.DiscardPlansGeneration
@@ -417,7 +426,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	// derived provider, or runtime conditional invocation.
 	evaluation.PlanStaticOperators = false
 	evaluation.SpecializeRuleParameters = false
-	execution := preparedCommandExecution{binding: b, auth: auth, evaluation: evaluation, queryRoot: queryRoot, expressions: expressions}
+	execution.evaluation, execution.queryRoot, execution.expressions = evaluation, queryRoot, expressions
 	if prepared != nil {
 		execution.primaryTag = prepared.primaryTag
 		*prepared = execution
@@ -428,10 +437,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 }
 
 func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (Result, error) {
+	previousRLSCommand := scope.rlsCommand
+	scope.rlsCommand = execution
+	defer func() { scope.rlsCommand = previousRLSCommand }()
 	op := scope.op
 	ctx := op.Context()
 	var err error
-	b, auth := execution.binding, execution.auth
+	b, auth := view.PhysicalBinding(execution.binding), execution.auth
 	queryRoot := execution.queryRoot
 	if scope.protocolOrZero().simple && !scope.protocolOrZero().simpleCreated {
 		e.mu.Unlock()
@@ -439,6 +451,10 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		e.mu.Lock()
+	}
+	if err := e.materializePolicySourcesLocked(scope); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
 	}
 	if b.Relation != nil && b.Relation.RelationKind == catalog.ForeignRelation {
 		switch stmt.(type) {

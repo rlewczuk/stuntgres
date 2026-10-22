@@ -49,6 +49,7 @@ type sqlCursor struct {
 	stage                                       *exec.Stage
 	authority                                   *exec.Authority
 	foreignOwner                                *exec.ForeignScanOwner
+	rlsPrograms                                 []*rowSecurityProgram // Admitted clause state and nested source pins.
 	position                                    cursorPosition
 	scroll                                      bool
 	ordinalPosition                             int64
@@ -90,10 +91,16 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 		}
 		c.foreignOwner = nil
 	}
+	failure = c.state.FinishSources(failure)
 	if c.source != nil {
 		c.source.Close()
 		c.source = nil
 	}
+	for _, program := range c.rlsPrograms {
+		failure = program.FinishSources(failure)
+		program.Close()
+	}
+	c.rlsPrograms = nil
 	c.state.ReleaseMemberships()
 	c.state = exec.State{}
 	c.root = nil
@@ -207,7 +214,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
 	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
-	c.state = exec.State{Source: source, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
@@ -222,6 +229,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		return Result{}, err
 	}
 	c.foreignOwner = s.foreignTablesSlot.takeOwner()
+	s.takeRowSecurityPrograms(c)
 	r.entries[declaration.Name.Text] = c
 	r.ordinal = c.ordinal
 	s.completed, s.sessionCompleted, keep = !(declaration.Hold && s.implicit), true, true

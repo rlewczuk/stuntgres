@@ -246,7 +246,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *exec.S
 	if !ok || len(project.Schema()) != 1 {
 		return nil, 0, fmt.Errorf("invalid SQL routine projection")
 	}
-	state := exec.State{Source: source, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
+	state := exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
 	defer state.ReleaseMemberships()
 	if scope := scopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.input, scope.output

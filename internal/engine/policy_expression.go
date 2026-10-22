@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
@@ -65,14 +66,30 @@ func (h ddlHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw 
 	if err != nil {
 		return nil, err
 	}
-	dependencies := make([]catalog.ExpressionDependency, 0, len(refs))
+	// pg_depend's semantic edges deliberately omit pinned routines. They are
+	// not a replacement for the binder's complete execution lifetime manifest.
+	// Keep the frozen provider refs/revisions and add only missing catalog edges.
+	original := frozen.Dependencies()
+	dependencies := original
+	seen := make(map[ids.ObjectAddress]bool, len(original)+len(refs))
+	for _, dependency := range original {
+		seen[dependency.Ref.Address] = true
+	}
 	for _, address := range refs {
+		if seen[address] {
+			continue
+		}
 		whole := address
 		whole.SubID = 0
+		if len(dependencies) == len(original) {
+			dependencies = make([]catalog.ExpressionDependency, len(original), len(original)+len(refs))
+			copy(dependencies, original)
+		}
 		dependencies = append(dependencies, catalog.ExpressionDependency{
 			Ref:      e.catalog.Domain.Ref(auth.Catalog.Epoch(), address),
 			Revision: auth.Catalog.Get(whole).Revision(),
 		})
+		seen[address] = true
 	}
 	frozen = frozen.With(func(p *stored.ViewParts) {
 		p.Frames[1] = root

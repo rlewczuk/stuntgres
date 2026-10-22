@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -62,15 +63,32 @@ func OpenSourceStage(ctx context.Context, state *State, source *Source, schema [
 		return out, nil
 	}
 	if source.NestedRoot == nil {
-		return Stage{Source: source, Columns: schema}, nil
+		child := Stage{Source: source, Columns: schema}
+		if source.RLS != nil {
+			return openRowSecurityStage(ctx, state, child), nil
+		}
+		return child, nil
 	}
 	// Materialize the current definition's complete row before an enclosing
 	// frozen-slot bridge selects the attributes retained by a dependent view.
 	producedSchema := source.NestedRoot.Schema()
-	out := Stage{Source: source, Columns: schema, Selection: []int{}, Pending: pendingSourceMarks(source, nil)}
+	// Explicit borrowed invocations retain the source-owned producer and read
+	// its identity range. One-shot/rowstream owners keep required close vetoes.
+	out := Stage{Source: source, Columns: schema, scanRange: true, scanEnd: source.FlatCount, Pending: pendingSourceMarks(source, nil)}
+	if state.SourceMode != SourceBorrowed {
+		out.Finish = func() error {
+			if source.NestedStage != nil {
+				return source.NestedStage.Close()
+			}
+			return nil
+		}
+	}
 	out.Reset = func(ctx context.Context, out *Stage) (bool, error) {
 		if source.NestedStage == nil {
 			return false, nil
+		}
+		if source.NestedStage.Terminal != nil {
+			return false, source.NestedStage.Terminal
 		}
 		position := source.NestedStage.Position
 		changed, err := source.NestedStage.Rewind(ctx)
@@ -83,18 +101,29 @@ func OpenSourceStage(ctx context.Context, state *State, source *Source, schema [
 			return false, nil
 		}
 		source.Flat, source.FlatCount = source.Flat[:0], 0
-		out.Selection, out.Done = out.Selection[:0], false
+		out.scanEnd, out.Done = 0, false
 		if source.Lineage != nil {
 			source.Lineage.Selection = source.Lineage.Selection[:0]
 			source.Lineage.cacheOccurrences = source.Lineage.cacheOccurrences[:0]
 		}
 		return true, nil
 	}
-	out.Finish = func() error {
+	out.onFailure = func(err error) error {
 		if source.NestedStage != nil {
-			return source.NestedStage.Close()
+			return source.NestedStage.fail(err)
 		}
-		return nil
+		return err
+	}
+	// A borrowed short-circuiting reader replays stable captured rows, resuming
+	// only the next-uncaptured frontier until its actual owner completes.
+	if source.NestedStage != nil {
+		if source.NestedStage.Terminal != nil {
+			return Stage{}, source.NestedStage.Terminal
+		}
+		if _, err := out.Rewind(ctx); err != nil {
+			return Stage{}, err
+		}
+		out.scanEnd = source.FlatCount
 	}
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
 		if source.NestedStage == nil {
@@ -102,10 +131,27 @@ func OpenSourceStage(ctx context.Context, state *State, source *Source, schema [
 			if !ok {
 				return false, fmt.Errorf("stuntgres: view lacks final projection")
 			}
-			innerState := &State{Source: source.NestedInputs, Locking: source.Locks.RowMarked(), Input: state.Input, Output: state.Output, inherited: source.Inherited, Retain: state.Retain, hashOwner: state.membershipOwner()}
+			innerState := &State{Source: source.NestedInputs, SourceMode: state.SourceMode, Locking: source.Locks.RowMarked(), Input: state.Input, Output: state.Output, inherited: source.Inherited, Retain: state.Retain || state.SourceMode == SourceBorrowed, hashOwner: state.membershipOwner()}
 			inner, err := OpenNode(ctx, innerState, project)
 			if err != nil {
 				return false, err
+			}
+			for _, expression := range inner.Expressions {
+				if expression.Properties().Volatility != expr.Volatile {
+					continue
+				}
+				reset := inner.Reset
+				inner.Reset = func(ctx context.Context, stage *Stage) (bool, error) {
+					if reset != nil {
+						if _, err := reset(ctx, stage); err != nil {
+							return false, err
+						}
+					}
+					// Reuse captured physical occurrences, but reevaluate demanded
+					// volatile outputs for the next invocation.
+					return true, ctx.Err()
+				}
+				break
 			}
 			source.NestedStage = &inner
 			if source.Lineage != nil {
@@ -143,7 +189,7 @@ func OpenSourceStage(ctx context.Context, state *State, source *Source, schema [
 				lineage.cacheOccurrences = append(lineage.cacheOccurrences, inner.orderOccurrence(i))
 			}
 		}
-		out.Selection = append(out.Selection, source.FlatCount)
+		out.scanEnd = source.FlatCount + 1
 		source.FlatCount++
 		return true, ctx.Err()
 	}

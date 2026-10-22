@@ -156,13 +156,9 @@ func TestReferencePartitionAttachPrivacy(t *testing.T) {
 						for _, source := range []string{" VALUES(2,NULL::text)", " SELECT 2,NULL::text"} {
 							fail("INSERT INTO pa_privacy_child(k,payload)"+source, fixture.Diagnostic{Code: "42501", Message: `new row violates row-level security policy for table "pa_privacy_child"`})
 						}
-						// A real applicable policy exposes PostgreSQL constraint
-						// suppression; native policy expression execution stays excluded.
+						// An applicable granting policy exposes constraint diagnostics.
 						run(fixture.Exec("CREATE POLICY pa_privacy_insert ON pa_privacy_child FOR INSERT TO pa_privacy_actor WITH CHECK(TRUE)", 0))
 						want := fixture.Diagnostic{Code: "23502", Message: `null value in column "payload" of relation "pa_privacy_child" violates not-null constraint`, Schema: "public", Table: "pa_privacy_child", Column: "payload"}
-						if !b.PG {
-							want = fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"}
-						}
 						for _, source := range []string{" VALUES(2,NULL::text)", " SELECT 2,NULL::text"} {
 							fail("INSERT INTO pa_privacy_child(k,payload)"+source, want)
 						}

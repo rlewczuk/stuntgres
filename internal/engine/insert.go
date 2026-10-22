@@ -14,7 +14,7 @@ import (
 // dml executor evaluates and stages the rows.
 func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedCommandExecution, canonical []sqltype.Value) (Result, error) {
 	ctx := scope.op.Context()
-	b, auth, evaluation := execution.binding, execution.auth, execution.evaluation
+	b, auth, evaluation := view.PhysicalBinding(execution.binding), execution.auth, execution.evaluation
 	if err := e.captureCheckCommentSnapshotLocked(scope, b.Relation); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -57,7 +57,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 				e.mu.Unlock()
 				return Result{}, sourceErr
 			}
-			state := &exec.State{Source: inputs, Parameters: canonical, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, Ctes: scope.cteInvocation}
+			state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: canonical, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, Ctes: scope.cteInvocation}
 			defer state.ReleaseMemberships()
 			evaluation.Query = state
 			evaluation.Scope, evaluation.Frame = 1, 1
@@ -76,6 +76,12 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 	}
 	in.Binding = b
 	outcome, err := dml.ExecuteInsert(h, in)
+	if evaluation.Query != nil {
+		err = evaluation.Query.FinishSources(err)
+		if err != nil && outcome.Rows != nil {
+			outcome.Rows.Close()
+		}
+	}
 	if err != nil {
 		return Result{}, err
 	}

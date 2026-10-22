@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +25,7 @@ type DeleteInput struct {
 // sources and released Engine.mu: each qualifying row takes its row lock,
 // rereads its latest version, rechecks the predicate when it moved and is
 // staged for deletion.
-func ExecuteDelete(h Host, in DeleteInput) (Outcome, error) {
+func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 	b, source, inputs, parameters := in.Binding, in.Source, in.Inputs, in.Parameters
 	_, lockedStorage := h.Target()
 	if b.Storage == nil || b.Storage != lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
@@ -57,8 +56,9 @@ func ExecuteDelete(h Host, in DeleteInput) (Outcome, error) {
 			inputs = view.FreezeWriteSources(inputs, b.QuerySources, h.QueryAuthority(), h)
 		}
 		defer inputs.Close()
-		state := &exec.State{Source: inputs, Parameters: parameters, Input: input, Output: output, Locking: inputs.Locks != nil}
+		state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Locking: inputs.Locks != nil}
 		defer state.ReleaseMemberships()
+		defer outcome.finishSources(state, &err)
 		inputs.Host = h
 		evaluation.Query = state
 	}
@@ -88,18 +88,12 @@ func ExecuteDelete(h Host, in DeleteInput) (Outcome, error) {
 		}
 		evaluation.Row = physical.Values(version)
 		evaluation.PhysicalTable = physical.Leaf.Ref
-		if b.Predicate != nil {
-			value, err := b.Predicate.Eval(&evaluation)
-			if err != nil {
-				return Outcome{}, err
-			}
-			truth, err := plan.TruthOf(value)
-			if err != nil {
-				return Outcome{}, err
-			}
-			if truth != plan.True {
-				continue
-			}
+		matches, err := MutationMatches(h, &evaluation, b.Predicate)
+		if err != nil {
+			return Outcome{}, err
+		}
+		if !matches {
+			continue
 		}
 		candidate := physical.Deletion()
 		if err := h.AcquireRow(candidate); err != nil {
@@ -118,17 +112,13 @@ func ExecuteDelete(h Host, in DeleteInput) (Outcome, error) {
 				return Outcome{}, err
 			}
 		}
-		if current.Version != candidate.Version && b.Predicate != nil {
+		if current.Version != candidate.Version {
 			evaluation.Row = physical.Values(current)
-			value, err := b.Predicate.Eval(&evaluation)
+			matches, err := MutationMatches(h, &evaluation, b.Predicate)
 			if err != nil {
 				return Outcome{}, err
 			}
-			truth, err := plan.TruthOf(value)
-			if err != nil {
-				return Outcome{}, err
-			}
-			if truth != plan.True {
+			if !matches {
 				continue
 			}
 		}

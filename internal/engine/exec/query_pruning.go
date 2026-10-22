@@ -27,7 +27,7 @@ type queryBranchCursor struct {
 }
 
 func selectQueryBranches(ctx context.Context, state *State, filter *plan.FilterNode, child *Stage) (queryBranchCursor, error) {
-	if _, ok := filter.Child.(*plan.SourceNode); !ok || child.Produce != nil || child.Source.BranchPruner == nil || child.Source.RlsDenied || QueryHasMandatoryPhysicalFrontier(filter.Child, state.Source) {
+	if _, ok := filter.Child.(*plan.SourceNode); !ok || child.Produce != nil || child.Source.BranchPruner == nil || child.Source.RlsDenied || child.Source.RLS != nil || QueryHasMandatoryPhysicalFrontier(filter.Child, state.Source) {
 		return queryBranchCursor{}, nil
 	}
 	evaluation := state.Evaluation(ctx)

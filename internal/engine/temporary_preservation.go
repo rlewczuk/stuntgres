@@ -33,10 +33,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err != nil {
 		return err
 	}
+	// Restore the exact live builtin codecs in this private candidate before
+	// checking the full TEMP policy runtime manifest. No allocator/publication
+	// work occurs before dependency compatibility is established.
+	typesChanged := control.RetainTemporaryBuiltinTypes(current, next, temporary)
 	if err := control.CheckTemporaryDependencies(current, next, temporary); err != nil {
 		return err
 	}
-	typesChanged := control.RetainTemporaryBuiltinTypes(current, next, temporary)
 	if err := e.retainTemporaryViewProvidersLocked(next, temporary); err != nil {
 		return err
 	}

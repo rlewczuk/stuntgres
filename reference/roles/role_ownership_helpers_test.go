@@ -153,20 +153,14 @@ func ownershipCount(s *membershipScenario, q string, want int64) {
 	ownershipSelect(s, "SELECT ("+q+") AS n", []string{"n"}, []string{"INT8"}, [][]any{{want}})
 }
 
-// BASE admits policy applicability, flags and default deny, but deliberately
-// excludes expression evaluation. Keep the real PostgreSQL row prediction and
-// the native complete boundary diagnostic instead of inventing policy metadata.
+// Preserve each caller's independently specified nonowner row set.
 func ownershipPolicyRows(s *membershipScenario, query string, columns []string, rows [][]any) {
 	s.t.Helper()
-	if s.backend.PG {
-		types := make([]string, len(columns))
-		for i := range types {
-			types[i] = "INT4"
-		}
-		ownershipSelect(s, query, columns, types, rows)
-	} else {
-		predefinedFailure(s, query, fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"}, true, "execute")
+	types := make([]string, len(columns))
+	for i := range types {
+		types[i] = "INT4"
 	}
+	ownershipSelect(s, query, columns, types, rows)
 }
 
 // Assert the inquiry and retain the independent owner-only object read witness

@@ -62,6 +62,9 @@ func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode lock.Mode)
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext})
 	if request != nil {
 		s.admissionWaited = true
+		if len(s.rlsActive) != 0 {
+			s.rlsImportWaits++
+		}
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false

@@ -37,44 +37,44 @@ func TestRLSBaseDecision(t *testing.T) {
 	}
 	next := *d
 	next.Owner = owner
-	check := func(label string, p authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool, want access.RLSDisposition) {
+	check := func(label string, p authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool, count int, denied bool) {
 		t.Helper()
-		got, err := access.RowSecurityDecision(auth.Roles, &next, p, command, proposed)
-		if err != nil || got != want {
-			t.Fatalf("%s got %v,%v want %v", label, got, err, want)
+		got, err := access.SelectRowSecurity(auth.Roles, &next, p, command, proposed, false)
+		if err != nil || got.Count != count || got.Denied() != denied {
+			t.Fatalf("%s got %#v,%v want count=%d denied=%v", label, got, err, count, denied)
 		}
 	}
-	check("disabled", member, catalog.PolicySelect, false, access.RLSUnrestricted)
+	check("disabled", member, catalog.PolicySelect, false, 0, false)
 	next.Security.RLSEnabled = true
-	check("owner", owner, catalog.PolicySelect, false, access.RLSUnrestricted)
-	check("inherited owner", reader, catalog.PolicySelect, false, access.RLSUnrestricted)
+	check("owner", owner, catalog.PolicySelect, false, 0, false)
+	check("inherited owner", reader, catalog.PolicySelect, false, 0, false)
 	next.Security.RLSForced = true
-	check("forced owner", owner, catalog.PolicySelect, false, access.RLSDefaultDeny)
-	check("direct bypass", bypass, catalog.PolicySelect, false, access.RLSUnrestricted)
-	check("attribute not inherited", member, catalog.PolicySelect, false, access.RLSDefaultDeny)
-	check("direct superuser", d.Owner, catalog.PolicySelect, false, access.RLSUnrestricted)
+	check("forced owner", owner, catalog.PolicySelect, false, 1, true)
+	check("direct bypass", bypass, catalog.PolicySelect, false, 0, false)
+	check("attribute not inherited", member, catalog.PolicySelect, false, 1, true)
+	check("direct superuser", d.Owner, catalog.PolicySelect, false, 0, false)
 	next.Security.Policies = []catalog.PolicyDefinition{{Permissive: false, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: view.PolicyPayloadOf(using)}}
-	check("restrictive only", member, catalog.PolicySelect, false, access.RLSDefaultDeny)
+	check("restrictive only", member, catalog.PolicySelect, false, 1, true)
 	next.Security.Policies[0].Permissive = true
 	next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: owner}}
-	check("role inapplicable", member, catalog.PolicySelect, false, access.RLSDefaultDeny)
-	check("inherited policy", reader, catalog.PolicySelect, false, access.RLSNeedsExpressions)
+	check("role inapplicable", member, catalog.PolicySelect, false, 1, true)
+	check("inherited policy", reader, catalog.PolicySelect, false, 1, false)
 	next.Security.Policies[0].Roles = []catalog.PolicyRole{{Public: true}}
-	check("public constant is not a shortcut", member, catalog.PolicySelect, false, access.RLSNeedsExpressions)
-	check("ALL check falls back", member, catalog.PolicyInsert, true, access.RLSNeedsExpressions)
+	check("public expression retained", member, catalog.PolicySelect, false, 1, false)
+	check("ALL check falls back", member, catalog.PolicyInsert, true, 1, false)
 	next.Security.Policies[0].Command = catalog.PolicySelect
-	check("command inapplicable", member, catalog.PolicyInsert, true, access.RLSDefaultDeny)
-	got, err := access.RowSecurityGroups(auth.Roles, &next, member, catalog.PolicyUpdate, false, true)
-	if err != nil || got != access.RLSDefaultDeny {
+	check("command inapplicable", member, catalog.PolicyInsert, true, 1, true)
+	got, err := access.SelectRowSecurity(auth.Roles, &next, member, catalog.PolicyUpdate, false, true)
+	if err != nil || got.Count != 2 || !got.Denied() {
 		t.Fatal("same-phase false conjunction", got, err)
 	}
 	next.Security.Policies[0].Using = nil
-	check("omitted using", member, catalog.PolicySelect, false, access.RLSDefaultDeny)
+	check("omitted using", member, catalog.PolicySelect, false, 1, true)
 	next.Security.Policies[0].Command = catalog.PolicyInsert
 	next.Security.Policies[0].Check = view.PolicyPayloadOf(using)
-	check("explicit check", member, catalog.PolicyInsert, true, access.RLSNeedsExpressions)
-	got, err = access.RowSecurityGroups(auth.Roles, &next, member, catalog.PolicyInsert, true, true)
-	if err != nil || got != access.RLSDefaultDeny {
+	check("explicit check", member, catalog.PolicyInsert, true, 1, false)
+	got, err = access.SelectRowSecurity(auth.Roles, &next, member, catalog.PolicyInsert, true, true)
+	if err != nil || got.Count != 2 || !got.Denied() {
 		t.Fatal("proposed SELECT conjunction", got, err)
 	}
 	t.Run("owned_empty_source", func(t *testing.T) {

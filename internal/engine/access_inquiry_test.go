@@ -150,9 +150,9 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 				if err != nil || active != want {
 					t.Fatalf("eligibility %v/%v/%v: %v %v", enabled, forced, actor, active, err)
 				}
-				disposition, err := access.RowSecurityDecision(auth.Roles, &next, actor, catalog.PolicySelect, false)
-				if err != nil || (disposition != access.RLSUnrestricted) != active {
-					t.Fatal("enforcement eligibility diverged", disposition, active, err)
+				selection, err := access.SelectRowSecurity(auth.Roles, &next, actor, catalog.PolicySelect, false, false)
+				if err != nil || (selection.Count != 0) != active {
+					t.Fatal("enforcement eligibility diverged", selection, active, err)
 				}
 				next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.roles.domain.Principal(4294967295)}}
 				active, err = access.RowSecurityApplies(auth.Roles, &next, actor)

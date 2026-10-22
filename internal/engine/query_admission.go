@@ -126,6 +126,31 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []exec.
 	if scope.authority == nil {
 		scope.authority = &exec.Authority{Host: hostOf(scope)}
 	}
+	if command := scope.rlsCommand; command != nil && command.sources != nil {
+		prepared := command.sources
+		if len(prepared.leaves) != len(leaves) {
+			return nil, ids.ErrCatalogReplaced
+		}
+		for i, leaf := range leaves {
+			prior := prepared.leaves[i]
+			if prior.Ref != leaf.Ref || prior.Relation != leaf.Relation || prior.Storage != leaf.Storage || prior.Mark != leaf.Mark || prior.Only != leaf.Only || prior.Principal != leaf.Principal || prior.AnalysisOnly != leaf.AnalysisOnly {
+				return nil, ids.ErrCatalogReplaced
+			}
+		}
+		prepared.singleton = singleton
+		if err := e.materializePolicySourcesLocked(scope); err != nil {
+			return nil, err
+		}
+		source, err := e.capturePreparedQuerySourcesLocked(scope, prepared, scope.queryLocks)
+		if err == nil {
+			err = e.fenceRowSecurityProgramsLocked(scope)
+		}
+		if err != nil && source != nil {
+			e.closeQuerySourceSetLocked(scope.op.Context(), source, nil)
+			source = nil
+		}
+		return source, err
+	}
 	var invoker authorization.PrincipalRef
 	for _, leaf := range leaves {
 		if leaf.Relation.RelationKind == catalog.ViewRelation {
@@ -221,16 +246,42 @@ func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, rel
 	return nil
 }
 
-func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []exec.Leaf, singleton bool, invoker authorization.PrincipalRef, inherited plan.RowMark, locks *exec.LockContext) (*exec.Source, error) {
-	// Metadata-only retained captures have no admitted transaction owner.
-	// Singleton execution still advertises its actual live statement snapshot.
+func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []exec.Leaf, singleton bool, invoker authorization.PrincipalRef, inherited plan.RowMark, locks *exec.LockContext) (result *exec.Source, err error) {
+	scope.rlsAdmissionDepth++
+	prepared, err := e.prepareQuerySourcesLocked(scope, leaves, singleton, invoker, inherited)
+	err = e.endRowSecurityAdmissionLocked(scope, err)
+	if err != nil {
+		return nil, err
+	}
+	if err = e.materializePolicySourcesLocked(scope); err != nil {
+		return nil, err
+	}
+	result, err = e.capturePreparedQuerySourcesLocked(scope, prepared, locks)
+	if err == nil {
+		err = e.fenceRowSecurityProgramsLocked(scope)
+	}
+	if err != nil && result != nil {
+		e.closeQuerySourceSetLocked(scope.op.Context(), result, nil)
+		result = nil
+	}
+	return result, err
+}
+
+// Metadata, stored roots and occurrence programs are already admitted. This
+// phase only pins the one complete visibility union and builds physical sources.
+func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepared *querySourcePreparation, locks *exec.LockContext) (*exec.Source, error) {
+	if prepared.consumed {
+		return nil, ids.ErrCatalogReplaced
+	}
+	prepared.consumed = true
+	leaves, singleton, invoker, inherited := prepared.leaves, prepared.singleton, prepared.invoker, prepared.inherited
+	if locks == nil {
+		locks = scope.queryLocks
+	}
 	if scope.txRef != (ids.TxRef{}) {
 		if _, err := e.visibilitySnapshotLocked(scope.txRef, false); err != nil {
 			return nil, err
 		}
-	}
-	if err := e.captureCommentSnapshotLocked(scope); err != nil {
-		return nil, err
 	}
 	if scope.inquiry.visibilityDemand {
 		if err := e.captureVisibilitySnapshotLocked(scope); err != nil {
@@ -242,21 +293,9 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		borrowQueryAuthority(source, scope)
 		return source, nil
 	}
-	var single [1]ids.ObjectRef
-	refs := single[:0]
-	if len(leaves) > 1 {
-		refs = make([]ids.ObjectRef, 0, len(leaves))
-	}
-	var collectErr error
-	collectAuth := scope.inquiry.deparseAuth
-	collectAuth.Recapture(partition.CaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog), scope.PartitionRelations))
-	refs, collectErr = e.queryTableRefsLocked(collectAuth, invoker, leaves, refs, scope.op.Session.SessionToken, inherited)
-	if collectErr != nil {
-		return nil, collectErr
-	}
 	var catalogView *visibility.View
 	var err error
-	needsView := len(refs) != 0
+	needsView := len(scope.rlsDataRefs) != 0
 	if !needsView {
 		for _, leaf := range leaves {
 			if leaf.Relation.RelationKind == catalog.PartitionedRelation {
@@ -266,7 +305,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		}
 	}
 	if needsView {
-		catalogView, err = scope.acquireDataViewsLocked(e, refs)
+		catalogView, err = scope.acquireDataViewsLocked(e, prepared.refs)
 		if err != nil {
 			return nil, err
 		}
@@ -290,18 +329,8 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		}
 		mark := exec.EffectiveQueryRowMark(leaf.Relation, exec.MergeQueryRowMark(inherited, leaf.Mark))
 		var source *exec.Source
-		command := catalog.PolicySelect
-		if mark.Mode != 0 {
-			command = catalog.PolicyUpdate
-		}
-		denied, securityErr := e.rowSecurityInputLocked(scope, leaf.Relation, leaf.Principal, command, mark.Mode != 0)
-		if securityErr != nil {
-			err = securityErr
-		}
-		if err != nil {
-			e.closeQuerySourceSetLocked(scope.op.Context(), first, sources)
-			return nil, err
-		}
+		program := prepared.occurrences[i].program
+		denied := program.Denied()
 		if denied {
 			source, err = view.CaptureDeniedQuerySource(catalogView, leaf.Ref)
 		} else {
@@ -333,7 +362,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				}
 			case catalog.TableRelation:
 				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), catalogView, leaf, scope.op.Session.SessionToken)
-				if err == nil {
+				if err == nil && program == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {
 						source.Close()
@@ -342,6 +371,21 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 						if source.Inheritance == nil {
 							source.PartialMask = e.capturePartialMaskLocked(scope, leaf, catalogView, mark)
 						}
+					}
+				}
+			case catalog.ViewRelation:
+				admitted := prepared.occurrences[i].view
+				if admitted == nil {
+					err = ids.ErrCatalogReplaced
+					break
+				}
+				var inputs *exec.Source
+				inputs, err = e.captureStoredSourceLocked(scope, admitted, locks)
+				if err == nil {
+					source = &exec.Source{Ref: leaf.Ref, Authority: scope.authority, Locks: locks, NestedRoot: admitted.root, NestedInputs: inputs, Materialized: true, FlatWidth: len(admitted.root.Schema()), Inherited: mark}
+					if locks != nil {
+						occurrences := exec.QueryTreeOccurrences(admitted.root, inputs, nil)
+						source.Lineage = &exec.QueryLockLineage{Root: admitted.root, Inputs: inputs, Stage: &exec.Source{Materialized: true, Occurrences: occurrences}}
 					}
 				}
 			default:
@@ -364,9 +408,10 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			e.closeQuerySourceSetLocked(scope.op.Context(), first, sources)
 			return nil, err
 		}
-		if !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
+		if program == nil && !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
 			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog), scope.PartitionRelations), leaf.Relation, source)
 		}
+		source.RLS = program
 		borrowQueryAuthority(source, scope)
 		source.Occurrence = i
 		source.Locks = locks

@@ -144,6 +144,7 @@ func OpenCTEScan(ctx context.Context, state *State, n *plan.DerivedNode) (Stage,
 			return Stage{}, fmt.Errorf("stuntgres: CTE lacks projection")
 		}
 		innerState := owner.State
+		innerState.SourceMode = owner.State.subquerySourceMode()
 		innerState.Ctes = owner
 		innerState.derived = nil
 		producer = &CTEProducer{state: innerState, project: project, Source: &Source{FlatWidth: len(n.Schema()), Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host, Locks: state.Source.Locks}}

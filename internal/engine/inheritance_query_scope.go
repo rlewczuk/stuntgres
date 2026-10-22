@@ -14,7 +14,7 @@ import (
 // growth after every wait, then freeze one immutable topology for this statement.
 // Previously admitted identities must survive; a same-name replacement is never
 // a substitute. No manager wait is performed under Engine.mu.
-func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock.Mode) error {
+func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock.Mode, imported ...[]exec.Leaf) error {
 	e := s.engine()
 	roots := s.querySources
 	if s.materializedOrZero().Refresh {
@@ -38,6 +38,9 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			roots = append(roots, exec.Leaf{Ref: ref, Only: leaf.Only})
 		}
 		e.mu.Unlock()
+	}
+	if len(imported) != 0 {
+		roots = append(append([]exec.Leaf(nil), roots...), imported[0]...)
 	}
 	for {
 		e.mu.Lock()
@@ -72,6 +75,9 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.Ref}, mode, policy)
 			if request != nil {
 				s.admissionWaited = true
+				if len(s.rlsActive) != 0 {
+					s.rlsImportWaits++
+				}
 				if s.replacementRead {
 					e.replacementMu.RUnlock()
 					s.replacementRead = false

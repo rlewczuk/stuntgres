@@ -24,6 +24,10 @@ func (s *StatementScope) Finish(err error) error {
 	// Finishing still consumes held cursors, foreign-action recipes and index
 	// expressions. Their borrowed admission context ends only after those users.
 	defer func() {
+		for _, program := range s.rlsPrograms {
+			program.Close()
+		}
+		s.rlsPrograms, s.rlsActive = nil, nil
 		s.routineAuth = AuthorizationView{}
 		s.routineDependencies = nil
 		s.routinePrograms = nil
@@ -103,6 +107,9 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	t.Mu.Unlock()
 	err = s.finishForeignModifications(err)
+	for _, program := range s.rlsPrograms {
+		err = program.FinishSources(err)
+	}
 	t.Mu.Lock()
 	if err == nil && s.worked {
 		catalog := t.Catalog

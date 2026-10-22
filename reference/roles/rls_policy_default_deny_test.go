@@ -6,21 +6,13 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// Keep the applicable USING(TRUE) PostgreSQL companion: BASE intentionally
-// does not evaluate policy expressions. TestReferenceRLSBaseLastPolicyDrop
-// separately certifies shared enabled/forced state and post-drop default deny.
-func TestReferenceRLSPolicyDefaultDenyPostgres(t *testing.T) {
+// Dropping the final granting policy restores nonowner default deny.
+func TestReferenceRLSPolicyDefaultDeny(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
 			fixture.RoleReferenceCleanup(t, []string{"policy_deny_reader"})
 			p := fixture.NewScenario(t)
-			if p.Postgres == nil {
-				t.Skip("requires real PostgreSQL enabled row security")
-			}
 			for _, backend := range p.Backends() {
-				if !backend.PG {
-					continue
-				}
 				t.Run(backend.Name, func(t *testing.T) {
 					c, err := backend.DB.Conn(p.Ctx)
 					if err != nil {

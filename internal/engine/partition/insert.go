@@ -86,11 +86,11 @@ func (state *InsertState) MissingPartition(ctx context.Context, parent *catalog.
 	err.Schema, err.Table = state.Catalog.Get(parent.Namespace()).Name(), parent.Name()
 	// Routing/integrity errors remain real, but an actor subject to RLS must
 	// not receive key values even when ordinary SELECT ACLs are present.
-	decision, securityErr := access.RowSecurityDecision(state.Authority.Roles, state.Target, state.Authority.State.CurrentUser, catalog.PolicyInsert, true)
+	applies, securityErr := access.RowSecurityApplies(state.Authority.Roles, state.Target, state.Authority.State.CurrentUser)
 	if securityErr != nil {
 		return securityErr
 	}
-	if decision != access.RLSUnrestricted {
+	if applies {
 		return err
 	}
 	rights, checkErr := state.Authority.Effective(state.Env, ref, false)

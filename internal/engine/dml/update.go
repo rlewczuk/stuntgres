@@ -30,7 +30,7 @@ type UpdateInput struct {
 // sources and released Engine.mu. The candidate set is frozen first; each
 // candidate then takes its row lock, rereads its latest version, rechecks the
 // predicate when it moved, validates and stages its replacement.
-func ExecuteUpdate(h Host, in UpdateInput) (Outcome, error) {
+func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	ctx, b, source, from, parameters, schema := in.Context, in.Binding, in.Source, in.From, in.Parameters, in.Schema
 	defer source.Close()
 	source.Host = h
@@ -60,12 +60,13 @@ func ExecuteUpdate(h Host, in UpdateInput) (Outcome, error) {
 		if b.ViewWrite != nil || b.Rule.Template {
 			from = view.FreezeWriteSources(from, b.QuerySources, h.QueryAuthority(), h)
 		}
-		defer from.Close()
 		inputs = from
+		defer from.Close()
 	}
 	input, outputEnv := h.Environments()
-	state := exec.State{Source: inputs, Parameters: parameters, Input: input, Output: outputEnv, Locking: inputs.Locks != nil}
+	state := exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: outputEnv, Locking: inputs.Locks != nil}
 	defer state.ReleaseMemberships()
+	defer outcome.finishSources(&state, &err)
 	eval := state.Evaluation(ctx)
 	var smallUpdateOutputs [4]sqltype.Value
 	if b.Update.OutputWidth != 0 {
@@ -92,7 +93,6 @@ func ExecuteUpdate(h Host, in UpdateInput) (Outcome, error) {
 				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 			}
 		}
-		var err error
 		stage, err = exec.OpenNode(ctx, &state, b.Update.From)
 		if err != nil {
 			return Outcome{}, err
@@ -101,7 +101,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (Outcome, error) {
 		if err != nil {
 			return Outcome{}, err
 		}
-		defer stage.Close()
+		defer outcome.finishStage(&stage, &err)
 		if err := stage.Drain(ctx); err != nil {
 			return Outcome{}, err
 		}
@@ -129,6 +129,18 @@ func ExecuteUpdate(h Host, in UpdateInput) (Outcome, error) {
 		physical := MutationPhysicalRow(source, i, b)
 		old := physical.Version
 		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || old.Row != positioned.Row) {
+			continue
+		}
+		if sourceCount == 0 {
+			continue
+		}
+		eval.Row = physical.Values(old)
+		eval.PhysicalTable = physical.Leaf.Ref
+		visible, _, err := exec.EvaluateRowSecurity(h.Command().RLS.Old, &eval, eval.Row)
+		if err != nil {
+			return Outcome{}, err
+		}
+		if !visible {
 			continue
 		}
 		for j := range sourceCount {
@@ -211,7 +223,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (Outcome, error) {
 			if err := h.PhysicalRowEvent(ref, old, lock.MultiNoKeyLock, 0); err != nil {
 				return Outcome{}, err
 			}
-			matches, err := exec.UpdateMatches(&eval, b.Update.Predicate)
+			matches, err := MutationMatches(h, &eval, b.Update.Predicate)
 			if err != nil {
 				return Outcome{}, err
 			}
@@ -230,7 +242,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (Outcome, error) {
 			continue
 		}
 		physicalRow := ScatterMutationRow(candidate.Physical, old, row, b.Targets)
-		if err := validateInheritedMutationRow(h, b, candidate.Physical, schema, physicalRow, &eval); err != nil {
+		if err := validateInheritedMutationRow(h, b, candidate.Physical, schema, physicalRow, row, &eval); err != nil {
 			return Outcome{}, err
 		}
 		keyChanged, err := UniqueKeyChanged(h, ref, old.Values, physicalRow)
@@ -241,10 +253,41 @@ func ExecuteUpdate(h Host, in UpdateInput) (Outcome, error) {
 			if err := h.AcquireUpdateRow(ref, old.Row, lock.ForUpdate); err != nil {
 				return Outcome{}, err
 			}
-			if latest, err := h.LatestRow(UpdateRowRequest(ref, candidate)); err != nil {
+			latest, err := h.LatestRow(UpdateRowRequest(ref, candidate))
+			if err != nil {
 				return Outcome{}, err
-			} else if !latest.Live {
+			}
+			if !latest.Live {
 				continue
+			}
+			if latest.Version.Version != old.Version {
+				old = latest.Version
+				oldValues = candidate.Physical.Values(old)
+				eval.Row = oldValues
+				if b.Update.From != nil {
+					copy(frame, oldValues)
+					copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(candidate.SourceIndex)))
+					eval.Row = frame
+				}
+				matches, err := MutationMatches(h, &eval, b.Update.Predicate)
+				if err != nil {
+					return Outcome{}, err
+				}
+				if !matches {
+					continue
+				}
+				row, err = EvaluateUpdateAssignments(&eval, b.Update, b.Targets, oldValues)
+				if err != nil {
+					return Outcome{}, err
+				}
+				physicalRow = ScatterMutationRow(candidate.Physical, old, row, b.Targets)
+				if err := validateInheritedMutationRow(h, b, candidate.Physical, schema, physicalRow, row, &eval); err != nil {
+					return Outcome{}, err
+				}
+				keyChanged, err = UniqueKeyChanged(h, ref, old.Values, physicalRow)
+				if err != nil {
+					return Outcome{}, err
+				}
 			}
 		}
 		if err := ClaimUniqueRow(h, ref, old); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
@@ -326,6 +327,56 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			current, err := scope.identity.Current.Text()
 			if err != nil || current != "fa_actor" {
 				t.Fatal("lost initiating actor identity", current, err)
+			}
+			if force {
+				// The public Nested witness owns SQL diagnostics. These checks
+				// distinguish the private admitted RI context from an arbitrary
+				// acting-authority marker without changing initiating identity.
+				e.mu.Lock()
+				auth, authErr := scope.writeAuthorizationLocked(e)
+				e.mu.Unlock()
+				if authErr != nil {
+					t.Fatal(authErr)
+				}
+				admission := scope.foreignActionsOrZero().Admissions[childRef.Address]
+				if admission == nil || !admission.Writable {
+					t.Fatal("missing actual writable child admission")
+				}
+				binding := analyze.Binding{Ref: childRef, Relation: admission.Relation}
+				row := admission.Storage.Versions[0].Values
+				for _, tc := range []struct {
+					name                                         string
+					settling, writable, owner, viewCheck, detail bool
+				}{
+					{name: "marker_only", writable: true, owner: true},
+					{name: "read_only", settling: true, owner: true},
+					{name: "nonowner", settling: true, writable: true},
+					{name: "view_check", settling: true, writable: true, owner: true, viewCheck: true},
+					{name: "admitted_owner", settling: true, writable: true, owner: true, detail: true},
+				} {
+					t.Run(tc.name, func(t *testing.T) {
+						acting := &auth
+						if tc.owner {
+							acting = foreignAuthorizationOf(auth.ActingAs(admission.Relation.Owner))
+						}
+						previous := scope.writeHost().SwapForeignActionAuthority(acting)
+						wasWritable := admission.Writable
+						admission.Writable = tc.writable
+						scope.foreignActions().Settling = tc.settling
+						defer func() {
+							scope.writeHost().SwapForeignActionAuthority(previous)
+							scope.foreignActions().Settling = false
+							admission.Writable = wasWritable
+						}()
+						detail, err := e.rowDiagnosticDetail(scope, &binding, row, tc.viewCheck)
+						if err != nil || (detail != "") != tc.detail {
+							t.Fatal("RI reporting authority", detail, err)
+						}
+						if !sqltype.SameDatum(scope.identity.Current, original) {
+							t.Fatal("reporting changed initiating identity")
+						}
+					})
+				}
 			}
 		})
 	}

@@ -50,6 +50,21 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 // A dynamic relation extends the active snapshot locally, never the outer
 // source's immutable view or its frontier.
 func (s *StatementScope) captureDataViewsAtLocked(e *Engine, refs []ids.ObjectRef, latest bool, base *visibility.Data) (*visibility.View, error) {
+	captured, err := s.captureDataRootsAtLocked(e, refs, latest, base)
+	if err != nil {
+		return nil, err
+	}
+	for _, ref := range refs {
+		if err := e.serializableReadLocked(s, ref); err != nil {
+			return nil, err
+		}
+	}
+	return captured, nil
+}
+
+// Root retention fixes the statement frontier, but is not itself a relation
+// read. Actual source acquisition enrolls its own refs through the wrapper above.
+func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRef, latest bool, base *visibility.Data) (*visibility.View, error) {
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -88,11 +103,6 @@ func (s *StatementScope) captureDataViewsAtLocked(e *Engine, refs []ids.ObjectRe
 				if !view.SameMaterializedLineage(oldRelation, liveRelation, captured, current) {
 					return nil, ids.ErrCatalogReplaced
 				}
-			}
-		}
-		for _, ref := range refs {
-			if err := e.serializableReadLocked(s, ref); err != nil {
-				return nil, err
 			}
 		}
 		return existing, nil
@@ -236,11 +246,6 @@ func (s *StatementScope) captureDataViewsAtLocked(e *Engine, refs []ids.ObjectRe
 					data.Deleted[ref.Address] = root
 				}
 			}
-		}
-	}
-	for _, ref := range refs {
-		if err := e.serializableReadLocked(s, ref); err != nil {
-			return nil, err
 		}
 	}
 	captured := visibility.NewView(data)

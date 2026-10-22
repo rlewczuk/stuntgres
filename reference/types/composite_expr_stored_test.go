@@ -75,27 +75,13 @@ func TestReferenceCompositeExprStoredConsumers(t *testing.T) {
 		fixture.CompositeReferenceError(t, p, c, `UPDATE stored SET v.i=0 WHERE k=1`, "execute", d)
 		compositeExprBoth(t, p, b, c, `SELECT (v).i FROM stored ORDER BY k`, []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(20)}})
 		fixture.CompositeReferenceSetup(t, p, b, c, `CREATE ROLE composite_reader`)
-		if b.PG {
-			fixture.CompositeReferenceSetup(t, p, b, c, `GRANT USAGE ON SCHEMA public TO composite_reader`)
-		} else {
-			// Native schema GRANT is absent. Only namespace visibility changes;
-			// stored remains bootstrap-owned with a real explicit reader ACL.
-			fixture.CompositeReferenceSetup(t, p, b, c, `ALTER SCHEMA public OWNER TO composite_reader`)
-		}
+		fixture.CompositeReferenceSetup(t, p, b, c, `GRANT USAGE ON SCHEMA public TO composite_reader`)
 		fixture.CompositeReferenceSetup(t, p, b, c, `GRANT SELECT ON stored TO composite_reader`, `ALTER TABLE stored ENABLE ROW LEVEL SECURITY`, `CREATE POLICY field_policy ON stored FOR SELECT TO composite_reader USING ((v).i<10)`, `SET ROLE composite_reader`)
-		if b.PG {
-			compositeExprBoth(t, p, b, c, `SELECT (v).* FROM stored ORDER BY k`, []string{"i", "t"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "default"}})
-		} else {
-			fixture.CompositeReferenceError(t, p, c, `SELECT (v).* FROM stored ORDER BY k`, "execute", fixture.CompositeReferenceDiagnostic("0A000", "row-security policy expression enforcement is unsupported"))
-			fixture.CompositeReferenceSetup(t, p, b, c, `RESET ROLE`, `ALTER TABLE stored DISABLE ROW LEVEL SECURITY`, `SET ROLE composite_reader`)
-			compositeExprBoth(t, p, b, c, `SELECT (v).* FROM stored ORDER BY k`, []string{"i", "t"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "default"}, {int64(20), "second"}})
-		}
+		compositeExprBoth(t, p, b, c, `SELECT (v).* FROM stored ORDER BY k`, []string{"i", "t"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "default"}})
+		fixture.CompositeReferenceSetup(t, p, b, c, `RESET ROLE`, `ALTER TABLE stored DISABLE ROW LEVEL SECURITY`, `SET ROLE composite_reader`)
+		compositeExprBoth(t, p, b, c, `SELECT (v).* FROM stored ORDER BY k`, []string{"i", "t"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "default"}, {int64(20), "second"}})
 		fixture.CompositeReferenceSetup(t, p, b, c, `RESET ROLE`, `DROP POLICY field_policy ON stored`, `REVOKE SELECT ON stored FROM composite_reader`)
-		if b.PG {
-			fixture.CompositeReferenceSetup(t, p, b, c, `REVOKE USAGE ON SCHEMA public FROM composite_reader`)
-		} else {
-			fixture.CompositeReferenceSetup(t, p, b, c, `ALTER SCHEMA public OWNER TO CURRENT_USER`)
-		}
+		fixture.CompositeReferenceSetup(t, p, b, c, `REVOKE USAGE ON SCHEMA public FROM composite_reader`)
 		fixture.CompositeReferenceSetup(t, p, b, c, `DROP ROLE composite_reader`)
 		// Existing immutable-expression fences remain authoritative with new nodes.
 		fixture.CompositeReferenceSetup(t, p, b, c, `CREATE SEQUENCE volatile_child`)

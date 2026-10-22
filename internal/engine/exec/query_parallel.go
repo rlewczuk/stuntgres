@@ -32,7 +32,7 @@ func ParallelQueryPlan(root plan.Node, source *Source) (*plan.ProjectNode, *plan
 	project, ok := root.(*plan.ProjectNode)
 	if !ok || source == nil || source.View == nil || project.CTEOwner || project.HasTargetSet || project.FrozenValues || source.Sources != nil || source.StoredRef != (ids.ObjectRef{}) ||
 		source.Locks != nil || source.Lineage != nil || source.Inherited.Mode != 0 || source.HashIndexes != nil || source.PartialMask != nil || source.Inheritance != nil ||
-		source.Singleton || source.RlsDenied || source.Anonymous != nil || source.PGSequences != nil || source.Materialized || source.Final != nil || source.Input != nil ||
+		source.Singleton || source.RlsDenied || source.RLS != nil || source.Anonymous != nil || source.PGSequences != nil || source.Materialized || source.Final != nil || source.Input != nil ||
 		source.NestedRoot != nil || source.NestedInputs != nil || source.NestedStage != nil || source.Window || source.JoinLeft != nil || source.JoinRight != nil ||
 		source.Scratch != nil || source.Layout != nil || source.Versions != nil || source.invocationLineage != nil {
 		return nil, nil, false

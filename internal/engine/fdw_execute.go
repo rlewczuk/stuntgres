@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ import (
 // Called at the common physical-target dispatch, after binding/ACL/read-only
 // admission but before any physical data view or row-version acquisition.
 func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, parameters []sqltype.Value) (Result, error) {
-	b := execution.binding
+	b := view.PhysicalBinding(execution.binding)
 	op, invoker, err := dml.ForeignCommandPrologue(stmt, &b, execution.auth.State.CurrentUser)
 	if err != nil {
 		e.mu.Unlock()

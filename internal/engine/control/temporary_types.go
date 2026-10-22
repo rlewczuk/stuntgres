@@ -17,6 +17,8 @@ import (
 // and every column of a pinned catalog relation a temporary view reads.
 // Imported columns and values are reowned later, never temporary rows. It
 // reports whether it changed next.
+// This candidate-only phase precedes CheckTemporaryDependencies so full policy
+// runtime manifests can certify exact retained codec generations.
 func RetainTemporaryBuiltinTypes(current catalog.Read, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) bool {
 	typesChanged := false
 	retained := make(map[sqltype.ID]bool)

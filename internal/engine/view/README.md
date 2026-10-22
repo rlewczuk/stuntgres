@@ -151,10 +151,17 @@ never imports `view`.
   `PolicyClauses`, `PolicyDuplicate`, `PolicyIndex`, `PolicyMissing`,
   `PolicyOwnerNoun`, `PolicyPreflight`, `ResolvePolicyRoles`,
   `PolicyDepends`, `PolicyTypeChangeError`, `PolicyPayloadOf`,
-  `RowSecurityLayers`, `CaptureDeniedQuerySource`, and the RLS selection
-  (`row_security.go`): `RowSecurity` (the command's state the root keeps in
-  `statementMutation.rls`), `RowSecurityTarget`, `SelectRowSecurity`,
-  `RowSecurityInputDenied`.
+  `RowSecurityLayers`, `CaptureDeniedQuerySource`, and the command state
+  (`row_security.go`): `RowSecurity` borrows OLD/NEW `exec.RLSProgram`s;
+  `RowSecurityTarget` resets selection, `CheckProposal` shares NEW enforcement,
+  and `SelectAdjacentRowSecurity` retains MERGE/ON CONFLICT action boundaries.
+  `StoredQueryImporter` and existing `Write.GraftQuery` use the same frozen
+  occurrence graft (`write_query.go`); target policy source zero stays a row
+  frame, while nested sources retain original refs/attribute layouts.
+  The common graft translates frozen read attributes to live dense Uses once per
+  occurrence. Zero frozen Reads is explicitly presence-only, not live nil/full
+  demand. Required view keys remain demanded after renames/reordering, while
+  unrequested projections still prune; policy and ordinary view writes share it.
 - **Target admission** (`target_admission.go`): `TargetAdmission`, the
   `table.TargetEntry` of CREATE/ALTER/DROP RULE and POLICY, CREATE OR
   REPLACE VIEW and ALTER VIEW, which the root registers with the `table` and

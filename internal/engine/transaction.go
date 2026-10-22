@@ -206,15 +206,21 @@ func (e *Engine) Commit(op *session.Operation, ref ids.TxRef) (EndResult, error)
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
 	statementMutation
-	mutations      []statementMutation
-	activeMutation int
-	cteInvocation  *exec.CTEInvocation
-	self           *StatementScope
-	owner          *session.TransactionOwner
-	op             *session.Operation
-	ruleAction     ruleActionScope
-	rowSecurity    bool // Immutable effective setting for this admitted statement.
-	authority      *exec.Authority
+	mutations         []statementMutation
+	activeMutation    int
+	cteInvocation     *exec.CTEInvocation
+	self              *StatementScope
+	owner             *session.TransactionOwner
+	op                *session.Operation
+	ruleAction        ruleActionScope
+	rowSecurity       bool                      // Immutable effective setting for this admitted statement.
+	rlsActive         []ids.ObjectAddress       // Active policy expansion path, not an occurrence cache.
+	rlsPrograms       []*rowSecurityProgram     // Owns runtime plus original selected admission identities.
+	rlsAdmissionDepth int                       // Whole target/source admission, including recursive policies.
+	rlsCommand        *preparedCommandExecution // Active original logical command, lexical scratch.
+	rlsImportWaits    uint64                    // Scope-monotonic actual policy-source waits, never row work.
+	rlsDataRefs       []ids.ObjectRef           // Complete prepared physical union before the first snapshot.
+	authority         *exec.Authority
 	// Borrowed only during this statement's admission/execution. Admission
 	// refreshes this coherent snapshot serially before publishing parallel reads;
 	// it is neither prepared-plan state nor a cached permission decision.

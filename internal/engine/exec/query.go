@@ -49,7 +49,8 @@ type Source struct {
 	PartialMask      *storage.IndexRoot
 	Singleton        bool
 	RlsDenied        bool
-	NeedsBirthFilter bool // Current TRUNCATE vector at a retained older frontier.
+	RLS              *RLSProgram // Borrowed statement-owned per-occurrence USING program.
+	NeedsBirthFilter bool        // Current TRUNCATE vector at a retained older frontier.
 	Anonymous        [][]sqltype.Value
 	PGSequences      *PGSequencesSource
 	Foreign          *ForeignQuerySource
@@ -214,6 +215,7 @@ func (s *Source) VersionAt(i int) storage.RowVersion {
 }
 
 func (s *Source) Close() {
+	s.RLS = nil // The statement, not this borrowed occurrence, owns the program.
 	s.PGSequences = nil
 	sources := s.Sources
 	s.Sources = nil
@@ -284,10 +286,22 @@ func (s *Source) Close() {
 	s.RoutineRecipe, s.RoutineChecks = nil, nil
 }
 
+// SourceMode separates one-shot owners, rowstream capture owners whose scalar
+// invocations borrow, and those borrowed invocations themselves. It is not the
+// scroll/rewind lifetime of Stage.Retain.
+type SourceMode uint8
+
+const (
+	SourceOwned SourceMode = iota
+	SourceReusable
+	SourceBorrowed
+)
+
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type State struct {
 	Source       *Source
+	SourceMode   SourceMode
 	Invocation   *Context // Borrowed same-query P+L frame; outer remains lexical.
 	foreignOwner any
 	HashFilter   *plan.FilterNode
@@ -308,6 +322,13 @@ type State struct {
 	ExecutionContext   context.Context
 	ScanRange          bool
 	ScanStart, scanEnd int
+}
+
+func (s *State) subquerySourceMode() SourceMode {
+	if s.SourceMode == SourceOwned {
+		return SourceOwned
+	}
+	return SourceBorrowed
 }
 
 // Physical child stages borrow the actual execution owner. Rescanning a parent
@@ -617,7 +638,11 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 				return Stage{}, fmt.Errorf("stuntgres: invalid query source target")
 			}
 		}
-		return Stage{Source: source, Columns: n.Schema(), scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}, nil
+		child := Stage{Source: source, Columns: n.Schema(), scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}
+		if source.RLS != nil {
+			return openRowSecurityStage(ctx, state, child), nil
+		}
+		return child, nil
 	case *plan.FilterNode:
 		evaluation := state.Evaluation(ctx)
 		rejects, err := QueryPredicateRejectsAll(&evaluation, n.Predicate)
@@ -1122,12 +1147,22 @@ func (r *FinalRows) TakeTableRows(ctx context.Context) (rows [][]sqltype.Value, 
 func OpenQueryProjectStage(ctx context.Context, state *State, project *plan.ProjectNode) (Stage, error) {
 	child, err := OpenNode(ctx, state, project)
 	if err != nil {
-		return Stage{}, err
+		return Stage{}, state.FinishSources(err)
 	}
 	settled, err := SettlePendingQueryMarks(ctx, state, project.Child, child)
 	if err != nil {
 		_ = child.Close()
-		return Stage{}, err
+		return Stage{}, state.FinishSources(err)
+	}
+	if state.SourceMode != SourceBorrowed {
+		finish := settled.Finish
+		settled.Finish = func() error {
+			var failure error
+			if finish != nil {
+				failure = finish()
+			}
+			return state.FinishSources(failure)
+		}
 	}
 	return settled, nil
 }
@@ -1144,7 +1179,7 @@ func Finalize(ctx context.Context, root plan.Node, source *Source, parameters []
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
-	state := &State{Source: source, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
+	state := &State{Source: source, SourceMode: SourceReusable, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
 	defer state.ReleaseMemberships()
 	if host := source.LiveHost(); host != nil {
 		state.Input, state.Output = host.Environments()

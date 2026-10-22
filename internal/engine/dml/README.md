@@ -103,6 +103,15 @@ it, it never imports the engine, and it never builds a binder. See
   statement authority); `EvaluateInsertValuesRow`, `ValidateInsertRow`,
   `CheckViewRow`, `RowConstraintError`, `AdmitInsertRow` (unique check,
   DO NOTHING or DO UPDATE) and `ApplyInsertBatch`.
+  Both row-production paths check the same `RowSecurity.CheckProposal` after
+  generation/routing and before constraints, including required SELECT NEW for
+  RETURNING. Routed NEW projection runs only for an actual NEW program and uses
+  the destination's already admitted physical-to-named layout, copying finalized
+  generated values by index into the existing private NamedRow. Identity layouts
+  use the physical row directly; no-program/bypass success does no proposal
+  mapping, and no row performs column-name matching or builds a second layout.
+  A real physical constraint failure refreshes named diagnostic values by that
+  same admitted indexed layout when no NEW program already projected them.
 - **INSERT RETURNING and ON CONFLICT DO UPDATE** (`insert_returning.go`,
   `insert_conflict_update.go`, `update_assignments.go`):
   `BeginInsertReturning`, `AdmitInsertProducer`, `AppendAcceptedInsert`
@@ -127,10 +136,19 @@ it, it never imports the engine, and it never builds a binder. See
   `ValidateMutationRow` (generation, NOT NULL and CHECK of the named
   target; RI SET NULL/DEFAULT actions share it) and its inherited-leaf
   variant, which reports the physical leaf with the named target's row.
+  Public UPDATE checks NEW between generation and constraints; the shared RI
+  validator deliberately does not apply caller RLS. `MutationMatches`
+  (`row_security.go`) guards OLD before user predicates/RHS and again after
+  refreshed-row waits, including the secondary key-lock refresh.
+  An inherited NEW proposal projects finalized physical values into the already
+  private logical replacement, never the segment scratch still borrowed by OLD
+  evaluation/RETURNING. No additional per-row clone is required.
 - **DELETE** (`delete.go`, `delete_using.go`): `ExecuteDelete` runs a
   captured `DeleteInput` (target source, query sources, parameters) the
   same way and stages each row through `Stage.Delete`; DELETE ... USING
   freezes the qualifying target/source pairs first.
+  OLD policy guards precede user conditions on both ordinary/USING routes and
+  are re-evaluated against refreshed named-target tuples.
 - **MERGE** (`merge_execute.go`, `merge_rows.go`): `ExecuteMerge` runs a
   captured `MergeInput` (target source, query sources, parameters, schema
   and the catalog the INSERT arms' value errors use). `AssembleMergeRows`
@@ -275,6 +293,12 @@ helpers and `readmitProgramsAfterWait`.
   use and keep the 57014/FATAL mapping through `CopyCommandError`.
 - A failure-only `RowDetail` takes a copy of the binding, so only the error
   path allocates it.
+  The host suppresses failing-row values under metadata-only RLS eligibility
+  before its table SELECT shortcut, retaining named-target command authority.
+  SPI-local RI NOT NULL/CHECK reporting retains owner-visible Detail even under
+  FORCE only for the validated writable child-owner settlement context; a scoped
+  authority marker alone is insufficient. FK after-event key disclosure is
+  independent and retains its RLS privacy checks.
 - The FK runtime runs only from Finish, with the caller holding nothing; its
   waits all go through `GrantForeignKey`. Each FK job costs one heap row
   image (`RefreshForeignKeyRows` takes a pointer), and `ActingAs` copies the
@@ -335,3 +359,12 @@ make check RUN='^TestReference(CTE|ForeignKey|ForeignAction)'
 make check RUN='^TestReference(InheritanceDML|GeneratedStoredUpdate|ViewCheck)'
 make check RUN='^TestReferenceFDWWrite'
 ```
+
+`TestRLSRoutedProposalLayout` directly checks the reordered/sparse admitted
+layout and private proposal buffer: stored generation is finalized before NEW
+evaluation, the no-program path leaves NamedRow untouched, and an actual NEW
+program consumes indexed finalized values without replacing layout/buffer
+ownership. Select `make check RUN='^TestRLSRoutedProposalLayout$'`.
+The failure observer also requires finalized generated values in NamedRow at
+the RowDetail call boundary, including no-program constraint failures.
+Shared public routing/privacy regressions remain the independent SQL proof.

@@ -41,9 +41,5 @@ func rlsBaseProposalDenied(s *membershipScenario, q string) {
 // must be empty, not ignored. Prepare timing is asserted separately by RunStep.
 func rlsBaseExpression(s *membershipScenario, q string, rows [][]any) {
 	s.t.Helper()
-	if s.backend.PG {
-		predefinedSelect(s, q, []string{"id"}, []string{"INT4"}, rows)
-	} else {
-		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"}, true, "execute")
-	}
+	predefinedSelect(s, q, []string{"id"}, []string{"INT4"}, rows)
 }

@@ -36,28 +36,53 @@ func (w *Write) GraftQuery(b *analyze.Binding, view catalog.Read, root plan.Node
 	if definition == nil {
 		return plan.RewriteQueryExpressions(root, rewrite)
 	}
+	return graftStoredQuery(b, view, root, definition, consumer, &w.QueryOccurrences, rewrite)
+}
+
+// StoredQueryImporter is a command-local occurrence map shared by every nested
+// query of one imported stored expression. Existing view writes use the same
+// grafting implementation; policy target source zero is never imported.
+type StoredQueryImporter struct{ occurrences map[viewWriteOccurrence]int }
+
+func (g *StoredQueryImporter) GraftQuery(b *analyze.Binding, view catalog.Read, root plan.Node, definition *stored.View, consumer *catalog.Relation, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
+	b.SubqueryDemand = true
+	return graftStoredQuery(b, view, root, definition, consumer, &g.occurrences, rewrite)
+}
+
+func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, definition *stored.View, consumer *catalog.Relation, occurrences *map[viewWriteOccurrence]int, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 	mapOccurrence := func(occurrence int) (int, error) {
 		if occurrence < 0 || occurrence >= len(definition.Sources()) {
 			return 0, ids.ErrCatalogReplaced
 		}
 		key := viewWriteOccurrence{definition, occurrence}
-		slot, found := w.QueryOccurrences[key]
+		slot, found := (*occurrences)[key]
 		if !found {
 			leaf := definition.Sources()[occurrence]
 			relation, ok := view.Relation(leaf.Ref.Address)
 			if !ok {
 				return 0, ids.ErrCatalogReplaced
 			}
-			slot = len(b.QuerySources)
-			if w.QueryOccurrences == nil {
-				w.QueryOccurrences = make(map[viewWriteOccurrence]int)
-			}
-			w.QueryOccurrences[key] = slot
 			use, err := stored.ViewUseReference(view, consumer, leaf.Ref)
 			if err != nil {
 				return 0, err
 			}
-			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark})
+			// Frozen Reads enumerates attribute identities; zero reads is
+			// presence-only, unlike the live nil Uses convention for full
+			// demand. Translate once per admitted occurrence, not by names.
+			reads := leaf.Reads
+			if reads == nil {
+				reads = []int32{}
+			}
+			uses, err := analyze.QuerySourceReadUses(reads, relation.Attributes)
+			if err != nil {
+				return 0, err
+			}
+			slot = len(b.QuerySources)
+			if *occurrences == nil {
+				*occurrences = make(map[viewWriteOccurrence]int)
+			}
+			(*occurrences)[key] = slot
+			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, Uses: uses, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly})
 			b.SubqueryDemand = true
 		}
 		return slot, nil

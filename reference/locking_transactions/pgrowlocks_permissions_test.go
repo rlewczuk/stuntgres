@@ -157,13 +157,7 @@ func TestReferencePgrowlocksNamesPermissionsAndDiagnostics(t *testing.T) {
 			owner = pgrowOwner(t, p, a, "For Update")
 			identityLock(t, p, a, "pgrow_t", 1, "UPDATE")
 			fixture.LockExec(t, p.Ctx, observer, "SET ROLE pgrow_reader", 0)
-			if b.PG {
-				identityBoth(t, p, b, observer, fixture.Select("SELECT id FROM pgrow_t", []string{"id"}, []string{"INT4"}, nil))
-			} else {
-				// Ordinary policy enforcement is an existing native capability
-				// boundary, not a pgrowlocks storage-scan restriction.
-				pgrowError(t, p, observer, "SELECT id FROM pgrow_t", "execute", fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"})
-			}
+			identityBoth(t, p, b, observer, fixture.Select("SELECT id FROM pgrow_t", []string{"id"}, []string{"INT4"}, nil))
 			pgrowOne(t, pgrowGet(t, p, observer), false, owner)
 			fixture.LockExec(t, p.Ctx, observer, "RESET ROLE", 0)
 			fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)

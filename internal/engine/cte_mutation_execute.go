@@ -232,7 +232,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			if findOwner(definition.Owner) != nil {
 				continue
 			}
-			current := &exec.CTEInvocation{Frame: definition.Owner, Parent: owner, State: exec.State{Source: source, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: source.Locks != nil}}
+			current := &exec.CTEInvocation{Frame: definition.Owner, Parent: owner, State: exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: source.Locks != nil}}
 			current.State.Ctes = current
 			owner = current
 		}
@@ -248,6 +248,9 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 				failure = err
 			}
 			current.State.ReleaseMemberships()
+		}
+		if owner != previousOwner {
+			failure = owner.State.FinishSources(failure)
 		}
 		source.Close()
 		scope.cteInvocation = previousOwner

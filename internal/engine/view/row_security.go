@@ -3,9 +3,10 @@ package view
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // RowSecurity is the row-level security state of one command: whether the
@@ -13,10 +14,11 @@ import (
 // and MERGE are checked. The engine keeps it in its statement mutation, so
 // command switches save and restore it as one unit.
 type RowSecurity struct {
+	Old, New      *exec.RLSProgram // Borrowed statement-owned ordinary command programs.
 	TargetDenied  bool
-	Proposal      access.RLSDisposition
-	MergeUpdate   access.RLSDisposition
-	MergeInsert   access.RLSDisposition
+	Proposal      access.AdjacentRLSDisposition
+	MergeUpdate   access.AdjacentRLSDisposition
+	MergeInsert   access.AdjacentRLSDisposition
 	ProposalTable string
 }
 
@@ -27,7 +29,8 @@ type RowSecurity struct {
 // target without row-level security.
 func RowSecurityTarget(r RowSecurity, b analyze.Binding, stmt parser.Statement) (RowSecurity, catalog.PolicyCommand, bool) {
 	r.TargetDenied = false
-	r.Proposal, r.MergeInsert, r.MergeUpdate = access.RLSUnrestricted, access.RLSUnrestricted, access.RLSUnrestricted
+	r.Old, r.New = nil, nil
+	r.Proposal, r.MergeInsert, r.MergeUpdate = access.AdjacentRLSUnrestricted, access.AdjacentRLSUnrestricted, access.AdjacentRLSUnrestricted
 	if b.Relation == nil {
 		return r, "", false
 	}
@@ -48,12 +51,10 @@ func RowSecurityTarget(r RowSecurity, b analyze.Binding, stmt parser.Statement) 
 	return r, command, b.Relation.Security.RLSEnabled
 }
 
-// SelectRowSecurity selects the row-level security of a command whose target
-// has it, as v's current user sees it through the view layers of b: the
-// row_security setting guard (enabled is the setting), the target decision
-// for command and the proposal groups. On an error it returns r with the
-// fields written so far.
-func SelectRowSecurity(r RowSecurity, v access.View, enabled bool, b analyze.Binding, stmt parser.Statement, command catalog.PolicyCommand) (RowSecurity, error) {
+// SelectAdjacentRowSecurity retains only MERGE/ON CONFLICT action-specific
+// expression capability boundaries. Ordinary sources and mutations use runtime
+// programs and do not call this gate.
+func SelectAdjacentRowSecurity(r RowSecurity, v access.View, enabled bool, b analyze.Binding, stmt parser.Statement, command catalog.PolicyCommand) (RowSecurity, error) {
 	principal := access.RowSecurityPrincipal(v.State.CurrentUser, RowSecurityLayers(v.Catalog, b))
 	if err := access.RowSecuritySettingGuard(enabled, v.Roles, b.Relation, principal); err != nil {
 		return r, err
@@ -63,48 +64,37 @@ func SelectRowSecurity(r RowSecurity, v access.View, enabled bool, b analyze.Bin
 		reads = reads || len(ViewWriteOf(b.ViewWrite).Logical.UsedColumns) != 0
 	}
 	if command != catalog.PolicyInsert {
-		decision, err := access.RowSecurityGroups(v.Roles, b.Relation, principal, command, false, reads)
+		decision, err := access.AdjacentRowSecurityGroups(v.Roles, b.Relation, principal, command, false, reads)
 		if err != nil {
 			return r, err
 		}
-		if decision == access.RLSNeedsExpressions {
-			return r, access.RowSecurityExpressionError()
+		if decision == access.AdjacentRLSNeedsExpressions {
+			return r, access.AdjacentRowSecurityExpressionError()
 		}
-		r.TargetDenied = decision == access.RLSDefaultDeny
+		r.TargetDenied = decision == access.AdjacentRLSDefaultDeny
 	}
 	proposedRead := b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0
 	var err error
 	switch stmt.(type) {
 	case *parser.Insert:
-		r.Proposal, err = access.RowSecurityGroups(v.Roles, b.Relation, principal, catalog.PolicyInsert, true, proposedRead)
-	case *parser.Update:
-		r.Proposal, err = access.RowSecurityGroups(v.Roles, b.Relation, principal, catalog.PolicyUpdate, true, reads)
+		r.Proposal, err = access.AdjacentRowSecurityGroups(v.Roles, b.Relation, principal, catalog.PolicyInsert, true, proposedRead)
 	case *parser.Merge:
-		r.MergeInsert, err = access.RowSecurityGroups(v.Roles, b.Relation, principal, catalog.PolicyInsert, true, false)
+		r.MergeInsert, err = access.AdjacentRowSecurityGroups(v.Roles, b.Relation, principal, catalog.PolicyInsert, true, false)
 		if err == nil {
-			r.MergeUpdate, err = access.RowSecurityGroups(v.Roles, b.Relation, principal, catalog.PolicyUpdate, true, true)
+			r.MergeUpdate, err = access.AdjacentRowSecurityGroups(v.Roles, b.Relation, principal, catalog.PolicyUpdate, true, true)
 		}
 	}
 	return r, err
 }
 
-// RowSecurityInputDenied reports whether row-level security on d denies every
-// row principal reads (v's current user when principal is zero) for command:
-// the setting guard (enabled is the row_security setting), then the policy
-// groups. Policies that need expressions are an error.
-func RowSecurityInputDenied(v access.View, enabled bool, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, selectRead bool) (bool, error) {
-	if principal == (authorization.PrincipalRef{}) {
-		principal = v.State.CurrentUser
+// CheckProposal routes every ordinary NEW row to the same runtime evaluator;
+// dispositions are retained only for explicitly gated adjacent actions.
+func (r *RowSecurity) CheckProposal(row []sqltype.Value, evaluation *exec.Context) error {
+	if r.New != nil {
+		return exec.CheckRowSecurity(r.New, evaluation, row)
 	}
-	if err := access.RowSecuritySettingGuard(enabled, v.Roles, d, principal); err != nil {
-		return false, err
+	if r.Proposal != access.AdjacentRLSUnrestricted {
+		return access.AdjacentRowSecurityProposal(r.Proposal, r.ProposalTable)
 	}
-	decision, err := access.RowSecurityGroups(v.Roles, d, principal, command, false, selectRead)
-	if err != nil {
-		return false, err
-	}
-	if decision == access.RLSNeedsExpressions {
-		return false, access.RowSecurityExpressionError()
-	}
-	return decision == access.RLSDefaultDeny, nil
+	return nil
 }

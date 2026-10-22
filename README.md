@@ -1198,8 +1198,8 @@ Ordinary users can SET `row_security` on or off. Off raises `42501` when RLS
 applies, including empty/dead inputs and fresh Prepare; held handles use the
 current statement setting. Owners bypass unless FORCE applies, while direct
 superuser/BYPASSRLS bypass even FORCE. Forced owners receive PostgreSQL's
-NO FORCE hint. On preserves default-deny and the explicit native `0A000`
-policy-expression enforcement boundary, not an invented expression evaluator.
+NO FORCE hint. On applies ordinary row-policy expressions, permissive OR,
+restrictive AND, command-class conjunction and true-only NEW checks.
 SESSION/LOCAL, rollback and savepoints use the existing settings journal.
 The typed `pg_catalog.pg_settings` provider exposes all registered settings,
 including `row_security`; SHOW ALL consumes the same immutable registry.
@@ -4249,14 +4249,20 @@ Restore resolves policy CURRENT_USER/CURRENT_ROLE/SESSION_USER targets against
 the actual named stage session, separately from trusted import authorization;
 all three targets after a named owner directive name that owner. Dump retains
 resolved target multiplicity, and Restore does not change caller identity.
-Policy expressions remain metadata, not an implemented FILTER/CHECK evaluator.
-Native ENABLE/DISABLE/FORCE/NO FORCE ROW LEVEL SECURITY now persist independent
-table flags, enforce owner/direct-superuser/direct-BYPASSRLS bypass and real
-default deny when no applicable permissive expression can grant the required
-use. DISABLE retains definitions; dropping the last policy retains both flags.
-Applicable expressions (including TRUE/FALSE/NULL) instead raise Execute `0A000`
-`row-security policy expression enforcement is unsupported`, not an invented
-allow/deny result. See the [BASE contract](docs/AUTHORIZATION.md#row-security-metadata-and-enforcement-limits).
+Ordinary SELECT/INSERT/UPDATE/DELETE evaluate the original bound policy
+expressions, including supported correlated queries and runtime providers.
+Applicable PUBLIC/direct/inherited role policies use the current effective
+identity: permissive policies OR, restrictive policies AND, with at least one
+permissive grant and separate required command/SELECT groups. FALSE/NULL hide
+OLD rows; rejected NEW rows raise42501 (a failing restrictive policy is named).
+Policy evaluation errors propagate unchanged. INSERT RETURNING and target-reading
+UPDATE additionally check SELECT visibility of NEW. Source-local guards precede
+user work, joins and aggregates; mutations recheck refreshed OLD rows after waits.
+Owner/direct-superuser/direct-BYPASSRLS and FORCE semantics remain independent
+of ordinary ACLs. Held execution selects fresh policy metadata and authority.
+MERGE/ON CONFLICT action-specific expression enforcement retains its explicit
+0A000 capability boundary; bypass/default-deny and ordinary source filtering
+remain supported. See [authorization](docs/AUTHORIZATION.md#row-security-metadata-and-enforcement-limits).
 Release18 accepts `ALTER POLICY IF EXISTS ... RENAME TO ...`, but its rename
 handler still errors on a missing table or policy; selective ALTER has no
 IF EXISTS form. Native policy utilities remain autocommit-only and reject

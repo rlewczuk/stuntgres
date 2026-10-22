@@ -531,27 +531,20 @@ Decisions:
    are admission and stay. Optional: `prepareViewCreation`'s 0A000
    (modifying WITH), the temporary-view NOTICE text and the 42P22 collation
    check become `view.CheckCreationBinding`.
-3. **RLS selection** (question 3): yes. `rowSecurityMutation` moves to
-   `view` as `RowSecurity` with exported fields (`TargetDenied`,
-   `Proposal`, `MergeUpdate`, `MergeInsert`, `ProposalTable`);
-   `statementMutation.rls` keeps its name and holds `view.RowSecurity`.
-   `configureRowSecurityLocked` becomes:
-   - `view.RowSecurityTarget(b analyze.Binding, stmt parser.Statement)
-     (RowSecurity, catalog.PolicyCommand, bool)`: the reset, the command,
-     `ProposalTable`, and whether RLS applies (false for a non-DML
-     statement, no target or RLS disabled);
-   - `view.SelectRowSecurity(r RowSecurity, v access.View, enabled bool, b
-     analyze.Binding, stmt parser.Statement, command
-     catalog.PolicyCommand) (RowSecurity, error)`: the layers, the setting
-     guard, the target decision and the proposal groups. It returns the
-     partly written value with its error, and the root assigns it either
-     way, as today.
-   The root keeps the statement authority, the rule-action current user,
-   the private catalog and the recapture. `rowSecurityInputLocked` keeps
-   its authority setup; its core becomes `view.RowSecurityInputDenied(v
-   access.View, enabled bool, d *catalog.Relation, principal
-   authorization.PrincipalRef, command catalog.PolicyCommand, selectRead
-   bool) (bool, error)`.
+3. **RLS selection** (question 3): `view.RowSecurity` holds command state,
+   including borrowed OLD/NEW `exec.RLSProgram`s. `RowSecurityTarget` resets it
+   and selects the target command; `CheckProposal` routes ordinary finalized
+   NEW rows to the shared evaluator. `SelectAdjacentRowSecurity` retains only
+   MERGE/ON CONFLICT action-specific capability boundaries.
+
+   The root keeps current statement/rule-action authority, private catalog,
+   captured-reference locks and program/source lifetimes. It selects immutable
+   `access.RLSSelection` groups, imports the original stored expression graph
+   through the same `StoredQueryImporter` graft as `Write.GraftQuery`, and
+   attaches source-local guards. Ordinary `rowSecurityInputLocked` returns an
+   imported program, not the former metadata-only unsupported-expression
+   disposition. Historical27d migration records below retain the then-used API
+   names; they do not imply compatibility aliases in current code.
 4. **Rules.** `view.PlanRule(h Host, auth ddl.Authority, stmt
    parser.Statement, locked ids.ObjectRef, input sqltype.InputEnvironment)
    (RelationChange, error)` is `executeRule` from the name switch to the
@@ -647,7 +640,7 @@ Follow decisions 1–9 above.
 `freezeRuleModifierPresentations` and `RelationChange`; `PlanPolicy`;
 `CreateTarget`, `CheckCreate` with `CreateOptions`, `StageCreate`;
 `AlterChange`; `DropTargets`, `RecheckDropTargets`; `RowSecurity`,
-`RowSecurityTarget`, `SelectRowSecurity`, `RowSecurityInputDenied`;
+`RowSecurityTarget`, `SelectAdjacentRowSecurity`, `RowSecurity.CheckProposal`;
 `ConcurrentPrevious`, `ValidateMaterializedReplacement`,
 `MaterializedReplacement.Current`; optionally `CheckCreationBinding`,
 `DependencyClosure`, `KeepRules`, `KeepPolicies`. `creationError` goes to
@@ -1325,10 +1318,10 @@ Deviations and notes:
   `view.ValidateQueryJoinExecution` and `view.ValidateMutationJoinExecution`
   (`execute_bound.go`, `merge.go`, `update.go`).
 
-- 29c (from 27d): `statementMutation.rls` holds `view.RowSecurity`;
-  `configureRowSecurityLocked` composes `view.RowSecurityTarget` and
-  `view.SelectRowSecurity`, and `rowSecurityInputLocked` calls
-  `view.RowSecurityInputDenied`. Both wrappers stay root authority setup.
+- Ordinary runtime evolution: `statementMutation` holds `view.RowSecurity`;
+  root `configureRowSecurityLocked` composes target reset with role-aware
+  stored-program admission, and `rowSecurityInputLocked` captures ordinary
+  source guards. `SelectAdjacentRowSecurity` is the remaining action gate.
 - 27d: `prepareStoredExecutionRoot` stays with root query preflight.
   `view.CreationScope`, `view.MaterializedRefreshScope` and
   `view.MaterializedStage` are the slot records; their accessors stay root

@@ -1443,11 +1443,11 @@ and the probe authority crosses as `access.View`, decision 7).
   `evaluateUpdateAssignments` need the default evaluators
   (`domain_default.go`) behind the host or in a lower package.
 
-- View 27c (item 101), for 29c: 27d moves `rowSecurityMutation` to `view`
-  as `RowSecurity` (exported fields; `statementMutation.rls` keeps its
-  name) and the selection to `view.RowSecurityTarget` and
-  `view.SelectRowSecurity`; `configureRowSecurityLocked` in
-  `execute_bound.go` stays the root authority wrapper that writes it.
+- View 27c (item 101) moved command RLS state to `view.RowSecurity`.
+  Ordinary runtime now borrows separate OLD/NEW `exec.RLSProgram`s and shares
+  `exec.EvaluateRowSecurity`; root `configureRowSecurityLocked` selects/imports
+  programs under statement authority. `view.RowSecurityTarget` resets state,
+  while `view.SelectAdjacentRowSecurity` is MERGE/ON CONFLICT-only.
 - 29a deviations and names, for 29b–29d:
   - The INSERT executor is `Engine.executeInsertLocked`, not
     `executeInsertValuesLocked`: it also runs INSERT ... SELECT

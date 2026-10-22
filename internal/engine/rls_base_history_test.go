@@ -87,8 +87,8 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal("fixture lacks actual published RLS flags")
 	}
 	for _, command := range []catalog.PolicyCommand{catalog.PolicyUpdate, catalog.PolicyDelete, catalog.PolicySelect} {
-		decision, err := access.RowSecurityDecision(auth.Roles, descriptor, reader, command, false)
-		if err != nil || decision != access.RLSDefaultDeny {
+		decision, err := access.SelectRowSecurity(auth.Roles, descriptor, reader, command, false, false)
+		if err != nil || !decision.Denied() {
 			t.Fatal("effective ordinary principal is not denied", command, decision, err)
 		}
 		source, err := view.CaptureDeniedQuerySource(dataView, leaf.Ref)

@@ -243,7 +243,7 @@ func (s *Stage) ensure(ctx context.Context, i int) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, s.fail(err)
 	}
-	for s.Produce != nil && !s.Done && i >= len(s.Selection) {
+	for s.Produce != nil && !s.Done && i >= s.Count() {
 		if err := ctx.Err(); err != nil {
 			return false, s.fail(err)
 		}
@@ -285,7 +285,7 @@ func (s *Stage) Drain(ctx context.Context) error {
 		return nil
 	}
 	for !s.Done {
-		if _, err := s.ensure(ctx, len(s.Selection)); err != nil {
+		if _, err := s.ensure(ctx, s.Count()); err != nil {
 			return err
 		}
 	}

@@ -70,9 +70,9 @@ inputs. It is an error guard, not a policy bypass. Direct superuser/BYPASSRLS
 and non-FORCE owners still bypass; inherited ownership participates, but
 BYPASSRLS attributes are not inherited. Views retain their existing definer/
 invoker principal chain. `row_security_active` remains setting-independent.
-`on` preserves native default-deny and the explicit unsupported
-policy-expression enforcement error; no evaluator or physical PostgreSQL
-planner/storage mechanism is implied.
+`on` applies ordinary SELECT/INSERT/UPDATE/DELETE policy expressions, including
+permissive/restrictive and command-class conjunction. MERGE/ON CONFLICT-specific
+action expressions retain their explicit capability boundary.
 
 Auto-updatable view mutations check the physical target while retaining the
 logical view's definer/invoker authority. Rule actions use their event owner's

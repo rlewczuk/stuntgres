@@ -43,10 +43,11 @@ type ruleCommandScratch struct {
 	admission  analyze.LockAdmission
 	ruleAction ruleActionScope
 	quotes     *exec.QuoteCaptureCandidate
+	rlsCommand *preparedCommandExecution
 }
 
 func (s *StatementScope) ruleScratch() ruleCommandScratch {
-	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.ViewWrite, sources: s.querySources, unique: s.UniqueBinding, conflict: s.InsertConflict, returning: s.InsertReturning, partition: s.PartitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, ruleAction: s.ruleAction, quotes: s.quoteCaptures}
+	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.ViewWrite, sources: s.querySources, unique: s.UniqueBinding, conflict: s.InsertConflict, returning: s.InsertReturning, partition: s.PartitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, ruleAction: s.ruleAction, quotes: s.quoteCaptures, rlsCommand: s.rlsCommand}
 }
 func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.statementMutation = c.mutation
@@ -56,6 +57,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.queryLocks, s.queryLockAdmission = c.locks, c.admission
 	s.ruleAction = c.ruleAction
 	s.quoteCaptures = c.quotes
+	s.rlsCommand = c.rlsCommand
 }
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {

@@ -64,19 +64,11 @@ func TestReferenceRLSBaseExpressionUses(t *testing.T) {
 		s.exec("CREATE POLICY insert_only ON t FOR INSERT WITH CHECK(TRUE)")
 		s.actor("rls_reader")
 		s.run(fixture.Exec("INSERT INTO t SELECT id,v FROM t", 0))
-		if s.backend.PG {
-			s.run(fixture.Exec("INSERT INTO t VALUES(3,30)", 1))
-		} else {
-			predefinedFailure(s, "INSERT INTO t VALUES(3,30)", fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"}, false, "execute")
-		}
+		s.run(fixture.Exec("INSERT INTO t VALUES(3,30)", 1))
 		s.actor("rls_owner")
 		s.exec("DROP POLICY insert_only ON t")
 		s.exec("CREATE POLICY all_fallback ON t USING(FALSE)")
 		s.actor("rls_reader")
-		if s.backend.PG {
-			rlsBaseProposalDenied(s, "INSERT INTO t VALUES(4,40)")
-		} else {
-			predefinedFailure(s, "INSERT INTO t VALUES(4,40)", fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"}, false, "execute")
-		}
+		rlsBaseProposalDenied(s, "INSERT INTO t VALUES(4,40)")
 	})
 }

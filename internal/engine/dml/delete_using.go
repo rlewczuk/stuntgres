@@ -11,7 +11,7 @@ import (
 
 // The source stage owns immutable joined frames. Only qualifying identities and
 // occurrence indexes are retained, before any target row arbitration can wait.
-func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluation *exec.Context, positioned MutationRowIdentity) (Outcome, error) {
+func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluation *exec.Context, positioned MutationRowIdentity) (outcome Outcome, err error) {
 	ctx := evaluation.Context
 	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.Delete.Using) || exec.BoundHasVirtualReads(b.Predicate)
 	if b.Returning != nil {
@@ -27,7 +27,7 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 	if err != nil {
 		return Outcome{}, err
 	}
-	defer stage.Close()
+	defer outcome.finishStage(&stage, &err)
 	if err := stage.Drain(ctx); err != nil {
 		return Outcome{}, err
 	}
@@ -43,6 +43,15 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 		physical := MutationPhysicalRow(source, i, b)
 		version := physical.Version
 		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || version.Row != positioned.Row) {
+			continue
+		}
+		evaluation.Row = physical.Values(version)
+		evaluation.PhysicalTable = physical.Leaf.Ref
+		visible, _, err := exec.EvaluateRowSecurity(h.Command().RLS.Old, evaluation, evaluation.Row)
+		if err != nil {
+			return Outcome{}, err
+		}
+		if !visible {
 			continue
 		}
 		candidate := physical.Deletion()
@@ -109,7 +118,7 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 			if err := h.PhysicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Outcome{}, err
 			}
-			matches, err := exec.UpdateMatches(evaluation, b.Predicate)
+			matches, err := MutationMatches(h, evaluation, b.Predicate)
 			if err != nil {
 				return Outcome{}, err
 			}

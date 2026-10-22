@@ -60,14 +60,9 @@ func TestReferenceRLSBaseEmptyExpressionBoundary(t *testing.T) {
 		s.exec("ALTER TABLE rls_boundary_empty ENABLE ROW LEVEL SECURITY")
 		s.exec("CREATE POLICY empty_expression ON rls_boundary_empty FOR SELECT USING(TRUE)")
 		s.actor("rls_reader")
-		// No physical tuples exist, but metadata still requires unavailable
-		// native expression enforcement. Public Prepare must remain successful.
+		// An empty source evaluates no row policy expression.
 		rlsBaseExpression(s, "SELECT id FROM rls_boundary_empty", nil)
-		if s.backend.PG {
-			predefinedSelect(s, "SELECT count(*) FROM rls_boundary_empty", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
-		} else {
-			predefinedFailure(s, "SELECT count(*) FROM rls_boundary_empty", fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"}, true, "execute")
-		}
+		predefinedSelect(s, "SELECT count(*) FROM rls_boundary_empty", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
 		s.actor("rls_owner")
 		predefinedSelect(s, "SELECT count(*) FROM rls_boundary_empty", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
 		predefinedSelect(s, "SELECT rowsecurity FROM pg_tables WHERE schemaname='public' AND tablename='rls_boundary_empty'", []string{"rowsecurity"}, []string{"BOOL"}, [][]any{{true}})
@@ -103,12 +98,12 @@ func TestReferenceRLSBaseReadBeforeProposalBoundary(t *testing.T) {
 		s.exec("ALTER TABLE rls_boundary_source ENABLE ROW LEVEL SECURITY")
 		s.exec("CREATE POLICY source_expression ON rls_boundary_source FOR SELECT USING(TRUE)")
 		s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
-		failedProposal := func(q string) {
+		failedProposal := func(q string, adjacent bool) {
 			s.t.Helper()
-			if s.backend.PG {
-				rlsBaseProposalDenied(s, q)
-			} else {
+			if adjacent && !s.backend.PG {
 				predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "row-security policy expression enforcement is unsupported"}, false, "execute")
+			} else {
+				rlsBaseProposalDenied(s, q)
 			}
 			s.actor("")
 			predefinedSelect(s, "SELECT id,v FROM t ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(10)}, {int64(2), int64(20)}})
@@ -116,13 +111,13 @@ func TestReferenceRLSBaseReadBeforeProposalBoundary(t *testing.T) {
 		}
 		s.actor("rls_reader")
 		// A denied INSERT proposal cannot hide required source enforcement.
-		failedProposal("INSERT INTO t SELECT id,v FROM rls_boundary_source")
+		failedProposal("INSERT INTO t SELECT id,v FROM rls_boundary_source", false)
 		s.actor("rls_owner")
 		s.exec("ALTER TABLE rls_boundary_source DISABLE ROW LEVEL SECURITY")
 		s.exec("CREATE POLICY target_expression ON t FOR SELECT USING(TRUE)")
 		s.actor("rls_reader")
 		// MERGE's target SELECT phase precedes the demanded unmatched INSERT.
 		// The source is now unrestricted, isolating target-read enforcement.
-		failedProposal("MERGE INTO t USING rls_boundary_source s ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=s.v WHEN NOT MATCHED THEN INSERT VALUES(s.id,s.v)")
+		failedProposal("MERGE INTO t USING rls_boundary_source s ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=s.v WHEN NOT MATCHED THEN INSERT VALUES(s.id,s.v)", true)
 	})
 }

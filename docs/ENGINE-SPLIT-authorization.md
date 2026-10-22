@@ -638,7 +638,9 @@ B3 results:
 - **Move.** `internal/engine/access` holds `view.go` (`View`, `Environment`,
   `Requirement`, `Stamp`, the checks, `Object`, `DescriptorACL`,
   `ClassPrivileges`, `ValidateACL`), `ownership.go`, `rls.go`
-  (`RLSDisposition`, `RowSecurityLayer`, ...), `roles.go` (`RoleRecord`,
+  (`AdjacentRLSDisposition`, `RowSecurityLayer`, ...), `rls_selection.go`
+  (`RLSSelection`, `RLSGroup`, `RLSClause`, `SelectRowSecurity`),
+  `roles.go` (`RoleRecord`,
   `RoleRead`), `role_dependencies.go` (`RoleDependency`, the scans),
   `privileges.go` (`DatabaseRights`, `PredefinedPrivileges`, `RawObjectACL`,
   `ObjectACLClass`), `names.go` (copies of `dependencyIdentifier`,

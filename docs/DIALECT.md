@@ -1319,9 +1319,10 @@ authentication. Stored passwords and expiry timestamps do not affect that route.
 Physical session limits and login eligibility are enforced independently of
 pooled borrowers; see [driver admission](DRIVER.md#trusted-role-admission-and-physical-limits).
 
-Policy definitions and row-security flags do not provide policy-expression
-enforcement. Applicable policy expressions fail explicitly instead of being
-ignored. Operating-system file/program access, PostgreSQL PID signaling and
+Ordinary SELECT/INSERT/UPDATE/DELETE enforce supported bound policy expressions,
+including nested queries, with role applicability and true-only permissive/
+restrictive command groups. MERGE/ON CONFLICT action expressions retain an
+explicit capability boundary. Operating-system file/program access, PostgreSQL PID signaling and
 reserved connection slots are unavailable. Predefined role identities do not
 create these missing capabilities. Table/column grants do not imply sequence or
 other-object grants. Sequence grants support SELECT/UPDATE/USAGE,
@@ -1335,7 +1336,7 @@ inquiries, including direct/prepared expressions and stored-view recipes.
 The former separates MEMBER, inherited USAGE, SET and ADMIN; raw role OIDs are
 SQL inquiry inputs, not trusted principal handles. The latter is metadata-only:
 it does not enforce policies or require table SELECT. The native `row_security`
-setting is separate: on preserves the existing enforcement boundary; off raises
+setting is separate: on applies ordinary row-policy runtime; off raises
 42501 for RLS-applicable queries, never bypasses policies, and leaves the inquiry
 unchanged. Relation-name schema access remains separate. The existing pg_settings
 provider exposes all actual registered definitions, exact base-unit values and
@@ -1554,8 +1555,8 @@ No EXPLAIN costs, physical PostgreSQL plan shape, arbitrary Boolean evaluation
 order, new planner settings or FDW pushdown are promised. This does not emulate
 PostgreSQL disk access, WAL/durability, network transport or native provider ABI.
 Unsafe/unsupported proof shapes retain branches instead of rejecting legal SQL.
-Existing row-lock and policy-expression enforcement capability errors remain;
-branch omission does not implement those adjacent prerequisites.
+Existing row-lock capability errors remain. Ordinary source policies execute
+before residual user predicates; pruning never substitutes for their evaluation.
 
 RANGE `ALTER TABLE ... ATTACH PARTITION` accepts an existing ordinary or
 partitioned relation, with `FOR VALUES` or `DEFAULT`, including explicit

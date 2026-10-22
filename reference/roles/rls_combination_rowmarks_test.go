@@ -1,0 +1,137 @@
+package reference_test
+
+import (
+	"context"
+	"errors"
+	"stuntgres/reference/fixture"
+	"testing"
+	"time"
+)
+
+func TestReferenceRLSCombinationPolicyRowMarks(t *testing.T) {
+	combinationCases(t, func(s *membershipScenario) {
+		s.exec("CREATE TABLE policy_helper(id INT PRIMARY KEY)")
+		s.run(fixture.Exec("INSERT INTO policy_helper VALUES(1)", 1))
+		s.exec("GRANT SELECT ON policy_helper TO comb_reader")
+		condition := func(option string) string {
+			return "EXISTS(SELECT 1 FROM policy_helper h WHERE h.id=t.id FOR SHARE" + option + ")"
+		}
+		s.exec("CREATE POLICY p ON t USING(" + condition("") + ")")
+		s.exec("SET ROLE comb_reader")
+		combinationError(s, "SELECT id FROM t ORDER BY id", "42501", "permission denied for table policy_helper", true)
+		s.exec("RESET ROLE")
+		s.exec("GRANT UPDATE ON policy_helper TO comb_reader")
+		peer, err := s.backend.DB.Conn(s.p.Ctx)
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		defer peer.Close()
+		s.exec("SET ROLE comb_reader")
+		combinationIDs(s, "SELECT id FROM t ORDER BY id", 1)
+		s.exec("BEGIN READ ONLY")
+		readOnly := true
+		defer func() {
+			if readOnly {
+				_, _ = s.c.ExecContext(s.p.Ctx, "ROLLBACK")
+			}
+		}()
+		combinationError(s, "SELECT id FROM t WHERE id=1", "25006", "cannot execute SELECT FOR SHARE in a read-only transaction", true)
+		s.exec("ROLLBACK")
+		readOnly = false
+		// Both the ordinary target mark and nested policy mark survive together.
+		combinationIDs(s, "SELECT t.id FROM policy_helper AS outer_helper JOIN t ON outer_helper.id=t.id", 1)
+		s.exec("BEGIN")
+		open := true
+		defer func() {
+			if open {
+				_, _ = s.c.ExecContext(s.p.Ctx, "ROLLBACK")
+			}
+		}()
+		combinationIDs(s, "SELECT id FROM t WHERE id=1 FOR UPDATE", 1)
+		fixture.QueryLockNowait(s.t, s.p, s.backend, peer, "SELECT id FROM policy_helper WHERE id=1 FOR UPDATE NOWAIT", s.prepared, "policy_helper")
+		fixture.QueryLockNowait(s.t, s.p, s.backend, peer, "SELECT id FROM t WHERE id=1 FOR UPDATE NOWAIT", s.prepared, "t")
+		s.exec("ROLLBACK")
+		open = false
+		fixture.QueryLockRows(s.t, s.p, s.backend, peer, "SELECT id FROM policy_helper WHERE id=1 FOR UPDATE NOWAIT", s.prepared, "id", 1)
+		fixture.QueryLockRows(s.t, s.p, s.backend, peer, "SELECT id FROM t WHERE id=1 FOR UPDATE NOWAIT", s.prepared, "id", 1)
+		s.exec("RESET ROLE")
+		for _, option := range []string{" NOWAIT", " SKIP LOCKED"} {
+			s.exec("ALTER POLICY p ON t USING(" + condition(option) + ")")
+			holder, err := peer.BeginTx(s.p.Ctx, nil)
+			if err != nil {
+				s.t.Fatal(err)
+			}
+			func() {
+				defer holder.Rollback()
+				fixture.QueryLockRows(s.t, s.p, s.backend, holder, "SELECT id FROM policy_helper WHERE id=1 FOR UPDATE", false, "id", 1)
+				s.exec("SET ROLE comb_reader")
+				if option == " NOWAIT" {
+					fixture.QueryLockNowait(s.t, s.p, s.backend, s.c, "SELECT id FROM t WHERE id=1", s.prepared, "policy_helper")
+				} else {
+					combinationIDs(s, "SELECT id FROM t WHERE id=1")
+				}
+				if err := holder.Rollback(); err != nil {
+					s.t.Fatal(err)
+				}
+				combinationIDs(s, "SELECT id FROM t WHERE id=1", 1)
+				s.exec("RESET ROLE")
+			}()
+		}
+		s.exec("ALTER POLICY p ON t USING(" + condition("") + ")")
+		holder, err := peer.BeginTx(s.p.Ctx, nil)
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		defer holder.Rollback()
+		fixture.QueryLockRows(s.t, s.p, s.backend, holder, "SELECT id FROM policy_helper WHERE id=1 FOR UPDATE", false, "id", 1)
+		hp, wp := 0, 0
+		if s.backend.PG {
+			hp = fixture.LockPID(s.t, s.p.Ctx, peer)
+			wp = fixture.LockPID(s.t, s.p.Ctx, s.c)
+		}
+		s.exec("SET ROLE comb_reader")
+		ctx, cancel := context.WithTimeout(s.p.Ctx, 5*time.Second)
+		defer cancel()
+		done := make(chan fixture.RelationOutcome, 1)
+		joined := false
+		defer func() {
+			cancel()
+			holder.Rollback()
+			if !joined {
+				select {
+				case <-done:
+				case <-time.After(5 * time.Second):
+					s.t.Error("policy-lock worker failed to join")
+				}
+			}
+		}()
+		// Exec consumes the complete SELECT, avoiding an unconsumed streaming cursor
+		// being mistaken for a completed wait. The worker is the real public route.
+		go combinationMutation(ctx, s, "SELECT id FROM t WHERE id=1", done)
+		combinationWait(s, ctx, done, hp, wp, &joined)
+		if s.backend.PG {
+			var ok bool
+			if err := fixture.Admin.QueryRowContext(s.p.Ctx, "SELECT pg_cancel_backend($1)", wp).Scan(&ok); err != nil || !ok {
+				s.t.Fatal(ok, err)
+			}
+		} else {
+			cancel()
+		}
+		out := fixture.LockResult(s.t, done)
+		joined = true
+		if s.backend.PG {
+			fixture.AssertDiagnostic(s.t, out.Err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request", Context: "while locking tuple (0,1) in relation \"policy_helper\""})
+		} else if !errors.Is(out.Err, context.Canceled) {
+			s.t.Fatal(out.Err)
+		}
+		if out.Result != nil {
+			s.t.Fatal("cancelled policy source published a result")
+		}
+		if err := holder.Rollback(); err != nil {
+			s.t.Fatal(err)
+		}
+		s.exec("RESET ROLE")
+		combinationIDs(s, "SELECT id FROM policy_helper", 1)
+		s.run(fixture.Select("SELECT v FROM t WHERE id=1", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))
+	})
+}

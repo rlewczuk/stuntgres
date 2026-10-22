@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
@@ -66,12 +67,27 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *analyze.Binding, row 
 		err = s.validateForeignActionLocked(e, b.Ref)
 	}
 	var auth AuthorizationView
+	riOwner := false
 	if err == nil {
 		auth, err = s.writeAuthorizationLocked(e)
+		if err == nil && !suppressEmpty && s.foreignActionAuth != nil {
+			admission := s.foreignActionsOrZero().Admissions[b.Ref.Address]
+			riOwner = s.foreignActionsOrZero().Settling && admission != nil && admission.Writable && auth.State.CurrentUser == admission.Relation.Owner && b.Relation.Owner == admission.Relation.Owner
+		}
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return "", err
+	}
+	// Ordinary RLS eligibility withholds values even under table SELECT.
+	// SPI-local RI constraints instead use the validated, writable child-owner
+	// action context (including FORCE); a mere acting-authority marker is not
+	// sufficient. This does not change after-event FK key disclosure.
+	if !riOwner {
+		applies, err := access.RowSecurityApplies(auth.Roles, b.Relation, auth.State.CurrentUser)
+		if err != nil || applies {
+			return "", err
+		}
 	}
 	return dml.RowDiagnosticDetail(auth.View, auth, b, row, s.output, suppressEmpty)
 }

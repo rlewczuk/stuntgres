@@ -3,7 +3,6 @@ package dml
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
@@ -67,12 +66,34 @@ func validatePhysicalInsertRow(h Host, b analyze.Binding, named *analyze.Binding
 		return err
 	}
 	rls := &h.Command().RLS
-	if err := access.RowSecurityProposal(rls.Proposal, rls.ProposalTable); err != nil {
+	proposal := row
+	if rls.New != nil && named.Relation != b.Relation {
+		state := h.Command().PartitionInsert
+		if segment := state.Layouts[b.Relation.Address()]; segment != nil {
+			proposal = state.NamedRow
+			// Routing admitted this physical-slot -> named-slot layout once.
+			// Reuse the private named row for finalized leaf generations.
+			for physicalSlot, namedSlot := range segment.Layout {
+				proposal[namedSlot] = row[physicalSlot]
+			}
+		}
+	}
+	if err := rls.CheckProposal(proposal, evaluation); err != nil {
 		return err
 	}
 	violation, err := table.PhysicalRowViolation(b.Relation, row, evaluation)
 	if err != nil || violation == nil {
 		return err
+	}
+	// No-program success never needs a named proposal. A real diagnostic does:
+	// the host renders NamedRow, including finalized leaf-generated values.
+	if rls.New == nil && named.Relation != b.Relation {
+		state := h.Command().PartitionInsert
+		if segment := state.Layouts[b.Relation.Address()]; segment != nil {
+			for physicalSlot, namedSlot := range segment.Layout {
+				state.NamedRow[namedSlot] = row[physicalSlot]
+			}
+		}
 	}
 	// Copy the binding so only this failure path allocates it.
 	detailBinding := *named

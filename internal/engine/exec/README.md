@@ -27,6 +27,16 @@ It imports `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`,
   (`CTEInvocation`, `CTEProducer`), set operations, recursive unions, set
   lowering validators, windows, aggregates, DISTINCT, LIMIT/FETCH WITH TIES,
   subqueries and their presence rows.
+  A stored-view Source owns its retained NestedStage and lazy flat prefix;
+  short-circuiting subquery readers close only their borrowed invocation stage.
+  Later readers replay an identity range over the cached prefix, then resume
+  the one uncaptured producer frontier. ensure/Drain use Stage.Count so range
+  producers neither allocate prefix-index copies nor stall while draining.
+  Existing child Reset invalidation and demanded volatile projection resets
+  clear flat rows/lineage; stable replay does not reevaluate outputs. Producer
+  failures/cancellation remain terminal before any later prefix replay.
+  Source.Close (including transferred cursor teardown) disposes the producer
+  once; reopening a reader does not rebind, recapture or eagerly drain it.
 - **Row locks** (`query_locks.go`, `query_pending_locks.go`,
   `query_lock_order.go`, `query_lock_versions.go`): view-row arbitration,
   recheck of locked rows against the join and filter predicates, pending
@@ -240,3 +250,50 @@ make check RUN='^TestReference(RowLock|QueryLock|ViewLocks|SQLCursor|PGCursor|Tr
 make check RUN='^TestReferenceFDW(Scan|Rescan|CursorLifecycle|LocalRechecks|LocalConsumers|Transactions|Concurrency)'
 make check RUN='^TestReference(Domain|Reg(class|type|proc|role|oper|namespace|collation|config|dictionary)|GroupingSets|CTEDML|CommitTime|TransactionIdentity|Advisory|Routine)'
 ```
+
+## Row-policy runtime
+
+`RLSProgram` is an execution-owned set of separately conjoined command groups.
+`EvaluateRowSecurity` is the sole true-only USING/WITH CHECK evaluator;
+`CheckRowSecurity` adds named/unnamed42501 diagnostics without masking expression
+errors. Each imported occurrence owns serial clause context/query scratch,
+separate from OLD/NEW and the caller frame. Scratch releases borrowed tuple/frame
+references on every return. No catalog payload or prepared identity is modified.
+
+`Source.RLS` borrows its statement-owned guard. `openRowSecurityStage` is a lazy
+source-local producer before joins/aggregates/user work, retaining physical
+occurrence/version identity. Frozen-source bridges guard the live input before
+projection, and row-mark refreshed-source checks invoke the same evaluator.
+Guarded sources are excluded from raw hash/pruning/parallel bypasses. Ordinary
+statement Finish releases imported query states and nested pins outside Engine.mu.
+Successful SQL cursor/protocol publication instead transfers the owning programs
+to the existing producer; borrowed sources never close them. Clause adapters
+detach from the opening scope and use shared authority/current FETCH callbacks.
+EOF/CLOSE/error/cancel/hold materialization release stages, programs and nested
+pins before clearing authority. Eager immutable data clears borrowed RLS pointers.
+
+Supported rowmarks inside policy subqueries retain the statement's one additive
+`LockContext` manifest and ordinary legality/ACL/wait/cancel/recheck paths. Private
+query-source slots are not global physical occurrence IDs. The engine prepares
+the complete selected policy/view occurrence tree before its first data capture,
+then captures only the union of actual command, target and imported source roots.
+Physical capture consumes those prepared occurrences without another policy
+selection or view import. A later policy's first mark therefore cannot leave an
+earlier relevant input without its identity. Existing hierarchy-lock limits remain.
+
+The root owns admission records around the borrowed programs, including bypass
+metadata, and fences the complete graph only at completed outer target/source
+admission boundaries. An unchanged immutable role snapshot reuses applicability
+proof, never row truth or privilege; changed snapshots compare actual selection.
+Additional imported-source waits dirty only the current original logical command
+for its existing ACL walker, before provider preflight. The original logical
+execution record survives physical lowering and lexical rule/routine activation;
+no historical producer declaration is reauthorized during FETCH.
+
+`TestViewProducerReentry` directly checks lazy first pull, short-circuit reader
+close, cached-range replay/remaining-row resume, stable versus demanded-volatile
+output evaluation counts, lineage reset, range Drain and exact-once source-owner
+disposal. `TestViewProducerFailure` retains expression/cancellation failures
+across reader reopen and rejects stale prefix replay. Select
+`make check RUN='^TestViewProducer(Reentry|Failure)$'`; these native owner/count
+invariants supplement, not replace, the pinned RLSCombinationViewDemand witness.

@@ -33,6 +33,7 @@ func detachQuerySource(source *Source) {
 		source.NestedInputs = nil
 	}
 	source.Host, source.Locks = nil, nil
+	source.RLS = nil // Programs belong to the statement/retained producer, not detached data.
 	source.PGSequences = nil
 	source.Authority = nil
 	source.RoutineRecipe, source.RoutineChecks = nil, nil

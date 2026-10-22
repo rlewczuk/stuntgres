@@ -50,10 +50,12 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
   matches a namespace against the session's TEMP namespace address, and
   `AdjustRelationCreationPersistence`, the persistence of a relation created
   in a namespace, which reads the `Environment` only for a TEMP namespace.
-- **Row security** (`rls.go`): `RowSecurityApplies`, `RowSecurityDecision`,
-  `RowSecurityGroups` (returning an `RLSDisposition`), `RowSecurityProposal`,
-  `RowSecurityExpressionError` and `RowSecurityPrincipal` over the view
-  layers (`RowSecurityLayer`) the engine collects.
+- **Row security** (`rls.go`, `rls_selection.go`): metadata-only
+  `RowSecurityApplies`/setting guard, role-aware `SelectRowSecurity` returning
+  immutable payload groups (`RLSSelection`, `RLSGroup`, `RLSClause`), and
+  `RowSecurityPrincipal` over view layers. `AdjacentRowSecurityGroups`,
+  `AdjacentRowSecurityProposal` and `AdjacentRLSDisposition` are exclusively
+  MERGE/ON CONFLICT action capability gates, never ordinary row evaluators.
 - **Row-security actions** (`rls_actions.go`): `RowSecurityActions`,
   `RowSecurityFlags` and `RowSecurityKind`, the ALTER TABLE ENABLE, DISABLE,
   FORCE and NO FORCE ROW LEVEL SECURITY rules. `RowSecurityKind` takes the

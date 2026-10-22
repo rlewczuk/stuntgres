@@ -824,8 +824,9 @@ authority, never restamp an earlier successful check after refreshing metadata.
 ## Row-security metadata and enforcement limits
 
 Policies are retained table metadata with real provider, stable-column and role
-dependencies. Their expressions are bound but not evaluated natively. Policy
-mutations use owner authority and the existing exclusive relation lock, rechecking
+dependencies. Execution imports their original analyzed expressions and frozen
+source identities, never reparses SQL. Policy mutations use owner authority
+and the existing exclusive relation lock, rechecking
 after waits and before publication; genuine explicit policy utilities remain
 excluded. Dependency removal locks surviving owner tables before staging and
 removes dependent policies without deleting surviving owner data.
@@ -836,13 +837,91 @@ and first. Each view layer uses its owner/original invoker for ACL and row-secur
 authority without changing expression session identity. Materialized stored rows
 are not re-filtered. Data-role capabilities do not bypass row security.
 
-Native implements metadata-provable default deny, preserving normal empty-input
-query processing and rejecting demanded write proposals before constraints.
-When applicable permissive expressions require actual enforcement, execution
-fails `0A000`, `row-security policy expression enforcement is unsupported`, even
-for constant expressions. There are no constant shortcuts, filter/check evaluator
-or full PostgreSQL row-policy parity. Held execution recaptures current authority
-and flags; eager results retain their old capture.
+Ordinary SELECT/INSERT/UPDATE/DELETE use current PUBLIC/direct/inherited-INHERIT
+applicability and exact-command/ALL filtering. Each command group requires a
+TRUE permissive OR and TRUE for every restrictive clause; required SELECT groups
+are conjoined, never flattened into the write group. FALSE/NULL USING silently
+filters OLD; FALSE/NULL NEW raises42501, naming a failed restrictive policy.
+Underlying evaluation/permission/cancellation errors remain unchanged.
+
+One runtime evaluator owns both USING and WITH CHECK. INSERT checks finalized NEW
+after generation/routing and before constraints in both VALUES and SELECT paths.
+UPDATE uses OLD visibility and NEW CHECK (USING fallback when omitted), plus
+SELECT USING on NEW when target columns are read. INSERT RETURNING likewise
+requires SELECT visibility of NEW. Internal RI assignments keep their exemption.
+Source guards precede user expressions, joins, NULL extension and aggregation;
+UPDATE/DELETE recheck OLD after latest-row refresh before user work.
+
+Policy subqueries use invocation rights, their own source policies and frozen
+attribute/provider identities; active-path recursion is42P17. Supported nested
+rowmarks retain ordinary SELECT/UPDATE ACLs and the same additive physical lock
+manifest, wait options and refreshed-source checks; hierarchy-lock limits remain.
+Imported policy and view-write occurrences preserve demanded view outputs by
+mapping frozen read attributes to the live dense source slots once. Empty frozen
+reads remain presence-only; an unused projection is not evaluated merely because
+another output is needed. Renames/reordered layouts do not retarget the reads.
+Actual command/rowwise capture owners explicitly permit nested scalar, derived,
+set-arm (including recursive), and correlated-right readers to borrow stored-view
+producers. An EXISTS short-circuit releases that borrowed
+reader, not its shared producer; later invocations replay captured rows and
+continue the frontier without eager materialization. Default one-shot readers
+still close their producer and propagate required close failures. Capture-owner
+completion also settles reached scalar-only helper producers before successful
+publication; row policies retain their separate statement/cursor owners. This
+ownership distinction does not change scroll/rewind retention. Failures, including
+expression/aggregation errors outside the next-row call, abort reached borrowed
+producers without replacing the primary error with secondary cleanup errors.
+Existing invalidation and demanded volatile outputs reset the cache, and failed
+producers cannot reopen as successful cached prefixes. Teardown remains once-only
+and never drains unused child rows.
+Local UPDATE FROM/DELETE USING stages, including foreign mutation sources,
+settle their first required Close before capture-owner completion. Such cleanup
+failure discards RETURNING output and vetoes success, but never replaces an
+existing primary failure. Repeated Stage.Close remains idempotent, not an
+error-replay mechanism.
+Producer lifetime modes do not change evaluation-source selection: UPDATE uses
+its captured query inputs when present, otherwise its captured mutation target.
+That source supplies the existing authority, catalog and provider context; an
+absent FROM clause is not permission to detach those contexts.
+Before the first statement data capture, admission prepares the complete selected
+policy/view source closure and the original command's sources and mutation
+targets. It unions only their actual physical relation references, then takes
+the ordinary statement snapshot once. Physical capture consumes each prepared
+source occurrence once; it neither reselects policies nor reimports stored views.
+Snapshot membership is not an SSI predicate read: retaining a mutation target
+root does not enroll it as a read. Actual query-source acquisition records only
+that source bundle's ordinary serializable read footprint.
+An existing lexical data view is never extended, rebased or bypassed. SQL routine
+activation pairs its fresh lexical view with fresh pending references and restores
+both on return; rule commands sharing a statement prepare their union first.
+Statement-owned programs/source pins are released on success, failure and
+cancellation. Successful lazy SQL cursor/protocol publication transfers ownership
+to the producer, retaining its admitted quals and nested pins across opening
+statement Finish. FETCH uses current operation callbacks without reselecting the
+admitted program. Producer teardown releases it exactly once; eager rows retain
+no live guard. Fresh held execution recaptures current authority/policies.
+MERGE/ON CONFLICT action-specific expression enforcement remains an
+explicit0A000 boundary, without rejecting bypass or metadata default-deny routes.
+
+Ordinary failing-row constraint detail is withheld when metadata-only row-security
+eligibility applies, even with table SELECT and an always-TRUE granting policy.
+This is disclosure control, not policy expression evaluation. The diagnostic
+uses the named logical mutation target and its current command principal; a
+physical child reports its constraint identity without changing that authority.
+
+Native admission has a bounded post-wait identity boundary: if role membership
+changes any actual selected clause/group payload set while imported policy
+sources wait for locks, execution fails closed with the existing catalog-replaced
+admission error. The final whole-graph fence includes earlier siblings, nested
+helper programs and enabled-RLS bypasses, not just the last imported parent.
+It never executes the stale grant, retargets, reanalyzes or retries. An unrelated
+global role revision does not invalidate an unchanged selection; current
+source/provider authority is checked afresh. Additional policy-import waits also
+recheck only the active command's original logical binding through its existing
+ACL walker and original principal: revoked ordinary rights produce the real42501.
+No no-wait ACL sweep or historical cursor/FETCH reauthorization is added.
+Selected-program replacement is a native admission contract, not a PostgreSQL
+SQLSTATE parity claim.
 
 `row_security_active(text|oid)` shares the enforcement owner's metadata-only
 eligibility predicate, stopping before policy selection or expression demand.
@@ -878,10 +957,14 @@ is not invalidated retroactively by later ACL/comment changes.
 
 Internal child actions run under affected child-owner authority and bypass child
 row-security enforcement without changing initiating session identity or parent
-selection authority. That enforcement bypass must not leak into error-detail
-disclosure: reporting uses its own invoker/child-owner visibility and row-security
-applicability. Key labels/values are withheld where required; generated action
-Context is distinct from after-event diagnostics.
+selection authority. Reporting is separately authorized: pinned PostgreSQL18.6
+retains child-owner-visible failing-row Detail and SPI Context for local NOT NULL
+and CHECK errors even under FORCE. This route requires a currently settling,
+validated writable child admission and actual acting/named child-owner identity;
+an authority marker alone, read-only admission or ordinary caller cannot bypass
+the metadata disclosure guard. Child FK after-event key labels/values still use
+their own visibility and row-security checks and may be withheld under FORCE.
+Generated action Context remains distinct from after-event diagnostics.
 
 ## Testing
 
