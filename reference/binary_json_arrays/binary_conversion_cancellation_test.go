@@ -11,10 +11,10 @@ import (
 func TestReferenceBinaryConversionActiveCancellation(t *testing.T) {
 	binaryConversionScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE bc_active_input(id integer,b bytea)", 0))
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE bc_active_out(id integer,b bytea)", 0))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE bc_active_out(id integer,b bytea,CHECK(pg_advisory_xact_lock(octet_length(b)::bigint) IS NOT NULL))", 0))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`INSERT INTO bc_active_out VALUES(0,'\xff')`, 1))
-		// Both providers must scan a genuine large stored payload. Do not use a
-		// substitute pg_sleep query, production delay, hook or context-check count.
+		// Admission depends on real conversion output from this stored payload,
+		// not provider timing, substitute work or an inflated input.
 		large := bytes.Repeat([]byte{0xe9}, 32<<20)
 		inserted, err := c.ExecContext(p.Ctx, "INSERT INTO bc_active_input VALUES(1,$1),(2,$2)", []byte{0xe9}, large)
 		if err != nil {
@@ -23,7 +23,12 @@ func TestReferenceBinaryConversionActiveCancellation(t *testing.T) {
 		if n, err := inserted.RowsAffected(); err != nil || n != 2 {
 			t.Fatal(n, err)
 		}
-		readSQL := "SELECT sum(octet_length(encode(b,'hex'))) AS n FROM bc_active_input"
+		readSQL := `WITH converted AS MATERIALIZED (
+			SELECT encode(b,'hex') AS v FROM bc_active_input
+		), gated AS MATERIALIZED (
+			SELECT v,pg_advisory_xact_lock(octet_length(v)::bigint) AS gate FROM converted
+		)
+		SELECT sum(octet_length(v)) AS n FROM gated`
 		writeSQL := "INSERT INTO bc_active_out(id,b) SELECT id,convert(b,'LATIN1','UTF8') FROM bc_active_input ORDER BY id"
 		read, err := c.PrepareContext(p.Ctx, readSQL)
 		if err != nil {
@@ -35,7 +40,7 @@ func TestReferenceBinaryConversionActiveCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer write.Close()
-		fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, "sqltype.binaryFormatPass", func(ctx context.Context) fixture.RelationOutcome {
+		binaryConversionGateCancel(t, p, b, c, false, func(ctx context.Context) fixture.RelationOutcome {
 			rows, err := read.QueryContext(ctx)
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})
@@ -50,7 +55,7 @@ func TestReferenceBinaryConversionActiveCancellation(t *testing.T) {
 		if n, err := changed.RowsAffected(); err != nil || n != 1 {
 			t.Fatal(n, err)
 		}
-		fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, "sqltype.binaryEncodingPass", func(ctx context.Context) fixture.RelationOutcome {
+		binaryConversionGateCancel(t, p, b, c, true, func(ctx context.Context) fixture.RelationOutcome {
 			result, err := write.ExecContext(ctx)
 			return fixture.RelationOutcome{Result: result, Err: err}
 		})

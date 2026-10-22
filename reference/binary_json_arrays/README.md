@@ -2353,19 +2353,44 @@ Replay objects have bounded deferred cleanup before the next backend body,
 including failure exits; the shared scenario resets schemas per test, not backend.
 
 `TestReferenceBinaryConversionActiveCancellation` separately exercises admitted
-aggregate encode reads and ordered staged convert writes on a32MiB LATIN1 source.
-Native observes the worker's actual provider stack before canceling its context;
-PostgreSQL observes the actual query active on the held backend PID and uses
-server cancellation, preserving the same session. Workers have bounded joins on
-every exit. Assertions require no successful cursor/result, unchanged sentinel,
-ordinary native context cancellation or the complete PostgreSQL57014 diagnostic,
-then independently expected read sum4 and write count2/UTF8 bytes through the
-same pre-held read/write statements. No pg_sleep substitute or production delay
-is used. Existing precanceled/expired contexts remain separate coverage.
+aggregate encode reads and ordered staged convert writes on the unchanged32MiB
+LATIN1 source. A materialized encode producer feeds an output-length advisory
+transaction gate before the aggregate returns. The original ordered INSERT uses
+a destination CHECK gate derived from actual converted bytes, preserving its
+affected count2. An independent transaction holds key67108864. Admission requires
+the physical worker's exact non-granted bigint-namespace ExclusiveLock in the
+current database, the actual holder in `pg_blocking_pids`, and that holder's
+matching granted lock. Write admission additionally requires the worker's
+retained granted key2: the earlier destination row passed validation, but is not
+published. Read admission does not assume input row order.
+
+Only after this persistent witness does native cancel its operation context or
+PostgreSQL cancel the actual backend through the server. Workers have bounded
+joins on every exit, before releasing the blocker or held handles. An idle
+observer under a live cleanup context requires both worker keys to disappear,
+then both holder/worker keys to be absent after holder rollback. Assertions
+require nil cursor/result, the unchanged sentinel with no partial insertion,
+ordinary native `context.Canceled` or the complete English PostgreSQL57014
+diagnostic, then independently expected read sum4 and write count2/exact UTF8
+bytes through the same physical connection and same pre-held statements. Owned
+row/recorder assertions remain in force. No sleeps, operation retries, private
+stack sampling, precancel substitution or inflated input supply admission.
+
+This proves active SQL cancellation **after conversion output exists**, at the
+aggregate gate or destination validation, not interruption inside a provider.
+Existing provider-checkpoint units and direct/prepared precanceled/expired
+contexts remain separate, unchanged coverage.
+
+The following selected dual-mode and race commands are also the actual feature
+smoke: each executes both admitted cancellations, lock cleanup, sentinel
+atomicity and same-held recovery. Run oracle-first, each under an external
+900-second deadline; gate/oracle/deadline failures are failures, not skips.
+Whole-project Docker-free verification remains `make quickcheck` under900 seconds.
 
 ```sh
-make check RUN='^TestReferenceBinaryConversionActiveCancellation$'
-make check REFERENCE=1 RUN='^TestReferenceBinaryConversionActiveCancellation$'
+timeout --signal=KILL 900s make check RUN='^TestReferenceBinaryConversionActiveCancellation$' REFERENCE=1
+timeout --signal=KILL 900s make check RUN='^TestReferenceBinaryConversionActiveCancellation$'
+timeout --signal=KILL 900s make check RUN='^TestReferenceBinaryConversionActiveCancellation$' RACE=1
 ```
 
 The no-bind direct repeated-parameter witness asserts an explicit inherited
