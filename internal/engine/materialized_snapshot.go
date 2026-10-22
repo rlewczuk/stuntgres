@@ -63,43 +63,19 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 			return fmt.Errorf("stuntgres: invalid materialized view snapshot target %s.%s", record.Schema, record.Name)
 		}
 		seen[address] = true
-		var domainReplays []typedef.PositionedDomainReplay
-		statements, err := parser.ParseWithOptions(record.Rows, parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
-			record, recognized, err := typedef.DecodeDomainReplay(comment)
-			if err == nil && recognized {
-				domainReplays = append(domainReplays, typedef.PositionedDomainReplay{Record: record, End: position.Offset + len(comment)})
-			}
-			return err
-		}})
-		if err != nil {
-			return err
-		}
-		domainReplayPairs, err := typedef.PairDomainReplay(record.Rows, statements, domainReplays)
+		statements, domainReplayPairs, err := view.ParseMaterializedSnapshot(ctx, record.Rows)
 		if err != nil {
 			return err
 		}
 		var rows [][]sqltype.Value
 		for _, statement := range statements {
-			s, ok := statement.(*parser.Insert)
-			if !ok || s.Source != nil || len(s.Targets) != 0 || s.Override != 0 || len(s.Name.Parts) != 2 || s.Name.Parts[0].Text != record.Schema || s.Name.Parts[1].Text != record.Name {
-				return fmt.Errorf("stuntgres: invalid materialized view snapshot row statement")
+			s, err := view.MaterializedSnapshotInsert(record, d, statement)
+			if err != nil {
+				return err
 			}
 			if s.DefaultValues {
-				if len(d.Columns) != 0 {
-					return fmt.Errorf("stuntgres: snapshot DEFAULT requires zero columns")
-				}
 				rows = append(rows, []sqltype.Value{})
 				continue
-			}
-			for _, row := range s.Rows {
-				if len(row) != len(d.Columns) {
-					return fmt.Errorf("stuntgres: invalid materialized view snapshot row width")
-				}
-				for _, raw := range row {
-					if err := view.MaterializedSnapshotScalar(raw); err != nil {
-						return err
-					}
-				}
 			}
 			var replay *typedef.DomainReplayRecord
 			if captured, ok := domainReplayPairs[s]; ok {

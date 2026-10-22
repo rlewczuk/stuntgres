@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/sqltype"
 )
 
 // ConcurrentPrevious is the previous contents of a concurrently refreshed
@@ -98,4 +99,31 @@ func (r *MaterializedReplacement) Current(stage *catalog.Candidate, snapshot *ca
 		return catalog.Conflict{}
 	}
 	return nil
+}
+
+// CheckMaterializedRows checks that every refresh row is as wide as d and that
+// each value has its column's type.
+func CheckMaterializedRows(d *catalog.Relation, rows [][]sqltype.Value) error {
+	for _, row := range rows {
+		if len(row) != len(d.Columns) {
+			return fmt.Errorf("stuntgres: invalid materialized row width")
+		}
+		for i, value := range row {
+			if value.Type() != d.Columns[i].Usage.Type {
+				return fmt.Errorf("stuntgres: invalid materialized value type")
+			}
+		}
+	}
+	return nil
+}
+
+// MaterializedIndexCount counts the indexes of parent in base.
+func MaterializedIndexCount(base catalog.Read, parent ids.ObjectAddress) int {
+	count := 0
+	for _, descriptor := range base.Descriptors() {
+		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
+			count++
+		}
+	}
+	return count
 }

@@ -240,15 +240,8 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	if d.Revision() == ids.DefinitionRevision(^uint64(0)) || previous.Generation == ^uint64(0) {
 		return fmt.Errorf("stuntgres: materialized replacement generation exhausted")
 	}
-	for _, row := range rows {
-		if len(row) != len(d.Columns) {
-			return fmt.Errorf("stuntgres: invalid materialized row width")
-		}
-		for i, value := range row {
-			if value.Type() != d.Columns[i].Usage.Type {
-				return fmt.Errorf("stuntgres: invalid materialized value type")
-			}
-		}
+	if err := view.CheckMaterializedRows(d, rows); err != nil {
+		return err
 	}
 	versions, err := e.storage.AllocateRowVersionsLocked(rows, nil)
 	if err != nil {
@@ -261,11 +254,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 		return err
 	}
 	s.materialized().Replacement = &view.MaterializedReplacement{Original: d, Descriptor: &next, Predecessor: previous, Storage: &storage.Relation{Versions: versions, Generation: previous.Generation + 1}, Generation: previous.Generation, Length: len(previous.Versions), Ends: previous.Ends}
-	for _, descriptor := range s.Base.Descriptors() {
-		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == d.Address() {
-			s.materialized().Replacement.IndexCount++
-		}
-	}
+	s.materialized().Replacement.IndexCount = view.MaterializedIndexCount(s.Base, d.Address())
 	if s.indexesOrZero().Sets == nil {
 		s.indexes().Sets = make(map[ids.ObjectAddress]int)
 	}

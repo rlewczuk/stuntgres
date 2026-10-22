@@ -12,6 +12,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -115,6 +116,54 @@ func DecodeMaterializedSnapshot(comment string) (MaterializedSnapshot, bool, err
 		return formatError()
 	}
 	return record, true, nil
+}
+
+// ParseMaterializedSnapshot parses a snapshot's row statements and pairs each
+// INSERT with the domain replay record of its line comment, if any.
+func ParseMaterializedSnapshot(ctx context.Context, rows string) ([]parser.Statement, map[*parser.Insert]typedef.DomainReplayRecord, error) {
+	var domainReplays []typedef.PositionedDomainReplay
+	statements, err := parser.ParseWithOptions(rows, parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
+		record, recognized, err := typedef.DecodeDomainReplay(comment)
+		if err == nil && recognized {
+			domainReplays = append(domainReplays, typedef.PositionedDomainReplay{Record: record, End: position.Offset + len(comment)})
+		}
+		return err
+	}})
+	if err != nil {
+		return nil, nil, err
+	}
+	pairs, err := typedef.PairDomainReplay(rows, statements, domainReplays)
+	if err != nil {
+		return nil, nil, err
+	}
+	return statements, pairs, nil
+}
+
+// MaterializedSnapshotInsert checks that statement is a plain INSERT into
+// record's materialized view d: DEFAULT VALUES only for zero columns, every
+// row as wide as d, and every cell a closed snapshot scalar.
+func MaterializedSnapshotInsert(record MaterializedSnapshot, d *catalog.Relation, statement parser.Statement) (*parser.Insert, error) {
+	s, ok := statement.(*parser.Insert)
+	if !ok || s.Source != nil || len(s.Targets) != 0 || s.Override != 0 || len(s.Name.Parts) != 2 || s.Name.Parts[0].Text != record.Schema || s.Name.Parts[1].Text != record.Name {
+		return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot row statement")
+	}
+	if s.DefaultValues {
+		if len(d.Columns) != 0 {
+			return nil, fmt.Errorf("stuntgres: snapshot DEFAULT requires zero columns")
+		}
+		return s, nil
+	}
+	for _, row := range s.Rows {
+		if len(row) != len(d.Columns) {
+			return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot row width")
+		}
+		for _, raw := range row {
+			if err := MaterializedSnapshotScalar(raw); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return s, nil
 }
 
 // The payload admits only closed canonical codec forms, not Restore's wider
