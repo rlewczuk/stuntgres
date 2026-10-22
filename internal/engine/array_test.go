@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -28,7 +29,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	view := e.CatalogRead()
 	for _, descriptor := range view.Descriptors() {
 		if typ, ok := descriptor.(*catalog.Type); ok {
-			if err := (typeProvider{}).Validate(view, typ); err != nil {
+			if err := (stored.TypeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(err)
 			}
 			if typ.Array != 0 {
@@ -90,7 +91,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	copied := *domain
 	copied.Array = sqltype.NameArray
 	broken.SetDescriptor(domain.Address(), &copied)
-	if err := (typeProvider{}).Validate(e.catalog.read(broken), associated); err == nil {
+	if err := (stored.TypeProvider{}).Validate(e.catalog.read(broken), associated); err == nil {
 		t.Fatal("broken reverse association accepted")
 	}
 	foreignBase, _ := New().CatalogRead().LookupType(sqltype.Int4)
@@ -106,7 +107,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	forged.SQLType = foreignArray
 	broken = catalog.CloneState(e.catalog.state)
 	broken.SetDescriptor(associated.Address(), &forged)
-	if err := (typeProvider{}).Validate(e.catalog.read(broken), &forged); err == nil {
+	if err := (stored.TypeProvider{}).Validate(e.catalog.read(broken), &forged); err == nil {
 		t.Fatal("foreign array element accepted")
 	}
 }
@@ -282,7 +283,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	view := e.catalog.read(next)
 	for _, descriptor := range next.Descriptors() {
 		if typ, ok := descriptor.(*catalog.Type); ok {
-			if err := (typeProvider{}).Validate(view, typ); err != nil {
+			if err := (stored.TypeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(err)
 			}
 		}

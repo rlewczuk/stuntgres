@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -69,7 +70,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 		if typ.OwningRelation != d.Address() {
 			t.Fatal("type owner", typ)
 		}
-		if err := (typeProvider{}).Validate(view, typ); err != nil {
+		if err := (stored.TypeProvider{}).Validate(view, typ); err != nil {
 			t.Fatal(err)
 		}
 	}

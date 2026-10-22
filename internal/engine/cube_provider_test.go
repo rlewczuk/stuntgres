@@ -77,7 +77,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			t.Fatal("owner", address)
 		}
 		if i == 0 {
-			if err := (typeProvider{}).Validate(view, member); err != nil {
+			if err := (stored.TypeProvider{}).Validate(view, member); err != nil {
 				t.Fatal(err)
 			}
 		} else if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {

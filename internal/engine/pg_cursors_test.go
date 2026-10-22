@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -175,13 +176,13 @@ func TestPGCursorsCatalog(t *testing.T) {
 		t.Fatal("cursor array owner differs from view", arrayDescriptor)
 	}
 	for _, descriptor := range []catalog.Descriptor{row, array} {
-		if err := (typeProvider{}).Validate(view, descriptor); err != nil {
+		if err := (stored.TypeProvider{}).Validate(view, descriptor); err != nil {
 			t.Fatal(err)
 		}
 	}
 	invalidRow := *row
 	invalidRow.OwningRelation = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}
-	if err := (typeProvider{}).Validate(view, &invalidRow); err == nil {
+	if err := (stored.TypeProvider{}).Validate(view, &invalidRow); err == nil {
 		t.Fatal("cursor row type accepted another backing relation")
 	}
 	// Validator must reject a virtual table or a type descriptor from another

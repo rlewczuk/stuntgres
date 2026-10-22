@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -144,7 +145,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	invalid := explicit
 	invalid.ACLSyntheticDefault = true
 	invalid.ACL = authorization.ACLValue{Explicit: true}
-	if err := (typeProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
+	if err := (stored.TypeProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("accepted synthetic provenance for a nonbaseline ACL")
 	}
 }
@@ -179,7 +180,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					if acl, err := access.RawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
 						t.Fatal("fixture raw ACL is not absent", acl, err)
 					}
-					if err := (typeProvider{}).Validate(oldView, old); err != nil {
+					if err := (stored.TypeProvider{}).Validate(oldView, old); err != nil {
 						t.Fatal("invalid constructor descriptor", err)
 					}
 
@@ -214,7 +215,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					if acl, err := access.RawObjectACL(currentView, current.Address()); err != nil || !reflect.DeepEqual(acl, want) {
 						t.Error("genuine explicit ACL is not raw-visible", acl, want, err)
 					}
-					if err := (typeProvider{}).Validate(currentView, current); err != nil {
+					if err := (stored.TypeProvider{}).Validate(currentView, current); err != nil {
 						t.Error("setter published an invalid type descriptor", err)
 					}
 					if typedef.DefaultDomainACL(current) {
@@ -244,7 +245,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					if acl, err := access.RawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
 						t.Error("old snapshot lost raw absence", acl, err)
 					}
-					if err := (typeProvider{}).Validate(oldView, retained); err != nil {
+					if err := (stored.TypeProvider{}).Validate(oldView, retained); err != nil {
 						t.Error("old catalog descriptor became invalid", err)
 					}
 				})

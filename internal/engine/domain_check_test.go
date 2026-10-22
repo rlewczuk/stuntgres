@@ -36,7 +36,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateDomainCheckDefinitions(view, d); err != nil {
+	if err := stored.ValidateDomainCheckDefinitions(view, d); err != nil {
 		t.Fatal(err)
 	}
 	for _, check := range d.DomainChecks {
@@ -223,7 +223,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	if len(d.DomainChecks) != 0 || d.SQLType.HasDomainChecks() || !child.SQLType.HasDomainChecks() || child.SQLType.DomainBase().Type != d.SQLType || len(dependent.DomainChecks) != 1 || !dependent.SQLType.HasDomainChecks() {
 		t.Fatal("retirement lost immutable ancestry")
 	}
-	if err := validateDomainCheckDefinitions(view, child); err != nil {
+	if err := stored.ValidateDomainCheckDefinitions(view, child); err != nil {
 		t.Fatal(err)
 	}
 	plan.WalkExpression(child.DomainChecks[0].Expression, func(node expr.Expr) {

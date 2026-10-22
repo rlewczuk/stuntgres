@@ -1075,7 +1075,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 						return ChangeSet{}, err
 					}
 				}
-				if err := validateTypeProviders(e.catalog.read(next), descriptor); err != nil {
+				if err := stored.ValidateTypeProviders(e.catalog.read(next), descriptor); err != nil {
 					return ChangeSet{}, err
 				}
 			}

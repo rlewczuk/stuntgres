@@ -1,16 +1,17 @@
-package engine
+package stored
 
 import (
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/stored"
 )
 
-func validateTypeProviders(view catalog.Read, d catalog.Descriptor) error {
+// ValidateTypeProviders checks that a published type or relation names the
+// current generations of its domain base, array element and column types.
+func ValidateTypeProviders(view catalog.Read, d catalog.Descriptor) error {
 	switch d := d.(type) {
 	case *catalog.Type:
 		if d.SQLType.IsDomain() {
 			base := d.SQLType.DomainBase()
-			if err := stored.ValidateUsageCollation(view, base); err != nil {
+			if err := ValidateUsageCollation(view, base); err != nil {
 				return err
 			}
 			actual, ok := view.LookupType(base.Type.ID())
@@ -26,7 +27,7 @@ func validateTypeProviders(view catalog.Read, d catalog.Descriptor) error {
 		}
 	case *catalog.Relation:
 		for _, c := range d.Columns {
-			if err := stored.ValidateUsageCollation(view, c.Usage); err != nil {
+			if err := ValidateUsageCollation(view, c.Usage); err != nil {
 				return err
 			}
 			actual, ok := view.LookupType(c.Usage.Type.ID())

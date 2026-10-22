@@ -254,12 +254,12 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 		return fmt.Errorf("%s", message)
 	}
 	if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.Extension != (ids.ObjectAddress{}) {
-		return (typeProvider{}).Validate(c.CatalogView, t)
+		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
 	}
 	if t.SQLType.IsUserDefined() && !t.SQLType.IsComposite() {
 		c.Domains = append(c.Domains, t)
 	} else if t.SQLType.IsArray() {
-		if err := (typeProvider{}).Validate(c.CatalogView, t); err != nil {
+		if err := (stored.TypeProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
 	} else if t.Namespace().ObjectID != ids.PGCatalogNamespaceOID && t.Namespace().ObjectID != 13229 && t.OwningRelation == (ids.ObjectAddress{}) {

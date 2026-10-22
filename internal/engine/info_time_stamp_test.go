@@ -36,10 +36,10 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	if !ok || array.Element() != d.SQLType || array.Concrete() || array.ID() != d.SQLType.AssociatedArray() {
 		t.Fatal("array identity", array)
 	}
-	if err := (typeProvider{}).Validate(view, d); err != nil {
+	if err := (stored.TypeProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if err := (typeProvider{}).Validate(view, view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})); err != nil {
+	if err := (stored.TypeProvider{}).Validate(view, view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})); err != nil {
 		t.Fatal(err)
 	}
 	if err := access.ValidateACL(e.Roles(), d); err != nil {
@@ -104,7 +104,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	}
 	for _, descriptor := range next.Descriptors() {
 		if typ, ok := descriptor.(*catalog.Type); ok {
-			if err := (typeProvider{}).Validate(view, typ); err != nil {
+			if err := (stored.TypeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(typ.Name(), err)
 			}
 		}

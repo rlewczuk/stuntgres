@@ -242,7 +242,7 @@ func (r engineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, pa
 	return comparisons, nil
 }
 func (r engineCatalogRuntime) ValidateType(view catalog.Read, d *catalog.Type) error {
-	return (typeProvider{}).Validate(view, d)
+	return (stored.TypeProvider{}).Validate(view, d)
 }
 func (r engineCatalogRuntime) TypeOutput(owner *catalog.Owner, view catalog.Read, roles authorization.Read) sqltype.OutputEnvironment {
 	return sqltype.OutputEnvironment{

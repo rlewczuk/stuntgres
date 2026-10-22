@@ -46,7 +46,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 		t.Fatal("old snapshot mutated")
 	}
 	for _, d := range []*catalog.Type{parent, child, own, mask} {
-		if err := validateDomainDefault(view, d); err != nil {
+		if err := stored.ValidateDomainDefault(view, d); err != nil {
 			t.Fatal(d.Name(), err)
 		}
 	}
@@ -101,31 +101,31 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	}
 	badPresentation := *parent
 	badPresentation.DomainDefaultText = ""
-	if err := validateDomainDefault(view, &badPresentation); err == nil {
+	if err := stored.ValidateDomainDefault(view, &badPresentation); err == nil {
 		t.Fatal("recipe accepted absent stored presentation")
 	}
 	badPresentation = *plain
 	badPresentation.DomainDefaultText = "NULL"
-	if err := validateDomainDefault(view, &badPresentation); err == nil {
+	if err := stored.ValidateDomainDefault(view, &badPresentation); err == nil {
 		t.Fatal("presentation accepted absent recipe")
 	}
 	badPresentation = *child
 	badPresentation.DomainDefaultText = "22"
-	if err := validateDomainDefault(view, &badPresentation); err == nil {
+	if err := stored.ValidateDomainDefault(view, &badPresentation); err == nil {
 		t.Fatal("inherited presentation diverged from captured parent")
 	}
 	bad := *parent
 	definition := *parent.DomainDefault
 	definition.OID = 1
 	bad.DomainDefault = &definition
-	if err := validateDomainDefault(view, &bad); err == nil {
+	if err := stored.ValidateDomainDefault(view, &bad); err == nil {
 		t.Fatal("domain accepted pg_attrdef identity")
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Int4)
 	definition = *parent.DomainDefault
 	definition.Expression = plan.LiteralExpr{Info: expr.Info{Usage: foreign.Usage()}, Value: sqltype.Null(foreign)}
 	bad.DomainDefault = &definition
-	if err := validateDomainDefault(view, &bad); err == nil {
+	if err := stored.ValidateDomainDefault(view, &bad); err == nil {
 		t.Fatal("foreign recipe type accepted")
 	}
 }
@@ -160,7 +160,7 @@ func TestDomainDefaultLogicalSelectionInternal(t *testing.T) {
 	if stamp.DomainDefault == nil {
 		t.Fatal("builtin time recipe absent")
 	}
-	if err := validateDomainDefault(view, stamp); err != nil {
+	if err := stored.ValidateDomainDefault(view, stamp); err != nil {
 		t.Fatal(err)
 	}
 	if stamp.DomainDefault.Expression.Properties().Volatility != expr.Stable {
@@ -191,7 +191,7 @@ func TestDomainDefaultRemapInternal(t *testing.T) {
 	remapped := source.catalog.read(next)
 	for _, name := range []string{"remap_base", "remap_child", "remap_cast"} {
 		d := domainUnitType(t, remapped, name)
-		if err := validateDomainDefault(remapped, d); err != nil {
+		if err := stored.ValidateDomainDefault(remapped, d); err != nil {
 			t.Fatal(name, err)
 		}
 		if d.DomainDefault.Expression.ResultUsage().Type == domainUnitType(t, original, name).DomainDefault.Expression.ResultUsage().Type {
@@ -294,7 +294,7 @@ func TestDomainDefaultBareNullInternal(t *testing.T) {
 		if d.DomainDefault != nil || d.DomainDefaultOwn || d.DomainDefaultText != "" {
 			t.Fatal("bare NULL retained a recipe or fabricated own provenance", name)
 		}
-		if err := validateDomainDefault(view, d); err != nil {
+		if err := stored.ValidateDomainDefault(view, d); err != nil {
 			t.Fatal(name, err)
 		}
 		facts, err := pgcatalog.TypeFacts(op.Context(), view, d, sqltype.OutputEnvironment{})
@@ -310,7 +310,7 @@ func TestDomainDefaultBareNullInternal(t *testing.T) {
 		if _, literal := d.DomainDefault.Expression.(plan.LiteralExpr); literal {
 			t.Fatal("control lost its actual conversion/expression node", name)
 		}
-		if err := validateDomainDefault(view, d); err != nil {
+		if err := stored.ValidateDomainDefault(view, d); err != nil {
 			t.Fatal(name, err)
 		}
 	}

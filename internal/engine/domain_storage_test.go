@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -106,7 +107,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	if retained.Get(table.Address()) != table || len(table.Columns) != 4 || len(source.Versions[0].Values) != 4 || source.Versions[0].Values[1].Type() != a.SQLType {
 		t.Fatal("immutable old descriptor/storage altered")
 	}
-	if err = validateTypeProviders(current, next); err != nil {
+	if err = stored.ValidateTypeProviders(current, next); err != nil {
 		t.Fatal("dangling scalar provider", err)
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS integer"))

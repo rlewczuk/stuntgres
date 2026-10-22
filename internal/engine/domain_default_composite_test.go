@@ -102,7 +102,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	after = e.CatalogRead()
 	mapped = after.MustType(survivor.Address())
 	references(after, mapped, source.Attributes[1])
-	if err := validateDomainDefault(after, mapped); err != nil {
+	if err := stored.ValidateDomainDefault(after, mapped); err != nil {
 		t.Fatal(err)
 	}
 	if err := table.ValidateGenerationPlan(after, nil, mapped.DomainDefault.Expression); err != nil {
@@ -184,7 +184,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 		t.Fatal("duplicate retained attribute admitted")
 	}
 	foreign := New().CatalogRead()
-	if err := validateDomainDefault(foreign, mapped); err == nil {
+	if err := stored.ValidateDomainDefault(foreign, mapped); err == nil {
 		t.Fatal("foreign default/attribute authority admitted")
 	}
 	roleExecute(t, e, op, "INSERT INTO public.dd_survivor(id) VALUES(2)")

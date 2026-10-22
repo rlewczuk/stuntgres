@@ -108,7 +108,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(relationProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(typeProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(stored.TypeProvider{}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(catalog.CollationProvider{}); err != nil {

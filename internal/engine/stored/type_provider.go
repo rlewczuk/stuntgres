@@ -1,9 +1,8 @@
-package engine
+package stored
 
 import (
 	"fmt"
 	"stuntgres/internal/engine/extension"
-	"stuntgres/internal/engine/stored"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -11,10 +10,13 @@ import (
 	"stuntgres/internal/engine/typedef"
 )
 
-type typeProvider struct{}
+// TypeProvider validates the type class: identity, ACL baseline, installed
+// membership, row-type ownership, composite members, domain bases, defaults
+// and CHECKs, and array associations.
+type TypeProvider struct{}
 
-func (typeProvider) ClassID() ids.OID { return ids.TypeClassID }
-func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) error {
+func (TypeProvider) ClassID() ids.OID { return ids.TypeClassID }
+func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) error {
 	t, ok := descriptor.(*catalog.Type)
 	if !ok || t.SQLType == nil || t.SQLType.ID() == 0 {
 		return fmt.Errorf("stuntgres: invalid type descriptor")
@@ -82,18 +84,18 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 	}
 	if t.SQLType.IsDomain() {
 		base := t.SQLType.DomainBase()
-		if err := stored.ValidateUsageCollation(view, base); err != nil {
+		if err := ValidateUsageCollation(view, base); err != nil {
 			return err
 		}
 		actual, exists := view.LookupType(base.Type.ID())
 		if !exists || actual != base.Type || t.SQLType.Concrete() && (!base.Valid() || t.ObjectRevision == 0) || t.Dimensions < 0 {
 			return fmt.Errorf("stuntgres: invalid domain base generation")
 		}
-		if err := validateDomainCheckDefinitions(view, t); err != nil {
+		if err := ValidateDomainCheckDefinitions(view, t); err != nil {
 			return err
 		}
 	}
-	if err := validateDomainDefault(view, t); err != nil {
+	if err := ValidateDomainDefault(view, t); err != nil {
 		return err
 	}
 	if t.SQLType.IsArray() {

@@ -21,7 +21,7 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 			continue
 		}
 		count++
-		if err := (typeProvider{}).Validate(view, typ); err != nil {
+		if err := (stored.TypeProvider{}).Validate(view, typ); err != nil {
 			t.Fatal(address, err)
 		}
 		if typ.Array != 0 {
