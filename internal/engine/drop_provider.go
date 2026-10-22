@@ -328,7 +328,7 @@ func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 			case ids.ForeignWrapperClassID, ids.ForeignServerClassID:
 				targets = append(targets, address)
 			case ids.ProcedureClassID:
-				if procedure, ok := p.retirementDescriptor(address).(*catalog.Procedure); ok && procedure.Foreign != nil {
+				if procedure, ok := p.RetirementDescriptor(address).(*catalog.Procedure); ok && procedure.Foreign != nil {
 					targets = append(targets, address)
 				}
 			}
@@ -821,7 +821,7 @@ func (p *dropProvider) readInputDescriptor(address ids.ObjectAddress) catalog.De
 
 // Retirement discovery retains the original identity of an already removed
 // provider so its AUTO closure remains traversable, just like the stage path.
-func (p *dropProvider) retirementDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+func (p *dropProvider) RetirementDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	if descriptor := p.inputDescriptor(address); descriptor != nil {
 		return descriptor
 	}

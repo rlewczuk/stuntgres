@@ -591,7 +591,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	}
 	// Provider/ref validation above belongs to the authentic predecessor.
 	// AUTO retirement below follows the actual metadata entering this phase.
-	d = provider.retirementDescriptor(ref.Address)
+	d = provider.RetirementDescriptor(ref.Address)
 	if provider.Removed(ref.Address) {
 		return nil
 	}
@@ -604,7 +604,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		}
 	}
 	if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsComposite() {
-		if backing, ok := provider.retirementDescriptor(typ.OwningRelation).(*catalog.Relation); ok && backing.RelationKind == catalog.CompositeRelation {
+		if backing, ok := provider.RetirementDescriptor(typ.OwningRelation).(*catalog.Relation); ok && backing.RelationKind == catalog.CompositeRelation {
 			if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), backing.Address()), false); err != nil {
 				return err
 			}
@@ -616,7 +616,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		}
 	}
 	if r, ok := d.(*catalog.Relation); ok && r.RowType != 0 {
-		row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}).(*catalog.Type)
+		row, ok := provider.RetirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}).(*catalog.Type)
 		if !ok || row.OwningRelation != r.Address() {
 			return catalog.Conflict{}
 		}

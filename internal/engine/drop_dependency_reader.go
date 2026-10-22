@@ -6,14 +6,33 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 )
 
-var _ table.DropDependencyReader = (*dropProvider)(nil)
+var (
+	_ table.DropDependencyReader = (*dropProvider)(nil)
+	_ view.DropReader            = (*dropProvider)(nil)
+)
 
 func (p *dropProvider) Context() context.Context { return p.ctx }
 func (p *dropProvider) BaseRead() catalog.Read   { return p.base }
 func (p *dropProvider) BaseRef(address ids.ObjectAddress) ids.ObjectRef {
 	return p.owner.catalog.Domain.Ref(p.base.Epoch(), address)
+}
+
+// Path is the SQL lookup path of the drop's diagnostics.
+func (p *dropProvider) Path() []ids.ObjectAddress { return p.path }
+
+// DefinitionInput is the preparation of a prepared drop, the stage of a staged
+// one, or nil for a bare provider.
+func (p *dropProvider) DefinitionInput() catalog.DefinitionReader {
+	if p.prepared != nil {
+		return p.prepared
+	}
+	if p.stage != nil {
+		return stageDefinitionReader{stage: p.stage}
+	}
+	return nil
 }
 func (p *dropProvider) StatementBound() bool { return p.scope != nil }
 func (p *dropProvider) RecursingInheritance() bool {

@@ -78,7 +78,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 	}
 	domainRootOrder := false
 	for _, target := range targets {
-		if typ, ok := provider.retirementDescriptor(target).(*catalog.Type); ok && typ.SQLType.IsDomain() {
+		if typ, ok := provider.RetirementDescriptor(target).(*catalog.Type); ok && typ.SQLType.IsDomain() {
 			domainRootOrder = true
 			break
 		}
@@ -91,11 +91,11 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if relation, ok := provider.retirementDescriptor(target).(*catalog.Relation); ok && relation.RowType != 0 {
+		if relation, ok := provider.RetirementDescriptor(target).(*catalog.Relation); ok && relation.RowType != 0 {
 			if err := visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}, root); err != nil {
 				return err
 			}
-			row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}).(*catalog.Type)
+			row, ok := provider.RetirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}).(*catalog.Type)
 			if !ok || row.OwningRelation != relation.Address() {
 				return fmt.Errorf("stuntgres: missing row type dependency owner")
 			}
@@ -107,7 +107,7 @@ func (provider *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 			}
 		}
-		if relation, ok := provider.retirementDescriptor(target).(*catalog.Relation); ok && relation.Partition != nil {
+		if relation, ok := provider.RetirementDescriptor(target).(*catalog.Relation); ok && relation.Partition != nil {
 			for _, child := range relation.Partition.Children {
 				if provider.Removed(child) {
 					if err := visit(child, root); err != nil {
@@ -480,7 +480,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 	if primary == (ids.ObjectAddress{}) {
 		for i, target := range targets {
 			var owner ids.ObjectAddress
-			switch descriptor := provider.retirementDescriptor(target).(type) {
+			switch descriptor := provider.RetirementDescriptor(target).(type) {
 			case *catalog.Type:
 				owner = descriptor.OwningRelation
 			case *catalog.Relation:
@@ -496,7 +496,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 			// share the subject of their removed partition ancestry.
 			if i >= originalRootCount {
 				for {
-					relation, ok := provider.retirementDescriptor(target).(*catalog.Relation)
+					relation, ok := provider.RetirementDescriptor(target).(*catalog.Relation)
 					if !ok || relation.Membership == nil {
 						break
 					}
@@ -531,7 +531,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 				}
 			}
 			object := stored.DependencyObject(provider.base, target, provider.path)
-			if index, ok := provider.retirementDescriptor(target).(*catalog.Relation); ok && index.SQLIndex != nil {
+			if index, ok := provider.RetirementDescriptor(target).(*catalog.Relation); ok && index.SQLIndex != nil {
 				object = "index " + stored.DependencyRelationName(provider.base, index, provider.path)
 			}
 			details = append(details, edge.Label+" depends on "+object)
@@ -631,7 +631,7 @@ func (provider *dropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	for _, target := range targets {
 		observe := target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ForeignWrapperClassID || target.ClassID == ids.ForeignServerClassID
 		if target.ClassID == ids.ProcedureClassID {
-			procedure, ok := provider.retirementDescriptor(target).(*catalog.Procedure)
+			procedure, ok := provider.RetirementDescriptor(target).(*catalog.Procedure)
 			observe = ok && procedure.Foreign != nil
 		}
 		if observe {
