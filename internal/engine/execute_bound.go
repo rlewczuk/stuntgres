@@ -383,6 +383,14 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		operation, modifying := catalog.ForeignInsert, true
 		switch stmt.(type) {
 		case *parser.Insert:
+			// Binding has already applied Restore's captured namespace and
+			// authenticated reconstruction authority. Reject its actual
+			// foreign target before capability admission or provider capture,
+			// without a second lookup or changes to ordinary diagnostics.
+			if operationReplayOrZero(op).insertAuthority {
+				e.mu.Unlock()
+				return Result{}, sqlError("0A000", "restore cannot write foreign tables")
+			}
 			if b.Insert.Conflict != nil {
 				e.mu.Unlock()
 				return Result{}, sqlError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")

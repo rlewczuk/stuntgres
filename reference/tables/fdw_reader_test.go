@@ -28,6 +28,7 @@ type fdwSQLReader struct {
 	rowTransform                                                                              func(context.Context, stuntgres.ForeignRow) (stuntgres.ForeignRow, error)
 	hook                                                                                      func(context.Context, string) error
 	writer                                                                                    *fdwSQLWriter
+	importDefinitionHook                                                                      func(context.Context, *stuntgres.ForeignTableDefinition) error
 }
 
 func newFDWSQLReader(t *testing.T) *fdwSQLReader {
@@ -109,6 +110,30 @@ func (r *fdwSQLReader) validate(ctx context.Context, kind stuntgres.ForeignObjec
 		return hook(ctx, kind, options)
 	}
 	return nil
+}
+
+// Graph-fixture provenance and synthetic credential options are opaque metadata,
+// not a claim that native SQL connectors implement password transport.
+func (r *fdwSQLReader) validateGraph(ctx context.Context, kind stuntgres.ForeignObjectKind, options []stuntgres.ForeignOption) error {
+	if err := r.call(ctx, "Validate"); err != nil {
+		return err
+	}
+	for _, option := range options {
+		valid := (kind == stuntgres.ForeignWrapper || kind == stuntgres.ForeignServer) && option.Name == "tag" ||
+			kind == stuntgres.ForeignUserMapping && (option.Name == "user" || option.Name == "password" || option.Name == "empty") ||
+			kind == stuntgres.ForeignTable && (option.Name == "schema_name" || option.Name == "table_name") ||
+			kind == stuntgres.ForeignAttribute && option.Name == "column_name"
+		if !valid {
+			return fmt.Errorf("SQL graph provider: unsupported option %q for object %d", option.Name, kind)
+		}
+	}
+	r.mu.Lock()
+	hook := r.validateHook
+	r.mu.Unlock()
+	if hook != nil {
+		return hook(ctx, kind, options)
+	}
+	return ctx.Err()
 }
 func (r *fdwSQLReader) setHook(hook func(context.Context, string) error) {
 	r.mu.Lock()
@@ -383,9 +408,23 @@ func (r *fdwSQLReader) ImportForeignSchema(ctx context.Context, request stuntgre
 	if err := r.call(ctx, "ImportForeignSchema"); err != nil {
 		return nil, err
 	}
-	if len(request.Options) != 0 {
-		return nil, fmt.Errorf("SQL reader: unsupported schema import option %q", request.Options[0].Name)
+	importNotNull := true
+	for _, option := range request.Options {
+		if option.Name != "import_not_null" {
+			return nil, fmt.Errorf("SQL reader: unsupported schema import option %q", option.Name)
+		}
+		switch option.Value {
+		case "true":
+			importNotNull = true
+		case "false":
+			importNotNull = false
+		default:
+			return nil, fmt.Errorf("SQL reader: invalid import_not_null value %q", option.Value)
+		}
 	}
+	r.mu.Lock()
+	definitionHook := r.importDefinitionHook
+	r.mu.Unlock()
 	pool, err := r.pool(request.MappingOptions)
 	if err != nil {
 		return nil, err
@@ -438,6 +477,16 @@ func (r *fdwSQLReader) ImportForeignSchema(ctx context.Context, request stuntgre
 		definition, err := fdwSQLImportTable(ctx, pool, request.RemoteSchema, name)
 		if err != nil {
 			return nil, err
+		}
+		if !importNotNull {
+			for i := range definition.Columns {
+				definition.Columns[i].NotNull = false
+			}
+		}
+		if definitionHook != nil {
+			if err := definitionHook(ctx, &definition); err != nil {
+				return nil, err
+			}
 		}
 		definitions = append(definitions, definition)
 	}
@@ -494,7 +543,7 @@ func fdwSQLImportTable(ctx context.Context, pool *fdwSQLPool, schema, table stri
 				return definition, fmt.Errorf("SQL reader cannot represent source typmod %s/%d", typ, modifier)
 			}
 		}
-		definition.Columns = append(definition.Columns, stuntgres.ForeignColumnDefinition{Name: name, Type: spelling, NotNull: notNull})
+		definition.Columns = append(definition.Columns, stuntgres.ForeignColumnDefinition{Name: name, Type: spelling, NotNull: notNull, Options: []stuntgres.ForeignOption{{Name: "column_name", Value: name}}})
 	}
 	if err := rows.Err(); err != nil {
 		return definition, err

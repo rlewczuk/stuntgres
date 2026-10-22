@@ -95,6 +95,7 @@ type dumpCollector struct {
 // dumpCollectors lists the descriptor kinds Dump accepts, in check order.
 // A descriptor no entry matches is an unsupported kind.
 var dumpCollectors = [...]dumpCollector{
+	{"foreign object", isDumpForeign, collectForeignDump},
 	{"relation", isDumpRelation, collectRelationDump},
 	{"database", isDumpDatabase, collectDatabaseDump},
 	{"parameter", isDumpParameter, collectParameterDump},

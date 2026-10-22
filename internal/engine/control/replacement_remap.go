@@ -52,6 +52,23 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 // references moved through mapping; target is d's new address.
 func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, a, target ids.ObjectAddress, d catalog.Descriptor) (catalog.Descriptor, error) {
 	switch r := d.(type) {
+	case *catalog.ForeignObject:
+		n := *r
+		n.ObjectAddress = target
+		move := func(address ids.ObjectAddress) ids.ObjectAddress {
+			if destination, ok := mapping[address]; ok {
+				return destination
+			}
+			return address
+		}
+		n.Wrapper, n.Server = move(r.Wrapper), move(r.Server)
+		n.Handler, n.Validator = move(r.Handler), move(r.Validator)
+		if n.Address().ClassID == ids.ForeignMappingClassID {
+			n.ObjectName = catalog.ForeignMappingName(n.Server, n.MappedRole)
+		}
+		if target != a || n.Wrapper != r.Wrapper || n.Server != r.Server || n.Handler != r.Handler || n.Validator != r.Validator || n.ObjectName != r.ObjectName {
+			d = &n
+		}
 	case *catalog.Namespace:
 		if target == a && d == current.State().Get(a) && stored.DependPinned(current, nil, a) {
 			// Preflight retained this exact immutable namespace authority.

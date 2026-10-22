@@ -111,7 +111,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
 		}
 		ref = e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)
-	case parser.CommentTable, parser.CommentColumn:
+	case parser.CommentTable, parser.CommentForeignTable, parser.CommentColumn:
 		ref = scope.lockedRef
 		if ref.Domain() == nil {
 			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
@@ -121,8 +121,14 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if s.Kind == parser.CommentColumn {
 			operation = "comment column"
 		}
-		if err := analyze.TableKindError(relation, operation); err != nil {
-			return nil, err
+		if s.Kind == parser.CommentForeignTable {
+			if relation.RelationKind != catalog.ForeignRelation {
+				return nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, relation.Name()))
+			}
+		} else if !(s.Kind == parser.CommentColumn && relation.RelationKind == catalog.ForeignRelation) {
+			if err := analyze.TableKindError(relation, operation); err != nil {
+				return nil, err
+			}
 		}
 		if err := auth.CanUse(e.catalog.Domain.Ref(ref.Epoch, relation.Namespace())); err != nil {
 			return nil, err

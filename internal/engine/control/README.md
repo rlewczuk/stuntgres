@@ -18,7 +18,7 @@ no state between calls. Step 30 of the split created it; see
 
 ### Dump
 
-- **Collect** (`collect.go`, `collect_relation.go`): `Collect(ctx,
+- **Collect** (`collect.go`, `collect_relation.go`, `collect_foreign.go`): `Collect(ctx,
   source)` builds the builtin-schema preamble, then hands every descriptor
   of `source.State` to the Collect tables and returns the filled
   `Capture`. `Source` is what the tables read: the capture's catalog and
@@ -33,15 +33,21 @@ no state between calls. Step 30 of the split created it; see
   descriptor collects it, a descriptor no entry accepts is `unsupported
   catalog descriptor kind`, and objects in temporary namespaces are
   skipped before matching. The relation entry runs the checks shared by
-  every relation, then `dumpRelationCollectors` (composite, index, view,
-  sequence, table) the same way. Order is error precedence: keep it when
+  every relation, then `dumpRelationCollectors` (foreign, composite, index,
+  view, sequence, table) the same way. Order is error precedence: keep it when
   adding an entry. A feature package owns an entry's decision once its
   dump code moves (`routine.OperatorDumped`, `stored.ProcedureProvider`,
   `stored.TypeProvider`). `BootstrapNamespaceDumpable` is the builtin
   namespace ACL check.
+  Foreign declarations use the feature-owned FDW renderer and the same graph:
+  wrapper before server, server before mappings/tables, types before tables
+  and tables before views. Registered procedures are validated destination
+  prerequisites, not executable dump events. Foreign relations never enter
+  storage/row/default-repair collection. Bootstrap CREATE plus ordinary owner
+  transfer preserves independent supported owners without replay grants.
 - **Capture checks** (`capture_checks.go`, `aclitem_preflight.go`):
-  `CheckPortable` rejects catalogs Dump cannot serialize (SQL/MED
-  metadata, default privileges, invalid indexes); `PreflightACLItems`
+  `CheckPortable` rejects unsupported explicit SQL/MED ACLs, default
+  privileges and invalid indexes; `PreflightACLItems`
   checks every ACL leaf a dump would write. The root calls both in its
   lock window, before `Collect`, in today's order.
 - **Capture record** (`dump.go`): `Capture` is everything Dump reads from

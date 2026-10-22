@@ -74,12 +74,59 @@ func restoreAdmitOperator(_ *restoreRun, _ *session.Operation, stmt parser.State
 	return control.NotHandled, nil
 }
 
-// restoreRejectForeignDDL rejects SQL/MED metadata.
-func restoreRejectForeignDDL(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
-	if _, ok := stmt.(*parser.ForeignDDL); ok {
-		return control.NotHandled, sqlError("0A000", "restore cannot replay SQL/MED foreign metadata")
+// restoreAdmitForeignDDL admits declarations, owner transfers and the selected
+// deferred default repairs. Binding validates each repair's actual eligibility.
+func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.Statement) (control.Admission, error) {
+	s, ok := stmt.(*parser.ForeignDDL)
+	if !ok {
+		return control.NotHandled, nil
 	}
-	return control.NotHandled, nil
+	if s.Action == "import" {
+		return control.NotHandled, sqlError("0A000", "restore cannot replay IMPORT FOREIGN SCHEMA")
+	}
+	if s.Action == "create" && !s.IfExists && !s.IfNotExists {
+		switch s.Kind {
+		case "wrapper", "server", "mapping":
+			return control.Admitted, nil
+		case "table":
+			if s.Table != nil {
+				if err := admitRestoreCreateTable(r, op, s.Table); err != nil {
+					return control.NotHandled, err
+				}
+				return control.Admitted, nil
+			}
+		}
+	}
+	if s.Action == "alter" && s.Owner != nil && !s.IfExists && !s.HandlerSet && !s.ValidatorSet && !s.VersionSet && len(s.Options) == 0 && len(s.TableActions) == 0 && s.Inner == nil && s.NewName.Text == "" {
+		switch s.Kind {
+		case "wrapper", "server", "table":
+			return control.Admitted, nil
+		}
+	}
+	if alteration := restoreForeignDefault(s); alteration != nil {
+		if err := dump.RestoreScalar(alteration.Expression, true); err != nil {
+			return control.NotHandled, err
+		}
+		return control.Admitted, nil
+	}
+	return control.NotHandled, sqlError("0A000", "restore accepts only SQL/MED declarations, owner transfers and deferred foreign defaults")
+}
+
+// Keep admission and post-bind validation on the same single-action shape.
+// The foreign metadata executor, not ordinary storage ALTER TABLE, runs it.
+func restoreForeignDefault(s *parser.ForeignDDL) *parser.AlterTableDefault {
+	if s.Action != "alter" || s.Kind != "table" || len(s.Name.Parts) != 2 || s.IfExists || s.IfNotExists ||
+		s.Owner != nil || s.Inner != nil || s.Table != nil || s.NewName.Text != "" ||
+		s.HandlerSet || s.ValidatorSet || s.VersionSet || len(s.Options) != 0 || len(s.ColumnOptions) != 0 || len(s.TableActions) != 1 {
+		return nil
+	}
+	action := s.TableActions[0]
+	alteration := action.Default
+	if action.Ordinary != nil || action.Column.Text != "" || len(action.Options) != 0 || len(action.ColumnOptions) != 0 ||
+		alteration == nil || alteration.Action != parser.SetDefault || alteration.Expression == nil || alteration.Only || len(alteration.Name.Parts) != 0 {
+		return nil
+	}
+	return alteration
 }
 
 // restoreStagesTemporary reports a TEMPORARY or pg_temp-qualified relation,

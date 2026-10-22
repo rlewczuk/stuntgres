@@ -714,6 +714,26 @@ execution, stored views and native Dump/Restore. JSON-text population functions
 and general scalar table functions are not added.
 See [contracts and feature smoke](reference/binary_json_arrays/README.md#jsonb-record-conversion).
 
+## Imported foreign definitions and logical replay — change note
+
+`IMPORT FOREIGN SCHEMA` uses authentic provider catalog discovery, exact
+LIMIT TO/EXCEPT selection and ordinary atomic foreign-table validation.
+Provider import options retain ordered occurrences; the real reference reader
+consumes `import_not_null` and discovers source column mappings and typmods.
+Native Dump/Restore preserves the supported wrapper/server/mapping/table graph,
+ordered options, owners, defaults/CHECKs and foreign table/column comments.
+Destination handlers/validators must be authentically registered beforehand;
+existing target roles are required. No executable code or remote rows are copied,
+and replay never invokes importer/scan/modify callbacks. Validators may run.
+
+Dump includes exact mapping credential bytes and is sensitive host-authorized
+output; protect it. SQL catalog redaction is unchanged. Existing unsupported
+explicit ACL states fail before bytes, and reconstruction grants no lasting
+privileges. Logical live columns retain order/types/options; dropped physical
+attribute numbers are not durable identities. See
+[the embedding contract](docs/DRIVER.md#foreign-provider-registration) and
+[independent import/replay proof](reference/tables/README.md#imported-foreign-definitions-and-native-graph-replay).
+
 ## Foreign metadata and scans — change note
 
 SQL/MED wrappers, servers, user mappings and foreign tables now use the common

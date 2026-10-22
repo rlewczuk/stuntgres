@@ -36,6 +36,7 @@ type dumpScript struct {
 	declarations                              map[ids.OID]dump.Statement
 	operatorLinks                             map[ids.OID]string
 	largeObjectRecords                        []largeObjectDump
+	foreignDefaultStatements                  []string
 }
 
 // buildDumpScript renders the captured groups and statements and orders
@@ -69,7 +70,40 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 	if s.largeObjectRecords, err = prepareLargeObjectDump(ctx, s.Capture); err != nil {
 		return nil, err
 	}
+	if err := s.renderForeignDefaults(ctx); err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// Foreign defaults have no rows to evaluate before replay. Their final names
+// and every referenced provider exist after the ordinary event/name phases.
+// Render now so even a late default failure precedes the first output byte.
+func (s *dumpScript) renderForeignDefaults(ctx context.Context) error {
+	if len(s.ForeignDefaults) == 0 {
+		return nil
+	}
+	for _, event := range s.eventOrder {
+		selected := s.ForeignDefaults[event.OID]
+		if event.Phase != dump.Declaration || len(selected) == 0 {
+			continue
+		}
+		r := s.OriginalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.OID})
+		namespace := s.OriginalCatalog.Get(r.Namespace())
+		qualified := catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(r.Name())
+		for i, column := range r.Columns {
+			attribute := r.Attributes[i]
+			if !selected[attribute] {
+				continue
+			}
+			text, err := stored.DefaultSQL(ctx, s.OriginalCatalog, r.ColumnMeta.Defaults[attribute].Expression)
+			if err != nil {
+				return err
+			}
+			s.foreignDefaultStatements = append(s.foreignDefaultStatements, "ALTER FOREIGN TABLE "+qualified+" ALTER COLUMN "+catalog.QuoteIdentifier(column.Name)+" SET DEFAULT "+text+";\n")
+		}
+	}
+	return nil
 }
 
 // addDeclarationEdges adds the domain, operator and SQL routine declarations
@@ -236,6 +270,9 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 	var err error
 	if s.declarations, err = typedef.MixedDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, viewOrder, s.domainNodes, s.Composites); err != nil {
 		return err
+	}
+	for oid, statement := range s.ForeignDeclarations {
+		s.declarations[oid] = statement
 	}
 	for oid, statement := range s.familySeedFinal {
 		s.declarations[oid] = statement

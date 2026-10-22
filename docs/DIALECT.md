@@ -1069,7 +1069,7 @@ There are no option columns: secret-bearing mapping options do not affect the
 projection. Existing `pg_catalog.pg_user_mappings` option redaction is separate
 and unchanged; `information_schema.user_mapping_options` is outside this feature.
 Reads use actual SQL/MED metadata without invoking a provider or promising remote
-connectivity. Existing SQL/MED Dump restrictions remain unchanged.
+connectivity. Native SQL/MED graph persistence is described below.
 The lifecycle tests also pin the existing notice boundary: server CASCADE retires
 actual mappings on both backends, but native emits no CASCADE notices on this
 SQL/MED path. PostgreSQL emits the complete dependency NOTICE (a single PUBLIC
@@ -1156,9 +1156,19 @@ Foreign MERGE/ON CONFLICT, row locks, index/UNIQUE/PK/FK/trigger callbacks,
 hierarchy expansion and arbitrary remote pushdown remain unsupported. No generic
 has_server_privilege/has_foreign_data_wrapper_privilege SQL execution is added
 merely because static PostgreSQL identities exist. Actual GRANT/REVOKE and common
-authorization/stored-ACL inquiries use the new descriptor classes. Dump rejects
-user SQL/MED metadata before bytes; ordinary Reset/Restore retain installed
-callables, and foreign replay is explicitly rejected atomically. See
+authorization/stored-ACL inquiries use the new descriptor classes. Native Dump
+preserves the supported SQL/MED graph, ordered options and owners, including
+sensitive mapping bytes; it never copies remote rows or executable code. Restore
+requires target registrations and roles, permits authentic validators but no
+IMPORT/scan/modify callbacks, and atomically reconstructs through ordinary DDL.
+Supported captured-reference/REGCLASS foreign defaults replay after every
+provider/name phase through qualified, single-column SET DEFAULT repairs, with
+post-bind eligibility validation and an authority reset. Self/mutual references
+and later-created providers do not require physical foreign storage.
+Unsupported explicit ACL state fails before output; arbitrary foreign ALTER/DROP,
+IMPORT and writes remain excluded from Restore. COMMENT ON FOREIGN TABLE and
+foreign-column comments preserve actual metadata; COMMENT ON TABLE retains its
+ordinary wrong-kind diagnostic. See
 [embedding](DRIVER.md#foreign-provider-registration) and
 [catalog contracts](TABLES.md#foreign-metadata-and-dependencies).
 

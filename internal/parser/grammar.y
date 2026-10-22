@@ -1032,6 +1032,7 @@ identity_alter_options: SET GENERATED identity_mode { $$=&IdentityDefinition{Mod
  | identity_alter_options RESTART sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$3,Pos:$2.pos}) }
  | identity_alter_options RESTART WITH sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$4,Pos:$2.pos}) } ;
 comment: COMMENT ON TABLE relation_name IS comment_text { $$=&Comment{Kind:CommentTable,Name:$4,Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
+ | COMMENT ON FOREIGN TABLE relation_name IS comment_text { $$=&Comment{Kind:CommentForeignTable,Name:$5,Text:$7.Text,Null:$7.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON COLUMN comment_column_name IS comment_text { $$=&Comment{Kind:CommentColumn,Name:$4,Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON SCHEMA name IS comment_text { $$=&Comment{Kind:CommentSchema,Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}},Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON ROLE name IS comment_text { $$=&Comment{Kind:CommentRole,Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}},Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }

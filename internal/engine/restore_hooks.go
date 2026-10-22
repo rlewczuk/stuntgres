@@ -58,7 +58,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "UPDATE catalog repair", Admit: restoreAdmitReplayed(replayRestoreCatalogUpdate)},
 	{Name: "DELETE physical NOT NULL repair", Admit: restoreAdmitReplayed(replayRestorePhysicalNotNull)},
 	{Name: "INSERT", Admit: restoreAdmitChecked(admitRestoreInsert)},
-	{Name: "SQL/MED", Admit: restoreRejectForeignDDL},
+	{Name: "SQL/MED", Admit: restoreAdmitForeignDDL},
 
 	// After admission, before execution.
 	{Name: "inheritance: generation recipe data", Prepare: prepareRestoreRecipeData},

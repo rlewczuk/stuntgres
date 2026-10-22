@@ -40,6 +40,7 @@ var dumpSections = [...]dumpSection{
 	{"policies", emitDumpPolicies},
 	{"row security", emitDumpRowSecurity},
 	{"rules", emitDumpRules},
+	{"foreign defaults", emitDumpForeignDefaults},
 	{"attribute ranks", emitDumpAttributeRanks},
 }
 
@@ -159,6 +160,24 @@ func emitDumpRowSecurity(_ context.Context, s *dumpScript, w *dumpWriter) error 
 // row exists.
 func emitDumpRules(_ context.Context, s *dumpScript, w *dumpWriter) error {
 	return emitDumpGroups(w, s.ruleGroups)
+}
+
+func emitDumpForeignDefaults(_ context.Context, s *dumpScript, w *dumpWriter) error {
+	if len(s.foreignDefaultStatements) == 0 {
+		return nil
+	}
+	if err := w.forceOwner("postgres"); err != nil {
+		return err
+	}
+	if err := emitDumpLines(w, s.foreignDefaultStatements); err != nil {
+		return err
+	}
+	if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
+		return err
+	}
+	// DEFAULT is the interpreter's login identity, not necessarily postgres.
+	w.currentOwner = ""
+	return nil
 }
 
 // emitDumpAttributeRanks repairs array ranks. INHERITS reconstructs every

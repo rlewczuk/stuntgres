@@ -280,12 +280,36 @@ Definition and validator SQL diagnostics retain their fields and existing
 context, with the importing table appended as logical SQL context. Ordinary
 Go/I/O errors are not assigned an invented SQLSTATE or PostgreSQL C context.
 
-Reset/ordinary Restore retain configured callables, not user SQL/MED metadata.
-Dump rejects user SQL/MED metadata before writing any bytes or invoking providers.
-Unchanged auto-installed custom namespaces can accompany ordinary table dumps
-into matching or unconfigured Drivers; owner/comment metadata is preserved.
-Renamed/retired/recreated configured namespaces and existing explicit namespace
-ACL limitations fail preflight. Dump never serializes executable implementations.
+Native Dump serializes supported SQL/MED definitions and their dependency graph,
+not executable callables or remote rows. Restore requires compatible authentic
+target registrations before connector construction and existing named roles.
+Metadata is reconstructed privately under bootstrap authority, then ordinary
+owner transfers restore supported owners; no durable grants or session authority
+leak is introduced. Validators can run during replay; importer/scan/modify
+callbacks cannot. IMPORT and arbitrary foreign ALTER/DROP/writes are not replay
+operations. Reset removes user metadata while retaining configured callables.
+Selected captured-reference/REGCLASS foreign defaults replay only after all
+providers exist, including self/mutual references. The narrowly admitted qualified
+single-column SET DEFAULT repair must satisfy the existing bound-default
+eligibility rule; it does not admit arbitrary foreign ALTER. Repair rendering
+finishes before the first output byte, and bootstrap authority resets afterward.
+
+Mapping option bytes, including credentials, are faithfully included in this
+host-authorized snapshot. Protect its output; this does not change SQL-view
+redaction. Unsupported explicit wrapper/server/relation/column/namespace ACLs
+fail before any writer bytes. Ordinary objects in unchanged auto-installed
+namespaces remain portable to configured or unconfigured Drivers; executable
+dependencies require matching registrations. Renamed/retired/recreated configured
+namespaces and native capability authority limits remain preflight errors.
+
+IMPORT option occurrences are forwarded in order for provider interpretation,
+including repeated names. Ordinary catalog CREATE/ALTER option uniqueness rules
+remain separate. The authentic reference reader supports import_not_null and
+derives column_name options from real source metadata. Native typed-definition
+parse errors can expose positions within parsed definition fragments, not the
+original IMPORT text; they need not carry postgres_fdw generated-CREATE
+InternalQuery/InternalPosition. Ordinary source authentication/I/O/context errors
+are not converted into invented PostgreSQL connection/cancellation SQLSTATEs.
 Replacement preserves the existing deferred cursor-owner policy: stale scans
 remain owned until the next request, rollback/CLOSE or session close. The next
 FETCH/MOVE detects the stale epoch before pulling and cleans up unlocked, with

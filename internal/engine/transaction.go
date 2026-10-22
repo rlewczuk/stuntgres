@@ -375,7 +375,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 			s.replacementRead = true
 		case *parser.Comment:
 			c := stmt.(*parser.Comment)
-			if c.Kind == parser.CommentTable || c.Kind == parser.CommentColumn {
+			if c.Kind == parser.CommentTable || c.Kind == parser.CommentForeignTable || c.Kind == parser.CommentColumn {
 				e.replacementMu.RLock()
 				s.replacementRead = true
 			}

@@ -174,6 +174,63 @@ provider: public CopyFrom plus direct engine CopyProtocol terminal-veto tests
 cover the writable provider route without inventing server configuration.
 
 
+### Imported foreign definitions and native graph replay
+
+The import definitions prescribe independently specified real source tables:
+`import_a(id integer NOT NULL,label varchar(7),amount numeric(6,2),flag boolean)`
+and `import_b(key bigint NOT NULL,note text)`. The shared body checks exact
+types/typmods/options, direct and held prepared IMPORT, exact filters,
+permissions, conflicts and real provider discovery. `import_not_null` is
+interpreted by the authentic fixture provider, not by the generic engine.
+The PostgreSQL fixture is a real postgres_fdw loopback: its source enum also
+exists locally and imports successfully. The native reader independently
+rejects an unsupported source enum, rather than inventing TEXT. Later typed
+definition fault phases modify only genuinely discovered definitions; this
+Go callback boundary has no PostgreSQL counterpart.
+Repeated import_not_null occurrences follow the observed provider semantics:
+the last value wins, while stored catalog option uniqueness remains separate.
+Imported source columns retain exact singleton column_name options derived
+from real source attributes. Values use direct NUMERIC results ("12.34"/NULL),
+not an unrelated native numeric-to-text cast. Typed-definition parse diagnostics
+retain their actual fragment positions; ordinary source authentication errors
+are not relabeled as PostgreSQL08001. Native callback/control phases are explicit.
+
+Native persistence phases require actual Dump/Reset/Restore of the complete
+SQL/MED graph, compatible destination registrations, existing target roles,
+mixed ownership, ordered options and stable column attribute addressing.
+Remote source mutations must be visible after Restore; old finalized results
+remain unchanged. Controls must not import or scan remotely, and failed
+replacement must preserve sentinels and old metadata. Synthetic secret bytes
+round-trip without logging dump/mapping contents; ordinary catalog redaction
+and unsupported explicit-ACL pre-output rejection remain independently tested.
+
+```sh
+make check RUN='^TestReferenceFDWImport(Definitions|Prepared|Options|Permissions|Cancellation|MalformedDefinitions|Persistence|DefaultPersistence)$' REFERENCE=1
+make check RUN='^TestReferenceFDWImport(Definitions|Prepared|Options|Permissions|Cancellation|MalformedDefinitions|Persistence|DefaultPersistence)$'
+make check RUN='^TestReferenceFDWNativeControls$' REFERENCE=1
+make check RUN='^TestReferenceFDWNativeControls$'
+make check RUN='^TestFDW(DumpDefinitions|DumpDependencies|DumpDeferredDefaults|ReplacementRemap|DumpACLPreflight)$'
+make check RUN='^TestRestoreAdmitsForeignDefaultRepair$'
+make check RUN='^TestReferenceFDWImport(Cancellation|Persistence|DefaultPersistence)$' RACE=1
+```
+
+`DefaultPersistence` independently specifies real source data, qualified default
+presentation and named dependency edges for later providers, ordinary global
+deferral, self/mutual foreign references and a noneligible inline expression.
+Native phases reconstruct through actual controls under mixed owners, forbid
+remote callbacks, and preserve sentinel99 after late bad/default-ineligible
+repairs, reader errors and cancellation. The internal deferred-default definition
+also covers shared-provider inline edges, sparse source attnums, immutable
+definitions, deterministic final repairs, authority reset and zero-output errors.
+There is no temporary oracle-discovery filter.
+
+These are required proof selections, not recorded passing results. The actual
+standalone public-API smoke is supplied as the temporary session artifact
+`fdw-import-smoke.go`; run its resolved absolute path with `go run`. It imports
+two real source tables, performs graph replay without importer/scan callbacks,
+observes changed remote rows and proves invalid-tail replacement preservation.
+It is not a test-runner-only smoke.
+
 ### Foreign metadata and scans
 
 The `fdw_*_test.go` scenarios independently prescribe SQL/MED catalogs, ordered

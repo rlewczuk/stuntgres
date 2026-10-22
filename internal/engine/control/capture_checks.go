@@ -8,16 +8,12 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// CheckPortable rejects catalogs Dump cannot serialize at all: SQL/MED
-// metadata, default privileges and invalid indexes.
+// CheckPortable rejects unsupported explicit SQL/MED ACLs, default privileges
+// and invalid indexes before any writer output.
 func CheckPortable(state *catalog.State) error {
 	for _, descriptor := range state.Descriptors() {
-		_, foreign := descriptor.(*catalog.ForeignObject)
-		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Foreign != nil {
-			foreign = true
-		}
-		if foreign {
-			return fmt.Errorf("stuntgres: dump cannot serialize SQL/MED foreign metadata")
+		if foreign, ok := descriptor.(*catalog.ForeignObject); ok && foreign.ACL.Explicit {
+			return fmt.Errorf("stuntgres: dump cannot serialize explicit foreign object ACL")
 		}
 	}
 	if state.DefaultACLCount() != 0 {

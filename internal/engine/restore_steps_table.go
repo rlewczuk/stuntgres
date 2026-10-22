@@ -185,6 +185,13 @@ func afterRestoreDefault(r *restoreRun, op *session.Operation, stmt parser.State
 	if alteration, ok := stmt.(*parser.AlterTableDefault); ok {
 		return r.stage.validateRestoredDefault(op, alteration)
 	}
+	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
+		if alteration := restoreForeignDefault(foreign); alteration != nil {
+			qualified := *alteration
+			qualified.Name = foreign.Name
+			return r.stage.validateRestoredDefault(op, &qualified)
+		}
+	}
 	return nil
 }
 

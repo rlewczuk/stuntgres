@@ -43,26 +43,30 @@ type Capture struct {
 
 	// Preamble reconstructs bootstrap identity changes before ordinary
 	// namespaces are created.
-	Preamble         []string
-	Schemas          []Schema
-	SchemaComments   []SchemaComment
-	Sequences        []sequence.Dump
-	Domains          []*catalog.Type
-	Collations       []*catalog.Collation
-	Conversions      []*catalog.Conversion
-	Operators        []*catalog.Operator
-	OperatorFamilies []catalog.Descriptor
-	SQLRoutines      []*catalog.Procedure
-	Tables           []table.DumpRelation
-	LargeObjects     []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.
-	Materialized     []table.DumpRelation
-	Views            []OwnedStatement
-	Indexes          []OwnedStatement
-	ViewIndices      map[ids.OID]int
-	TableIndices     map[ids.OID]int
-	IndexIndices     map[ids.OID]int
-	Composites       map[ids.OID]*catalog.Relation
-	Graph            dump.Graph
+	Preamble            []string
+	Schemas             []Schema
+	SchemaComments      []SchemaComment
+	Sequences           []sequence.Dump
+	Domains             []*catalog.Type
+	Collations          []*catalog.Collation
+	Conversions         []*catalog.Conversion
+	Operators           []*catalog.Operator
+	OperatorFamilies    []catalog.Descriptor
+	SQLRoutines         []*catalog.Procedure
+	Tables              []table.DumpRelation
+	LargeObjects        []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.
+	Materialized        []table.DumpRelation
+	Views               []OwnedStatement
+	Indexes             []OwnedStatement
+	ViewIndices         map[ids.OID]int
+	TableIndices        map[ids.OID]int
+	IndexIndices        map[ids.OID]int
+	Composites          map[ids.OID]*catalog.Relation
+	Graph               dump.Graph
+	ForeignDeclarations map[ids.OID]dump.Statement
+	// Foreign defaults replay after every provider/name phase, independently
+	// of ordinary table deferral and without physical rows or storage.
+	ForeignDefaults map[ids.OID]map[int32]bool
 	// Deferral removes only eligible definitions' edges. Inline consumers keep
 	// their prerequisites, including providers shared with deferred defaults.
 	InlinePredecessors map[ids.OID][]ids.OID

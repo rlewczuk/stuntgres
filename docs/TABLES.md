@@ -126,15 +126,34 @@ existing pg_get_acl reads stored wrapper/server ACLs. Merely having static
 PostgreSQL has_server_privilege/has_foreign_data_wrapper_privilege identities
 does not make those otherwise unsupported SQL inquiry functions executable.
 
-Dump rejects user SQL/MED metadata before bytes/callbacks. Reset and ordinary
-Restore remove it while preserving installed Driver callables and finalized
-results. Foreign replay is explicitly rejected atomically. Auto-installed custom
-handler namespaces preserve ordinary table/owner/comment dumps into configured
-and unconfigured targets; renamed or retired configured identities fail preflight,
-as do the existing unsupported explicit namespace ACLs. Executable code and
-mapping secrets are never serialized. Live SQL cursor resources follow deferred
-owner cleanup after replacement, not synchronous cross-session cancellation;
-see [the callback contract](DRIVER.md#foreign-provider-registration).
+Native Dump preserves the complete supported SQL/MED definition graph: wrappers,
+servers, named/PUBLIC mappings, foreign tables, ordered table/column options,
+owners, scalar defaults/CHECKs and comments. It never scans or copies remote rows.
+Restore requires compatible authentic handler/validator registrations and existing
+named roles at the destination; executable implementations are never serialized.
+It creates metadata privately as bootstrap and transfers supported owners through
+ordinary DDL, without adding lasting grants. Validators may run; IMPORT, scans,
+remote writes and arbitrary foreign metadata mutations are not replay operations.
+Failures preserve the published graph and old finalized results atomically.
+
+Eligible captured-reference/REGCLASS foreign defaults are omitted from CREATE
+and reconstructed with qualified, single-column ALTER FOREIGN TABLE SET DEFAULT
+repairs after all provider/name phases. This includes later-created providers
+and self/mutual references. Repairs use bootstrap authority and end with SESSION
+AUTHORIZATION DEFAULT; ordinary table default deferral remains independent.
+Noneligible defaults stay inline with their declaration dependencies. All repair
+expressions are rendered before any output, and Restore validates the bound
+default against the same eligibility rule before publishing its private stage.
+
+Dump output includes exact mapping option bytes, including credentials: protect
+the snapshot as sensitive host-authorized output. SQL catalog redaction remains
+unchanged. Unsupported explicit wrapper/server/relation/column/namespace ACLs
+fail before writer output. Auto-installed custom namespaces can accompany ordinary
+table dumps into configured or unconfigured targets; a graph using their
+callables needs matching registrations. Renamed/retired configured namespaces
+still fail preflight. Live cursor resources retain their deferred owner cleanup
+after replacement, not synchronous cross-session cancellation; see
+[the callback contract](DRIVER.md#foreign-provider-registration).
 
 ## Atomic catalog and storage publication
 

@@ -36,6 +36,7 @@ type dumpRelationCollector struct {
 // dumpRelationCollectors lists the relation kinds in check order. The last
 // entry, ordinary and partitioned tables, matches every relation.
 var dumpRelationCollectors = [...]dumpRelationCollector{
+	{"foreign table", isDumpForeignRelation, collectForeignRelationDump},
 	{"composite", isDumpComposite, collectCompositeDump},
 	{"index", isDumpIndex, collectIndexDump},
 	{"view", isDumpView, collectViewDump},
@@ -322,7 +323,8 @@ type tableDumpEdges struct {
 
 // tableDumpPredecessors collects a table declaration's predecessors from its
 // parents, partition bounds, checks, defaults and generations, in that
-// order. A deferrable default that yields a regclass sets deferDefaults.
+// order. Ordinary defaults may enable global deferral; eligible foreign
+// defaults always replay after declarations without changing that decision.
 func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEdges, error) {
 	var predecessors []ids.OID
 	if r.Inheritance != nil {
@@ -371,6 +373,9 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 				deferredDefinitions = make(map[int32]bool)
 			}
 			deferredDefinitions[attribute] = true
+			if r.Foreign != nil {
+				continue
+			}
 			c.DeferDefaults = c.DeferDefaults || definition.Expression.ResultUsage().Type.ContainsRegclass()
 		}
 		addPredecessor := func(address ids.ObjectAddress) error {

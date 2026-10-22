@@ -66,7 +66,7 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 		}
 		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil
 	case *parser.Comment:
-		if v.Kind != parser.CommentTable && v.Kind != parser.CommentColumn {
+		if v.Kind != parser.CommentTable && v.Kind != parser.CommentForeignTable && v.Kind != parser.CommentColumn {
 			return Target{}, false, nil
 		}
 		name := v.Name

@@ -23,15 +23,16 @@ func TestReferenceFDWNativeControls(t *testing.T) {
 		held := fdwHeld(t, p, b, c, q)
 		before := r.snapshot()
 		var dump bytes.Buffer
-		dump.WriteString("sentinel")
-		fixture.TransactionOrdinary(t, stuntgres.Dump(p.Ctx, p.Native, &dump), "stuntgres: dump cannot serialize SQL/MED foreign metadata")
-		if dump.String() != "sentinel" || r.snapshot() != before {
-			t.Fatal("Dump wrote bytes or invoked provider", dump.String(), before, r.snapshot())
+		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+			t.Fatal(err)
+		}
+		if dump.Len() == 0 || r.snapshot() != before {
+			t.Fatal("Dump emitted no declarations or invoked provider", before, r.snapshot())
 		}
 		foreignRestore := func() {
 			t.Helper()
-			err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE must_not_publish(v integer); CREATE FOREIGN DATA WRAPPER forbidden"))
-			fixture.AssertControlDiagnostic(t, err, fdwDiagnostic("0A000", "restore cannot replay SQL/MED foreign metadata"))
+			err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE must_not_publish(v integer); IMPORT FOREIGN SCHEMA fdw_source FROM SERVER fdw_live INTO public"))
+			fixture.AssertControlDiagnostic(t, err, fdwDiagnostic("0A000", "restore cannot replay IMPORT FOREIGN SCHEMA"))
 		}
 		foreignRestore()
 		run(fixture.Select("SELECT count(*) FROM pg_class WHERE relname='must_not_publish'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))

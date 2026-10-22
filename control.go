@@ -147,6 +147,11 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // remain excluded from the committed snapshot.
 // Typed tables retain qualified OF sources and local WITH OPTIONS definitions;
 // each standalone source precedes its dependent table, even with no members.
+// SQL/MED wrappers, servers, named/PUBLIC mappings and foreign tables retain
+// ordered options, supported owners and logical column metadata. Remote rows
+// and executable handlers/validators are never serialized. Mapping credentials
+// are included faithfully: callers must protect this sensitive output.
+// Unsupported explicit foreign-object/relation/column ACLs fail before bytes.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
@@ -163,6 +168,10 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // SELECT setval(name,value,is_called), generated literal large-object create/put
 // SELECTs, exact single-object raw large-object ACL repairs, and named owner
 // directives succeed. Parameters and arbitrary function SELECTs remain excluded.
+// SQL/MED declarations and their owner transfers require authentic destination
+// registrations and existing named roles. Option validators may run privately;
+// importer, scan and modify callbacks never run. IMPORT, foreign writes and
+// arbitrary foreign metadata mutations are excluded. Replay does not add grants.
 // ROLE comments are shared authority metadata: Reset and Restore preserve them,
 // and Dump excludes them. Query INSERT sources are deliberately not Restore
 // syntax; Dump emits canonical literal VALUES.

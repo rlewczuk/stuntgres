@@ -7,6 +7,7 @@ import (
 
 	"github.com/ngrok/sqlmw"
 
+	"stuntgres"
 	"stuntgres/reference/fixture"
 )
 
@@ -22,6 +23,11 @@ func fdwWriteScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture
 
 func fdwConfiguredScenario(t *testing.T, writable bool, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fdwSQLReader, func(fixture.Step))) {
 	t.Helper()
+	fdwConfiguredGraphScenario(t, writable, false, body)
+}
+
+func fdwConfiguredGraphScenario(t *testing.T, writable, graph bool, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fdwSQLReader, func(fixture.Step))) {
+	t.Helper()
 	fixture.RoleReferenceCleanup(t, []string{"fdw_reader", "fdw_other", "fdw_owner"})
 	fixture.SchemaReferenceCleanup(t, "fdw_source")
 	fixture.SchemaReferenceCleanup(t, "fdw_import")
@@ -30,7 +36,15 @@ func fdwConfiguredScenario(t *testing.T, writable bool, body func(*testing.T, *f
 	if writable {
 		reader.writer = &fdwSQLWriter{fdwSQLReader: reader, batchSize: 2}
 	}
-	p := fixture.NewScenarioWithDriverConfig(t, reader.configure)
+	p := fixture.NewScenarioWithDriverConfig(t, func(d *stuntgres.Driver) error {
+		if err := reader.configure(d); err != nil {
+			return err
+		}
+		if graph {
+			return d.RegisterForeignValidator(stuntgres.ForeignValidatorDefinition{Name: stuntgres.ForeignFunctionName{Schema: "public", Name: "fdw_graph_validator"}, Validate: reader.validateGraph})
+		}
+		return nil
+	})
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			c, err := b.DB.Conn(p.Ctx)

@@ -167,7 +167,7 @@ func (e *Engine) statementAuthorizationLocked(op *session.Operation, stmt parser
 	}
 	if operationReplayOrZero(op).commentAuthority {
 		comment, ok := stmt.(*parser.Comment)
-		if !ok || (comment.Kind != parser.CommentTable && comment.Kind != parser.CommentColumn && comment.Kind != parser.CommentSchema) {
+		if !ok || (comment.Kind != parser.CommentTable && comment.Kind != parser.CommentForeignTable && comment.Kind != parser.CommentColumn && comment.Kind != parser.CommentSchema) {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
 		}
 		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)

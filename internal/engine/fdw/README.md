@@ -9,9 +9,9 @@ created it (26b moved the clean set, 26d the WRAPPER, SERVER, USER MAPPING,
 IMPORT and GRANT decisions, 26e the foreign-table decisions).
 The package is an upper feature at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
-it imports `access`, `authorization`, `catalog`, `ddl`, `exec`, `expr`,
-`ids`, `plan`, `parser`, `session`, `sqlstate`, `sqltype`, `table` (CREATE
-FOREIGN TABLE stages through `table.StageCreateTable`) and the standard
+it imports `access`, `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`,
+`ids`, `plan`, `regobj`, `stored`, `typedef`, `parser`, `session`, `sqlstate`,
+`sqltype`, `table` (CREATE FOREIGN TABLE stages through `table.StageCreateTable`) and the standard
 library, and never the engine, `dml` or another upper feature. `table`
 never imports it. The engine and the driver import it. See
 [ENGINE-SPLIT-fdw.md](../../../docs/ENGINE-SPLIT-fdw.md).
@@ -80,6 +80,18 @@ never imports it. The engine and the driver import it. See
   on wrappers and servers as a pure plan over an `access.View`: it returns
   the `GrantChange`s in statement order and the warnings, which come back
   with a later error so the engine emits them first.
+- **Logical persistence** (`dump.go`): `DumpObject`, `DumpTable`,
+  `DumpProcedure` and `DumpOptions` render immutable captured declarations,
+  actual qualified capability identities and ordered options. Control owns
+  graph ordering and output. Foreign tables never use storage/row collection.
+  Compatible destination registrations are prerequisites, never serialized
+  code. Mapping credentials are faithfully emitted as sensitive host output.
+  Unsupported explicit ACLs fail pre-output. Replay uses bootstrap CREATE and
+  ordinary owner transfers without durable grants, permits authentic option
+  validators but never IMPORT/scan/modify callbacks. Typed import parsing
+  diagnostics retain definition-fragment positions rather than inventing
+  offsets into the original IMPORT. Repeated IMPORT options remain ordered
+  provider inputs, separate from stored-object option uniqueness.
 
 ## Invariants
 

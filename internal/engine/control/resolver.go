@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/routine"
@@ -36,6 +37,12 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 	object, exists := view.Descriptor(address)
 	if !exists {
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
+	}
+	if foreign, ok := object.(*catalog.ForeignObject); ok {
+		if err := (catalog.ForeignCatalogProvider{Class: address.ClassID}).Validate(view, foreign); err != nil {
+			return 0, err
+		}
+		return address.ObjectID, nil
 	}
 	if extension, ok := object.(*catalog.Extension); ok {
 		namespace, ok := view.Namespace(extension.TargetNamespace)
@@ -69,6 +76,12 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		return operator.Address().ObjectID, nil
 	}
 	if proc, ok := object.(*catalog.Procedure); ok {
+		if proc.Foreign != nil {
+			if _, err := fdw.DumpProcedure(view, address, proc.Signature); err != nil {
+				return 0, err
+			}
+			return 0, nil
+		}
 		if proc.SQL != nil {
 			return proc.Address().ObjectID, nil
 		}

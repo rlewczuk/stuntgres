@@ -22,6 +22,13 @@ func remapReplacementRelation(current catalog.Read, mapping map[ids.ObjectAddres
 	}
 	n := *r
 	n.ObjectAddress = target
+	if r.Foreign != nil {
+		if server, moved := mapping[r.Foreign.Server]; moved {
+			foreign := *r.Foreign
+			foreign.Server = server
+			n.Foreign = &foreign
+		}
+	}
 	if r.Inheritance != nil {
 		n.Inheritance = table.RemapInheritance(r.Inheritance, func(address ids.ObjectAddress) ids.ObjectAddress {
 			if destination, ok := mapping[address]; ok {

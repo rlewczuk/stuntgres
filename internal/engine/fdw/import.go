@@ -99,9 +99,11 @@ func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL) (SchemaImporte
 	if err != nil {
 		return nil, ImportRequest{}, err
 	}
-	options, err := TransformOptions(nil, s.Options)
-	if err != nil {
-		return nil, ImportRequest{}, err
+	// IMPORT options belong to the provider, not stored catalog metadata.
+	// Preserve ordered occurrences (including duplicates) for its semantics.
+	options := make([]catalog.ForeignOption, len(s.Options))
+	for i, option := range s.Options {
+		options[i] = catalog.ForeignOption{Name: option.Name.Text, Value: option.Value}
 	}
 	role, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
