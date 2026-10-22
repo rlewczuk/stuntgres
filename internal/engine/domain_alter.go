@@ -9,9 +9,8 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -178,7 +177,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		stage.domainAlterState().Validation = fence
 		for _, use := range fence.Uses {
 			writes, deletes := scope.columnProjectionRoots(use.Relation.Address())
-			if err := validateSelectedDomainRows(&evaluation, auth.Catalog, &chosen, use, frontier, writes, deletes, validation); err != nil {
+			if err := table.ValidateSelectedDomainRows(&evaluation, auth.Catalog, &chosen, use, frontier, writes, deletes, validation); err != nil {
 				return Result{}, err
 			}
 		}
@@ -193,44 +192,4 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	}
 	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 	return Result{}, err
-}
-
-func validateSelectedDomainRows(c *exec.Context, view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, validation typedef.DomainValidation) error {
-	violations := make([]error, len(use.Columns))
-	for i, column := range use.Columns {
-		violations[i] = typedef.DomainHistoricalViolation(view, use.Relation, column, validation)
-	}
-	var replaced map[ids.RowID]bool
-	for _, row := range writes {
-		if row.Base != 0 {
-			if replaced == nil {
-				replaced = make(map[ids.RowID]bool)
-			}
-			replaced[row.Row] = true
-		}
-	}
-	scan := func(rows []storage.RowVersion, committed bool) error {
-		for _, row := range rows {
-			if err := c.Context.Err(); err != nil {
-				return err
-			}
-			if committed && replaced[row.Row] || !visibility.LiveVersion(row, frontier, use.Ends, deletes) {
-				continue
-			}
-			for i, column := range use.Columns {
-				if validation == typedef.DomainValidateNulls {
-					if row.Values[column].IsNull() {
-						return violations[i]
-					}
-				} else if err := c.EvaluateSelectedDomainCheck(view, selected, row.Values[column], violations[i]); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	if err := scan(use.Versions, true); err != nil {
-		return err
-	}
-	return scan(writes, false)
 }
