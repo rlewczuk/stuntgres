@@ -581,7 +581,8 @@ and [selected proof and smoke](reference/locking_transactions/README.md#transact
 `pg_database_collation_actual_version(oid)` inspect the implemented provider's
 actual version without refreshing recorded catalog versions. The default
 collation follows the current database's provider. Native builtin versions are
-`1`; the native libc/C database has no version. ICU data remains unavailable.
+`1`; the native libc/C database has no version. Unavailable native ICU version
+inquiry returns TEXT NULL; ICU execution remains unsupported.
 `pg_import_system_collations(regnamespace)` is strict and checks the current
 effective superuser before numeric namespace existence. Valid native import
 reports an explicit unsupported-provider error, never a fabricated zero count or

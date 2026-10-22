@@ -15,22 +15,29 @@ undemanded import, stored/grouped views, CHECK rendering, VOLATILE legality,
 native atomic failure/cancellation and Dump/Reset/Restore with emitted SQL replay.
 `TestReferenceCollationVersion` remains the owner of stale/empty recorded-version
 and refresh-notice coverage.
+Versions includes unavailable native ICU TEXT NULL (real ICU remains available)
+and held ICU/C/builtin/NULL recovery with unchanged catalog tuples. Diagnostics
+covers all three routines' invalid arity/type/qualification, nonexistent names,
+malformed OID input, exact fields/positions and held input-error/NULL recovery.
 
 Native import truthfully reports0A000 after strict NULL, effective-superuser and
 numeric namespace checks; it never synthesizes provider rows or returns fake0.
-Pinned PostgreSQL18.0 genuinely imports810 rows (four libc,806 ICU), repeats0,
-then recreates exactly one dropped imported row with a new identity and repeats0.
-Representative pinned ICU versions are153.120.42 (`af`) and153.120 (`agq-CM`);
-these are fixture evidence, not portable host/provider promises. Complete
-catalog tuples and the unrelated sentinel must survive skipped/native imports.
+Historical PostgreSQL18.0 evidence imported810 rows (four libc,806 ICU), repeated0,
+then recreated exactly one dropped imported row with a new identity and repeated0.
+Representative historical ICU versions were153.120.42 (`af`) and153.120 (`agq-CM`).
+These literals are not portable provider promises or newly observed18.6 facts;
+the current real oracle is the pinned18.6 UTF8/C fixture described in
+[fixture policy](../fixture/README.md#postgresql-oracle-policy-and-provenance).
+Complete catalog tuples and the unrelated sentinel must survive skipped/native imports.
 
 Run each selected proof with an external900-second deadline:
 
 ```sh
 make check RUN='^TestReferenceCollationFunctions(Versions|Diagnostics|Privileges|Import|Lifecycle)$'
 make check REFERENCE=1 RUN='^TestReferenceCollationFunctions(Versions|Diagnostics|Privileges|Import|Lifecycle)$'
-make check RUN='^TestReferenceCollationVersion$'
-make check REFERENCE=1 RUN='^TestReferenceCollationVersion$'
+make check RUN='^TestReferenceCollation(Version|ExternalBoundary)$'
+make check REFERENCE=1 RUN='^TestReferenceCollation(Version|ExternalBoundary)$'
+make check RUN='^TestCollationActualVersionProviders$'
 make check RUN='^TestVisibilityInquiry'
 make check RACE=1 RUN='^TestReferenceCollationFunctions(Privileges|Lifecycle)$'
 ```
@@ -46,12 +53,13 @@ worktree:
 timeout 900s go run /tmp/collation-functions-smoke/main.go
 ```
 
-The public program Pings, independently checks actual C/default/database/recorded
-NULL and builtin1 with TEXT metadata, and uses one held INT4 import statement
-across admin/ordinary role changes. Expected output records strict NULL,
-native0A000, ordinary42501, unchanged complete collation inventory and admin
-held recovery. Any mismatched result/diagnostic/effect exits nonzero. Remove the
-temporary program directory after root captures actual output; no second
+The public program Pings, independently checks native ICU/default/database NULL
+and builtin1 with TEXT metadata, and uses one held INT4 import statement across
+NULL/admin/ordinary/reset-role calls. It checks exact0A000/3F000/42501 runtime
+diagnostics, invalid-qualified-name42883 with hint/position, unchanged complete
+collation inventory, and symbolic stored-view Dump/Reset/Restore replay.
+Quiet success exits zero; any mismatched result/diagnostic/effect exits nonzero.
+Remove the temporary program directory after root captures actual output; no second
 PostgreSQL harness or committed smoke script is needed.
 
 ### Shared cancellation admission — infrastructure change note

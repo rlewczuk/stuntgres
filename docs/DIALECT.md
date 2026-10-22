@@ -3260,8 +3260,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   strings are not actual provider versions and are not refreshed by these calls.
   Default collation100 uses the attached database's libc/C authority, just like
   database-version inspection; both return NULL. Implemented builtin providers
-  return `1` independently of recorded versions; ICU inspection reports
-  `0A000 ICU is not supported in this build`.
+  return `1` independently of recorded versions; unavailable native ICU version
+  data yields TEXT NULL. This inquiry-only result does not admit ICU execution,
+  creation or system import, which remain unsupported.
   Missing numeric collation/database OIDs report42704. Numeric version reads
   do not add ownership or schema-USAGE gates.
   Import NULL returns typed INT4 NULL without authorization or provider work.

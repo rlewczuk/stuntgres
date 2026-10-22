@@ -67,7 +67,51 @@ func TestReferenceCollationFunctionsVersions(t *testing.T) {
 		if b.PG {
 			fixture.CollationRoutes(t, p, b, fixture.Select(`SELECT pg_collation_actual_version('pg_catalog.unicode'::regcollation::oid) IS NOT NULL AS available`, []string{"available"}, []string{"BOOL"}, [][]any{{true}}))
 		} else {
-			collationFunctionsError(t, p, b, `SELECT pg_collation_actual_version('pg_catalog.unicode'::regcollation::oid) AS actual`, "0A000", "ICU is not supported in this build")
+			fixture.CollationRoutes(t, p, b, fixture.Select(`SELECT pg_collation_actual_version('pg_catalog.unicode'::regcollation::oid) AS actual`, []string{"actual"}, []string{"TEXT"}, [][]any{{nil}}))
+		}
+		icuQuery := `SELECT pg_collation_actual_version($1) AS actual`
+		icuHeld := collationFunctionsHeld(t, p, b, b.DB, icuQuery)
+		for _, arg := range []any{int64(963), int64(950), int64(811), nil, int64(963)} {
+			if b.PG && arg == int64(963) {
+				rows, err := icuHeld.Statement.QueryContext(p.Ctx, arg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cols, err := rows.ColumnTypes()
+				if err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				if len(cols) != 1 || cols[0].Name() != "actual" || cols[0].DatabaseTypeName() != "TEXT" {
+					rows.Close()
+					t.Fatal("held ICU version metadata", cols)
+				}
+				var version sql.NullString
+				if !rows.Next() {
+					rows.Close()
+					t.Fatal("missing held ICU version row")
+				}
+				if err := rows.Scan(&version); err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				if !version.Valid || version.String == "" {
+					rows.Close()
+					t.Fatal("installed ICU provider has no actual version")
+				}
+				extra := rows.Next()
+				err = rows.Err()
+				rows.Close()
+				if extra || err != nil {
+					t.Fatal("held ICU version row completion", extra, err)
+				}
+				continue
+			}
+			var want any
+			if arg == int64(811) {
+				want = "1"
+			}
+			fixture.RunStep(t, p.Ctx, icuHeld, b.Recorder, fixture.Select(icuQuery, []string{"actual"}, []string{"TEXT"}, [][]any{{want}}, arg))
 		}
 		for _, tc := range []struct {
 			fn, typ string
@@ -118,6 +162,33 @@ func TestReferenceCollationFunctionsDiagnostics(t *testing.T) {
 			s.SelectRows = true
 			fixture.CollationRoutes(t, p, b, s)
 		}
+		const signatureHint = "No function matches the given name and argument types. You might need to add explicit type casts."
+		for _, fn := range []string{"pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations"} {
+			for _, tc := range []struct{ call, signature string }{
+				{fn + "()", fn + "()"},
+				{fn + "(NULL,NULL)", fn + "(unknown, unknown)"},
+				{fn + "(true)", fn + "(boolean)"},
+				{fn + "('x'::text)", fn + "(text)"},
+				{"public." + fn + "(NULL)", "public." + fn + "(unknown)"},
+			} {
+				fixture.CollationError(t, p, b, "SELECT "+tc.call, fixture.Diagnostic{Code: "42883", Message: "function " + tc.signature + " does not exist", Hint: signatureHint, Position: "8"})
+			}
+		}
+		fixture.CollationError(t, p, b, `SELECT pg_collation_actual_version_missing(NULL)`, fixture.Diagnostic{Code: "42883", Message: "function pg_collation_actual_version_missing(unknown) does not exist", Hint: signatureHint, Position: "8"})
+		for _, tc := range []struct{ fn, position string }{
+			{"pg_collation_actual_version", "36"},
+			{"pg_database_collation_actual_version", "45"},
+		} {
+			fixture.CollationError(t, p, b, "SELECT "+tc.fn+"('cf_bad_oid')", fixture.Diagnostic{Code: "22P02", Message: `invalid input syntax for type oid: "cf_bad_oid"`, Position: tc.position})
+			q := "SELECT " + tc.fn + "($1::oid) AS actual"
+			h := collationFunctionsHeld(t, p, b, b.DB, q)
+			d := fixture.ControlsReferenceDiagnostic("22P02", `invalid input syntax for type oid: "cf_bad_oid"`)
+			d.Context = "unnamed portal parameter $1 = '...'"
+			s := fixture.ImplicitError(q, d, "cf_bad_oid")
+			s.SelectRows, s.ErrorStage = true, "execute"
+			fixture.RunStep(t, p.Ctx, h, b.Recorder, s)
+			fixture.RunStep(t, p.Ctx, h, b.Recorder, fixture.Select(q, []string{"actual"}, []string{"TEXT"}, [][]any{{nil}}, nil))
+		}
 		for _, q := range []string{`SELECT pg_import_system_collations($1::regnamespace)`, `SELECT pg_import_system_collations($1::text::regnamespace)`} {
 			t.Run(q, func(t *testing.T) {
 				h := collationFunctionsHeld(t, p, b, b.DB, q)
@@ -128,6 +199,7 @@ func TestReferenceCollationFunctionsDiagnostics(t *testing.T) {
 					want.Context = "unnamed portal parameter $1 = '...'"
 				}
 				fixture.AssertDiagnostic(t, err, &want)
+				fixture.RunStep(t, p.Ctx, h, b.Recorder, fixture.Select(q, []string{"pg_import_system_collations"}, []string{"INT4"}, [][]any{{nil}}, nil))
 			})
 		}
 	})

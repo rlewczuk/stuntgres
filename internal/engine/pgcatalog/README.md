@@ -122,6 +122,13 @@ The engine calls these directly: `ClassKind`, `ClassACL`, `AttributeMetadata`,
 and a few other row helpers, because they check producer behavior against an
 engine-seeded catalog.
 
+`CollationActualVersion` reads actual provider authority, never recorded
+`Version`: supported builtin locales return `1`; libc C/POSIX and unavailable
+native ICU version data return nil (SQL TEXT NULL). Default delegates to the
+native libc/C database, also versionless. Inquiry-only ICU NULL does not admit
+ICU creation/execution or provide an installed system inventory. Other invalid
+or unsupported executable definitions retain their semantic errors.
+
 ## What stays in the engine
 
 - `openRelationSourceLocked`, `openCatalogSourceLocked` (per-OID choice of
@@ -249,6 +256,7 @@ Package units run without an engine:
 
 ```sh
 make check RUN='^(TestProducerRegistryLookup|TestPgClassPartitionTree)$'
+make check RUN='^TestCollationActualVersionProviders$'
 ```
 
 Producer behavior is tested in the engine package, because those tests need a

@@ -96,6 +96,11 @@ func CollationActualVersion(d *catalog.Collation) (*string, error) {
 	if d.Provider == "d" {
 		return DatabaseCollationActualVersion()
 	}
+	// Version inquiry does not require an executable locale. This build has no
+	// ICU version data; admitting ICU execution remains CollationSemantics' job.
+	if d.Provider == "i" {
+		return nil, nil
+	}
 	if _, err := catalog.CollationSemantics(d); err != nil {
 		return nil, err
 	}
