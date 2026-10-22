@@ -156,171 +156,19 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 	return s.acquireRelationTarget(stmt, stmt, execute, false)
 }
 
+// relationTargetEntries decide the relation a statement targets; each
+// statement kind belongs to one package's entry.
+var relationTargetEntries = []table.TargetEntry{view.TargetAdmission, table.TargetAdmission, dml.TargetAdmission}
+
 func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statement, execute, source bool) error {
-	var name parser.ObjectName
-	var mode lock.Mode
-	ownerOnly := false
-	rename, ifExists, tableRename := false, false, false
-	viewReplacement := false
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
-	switch v := stmt.(type) {
-	case *parser.CreateRule:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly, rename = v.Table, lock.AccessExclusive, true, true
-	case *parser.AlterRule:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly, rename = v.Table, lock.AccessExclusive, true, true
-	case *parser.DropRule:
-		if !execute {
-			return nil
-		}
-		name, mode, rename, ifExists = v.Table, lock.AccessExclusive, true, v.IfExists
-	case *parser.CreatePolicy:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly, rename = v.Table, lock.AccessExclusive, true, true
-	case *parser.AlterPolicy:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly, rename = v.Table, lock.AccessExclusive, true, true
-	case *parser.DropPolicy:
-		if !execute {
-			return nil
-		}
-		name, mode, rename, ifExists = v.Table, lock.AccessExclusive, true, v.IfExists
-	case *parser.CreateTable:
-		if !execute || v.PartitionOf == nil {
-			return nil
-		}
-		name, mode, ownerOnly = v.PartitionOf.Name, lock.AccessExclusive, true
-	case *parser.CreateIndex:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Table, lock.Share, true
-		if v.Concurrent.Character != 0 {
-			mode = lock.ShareUpdateExclusive
-		}
-	case *parser.CreateView:
-		if !execute || !v.Replace {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-		viewReplacement = true
-		rename = true
-	case *parser.AlterOwner:
-		if !execute || v.Kind == "type" || v.Kind == "domain" || v.Kind == "database" {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-		rename, ifExists = true, v.IfExists
-	case *parser.AlterView:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-		rename, ifExists, tableRename = true, v.IfExists, v.Action == "rename"
-	case *parser.Select:
-		if v.From == nil {
-			return nil
-		}
-		name = v.From.(*parser.TableReference).Name
-		mode = lock.AccessShare
-		if v.Locking != nil {
-			mode = lock.RowShare
-		}
-	case *parser.Copy:
-		name, mode = v.Name, lock.AccessShare
-		if v.From {
-			mode = lock.RowExclusive
-		}
-	case *parser.Insert:
-		name = v.Name
-		mode = lock.RowExclusive
-	case *parser.Merge:
-		name = v.Name
-		mode = lock.RowExclusive
-	case *parser.Delete:
-		name = v.Name
-		mode = lock.RowExclusive
-	case *parser.Update:
-		name = v.Name
-		mode = lock.RowExclusive
-	case *parser.Comment:
-		if !execute || (v.Kind != parser.CommentTable && v.Kind != parser.CommentColumn) {
-			return nil
-		}
-		name = v.Name
-		if v.Kind == parser.CommentColumn {
-			if len(name.Parts) < 2 {
-				return sqlError("42601", "column name must be qualified")
-			}
-			name.Parts = name.Parts[:len(name.Parts)-1]
-		}
-		mode = lock.ShareUpdateExclusive
-	case *parser.AlterTable:
-		if !execute {
-			return nil
-		}
-		name = v.Name
-		mode = table.AlterTableLockMode(v)
-		ownerOnly = true
-		rename, ifExists = true, v.IfExists
-	case *parser.AlterTableAttachPartition:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.ShareUpdateExclusive, true
-		rename, ifExists = true, v.IfExists
-	case *parser.AlterTableDetachPartition:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-		rename, ifExists = true, v.IfExists
-	case *parser.AlterTableOf:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-	case *parser.AlterTableDefault:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-	case *parser.AlterTableRenameConstraint:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-		rename, ifExists = true, v.IfExists
-	case *parser.AlterTableRenameColumn:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-		rename, ifExists = true, v.IfExists
-	case *parser.AlterTableSetSchema:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-		rename, ifExists = true, v.IfExists
-	case *parser.AlterTableRenameTable:
-		if !execute {
-			return nil
-		}
-		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
-		rename, ifExists, tableRename = true, v.IfExists, true
-	default:
-		return nil
+	target, ok, err := table.AdmitTarget(relationTargetEntries, stmt, execute)
+	if err != nil || !ok {
+		return err
 	}
+	name, mode, ownerOnly := target.Name, target.Mode, target.OwnerOnly
+	rename, ifExists, tableRename := target.Rename, target.IfExists, target.TableRename
+	viewReplacement := target.ViewReplacement
+	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	e := s.engine()
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
