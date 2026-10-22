@@ -86,6 +86,14 @@ so either import would form a cycle.
   dependency targets as `DependencyObservation`, the cached private read,
   role overlays, fences and feature slots). `NewJournal`, `Clone` (a nil
   journal clones to an empty one) and `AddFence`.
+- **Storage projections** (`storage_projection.go`): `ColumnProjection`
+  (`NewColumnProjection`, `Versions`), `ProjectVersions`,
+  `ProjectDeletions`, `ProjectPrivateSnapshotRoots` (attaches dense
+  snapshot projections to a journal's `StorageChange` entries, cloning
+  only the shape map) and `ProjectColumnShapeRoots` (projects a column
+  shape change through committed storage, private writes and deletes and
+  a stable snapshot root). They read only catalog, storage and visibility
+  records; the root's `projectColumnShape` supplies the statement's roots.
 - **Fences** (`fence.go`): `Fence` with `Kind() FenceKind`. The root engine
   declares the kinds, the fence types and the order in which publication
   checks them.
@@ -142,11 +150,11 @@ so either import would form a cycle.
   slot through its `Clone`, and shares fences (immutable once recorded) in
   recording order.
 - **Slot rules.** A nil slot means "none". Owners store and recover a slot
-  with one checked helper each (`enumSlotOf`/`enumJournalOf`,
-  `domainSlotOf`/`domainJournalOf` in the root, `index.SlotOf`/`index.JournalOf`
+  with one checked helper each (`typedef.EnumSlotOf`/`EnumJournalOf`,
+  `DomainJournalOf` and its unexported store, `index.SlotOf`/`index.JournalOf`
   for the index journal, `index.Journal`) and never store a typed nil. A slot owner that writes in place (the
   index journal) deep-copies in `Clone`; the typedef slots are replaced
-  before a write (`domainWritable`, `enumWritable`).
+  before a write (`typedef.DomainWritable`, `EnumWritable`).
 - **Root slot allocation.** The root allocates a session, its payload and its
   owner extension in one allocation (`sessionAllocation`), and an operation
   with its binding host in another (`Host.NewOperation`); both slots are
@@ -184,7 +192,8 @@ make check RUN='^TestNotificationQueue'
 make check RUN='^TestSettingAccessAllowedCallback$'
 make check RACE=1 RUN='^TestSessionHost'
 make check RACE=1 RUN='^(TestSessionPayload|TestOwnerExtension|TestExclusionMark|TestOperation(AnalysisSlot|ReplaySlot))'
-make check RUN='^(TestCatalogFences|TestCatalogTypeJournalSlotsCopyOnWrite|TestEnumProvenanceSavepoints)'
+make check RUN='^(TestCatalogFences|TestEnumProvenanceSavepoints)'
+make check RUN='^(TestAlterAddColumn(Projection|ZeroWidthProjection|CancellationDuringShapeTraversal|NonvolatileDemandOnce|PrivateSnapshotEqualWidthProjection))$'
 make check RUN='^TestUUIDOsspTime(Packing|Clock|Sequence|Entropy|Cancellation|Concurrent)$'
 make check RACE=1 RUN='^TestUUIDOsspTimeConcurrent$'
 ```

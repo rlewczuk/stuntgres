@@ -97,6 +97,9 @@ query/default plans after descriptor generations change.
   `ReownScalarTypes` (`scalar_type_reown.go`) is the scalar companion of
   `ReownExpressions`: it points relation column types and stored datums
   (domain values, reg* and aclitem values) at current type generations.
+  `ReownVersions` applies it to a private write list or a retained owner
+  snapshot after an enum or domain change (catalog 5k; `typedef` cannot
+  own it because this package imports `typedef`).
   `PruneQuoteCaptures` (`quote_captures.go`) drops quote constants whose
   column default or view definition was retired. Installed-node validators
   (`ValidateInstalled{Soundex,Levenshtein,Metaphone,Crypto,UUIDOssp}`).

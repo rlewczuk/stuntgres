@@ -301,8 +301,9 @@ prepared drops (`preparedDrop`, `preparedIdentityDrop`), and Finish. The candida
 Also in the root: the binder bodies behind the host (`bindCreateDefaults`,
 `bindCreateGenerations`, `ddlHost.BindCheckExpression`), the
 acquire loop of `acquireRelationTarget` around `AdmitTarget`,
-`projectColumnShapeRoots` (catalog 5k moves it to `session` with the storage
-projections) and the inheritance query scope methods (query admission:
+the `projectColumnShape` wrapper that supplies the statement's roots to
+`session.ProjectColumnShapeRoots` (moved with the storage projections in
+catalog 5k) and the inheritance query scope methods (query admission:
 `acquireInheritanceSources` keeps its loop, waits and storage lookup
 around `InheritancePendingGrants`). Restore keeps its hook bodies in the
 root (control reaches them): the context check, authorization, the

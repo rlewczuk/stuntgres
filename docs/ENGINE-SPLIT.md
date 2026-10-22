@@ -2229,9 +2229,10 @@ then move with no aliases. None is broad. Sizes are lines at `17e01ca8b`.
   stay.
 - **Catalog 5k — journal and projection leftovers (item 130, about
   0.3k).** The relation-history helpers to `catalog`;
-  `catalog_type_journal.go` and `enumReownVersions` to `typedef`; the
-  storage projections of `catalog_transaction_storage.go` and
-  `projectColumnShapeRoots` to `session`.
+  `catalog_type_journal.go` to `typedef` and `enumReownVersions` to
+  `stored` (it calls `stored.ReownScalarTypes`, and `stored` imports
+  `typedef`); the storage projections of `catalog_transaction_storage.go`
+  and `projectColumnShapeRoots` to `session`. Done (item 130).
 - **Access B7 — `AuthorizationView` without `*Engine` (item 131, in
   place, then about 0.2k moved).** `AuthorizationView` reaches the engine
   through three calls (`referencePath`, `authorizationStorageLocked`,
@@ -2438,7 +2439,7 @@ package-specific scope. This section holds the rules every session follows.
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 view literal capture, result nullability protocol and conditional closure hook done (selected proof/quickcheck passed; racecheck/finalcheck waived by user); `SQLJSON` rendering done (selected dual-mode/quickcheck passed; remaining checks, including full racecheck/finalcheck, waived by user); function sources done (proof and specific LIKE-observer failure waiver recorded in the functions prompt); Tier C done: ACL, catalog inquiry, transaction inquiries, advisory/blocking and sequence calls moved (sequence calls: selected dual-mode/quickcheck passed, racecheck/finalcheck skipped at user request); F3 aliases removed |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5h); 5i done (pure helpers moved, some left in the root) and 5j done (payload readers replace five host and runtime methods) (racecheck/finalcheck skipped at user request); 5k planned (journal and projection leftovers, item 130) |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5h); 5i done (pure helpers moved, some left in the root) and 5j done (payload readers replace five host and runtime methods) (racecheck/finalcheck skipped at user request); 5k done (relation history normalizers to `catalog`, type journal helpers to `typedef`, `enumReownVersions` to `stored` as `ReownVersions`, storage projections to `session`, `sameVersionRoot` to `storage`; no aliases; racecheck/finalcheck skipped at user request) |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c); the write-set merges moved in with session 13g |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B6, names cleanup; B5 moved the binding walkers into `analyze`; B6 moved the ownership helpers and RLS action rules into `access`; racecheck/finalcheck skipped at user request); B7 planned (`AuthorizationView` without `*Engine`, item 131) |

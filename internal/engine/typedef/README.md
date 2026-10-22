@@ -74,7 +74,9 @@ library, and never the engine, `analyze`, `exec` or `routine`. See
 - **Slot structs**: `DomainAlterStage` and `TypedStage` (the type state of a
   `CatalogStage`), `DomainJournal` and `EnumJournal` (the type state of the
   catalog journal, implementing `session.DomainSlot` and `session.EnumSlot`;
-  `journal_slots.go`).
+  `journal_slots.go`), with their journal helpers: `DomainWritable` and
+  `EnumWritable` give a `session.Journal` a private slot, and
+  `DomainJournalOf`, `EnumJournalOf` and `EnumSlotOf` recover and store one.
 
 ## The stage host
 
@@ -113,9 +115,9 @@ type methods. The engine implements it on its one staging adapter,
   synchronizes the slots it holds, as it did before the move.
 - **Slots are owned by the engine.** `CatalogStage` and the journal
   (`session.Journal`) hold the slots; the engine allocates them
-  (`domainAlterState`, `typedState`, `domainWritable`, `enumWritable`),
-  recovers the journal slots with `domainJournalOf`/`enumJournalOf` and
-  writes them. A nil slot is the empty
+  (`domainAlterState`, `typedState`, and the journal slots through
+  `DomainWritable`/`EnumWritable`), recovers the journal slots with
+  `DomainJournalOf`/`EnumJournalOf` and writes them. A nil slot is the empty
   state, and the getters here are nil-safe. Journal slots are copy-on-write:
   `Clone` makes a savepoint or statement copy, and a writer replaces a shared
   slot before it changes it.
@@ -160,7 +162,7 @@ recipes through `stored.ScalarRenderer`.
 Package seams:
 
 ```sh
-make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds|TestDomainDefaultReplayPairingInternal|TestPGEnumSortInsertion)$'
+make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds|TestDomainDefaultReplayPairingInternal|TestPGEnumSortInsertion|TestCatalogTypeJournalSlotsCopyOnWrite)$'
 ```
 
 The engine side of the stage host (`ddlHost`):
@@ -178,7 +180,7 @@ make check RUN='^Test(CollationOwnerMembershipRequiresDestinationCreate|Conversi
 Engine witnesses that use the package through the catalog and DDL:
 
 ```sh
-make check RUN='^(TestCatalogTypeJournalSlotsCopyOnWrite|TestDomainDefaultReplayAdmissionInternal|TestPGEnumAllocatorBounds|TestTypedTemporaryReplacementAdmission|TestConversionDescriptorCreateAndMoveUniqueness)$'
+make check RUN='^(TestDomainDefaultReplayAdmissionInternal|TestPGEnumAllocatorBounds|TestTypedTemporaryReplacementAdmission|TestConversionDescriptorCreateAndMoveUniqueness)$'
 ```
 
 The dump statements (`TestCollationDumpLosslessBootstrapSelection` calls

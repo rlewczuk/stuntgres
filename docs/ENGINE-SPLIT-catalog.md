@@ -203,6 +203,7 @@ Clean, mechanical moves:
 - The normalize and visit helpers of `catalog_relation_history.go` to
   `catalog`.
 - `catalog_type_journal.go` and `enumReownVersions` to `typedef`.
+  **Done; `enumReownVersions` went to `stored` instead — see 5k results.**
 - The storage projections of `catalog_transaction_storage.go` and
   `projectColumnShapeRoots` to `session` (they import only `catalog`,
   `session`, `storage` and `visibility`); correct the `table` README note
@@ -301,7 +302,9 @@ startup regression. 5f completes the step; optional 5g is done too.
 - [x] 5j — Payload accessors replace five host and runtime methods
   (linear item 74) (`946137fa2`, `f4e53eef6`, then the commit that records
   this status) *(racecheck/finalcheck skipped at user request)*
-- [ ] 5k — Journal and projection leftovers moved (linear item 130)
+- [x] 5k — Journal and projection leftovers moved (linear item 130)
+  (`155b76f43`, `0cb30e030`, `fd020cb83`, then the commit that records this status)
+  *(racecheck/finalcheck skipped at user request)*
 
 Exported names chosen (5d; applied by 5e's move, with engine aliases):
 
@@ -903,6 +906,43 @@ keeps its constants; it is not a catalog alias.
   5014 allocs/op, about 1.64 MB/op (not a startup path; the <1 ms miss is
   pre-existing). `make deps` lists only module paths; `catalog` imports are
   unchanged. Racecheck/finalcheck skipped at user request.
+
+5k results:
+
+- **Moved.** `catalog/relation_history.go`: `VisitSubclassParents`,
+  `NormalizeReplacementSubclassHistory`, `NormalizeReplacementIndexHistory`;
+  the root keeps `markStageSubclassHistoryLocked` and
+  `markStageIndexHistoryLocked` (they allocate revisions through
+  `catalogStore` and write `CatalogStage`). `typedef/journal_slots.go`:
+  `DomainWritable`, `EnumWritable`, `DomainJournalOf`, `EnumJournalOf`,
+  `EnumSlotOf` and the private `domainSlotOf`; `catalog_type_journal.go`
+  is gone. `stored.ReownVersions` (`scalar_type_reown.go`).
+  `session/storage_projection.go`: `ColumnProjection` (`Versions`),
+  `NewColumnProjection`, `ProjectVersions`, `ProjectDeletions`,
+  `ProjectPrivateSnapshotRoots`, `ProjectColumnShapeRoots`;
+  `storage.SameVersionRoot`. The root keeps `catalogAuthority` and its
+  preflight, `privateStorageLocked`, `authorizationStorageLocked` and the
+  `projectColumnShape` scope wrapper. No aliases.
+- **Deviation.** `enumReownVersions` went to `stored`, not `typedef`: it
+  calls `stored.ReownScalarTypes`, and `stored` imports `typedef`.
+  `sameVersionRoot` went to `storage`, the lowest owner, rather than
+  `session`.
+- **Tests.** `TestCatalogTypeJournalSlotsCopyOnWrite` moved to
+  `typedef/journal_slots_test.go` (pure). The engine tests that call the
+  moved helpers use `New()` fixtures and stay, with renamed calls
+  (`pg_class_history_test.go`, `partition_constraints_test.go`,
+  `alter_add_column*_test.go`, the enum/domain journal tests and the
+  `sameVersionRoot` users). One local `session` in
+  `transaction_isolation.go` was renamed `sess`.
+- **Proof.** Build, the unit tests of every touched test file (93 tests), the
+  `typedef` journal test, a `RACE=1` ALTER column/isolation/enum/domain/
+  TRUNCATE selection and full quickcheck (before and after the rebase)
+  passed; the literal multiset is unchanged. Public selection
+  `^TestReference(PgClass(Lifecycle|Transactions|Temporary|BuiltinIndexHistory|FirstChildRollback|InvalidIndexHistory)|InheritanceMaintDetach|AlterAddColumn(Core|Stable|Transactions|ReviewEarlySavepointShapes|ReviewVolatileSavepoint|Cancellation)|AlterDropColumn(TransactionalDDL|Shape|WaitCancellationAndCommittedInsert|ExternalHierarchy)|EnumAlter(RetainedSafety|SavepointProvenance|RetainedViews|Dependents)|DomainAlterConstraint(Lifecycle|Atomicity|Containers))$`
+  passed in quick and `REFERENCE=1` modes. `make deps` lists only module
+  paths; the import sets of `catalog`, `typedef`, `stored`, `session` and
+  `storage` are unchanged. No `make bench` (not on the startup path);
+  racecheck/finalcheck skipped at user request.
 
 Notes for later steps:
 

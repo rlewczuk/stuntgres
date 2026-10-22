@@ -173,6 +173,14 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   (`definition_identity.go`); `ForeignLabel` (the SQL/MED object kind in
   diagnostics, `foreign_catalog.go`) and `PartitionKeyDependsOn`
   (`partition.go`), which DROP shares with `fdw` and `partition`.
+- **Relation history** (5k, `relation_history.go`). `VisitSubclassParents`
+  visits a relation's owned subclass edges (inheritance parents, partition
+  membership, an attached index's partition parent).
+  `NormalizeReplacementSubclassHistory` and
+  `NormalizeReplacementIndexHistory` set the sticky `HasSubclasses` and
+  `HasIndexes` flags in a replacement candidate's private state without
+  mutating retained source descriptors or clearing a true flag. The stage
+  markers that allocate revisions stay in the engine.
 - **Principal remap** (`principal_remap.go`). `RemapPrincipals` rewrites the
   owners, ACLs, policy roles and default ACL records of an unpublished
   private candidate through a `PrincipalRemap` (principal and seeded-owner

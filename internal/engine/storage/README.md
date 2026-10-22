@@ -24,7 +24,8 @@ and never the engine.
   sequence and index-root methods. Reads may use the exported maps directly.
 - **Relation storage** (`relation.go`): `Relation` (the version vector, the
   end root, the generation, the index-build origin and the lineage tokens),
-  `RowVersion`, `RowEnd` and `DeletionRoot`. `IndexIdentity` names the
+  `RowVersion`, `RowEnd` and `DeletionRoot`. `SameVersionRoot` compares
+  two version roots by identity. `IndexIdentity` names the
   storage an index root was built from. `RowByID` finds a row by its stable
   `RowID`, trying a captured position first.
 - **Lineage tokens** (`lineage.go`): `TruncateLineage` and

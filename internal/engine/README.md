@@ -52,7 +52,8 @@ them:
 Provenance is same-pointer authority, not equal names/OIDs/epochs:
 `catalogStore.owner()` supplies the stable `*catalog.Owner`, whose Domain,
 Principals and ACLAuthority are the engine's exact paired authorities.
-Publication/index history lives in `catalog_relation_history.go`, sequence
+Publication/index history markers live in `catalog_relation_history.go` (the
+replacement normalizers are `catalog` code), sequence
 predicate admission in `query_pg_sequences_admission.go`, and shared
 expression/plan reference walking in `expression_references.go`; those are not
 producer ownership. Engine code names the moved types directly
