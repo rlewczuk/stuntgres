@@ -6,6 +6,55 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Partition pruning and constraint exclusion
+
+`TestReferencePartitionPruningRange`, `List`, `Hash`, `Nested`, `Expressions`,
+`Inheritance`, `Prepared`, `Errors`, `Controls`, `FeatureSmoke` and `ComplexPredicate` share the
+public fixture and direct/prepared bodies across native and pinned PostgreSQL18.6.
+They independently prescribe typed bags (including duplicates), NULL/default
+boundaries, lexicographic/nested keys, physical CHECK UNKNOWN/NOT VALID/NO INHERIT,
+same-held rebinding, empty metadata and complete logical diagnostics.
+Native-only phases exercise actual Dump/Reset/Restore, retained rows/types,
+held rebinding after replacement, independent destination types and the actual
+emitted SQL stream on PostgreSQL. Native policy-expression enforcement and
+partition row-lock errors remain explicit boundaries, not fake PG parity.
+`ComplexPredicate` uses twelve independent disjunctions and late key restrictions
+over populated/empty RANGE branches and DEFAULT. Direct and same-held bindings
+99,1,3,NULL,99 independently expect bags [99,99], [1], empty, empty, [99,99],
+with k/INT4 metadata and a retained nonmatching row rejected by the residual.
+
+Run each completed public group in both modes:
+
+```sh
+make check RUN='^TestReferencePartitionPruning(Range|List|Hash)$'
+make check RUN='^TestReferencePartitionPruning(Range|List|Hash)$' REFERENCE=1
+make check RUN='^TestReferencePartitionPruning(Nested|Expressions|Inheritance)$'
+make check RUN='^TestReferencePartitionPruning(Nested|Expressions|Inheritance)$' REFERENCE=1
+make check RUN='^TestReferencePartitionPruning(Prepared|Errors|Controls|FeatureSmoke)$'
+make check RUN='^TestReferencePartitionPruning(Prepared|Errors|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferencePartitionPruningComplexPredicate$'
+make check RUN='^TestReferencePartitionPruningComplexPredicate$' REFERENCE=1
+```
+
+The public results deliberately promise no optimizer evaluation schedule.
+Internal actual-producer proof is the companion evidence that excluded physical
+branches really are not demanded, rather than merely filtered after a full scan:
+
+```sh
+make check RUN='^Test(PartitionPruningProof|QueryBranchPruning|PartitionPruningExecution|PartitionPruningSafety)$'
+make check RUN='^Test(PartitionPruningExecution|PartitionPruningSafety)$' RACE=1
+make check RUN='^TestPartitionPruningSearch(Budget|Bound)$'
+make check RUN='^TestPartitionPruningSearch(Budget|Bound)$' RACE=1
+```
+
+Feature smoke argv is `make check RUN='^TestReferencePartitionPruningFeatureSmoke$'`
+and the identical command with `REFERENCE=1`. Expected observations are exact
+duplicate1/boundary3/default5/NULL bags, explicit LIST NULL/default ownership,
+complete HASH lookup, CHECK-permitted NULL/NO INHERIT descendants, same-held
+rebinds and typed empty results; native controls repeat restored boundary/NULL
+bags and replay the actual dump on PostgreSQL. Use external900-second deadlines
+for selected commands; quickcheck is reserved for whole-project verification.
+
 ### Foreign writes
 
 `TestReferenceFDWWriteActions`, `Identity`, `Returning`, `Batch`, `Copy`,

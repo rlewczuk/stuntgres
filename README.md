@@ -38,6 +38,23 @@ non-engine boundary, not an invented path or cluster database inventory.
 See [native limits](docs/DIALECT.md#tablespace-inquiries) and
 [selected proof](reference/catalogs/README.md#tablespace-inquiry-selected-proof).
 
+## Partition pruning and constraint exclusion — change note
+
+Source-local filters conservatively omit irrelevant RANGE/LIST/HASH physical
+branch intervals and inheritance branches refuted by validated CHECK/NOT NULL
+facts. Selection uses captured typed metadata and each execution's imported
+parameters; held statements do not cache it. Retained candidates still run the
+original predicate, preserving duplicate bags, NULL/default semantics, result
+metadata and errors. Admission/locks can continue to cover the full hierarchy.
+Boolean proof search has a fixed allowance shared across the whole selection;
+exhaustion retains unproved branches and still applies the original predicate,
+rather than introducing a SQL error or extending exponential backtracking.
+There is no EXPLAIN shape/cost, Boolean evaluation-order, new planner-setting,
+FDW pushdown or physical PostgreSQL persistence promise.
+See [table contracts](docs/TABLES.md#inheritance-typed-attachments-and-partition-graphs),
+[native boundaries](docs/DIALECT.md#tables-hierarchies-and-materializations)
+and [selected proof/smoke](reference/tables/README.md#partition-pruning-and-constraint-exclusion).
+
 ## Transactional large-object storage — change note
 
 `lo_create`, `lo_creat`, `lo_from_bytea`, both `lo_get` overloads, `lo_put`

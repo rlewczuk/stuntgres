@@ -51,6 +51,23 @@ binder. Partitioned indexes are `index` code. See
   `RetainedChecks.ForRow` picks the CHECKs a retained row re-validates
   during hash-partition remap repair; `CheckRecipeAffected` decides
   whether a trusted catalog import changed a CHECK recipe's inputs.
+- **Query refutation** (`prune.go`, `prune_predicate.go`): `CapturePruner`
+  borrows the admitted source's immutable catalog/topology and physical layouts.
+  `CapturedPruner.Select` runs unlocked through the narrow exec-owned
+  `QueryBranchPruner` interface. Typed interval-domain refutation combines
+  WHERE TRUE with applicable CHECK TRUE-or-UNKNOWN and ancestor membership.
+  It emits captured ordinal intervals, not copied rows or per-row candidates.
+  HASH shares `AccumulateHash` with routing. Unsupported provider/identity/
+  collation/probe contracts retain possibilities. The engine still owns full
+  admission, locks, parameter import, preflight and capture lifetime; exec owns
+  actual interval skipping, residual evaluation and stage reset/close.
+  Boolean backtracking processes at most 4096 search entries across one entire
+  Select, including terminal membership checks, not 4096 per physical branch.
+  Exhaustion conservatively retains the current and later branches; earlier
+  proven omissions remain valid. Cancellation is checked before fallback, and
+  actual errors reached by proof providers propagate unchanged. Normalization,
+  metadata traversal and each reached provider's work are input-sized costs,
+  not a constant-time guarantee.
 - **Dump and replay** (`dump.go`, `dump_events.go`, `constraint_dump.go`,
   `invalid_dump.go`, `unique_dump.go`, `replacement.go`, `replay.go`):
   the SQL builders (`ChildSQL`, `KeySQL`, `AttachDumpSQL`,
@@ -128,8 +145,29 @@ constraint and the per-leaf groups; step 29 moves them to `dml`). `partition_hos
 
 ## Testing
 
-No package-local tests: every partition unit test builds an engine and
-stays in the root package, naming the moved code as `partition.X`.
+Package-local `TestPartitionPruningProof` tests typed predicate refutation,
+CHECK UNKNOWN, incompatible providers/identities and forbidden probe safety.
+Engine `TestPartitionPruningProof` asserts actual captured physical branch
+selections. `TestPartitionPruningExecution` observes actual residual demand by
+captured row-buffer/physical identity, with duplicate and same-branch residual
+controls. `TestPartitionPruningSafety` observes actual provider callbacks unlocked,
+original callback errors/cancellation and release of every captured view handle.
+`TestPartitionPruningSearchBudget` asserts exact shared search accounting,
+terminal/error/cancellation boundaries, domain restoration and conservative
+fallback. Engine `TestPartitionPruningSearchBound` counts actual proof checkpoints
+through captured Select on empty/populated eight-branch sources, without timing
+thresholds or synthetic cancellation. `TestReferencePartitionPruningComplexPredicate`
+independently checks complex direct/prepared/held bags and empty metadata.
+
+```sh
+make check RUN='^TestPartitionPruningSearch(Budget|Bound)$'
+make check RUN='^TestReferencePartitionPruningComplexPredicate$'
+make check RUN='^TestReferencePartitionPruningComplexPredicate$' REFERENCE=1
+```
+
+Exec `TestQueryBranchPruning` covers interval/scan-range/raw-ordinal and rewind
+behavior. Other partition units build an engine and stay in the root package,
+naming the moved code as `partition.X`.
 `TestPartitionHost*` checks the root `ddlHost.BindKeyExpression`.
 
 LIST selected units and real production-phase cancellation proof:

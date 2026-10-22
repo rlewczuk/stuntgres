@@ -364,6 +364,9 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			e.closeQuerySourceSetLocked(scope.op.Context(), first, sources)
 			return nil, err
 		}
+		if !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
+			partition.CapturePruner(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog)), leaf.Relation, source)
+		}
 		borrowQueryAuthority(source, scope)
 		source.Occurrence = i
 		source.Locks = locks

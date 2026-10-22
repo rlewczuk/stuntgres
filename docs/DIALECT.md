@@ -1133,6 +1133,21 @@ sibling execution order is promised. See [query ownership](QUERIES.md) and
 
 ## Tables, hierarchies and materializations
 
+Source-local WHERE filters support conservative metadata-driven RANGE/LIST/HASH
+branch omission and physical inheritance CHECK exclusion. Retained rows still
+run the original residual; NULL/default ownership, duplicate bags, metadata and
+diagnostics remain the SQL contract. Captured admission/locks may cover omitted
+branches. Held statements recompute selection from each execution's imported
+values and captured topology; native Dump/Restore serializes objects/data, not
+pruning state.
+
+No EXPLAIN costs, physical PostgreSQL plan shape, arbitrary Boolean evaluation
+order, new planner settings or FDW pushdown are promised. This does not emulate
+PostgreSQL disk access, WAL/durability, network transport or native provider ABI.
+Unsafe/unsupported proof shapes retain branches instead of rejecting legal SQL.
+Existing row-lock and policy-expression enforcement capability errors remain;
+branch omission does not implement those adjacent prerequisites.
+
 RANGE `ALTER TABLE ... ATTACH PARTITION` accepts an existing ordinary or
 partitioned relation, with `FOR VALUES` or `DEFAULT`, including explicit
 transactions and savepoints. Ordinary `DETACH PARTITION` retains the child as a

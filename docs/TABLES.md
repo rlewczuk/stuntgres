@@ -551,6 +551,34 @@ Physical relation+RowID, captured store/version and real grants survive waits,
 FROM/USING, modifying CTEs, CURRENT OF and held prepared execution. Counts include
 each selected physical row once; later child failure vetoes the whole statement.
 
+**Predicate-driven branch omission.**
+
+Direct source filters can omit captured physical branch intervals when typed
+partition metadata or validated physical CHECK/NOT NULL facts prove that no row
+can make the predicate TRUE. RANGE uses lexicographic half-open tuples, including
+MINVALUE/MAXVALUE; LIST considers every member and its separate NULL ownership;
+HASH requires compatible equality or IS NULL for every key and reuses the routing
+seed/combination. Nested physical leaves must satisfy every captured ancestor.
+DEFAULT uses captured sibling ownership, not a cached predicate. LIST inequalities
+and `<>` conservatively retain DEFAULT.
+
+CHECK accepts UNKNOWN as well as TRUE. NOT VALID facts are ignored; NO INHERIT
+facts apply only to their actual physical descriptor. Excluding an ordinary
+inheritance root never removes its descendants. Stable named-parent layouts,
+ONLY, physical versions, diamond deduplication and per-occurrence bags are unchanged.
+
+Admission and lock manifests still include the full hierarchy. Selection occurs
+unlocked after ordinary parameter import/preflight and is private to the current
+execution/filter; it is not persisted or cached in held prepared analysis.
+Every retained candidate still runs the complete original residual predicate.
+Unsupported expressions, mismatched providers/collations and unsafe probe values
+keep possible branches. Opaque/security/aggregate/outer-join transformations and
+mandatory physical frontiers are not bypassed. Empty selection does not suppress
+binding, signature, privilege, RLS or provider/cancellation errors.
+
+This is conservative execution omission, not an EXPLAIN cost/shape contract or
+an evaluation-order promise. Unordered results remain bags, including duplicates.
+
 Ordinary `INHERIT`/`NO INHERIT` are relationship-phase ALTER actions, not table
 recreation. They preserve child attribute/fact identities, physical storage,
 rows, defaults and generated recipes. Attach matches live columns by name

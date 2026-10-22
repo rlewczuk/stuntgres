@@ -265,6 +265,22 @@ type EvaluatedKey struct {
 	Hash    uint64
 }
 
+// AccumulateHash is the single released seeded scalar-key combination used by
+// both row routing and equality/NULL pruning. NULL contributes no hash datum.
+func AccumulateHash(ctx context.Context, key catalog.PartitionKeyEntry, value sqltype.Value, hash uint64) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if value.IsNull() {
+		return hash, nil
+	}
+	hashed, err := key.Hash.Hash(ctx, value, 0x7a5b22367996dcfd)
+	if err != nil {
+		return 0, err
+	}
+	return hash ^ (hashed + 0x49a0f4dd15e5a8e3 + (hash << 54) + (hash >> 7)), nil
+}
+
 func RowKey(d *catalog.Relation, row []sqltype.Value, evaluation *exec.Context, buffer []catalog.PartitionDatum) (EvaluatedKey, error) {
 	keys := d.Partition.Keys
 	result := EvaluatedKey{Values: buffer[:len(keys)]}
@@ -284,12 +300,11 @@ func RowKey(d *catalog.Relation, row []sqltype.Value, evaluation *exec.Context, 
 		}
 		result.Values[i] = catalog.PartitionDatum{Value: value}
 		result.anyNull = result.anyNull || value.IsNull()
-		if d.Partition.Strategy == parser.PartitionHash && !value.IsNull() {
-			hashed, err := key.Hash.Hash(evaluation.Context, value, 0x7a5b22367996dcfd)
+		if d.Partition.Strategy == parser.PartitionHash {
+			result.Hash, err = AccumulateHash(evaluation.Context, key, value, result.Hash)
 			if err != nil {
 				return EvaluatedKey{}, err
 			}
-			result.Hash ^= hashed + 0x49a0f4dd15e5a8e3 + (result.Hash << 54) + (result.Hash >> 7)
 		}
 	}
 	return result, nil

@@ -67,6 +67,7 @@ type Source struct {
 	// Both inheritance and partition trees use named-layout physical prefixes.
 	Inheritance          []InheritanceQuerySegment
 	InheritanceEnds      []int
+	BranchPruner         QueryBranchPruner
 	Flat                 []sqltype.Value
 	FlatWidth, FlatCount int
 	Materialized         bool
@@ -217,6 +218,7 @@ func (s *Source) Close() {
 	sources := s.Sources
 	s.Sources = nil
 	s.HashIndexes = nil
+	s.BranchPruner = nil
 	if s.NestedStage != nil {
 		s.NestedStage.Close()
 		s.NestedStage = nil
@@ -658,10 +660,18 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		if err != nil {
 			return Stage{}, err
 		}
-		candidates, err := hashFilterCandidates(ctx, state, n, child.Source)
+		branches, err := selectQueryBranches(ctx, state, n, &child)
 		if err != nil {
 			child.Close()
 			return Stage{}, err
+		}
+		var candidates *hashCandidateSelection
+		if !branches.selection.Applied {
+			candidates, err = hashFilterCandidates(ctx, state, n, child.Source)
+			if err != nil {
+				child.Close()
+				return Stage{}, err
+			}
 		}
 		out := ProducingStage(&child, n.Schema())
 		out.HashCandidates = candidates
@@ -670,6 +680,17 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			changed, err := baseReset(ctx, out)
 			if err != nil {
 				return false, err
+			}
+			if changed {
+				branches, err = selectQueryBranches(ctx, state, n, &child)
+				if err != nil {
+					return false, err
+				}
+				if branches.selection.Applied {
+					candidates, out.HashCandidates = nil, nil
+				}
+			} else {
+				branches.position = 0
 			}
 			if n.Predicate.Properties().Volatility == expr.Volatile {
 				if !changed {
@@ -697,7 +718,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 				} else {
 					var present bool
 					var err error
-					i, present, err = child.NextOccurrence(ctx)
+					i, present, err = branches.next(ctx, &child)
 					if err != nil || !present {
 						return present, err
 					}
