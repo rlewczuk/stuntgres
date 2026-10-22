@@ -485,6 +485,45 @@ polling remain armed semantic assertions. Failure-only phase/query diagnostics
 cover all twelve assignment branches; the existing positive-assignment adaptive
 policy above is unchanged.
 
+Reenable and set-config have their own fixed250ms setup, separate from savepoint
+restoration. Each fresh owner repeats SET250/BEGIN/actual disable (including the
+TEXT `set_config` result),350ms survival/SHOW0/SAME owner, then SET250/50ms/SHOW250.
+Only bracket-proven armed setup25P04 permits replacement, with nil outputs, exact
+fatal provenance, dead owner and peer7; successful disable survival cannot retry.
+Successful final SHOW250 ends adaptation; eventual fatal and rollback are checked
+once. At most three attempts share six seconds capped by parent minus four seconds.
+Setup commands retain exact affected counts and unsupported `LastInsertId`.
+Each successful setup TEXT query retains full metadata, raw `any`-scan string
+representation, exact value/cardinality and cursor-close assertions, plus the
+independently recorded consumed columns, raw values, rows and cursor closure.
+These checks inspect the single actual operation within the same child context;
+they neither replay SQL nor turn assertion failures into setup-expiry retries.
+
+AbortRestore retains SET500 before BEGIN and child SAVEPOINT capture of500.
+Private locking/INSERT8, SAVEPOINT and peer holder acquisition run with short
+timers0. Before the actual semantic INSERT or short arm, an elapsed BEGIN-before
++500ms gate awaits exact eventual fatal (not presumed callback completion), proves
+private rollback/peer7 and replaces the owner within the same fixed setup bounds.
+Only bracket-proven25P04 setup errors qualify;125ms statement/lock is armed last.
+Actual INSERT NULL or direct AX blocked LOCK and all1100ms/600ms recovery witnesses
+are irreversible, including exact23502/57014/55P03/25P02, nil outputs, restored500,
+same-owner survival and genuine off/on fatal. Holder rollback is idempotently
+owned before acquisition and occurs only after the actual outcome is joined.
+
+Combined whole-definition proof (oracle first, then quick and selected race):
+
+```sh
+make check RUN='^TestReference(TimeoutTransactionAssignments|TimeoutTransactionAbortRestore|BtreeIndexBuildTimeouts)$' REFERENCE=1
+make check RUN='^TestReference(TimeoutTransactionAssignments|TimeoutTransactionAbortRestore|BtreeIndexBuildTimeouts)$'
+make check RUN='^TestReference(TimeoutTransactionAssignments|TimeoutTransactionAbortRestore|BtreeIndexBuildTimeouts)$' RACE=1
+```
+
+Keep the same fixed budgets under baseline, bounded CPU contention/GOMAXPROCS1
+and post-contention cohorts. Record actual phase/command brackets and environment;
+finite scheduling variation is not proof of immunity to arbitrary starvation.
+The temporary public smoke exercises reenable, child statement recovery and both
+held B-tree errors; it belongs outside the repository, not in permanent test source.
+
 ```sh
 make check RUN='^TestReferenceTimeoutTransactionAssignments$' REFERENCE=1
 make check RUN='^TestReferenceTimeoutTransactionAssignments$'

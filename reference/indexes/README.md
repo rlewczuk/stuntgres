@@ -209,6 +209,29 @@ make check RUN='^TestReferenceHashIndexBuildAdmission$' REFERENCE=1
 make check RUN='^TestReferenceHashIndexBuildAdmission$' RACE=1
 ```
 
+`TestReferenceBtreeIndexBuildTimeouts` retains its empty table and real ROW
+EXCLUSIVE holder across both20ms timers. Actual CREATE INDEX and both reset SET
+handles are prepared with timers0. The same held CREATE must fail at Execute
+with complete55P03/57014 English diagnostics and nil Result; Prepare failure or
+early success is not an equivalent witness. Each preprepared reset executes on
+the same owner without retry and still obeys its inherited timer. After each
+failed build, independently require no idx, unchanged empty INT4 data and the
+same live physical builder. After explicit holder rollback, require no idx,
+then original direct CREATE0, idx present and unchanged data/SAME owner.
+
+```sh
+make check RUN='^TestReference(TimeoutTransactionAssignments|TimeoutTransactionAbortRestore|BtreeIndexBuildTimeouts)$' REFERENCE=1
+make check RUN='^TestReference(TimeoutTransactionAssignments|TimeoutTransactionAbortRestore|BtreeIndexBuildTimeouts)$'
+make check RUN='^TestReference(TimeoutTransactionAssignments|TimeoutTransactionAbortRestore|BtreeIndexBuildTimeouts)$' RACE=1
+```
+
+Use an external900-second deadline for each selected command. Baseline, bounded
+CPU contention with GOMAXPROCS1 and post-contention cohorts keep all timer budgets
+unchanged and retain every failure with actual phase/environment attribution.
+Temporary standalone public smoke additionally uses populated1,2 data to witness
+both held Execute errors, nonpublication and same-owner later build; it is not
+permanent repository source or a substitute for real pinned18.6 selected proof.
+
 ### Index maintenance lock fixtures
 
 `TestReferenceIndexMaintenanceLocks` prepares the actual held REINDEX/DROP

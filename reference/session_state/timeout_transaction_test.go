@@ -240,6 +240,19 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 					f.rows(f.peer, 7)
 					return
 				}
+				if kind == "reenable" || kind == "set-config" {
+					identity = f.prepareReenable(kind, mark)
+					if fixture.SettingsPhysical(t, f.owner) != identity {
+						t.Fatal("reenabled timeout lost physical owner")
+					}
+					mark("await transaction FATAL25P04 / first fatal SQL")
+					f.awaitTransactionFatal(p.Ctx)
+					mark("dead owner INSERT99 must fail without output")
+					f.dead()
+					mark("peer SELECT v FROM timeout_sentinel ORDER BY v")
+					f.rows(f.peer, 7)
+					return
+				}
 				if kind == "savepoint-restore" {
 					identity = f.prepareSavepointRestore(mark)
 				} else {
@@ -266,22 +279,13 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 					mark("peer SELECT v FROM timeout_sentinel ORDER BY v")
 					f.rows(f.peer, 7)
 					return
-				case "reenable", "savepoint-restore", "set-config":
-					if kind == "set-config" {
-						run(localReferenceSelect(b.PG, "SELECT set_config('transaction_timeout','0',false)", "set_config", "0"))
-					} else if kind != "savepoint-restore" {
-						set("0")
-					}
+				case "savepoint-restore":
 					idle(350 * time.Millisecond)
 					show("0")
 					if fixture.SettingsPhysical(t, f.owner) != identity {
 						t.Fatal("retired timeout lost physical owner")
 					}
-					if kind == "savepoint-restore" {
-						exec("ROLLBACK TO timeout_restore")
-					} else {
-						set("250ms")
-					}
+					exec("ROLLBACK TO timeout_restore")
 					idle(50 * time.Millisecond)
 					show("250ms")
 				}
@@ -476,27 +480,17 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/child=%v", failure, child), func(t *testing.T) {
 				timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 					f := newTimeoutReferenceFixture(t, p, b)
-					identity := fixture.SettingsPhysical(t, f.owner)
-					f.set("transaction_timeout", "500ms")
-					// Configured 1s idle limit is suppressed even after ERROR stops
-					// the actual transaction timer (release ReadyForQuery rule).
-					f.set("idle_in_transaction_session_timeout", "1s")
-					if failure == "statement" {
-						f.set("statement_timeout", "125ms")
-					}
-					if failure == "lock" {
-						f.set("lock_timeout", "125ms")
-					}
-					f.beginPrivate()
-					if child {
-						f.exec(f.owner, "SAVEPOINT timeout_child", 0)
-					}
+					// Setup retains BEGIN-relative500 and the child's positive
+					// setting;125 is armed only after private work and peer locking.
+					identity, release := f.prepareAbortRestore(failure, child)
 					if failure == "semantic" {
-						_, err := f.owner.ExecContext(p.Ctx, "INSERT INTO timeout_sentinel VALUES(NULL)")
+						result, err := f.owner.ExecContext(p.Ctx, "INSERT INTO timeout_sentinel VALUES(NULL)")
+						if result != nil {
+							t.Fatal("semantic error published result")
+						}
 						want := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "v" of relation "timeout_sentinel" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "timeout_sentinel", Column: "v"}
 						fixture.AssertDiagnostic(t, err, &want)
 					} else {
-						release := f.holdBlocked()
 						o := f.blocked("utility", "LOCK TABLE timeout_blocked IN ACCESS EXCLUSIVE MODE", nil)
 						code := "57014"
 						if failure == "lock" {
@@ -508,7 +502,10 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 					// O3 source hypothesis: full abort cancels all timers. An
 					// unchanged positive restoration must not invent a new timer.
 					timeoutReferenceIdle(t, p.Ctx, 1100*time.Millisecond)
-					_, err := f.owner.ExecContext(p.Ctx, "SELECT v FROM timeout_sentinel")
+					result, err := f.owner.ExecContext(p.Ctx, "SELECT v FROM timeout_sentinel")
+					if result != nil {
+						t.Fatal("aborted transaction published result")
+					}
 					want := fixture.TransactionAborted()
 					fixture.AssertDiagnostic(t, err, &want)
 					if child {
@@ -516,6 +513,9 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 						// O3: ROLLBACK TO unchanged positive setting does not rearm.
 						timeoutReferenceIdle(t, p.Ctx, 600*time.Millisecond)
 						f.rows(f.owner, 7, 8)
+						if fixture.SettingsPhysical(t, f.owner) != identity {
+							t.Fatal("child recovery changed physical owner")
+						}
 						// A real off/on assignment does rearm the recovered owner.
 						f.set("transaction_timeout", "0")
 						f.set("transaction_timeout", "250ms")
