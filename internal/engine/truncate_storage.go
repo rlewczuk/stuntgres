@@ -13,76 +13,15 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type truncateGraphFence struct {
-	base      *catalog.State
-	targets   map[ids.ObjectAddress]int // Immutable after acquisition; savepoints share it.
-	token     ids.SessionToken          // Descendant TEMP exclusion matches grant-time admission.
-	restart   bool
-	sequences map[ids.ObjectAddress]*storage.SequenceGenerator // Immutable committed bindings; not counter undo.
-}
+// truncateGraphFence is TRUNCATE's catalog fence over the graph it admitted.
+type truncateGraphFence struct{ dml.TruncateGraph }
 
 func (truncateGraphFence) Kind() session.FenceKind { return fenceTruncateGraph }
 
-// Catalog replacements do not have to honor SQL AX locks. Fence new inbound
-// FK/hierarchy edges as well as the exact selected descriptors and stores.
+// currentLocked checks the admitted graph against the private catalog and the
+// published sequence generators. Caller holds Engine.mu.
 func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) error {
-	current := e.privateCatalogLocked(c)
-	if fence.restart {
-		for address, generator := range fence.sequences {
-			if e.storage.Sequences[address] != generator {
-				return catalog.Conflict{}
-			}
-		}
-		for address, descriptor := range current.Descriptors() {
-			d, ok := descriptor.(*catalog.Relation)
-			if !ok || !dml.TruncateOwnsSequence(d, fence.targets) {
-				continue
-			}
-			if _, observed := fence.sequences[address]; observed {
-				continue
-			}
-			// Legitimate own subsequent CREATE/OWNED BY is not an incoming
-			// host edge. Its first committed predecessor is fenced by the
-			// ordinary originals check, including changes hidden by overlays.
-			if _, own := c.Descriptors[address]; !own {
-				return catalog.Conflict{}
-			}
-		}
-	}
-	for address, descriptor := range current.Descriptors() {
-		if descriptor == fence.base.Get(address) || fence.targets[address] != 0 {
-			continue
-		}
-		d, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		for _, fk := range d.Constraints.ForeignKeys {
-			if fence.targets[fk.Target] != 0 {
-				return catalog.Conflict{}
-			}
-		}
-		if d.Inheritance != nil || d.Membership != nil {
-			otherTemporary, err := dml.TruncateOtherTemporary(current, d, fence.token)
-			if err != nil {
-				return catalog.Conflict{}
-			}
-			if otherTemporary {
-				continue
-			}
-		}
-		if d.Inheritance != nil {
-			for _, parent := range d.Inheritance.Parents {
-				if fence.targets[parent.Relation] != 0 {
-					return catalog.Conflict{}
-				}
-			}
-		}
-		if d.Membership != nil && fence.targets[d.Membership.Parent] != 0 {
-			return catalog.Conflict{}
-		}
-	}
-	return nil
+	return fence.CheckCurrent(e.privateCatalogLocked(c), c, e.storage.Sequences)
 }
 
 // stageTruncate replaces roots, never scans/discards individual row values.
@@ -177,7 +116,7 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.AddFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().Selected, token: s.op.Session.SessionToken, restart: s.truncateOrZero().Restart, sequences: sequences})
+		changes.AddFence(truncateGraphFence{dml.TruncateGraph{Base: auth.Catalog.State(), Targets: s.truncateOrZero().Selected, Token: s.op.Session.SessionToken, Restart: s.truncateOrZero().Restart, Sequences: sequences}})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
