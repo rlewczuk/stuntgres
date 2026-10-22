@@ -45,7 +45,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			return nil, err
 		}
 	}
-	definition, err := partition.StageCreate(ddlHost{e: e, op: op, stage: stage}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.input, scope.foreignActionsOrZero().KeyTargets)
+	definition, err := partition.StageCreate(ddlHost{e: e, op: op, stage: stage}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.input, scope.foreignKeysOrZero().KeyTargets)
 	if err != nil {
 		return nil, err
 	}

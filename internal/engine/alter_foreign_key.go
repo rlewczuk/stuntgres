@@ -145,7 +145,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		}
 		i++
 	}
-	s.foreignActions().AlterKeys = captures
+	s.foreignKeys().AlterKeys = captures
 	return nil
 }
 

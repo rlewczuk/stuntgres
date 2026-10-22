@@ -144,8 +144,8 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	if len(scope.foreignActionsOrZero().AlterKeys) != 1 || scope.foreignActionsOrZero().AlterKeys[0].Target.Address != original.Address() || scope.foreignActionsOrZero().AlterKeys[0].Index != (ids.ObjectAddress{}) {
-		t.Fatal("invented preexisting self provider", scope.foreignActionsOrZero().AlterKeys)
+	if len(scope.foreignKeysOrZero().AlterKeys) != 1 || scope.foreignKeysOrZero().AlterKeys[0].Target.Address != original.Address() || scope.foreignKeysOrZero().AlterKeys[0].Index != (ids.ObjectAddress{}) {
+		t.Fatal("invented preexisting self provider", scope.foreignKeysOrZero().AlterKeys)
 	}
 	candidate := scope.catalog.Descriptors[original.Address()].(*catalog.Relation)
 	if len(candidate.Constraints.ForeignKeys) != 1 || candidate.Constraints.ForeignKeys[0].Index != candidate.Constraints.Unique[0].Index {

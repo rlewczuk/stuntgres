@@ -18,6 +18,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -274,6 +275,7 @@ type StatementScope struct {
 	truncateSlot       *dml.TruncateScope
 	dropsSlot          *dropScope
 	foreignActionsSlot *dml.ForeignActionScope
+	foreignKeysSlot    *table.ForeignKeyCreation
 	viewCreationSlot   *view.CreationScope
 	materializedSlot   *view.MaterializedRefreshScope
 	indexesSlot        *index.Scope

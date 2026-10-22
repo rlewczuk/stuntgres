@@ -80,16 +80,14 @@ func ForeignActionSameKey(comparisons []table.ForeignKeyComparison, old, next []
 }
 
 // ForeignActionScope is the statement's foreign-key action slot: admitted
-// referencing relations, row transitions, settling state, prepared check jobs
-// and the foreign-key targets of CREATE/ALTER TABLE.
+// referencing relations, row transitions, settling state and prepared check
+// jobs.
 type ForeignActionScope struct {
 	Admissions     map[ids.ObjectAddress]*ForeignActionAdmission
 	Transitions    []ForeignActionTransition
 	Settling       bool
 	ExclusionAdded bool // a new event admitted while settling actions
 	Jobs           []ForeignKeyJob
-	KeyTargets     []ids.ObjectRef
-	AlterKeys      []table.AlterForeignKeyAdmission
 }
 
 type ForeignActionPlan struct {

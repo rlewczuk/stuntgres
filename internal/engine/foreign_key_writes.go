@@ -159,7 +159,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		}
 	}
 	e.mu.Unlock()
-	s.foreignActions().KeyTargets = targets
+	s.foreignKeys().KeyTargets = targets
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
 		if err := s.foreignKeyGrant(ref, 0, lock.ShareRowExclusive, nil); err != nil {
@@ -190,4 +190,21 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *table.Fo
 		return fmt.Errorf("stuntgres: ready foreign-key index root is missing")
 	}
 	return nil
+}
+
+// foreignKeys returns the statement's CREATE/ALTER TABLE foreign-key slot,
+// allocating it on first use.
+func (s *StatementScope) foreignKeys() *table.ForeignKeyCreation {
+	if s.foreignKeysSlot == nil {
+		s.foreignKeysSlot = new(table.ForeignKeyCreation)
+	}
+	return s.foreignKeysSlot
+}
+
+// foreignKeysOrZero reads the foreign-key slot; a nil slot reads as zero.
+func (s *StatementScope) foreignKeysOrZero() table.ForeignKeyCreation {
+	if s.foreignKeysSlot == nil {
+		return table.ForeignKeyCreation{}
+	}
+	return *s.foreignKeysSlot
 }
