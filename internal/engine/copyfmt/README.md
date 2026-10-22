@@ -47,10 +47,10 @@ is not `copy`, which would shadow the builtin in every importing file.
   and cancellation. Wire-input checks (`CopyInput`,
   `PendingProtocolUserCancel`, `PendingCopyInputError`) stay in the
   cursors' `Next`, never in the codec.
-- **Execution** (root `copy.go`, `copy_text.go`, `copy_binary.go`,
-  `copy_insertion.go`, moving to `dml` in step 29): binding the target,
-  converting fields to values, the "COPY t, line N" context, insertion and
-  output rows.
+- **Execution**: binding the target and output rows in the root
+  (`copy.go`, `copy_text.go`, `copy_binary.go`); converting fields to
+  values, the "COPY t, line N" context and insertion in `dml`
+  (`copy_cursor.go`, `copy_binary_cursor.go`, `copy_insertion.go`).
 
 ## Invariants
 

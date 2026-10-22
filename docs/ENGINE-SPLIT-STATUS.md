@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `d97704517` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 111, 112, 113 and 114). Steps 8–17 were
+Last verified against `master` at `a388cf01f` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 111, 112, 113 and 114). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -17,7 +17,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
-- **DML, executors:** 110c (dml 29d.3); 110d–110f follow in order.
+- **DML, executors:** 110d (dml 29d.4); 110e and 110f follow in order.
 - **Third round, view:** 116 (27f, privilege walkers and query table
   refs; 115 is done), 117 (27g, DROP read side), 118 (27h, lock walks).
   125 (table 24g) still waits for 124, and 132 (dml 29e) for 110f.
@@ -164,6 +164,12 @@ candidate validation, the write overlay probe and the `ApplyValidated`/
 `ReplaceRows` staging loops live in `dml` over `dml.Host`, so 110c (29d.3)
 is ready. The ON CONFLICT DO NOTHING admission and its revalidation moved
 with the loops (the stale retry calls them).
+Item 110c (DML 29d.3) is done: the INSERT body, INSERT ... SELECT row
+assembly, RETURNING, ON CONFLICT DO UPDATE, partition routing execution,
+row validation and the COPY FROM cursors and insertion live in `dml` over
+`dml.Host`, so 110d (29d.4) is ready. `RowConstraintError`,
+`EvaluateUpdateAssignments` and `CheckViewRow` moved early (DO UPDATE needs
+them), so 110d's move set is smaller.
 
 ## Task tree
 
@@ -647,7 +653,7 @@ with the loops (the stale retry calls them).
   - [ ] 29d — Executors moved
     - [x] 29d.1 — Seam and lower moves (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, docs)
     - [x] 29d.2 — Unique and exclusion probing, staging loops (`b2f1e2058`, `fb919b1ac`, `ae653408b`, `34fb07658`, docs)
-    - [ ] 29d.3 — INSERT, ON CONFLICT and COPY FROM
+    - [x] 29d.3 — INSERT, ON CONFLICT and COPY FROM (`25829dab7`, `1b90dd9f2`, `5f4129904`, docs)
     - [ ] 29d.4 — UPDATE and DELETE
     - [ ] 29d.5 — MERGE and foreign DML
     - [ ] 29d.6 — FK enforcement and actions
@@ -1588,7 +1594,17 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
        unique/exclusion/ON CONFLICT, benchmarks, quickcheck and
        `REFERENCE=1` selection passed;
        racecheck/finalcheck skipped at user request
-     - 110c. [ ] 29d.3: INSERT, ON CONFLICT and COPY FROM · needs 110b
+     - 110c. [x] 29d.3: INSERT, ON CONFLICT and COPY FROM (`25829dab7`, `1b90dd9f2`, `5f4129904`, then the
+       docs commit) · `dml.ExecuteInsert` over a captured `InsertInput`,
+       `EvaluateInsertQuery`, `AssembleInsertRows`, `EvaluateInsertValuesRow`,
+       RETURNING, ON CONFLICT DO UPDATE, `ValidateInsertRow`, `CheckViewRow`,
+       `RowConstraintError`, `EvaluateUpdateAssignments`, partition routing
+       with `ApplyInsertValidated`, the COPY FROM cursors and insertion; the
+       host gains `Operation` and a by-value `AppendAcceptedInsert`;
+       `executeInsertLocked` keeps the locked prologue · seam test, selected
+       units, `RACE=1` COPY/ON CONFLICT/partition publication, escape diff
+       and benchmarks, quickcheck and `REFERENCE=1` selection passed;
+       racecheck/finalcheck skipped at user request
      - 110d. [ ] 29d.4: UPDATE and DELETE · needs 110c
      - 110e. [ ] 29d.5: MERGE and foreign DML · needs 110d
      - 110f. [ ] 29d.6: FK seam (`ForeignKeys`, `FinishHost`,

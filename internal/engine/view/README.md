@@ -136,7 +136,7 @@ and SET SCHEMA dispatch to the root's table handlers. The host bodies
 (`view_host.go`; `BindPolicyExpression` in `policy_expression.go`), rule
 program execution and admission (they run DML), `prepareStoredQueryLocked`
 (it opens the sources under `Engine.mu`), view source opening and
-authorization (`view_source.go`), `checkViewRow`, refresh row production and
+authorization (`view_source.go`), refresh row production and
 staging (`refreshMaterializedLocked`, `materializedRefreshRowsLocked`,
 `stageMaterializedRows`), the `CatalogStage` replacement wrappers, the
 materialized source fence and its kind, `importMaterializedSnapshots`,

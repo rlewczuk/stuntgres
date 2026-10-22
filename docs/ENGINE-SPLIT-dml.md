@@ -807,7 +807,8 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
     commit; see the 29d.1 record)
   - [x] 29d.2 — Unique and exclusion probing, staging loops (110b) (`b2f1e2058`, `fb919b1ac`, `ae653408b`, `34fb07658`, then the docs
     commit; see the 29d.2 record)
-  - [ ] 29d.3 — INSERT, ON CONFLICT and COPY FROM (110c)
+  - [x] 29d.3 — INSERT, ON CONFLICT and COPY FROM (110c) (`25829dab7`, `1b90dd9f2`, `5f4129904`, then the
+    docs commit; see the 29d.3 record)
   - [ ] 29d.4 — UPDATE and DELETE (110d)
   - [ ] 29d.5 — MERGE and foreign DML (110e)
   - [ ] 29d.6 — FK enforcement and actions; close step 29 (110f)
@@ -1020,7 +1021,65 @@ Done on `implement-part/PG18-ENGINE-SPLIT-DML-PROBING` from `c715c2f9c`.
   racecheck, finalcheck and bench skipped at user request (no startup
   change).
 
+### 29d.3 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-INSERT` from `7e7e9a0f6`,
+rebased onto `a388cf01f`.
+
+| Commit | Change |
+|---|---|
+| `25829dab7` | Seam: `Statement.Operation()` (the COPY input state, pending input error and context source); `Stage.AppendAcceptedInsert` takes the candidate by value; seam test |
+| `1b90dd9f2` | Port in place: the move set as root functions over `h dml.Host` in `dmlmv_*.go` staging files with final names, reading `Command()` at call time; the partition group and stored-row helpers become `Command` methods; `executeInsertLocked` keeps the locked prologue and wraps the `Outcome` (`outcomeResult`, no typed nil); the cursors take the reader the protocol builds and export `Diagnostic`; 30 engine test files rewritten |
+| `5f4129904` | Move: the staging files to `dml` (`insert.go`, `insert_query.go`, `insert_values.go`, `insert_returning.go`, `insert_admission.go`, `insert_conflict_update.go`, `insert_validate.go`, `partition_insert.go`, `update_assignments.go`, `copy_cursor.go`, `copy_binary_cursor.go`, `copy_insertion.go`); root callers and tests name `dml.X`; the partition publication tests match `dml.ApplyInsertValidated` |
+
+- **Deviations.**
+  - `RowConstraintError` (`rowConstraintError`), `EvaluateUpdateAssignments`
+    and `CheckViewRow` moved here, not in 29d.4: the moved INSERT and DO
+    UPDATE code calls them, and a root copy would duplicate them. UPDATE
+    and foreign DML call the `dml` versions.
+  - The host gained `Statement.Operation()`: `AssembleInsertRows` checks
+    the operation's COPY input state for every caller (a nested INSERT under
+    an active COPY too), and the cursors keep the operation as decision 11
+    says.
+  - The cursor constructors take the `copyfmt.LineReader`/`BinaryReader`
+    the root builds over `copyReader` (decision 11 said a plain
+    `io.Reader`), so the protocol cancellation tests keep their pre-read
+    readers.
+  - `AppendAcceptedInsert` takes the candidate by value: through the
+    interface the pointer would have moved every INSERT row's candidate to
+    the heap. Failure-only `RowDetail` calls take a copy of the binding, so
+    only error paths allocate it.
+  - `uniqueJournal` stays root (in `statement_host_dml.go`);
+    `insert_conflict_admission.go`, `insert_query.go`, `insert_returning.go`,
+    `identity.go`, `view_check_row.go`, `update_assignment_eval.go` and
+    `copy_insertion.go` are gone from the root.
+- **Per-row cost.** The `-gcflags=-m` "moved to heap" set matches master
+  apart from the error-branch binding copies; the ON CONFLICT benchmarks
+  (128 and 4096 rows) allocate as master.
+- **Tests.** Rewritten to the new names: 30 engine test files (the
+  `insert_conflict_*`, `insert_select_*`, `insert_returning_test.go`,
+  `query_*` INSERT ... SELECT tests, `view_check_test.go`,
+  `update_row_*`, `regclass_diagnostic_test.go`,
+  `partition_attach_definition_test.go`, the protocol COPY cursor tests,
+  which now use the constructors, and the two partition publication frame
+  matchers). None moved or deleted: they all build an engine.
+- **Checks.** String-literal multiset unchanged apart from the frame
+  matcher and one new test message; selected units after every commit;
+  `RACE=1` `^Test(ProtocolCopy|Copy|ProtocolTerminal|InsertConflict|InsertReturning|InsertSelect|RangePartitionPublication|ListPartitionPublication|StatementHost|ViewCheck)`;
+  quickcheck; quick-mode `^TestReference(Insert|Copy|Merge|Update|View|Partition|Foreign)`;
+  `make check REFERENCE=1` over
+  `^TestReference(Insert|Copy|MergeInsert|UpdateFrom|ViewCheck|FDW|PartitionInsert|PartitionRouting|PartitionTuple|RangePartition|ListPartition|HashPartition)`
+  (all passed).
+  racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
 ### Notes for later steps
+
+- 29d.3, for 29d.4: `dml.RowConstraintError`, `dml.EvaluateUpdateAssignments`
+  and `dml.CheckViewRow` are already in `dml`; 29d.4's move set drops them.
+  `ValidateInsertRow` (MERGE INSERT arms) and `EvaluateInsertValuesRow`
+  (MERGE, foreign INSERT) are exported for 29d.5. Keep failure-only
+  `RowDetail` bindings as copies (see the invariant in the README).
 
 - 29d.2, for 29d.3: `admitInsertRow`, `applyInsertBatch`,
   `checkInsertUniqueRow` and `appendAcceptedInsert` are the ON CONFLICT and
