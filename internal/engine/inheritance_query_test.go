@@ -284,7 +284,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 			t.Fatal("replacement lost source mode or mutated frozen authority")
 		}
 		var got []ids.ObjectAddress
-		err = inheritanceQueryLeaves(e.CatalogRead(), []exec.Leaf{{Ref: remapped.Ref, Only: remapped.Only}}, ids.SessionToken{}, func(leaf exec.Leaf) error { got = append(got, leaf.Ref.Address); return nil })
+		err = table.InheritanceQueryLeaves(e.CatalogRead(), []exec.Leaf{{Ref: remapped.Ref, Only: remapped.Only}}, ids.SessionToken{}, func(leaf exec.Leaf) error { got = append(got, leaf.Ref.Address); return nil })
 		want := []ids.ObjectAddress{p.Address()}
 		if !only {
 			want = append(want, c.Address())
