@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -127,7 +128,7 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 
 // executeUpdate runs the dml UPDATE executor over the scope's host.
 func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
-	outcome, err := ExecuteUpdate(s.writeHost(), UpdateInput{Context: ctx, Binding: b, Source: source, From: from, Parameters: parameters, Schema: schema})
+	outcome, err := dml.ExecuteUpdate(s.writeHost(), dml.UpdateInput{Context: ctx, Binding: b, Source: source, From: from, Parameters: parameters, Schema: schema})
 	if err != nil {
 		return Result{}, err
 	}

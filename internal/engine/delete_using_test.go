@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -39,7 +40,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		}
 		return out.Eval(c)
 	})
-	r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
+	r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
@@ -136,7 +137,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 						return out.Eval(c)
 					})
 				}
-				r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
+				r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 				if r.Rows != nil {
 					t.Cleanup(func() { r.Rows.Close() })
 				}
@@ -189,7 +190,7 @@ func TestDeleteUsingCapturedOccurrenceLatestTarget(t *testing.T) {
 	sessionSQL(t, a, "UPDATE s SET n=999")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
 	sessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
-	r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
+	r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}

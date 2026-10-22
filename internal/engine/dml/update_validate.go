@@ -1,8 +1,7 @@
-package engine
+package dml
 
 import (
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -11,7 +10,7 @@ import (
 
 // ValidateMutationRow is the generation, NOT NULL and CHECK validation of an
 // UPDATE row; public UPDATE and admitted RI assignment share it.
-func ValidateMutationRow(h dml.Host, b analyze.Binding, schema string, row []sqltype.Value, eval *exec.Context) error {
+func ValidateMutationRow(h Host, b analyze.Binding, schema string, row []sqltype.Value, eval *exec.Context) error {
 	generationEval := *eval
 	if err := table.EvaluateGenerations(eval.Context, b.Relation, row, &generationEval); err != nil {
 		return err
@@ -25,7 +24,7 @@ func ValidateMutationRow(h dml.Host, b analyze.Binding, schema string, row []sql
 			return err
 		}
 		if value.IsNull() {
-			return dml.RowConstraintError(h, b, schema, column.Name, "", row)
+			return RowConstraintError(h, b, schema, column.Name, "", row)
 		}
 	}
 	if len(b.Relation.Constraints.Check) != 0 {
@@ -34,7 +33,7 @@ func ValidateMutationRow(h dml.Host, b analyze.Binding, schema string, row []sql
 			return err
 		}
 		if constraint != nil {
-			return dml.RowConstraintError(h, b, schema, "", constraint.Name, row)
+			return RowConstraintError(h, b, schema, "", constraint.Name, row)
 		}
 	}
 	return nil
@@ -42,7 +41,7 @@ func ValidateMutationRow(h dml.Host, b analyze.Binding, schema string, row []sql
 
 // Physical generation/checks use the full physical proposal; diagnostic values
 // and SELECT rights are projected back to the named mutation target.
-func validateInheritedMutationRow(h dml.Host, named analyze.Binding, physical exec.QueryPhysicalRow, schema string, row []sqltype.Value, eval *exec.Context) error {
+func validateInheritedMutationRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow, schema string, row []sqltype.Value, eval *exec.Context) error {
 	if physical.Leaf.Ref == named.Ref {
 		return ValidateMutationRow(h, named, schema, row, eval)
 	}
@@ -54,7 +53,7 @@ func validateInheritedMutationRow(h dml.Host, named analyze.Binding, physical ex
 	diagnostic := func(column, check string) error {
 		// A copy keeps named off the heap on the success path.
 		failing := named
-		detail, err := h.RowDetail(&failing, physical.Values(storage.RowVersion{Values: row}), dml.DetailConstraint)
+		detail, err := h.RowDetail(&failing, physical.Values(storage.RowVersion{Values: row}), DetailConstraint)
 		if err != nil {
 			return err
 		}

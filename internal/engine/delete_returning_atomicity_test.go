@@ -3,15 +3,17 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestDeleteReturningOutputAtomicity(t *testing.T) {
@@ -66,7 +68,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				b.Returning.Expressions = append(output.Expressions, probe)
 				b.Returning.Schema = append(output.Schema, b.Returning.Schema...)
 			}
-			result, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: source})
+			result, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: source})
 			want := sentinel
 			if phase == "output_cancel" || phase == "explicit_cancel" {
 				want = context.Canceled

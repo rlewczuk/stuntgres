@@ -5,10 +5,12 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
-	"testing"
 )
 
 func TestDeleteUsingCandidateAuthorityRemainsStrict(t *testing.T) {
@@ -72,7 +74,7 @@ func TestDeleteUsingRejectedPairsDoNotAllocatePerPair(t *testing.T) {
 		}
 		return testing.AllocsPerRun(20, func() {
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), q)
-			r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
+			r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 			if r.Rows != nil {
 				defer r.Rows.Close()
 			}

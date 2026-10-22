@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -77,7 +78,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 				}
 				return sqltype.Boolean(boolean, true), nil
 			})
-			result, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: source})
+			result, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: source})
 			want := sentinel
 			if phase != "late_predicate" {
 				want = context.Canceled
@@ -173,7 +174,7 @@ func TestDeleteCoreExplicitFailure(t *testing.T) {
 		}
 		return sqltype.Boolean(boolean, true), nil
 	})
-	_, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: binding, Source: source})
+	_, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: binding, Source: source})
 	if err = scope.Finish(err); err != sentinel {
 		t.Fatal(err)
 	}

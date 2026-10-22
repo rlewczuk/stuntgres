@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -33,7 +34,7 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 		}
 		return predicate.Eval(c)
 	})
-	r, err := ExecuteDelete(scope.writeHost(), DeleteInput{Binding: b, Source: target, Inputs: inputs})
+	r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}

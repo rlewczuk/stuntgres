@@ -1,10 +1,9 @@
-package engine
+package dml
 
 import (
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -12,7 +11,7 @@ import (
 
 // The source stage owns immutable joined frames. Only qualifying identities and
 // occurrence indexes are retained, before any target row arbitration can wait.
-func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evaluation *exec.Context, positioned dml.MutationRowIdentity) (dml.Outcome, error) {
+func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluation *exec.Context, positioned MutationRowIdentity) (Outcome, error) {
 	ctx := evaluation.Context
 	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.Delete.Using) || exec.BoundHasVirtualReads(b.Predicate)
 	if b.Returning != nil {
@@ -22,15 +21,15 @@ func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evalu
 	}
 	stage, err := exec.OpenNode(ctx, evaluation.Query, b.Delete.Using)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	stage, err = exec.SettlePendingQueryMarks(ctx, evaluation.Query, b.Delete.Using, stage)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	defer stage.Close()
 	if err := stage.Drain(ctx); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	var frame []sqltype.Value
 	sourceCount := stage.Count()
@@ -39,9 +38,9 @@ func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evalu
 		frame = make([]sqltype.Value, len(b.Relation.Columns)+b.Delete.SourceWidth)
 		targetCount = source.Count()
 	}
-	var candidates []dml.DeleteUsingCandidate
+	var candidates []DeleteUsingCandidate
 	for i := range targetCount {
-		physical := dml.MutationPhysicalRow(source, i, b)
+		physical := MutationPhysicalRow(source, i, b)
 		version := physical.Version
 		if b.CurrentOf != "" && (positioned.Ref != physical.Leaf.Ref || version.Row != positioned.Row) {
 			continue
@@ -49,7 +48,7 @@ func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evalu
 		candidate := physical.Deletion()
 		for j := range sourceCount {
 			if err := ctx.Err(); err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			copy(frame, physical.Values(version))
 			copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(j)))
@@ -58,16 +57,16 @@ func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evalu
 			evaluation.PhysicalTable = physical.Leaf.Ref
 			matches, err := exec.UpdateMatches(evaluation, b.Predicate)
 			if err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			if matches {
-				candidates = append(candidates, dml.DeleteUsingCandidate{DeleteCandidate: candidate, SourceIndex: j, Physical: physical})
+				candidates = append(candidates, DeleteUsingCandidate{DeleteCandidate: candidate, SourceIndex: j, Physical: physical})
 			}
 		}
 	}
-	var deletedIDs map[dml.MutationRowIdentity]bool
+	var deletedIDs map[MutationRowIdentity]bool
 	if len(candidates) != 0 {
-		deletedIDs = make(map[dml.MutationRowIdentity]bool, min(len(candidates), source.Count()))
+		deletedIDs = make(map[MutationRowIdentity]bool, min(len(candidates), source.Count()))
 	}
 	var rows *exec.FinalRows
 	keep := false
@@ -83,20 +82,20 @@ func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evalu
 	var count int64
 	for _, pair := range candidates {
 		if err := ctx.Err(); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		candidate := pair.DeleteCandidate
-		identity := dml.MutationRowIdentity{Ref: candidate.Ref, Row: candidate.Row}
+		identity := MutationRowIdentity{Ref: candidate.Ref, Row: candidate.Row}
 		if deletedIDs[identity] {
 			continue
 		}
 		if err := h.AcquireRow(candidate); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
-		latest, err := h.LatestRow(dml.DeleteRowRequest(candidate))
+		latest, err := h.LatestRow(DeleteRowRequest(candidate))
 		current, live := latest.Version, latest.Live
 		if err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		if !live {
 			continue
@@ -108,22 +107,22 @@ func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evalu
 		evaluation.PhysicalTable = candidate.Ref
 		if current.Version != candidate.Version {
 			if err := h.PhysicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			matches, err := exec.UpdateMatches(evaluation, b.Predicate)
 			if err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			if !matches {
 				continue
 			}
 		}
-		if err := dml.ClaimUniqueRow(h, candidate.Ref, current); err != nil {
-			return dml.Outcome{}, err
+		if err := ClaimUniqueRow(h, candidate.Ref, current); err != nil {
+			return Outcome{}, err
 		}
 		deleted, err := h.Delete(candidate)
 		if err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		if !deleted {
 			continue
@@ -134,10 +133,10 @@ func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evalu
 			for output, expr := range b.Returning.Expressions {
 				value, err := expr.Eval(evaluation)
 				if err != nil {
-					return dml.Outcome{}, err
+					return Outcome{}, err
 				}
 				if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.Columns[output].Usage.Type {
-					return dml.Outcome{}, errors.New("stuntgres: invalid finalized DELETE value")
+					return Outcome{}, errors.New("stuntgres: invalid finalized DELETE value")
 				}
 				rows.Values = append(rows.Values, value)
 			}
@@ -146,15 +145,15 @@ func deleteUsingSource(h dml.Host, b analyze.Binding, source *exec.Source, evalu
 	}
 	if rows != nil && b.Returning.RegclassOutput && count != 0 {
 		if err := h.CaptureRegclassOutput(rows); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	keep = true
 	if rows != nil {
-		return dml.Outcome{Count: count, Rows: rows}, nil
+		return Outcome{Count: count, Rows: rows}, nil
 	}
-	return dml.Outcome{Count: count}, nil
+	return Outcome{Count: count}, nil
 }

@@ -309,7 +309,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 			}
 		}
 		b := analyze.Binding{Ref: ref, Relation: job.Child, Targets: plan.Targets}
-		if err = ValidateMutationRow(s.writeHost(), b, schema, row, &evaluation); err != nil {
+		if err = dml.ValidateMutationRow(s.writeHost(), b, schema, row, &evaluation); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		keyChanged, err := dml.UniqueKeyChanged(s.writeHost(), ref, old.Values, row)

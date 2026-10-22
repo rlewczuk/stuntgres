@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -162,7 +163,7 @@ func executeDelete(s *StatementScope, b analyze.Binding, view *visibility.View, 
 		return Result{}, err
 	}
 	defer source.Close()
-	outcome, err := ExecuteDelete(s.writeHost(), DeleteInput{Binding: b, Source: source, Inputs: inputs, Parameters: parameters})
+	outcome, err := dml.ExecuteDelete(s.writeHost(), dml.DeleteInput{Binding: b, Source: source, Inputs: inputs, Parameters: parameters})
 	if err != nil {
 		return Result{}, err
 	}
