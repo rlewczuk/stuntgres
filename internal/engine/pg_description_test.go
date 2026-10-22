@@ -132,7 +132,6 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	e := New()
 	source, ref := pgDescriptionUnitSource(t, e)
 	oldState := *e.catalog.state
-	oldState.CloneDescriptors()
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	d := &catalog.Relation{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnMeta: catalog.ColumnMetadata{Comments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}}
@@ -160,7 +159,6 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 		t.Fatal("capture mutated descriptor")
 	}
 	newState := oldState
-	newState.CloneDescriptors()
 	updated := *d
 	updated.Comment = "replacement"
 	updated.ColumnMeta.Comments = map[int32]string{3: "replacement third"}

@@ -164,7 +164,6 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	// when its address, engine and epoch all still match.
 	staleAuth := auth
 	state := *auth.Catalog.State()
-	state.CloneDescriptors()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1811}
 	declaration := *state.MustProcedure(address)
 	declaration.ObjectRevision++

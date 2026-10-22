@@ -72,7 +72,6 @@ func earthOwnerCodecUnits(t *testing.T) {
 		t.Fatal("symbolic companion roles", record, err)
 	}
 	candidate := *view.State()
-	candidate.CloneDescriptors()
 	if _, err := extension.ImportOwners(context.Background(), &candidate, roles, []extension.OwnerRecord{record}); err != nil {
 		t.Fatal("actual companion ownership resolution", err)
 	}

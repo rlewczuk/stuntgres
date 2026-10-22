@@ -55,7 +55,7 @@ func TestTypeDiagnosticNameAtQualifiesHiddenTypes(t *testing.T) {
 	mood := &Type{SQLType: sqltype.LookupOnly(910, "mood", 911), ObjectNamespace: s1.Address()}
 	moods := &Type{SQLType: sqltype.LookupArray(911, "_mood", mood.SQLType), ObjectNamespace: s1.Address()}
 	shadow := &Type{SQLType: sqltype.LookupOnly(912, "mood", 0), ObjectNamespace: odd.Address()}
-	state := &State{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
+	state := NewState(1)
 	for _, d := range []Descriptor{s1, odd, mood, moods, shadow} {
 		state.SetDescriptor(d.Address(), d)
 		state.BindName(DescriptorNameKey(d), d.Address())

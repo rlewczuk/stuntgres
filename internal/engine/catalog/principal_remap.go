@@ -22,8 +22,11 @@ type PrincipalRemap struct {
 // RemapPrincipals rewrites every owner, ACL and policy role of an
 // unpublished private candidate, then its default ACL records. Each changed
 // descriptor is a copy; the first mapping error stops the rewrite. Callers
-// validate the default ACLs against the target roles afterwards.
+// validate the default ACLs against the target roles afterwards. It rewrites
+// most of the catalog, so it runs as a bulk load.
 func RemapPrincipals(state *State, m PrincipalRemap) error {
+	state.BeginBulkLoad(0)
+	defer state.EndBulkLoad()
 	remap, seedOwner := m.Principal, m.SeededOwner
 	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) {
 		if len(a.Entries) == 0 {

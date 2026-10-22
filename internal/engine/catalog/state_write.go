@@ -2,9 +2,9 @@ package catalog
 
 import (
 	"iter"
-	"maps"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/util"
 )
 
 // Write access to an unpublished catalog state.
@@ -17,52 +17,49 @@ import (
 
 // SetDescriptor stores d at a.
 func (s *State) SetDescriptor(a ids.ObjectAddress, d Descriptor) {
-	oldKey, hadDefault := descriptorDefaultKey(s.descriptors[a])
+	old, _ := s.findDescriptor(a)
+	oldKey, hadDefault := descriptorDefaultKey(old)
 	newKey, hasDefault := descriptorDefaultKey(d)
 	if hadDefault && (!hasDefault || oldKey != newKey) {
-		delete(s.names, oldKey)
+		s.dropName(oldKey)
 	}
-	s.descriptors[a] = d
-	if hasDefault && s.names[newKey] != a {
-		s.names[newKey] = a
+	s.putDescriptor(a, d)
+	if hasDefault {
+		if bound, _ := s.findName(newKey); bound != a {
+			s.putName(newKey, a)
+		}
 	}
 }
 
 // RemoveDescriptor deletes the descriptor at a.
 func (s *State) RemoveDescriptor(a ids.ObjectAddress) {
-	if key, ok := descriptorDefaultKey(s.descriptors[a]); ok {
-		delete(s.names, key)
+	old, _ := s.findDescriptor(a)
+	if key, ok := descriptorDefaultKey(old); ok {
+		s.dropName(key)
 	}
-	delete(s.descriptors, a)
+	s.dropDescriptor(a)
 }
 
 // BindName binds k to a.
-func (s *State) BindName(k ids.NameKey, a ids.ObjectAddress) { s.names[k] = a }
+func (s *State) BindName(k ids.NameKey, a ids.ObjectAddress) { s.putName(k, a) }
 
 // UnbindName removes the binding of k.
-func (s *State) UnbindName(k ids.NameKey) { delete(s.names, k) }
+func (s *State) UnbindName(k ids.NameKey) { s.dropName(k) }
 
-// CloneDescriptors gives s its own copy of its descriptor map, so that s can
-// be written without changing the state it was copied from. Names stay
-// shared.
-func (s *State) CloneDescriptors() { s.descriptors = maps.Clone(s.descriptors) }
-
-// CloneNames gives s its own copy of its name map. Descriptors stay shared.
-func (s *State) CloneNames() { s.names = maps.Clone(s.names) }
-
-// ResetDescriptors gives s an empty descriptor map with room for capacity
-// entries. Names stay shared.
-func (s *State) ResetDescriptors(capacity int) {
-	s.descriptors = make(map[ids.ObjectAddress]Descriptor, capacity)
+// ResetDescriptors gives s an empty descriptor map. Names stay as they are.
+func (s *State) ResetDescriptors() {
+	s.mustNotBulkLoad()
+	s.descriptors = util.PersistentMap[ids.ObjectAddress, Descriptor]{}
 	s.procedureNames = nil
 }
 
-// ResetMaps gives s empty descriptor and name maps with room for capacity
-// entries and iterates the previous descriptors, which s no longer uses.
-func (s *State) ResetMaps(capacity int) iter.Seq2[ids.ObjectAddress, Descriptor] {
+// ResetMaps gives s empty descriptor and name maps and iterates the previous
+// descriptors, which s no longer uses. Writers that refill s use a bulk load.
+func (s *State) ResetMaps() iter.Seq2[ids.ObjectAddress, Descriptor] {
+	s.mustNotBulkLoad()
 	previous := s.descriptors
-	s.descriptors = make(map[ids.ObjectAddress]Descriptor, capacity)
-	s.names = make(map[ids.NameKey]ids.ObjectAddress, capacity)
+	s.descriptors = util.PersistentMap[ids.ObjectAddress, Descriptor]{}
+	s.names = util.PersistentMap[ids.NameKey, ids.ObjectAddress]{}
 	s.procedureNames = nil
-	return maps.All(previous)
+	return previous.All()
 }

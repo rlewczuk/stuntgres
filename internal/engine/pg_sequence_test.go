@@ -143,7 +143,6 @@ func TestPGSequenceProjection(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	state := *e.catalog.state
-	state.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	options := &catalog.SequenceOptions{SQLType: sqltype.Int4, Start: 15, Increment: 7, Max: 200, Min: -20, Cache: 9223372036854775807, Cycle: true}
 	d := &catalog.Relation{ObjectAddress: a, RelationKind: catalog.SequenceRelation, Sequence: options}
@@ -169,7 +168,6 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	base := *e.catalog.state
-	base.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	base.SetDescriptor(a, &catalog.Relation{ObjectAddress: a, RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
 	own := session.NewJournal()
@@ -197,7 +195,6 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
 	base := *e.catalog.state
-	base.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	dropped := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}

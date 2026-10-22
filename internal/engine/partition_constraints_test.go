@@ -33,7 +33,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	root, idx, catalogSnapshot, types := indexClausesFixture(t)
 	e := New()
 	state := *e.catalog.state
-	state.ResetMaps(e.catalog.state.DescriptorCount() + 4)
+	state.ResetMaps()
 	for a, d := range e.catalog.state.Descriptors() {
 		state.SetDescriptor(a, d)
 	}
@@ -214,7 +214,7 @@ func TestPartitionConstraintsDescriptor(t *testing.T) {
 func TestPartitionConstraintsVirtualPublication(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	next := *f.view.State()
-	next.ResetDescriptors(f.view.DescriptorCount())
+	next.ResetDescriptors()
 	for a, d := range f.view.Descriptors() {
 		if a != f.child.Address() {
 			next.SetDescriptor(a, d)
@@ -457,7 +457,7 @@ func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	f.root.Constraints.NotNull = []catalog.NotNullConstraint{{OID: f.root.Address().ObjectID, Name: "nn", Attribute: 10}}
 	f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 30008, Name: "nn", Attribute: 22, PartitionOrigin: &catalog.InheritedConstraint{Local: true, Origins: []catalog.InheritanceOrigin{{Parent: f.root.Address(), Attribute: 10, Constraint: f.root.Address().ObjectID}}}}}
 	next := *f.view.State()
-	next.ResetDescriptors(f.view.DescriptorCount())
+	next.ResetDescriptors()
 	for a, d := range f.view.Descriptors() {
 		next.SetDescriptor(a, d)
 	}
@@ -572,7 +572,7 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 		t.Fatal("virtual history changed validity or live predecessor")
 	}
 	replacement := *f.view.State()
-	replacement.ResetDescriptors(f.view.DescriptorCount())
+	replacement.ResetDescriptors()
 	for a, d := range f.view.Descriptors() {
 		replacement.SetDescriptor(a, d)
 	}
@@ -974,7 +974,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 	for _, flag := range []string{"physical_invalid", "virtual_not_ready", "virtual_not_live"} {
 		t.Run(flag, func(t *testing.T) {
 			next := *e.catalog.state
-			next.ResetDescriptors(e.catalog.state.DescriptorCount())
+			next.ResetDescriptors()
 			for address, d := range e.catalog.state.Descriptors() {
 				next.SetDescriptor(address, d)
 			}
@@ -1018,7 +1018,7 @@ func TestPartitionConstraintsStructuralEquivalence(t *testing.T) {
 			}
 			base := e.CatalogRead()
 			next := *base.State()
-			next.ResetDescriptors(base.DescriptorCount())
+			next.ResetDescriptors()
 			for address, d := range base.Descriptors() {
 				next.SetDescriptor(address, d)
 			}

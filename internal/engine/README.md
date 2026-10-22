@@ -1251,16 +1251,21 @@ Every engine seeds the same built-in catalog from compiled tables; only the
 current database descriptor depends on engine options. `builtin_catalog.go`
 therefore validates the seed once per process (the current database on every
 engine) and shares one procedure-name index, as `routine.SeededOperatorNames` does for
-operators. A seed that depends on new engine options must be validated per
-engine too. Startup and every publication scale with the seed size, so keep
-seeding and whole-catalog copies free of per-entry rehashing and allocation;
-check `make bench` allocations when adding built-ins. Seed values come from
+operators. It also shares the seed's name map: `finishSeed` builds the
+persistent map of every seed name binding except the current database's once
+per process, and each engine adds its database binding to its own version. A
+seed that depends on new engine options must be validated per engine too, and
+must bind those names after the shared ones or not share them. The seed is one
+catalog bulk load (`BeginBulkLoad` in `newEngine`, ended by `finishSeed`), so
+seeding costs Go-map writes plus one bulk build of the descriptor map.
+Publications and stage reads share the persistent maps and no longer scale
+with the seed size; check `make bench` allocations when adding built-ins. Seed values come from
 pure constructors (`routine.BuiltinProcedures`, `typedef.BuiltinConversionProcedures`,
 `typedef.BuiltinDomainCheckSeeds`, ...); the `install*` methods in `builtin_catalog.go`
 write them into the catalog in `newEngine`'s order.
 
 ```sh
-make check RUN='^(TestBuiltinCatalogValidatesForEveryEngineConfiguration|TestBuiltinProcedureNamesMatchSeed|TestOperatorDependsOnMatchesDependencyAddresses)$'
+make check RUN='^(TestBuiltinCatalogValidatesForEveryEngineConfiguration|TestBuiltinProcedureNamesMatchSeed|TestBuiltinSeedNamesMatchUnsharedSeed|TestOperatorDependsOnMatchesDependencyAddresses)$'
 make check RUN='^TestBuiltinProcedureNamesCopyOnEdit$' RACE=1
 make check RUN='^(TestCatalogCopiesStayIndependent|TestCatalogTypeJournalSlotsCopyOnWrite)$'
 ```

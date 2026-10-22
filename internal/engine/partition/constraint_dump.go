@@ -46,7 +46,6 @@ func ConstraintDumpCatalog(r dump.Resolver, view catalog.Read) (catalog.Read, *C
 		return view, replay
 	}
 	state := *view.State()
-	state.CloneDescriptors()
 	ordinal := 0
 	for _, table := range tables {
 		// PARTITION OF binds local declarations before cloning inherited keys,

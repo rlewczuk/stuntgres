@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 )
 
 type Descriptor interface {
@@ -153,8 +154,9 @@ type NotNullConstraint struct {
 type State struct {
 	epoch               ids.CatalogEpoch
 	namespaceGeneration uint64
-	descriptors         map[ids.ObjectAddress]Descriptor
-	names               map[ids.NameKey]ids.ObjectAddress
+	descriptors         util.PersistentMap[ids.ObjectAddress, Descriptor]
+	names               util.PersistentMap[ids.NameKey, ids.ObjectAddress]
+	bulk                *stateBulk
 	operatorNames       *OperatorNameIndex
 	procedureNames      *ProcedureNameIndex
 	defaultACLs         map[DefaultACLKey]*DefaultACLRecord
@@ -237,8 +239,12 @@ type Conflict struct{}
 
 func (Conflict) Error() string { return "stuntgres: catalog publication conflict" }
 
+// CloneState returns a writable copy of s. The copy shares s's descriptor and
+// name maps, which are persistent: writing to either state never changes the
+// other.
 func CloneState(s *State) *State {
-	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: cloneMap(s.descriptors), names: cloneMap(s.names)}
+	s.mustNotBulkLoad()
+	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: s.descriptors, names: s.names}
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
 	n.procedureNames = s.procedureNames

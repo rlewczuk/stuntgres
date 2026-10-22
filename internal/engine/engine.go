@@ -161,7 +161,9 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		}
 	}
 	types := sqltype.Builtins()
-	e.catalog.state = catalog.NewStateSized(1, builtinCatalogCapacity(len(types)))
+	// The seed sets thousands of entries, so it is one bulk load.
+	e.catalog.state = catalog.NewState(1)
+	e.catalog.state.BeginBulkLoad(builtinCatalogCapacity(len(types)))
 	for _, ns := range []struct {
 		oid  ids.OID
 		name string
@@ -225,6 +227,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.validateSeed(); err != nil {
 		return nil, err
 	}
+	e.finishSeed()
 	return e, nil
 }
 func (e *Engine) CatalogRead() catalog.Read {

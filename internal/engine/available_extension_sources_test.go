@@ -161,8 +161,6 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	// Authentic installed descriptor, privately copied with only its version
 	// changed for projection. It is never validated/published as installation.
 	state := *e.catalog.state
-	state.CloneDescriptors()
-	state.CloneNames()
 	address := state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	ext := *state.MustExtension(address)
 	ext.Version = "available-unknown"

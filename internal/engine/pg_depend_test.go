@@ -25,7 +25,6 @@ func pgDependUnitCatalog(t *testing.T) (*Engine, catalog.Read, *sqltype.Descript
 		t.Fatal("missing int4")
 	}
 	state := *base.State()
-	state.CloneDescriptors()
 	return e, e.catalog.read(&state), typ
 }
 func pgDependUnitAddress(class, id ids.OID, sub int32) ids.ObjectAddress {

@@ -273,7 +273,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		descriptors[target] = descriptor
 		names[catalog.DescriptorNameKey(descriptor)] = target
 	}
-	next.ResetMaps(len(descriptors))
+	next.ResetMaps()
 	for address, descriptor := range descriptors {
 		next.SetDescriptor(address, descriptor)
 	}

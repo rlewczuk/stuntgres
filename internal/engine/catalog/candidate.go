@@ -181,46 +181,50 @@ func (c *Candidate) RecordRemoval(ref ids.ObjectRef, d Descriptor) {
 
 // State returns a new unpublished state: the base with the candidate's
 // removals, vacated names, descriptors, names and default ACL changes
-// applied. It has its own descriptor and name maps, and keeps the dump
-// priorities of the objects that remain.
+// applied. Its descriptor and name maps share every unchanged part with the
+// base, so it costs the size of the candidate, not of the catalog; writing to
+// it never changes the base. It keeps the dump priorities of the objects that
+// remain.
 func (c *Candidate) State() *State {
-	ds := cloneMap(c.Base.state.descriptors)
-	ns := cloneMap(c.Base.state.names)
-	operators := OperatorIndexEdit{Index: c.Base.state.operatorNames}
-	procedures := ProcedureIndexEdit{Index: c.Base.state.procedureNames}
+	base := c.Base.state
+	base.mustNotBulkLoad()
+	ds := base.descriptors.Transient()
+	ns := base.names.Transient()
+	operators := OperatorIndexEdit{Index: base.operatorNames}
+	procedures := ProcedureIndexEdit{Index: base.procedureNames}
 	for a, removal := range c.removals {
 		d := removal.Descriptor
 		operators.Replace(c.Base.Get(a), c.descriptors[a])
 		procedures.Replace(c.Base.Get(a), c.descriptors[a])
-		delete(ds, a)
-		delete(ns, DescriptorNameKey(d))
+		ds.Delete(a)
+		ns.Delete(DescriptorNameKey(d))
 		if key, ok := descriptorDefaultKey(d); ok {
-			delete(ns, key)
+			ns.Delete(key)
 		}
 	}
 	for k := range c.oldNames {
-		delete(ns, k)
+		ns.Delete(k)
 	}
 	for k, v := range c.descriptors {
 		if _, removed := c.removals[k]; !removed {
 			operators.Replace(c.Base.Get(k), v)
 			procedures.Replace(c.Base.Get(k), v)
 		}
-		ds[k] = v
+		ds.Set(k, v)
 	}
 	for k, v := range c.names {
-		ns[k] = v
+		ns.Set(k, v)
 	}
-	priorities := c.Base.state.dumpPriorities
-	if len(priorities) != 0 && len(c.removals) != 0 {
-		priorities = make(map[ids.ObjectAddress]ids.OID, len(c.Base.state.dumpPriorities))
-		for address, priority := range c.Base.state.dumpPriorities {
-			if _, exists := ds[address]; exists {
-				priorities[address] = priority
+	next := &State{epoch: c.Base.Epoch(), namespaceGeneration: base.namespaceGeneration, descriptors: ds.Persistent(), names: ns.Persistent(), operatorNames: operators.Index, procedureNames: procedures.Index, defaultACLs: overlayDefaultACLs(base.defaultACLs, c.defaultACLs), dumpPriorities: base.dumpPriorities}
+	if len(base.dumpPriorities) != 0 && len(c.removals) != 0 {
+		next.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(base.dumpPriorities))
+		for address, priority := range base.dumpPriorities {
+			if _, exists := next.descriptors.Get(address); exists {
+				next.dumpPriorities[address] = priority
 			}
 		}
 	}
-	return &State{epoch: c.Base.Epoch(), namespaceGeneration: c.Base.state.namespaceGeneration, descriptors: ds, names: ns, operatorNames: operators.Index, procedureNames: procedures.Index, defaultACLs: overlayDefaultACLs(c.Base.state.defaultACLs, c.defaultACLs), dumpPriorities: priorities}
+	return next
 }
 
 // Get and Find read only staged descriptors, not the base catalog.

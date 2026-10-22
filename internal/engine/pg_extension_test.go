@@ -146,7 +146,6 @@ func TestPGExtensionCapture(t *testing.T) {
 		}
 	}
 	state := *e.catalog.state
-	state.CloneDescriptors()
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
 			state.RemoveDescriptor(a)

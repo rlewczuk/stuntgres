@@ -58,7 +58,6 @@ func TestEarthProviderIdentity(t *testing.T) {
 		func(n *plan.EarthCheckExpr) { n.Kind = 0 },
 	} {
 		state := *view.State()
-		state.CloneDescriptors()
 		invalid := *d
 		invalid.DomainChecks = append([]catalog.DomainCheckConstraint(nil), d.DomainChecks...)
 		node := invalid.DomainChecks[0].Expression.(plan.EarthCheckExpr)

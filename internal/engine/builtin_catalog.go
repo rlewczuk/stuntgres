@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 )
 
 // Every engine seeds the same built-in catalog from compiled tables; only the
@@ -108,6 +109,40 @@ func (e *Engine) seedProcedureNames() {
 		builtinProcedureNames.index = catalog.RebuildProcedureNames(e.catalog.state.Descriptors())
 	})
 	e.catalog.state.SetProcedureNames(builtinProcedureNames.index)
+}
+
+// seedNames holds the name bindings of the built-in seed other than the
+// current database's. Like the rest of the seed they are fixed by the binary,
+// so the first engine's bindings are every engine's: engines share the
+// persistent map and add their database binding to their own version.
+type seedNames struct {
+	once  sync.Once
+	names util.PersistentMap[ids.NameKey, ids.ObjectAddress]
+}
+
+var builtinSeedNames = &seedNames{}
+
+// finishSeed ends the seed's bulk load. The name map is the shared seed names
+// plus this engine's database binding; an engine whose seed bound a different
+// number of names builds its own map instead.
+func (e *Engine) finishSeed() {
+	state := e.catalog.state
+	database := catalog.DescriptorNameKey(state.Get(catalog.CurrentDatabaseAddress))
+	shared := builtinSeedNames
+	shared.once.Do(func() {
+		shared.names = util.PersistentMapFrom(func(yield func(ids.NameKey, ids.ObjectAddress) bool) {
+			for k, a := range state.Names() {
+				if k != database && !yield(k, a) {
+					return
+				}
+			}
+		})
+	})
+	if bound, ok := state.LookupName(database); !ok || bound != catalog.CurrentDatabaseAddress || state.NameCount() != shared.names.Len()+1 {
+		state.EndBulkLoad()
+		return
+	}
+	state.EndBulkLoadWithNames(shared.names.Set(database, catalog.CurrentDatabaseAddress))
 }
 
 // builtinCatalogValidation memoizes provider validation of the built-in seed.
