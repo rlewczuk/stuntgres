@@ -25,7 +25,7 @@ func TestAlterNullabilityMetadataAndStorage(t *testing.T) {
 	defer held.Rows.Close()
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL, ADD NOT NULL a")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || !sameVersionRoot(root, store.Versions) || &root[0].Values[0] != &store.Versions[0].Values[0] {
+	if next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || !storage.SameVersionRoot(root, store.Versions) || &root[0].Values[0] != &store.Versions[0].Values[0] {
 		t.Fatal("pure NN rewrote identity, metadata or values")
 	}
 	if len(next.Constraints.NotNull) != 1 || next.Constraints.NotNull[0].Name != "t_a_not_null" {
@@ -36,7 +36,7 @@ func TestAlterNullabilityMetadataAndStorage(t *testing.T) {
 		t.Fatal("no-op changed descriptor/storage")
 	}
 	run(t, e, "ALTER TABLE t ALTER a DROP NOT NULL")
-	if e.storage.Relations[ref.Address] != store || store.Generation != generation || !sameVersionRoot(root, store.Versions) {
+	if e.storage.Relations[ref.Address] != store || store.Generation != generation || !storage.SameVersionRoot(root, store.Versions) {
 		t.Fatal("drop copied values")
 	}
 	if !held.Rows.Schema()[0].Nullable {

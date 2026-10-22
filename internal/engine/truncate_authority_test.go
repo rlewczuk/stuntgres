@@ -203,7 +203,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope.op.Done()
-	if e.storage.Relations[peerAddress] != oldPeer || !sameVersionRoot(oldPeer.Versions, oldVersions) || oldPeer.Ends != oldEnds || oldPeer.Generation != oldGeneration || oldPeer.TruncateLineage != nil {
+	if e.storage.Relations[peerAddress] != oldPeer || !storage.SameVersionRoot(oldPeer.Versions, oldVersions) || oldPeer.Ends != oldEnds || oldPeer.Generation != oldGeneration || oldPeer.TruncateLineage != nil {
 		t.Fatal("foreign-session temporary storage was replaced or stamped")
 	}
 	transactionRows(t, peer, "SELECT id FROM renamed_peer_child", 3)
@@ -282,7 +282,7 @@ func TestTruncateAdmission(t *testing.T) {
 				transactionEnd(t, holder, tx, false)
 				transactionRows(t, waiter, "SELECT id FROM p", 9)
 			}
-			if old.TruncateLineage != nil || !sameVersionRoot(old.Versions, versions) || old.Ends != ends {
+			if old.TruncateLineage != nil || !storage.SameVersionRoot(old.Versions, versions) || old.Ends != ends {
 				t.Fatal("rejected waiter stamped/mutated retired source")
 			}
 			lockEmpty(t, e)
@@ -405,7 +405,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 			}
 			if explicit {
 				sessionSQL(t, s, "ROLLBACK TO recover")
-				if !sameVersionRoot(s.Transactions.Writes[p.Address], priorWrites) || s.Transactions.Catalog != nil && len(s.Transactions.Catalog.Storage) != 0 {
+				if !storage.SameVersionRoot(s.Transactions.Writes[p.Address], priorWrites) || s.Transactions.Catalog != nil && len(s.Transactions.Catalog.Storage) != 0 {
 					t.Fatal("failed statement/savepoint lost prior private root")
 				}
 				transactionEnd(t, s, tx, false)

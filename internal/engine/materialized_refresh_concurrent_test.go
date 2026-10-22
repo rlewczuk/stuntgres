@@ -373,7 +373,7 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 			t.Fatal("atomic roots/frontier/lineage")
 		}
 	}
-	if !sameVersionRoot(first.Versions, versions) || first.Ends != ends {
+	if !storage.SameVersionRoot(first.Versions, versions) || first.Ends != ends {
 		t.Fatal("retired root changed")
 	}
 	d = concurrentUnitReplace(t, e, d, nil, false, false)

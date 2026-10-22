@@ -19,6 +19,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -183,7 +184,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.Address())
-	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 || e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.Versions) || oldEnds != store.Ends || e.catalog.state.Epoch() != base.Epoch() {
+	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 || e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != oldIndex || !storage.SameVersionRoot(oldRows, store.Versions) || oldEnds != store.Ends || e.catalog.state.Epoch() != base.Epoch() {
 		t.Fatal("surviving row/index/provenance changed")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_late"} {

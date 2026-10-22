@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -61,7 +62,7 @@ func TestTruncateSnapshots(t *testing.T) {
 				transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
 			}
 			retained := reader.Transactions.Roots[p.Address]
-			if retained.Storage != captured.Storage || !sameVersionRoot(retained.Versions, captured.Versions) || retained.Ends != captured.Ends || reader.Transactions.Frontier != frontier || !sameVersionRoot(reader.Transactions.Roots[q.Address].Versions, qRoot.Versions) {
+			if retained.Storage != captured.Storage || !storage.SameVersionRoot(retained.Versions, captured.Versions) || retained.Ends != captured.Ends || reader.Transactions.Frontier != frontier || !storage.SameVersionRoot(reader.Transactions.Roots[q.Address].Versions, qRoot.Versions) {
 				t.Fatal("TRUNCATE became a second snapshot/root authority")
 			}
 			transactionEnd(t, reader, tx, false)
@@ -82,7 +83,7 @@ func TestTruncateSnapshotsInherited(t *testing.T) {
 	sessionSQL(t, writer, "TRUNCATE ONLY c")
 	sessionSQL(t, writer, "INSERT INTO c VALUES(9)")
 	transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
-	if !oldChild.Storage.SameTruncateLineage(e.storage.Relations[child.Address]) || reader.Transactions.Frontier != frontier || reader.Transactions.Roots[p.Address].Storage != oldParent.Storage || !sameVersionRoot(reader.Transactions.Roots[p.Address].Versions, oldParent.Versions) || reader.Transactions.Roots[child.Address].Storage != oldChild.Storage {
+	if !oldChild.Storage.SameTruncateLineage(e.storage.Relations[child.Address]) || reader.Transactions.Frontier != frontier || reader.Transactions.Roots[p.Address].Storage != oldParent.Storage || !storage.SameVersionRoot(reader.Transactions.Roots[p.Address].Versions, oldParent.Versions) || reader.Transactions.Roots[child.Address].Storage != oldChild.Storage {
 		t.Fatal("inherited SELECT replaced the original snapshot authority")
 	}
 	sessionSQL(t, reader, "INSERT INTO c VALUES(4)")
@@ -100,7 +101,7 @@ func TestTruncateBuffers(t *testing.T) {
 	schema := rows.Schema()
 	count := rows.Count
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	if e.storage.Relations[p.Address] == old || !sameVersionRoot(old.Versions, root) || old.Ends != ends || rows.Count != count || !reflect.DeepEqual(rows.Schema(), schema) {
+	if e.storage.Relations[p.Address] == old || !storage.SameVersionRoot(old.Versions, root) || old.Ends != ends || rows.Count != count || !reflect.DeepEqual(rows.Schema(), schema) {
 		t.Fatal("generation swap damaged retained eager buffer/codec")
 	}
 	if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}}) {

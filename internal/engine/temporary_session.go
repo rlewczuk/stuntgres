@@ -231,7 +231,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 	}
 	for address, shape := range stage.rowShapes {
 		store := e.storage.Relations[address]
-		if store != shape.original || store == nil || store.Generation != shape.generation || store.Ends != shape.observedEnds || !sameVersionRoot(store.Versions, shape.root) {
+		if store != shape.original || store == nil || store.Generation != shape.generation || store.Ends != shape.observedEnds || !storage.SameVersionRoot(store.Versions, shape.root) {
 			return true
 		}
 	}
@@ -265,7 +265,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *C
 	}
 	for address, shape := range stage.rowShapes {
 		store := e.storage.Relations[address]
-		if store != shape.original || store.Generation != shape.generation || store.Ends != shape.observedEnds || !sameVersionRoot(store.Versions, shape.root) {
+		if store != shape.original || store.Generation != shape.generation || store.Ends != shape.observedEnds || !storage.SameVersionRoot(store.Versions, shape.root) {
 			return false, nil
 		}
 	}

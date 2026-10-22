@@ -187,11 +187,11 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	if rewrite {
 		replacement, _, _, err = rewriteTypeRows(scope, scope.op, old, next, store, frontier, mutation.transforms, mutation.additions, nil, validator)
 	} else if !slices.Equal(old.Attributes, next.Attributes) {
-		projection, projectionErr := newColumnProjection(old, next, fills)
+		projection, projectionErr := session.NewColumnProjection(old, next, fills)
 		if projectionErr != nil {
 			return projectionErr
 		}
-		versions, projectionErr := projection.versions(scope.op.Context(), store.Versions)
+		versions, projectionErr := projection.Versions(scope.op.Context(), store.Versions)
 		if projectionErr != nil {
 			return projectionErr
 		}

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -187,7 +188,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if stage.Get(idx.Address()) != final {
 				t.Fatal("coherent validation evolved again")
 			}
-			if changes.Originals[idx.Address()] != idx || changes.Storage[survivor.Address()].Original != before || !sameVersionRoot(changes.Storage[survivor.Address()].Root, oldRows) || changes.Storage[survivor.Address()].Ends != before.Ends || changes.Storage[survivor.Address()].Generation != before.Generation {
+			if changes.Originals[idx.Address()] != idx || changes.Storage[survivor.Address()].Original != before || !storage.SameVersionRoot(changes.Storage[survivor.Address()].Root, oldRows) || changes.Storage[survivor.Address()].Ends != before.Ends || changes.Storage[survivor.Address()].Generation != before.Generation {
 				t.Fatal("original publication predecessor lost")
 			}
 			root := index.JournalIndexesOrZero(changes).UniqueRoots[idx.Address()]
@@ -306,7 +307,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := e.CatalogRead()
-	if after.State() == before.State() || after.Epoch() <= before.Epoch() || after.Get(parent.Address()) != parent || after.Get(idx.Address()) != idx || idx.SQLIndex.Predicate != predicate || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[idx.Address()] != root || !sameVersionRoot(store.Versions, rows) || store.Ends != ends || store.Generation != generation {
+	if after.State() == before.State() || after.Epoch() <= before.Epoch() || after.Get(parent.Address()) != parent || after.Get(idx.Address()) != idx || idx.SQLIndex.Predicate != predicate || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[idx.Address()] != root || !storage.SameVersionRoot(store.Versions, rows) || store.Ends != ends || store.Generation != generation {
 		t.Fatal("replacement changed actual retained catalog/index/store/vector roots")
 	}
 	for _, tree := range []struct {

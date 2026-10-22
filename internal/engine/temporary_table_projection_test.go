@@ -176,7 +176,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	projected := stage.rowShapes[survivor.Address()].replacement
 	next := stage.Get(survivor.Address()).(*catalog.Relation)
 	nextIndex := stage.Get(idx.Address()).(*catalog.Relation)
-	if next == &maximum || next.Revision() != maximum.Revision() || nextIndex == &maximumIndex || nextIndex.Revision() != maximumIndex.Revision() || projected == &maximumStore || projected.Generation != maximumStore.Generation || projected.Ends != maximumStore.Ends || sameVersionRoot(projected.Versions, retained) {
+	if next == &maximum || next.Revision() != maximum.Revision() || nextIndex == &maximumIndex || nextIndex.Revision() != maximumIndex.Revision() || projected == &maximumStore || projected.Generation != maximumStore.Generation || projected.Ends != maximumStore.Ends || storage.SameVersionRoot(projected.Versions, retained) {
 		t.Fatal("terminal maxima require fresh descriptor/store/vector and unchanged history")
 	}
 	oldRoot := indexes.previous[idx.Address()]

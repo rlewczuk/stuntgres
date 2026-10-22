@@ -71,3 +71,9 @@ func RowByID(rows []RowVersion, id ids.RowID, hint int) (RowVersion, int, bool) 
 	}
 	return RowVersion{}, 0, false
 }
+
+// SameVersionRoot reports whether a and b are the same version root: equal
+// length and, when not empty, the same backing array.
+func SameVersionRoot(a, b []RowVersion) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
+}

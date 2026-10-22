@@ -186,9 +186,9 @@ func (s *StatementScope) snapshotDataPhase() error {
 	if t.SnapshotSet && !needsProjection(t.Roots) {
 		return nil
 	}
-	session := s.op.Session
+	sess := s.op.Session
 	e.mu.Lock()
-	session.Mu.Lock()
+	sess.Mu.Lock()
 	check := func() error {
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return err
@@ -199,7 +199,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		return nil
 	}
 	if err := check(); err != nil {
-		session.Mu.Unlock()
+		sess.Mu.Unlock()
 		e.mu.Unlock()
 		return err
 	}
@@ -207,7 +207,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	sequenceCatalog := t.SequenceCatalog
 	if !t.SnapshotSet && t.Isolation.Stable() {
 		if _, err := e.visibilitySnapshotLocked(t.Ref, false); err != nil {
-			session.Mu.Unlock()
+			sess.Mu.Unlock()
 			e.mu.Unlock()
 			return err
 		}
@@ -224,21 +224,21 @@ func (s *StatementScope) snapshotDataPhase() error {
 		t.Roots, t.Frontier = roots, frontier
 		t.SequenceCatalog = sequenceCatalog
 		t.SnapshotSet = true
-		session.Mu.Unlock()
+		sess.Mu.Unlock()
 		e.mu.Unlock()
 		return nil
 	}
 	catalog := t.Catalog
-	session.Mu.Unlock()
+	sess.Mu.Unlock()
 	e.mu.Unlock()
 	// Raw roots remain the committed authority. Dense private projections are
 	// prepared outside metadata locks and attached only after final admission.
-	projected, err := projectPrivateSnapshotRoots(s.op.Context(), catalog, roots)
+	projected, err := session.ProjectPrivateSnapshotRoots(s.op.Context(), catalog, roots)
 	if err != nil {
 		return err
 	}
 	e.mu.Lock()
-	session.Mu.Lock()
+	sess.Mu.Lock()
 	err = check()
 	if err == nil {
 		t.Catalog = projected
@@ -246,7 +246,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		t.SequenceCatalog = sequenceCatalog
 		t.SnapshotSet = true
 	}
-	session.Mu.Unlock()
+	sess.Mu.Unlock()
 	e.mu.Unlock()
 	return err
 }

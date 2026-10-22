@@ -125,7 +125,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 			if address == gate.Address() {
 				versions, ends = gateVersions, gateEnds
 			}
-			if snapshot.GenerationAt(address) != stored || !sameVersionRoot(snapshot.Committed[address], versions) ||
+			if snapshot.GenerationAt(address) != stored || !storage.SameVersionRoot(snapshot.Committed[address], versions) ||
 				snapshot.Ends[address] != ends || snapshot.FrontierAt(address) != frontier {
 				t.Fatal("physical source did not retain captured storage/versions/ends/frontier", address)
 			}

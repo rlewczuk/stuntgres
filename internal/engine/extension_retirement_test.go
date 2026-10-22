@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"sync"
 	"sync/atomic"
@@ -132,7 +133,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.Address())
-	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 || e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != root || !sameVersionRoot(retained, store.Versions) || store.Ends != retainedEnds {
+	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 || e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != root || !storage.SameVersionRoot(retained, store.Versions) || store.Ends != retainedEnds {
 		t.Fatal("stale retirement lost surviving storage/index or failed pruning")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_stale_late"} {
@@ -223,7 +224,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	if current == &maximum || current.Revision() != maximum.Revision() || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 || len(maximum.ColumnMeta.Defaults) != 1 || len(maximum.Constraints.Check) != 1 || e.catalog.nextRevision != maximum.Revision() {
 		t.Fatal("post-drain did not preserve terminal counter/immutable predecessor contract")
 	}
-	if e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != root || !sameVersionRoot(retained, store.Versions) || ends != store.Ends || e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage.Relations[peerTable] != peerStore {
+	if e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != root || !storage.SameVersionRoot(retained, store.Versions) || ends != store.Ends || e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage.Relations[peerTable] != peerStore {
 		t.Fatal("terminal mixed cleanup changed storage, index, old rows or peer TEMP")
 	}
 	for _, name := range []string{"ext_view", "ext_chain"} {

@@ -70,7 +70,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *sess
 		if err != nil {
 			return err
 		}
-		deletes = projectDeletions(deletes, shape.Replacement)
+		deletes = session.ProjectDeletions(deletes, shape.Replacement)
 		scope.stageProjectedColumnRoots(a, writes, deletes)
 		changes.Storage[a] = shape
 	}

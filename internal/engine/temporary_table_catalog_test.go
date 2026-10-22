@@ -313,7 +313,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	if retained.Epoch() <= before.Epoch() || retained.Get(provider.Address()) != provider || retained.Get(providerIndex.Address()) != providerIndex || retained.Get(consumer.Address()) != consumer || e.storage.Relations[consumer.Address()] != store || e.storage.IndexRoots[providerIndex.Address()] != indexRoot {
 		t.Fatal("replacement did not retain actual descriptors/store/root")
 	}
-	if !sameVersionRoot(store.Versions, rows) || store.Ends != ends || store.Generation != generation {
+	if !storage.SameVersionRoot(store.Versions, rows) || store.Ends != ends || store.Generation != generation {
 		t.Fatal("replacement changed immutable row predecessors")
 	}
 	if err := table.ValidateGenerationProviders(retained, consumer); err != nil {
@@ -433,7 +433,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("pre-removed owned-index closure omitted/duplicated sibling or consumed independent generation", ownedIndexes, columns)
 	}
 	e.DiscardCatalogStage(preflight)
-	if e.CatalogRead().State() != retained.State() || e.storage.Relations[consumer.Address()] != store || e.storage.IndexRoots[providerIndex.Address()] != indexRoot || !sameVersionRoot(store.Versions, rows) || store.Ends != ends {
+	if e.CatalogRead().State() != retained.State() || e.storage.Relations[consumer.Address()] != store || e.storage.IndexRoots[providerIndex.Address()] != indexRoot || !storage.SameVersionRoot(store.Versions, rows) || store.Ends != ends {
 		t.Fatal("closure discovery mutated genuine catalog/row/index predecessors")
 	}
 	sessionSQL(t, owner, "DROP TABLE live_provider CASCADE")

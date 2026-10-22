@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -88,7 +89,7 @@ func TestTruncateGeneration(t *testing.T) {
 			if got := scope.Finish(err); !errors.Is(got, err) {
 				t.Fatal(got, err)
 			}
-			if !sameVersionRoot(originalP.Versions, versions) || originalP.Ends != ends || originalP.Generation != generation || e.catalog.state.Get(p.Address) != descriptor {
+			if !storage.SameVersionRoot(originalP.Versions, versions) || originalP.Ends != ends || originalP.Generation != generation || e.catalog.state.Get(p.Address) != descriptor {
 				t.Fatal("retained predecessor/definition changed")
 			}
 			if commit {
@@ -135,7 +136,7 @@ func TestTruncatePrivateRoots(t *testing.T) {
 	original := e.storage.Relations[p.Address]
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
 	first := s.Transactions.Catalog.Storage[p.Address]
-	if len(s.Transactions.Writes[p.Address]) != 0 || s.Transactions.Deletes[p.Address] != nil || !sameVersionRoot(s.Transactions.Writes[q.Address], qWrites) {
+	if len(s.Transactions.Writes[p.Address]) != 0 || s.Transactions.Deletes[p.Address] != nil || !storage.SameVersionRoot(s.Transactions.Writes[q.Address], qWrites) {
 		t.Fatal("selected roots not retired or unrelated roots lost")
 	}
 	if len(pWrites) == 0 || pDeletes == nil {
@@ -144,7 +145,7 @@ func TestTruncatePrivateRoots(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO p VALUES(4)")
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
 	second := s.Transactions.Catalog.Storage[p.Address]
-	if second.Original != original || second.Replacement == first.Replacement || second.Replacement.TruncateLineage != first.Replacement.TruncateLineage || !sameVersionRoot(second.Root, first.Root) || second.Ends != first.Ends || second.Generation != first.Generation || len(s.Transactions.Writes[p.Address]) != 0 {
+	if second.Original != original || second.Replacement == first.Replacement || second.Replacement.TruncateLineage != first.Replacement.TruncateLineage || !storage.SameVersionRoot(second.Root, first.Root) || second.Ends != first.Ends || second.Generation != first.Generation || len(s.Transactions.Writes[p.Address]) != 0 {
 		t.Fatal("repeat did not retain first committed fences/retire latest writes")
 	}
 	transactionEnd(t, s, tx, false)
@@ -169,7 +170,7 @@ func TestTruncateSavepoints(t *testing.T) {
 		t.Fatal("private empty incarnation not restored")
 	}
 	sessionSQL(t, s, "ROLLBACK TO before")
-	if s.Transactions.Catalog != beforeCatalog || !sameVersionRoot(s.Transactions.Writes[p.Address], beforeWrites) {
+	if s.Transactions.Catalog != beforeCatalog || !storage.SameVersionRoot(s.Transactions.Writes[p.Address], beforeWrites) {
 		t.Fatal("savepoint did not restore exact prior catalog/write roots")
 	}
 	transactionEnd(t, s, tx, false)

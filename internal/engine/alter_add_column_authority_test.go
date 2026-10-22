@@ -181,7 +181,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != wantStorage || old.ColumnMeta.HighWater != 1 || len(old.Columns) != 1 || generator.Last != 6 {
 						t.Fatal("veto published ADD or rewound sequence")
 					}
-					if explicit && (!sameVersionRoot(worker.Transactions.Writes[ref.Address], priorWrites) || worker.Transactions.Deletes[ref.Address] != priorDeletes || worker.Transactions.Catalog != priorCatalog) {
+					if explicit && (!storage.SameVersionRoot(worker.Transactions.Writes[ref.Address], priorWrites) || worker.Transactions.Deletes[ref.Address] != priorDeletes || worker.Transactions.Catalog != priorCatalog) {
 						t.Fatal("savepoint private roots changed by veto")
 					}
 				} else {

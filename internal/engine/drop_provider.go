@@ -431,7 +431,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 		}
 		nextGeneration = generation
 	}
-	projected, err := projectVersions(ctx, rows, storageOwner, next, nil)
+	projected, err := session.ProjectVersions(ctx, rows, storageOwner, next, nil)
 	if err != nil {
 		return err
 	}

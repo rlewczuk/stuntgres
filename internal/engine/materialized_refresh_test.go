@@ -71,7 +71,7 @@ func TestMaterializedRefreshPublication(t *testing.T) {
 		if e.storage.Relations[d.Address()] != candidate || len(candidate.Versions) != tc.count || candidate.Generation != generation+1 || d.Populated != tc.populated || e.visibility.CommitSeq() != frontier+1 {
 			t.Fatal("incomplete atomic replacement", d.Populated, e.visibility.CommitSeq(), candidate)
 		}
-		if !sameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation {
+		if !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation {
 			t.Fatal("predecessor mutated")
 		}
 		for _, row := range candidate.Versions {

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -26,7 +27,7 @@ func TestAlterAddColumnProjection(t *testing.T) {
 	rows := []storage.RowVersion{{Values: []sqltype.Value{one, seven}}}
 	before := append([]sqltype.Value(nil), rows[0].Values...)
 	for _, fill := range []sqltype.Value{sqltype.Null(u.Type), seven} {
-		projected, err := projectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{3: fill})
+		projected, err := session.ProjectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{3: fill})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,16 +40,16 @@ func TestAlterAddColumnProjection(t *testing.T) {
 			t.Fatal("row identity changed", original, result)
 		}
 	}
-	if _, err := projectVersions(context.Background(), rows, old, next, nil); err == nil {
+	if _, err := session.ProjectVersions(context.Background(), rows, old, next, nil); err == nil {
 		t.Fatal("missing captured fill accepted")
 	}
 	bad := []storage.RowVersion{{Values: []sqltype.Value{one}}}
-	if _, err := projectVersions(context.Background(), bad, old, next, map[int32]sqltype.Value{3: seven}); err == nil {
+	if _, err := session.ProjectVersions(context.Background(), bad, old, next, map[int32]sqltype.Value{3: seven}); err == nil {
 		t.Fatal("invalid original width accepted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := projectVersions(ctx, rows, old, next, map[int32]sqltype.Value{3: seven}); err != context.Canceled {
+	if _, err := session.ProjectVersions(ctx, rows, old, next, map[int32]sqltype.Value{3: seven}); err != context.Canceled {
 		t.Fatal(err)
 	}
 }
@@ -59,7 +60,7 @@ func TestAlterAddColumnZeroWidthProjection(t *testing.T) {
 	old := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
 	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{4}, ColumnMeta: catalog.ColumnMetadata{HighWater: 4}}
 	rows := []storage.RowVersion{{}, {}}
-	projected, err := projectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{4: sqltype.Null(u.Type)})
+	projected, err := session.ProjectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{4: sqltype.Null(u.Type)})
 	if err != nil || len(projected) != 2 {
 		t.Fatal(projected, err)
 	}
@@ -85,14 +86,14 @@ func TestAlterAddColumnCancellationDuringShapeTraversal(t *testing.T) {
 	old := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	next := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
 	rows := []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{one}}, {Row: 2, Version: 2, Values: []sqltype.Value{one}}, {Row: 3, Version: 3, Values: []sqltype.Value{one}}}
-	projection, err := newColumnProjection(old, next, map[int32]sqltype.Value{2: sqltype.Null(u.Type)})
+	projection, err := session.NewColumnProjection(old, next, map[int32]sqltype.Value{2: sqltype.Null(u.Type)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	traversal := &cancelAfterPreflightContext{Context: ctx, cancel: cancel}
-	projected, err := projection.versions(traversal, rows)
+	projected, err := projection.Versions(traversal, rows)
 	if err != context.Canceled || projected != nil || traversal.checks != 3 {
 		t.Fatal(projected, err, traversal.checks)
 	}
@@ -101,7 +102,7 @@ func TestAlterAddColumnCancellationDuringShapeTraversal(t *testing.T) {
 			t.Fatal("canceled traversal changed source", rows)
 		}
 	}
-	healthy, err := projection.versions(context.Background(), rows)
+	healthy, err := projection.Versions(context.Background(), rows)
 	if err != nil || len(healthy) != 3 {
 		t.Fatal(healthy, err)
 	}

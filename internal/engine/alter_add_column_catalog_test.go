@@ -96,7 +96,7 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	shape := session.StorageChange{Original: original, Root: original.Versions, Relation: next, Replacement: &storage.Relation{}, Fills: map[int32]sqltype.Value{2: seven}}
 	catalog := &session.Journal{Storage: map[ids.ObjectAddress]session.StorageChange{address: shape}}
 	roots := map[ids.ObjectAddress]visibility.Root{address: {Storage: original, Relation: old, Versions: historical}}
-	projected, err := projectPrivateSnapshotRoots(context.Background(), catalog, roots)
+	projected, err := session.ProjectPrivateSnapshotRoots(context.Background(), catalog, roots)
 	if err != nil || projected == catalog || !projected.Storage[address].HasSnapshot || catalog.Storage[address].HasSnapshot {
 		t.Fatal(projected, err)
 	}

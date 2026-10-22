@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
@@ -103,7 +104,7 @@ func TestAlterAddColumnNonvolatileDemandOnce(t *testing.T) {
 			t.Fatal(fills, volatile, calls, err)
 		}
 		// Empty backfill does not suppress the earlier one-time demand.
-		if rows, err := projectVersions(context.Background(), nil, old, old, fills); err != nil || len(rows) != 0 || calls != 1 {
+		if rows, err := session.ProjectVersions(context.Background(), nil, old, old, fills); err != nil || len(rows) != 0 || calls != 1 {
 			t.Fatal(rows, calls, err)
 		}
 		if expression.Property.Volatility != volatility {

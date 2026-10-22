@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -25,7 +26,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 		t.Fatal("replacement mutated original counter")
 	}
 	sessionSQL(t, s, "ROLLBACK TO before_reset")
-	if s.Transactions.Catalog != catalog || !sameVersionRoot(s.Transactions.Writes[p.Address], writes) || e.catalog.state.Get(ps.Address) != descriptor || !currvalIs(payloadOf(s).sequences.Memory(ps.Address), 1) || payloadOf(s).sequences.Last() != ps.Address {
+	if s.Transactions.Catalog != catalog || !storage.SameVersionRoot(s.Transactions.Writes[p.Address], writes) || e.catalog.state.Get(ps.Address) != descriptor || !currvalIs(payloadOf(s).sequences.Memory(ps.Address), 1) || payloadOf(s).sequences.Last() != ps.Address {
 		t.Fatal("savepoint failed binding/root/memory separation")
 	}
 	lockState := e.locks.Inspect()

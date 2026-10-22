@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"maps"
 	"slices"
@@ -19,51 +18,7 @@ import (
 // roots. The original publication preconditions remain in shape.
 func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, store *storage.Relation, shape session.StorageChange, snapshot visibility.Root, snapshotExists bool) (session.StorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	writes, deletes := scope.columnProjectionRoots(old.Address())
-	return projectColumnShapeRoots(scope.op.Context(), scope.owner.Isolation.Stable(), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
-}
-
-func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalog.Relation, store *storage.Relation, shape session.StorageChange, snapshot visibility.Root, snapshotExists bool, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) (session.StorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
-	if slices.Equal(old.Attributes, next.Attributes) {
-		shape.Relation = next
-		return shape, writes, deletes, nil
-	}
-	if store.Generation == ^uint64(0) {
-		return shape, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
-	}
-	shape.Fills = maps.Clone(shape.Fills)
-	for attribute := range shape.Fills {
-		if !next.HasAttribute(attribute) {
-			delete(shape.Fills, attribute)
-		}
-	}
-	projection, err := newColumnProjection(old, next, shape.Fills)
-	if err != nil {
-		return shape, nil, nil, err
-	}
-	versions, err := projection.versions(ctx, store.Versions)
-	if err != nil {
-		return shape, nil, nil, err
-	}
-	shape.Replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
-	shape.Truncated = false
-	writes, err = projection.versions(ctx, writes)
-	if err != nil {
-		return shape, nil, nil, err
-	}
-	deletes = projectDeletions(deletes, shape.Replacement)
-	if stable && snapshotExists && !shape.Rewritten {
-		if slices.Equal(snapshot.Relation.Attributes, old.Attributes) {
-			shape.Snapshot, err = projection.versions(ctx, snapshot.Versions)
-		} else {
-			shape.Snapshot, err = projectVersions(ctx, snapshot.Versions, snapshot.Relation, next, shape.Fills)
-		}
-		if err != nil {
-			return shape, nil, nil, err
-		}
-		shape.HasSnapshot = true
-	}
-	shape.Relation = next
-	return shape, writes, deletes, nil
+	return session.ProjectColumnShapeRoots(scope.op.Context(), scope.owner.Isolation.Stable(), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
 }
 
 // Nested cascades may have already projected this statement's private roots.
@@ -141,7 +96,7 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 	}
 	e.mu.Unlock()
 	sourceWrites := writes
-	shape, writes, deletes, err := projectColumnShapeRoots(ctx, stable, shape.Relation, next, store, shape, snapshot, snapshotExists, writes, deletes)
+	shape, writes, deletes, err := session.ProjectColumnShapeRoots(ctx, stable, shape.Relation, next, store, shape, snapshot, snapshotExists, writes, deletes)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -196,21 +151,21 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 				delete(shape.Fills, attribute)
 			}
 		}
-		projection, err := newColumnProjection(old, next, shape.Fills)
+		projection, err := session.NewColumnProjection(old, next, shape.Fills)
 		if err != nil {
 			return err
 		}
 		writes, deletes := scope.columnProjectionRoots(address)
-		writes, err = projection.versions(scope.op.Context(), writes)
+		writes, err = projection.Versions(scope.op.Context(), writes)
 		if err != nil {
 			return err
 		}
-		scope.stageProjectedColumnRoots(address, writes, projectDeletions(deletes, rowShape.replacement))
+		scope.stageProjectedColumnRoots(address, writes, session.ProjectDeletions(deletes, rowShape.replacement))
 		stage.owner.mu.Lock()
 		snapshot, snapshotExists := scope.owner.Roots[address]
 		stage.owner.mu.Unlock()
 		if scope.owner.Isolation.Stable() && snapshotExists && !shape.Rewritten {
-			shape.Snapshot, err = projectVersions(scope.op.Context(), snapshot.Versions, snapshot.Relation, next, shape.Fills)
+			shape.Snapshot, err = session.ProjectVersions(scope.op.Context(), snapshot.Versions, snapshot.Relation, next, shape.Fills)
 			if err != nil {
 				return err
 			}

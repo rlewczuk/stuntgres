@@ -57,7 +57,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 						t.Fatal(err)
 					}
 					shape := s.Transactions.Catalog.Storage[target.Address]
-					if shape.Original != original || !sameVersionRoot(shape.Root, root) || shape.Ends != ends || shape.Generation != generation || shape.Replacement == entry || shape.Replacement == previous || shape.Replacement.Generation != entry.Generation+1 || !shape.Rewritten || shape.HasSnapshot || shape.Relation != s.Transactions.Catalog.Descriptors[target.Address] {
+					if shape.Original != original || !storage.SameVersionRoot(shape.Root, root) || shape.Ends != ends || shape.Generation != generation || shape.Replacement == entry || shape.Replacement == previous || shape.Replacement.Generation != entry.Generation+1 || !shape.Rewritten || shape.HasSnapshot || shape.Relation != s.Transactions.Catalog.Descriptors[target.Address] {
 						t.Fatal("replacement lost first committed or immediate private predecessor", shape)
 					}
 					if len(s.Transactions.Writes[target.Address]) != 0 {
@@ -107,7 +107,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 						}
 					}
 				}
-				if original != nil && (!sameVersionRoot(original.Versions, root) || original.Ends != ends || original.Generation != generation) {
+				if original != nil && (!storage.SameVersionRoot(original.Versions, root) || original.Ends != ends || original.Generation != generation) {
 					t.Fatal("refresh mutated retained predecessor")
 				}
 			})

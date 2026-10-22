@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -182,7 +183,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 			}
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.AccessedTemporary {
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !storage.SameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.AccessedTemporary {
 				t.Fatal("foreign target changed owner state or rejection boundary", query, prepared, err)
 			}
 		}
@@ -204,7 +205,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 		op.Done()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.AccessedTemporary {
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !storage.SameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.AccessedTemporary {
 			t.Fatal("foreign COPY changed owner state or emitted rows", query, count, err)
 		}
 	}

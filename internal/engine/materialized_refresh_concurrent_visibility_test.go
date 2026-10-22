@@ -44,7 +44,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	}
 	retained := view.Data()
 	frontier := retained.Frontier
-	if !sameVersionRoot(retained.Committed[d.Address()], current.Versions) {
+	if !storage.SameVersionRoot(retained.Committed[d.Address()], current.Versions) {
 		t.Fatal("capture did not own current immutable root")
 	}
 	next := concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 2), true, true)
@@ -61,7 +61,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	if err != nil || again != view {
 		t.Fatal("captured data view changed", err)
 	}
-	if again.Data().Frontier != frontier || !sameVersionRoot(again.Data().Committed[d.Address()], current.Versions) || len(again.Data().Committed[d.Address()]) != 4 {
+	if again.Data().Frontier != frontier || !storage.SameVersionRoot(again.Data().Committed[d.Address()], current.Versions) || len(again.Data().Committed[d.Address()]) != 4 {
 		t.Fatal("reader mixed incarnations")
 	}
 	for _, source := range scope.querySources {
@@ -119,7 +119,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 					t.Fatal("RR compatible root selection", err)
 				}
 				data := view.Data()
-				if data.Frontier != frontier || !sameVersionRoot(data.Committed[d.Address()], root.Versions) || data.Ends[d.Address()] != root.Ends || data.NeedsBirthFilterAt(d.Address()) || len(data.Committed[d.Address()]) != 3 {
+				if data.Frontier != frontier || !storage.SameVersionRoot(data.Committed[d.Address()], root.Versions) || data.Ends[d.Address()] != root.Ends || data.NeedsBirthFilterAt(d.Address()) || len(data.Committed[d.Address()]) != 3 {
 					t.Fatal("RR selected current/birth-filtered rows")
 				}
 			}

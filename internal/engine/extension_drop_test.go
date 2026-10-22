@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
 	"testing"
 
@@ -345,7 +346,7 @@ func extensionDropUnitStorage(t *testing.T, e *Engine) func() {
 		}
 		for address, shape := range shapes {
 			store := e.storage.Relations[address]
-			if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.Ends || !sameVersionRoot(store.Versions, shape.Root) {
+			if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.Ends || !storage.SameVersionRoot(store.Versions, shape.Root) {
 				t.Error("failed retirement changed committed row root", address)
 			}
 		}

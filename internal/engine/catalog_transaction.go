@@ -161,7 +161,7 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 	}
 	for a, shape := range c.Storage {
 		store := e.storage.Relations[a]
-		if store != shape.Original || store != nil && (store.Generation != shape.Generation || len(store.Versions) != len(shape.Root) || store.Ends != shape.Ends || !sameVersionRoot(store.Versions, shape.Root)) {
+		if store != shape.Original || store != nil && (store.Generation != shape.Generation || len(store.Versions) != len(shape.Root) || store.Ends != shape.Ends || !storage.SameVersionRoot(store.Versions, shape.Root)) {
 			return catalog.Conflict{}
 		}
 	}
