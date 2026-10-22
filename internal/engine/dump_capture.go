@@ -42,7 +42,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 		return nil, err
 	}
 	state := e.catalog.state
-	if err := dumpPortable(state); err != nil {
+	if err := control.CheckPortable(state); err != nil {
 		return nil, err
 	}
 	catalogView := e.catalog.read(state)
@@ -54,7 +54,7 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 	}
 	aclOutput := regobj.ACLItemOutput{Owner: e.catalog.owner(), Roles: originalRoles, Lossless: true}
 	ctx = regobj.ACLItemOutputContext(ctx, aclOutput)
-	if err := preflightACLItemDump(ctx, originalCatalog, e.storage.Relations, e.visibility.CommitSeq(), aclOutput); err != nil {
+	if err := control.PreflightACLItems(ctx, originalCatalog, e.storage.Relations, e.visibility.CommitSeq(), aclOutput); err != nil {
 		return nil, err
 	}
 	// Declarations bind private key names until the terminal renames. Later
@@ -106,46 +106,6 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 		}
 	}
 	return c.Capture, nil
-}
-
-// dumpPortable rejects catalogs Dump cannot serialize at all: SQL/MED
-// metadata, default privileges and invalid indexes.
-func dumpPortable(state *catalog.State) error {
-	for _, descriptor := range state.Descriptors() {
-		_, foreign := descriptor.(*catalog.ForeignObject)
-		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Foreign != nil {
-			foreign = true
-		}
-		if foreign {
-			return fmt.Errorf("stuntgres: dump cannot serialize SQL/MED foreign metadata")
-		}
-	}
-	if state.DefaultACLCount() != 0 {
-		return fmt.Errorf("stuntgres: dump cannot serialize default privileges")
-	}
-	var invalid *catalog.Relation
-	var invalidSchema string
-	for _, descriptor := range state.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
-			continue
-		}
-		namespace := state.MustNamespace(index.Namespace())
-		if namespace.Temporary != (ids.SessionToken{}) || index.SQLIndex.Ready && index.SQLIndex.Valid && index.SQLIndex.Live {
-			continue
-		}
-		parent, ok := state.Relation(index.SQLIndex.Parent)
-		if ok && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
-			continue
-		}
-		if invalid == nil || namespace.Name() < invalidSchema || namespace.Name() == invalidSchema && index.Name() < invalid.Name() {
-			invalid, invalidSchema = index, namespace.Name()
-		}
-	}
-	if invalid != nil {
-		return fmt.Errorf("stuntgres: dump cannot serialize invalid index %s.%s", catalog.QuoteIdentifier(invalidSchema), catalog.QuoteIdentifier(invalid.Name()))
-	}
-	return nil
 }
 
 // dumpBuiltinSchemaPreamble reconstructs bootstrap identity changes before

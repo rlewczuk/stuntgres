@@ -1,4 +1,4 @@
-package engine
+package control
 
 import (
 	"context"
@@ -14,11 +14,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// preflightACLItemDump checks every ACL leaf a dump would write: domain
+// PreflightACLItems checks every ACL leaf a dump would write: domain
 // defaults, live rows of persistent relations, stored expressions and bound
 // literals. The caller holds Engine.mu and passes the captured relation roots
 // and commit frontier.
-func preflightACLItemDump(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, frontier ids.CommitSeq, output regobj.ACLItemOutput) error {
+func PreflightACLItems(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, frontier ids.CommitSeq, output regobj.ACLItemOutput) error {
 	var failure error
 	check := func(value sqltype.Value) {
 		if failure == nil {
