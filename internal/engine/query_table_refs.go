@@ -51,7 +51,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 			// Nested invoker views retain this occurrence's original invoker;
 			// each definer view selects its own owner in the canonical check.
-			if err := authorize(use, sourceInvoker, viewLeafRowMark(stored.ViewOf(relation), i, mark)); err != nil {
+			if err := authorize(use, sourceInvoker, stored.ViewLeafRowMark(stored.ViewOf(relation), i, mark)); err != nil {
 				return err
 			}
 		}

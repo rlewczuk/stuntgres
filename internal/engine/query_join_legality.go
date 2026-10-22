@@ -272,7 +272,7 @@ func validateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 	case *plan.SourceNode:
 		mark := analyze.QueryOccurrenceMark(marks, n.Occurrence, inherited)
 		if d, ok := view.Relation(n.Ref.Address); ok && d.RelationKind == catalog.ViewRelation {
-			if err := viewRowLockLegality(stored.ViewOf(d), analyze.RowLockDiagnostic(mark)); err != nil {
+			if err := stored.ViewRowLockLegality(stored.ViewOf(d), analyze.RowLockDiagnostic(mark)); err != nil {
 				return err
 			}
 			outputUses, err := analyze.QuerySourceReadUses(reads[n.Occurrence], d.Attributes)

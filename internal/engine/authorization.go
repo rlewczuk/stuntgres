@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
@@ -93,7 +94,7 @@ func (v AuthorizationView) WithCurrentUser(principal authorization.PrincipalRef)
 // CheckViewRowMarks checks the stored and inherited row marks of a view
 // source with the current user as invoker. Without either it checks nothing.
 func (v AuthorizationView) CheckViewRowMarks(relation *catalog.Relation, mark plan.RowMark) error {
-	if mark.Mode == 0 && !viewHasStoredRowMarks(relation, v.Catalog) {
+	if mark.Mode == 0 && !stored.ViewHasRowMarks(relation, v.Catalog) {
 		return nil
 	}
 	return v.checkViewRowMarks(relation, mark, v.State.CurrentUser)

@@ -83,7 +83,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				if err != nil {
 					return err
 				}
-				if err := visit(use, viewLeafRowMark(stored.ViewOf(d), i, plan.RowMark{Mode: mode}).Mode); err != nil {
+				if err := visit(use, stored.ViewLeafRowMark(stored.ViewOf(d), i, plan.RowMark{Mode: mode}).Mode); err != nil {
 					return err
 				}
 			}

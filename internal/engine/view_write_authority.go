@@ -88,7 +88,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 			if occurrence == layer.MainOccurrence {
 				continue // The next write layer owns main-source expansion.
 			}
-			mark := viewLeafRowMark(stored.ViewOf(current), occurrence, plan.RowMark{})
+			mark := stored.ViewLeafRowMark(stored.ViewOf(current), occurrence, plan.RowMark{})
 			if mark.Mode != 0 {
 				if err := authority.CheckColumns(use, relation, authorization.UpdatePrivilege, nil); err != nil {
 					return err

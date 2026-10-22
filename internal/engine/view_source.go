@@ -135,7 +135,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 			return err
 		}
 	}
-	if mark.Mode != 0 || viewHasStoredRowMarks(d, auth.Catalog) {
+	if mark.Mode != 0 || stored.ViewHasRowMarks(d, auth.Catalog) {
 		return auth.checkViewRowMarks(d, mark, invoker)
 	}
 	return nil

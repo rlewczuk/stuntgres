@@ -37,7 +37,7 @@ func inheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 				if err != nil {
 					return err
 				}
-				if err := walk(exec.Leaf{Ref: ref, Only: child.Only, Mark: viewLeafRowMark(stored.ViewOf(d), i, leaf.Mark)}); err != nil {
+				if err := walk(exec.Leaf{Ref: ref, Only: child.Only, Mark: stored.ViewLeafRowMark(stored.ViewOf(d), i, leaf.Mark)}); err != nil {
 					return err
 				}
 			}
