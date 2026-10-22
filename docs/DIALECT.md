@@ -970,6 +970,39 @@ SQL/MED path. PostgreSQL emits the complete dependency NOTICE (a single PUBLIC
 mapping in these scenarios). This read-view feature does not change notice emission.
 See [selected proof and smoke](../reference/catalogs/README.md#information-schema-user-mappings).
 
+## Information-schema key column usage
+
+`information_schema.key_column_usage` reads actual primary, unique and foreign
+keys on ordinary and partitioned tables through the normal metadata/query path.
+Its exact columns are `constraint_catalog`, `constraint_schema`,
+`constraint_name`, `table_catalog`, `table_schema`, `table_name`, `column_name`,
+`ordinal_position`, and `position_in_unique_constraint`. The first seven are
+nullable `sql_identifier` domains over NAME; the last two are nullable
+`cardinal_number` domains over INT4. Catalog names use `current_database()`.
+Valid rows populate the first eight fields; p/u unique positions are NULL.
+Foreign-key unique positions follow the actual referenced supporting index,
+including reversed references and standalone unique-index providers.
+
+Constrained-key order is independent of physical attribute numbers. Duplicate
+constraint names on different tables remain separate occurrences. Owners and
+inherited owners see their keys; otherwise effective SELECT, INSERT, UPDATE or
+REFERENCES on each constrained column qualifies that member. Partial keys keep
+their original ordinals. DELETE/TRUNCATE/TRIGGER/MAINTAIN alone does not qualify.
+Schema USAGE, search path, RLS and referenced-table privileges add no visibility
+gate. Invisible objects return zero rows, not permission errors. Own TEMP is
+visible; peer TEMP is excluded. Held statements recapture current authority.
+
+Existing constraint DDL, transactions and native logical controls update this
+projection. CHECK, NOT NULL, exclusion constraints, INCLUDE payloads, standalone
+indexes and unconstrained data do not independently create rows. No referenced
+table/column or unique-constraint-name columns are added; adjacent information
+schema constraint views and future definition families remain separate work.
+Dropping a supporting unique index CASCADE removes its actual dependent FK rows
+while preserving unrelated same-name constraints and child data. The existing
+native index-CASCADE path does not emit PostgreSQL's dependency NOTICE, even
+with client_min_messages=notice; this view does not expand notice delivery.
+See [selected checks and smoke](../reference/catalogs/README.md#information-schema-key-column-usage).
+
 ## Foreign metadata and scans
 
 SQL/MED wrapper/server/user-mapping/foreign-table metadata, ordered column/table

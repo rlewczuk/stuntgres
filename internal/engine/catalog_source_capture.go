@@ -50,7 +50,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 12014, 12007, 12008:
 		in.Roles = scope.inquiry.commentRoles
 		unlockBefore = true
-	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID:
+	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.KeyColumnUsageOID:
 		in.Catalog, in.Roles = scope.inquiry.commentCatalog, scope.inquiry.deparseAuth.Roles
 		runtime.auth, runtime.database = scope.inquiry.deparseAuth, scope.op.Session.DatabaseName
 		runtime.temporary = catalogSourceTemporaryOwner(scope.inquiry.deparseAuth)

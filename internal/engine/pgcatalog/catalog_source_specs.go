@@ -680,4 +680,15 @@ var Specs = [...]Spec{
 		{"foreign_server_catalog", 13248, true, 950, 0, -1},
 		{"foreign_server_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing user mapping identifier domain"},
+	{KeyColumnUsageOID, 13229, "key_column_usage", []ColumnSpec{
+		{"constraint_catalog", 13248, true, 950, 0, -1},
+		{"constraint_schema", 13248, true, 950, 0, -1},
+		{"constraint_name", 13248, true, 950, 0, -1},
+		{"table_catalog", 13248, true, 950, 0, -1},
+		{"table_schema", 13248, true, 950, 0, -1},
+		{"table_name", 13248, true, 950, 0, -1},
+		{"column_name", 13248, true, 950, 0, -1},
+		{"ordinal_position", 13243, true, 0, 0, -1},
+		{"position_in_unique_constraint", 13243, true, 0, 0, -1},
+	}, true, false, false, false, "stuntgres: missing key column usage domain"},
 }

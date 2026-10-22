@@ -324,6 +324,53 @@ no foreign provider, remote connection or external FDW service is involved.
 This feature neither adds `user_mapping_options` nor changes existing
 `pg_user_mappings` option redaction or SQL/MED native-control boundaries.
 
+### Information-schema key column usage
+
+The nine `TestReferenceInfoKeyColumnUsage` scenarios assert the exact nine-column
+projection: seven nullable `sql_identifier` domains exported as NAME and two
+nullable `cardinal_number` domains exported as INT4. Catalog domain/base/row/array
+links remain distinct from public driver carriers. Raw values, ScanType,
+nullability reporting and saved metadata are checked on populated and empty
+direct/prepared/held reads. Primary/unique rows have NULL unique positions;
+foreign keys map to their actual supporting index's key order.
+
+Rows cover sparse attributes, duplicate names across tables, partitions,
+standalone unique-index providers, INCLUDE exclusion and non-key exclusions.
+The relationship witness follows real constraint/target/index identities and
+uses positional `pg_get_indexdef` to assert supporting key order, INCLUDE payload
+and empty out-of-range positions without expanding the bounded native pg_index.
+Visibility covers each qualifying column/table privilege, nonqualifying rights,
+PUBLIC, owner inheritance, SET-only roles, private schemas without USAGE and
+own-versus-peer TEMP. Lifecycle/transaction witnesses cover renames, schema moves,
+drop/add, NOT VALID followed by ordinary validated recreation, CASCADE, rollback
+and failed-ALTER atomicity. The recreated FK has convalidated=true and identical
+key-usage tuples; this does not enable in-place VALIDATE CONSTRAINT.
+The index-CASCADE witness checks exact dependent key-row removal, preservation
+of an unrelated same-name FK and retained child data on both backends. On the
+notice-enabled connection with client_min_messages=notice, PostgreSQL emits the
+complete dependency NOTICE; the existing native index-CASCADE path emits none.
+This metadata feature does not add native cascade notice delivery.
+Diagnostics retain complete independent English records and stages.
+NativeControls and FeatureSmoke share ordinary SQL expectations with PostgreSQL,
+then exercise native-only retained rows and logical Dump/Reset/Restore.
+
+Run selected proof in both modes (external 900-second deadlines):
+
+```sh
+make check RUN='^TestReferenceInfoKeyColumnUsage(Rows|Metadata|Identity|Visibility|Lifecycle|Transactions|Diagnostics|NativeControls|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoKeyColumnUsage(Rows|Metadata|Identity|Visibility|Lifecycle|Transactions|Diagnostics|NativeControls|FeatureSmoke)$' REFERENCE=1
+```
+
+Feature smoke creates a composite unique parent and reversed foreign key, checks
+four exact rows, then reuses a held read through one-column grants/revokes and
+rename/drop/add transitions. Native replay reconstructs the final mapping.
+Expected result: exit zero and quiet package summaries.
+
+```sh
+make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$'
+make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
+```
+
 ### Extension removal
 
 The nine new removal definitions independently specify PostgreSQL18.6

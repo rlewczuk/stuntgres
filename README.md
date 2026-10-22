@@ -262,6 +262,24 @@ PostgreSQL's dependency notices. Current role-descriptor names still resolve by 
 See [native boundaries](docs/DIALECT.md#information-schema-user-mappings) and
 [selected proof and smoke](reference/catalogs/README.md#information-schema-user-mappings).
 
+## Information-schema key column usage — change note
+
+`information_schema.key_column_usage` exposes the documented nine columns with
+genuine nullable identifier/cardinal domains and NAME/INT4 public result types.
+Actual primary/unique/foreign-key definitions supply rows; foreign-key positions
+follow their selected supporting index, preserving composite order and duplicate
+constraint names across tables. Owner inheritance or qualifying per-column
+privileges controls visibility without renumbering partially visible keys.
+Existing constraint DDL, transactions and logical replay update the view.
+No adjacent constraint views or extra referenced-object columns are implied.
+See [native contract](docs/DIALECT.md#information-schema-key-column-usage) and
+[selected proof](reference/catalogs/README.md#information-schema-key-column-usage).
+
+```sh
+make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$'
+make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
+```
+
 ## LIST partition definitions — change note
 
 Single-key `PARTITION BY LIST` supports typed `IN` values, NULL ownership,

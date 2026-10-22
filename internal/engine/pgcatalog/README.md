@@ -1,8 +1,8 @@
 # internal/engine/pgcatalog
 
 Row producers for the system relations: the `pg_catalog` tables and views and
-the `information_schema` views `table_privileges`, `data_type_privileges` and
-`user_mappings`.
+the `information_schema` views `table_privileges`, `data_type_privileges`,
+`user_mappings` and `key_column_usage`.
 Each producer is a pure function from a captured catalog, a paired role read
 and a narrow runtime capability to rows. The package sits at L5 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
@@ -202,6 +202,25 @@ make check RUN='^TestInfoUserMappingsProducer$'
 make check RUN='^TestReferenceInfoUserMappings(Shape|Visibility|Lifecycle|Diagnostics|Smoke)$'
 make check REFERENCE=1 RUN='^TestReferenceInfoUserMappings(Shape|Visibility|Lifecycle|Diagnostics|Smoke)$'
 ```
+
+`key_column_usage.go` emits the nine documented columns from actual primary,
+unique and foreign-key descriptors on ordinary and partitioned tables. Capture
+uses coherent catalog/role/session authority and genuine `sql_identifier` and
+`cardinal_number` domain values, including typed NULL unique positions for p/u.
+Foreign-key positions follow the actual supporting index's ordered Keys, never
+another equivalent index, constraint-name lookup or INCLUDE payload. Each
+constraint occurrence survives duplicate names. Owner inheritance or effective
+SELECT/INSERT/UPDATE/REFERENCES on each constrained column controls visibility;
+partial keys retain their original ordinals. Other-session TEMP is excluded.
+Successful empty captures are nonnil; cancellation and invalid authority expose
+no prefix. Existing DDL, transactions and logical controls own all population.
+
+```sh
+make check RUN='^Test(InfoKeyColumnUsage(Producer|Capture|Cancellation)|CatalogSourceProducerCoverage)$'
+make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$'
+make check RUN='^TestReferenceInfoKeyColumnUsageFeatureSmoke$' REFERENCE=1
+```
+
 
 
 Package units run without an engine:
