@@ -156,32 +156,32 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 		t.Fatal("queued preparation allocated stage/view or evaluated rows")
 	}
 	for address, prepared := range state.prepared {
-		if prepared == nil || prepared.old == nil {
+		if prepared == nil || prepared.Old == nil {
 			t.Fatalf("missing actual prepared node for %v", address)
 		}
-		for index, step := range prepared.steps {
-			if step.err != nil {
-				t.Fatalf("%s cached action %d failed: %v", prepared.old.Name(), index, step.err)
+		for index, step := range prepared.Steps {
+			if step.Err != nil {
+				t.Fatalf("%s cached action %d failed: %v", prepared.Old.Name(), index, step.Err)
 			}
 		}
-		for index, step := range prepared.inline {
-			if step.err != nil {
-				t.Fatalf("%s cached inline action %d failed: %v", prepared.old.Name(), index, step.err)
+		for index, step := range prepared.Inline {
+			if step.Err != nil {
+				t.Fatalf("%s cached inline action %d failed: %v", prepared.Old.Name(), index, step.Err)
 			}
 		}
-		for index, step := range prepared.usingNotNull {
-			if step.err != nil {
-				t.Fatalf("%s cached USING INDEX not-null action %d failed: %v", prepared.old.Name(), index, step.err)
+		for index, step := range prepared.UsingNotNull {
+			if step.Err != nil {
+				t.Fatalf("%s cached USING INDEX not-null action %d failed: %v", prepared.Old.Name(), index, step.Err)
 			}
 		}
-		if prepared.afterDropError != nil {
-			t.Fatalf("%s cached post-DROP effects failed: %v", prepared.old.Name(), prepared.afterDropError)
+		if prepared.AfterDropError != nil {
+			t.Fatalf("%s cached post-DROP effects failed: %v", prepared.Old.Name(), prepared.AfterDropError)
 		}
-		if prepared.usingCaptureError != nil {
-			t.Fatalf("%s cached index capture failed: %v", prepared.old.Name(), prepared.usingCaptureError)
+		if prepared.UsingCaptureError != nil {
+			t.Fatalf("%s cached index capture failed: %v", prepared.Old.Name(), prepared.UsingCaptureError)
 		}
-		if prepared.checksError != nil {
-			t.Fatalf("%s cached CHECK preparation failed: %v", prepared.old.Name(), prepared.checksError)
+		if prepared.ChecksError != nil {
+			t.Fatalf("%s cached CHECK preparation failed: %v", prepared.Old.Name(), prepared.ChecksError)
 		}
 	}
 	return state
@@ -466,10 +466,10 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			result, joined := inheritanceAlterWorker(t, command, holder)
 			state := inheritanceAlterPending(t, command, c)
 			prepared := state.prepared[p.Address()]
-			if prepared == nil || prepared.steps[0].drop == nil {
+			if prepared == nil || prepared.Steps[0].Drop == nil {
 				t.Fatal("rowtype witness did not use actual DROP preparation")
 			}
-			if prepared.checks.Next == nil || len(prepared.checks.Next.Constraints.Check) != 1 {
+			if prepared.Checks.Next == nil || len(prepared.Checks.Next.Constraints.Check) != 1 {
 				t.Fatal("rowtype fixture did not produce its actual cooked CHECK")
 			}
 			assertShape := func(typ *sqltype.Descriptor, names []string) {
@@ -507,18 +507,18 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			// DROP itself owns its actual rowtype synchronization effects; the
 			// subsequent metadata helper correctly has nothing to cook again.
 			var dropTypes []catalog.Descriptor
-			for _, effect := range prepared.steps[0].drop.effects {
+			for _, effect := range preparedDropOf(prepared.Steps[0].Drop).effects {
 				if effect.descriptor != nil {
 					dropTypes = append(dropTypes, effect.descriptor)
 				}
 			}
 			assertPhase(dropTypes, []string{"a"})
-			assertPhase(prepared.steps[1].types, []string{"a", "z"})
-			assertPhase(prepared.steps[2].types, []string{"a", "z", "u"})
+			assertPhase(prepared.Steps[1].Types, []string{"a", "z"})
+			assertPhase(prepared.Steps[2].Types, []string{"a", "z", "u"})
 			assertShape(before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.RowType)}).SQLType, []string{"a", "b"})
 			if interim {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
-					expression := prepared.steps[index+1].added.Expression
+					expression := prepared.Steps[index+1].Added.Expression
 					composite, array := false, false
 					plan.WalkExpression(expression, func(node expr.Expr) {
 						typ := node.ResultUsage().Type
@@ -552,7 +552,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				return
 			}
 			finalComposite, finalArray := false, false
-			plan.WalkExpression(prepared.checks.Next.Constraints.Check[0].Expression, func(node expr.Expr) {
+			plan.WalkExpression(prepared.Checks.Next.Constraints.Check[0].Expression, func(node expr.Expr) {
 				typ := node.ResultUsage().Type
 				if typ == nil {
 					return
@@ -603,15 +603,15 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			result, joined := inheritanceAlterWorker(t, command, holder)
 			state := inheritanceAlterPending(t, command, c)
 			prepared := state.prepared[p.Address()]
-			if prepared == nil || prepared.steps[1].drop == nil || prepared.steps[0].added.Column == nil || len(prepared.inline) != 1 {
+			if prepared == nil || prepared.Steps[1].Drop == nil || prepared.Steps[0].Added.Column == nil || len(prepared.Inline) != 1 {
 				t.Fatal("actual mixed providers were not prepared before descendant wait")
 			}
-			drop := prepared.steps[1].drop
-			add := prepared.steps[0]
-			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.HasAttribute(p.Attributes[p.Index["b"]]) || add.old != drop.next || add.added.Attribute == p.Attributes[p.Index["b"]] {
+			drop := preparedDropOf(prepared.Steps[1].Drop)
+			add := prepared.Steps[0]
+			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.HasAttribute(p.Attributes[p.Index["b"]]) || add.Old != drop.next || add.Added.Attribute == p.Attributes[p.Index["b"]] {
 				t.Fatal("mixed ADD cooked against original or guessed DROP shape")
 			}
-			cooked := prepared.checks.Next
+			cooked := prepared.Checks.Next
 			if cooked == nil || len(cooked.Constraints.Check) != 1 || len(cooked.Constraints.NotNull) != 1 {
 				t.Fatal("mixed fixture did not produce its actual cooked NN/CHECK")
 			}
@@ -620,7 +620,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.Namespace(), Name: "old_b"}
-			if prepared.reader.Lookup(key) != (ids.ObjectAddress{}) || prepared.reader.Base.State() != before.State() || e.CatalogRead().State() != before.State() || e.CatalogRead().Get(view.Address()) != view {
+			if prepared.Reader.Lookup(key) != (ids.ObjectAddress{}) || prepared.Reader.Base.State() != before.State() || e.CatalogRead().State() != before.State() || e.CatalogRead().Get(view.Address()) != view {
 				t.Fatal("actual ordered DROP effects were absent or prematurely published")
 			}
 			if cancelAtWait {

@@ -875,6 +875,9 @@ func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.De
 	return p.readInputDescriptor(address)
 }
 
+// Next is the relation the prepared drop leaves.
+func (prepared *preparedDrop) Next() *catalog.Relation { return prepared.next }
+
 // DefinitionDelta reports only the prepared drop's own descriptor effects.
 func (prepared *preparedDrop) DefinitionDelta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
 	if slot := prepared.slots[address]; slot.descriptor != 0 {

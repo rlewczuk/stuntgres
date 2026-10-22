@@ -155,6 +155,9 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 	return next, nil
 }
 
+// Next is the relation the prepared identity drop leaves.
+func (prepared *preparedIdentityDrop) Next() *catalog.Relation { return prepared.next }
+
 // DefinitionDelta reports only real effects. The caller's linked reader owns
 // authentic fallback and resolution observations, never this preparation's
 // input reader.

@@ -296,13 +296,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		}
 		if pass == 0 {
 			if definition != nil {
-				if definition.afterDropOld != next {
+				if definition.AfterDropOld != next {
 					return Result{}, ids.ErrCatalogReplaced
 				}
-				if definition.afterDropError != nil {
-					err = definition.afterDropError
-				} else if definition.afterDrop != nil {
-					next, err = scope.consumePreparedDrop(stage, definition.afterDrop, next, ref, changes)
+				if definition.AfterDropError != nil {
+					err = definition.AfterDropError
+				} else if definition.AfterDrop != nil {
+					next, err = scope.consumePreparedDrop(stage, preparedDropOf(definition.AfterDrop), next, ref, changes)
 				}
 			} else {
 				next, stage, err = e.stageDroppedConstraintIndexes(scope, auth, stage, old, next, s.Actions, changes)
@@ -336,14 +336,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				stage = e.BeginCatalogStage(auth.Catalog)
 			}
 			err = stage.Replace(next)
-			if definition != nil && !definition.phaseZeroOnly {
-				if definition.usingCaptureOld != next {
+			if definition != nil && !definition.PhaseZeroOnly {
+				if definition.UsingCaptureOld != next {
 					return Result{}, ids.ErrCatalogReplaced
 				}
-				if definition.usingCaptureError != nil {
-					err = definition.usingCaptureError
+				if definition.UsingCaptureError != nil {
+					err = definition.UsingCaptureError
 				} else {
-					attachments = definition.usingIndexes
+					attachments = definition.UsingIndexes
 				}
 			} else {
 				if err == nil {
@@ -361,16 +361,16 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			for _, added := range additions {
 				if added.Declaration.ColumnNotNull {
 					before := next
-					if definition != nil && !definition.phaseZeroOnly {
-						if inlineIndex >= len(definition.inline) || definition.inline[inlineIndex].old != next {
+					if definition != nil && !definition.PhaseZeroOnly {
+						if inlineIndex >= len(definition.Inline) || definition.Inline[inlineIndex].Old != next {
 							return Result{}, ids.ErrCatalogReplaced
 						}
-						preparedInline := definition.inline[inlineIndex]
+						preparedInline := definition.Inline[inlineIndex]
 						inlineIndex++
-						if preparedInline.err != nil {
-							err = preparedInline.err
+						if preparedInline.Err != nil {
+							err = preparedInline.Err
 						} else {
-							next = preparedInline.next
+							next = preparedInline.Next
 						}
 					} else {
 						next, err = table.NotNullCandidate(op, auth.Catalog, next, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.Column.Name}, Constraint: parser.Identifier{Text: added.Declaration.ColumnName}}, table.NotNullDirect)
@@ -385,14 +385,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		if err == nil && pass == 4 {
 			for index, captured := range attachments {
 				before := next
-				if definition != nil && !definition.phaseZeroOnly {
-					prepared := definition.usingNotNull[index]
-					if prepared.old != next {
+				if definition != nil && !definition.PhaseZeroOnly {
+					prepared := definition.UsingNotNull[index]
+					if prepared.Old != next {
 						err = ids.ErrCatalogReplaced
-					} else if prepared.err != nil {
-						err = prepared.err
+					} else if prepared.Err != nil {
+						err = prepared.Err
 					} else {
-						next = prepared.next
+						next = prepared.Next
 					}
 				} else {
 					next, err = table.UsingIndexNotNullCandidate(op, auth.Catalog, stageDefinitionReader{stage}, next, captured)

@@ -22,7 +22,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 	processed := make(map[ids.ObjectAddress]bool)
 	state.Definition = table.InheritanceDefinitionReader{Base: auth.Catalog}
 	if !preparatory {
-		state.prepared = make(map[ids.ObjectAddress]*inheritancePreparedNode)
+		state.prepared = make(map[ids.ObjectAddress]*table.InheritancePreparedNode)
 		state.Preparing = true
 		defer func() { state.Preparing = false }()
 	}
@@ -77,7 +77,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 				break
 			}
 			for _, prepared := range state.prepared {
-				if err := prepared.reader.Validate(actualCatalog); err != nil {
+				if err := prepared.Reader.Validate(actualCatalog); err != nil {
 					return err
 				}
 			}
@@ -101,7 +101,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 			}
 			scope.lockedRef, scope.lockedDescriptor = ref, actual
 			state.Selected[actual.Address()] = true
-			prepared, err := e.prepareInheritanceNode(scope, op, currentAuth, actual, planned)
+			prepared, err := table.PrepareInheritanceNode(inheritancePrepareHost{e: e, scope: scope, op: op, auth: currentAuth}, op, currentAuth.Catalog, &state.InheritanceAlterPlan, actual, planned)
 			if err != nil {
 				return err
 			}
@@ -118,7 +118,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 		e.mu.Lock()
 		current = e.privateCatalogLocked(scope.owner.Catalog)
 		for _, prepared := range state.prepared {
-			if err := prepared.reader.Validate(current); err != nil {
+			if err := prepared.Reader.Validate(current); err != nil {
 				e.mu.Unlock()
 				return err
 			}

@@ -18,7 +18,7 @@ type inheritanceAlterState struct {
 	stage   *CatalogStage
 	changes *session.Journal
 	// prepared holds the root's prepared nodes, keyed by relation.
-	prepared map[ids.ObjectAddress]*inheritancePreparedNode
+	prepared map[ids.ObjectAddress]*table.InheritancePreparedNode
 }
 
 func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (Result, error) {
@@ -90,8 +90,8 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 		state.Graph = table.AlterGraph(old)
 		planned := actions
 		if cached := state.prepared[old.Address()]; cached != nil {
-			planned = cached.actions
-			state.Graph = catalog.CloneInheritance(cached.graph)
+			planned = cached.Actions
+			state.Graph = catalog.CloneInheritance(cached.Graph)
 		} else if state.Descendant {
 			var err error
 			planned, state.Graph, err = e.inheritedAlterActions(state, old)

@@ -20,12 +20,12 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation
 func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
 	var prepared table.PreparedAddedChecks
 	var err error
-	if definition := scope.inheritancePreparedNode(); definition != nil && !definition.phaseZeroOnly {
-		prepared = definition.checks
+	if definition := scope.inheritancePreparedNode(); definition != nil && !definition.PhaseZeroOnly {
+		prepared = definition.Checks
 		if prepared.Old != parent {
 			return nil, ids.ErrCatalogReplaced
 		}
-		err = definition.checksError
+		err = definition.ChecksError
 	} else {
 		prepared, err = e.prepareAddedChecks(scope, op, auth, parent, raw)
 	}
