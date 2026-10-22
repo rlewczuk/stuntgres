@@ -26,6 +26,7 @@ func TestInstalledCodecArrayUsesRegisteredTypeProvider(t *testing.T) {
 	}{
 		{"intarray", intarrayUnitInstalled, extension.StockIntarray},
 		{"cube", cubeUnitInstalled, extension.StockCube},
+		{"citext", citextUnitInstalled, extension.StockCitext},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, ext, _ := tc.install(t)

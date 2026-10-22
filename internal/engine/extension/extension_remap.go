@@ -71,8 +71,8 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.Extension = address(n.Extension)
 		n.Dictionary = address(n.Dictionary)
 		n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
-		if IntarrayProviderOf(&n) != nil || CubeProviderOf(&n) != nil {
-			if n.Name() == "bqarr_in" || n.Name() == "cube_in" {
+		if IntarrayProviderOf(&n) != nil || CubeProviderOf(&n) != nil || CitextProviderOf(&n) != nil {
+			if n.Name() == "bqarr_in" || n.Name() == "cube_in" || n.Name() == "citextin" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
 				if oid, err := strconv.ParseUint(string(n.Signature), 10, 32); err == nil {

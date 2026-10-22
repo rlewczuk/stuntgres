@@ -38,7 +38,7 @@ func TestStringCoreProviderScalars(t *testing.T) {
 		for reverse := range 2 {
 			args := []Usage{text, d.Usage()}
 			values := [4]Value{String(types[Text], "|"), scalar}
-			textual := [4]bool{true, StringTextInput(tc.id)}
+			textual := [4]bool{true, StringTextInput(d)}
 			want := "|" + tc.output
 			if reverse == 1 {
 				args[0], args[1] = args[1], args[0]
@@ -79,7 +79,7 @@ func TestStringCoreProviderScalars(t *testing.T) {
 			t.Fatal(tc, got, err)
 		}
 	}
-	if StringScalar(types[NameArray]) || StringScalar(types[Unknown]) || StringScalar(nil) || StringCategory(Char) || !StringTextInput(Char) {
+	if StringScalar(types[NameArray]) || StringScalar(types[Unknown]) || StringScalar(nil) || StringCategory(Char) || !StringTextInput(types[Char]) {
 		t.Fatal("scalar/category boundary")
 	}
 }

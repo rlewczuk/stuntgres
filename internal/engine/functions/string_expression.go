@@ -206,7 +206,7 @@ func SelectStringFunction(name string, visible, variadic bool, args []Argument, 
 				_, err := sqltype.PlanCoercion(arg.Usage, targets.Integer, sqltype.Implicit)
 				valid = valid && err == nil
 			} else {
-				valid = valid && sqltype.StringTextInput(d.BaseType().ID())
+				valid = valid && sqltype.StringTextInput(d)
 			}
 		}
 	}
@@ -252,7 +252,7 @@ func CoerceStringArguments(b ArgumentCoercer, arguments []Argument, selection St
 func StringPrefixViable(visible bool, count int, types [2]*sqltype.Descriptor) bool {
 	valid := visible && count == 2
 	for _, d := range types {
-		valid = valid && (d == nil || sqltype.StringTextInput(d.BaseType().ID()))
+		valid = valid && (d == nil || sqltype.StringTextInput(d))
 	}
 	return valid
 }
@@ -280,7 +280,7 @@ func SelectStringConcat(visible bool, types [2]*sqltype.Descriptor) (textual [2]
 				}
 				id := t.BaseType().ID()
 				if s[i] {
-					if !sqltype.StringTextInput(id) {
+					if !sqltype.StringTextInput(t) {
 						viable = false
 					}
 					if id == sqltype.Text {

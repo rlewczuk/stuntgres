@@ -14,6 +14,18 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Citext scalar transport — change note
+
+`CREATE EXTENSION citext` installs the registered 1.8 scalar provider. Columns,
+literal/direct/held prepared inputs, typed NULL and metadata use the shared type
+system. Original spelling, whitespace and Unicode decomposition survive output
+and native Dump/Reset/Restore; input rejects invalid UTF8 and NUL, and declared
+collations are validated normally. Assignment and explicit casts retain the
+released string-category rules, including BOOL and INET's preferred conversions.
+This does not implement case-insensitive operators, indexes or citext arrays.
+See [native limits](docs/DIALECT.md#citext-extension-type) and
+[selected proof and smoke](reference/types/README.md#citext-storage-and-value-round-trips).
+
 ## Large-object page catalog — change note
 
 `pg_catalog.pg_largeobject` exposes genuine stored `(loid,pageno,data)` rows.
@@ -5296,13 +5308,13 @@ pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatur
 **Available-extension metadata change note:** `pg_catalog.pg_available_extensions`
 and `pg_catalog.pg_available_extension_versions` are readonly PUBLIC SELECT views
 over the same immutable embedded registry used by installation. The native
-universe has seven providers: cube1.5, unaccent1.1, selected-type intarray1.5,
+universe has eight providers: citext1.8, cube1.5, unaccent1.1, selected-type intarray1.5,
 selected-function fuzzystrmatch1.1/1.2, intagg1.1, pgcrypto1.4 and uuid-ossp1.1,
 with released control comments and superuser/trusted/relocatable flags. The
 comments do not promise complete upstream member inventories. hstore, file_fdw
-and plpgsql are not invented. The default view has seven rows; the versions view
-has eight. Default, available and actual installed versions are distinct.
-Control schema/dependencies remain NULL for all seven providers even when
+and plpgsql are not invented. The default view has eight rows; the versions view
+has nine. Default, available and actual installed versions are distinct.
+Control schema/dependencies remain NULL for all eight providers even when
 installed elsewhere.
 Metadata is not filtered by member namespace privileges or TEMP ownership;
 ordinary relation admission and SQL predicates still apply.

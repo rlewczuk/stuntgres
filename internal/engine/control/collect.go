@@ -320,7 +320,7 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 		}
 		return fmt.Errorf("%s", message)
 	}
-	if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.Extension != (ids.ObjectAddress{}) {
+	if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.Extension != (ids.ObjectAddress{}) {
 		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
 	}
 	if t.SQLType.IsUserDefined() && !t.SQLType.IsComposite() {

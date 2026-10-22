@@ -13,7 +13,7 @@ import (
 func (e *Engine) importScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	for address, descriptor := range next.Descriptors() {
 		d, ok := descriptor.(*catalog.Type)
-		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() && !d.SQLType.IsCube() {
+		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() && !d.SQLType.IsCube() && !d.SQLType.IsCitext() {
 			continue
 		}
 		source := d.SQLType
@@ -35,6 +35,8 @@ func (e *Engine) importScalarTypesLocked(next *catalog.State, mapping map[ids.Ob
 			typ, err = sqltype.EnumWithMembers(sqltype.ID(target.ObjectID), d.Name(), source.SQLName(), members)
 		} else if source.IsCube() {
 			typ, err = sqltype.Cube(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
+		} else if source.IsCitext() {
+			typ, err = sqltype.Citext(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		} else {
 			typ, err = sqltype.QueryInt(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		}

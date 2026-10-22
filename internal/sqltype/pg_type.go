@@ -82,6 +82,9 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	if d.IsComposite() {
 		return CompositePGTypeMetadata(), true
 	}
+	if d.IsCitext() {
+		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "S", Collation: 100, Modifier: -1}, true
+	}
 	if d.IsQueryInt() || d.IsCube() {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "U", Modifier: -1}, true
 	}

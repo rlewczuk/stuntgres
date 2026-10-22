@@ -75,14 +75,15 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 	for _, oid := range []ids.OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
 		source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions)
-		wantCount := 7
+		wantCount := 8
 		if oid == 12085 {
-			wantCount = 8
+			wantCount = 9
 		}
 		if err != nil || source == nil || source.Count() != wantCount || source.Ref != ref {
 			t.Fatal("capture", source, err)
 		}
 		expected := map[string][]any{
+			"citext":        {"citext", "1.8", nil, "data type for case-insensitive character strings"},
 			"cube":          {"cube", "1.5", nil, "data type for multidimensional cubes"},
 			"unaccent":      {"unaccent", "1.1", version, comment},
 			"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
@@ -92,6 +93,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 			"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
 		}
 		if oid == 12085 {
+			expected["citext"] = []any{"citext", "1.8", false, true, true, true, nil, nil, "data type for case-insensitive character strings"}
 			expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}
 			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
 			expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}

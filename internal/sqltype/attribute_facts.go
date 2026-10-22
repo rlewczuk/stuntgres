@@ -34,6 +34,10 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 		f.Alignment = "d"
 		return f
 	}
+	if d.IsCitext() {
+		f.Storage = "x"
+		return f
+	}
 	switch d.id {
 	case Bool, Char:
 		f.ByValue, f.Alignment = true, "c"

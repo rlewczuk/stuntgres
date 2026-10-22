@@ -45,7 +45,7 @@ func selectStringIdent(raw parser.FunctionExpr, visible bool, args []Argument, t
 			continue
 		}
 		if slot == 0 {
-			if !sqltype.StringTextInput(arg.Usage.Type.BaseType().ID()) {
+			if !sqltype.StringTextInput(arg.Usage.Type) {
 				return selected, Missing
 			}
 		} else if _, err := sqltype.PlanCoercion(arg.Usage, targets.Boolean, sqltype.Implicit); err != nil {

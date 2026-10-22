@@ -43,13 +43,15 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			err = extension.StockIntarray.ValidateExtension(view, parent)
 		case parent.Name() == "cube" && t.SQLType.IsCube():
 			err = extension.StockCube.ValidateExtension(view, parent)
+		case parent.Name() == "citext" && t.SQLType.IsCitext():
+			err = extension.StockCitext.ValidateExtension(view, parent)
 		default:
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}
 		if err != nil {
 			return err
 		}
-	} else if t.SQLType.IsQueryInt() || t.SQLType.IsCube() {
+	} else if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.SQLType.IsCitext() {
 		return fmt.Errorf("stuntgres: installed scalar type has no installation")
 	}
 	if t.OwningRelation != (ids.ObjectAddress{}) {

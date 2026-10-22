@@ -76,7 +76,7 @@ func FormatUnknownArgument(raw parser.Expr, index int) bool {
 func ResolveFormat(visible, variadic bool, count int, first sqltype.Usage) Resolution {
 	valid := visible && count > 0 && (!variadic || count == 2)
 	if count > 0 && first.Type != nil {
-		valid = valid && sqltype.StringTextInput(first.Type.BaseType().ID())
+		valid = valid && sqltype.StringTextInput(first.Type)
 	}
 	if valid {
 		return Resolved

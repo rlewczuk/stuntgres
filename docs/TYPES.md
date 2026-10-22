@@ -7,6 +7,30 @@ is the SQL authority. This page describes native value ownership, Go transport
 and implementation limits, not a supported-syntax inventory or a claim of full
 PostgreSQL compatibility.
 
+## Installed citext transport
+
+`CREATE EXTENSION citext` creates a generation-owned, collatable scalar, not a
+TEXT alias. Its immutable Value string retains exact input spelling without an
+extra payload or normalization. Input validates UTF8/NUL; declared collation
+uses existing catalog/encoding/capability validation. NULL stays typed NULL.
+Citext-bound nil interfaces and typed-nil `[]byte` are SQL NULL; nonnil empty
+strings and byte slices remain nonnull empty text. The shared parameter
+normalizer retains typed nil before converting nonnil buffers to owned strings;
+the destination importer applies citext's NULL policy without changing the
+inherited TEXT/NAME adapter contracts. Native results expose CITEXT/string
+metadata and actual declaration nullability.
+
+Released assignment/explicit string casts preserve trailing spaces except the
+BPCHAR converter's padding trim. Preferred BOOL/INET conversions precede generic
+supported-scalar string-category I/O. Outgoing TEXT/VARCHAR is implicit; BPCHAR
+uses assignment/explicit sizing and other scalar output requires explicit I/O.
+The shared binder, parameter converter and driver metadata paths own these
+operations. Ordinary coercion/Retag cannot cross citext generations; control
+import is explicitly source-pointer-authorized and preserves the inline string.
+Dump recreates the extension before its consumers and restores fresh identities,
+without changing retained result metadata or values. Associated _citext remains
+lookup-only. Binary codecs, case-insensitive operators and arrays are excluded.
+
 ## Installed cube transport
 
 `CREATE EXTENSION cube` allocates a genuine scalar identity with immutable
@@ -1488,7 +1512,7 @@ Wire OID hints use real admitted descriptors, not an implicit SQL CAST or a new
 storage provider. Lookup-only MONEY, operator-alias, text-search-alias, network
 and identifier companion arrays remain unavailable. Existing raw internal CHAR
 codecs do not enable CHAR columns. Native TID binary input/output reports a
-type-specific `0A000`; ACLITEM and installed query_int/cube report `42883` for their
+type-specific `0A000`; ACLITEM and installed query_int/cube/citext report `42883` for their
 missing binary functions. No fallback converts those requests to text while
 claiming binary format. Anonymous RECORD preserves its occurrence-owned input
 authority rather than borrowing the lookup-only catalog identity: NULL transport

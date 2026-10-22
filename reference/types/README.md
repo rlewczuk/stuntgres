@@ -40,6 +40,82 @@ Dump/Reset/Restore of typed persistent objects. Record the actual source,
 argv/output and expected-versus-observed assertions, then remove the program.
 The catalog living plan owns its complete execution obligations.
 
+### Citext storage and value round trips
+
+The untagged `TestReferenceCitextInstallation`, `Values`, `Assignment`,
+`Metadata`, `Diagnostics`, `Controls`, `Temporary` and `FeatureSmoke`
+definitions use one shared public SQL/API body. Independently specified values
+preserve spelling, whitespace, decomposition, escapes, empty strings and NULL.
+Assignment covers TEXT/VARCHAR/BPCHAR/BOOL/INET, integer-to-citext string-category
+I/O and explicit citext-to-integer; parameter input is tested separately.
+Metadata checks run before iteration, with separate native and lib/pq contracts.
+The cohesive catalog helper first reads the current backend's actual scalar,
+array, input/output routine and extension OIDs from single catalogs, then bounds
+each joined catalog input by those identities. The identities are fresh
+locators on every invocation, including after restore/recreation, never fixed
+allocator expectations or cross-backend equality. Independent expected type
+facts, reciprocal array links, dependency multiplicities, routine signatures,
+ownership and namespace relationships still run directly and prepared.
+**[INFERENCE]** The former unbounded multi-catalog joins could materialize a
+`pg_type × pg_proc × pg_proc`-sized intermediate before filtering, making
+provider inventory growth especially costly on the prepared route under race
+instrumentation. The observed 30-second Controls failures motivate bounding the
+fixture inputs, not a demonstrated production optimizer defect or a deadline
+increase. Fresh selected dual-mode and race evidence is required after this
+fixture change:
+
+```sh
+make check RUN='^TestReferenceCitext(Metadata|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceCitext(Metadata|Controls)$'
+make check RACE=1 RUN='^TestReferenceCitext(Metadata|Values|Controls|Temporary)$'
+```
+
+Diagnostics compare every exposed logical field, including expected empty fields.
+Controls include retained readers, independent Driver restore, failed-replay
+atomicity and actual emitted Dump SQL replay on the pinned PostgreSQL fixture.
+The `round_trip`, `control_boundaries` and `independent_restore` subtests own
+separate bounded fixtures: Reset/Restore and its retained reader stay together;
+cancelled/context-I/O controls retain their post-failure direct/prepared checks;
+independent restore retains its allocator spacer, failed replay, old reader and
+deterministic redump. These independent lifecycles do not share one 30-second
+scenario budget. The separate malformed-replay oracle still checks no publication.
+TEMP installation is bounded to existing registry placement and owner lifetime.
+Feature smoke exercises literal/direct/held input, atomic encoding rejection,
+recovery and native controls or PostgreSQL SQL recreation.
+
+```sh
+make check RUN='^TestReferenceCitext(Installation|Values|Assignment|Metadata|Diagnostics|Controls|Temporary|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceCitext(Installation|Values|Assignment|Metadata|Diagnostics|Controls|Temporary|FeatureSmoke)$'
+make check RACE=1 RUN='^TestReferenceCitext(Values|Controls|Temporary)$'
+```
+
+All eight definitions run both available backends without discovery filters.
+Pinned PostgreSQL18.6 oracle observations ground the values, full diagnostics,
+TEMP outcomes and generated-OID metadata; native controls and actual emitted
+Dump replay remain separate verification obligations, not inferred parity.
+The installed provider also changes the exact native availability inventory:
+
+```sh
+make check RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check RUN='^TestCitext(InputOutput|Identity|Coercion|Metadata|Remap|ProviderIdentity|ProviderConflicts|ProviderImport)$'
+```
+
+Standalone public smoke source is supplied as the session artifact
+`local://citext-smoke.go`, not a checked-in helper. After materializing it at
+`/tmp/stuntgres-PG18-TYPE-CITEXT-smoke.go`, run from the repository root:
+
+```sh
+go run /tmp/stuntgres-PG18-TYPE-CITEXT-smoke.go
+```
+
+Expected: quiet exit0 after literal/direct/held byte and NULL round trips,
+metadata-before-iteration, atomic late invalid UTF8 rejection and held-statement
+recovery, then actual Dump/Reset/Restore with retained old rows/metadata intact.
+The runner owns an unwrapped Driver/connector pool; it uses no internal packages.
+This native smoke does not substitute for real PostgreSQL emitted-SQL replay.
+
+
 ### Domain identity lifecycle contract
 
 `TestReferenceDomainIdentityLifecycle`, `Permissions`, `Diagnostics`,

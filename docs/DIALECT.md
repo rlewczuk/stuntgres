@@ -1831,6 +1831,39 @@ wrap stages a fresh stable fallback node. Entropy failure/cancellation commits
 no state. Across random node epochs, sessions, Drivers/processes and restarts,
 uniqueness is probabilistic, not durable or OS-synchronized.
 
+## citext extension type
+
+The registered citext1.8 provider supplies scalar columns, literal and inferred
+bound string/byte input, typed NULL, and genuine dynamic identity. Original
+spelling, whitespace, empty strings, Unicode and decomposition remain unchanged;
+storage does not lowercase or normalize. UTF8/NUL checks and declared collation
+lookup, encoding and capability validation use the shared authorities.
+
+TEXT/VARCHAR assignment into citext preserves text; BPCHAR assignment strips
+right padding. BOOL assignment uses true/false, and INET uses network_show,
+including full-width masks. These preferred casts precede string-category I/O
+fallback for other supported scalar assignment/explicit inputs. Citext implicitly
+casts to TEXT/VARCHAR; BPCHAR requires assignment/explicit context and retains
+the ordinary sizing rules. Explicit outgoing scalar I/O is supported, not
+ordinary assignment to INTEGER/BOOL or implicit incoming TEXT conversion.
+
+Native metadata is CITEXT/string, with actual column nullability and unknown
+length/precision, even before reading empty/NULL-only results. The generated
+PostgreSQL OID is unknown to lib/pq: empty database type name, interface{} scan
+type, non-NULL []byte and unknown nullability/length/precision. Catalog metadata
+is collatable, nonpreferred category S, with actual allocated I/O identities.
+
+The native selected manifest is the scalar and two strict immutable text hooks,
+citextin(cstring) and citextout(citext). Its reciprocal _citext is lookup-only
+with an internal dependency, not general array storage. Binary receive/send
+remain absent. Advanced comparison, sorting, pattern matching, operators,
+indexes/opclasses and locale machinery are not introduced by scalar storage.
+Native controls recreate and remap installed identities while old readers retain
+their original immutable values/metadata. Own physical TEMP placement fails
+through actual staged script lookup; authorized foreign TEMP placement follows
+the namespace owner's physical lifetime, not the installer's. TEMP Dump remains
+nonportable.
+
 ## cube extension type
 
 The registered cube1.5 provider supplies scalar columns, contextual literal and
@@ -1860,7 +1893,7 @@ the dynamically allocated PostgreSQL cube OID: its type name is empty, ScanType
 is interface{}, non-NULL values are []byte, and nullability/length/precision are
 unknown. Reset/Dump/Restore remaps actual scalar, codec and owner identities;
 pending readers retain their original immutable values, metadata and display.
-Availability now includes cube alongside the six existing registered providers.
+Availability includes cube and citext alongside the six other registered providers.
 
 ## query_int extension type
 

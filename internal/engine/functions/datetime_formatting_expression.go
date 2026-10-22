@@ -65,7 +65,7 @@ func ResolveDatetimeFormatting(name string, visible, variadic bool, operands []A
 		if name == "to_char" && i == 0 {
 			continue
 		}
-		if d := o.Usage.Type; d != nil && !sqltype.StringTextInput(d.BaseType().ID()) {
+		if d := o.Usage.Type; d != nil && !sqltype.StringTextInput(d) {
 			return DatetimeFormattingSelection{Resolution: Missing}
 		}
 	}

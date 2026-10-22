@@ -338,7 +338,7 @@ func (d *Descriptor) unavailableBinaryProvider(output bool) error {
 	}
 	// The same actual codec boundary serves metadata initialization and the
 	// binary receive/send dispatchers, not a second supported-type inventory.
-	if d.id == ACLItem || d.IsQueryInt() || d.IsCube() {
+	if d.id == ACLItem || d.IsQueryInt() || d.IsCube() || d.IsCitext() {
 		return failure("42883", fmt.Sprintf("no binary %s function available for type %s", direction, d.name))
 	}
 	if d.id == Tid || d.id == Macaddr {

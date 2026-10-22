@@ -47,9 +47,9 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				class = ids.TypeClassID
 			}
 			signature := member.Signature
-			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "cube" && member.Name == "cube_out") {
+			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "cube" && member.Name == "cube_out" || record.Name == "citext" && member.Name == "citextout") {
 				base, ok := candidate.Type(ext.Members[0])
-				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "cube" && !base.SQLType.IsCube() {
+				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "cube" && !base.SQLType.IsCube() || record.Name == "citext" && !base.SQLType.IsCitext() {
 					return false, fmt.Errorf("stuntgres: missing installed owner type")
 				}
 				signature = string(QueryIntSignature(base.SQLType.ID()))

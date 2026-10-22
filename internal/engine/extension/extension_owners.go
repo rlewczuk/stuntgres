@@ -52,6 +52,9 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if CubeProviderOf(d) != nil && d.Name() == "cube_out" {
 				member.Signature = "cube"
 			}
+			if CitextProviderOf(d) != nil && d.Name() == "citextout" {
+				member.Signature = "citext"
+			}
 			principal = d.Owner
 		case *catalog.TSDictionary:
 			member = MemberOwner{Kind: "dictionary", Name: d.Name()}
@@ -153,6 +156,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = 3
 	case record.Name == "cube" && record.Version == "1.5":
 		expectedMembers = 3
+	case record.Name == "citext" && record.Version == "1.8":
+		expectedMembers = 3
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
 		expectedMembers = len(FuzzystrmatchMembers)
 	case record.Name == "fuzzystrmatch" && record.Version == "1.1":
@@ -197,6 +202,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
 			case "cube":
 				valid = member.Name == "cube_in" && member.Signature == "2275" || member.Name == "cube_out" && member.Signature == "cube"
+			case "citext":
+				valid = member.Name == "citextin" && member.Signature == "2275" || member.Name == "citextout" && member.Signature == "citext"
 			case "intagg":
 				for _, selected := range IntaggMembers {
 					if member.Name == selected.Name && member.Signature == string(selected.Signature) {
@@ -221,7 +228,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") || member.Signature != "" {
+			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") || member.Signature != "" {
 				return invalid()
 			}
 		default:

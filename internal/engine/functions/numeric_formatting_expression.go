@@ -57,7 +57,7 @@ func ResolveNumericFormatting(visible, variadic bool, args []Argument) Resolutio
 		return Missing
 	}
 	for _, argument := range args {
-		if d := argument.Usage.Type; d != nil && !sqltype.StringTextInput(d.BaseType().ID()) {
+		if d := argument.Usage.Type; d != nil && !sqltype.StringTextInput(d) {
 			return Missing
 		}
 	}

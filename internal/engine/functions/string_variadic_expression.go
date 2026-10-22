@@ -153,7 +153,7 @@ func ResolveStringVariadic(name string, visible, variadic, resolutionOnly bool, 
 	}
 	_, textFirst := StringVariadicRoles(name)
 	if textFirst && count > 0 && first.Type != nil && (name == "quote_ident" || name == "concat_ws") {
-		valid = valid && sqltype.StringTextInput(first.Type.BaseType().ID())
+		valid = valid && sqltype.StringTextInput(first.Type)
 	}
 	if valid {
 		return Resolved
@@ -179,7 +179,7 @@ type StringVariadicFirst struct {
 
 func ResolveStringVariadicFirst(name string, source, text sqltype.Usage) StringVariadicFirst {
 	selection := StringVariadicFirst{Stable: StringVariadicIntrinsicStable(name)}
-	if !sqltype.StringTextInput(source.Type.BaseType().ID()) && name != "concat_ws" && name != "quote_ident" {
+	if !sqltype.StringTextInput(source.Type) && name != "concat_ws" && name != "quote_ident" {
 		selection.AnyElement = true
 		if source.Type.BaseType().ID() != sqltype.Cidr {
 			var err error

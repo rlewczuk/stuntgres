@@ -10,8 +10,14 @@ import (
 )
 
 // StringTextInput identifies the string family's direct implicit TEXT inputs.
-func StringTextInput(id ID) bool { return IsCharacter(id) || id == Name || id == Char }
-func StringCategory(id ID) bool  { return IsCharacter(id) || id == Name }
+func StringTextInput(d *Descriptor) bool {
+	if d == nil {
+		return false
+	}
+	d = d.BaseType()
+	return d.IsCitext() || IsCharacter(d.ID()) || d.ID() == Name || d.ID() == Char
+}
+func StringCategory(id ID) bool { return IsCharacter(id) || id == Name }
 
 func StringScalar(d *Descriptor) bool { return d.Concrete() && !d.BaseType().IsArray() }
 
@@ -266,7 +272,7 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 			return p, fmt.Errorf("foreign string text owner")
 		}
 		if textual[i] {
-			if !StringTextInput(u.Type.BaseType().ID()) {
+			if !StringTextInput(u.Type) {
 				return p, fmt.Errorf("invalid string text input")
 			}
 			if u.Type.ID() != Char {

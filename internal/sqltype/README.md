@@ -18,11 +18,20 @@ own CHECK/NOT NULL, builtin inventory provenance and associated identities while
 recomputing inherited flags. Catalog namespace, ownership, recipes and atomic
 publication remain with the existing catalog/type staging owners.
 
+`Citext` is a catalog-generation-owned scalar using Value's immutable string,
+with shared encoding validation and collatable Usage. It does not fold case.
+Its preferred BPCHAR/BOOL/INET casts run before string-category scalar I/O;
+implicit outgoing TEXT/VARCHAR does not grant implicit incoming conversion.
+Retag rejects foreign family/generation coincidences, including NULL; only
+source-pointer-authorized catalog import uses RemapCitext. Metadata is category
+S, nonpreferred, collatable and extended-storage, without binary routines or
+advanced comparison/array authority.
+
 A catalog OID alone does not grant an executable provider, cast, table/storage
 admission or persistence capability. Lookup-only companion arrays remain
 unavailable. Raw internal CHAR value codecs do not admit CHAR columns. Native
 TID has text but no binary provider; its binary boundary is type-specific
-`0A000`. ACLITEM and installed query_int have no binary functions and report
+`0A000`. ACLITEM and installed query_int/cube/citext have no binary functions and report
 `42883` rather than fabricating bytes. Nonnull pg_node_tree input and anonymous
 RECORD text input retain their existing explicit restrictions. See
 [`docs/TYPES.md`](../../docs/TYPES.md#binary-stream-providers) for the full type
@@ -88,6 +97,17 @@ comparisons are not blanket mutable.
 
 
 ## Testing
+
+Citext function-level identity, codecs, supported registered collations, NULL,
+cast-context priority and remap boundaries:
+
+```sh
+make check RUN='^TestCitext(InputOutput|Identity|Coercion|Metadata|Remap)$'
+```
+
+Public SQL/provider/control proof is in
+[`reference/types`](../../reference/types/README.md#citext-storage-and-value-round-trips).
+
 
 Follow the [shared testing guide](../../docs/TESTING.md). These tests call codec
 and value functions directly; public SQL and socket answers belong in

@@ -121,6 +121,7 @@ type Descriptor struct {
 	enum                            *enumDefinition
 	queryInt                        bool
 	cube                            bool
+	citext                          bool
 	composite                       *compositeDefinition
 	rangeSubtype                    *Descriptor
 	rangeBoolean                    *Descriptor
@@ -232,7 +233,7 @@ func (d *Descriptor) Usage() Usage {
 		return u
 	}
 	u := Usage{Type: d, Typmod: -1}
-	if IsCharacter(d.id) || d.id == PgNodeTree {
+	if IsCharacter(d.id) || d.IsCitext() || d.id == PgNodeTree {
 		u.Collation = CollationRef{ID: 100, Derivation: Default}
 	} else if d.id == Name {
 		u.Collation = CollationRef{ID: 950, Derivation: Default}
@@ -387,6 +388,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 		return Value{}, fmt.Errorf("incompatible scalar type identity")
 	}
 	fromEnum, toEnum := v.typ.BaseType(), d.BaseType()
+	if fromEnum.IsCitext() != toEnum.IsCitext() || fromEnum.IsCitext() && fromEnum != toEnum {
+		return Value{}, fmt.Errorf("incompatible citext generation")
+	}
 	if fromEnum.IsEnum() != toEnum.IsEnum() {
 		return Value{}, fmt.Errorf("incompatible enum declaration")
 	}
@@ -496,7 +500,7 @@ func Boolean(d *Descriptor, b bool) Value {
 	return Value{typ: d, boolean: b}
 }
 func String(d *Descriptor, s string) Value {
-	if d == nil || (!IsCharacter(d.id) && d.id != Name && d.id != Regclass && d.id != Regtype && d.id != Char) {
+	if d == nil || (!IsCharacter(d.id) && !d.IsCitext() && d.id != Name && d.id != Regclass && d.id != Regtype && d.id != Char) {
 		panic("invalid string descriptor")
 	}
 	v := Value{typ: d, text: s}
@@ -563,7 +567,7 @@ func (v Value) Boolean() (bool, error) {
 	return v.boolean, nil
 }
 func (v Value) Text() (string, error) {
-	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && v.typ.id != Name && v.typ.id != Regclass && v.typ.id != Regtype && v.typ.id != Char) {
+	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && !v.typ.IsCitext() && v.typ.id != Name && v.typ.id != Regclass && v.typ.id != Regtype && v.typ.id != Char) {
 		return "", fmt.Errorf("not a text value")
 	}
 	if v.typ.id == Regtype {
@@ -654,7 +658,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -669,6 +673,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsCube() {
 		return d.cubeInput(ctx, text)
+	}
+	if d.IsCitext() {
+		return Value{typ: d, text: text}, nil
 	}
 	switch d.id {
 	case TSVector, TSQuery:
@@ -945,6 +952,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsCube() {
 		return d.cubeOutput(ctx, v, env)
 	}
+	if d.IsCitext() {
+		return v.text, nil
+	}
 	switch d.id {
 	case TSVector, TSQuery:
 		return d.ftsOutput(v)
@@ -1146,6 +1156,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + text + "'", nil
+	}
+	if d.IsCitext() {
+		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	}
 	switch d.id {
 	case TSVector, TSQuery:
@@ -1598,6 +1611,9 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.IsCitext() || target.Type.IsCitext() {
+		return p.planCitext()
+	}
 	if IsFTS(source.Type.id) || IsFTS(target.Type.id) {
 		if source.Type == target.Type {
 			return p, nil

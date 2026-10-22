@@ -1,7 +1,7 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider
-records and control data for the seven bundled extensions (cube,
+records and control data for the eight bundled extensions (citext, cube,
 fuzzystrmatch, intagg, intarray, pgcrypto, unaccent, uuid-ossp), member
 validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
@@ -13,22 +13,35 @@ It imports only `access` (privilege requirements and the captured view),
 `authorization`, `catalog`, `ddl` (the shared authority and allocator),
 `expr`, `functions` (the moved
 kernels and member tables), `ids`, `parser`, `sqlstate`, `sqltype`, `typedef`
-(the relation type name check of cube and intarray staging) and the standard
+(the relation type name check of citext, cube and intarray staging) and the standard
 library, and never the engine, `analyze`, `routine` or `plan`. See
 [ENGINE-SPLIT-extension.md](../../../docs/ENGINE-SPLIT-extension.md).
 
+Citext1.8 stages the scalar and two genuine text-I/O members, with a reciprocal
+lookup-only companion array. The full CREATE TYPE script resolves its I/O helper
+names through ScriptFunctions, preserving actual TEMP lookup/owner authority and
+atomic failure. Family/signature/array validation, symbolic owner metadata and
+procedure remapping remain registry-owned, not a second extension lifecycle.
+The owner codec admits citext version1.8 with exactly the scalar `citext`,
+`citextin(cstring)` and `citextout(citext)` members. The output signature is
+serialized symbolically as `citext` and resolved to the destination's installed
+descriptor during owner import, never copied as a source-generation OID.
+Public values and selected dual-mode proof live in
+[`reference/types`](../../../reference/types/README.md#citext-storage-and-value-round-trips);
+function-level staging/conflict/import witnesses live in the engine package.
+
 ## What it owns
 
-- **Providers** (`*_provider.go`): `CubeProvider`, `FuzzystrmatchProvider`,
+- **Providers** (`*_provider.go`): `CitextProvider`, `CubeProvider`, `FuzzystrmatchProvider`,
   `IntaggProvider`, `IntarrayProvider`, `PgcryptoProvider`,
   `UnaccentProvider` and `UUIDOsspProvider`, each with `Control`,
   `Versions`, `ValidateExtension` (`catalog.ExtensionImplementation`) and,
   except unaccent, `ValidateProcedure`. The stock instances are
-  `StockCube` … `StockUUIDOssp`. The script contexts (`CubeTypeContext`,
+  `StockCitext` … `StockUUIDOssp`. The script contexts (`CitextTypeContext`, `CubeTypeContext`,
   `IntarrayInputContext`, `UnaccentTemplateContext`, …), signatures
   (`CubeSignature`, `QueryIntSignature`) and member tables
   (`FuzzystrmatchMembers`, `IntaggMembers`) are what staging needs.
-- **Accessors** (`extension_implementation.go`): `CubeProviderOf` …
+- **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider`
@@ -46,8 +59,8 @@ library, and never the engine, `analyze`, `routine` or `plan`. See
 - **Staging** (`stage.go`, `*_stage.go`, `extension_actions.go`): `Stage`
   is the host a provider installs through (the stage base, name lookup,
   checked `Create`/`Replace`, OID and revision allocation, the associated
-  array helpers, the creation type ACL and `ScriptFunctions`, unaccent's
-  script helper lookup). `Installer` is an implementation with
+  array helpers, the creation type ACL and `ScriptFunctions`, the shared
+  script helper lookup used by unaccent and citext). `Installer` is an implementation with
   `Stage(Stage, ext, owner)`; every stock provider is one, and
   fuzzystrmatch is also an `Updater` (`Updates`, one `UpdateAction` per
   executable version edge). `Actions`, `ValidateActions` (registration
@@ -122,6 +135,14 @@ that installs the extension. Engine witnesses:
 ```sh
 make check RUN='^(TestExtensionHostRefusesDiscardedStage|TestExtensionHostBeginStageHandsBackRootStage|TestExtensionMembersHoldBareProviders|TestExtensionProviderIdentity|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures|TestExtensionOwnerManifestAdmission|TestPgcryptoOwnerMetadata|TestExtensionVersionGraph)$'
 ```
+
+Citext's real staged identity, type/signature conflicts, invalid manifests and
+source-pointer-authorized import/remapping are exercised without public SQL:
+
+```sh
+make check RUN='^TestCitextProvider(Identity|Conflicts|Import)$'
+```
+
 
 Public behavior is covered by the CREATE/ALTER/DROP EXTENSION, extension
 function, `pg_extension`, `pg_available_extensions` and Dump/Restore

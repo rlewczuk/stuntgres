@@ -21,6 +21,11 @@ func CubeProviderOf(d *catalog.Procedure) *CubeProvider {
 	return p
 }
 
+func CitextProviderOf(d *catalog.Procedure) *CitextProvider {
+	p, _ := d.Implementation.(*CitextProvider)
+	return p
+}
+
 func FuzzystrmatchProviderOf(d *catalog.Procedure) *FuzzystrmatchProvider {
 	p, _ := d.Implementation.(*FuzzystrmatchProvider)
 	return p
