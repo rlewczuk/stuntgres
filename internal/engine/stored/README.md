@@ -165,10 +165,11 @@ table maps the root names that older prompt files and design notes cite.
 - The `Engine` and scope entry points that capture or publish definitions:
   the view, rule and policy DDL handlers (step 27; their decisions, the
   rule binding and `view.FreezeDefinition`, which allocates the rule OID,
-  are in [`view`](../view/README.md)), `remapViewRuleOIDs` (allocates OIDs) and `remapCatalogExpressions`,
+  are in [`view`](../view/README.md)) and `remapCatalogExpressions`,
   the Restore entry that calls `ReownExpressions`
   (`catalog_expression_reown.go`). Rule rewriting and the rule program
-  records are in `view`.
+  records are in `view`; the imported rule OID remap is
+  `control.RemapViewRuleOIDs`.
 - The host bodies that call into `stored`, now forwarders: the
   `analyze.Host` methods `MapBoundExpression`, `MapBoundQueryExpression`,
   `StoredViewVolatile`, `ValidateViewReadGraph`, `CaptureRetainedViewInput`

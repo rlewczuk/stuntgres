@@ -96,6 +96,23 @@ no state between calls. Step 30 of the split created it; see
   SQLSTATE `0A000` and the allow-list text. `Outcome{Created}` is what an
   executed statement tells the `After` entries.
 
+### Catalog replacement
+
+- **Definition OID remap** (`definition_oids.go`, `view_rule_oids.go`):
+  `RemapViewRuleOIDs(view, allocate)` gives each imported view rule an OID
+  that no descriptor, other rule or earlier claim uses, then runs
+  `RemapDefinitionOIDs(view, allocate)`. That reserves every OID of the
+  candidate (descriptors, aggregate helpers, domain checks and relation
+  definitions), keeps the identities retained TEMP objects claim, and gives
+  each colliding imported domain check, rule, policy, constraint, default
+  or generation a fresh OID. It rebuilds the unique and exclusion backing
+  of the index it touches, repoints partition parents of remapped unique
+  and exclusion constraints, and rewrites rule references to remapped
+  constraints. `view` reads the private replacement candidate, which both
+  functions change in place. `allocate` is the engine's OID allocator: the
+  caller (`preserveTemporaryLocked`) holds `Engine.mu` for the whole call.
+  Error texts are the engine's (`stuntgres: invalid imported ...`).
+
 ## The host contract
 
 `Host` is the engine's side of one Restore; the root `restoreHost`
@@ -121,8 +138,10 @@ implements it:
   catalog stage) and the configured foreign namespace check, then fills a
   `Source` and calls `Collect`. The root hands the capture over: `Dump`
   sorts and completes it in place, and the root never reads it after the
-  call. `remapDefinitionOIDsLocked` and the TEMP preservation phases
-  follow in 30e and 30f.
+  call.
+- The OID allocator (`catalogStore.allocateOIDLocked`) and the TEMP
+  preservation that calls the remap (`preserveTemporaryLocked`); its
+  decision phases follow in 30f.
 - The restore stage (`restoreStage` in `principal_remap.go`) and the atomic
   publication (`replaceCatalog`): its lock order, the fence after unlock,
   the sequence-memory and serializable fences and the `foreignNamespaces`
@@ -147,10 +166,11 @@ make check RUN='^TestRestore(Driver|Hooks).*'
 ```
 
 Engine witnesses: the INSERT admit entry, the presenter's domain
-expressions, the builtin namespace ACL check, and the resolver users:
+expressions, the builtin namespace ACL check, the resolver users and the
+definition OID remap:
 
 ```sh
-make check RUN='^Test(RestoreAdmitsInsertTargetIndirection|DumpPresenterDomainExpressions|PGNamespaceShape|PredefinedRoleControls|IndexPropertyDump.*|IdentityDumpProviderMapping|IdentityControlsOwnerCollisionPredecessors|PartitionAttachDumpPhaseDependencies|PartitionDetach(Replay|UniqueReplay).*|DomainAlterConstraintReplayEligibility)$'
+make check RUN='^Test(RuleNamedConstraintRemap|DeparseConstraintsAllocatorOccupancy|PartitionConstraintsDefinitionRemapping|ViewRuleOIDUniquenessAfterRestore|RestoreAdmitsInsertTargetIndirection|DumpPresenterDomainExpressions|PGNamespaceShape|PredefinedRoleControls|IndexPropertyDump.*|IdentityDumpProviderMapping|IdentityControlsOwnerCollisionPredecessors|PartitionAttachDumpPhaseDependencies|PartitionDetach(Replay|UniqueReplay).*|DomainAlterConstraintReplayEligibility)$'
 ```
 
 Public behavior is covered by the Dump, Restore and Control reference tests

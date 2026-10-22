@@ -223,7 +223,7 @@ extension, procedure, operator and parameter validation (relation and type
 validation are clean and move to `table` 24e and `stored` 22e),
 the physical NOT NULL validators (their origin and primary-support checks
 and `SameRelationRowShape` are [`index`](../index/README.md) code), definition-OID
-assignment and remapping (the remap moves to `control` in 30e), the
+assignment (the Restore remap is `control.RemapDefinitionOIDs` since 30e), the
 restore principal mapper, the
 `DefinitionReader` implementations
 (stored-SQL rendering, expression nodes, the operator inventory, settings

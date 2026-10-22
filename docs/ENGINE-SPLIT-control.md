@@ -66,7 +66,7 @@ private restore stage, and install the replacement catalog atomically.
 | Switch #3: Restore statement allow-list and per-statement hooks | was `control.go:276`–`512` (since 18c), plus the hook calls around it | done in 30a: `restoreHooks` (`restore_hooks.go`), admit entries in `restore_admit.go` |
 | `remapPreparedCatalog` (descriptor-kind switch over owners and ACLs) | `principal_remap.go:16` | `catalog` 5i (done: `catalog.RemapPrincipals`); mapper construction stays in the root |
 | `reownCatalogExpressions` (catalog-wide expression reowner; also used by type generations, owned roles, extension owner import, generated replacement, TEMP preservation) | `catalog_expression_reown.go:15` | done: `stored.ReownExpressions` (22c); `remapCatalogExpressions` stays as the Restore entry |
-| `remapViewRuleOIDs` | `catalog_expression_reown.go:312` | stays in the root: it allocates OIDs (the `stored` prompt) |
+| `remapViewRuleOIDs` | `catalog_expression_reown.go:312` | stayed in the root in 22c (it allocates OIDs); 30e: `control.RemapViewRuleOIDs` over an allocator function |
 | `dumpPredecessor` (descriptor-kind dependency resolver) | `dump_resolver.go` (was `view_dump.go`, then `dump_graph.go`) | root `dumpResolver` implements `dump.Resolver` (18b); 30b: clean, it moves as `control.Resolver` in 30c |
 
 `reownCatalogScalarTypes` (`domain_remap.go:14`) is a fifth walk of the
@@ -748,10 +748,48 @@ stage and the atomic replacement. The checks in §8.3 pass.
     `TestReferenceCollationSeedNativeReplay` and
     `TestReferenceCompositeAlterDumpReplay`; `make deps` clean.
     racecheck/finalcheck skipped at user request.
-- [ ] 30e — Definition OID remap moved (linear item 121)
+- [x] 30e — Definition OID remap moved (linear item 121) (`46f9e094a`,
+  then the docs commit). Re-measured at `559a4ff4a` and rebased onto
+  `eaf63bb35` (citext) and `079c38647` (dml 29d.6), which touched none of
+  the moved code: both bodies matched the 30e plan (`definition_identity.go`, 348 lines, and
+  `catalog_expression_reown.go:19`); the only engine reads were
+  `e.catalog.allocateOIDLocked` and one `e.catalog.read(next)`.
+  - **Moved** (bodies unchanged): `control.RemapDefinitionOIDs(view,
+    allocate)` (`control/definition_oids.go`) and
+    `control.RemapViewRuleOIDs(view, allocate)` (`control/view_rule_oids.go`,
+    which ends by calling the first). `view` is a `catalog.Read` over the
+    replacement candidate, which both change in place (`next :=
+    view.State()`, so the candidate has one source); `allocate` is
+    `func() (ids.OID, error)`. `definition_identity.go` is gone;
+    `catalog_expression_reown.go` keeps only `remapCatalogExpressions`.
+  - **Root**: `preserveTemporaryLocked` calls
+    `control.RemapViewRuleOIDs(e.catalog.read(next),
+    e.catalog.allocateOIDLocked)` under `Engine.mu`, as before. Building
+    the view before the remap instead of at the rule step is
+    side-effect free (`catalog.NewRead` only pairs owner and state). No
+    new imports for `control` (it already imported `catalog`, `ids`,
+    `index` and `stored`).
+  - **Tests.** None moved or deleted. Adapted (engine fixtures, so they
+    stay root): `TestRuleNamedConstraintRemap`,
+    `TestDeparseConstraintsAllocatorOccupancy` and
+    `TestPartitionConstraintsDefinitionRemapping` call
+    `control.RemapDefinitionOIDs`. No new unit test: the move adds no
+    semantics.
+  - **Verification**: the byte-identity dump smoke (the 30d `dumpsmoke`,
+    baseline on the starting master), the 30d targeted engine units plus
+    the three adapted tests and the `control` tests, and quick
+    `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)` and
+    `^TestReferenceControl`, after the move and after the rebase;
+    quickcheck (before and after the rebase); `REFERENCE=1` for
+    `^TestReferenceControl`, `TestReferenceDumpRoundTrip`,
+    `TestReferenceTypeCoreDumpRoundTrip`,
+    `TestReferenceCollationSeedNativeReplay` and
+    `TestReferenceCompositeAlterDumpReplay`; `go list` shows only the root
+    imports `control`; `make deps` clean. racecheck/finalcheck skipped at
+    user request.
 - [ ] 30f — TEMP preservation phases moved (linear item 122)
 
-Outstanding aliases: none (30a, 30c and 30d added none).
+Outstanding aliases: none (30a, 30c, 30d and 30e added none).
 
 ### Notes for later steps
 
@@ -780,6 +818,13 @@ Outstanding aliases: none (30a, 30c and 30d added none).
   of 30c.
 - `restore_replay.go` (`restoreReplay`, the `Operation` replay slot) stays
   in the root: about 58 root handler sites read it.
+- 30e: 30f's OID collision mapping can take the same `allocate func()
+  (ids.OID, error)` shape; `preserveTemporaryLocked` already passes
+  `e.catalog.allocateOIDLocked` to `control.RemapViewRuleOIDs`.
+- 30e: `reference/indexes/README.md` still names
+  `remapDefinitionOIDsLocked` as a source authority; `reference/` is
+  read-only for the split, so a later non-split change should rename it to
+  `control.RemapDefinitionOIDs`.
 - 30d: `dump_capture.go` is now only the lock window. Its two remaining
   engine-only steps are `validateTemporaryCollationDump` (needs
   `BeginCatalogStage` for `domainDependencyClosure`) and the

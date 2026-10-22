@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `eaf63bb35` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119 and 120). Steps 8–17 were
+Last verified against `master` at `079c38647` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120 and 121). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -22,9 +22,9 @@ broad item.
 - **Third round, view:** none; 115, 116, 117 and 118 are done, so
   step 27 has no planned sub-step left.
   125 (table 24g) still waits for 124.
-- **Third round, control:** 121 (control 30e, definition OID remap; then
-  122). 119 (stored 22e) and 120 (control 30d) are done, so step 22 has no
-  planned sub-step left.
+- **Third round, control:** 122 (control 30f, TEMP preservation phases;
+  the last control sub-step). 119 (stored 22e), 120 (control 30d) and 121
+  (control 30e) are done, so step 22 has no planned sub-step left.
 - **Third round, table and index:** 123 (24e; then 124 and 125), 126 (23e;
   touches `set_constraints.go`, which 110b also edited), 127 (25e).
 - **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
@@ -1802,10 +1802,14 @@ branches.
      aliases · targeted units, the dump smoke, quickcheck and the quick and
      `REFERENCE=1` dump/restore/control selections passed;
      racecheck/finalcheck skipped at user request
-121. [ ] Control 30e: definition OID remap —
-     [control](ENGINE-SPLIT-control.md) 30e · needs — ·
-     `remapDefinitionOIDsLocked`, `remapViewRuleOIDs` over an allocator
-     and a `catalog.Read` (about 0.4k lines)
+121. [x] Control 30e: definition OID remap —
+     [control](ENGINE-SPLIT-control.md) 30e · needs — (`46f9e094a`, then
+     the docs commit) · `control.RemapDefinitionOIDs` and
+     `control.RemapViewRuleOIDs` over the candidate's `catalog.Read` and
+     the engine's allocator; the caller keeps `Engine.mu`; no aliases ·
+     targeted units, the dump smoke, quickcheck and the quick and
+     `REFERENCE=1` dump/restore/control selections passed;
+     racecheck/finalcheck skipped at user request
 122. [ ] Control 30f: TEMP preservation phases —
      [control](ENGINE-SPLIT-control.md) 30f · needs 121 · the decision
      phases of `preserveTemporaryLocked` (about 0.4k lines)
