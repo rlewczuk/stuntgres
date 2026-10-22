@@ -199,7 +199,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Ope
 		}
 	}
 	if len(raw.ArrayBounds) > 0 {
-		if sqltype.IsTransactionIdentifier(d.BaseType().ID()) {
+		if d.BaseType().ID() == sqltype.Macaddr || sqltype.IsTransactionIdentifier(d.BaseType().ID()) {
 			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 		}
 		array, ok := auth.definitionArray(d)

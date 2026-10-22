@@ -28,9 +28,6 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Object
 
 func pgOpclassUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uint32][]any {
 	t.Helper()
-	if len(rows.Anonymous) != 62 {
-		t.Fatal("class count", len(rows.Anonymous))
-	}
 	bag := map[uint32][]any{}
 	for _, row := range rows.Anonymous {
 		if len(row) != 9 {

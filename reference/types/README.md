@@ -6,6 +6,40 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### MACADDR scalar contract
+
+The eight shared scenarios cover documented forms and scanf edges, full
+diagnostics/phases, comparison/NULL behavior, direct/prepared/held transport,
+metadata, scalar/array identities and native persistent-object replay:
+
+```sh
+make check RUN='^TestReferenceMACADDR(Values|Scanner|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceMACADDR(Comparison|Transport|Identity|Boundaries|Controls)$' REFERENCE=1
+make check RUN='^TestReferenceMACADDR(Values|Scanner|Diagnostics)$'
+make check RUN='^TestReferenceMACADDR(Comparison|Transport|Identity|Boundaries|Controls)$'
+make check RUN='^TestMACADDR(InputOutput|Scanner|Comparison|Datum|Descriptor)$'
+```
+
+Use external900-second deadlines. `make quickcheck` is the whole-project
+Docker-free check. Optional selected race proof:
+`make check RUN='^TestReferenceMACADDR(Transport|Controls)$' RACE=1`.
+
+Pinned18.6 observations settle permissive scanf signs/prefixes/field widths,
+uint64 saturation before uint32 truncation, English diagnostics and pq metadata.
+pq nonnull values are textual bytes with ScanType any; native values are strings.
+The explicit native phase replays the actual native dump on PostgreSQL, not a
+handwritten equivalent, and checks defaults/CHECK/view behavior, deterministic
+redump, failed-restore preservation and retained cursor metadata.
+
+The feature smoke is a temporary external public-API Go program, not a duplicate
+permanent test. Run it from the repository with
+`timeout 900s go run /absolute/session-owned/macaddr-smoke/main.go`.
+It asserts seven canonical inputs, held string/bytes/NULL frames, result metadata,
+unsigned high-bit comparison, exact22P02/22003 diagnostics, atomicity and actual
+Dump/Reset/Restore of typed persistent objects. Record the actual source,
+argv/output and expected-versus-observed assertions, then remove the program.
+The catalog living plan owns its complete execution obligations.
+
 ### Domain identity lifecycle contract
 
 `TestReferenceDomainIdentityLifecycle`, `Permissions`, `Diagnostics`,

@@ -68,7 +68,7 @@ use the catalog array name for copied rank-zero declarations.
 | FLOAT4, FLOAT8 | `float64` |
 | NAME, TEXT, BPCHAR, VARCHAR | `string` |
 | Exact NUMERIC, MONEY | `string` |
-| UUID, TID, INET, CIDR, BIT, VARBIT | Canonical `string` |
+| UUID, TID, MACADDR, INET, CIDR, BIT, VARBIT | Canonical `string` |
 | JSON | Exact source `string` |
 | JSONB, JSONPath | Canonical `string` |
 | TSVECTOR, TSQUERY | Cached canonical `string` |
@@ -308,6 +308,33 @@ Defaults, CHECKs, views and native logical Dump/Restore preserve typed values an
 retained result metadata. TID array1010 remains lookup-only. Scalar support does
 not populate `ctid`, supply physical row locators, binary COPY providers or
 development-only TID functions.
+
+## MAC addresses
+
+MACADDR is a six-octet scalar (OID829, companion identity1040). All seven
+[documented input forms](https://www.postgresql.org/docs/18/datatype-net-types.html#DATATYPE-MACADDR)
+and case-insensitive hexadecimal digits normalize to lowercase colon-separated
+output, for example `08:00:2b:01:02:03`. Octets retain their original order;
+comparisons use unsigned bytes, not spelling or reversed Ethernet bit order.
+The six comparisons are strict, returning BOOL NULL for NULL operands.
+Their original `macaddr_eq/ne/lt/le/gt/ge` routine identities use the existing
+operator-provider and EXECUTE authority paths, including stored comparisons.
+
+Input follows PostgreSQL18.6's ordered scanf candidates, including C whitespace
+before numbers, signs, hexadecimal prefixes and compact field widths. It is not
+a strict seven-pattern whitelist. Malformed syntax returns22P02; a completely
+parsed octet outside0..255 returns22003, with the original input in the English
+primary. Literal positions and bound-parameter context retain their own phases.
+
+Native results and ScanType are string; SQL NULL exports nil. String, textual
+bytes and Valuer parameters use the existing owned conversion boundary.
+Typed-nil bytes mean NULL; nonnil empty bytes are invalid input. Explicit TEXT
+input and character output casts do not add numeric or implicit TEXT conversions.
+Tables, defaults, CHECKs, views and logical Dump/Restore retain typed values.
+
+MACADDR arrays remain lookup-only. This feature adds no MACADDR8, MAC helper functions,
+bitwise/truncation operators, six-byte binary parameter API, binary COPY codec,
+wire-protocol server, OS networking or physical PostgreSQL storage mechanism.
 
 ## Textual structured and network transport
 

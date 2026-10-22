@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// Independently specified tuples confirmed by the pinned18.0 public oracle.
+// Independently specified released tuples; MACADDR's class OID was observed on pinned18.6.
 func indexClassExpected() map[uint32]IndexClassMetadata {
 	want := map[uint32]IndexClassMetadata{}
 	for _, r := range []struct {
@@ -20,6 +20,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 		{"varchar_ops", 25, 10044, 1994, 10045, 1995}, {"bpchar_ops", 1042, 10004, 426, 10005, 427},
 		{"oid_ops", 26, 1981, 1989, 10031, 1990}, {"xid8_ops", 5069, 10053, 5067, 10052, 5032},
 		{"tid_ops", 27, 10050, 2789, 10055, 2227},
+		{"macaddr_ops", 829, 10024, 1984, 0, 0},
 		{"xid_ops", 28, 0, 0, 10051, 2225}, {"cid_ops", 29, 0, 0, 10054, 2226},
 		{"float4_ops", 700, 10012, 1970, 10013, 1971}, {"float8_ops", 701, 3123, 1970, 10014, 1971},
 		{"date_ops", 1082, 3122, 434, 10011, 435}, {"time_ops", 1083, 10038, 1996, 10039, 1997},
@@ -50,7 +51,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 62 || len(want) != 62 {
+	if IndexClassMetadataCount() != 63 || len(want) != 63 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -80,7 +81,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("metadata got %#v want %#v", got, want)
 	}
-	for _, i := range []int{-1, 62, 63} {
+	for _, i := range []int{-1, 63, 64} {
 		if m, ok := IndexClassMetadataAt(i); ok || m != (IndexClassMetadata{}) {
 			t.Fatal("bounds", i, m, ok)
 		}

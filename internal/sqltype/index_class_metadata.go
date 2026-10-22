@@ -29,6 +29,7 @@ var supportedIndexClasses = [...]struct {
 	{"oid_ops", 403, 1989, 0, false},
 	{"xid8_ops", 403, 5067, 0, false},
 	{"tid_ops", 403, 2789, 0, false},
+	{"macaddr_ops", 403, 1984, 0, false},
 	{"float4_ops", 403, 1970, 0, false},
 	{"float8_ops", 403, 1970, 0, false},
 	{"date_ops", 403, 434, 0, false},
@@ -125,6 +126,8 @@ func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
 		name, method = "range_ops", 783
 	case 2789:
 		name, method = "tid_ops", 403
+	case 1984:
+		name, method = "macaddr_ops", 403
 	case 2227:
 		name, method = "tid_ops", 405
 	case 424:

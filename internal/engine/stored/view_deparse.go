@@ -910,11 +910,11 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
-		if !v.Presentation.Deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB || usage.Type.ID() == sqltype.JSONPath || sqltype.IsFTS(usage.Type.ID())) {
+		if !v.Presentation.Deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.ID() == sqltype.Macaddr || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB || usage.Type.ID() == sqltype.JSONPath || sqltype.IsFTS(usage.Type.ID())) {
 			switch e.Child.(type) {
 			case parser.LiteralExpr, parser.TypedLiteralExpr:
 				if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
-					// Captured array, enum, composite, JSON/JSONPath and FTS datums own their typed cast.
+					// Captured array, enum, composite, MACADDR, JSON/JSONPath and FTS datums own their typed cast.
 					// Elide only this exact leaf annotation, not outer casts,
 					// domain checks, typmod changes or actual conversions.
 					return text, nil

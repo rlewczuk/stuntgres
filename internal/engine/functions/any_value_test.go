@@ -27,6 +27,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Cid:     {"0", "4294967295"},
 		sqltype.Xid8:    {"0", "9223372036854775808", "18446744073709551615"},
 		sqltype.Tid:     {"(0,0)", "(1,2)", "(4294967295,65535)", "(-1,0)"},
+		sqltype.Macaddr: {"00:00:00:00:00:00", "08002b010203", "80:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"},
 		sqltype.Money:   {"-92233720368547758.08", "92233720368547758.07", "0", "1.235"},
 		sqltype.Date:    {"2000-02-29", "infinity"}, sqltype.Time: {"24:00:00", "12:34:56.123456"}, sqltype.Timetz: {"12:34:56.123456+02"},
 		sqltype.Timestamp: {"2000-02-29 12:34:56.123456", "-infinity"}, sqltype.Timestamptz: {"2000-02-29 12:34:56.123456+02", "infinity"},

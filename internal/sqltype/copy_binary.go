@@ -341,7 +341,7 @@ func (d *Descriptor) unavailableBinaryProvider(output bool) error {
 	if d.id == ACLItem || d.IsQueryInt() || d.IsCube() {
 		return failure("42883", fmt.Sprintf("no binary %s function available for type %s", direction, d.name))
 	}
-	if d.id == Tid {
+	if d.id == Tid || d.id == Macaddr {
 		return d.unsupportedBinaryProvider(output)
 	}
 	return nil

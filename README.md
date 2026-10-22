@@ -2067,6 +2067,16 @@ See [string splitting](https://www.postgresql.org/docs/18/functions-string.html)
 Feature smoke: `make check RUN='^TestReferenceStringSplitFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceStringSplitFeatureSmoke$'`.
 
+Change note: MACADDR now owns typed six-octet values with all seven documented
+forms, PostgreSQL18.6 scanner edges, canonical lowercase colon output and
+unsigned byte-order comparisons. Direct/prepared textual parameters, nullable
+metadata, defaults/CHECKs/views and native logical Dump/Restore share one codec.
+Malformed syntax and octet ranges retain PostgreSQL English diagnostics.
+MACADDR8, executable MACADDR arrays, MAC helper functions, bitwise/truncation
+operators and independent binary transport remain outside this scalar feature.
+See [MAC address contracts](docs/TYPES.md#mac-addresses) and
+[selected reference proof](reference/types/README.md#macaddr-scalar-contract).
+
 Change note: INET and CIDR now store typed IPv4/IPv6 scalar values through
 direct/prepared binds, metadata and native Dump/Restore. INET preserves host
 bits; CIDR input rejects them, while INET-to-CIDR casts clear them. Canonical

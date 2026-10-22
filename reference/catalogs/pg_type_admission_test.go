@@ -33,6 +33,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		expected[13248], expected[13247] = true, true
 		expected[13256], expected[13255] = true, true
 		expected[13243], expected[13242] = true, true
+		// MACADDR's scalar metadata and associated lookup identity are visible;
+		// catalog presence does not make the companion an executable array.
+		expected[829], expected[1040] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")

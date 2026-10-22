@@ -1994,6 +1994,15 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   remain excluded. Ordering by an independent integer key does not require bit
   comparison. Raw internal CHAR declarations
   remain excluded even where real catalog/query-derived values have codecs.
+- MACADDR stores six-octet addresses, accepts the seven documented forms and
+  PostgreSQL18.6 scanf edges, and emits canonical lowercase colon-separated text.
+  Equality and ordering compare unsigned octets in original order; NULL is
+  strict. Public textual direct/prepared transport, MACADDR metadata and logical
+  replay of tables/data/defaults/CHECKs/views share the scalar codec. Invalid
+  syntax22P02 and out-of-range octets22003 retain English primaries and
+  phase-specific positions/context. Companion1040 remains lookup-only; MACADDR8,
+  MAC functions, bitwise/truncation operators and binary transport are excluded.
+  No wire server, physical durability or OS networking is implied.
 - INET `~`, `&`, `|`, address-plus-BIGINT in either order, and
   address-minus-BIGINT return INET; address-minus-address returns INT8.
   CIDR/domain inputs reuse implicit INET coercion. Full32/128-bit operations

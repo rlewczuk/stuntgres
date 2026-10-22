@@ -115,6 +115,8 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		f = PGTypeMetadata{Kind: "b", Category: "N", Preferred: true, Input: 1798, Output: 1799, Receive: 2418, Send: 2419}
 	case 27: // tid
 		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 48, Output: 49, Receive: 2438, Send: 2439}
+	case Macaddr:
+		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 436, Output: 437, Receive: 2494, Send: 2495}
 	case 28: // xid
 		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 50, Output: 51, Receive: 2440, Send: 2441}
 	case 29: // cid

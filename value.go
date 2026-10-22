@@ -90,7 +90,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if sqltype.IsFTS(target.Type.ID()) {
 			return sqltype.Null(target.Type), nil
 		}
-		if target.Type.ID() == sqltype.Tid {
+		if target.Type.ID() == sqltype.Tid || target.Type.ID() == sqltype.Macaddr {
 			return sqltype.Null(target.Type), nil
 		}
 		if target.Type.IsCube() || target.Type.IsQueryInt() || sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) || sqltype.IsRegObjectAlias(target.Type.ID()) || sqltype.IsRegTS(target.Type.ID()) {
@@ -225,7 +225,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.ACLItem:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
-	case sqltype.Tid, sqltype.Inet, sqltype.Cidr:
+	case sqltype.Tid, sqltype.Macaddr, sqltype.Inet, sqltype.Cidr:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
@@ -289,7 +289,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	case sqltype.ACLItem:
 		return reflect.TypeFor[string]()
-	case sqltype.Tid, sqltype.Inet, sqltype.Cidr:
+	case sqltype.Tid, sqltype.Macaddr, sqltype.Inet, sqltype.Cidr:
 		return reflect.TypeFor[string]()
 	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
 		return reflect.TypeFor[string]()

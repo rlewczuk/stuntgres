@@ -158,6 +158,8 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 		c.input = NameArray
 	case "tid_ops":
 		c.input, c.oid = Tid, 10050
+	case "macaddr_ops":
+		c.input, c.oid = Macaddr, 10024 // Observed on the pinned PostgreSQL 18.6 oracle.
 	// Released classes without an owned input/comparator. They cannot authorize
 	// an implemented scalar just because their spelling exists in pg_catalog.
 	case "record_ops", "record_image_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "tsquery_ops", "tsvector_ops":
@@ -234,6 +236,8 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 		name = "array_ops"
 	case 27:
 		name = "tid_ops"
+	case Macaddr:
+		name = "macaddr_ops"
 	default:
 		return IndexClass{}, false
 	}
