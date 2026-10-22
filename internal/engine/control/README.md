@@ -6,7 +6,7 @@ table. Before step 30 both lived in the root's `control.go`, which named
 the internals of almost every feature. Now a feature adds a table entry
 instead of editing a central switch.
 
-The package imports `access`, `authorization`, `catalog`, `dump`, `expr`,
+The package imports `access`, `analyze`, `authorization`, `catalog`, `dump`, `expr`,
 `extension`, `fdw`, `ids`, `index`, `partition`, `pgcatalog`, `plan`,
 `regobj`, `routine`, `sequence`, `session`, `storage`, `stored`, `table`,
 `typedef`, `view`, `visibility`, `parser`, `sqltype` and `sqlstate`. Only the
@@ -112,6 +112,29 @@ no state between calls. Step 30 of the split created it; see
   functions change in place. `allocate` is the engine's OID allocator: the
   caller (`preserveTemporaryLocked`) holds `Engine.mu` for the whole call.
   Error texts are the engine's (`stuntgres: invalid imported ...`).
+- **TEMP preservation phases** (`persistent_replacement.go`,
+  `temporary_set.go`, `temporary_types.go`, `temporary_identity.go`,
+  `replacement_remap.go`, `replacement_remap_relation.go`): the decisions a
+  persistent replacement makes to keep live TEMP objects.
+  `PersistentReplacementCatalog(view)` returns the private candidate
+  without temporary namespaces, their members and names (a temporary
+  extension installation is not portable). Then, over `current` (the
+  published catalog) and `next` (the candidate): `TemporarySet` collects
+  the temporary namespaces and their members and rejects a candidate
+  that rebinds a live temporary extension's name; `CheckTemporaryDependencies`
+  rejects a candidate that changes a retained policy's sources or
+  dependencies or a user domain under a retained array column;
+  `RetainTemporaryBuiltinTypes` keeps in `next` the exact builtin type
+  generations retained objects use and reports whether it changed
+  anything; `TemporaryCollisionMapping(next, temporary, allocate)` gives
+  each imported identity (and aggregate helper) that collides with a
+  retained OID a fresh one and returns the mapping;
+  `RemapReplacementIdentities` moves the mapped descriptors, their
+  references, dump priorities, default schemas, the name indexes and the
+  storage and sequence roots. The root calls them in this order from
+  `preserveTemporaryLocked`, under `Engine.mu`, with the retain, check,
+  import, repair and install steps between them; error texts are the
+  engine's.
 
 ## The host contract
 
@@ -140,8 +163,13 @@ implements it:
   sorts and completes it in place, and the root never reads it after the
   call.
 - The OID allocator (`catalogStore.allocateOIDLocked`) and the TEMP
-  preservation that calls the remap (`preserveTemporaryLocked`); its
-  decision phases follow in 30f.
+  preservation orchestrator (`preserveTemporaryLocked`): it holds
+  `Engine.mu`, calls the phases above and keeps the steps that need the
+  engine or its stage: `retainDatabaseLocked`, the relation, typed and
+  rule source checks, `retainTemporaryViewProvidersLocked`, the scalar
+  and domain imports, `repairRemappedGenerationsLocked`, the installation
+  of the live TEMP descriptors and storage (with the stage lock), the TEMP
+  policy and rule ref refresh, and the final validation.
 - The restore stage (`restoreStage` in `principal_remap.go`) and the atomic
   publication (`replaceCatalog`): its lock order, the fence after unlock,
   the sequence-memory and serializable fences and the `foreignNamespaces`
@@ -167,10 +195,10 @@ make check RUN='^TestRestore(Driver|Hooks).*'
 
 Engine witnesses: the INSERT admit entry, the presenter's domain
 expressions, the builtin namespace ACL check, the resolver users and the
-definition OID remap:
+definition OID remap and the TEMP preservation callers:
 
 ```sh
-make check RUN='^Test(RuleNamedConstraintRemap|DeparseConstraintsAllocatorOccupancy|PartitionConstraintsDefinitionRemapping|ViewRuleOIDUniquenessAfterRestore|RestoreAdmitsInsertTargetIndirection|DumpPresenterDomainExpressions|PGNamespaceShape|PredefinedRoleControls|IndexPropertyDump.*|IdentityDumpProviderMapping|IdentityControlsOwnerCollisionPredecessors|PartitionAttachDumpPhaseDependencies|PartitionDetach(Replay|UniqueReplay).*|DomainAlterConstraintReplayEligibility)$'
+make check RUN='^Test(RuleNamedConstraintRemap|DeparseConstraintsAllocatorOccupancy|PartitionConstraintsDefinitionRemapping|ViewRuleOIDUniquenessAfterRestore|RestoreAdmitsInsertTargetIndirection|DumpPresenterDomainExpressions|PGNamespaceShape|PredefinedRoleControls|IndexPropertyDump.*|IdentityDumpProviderMapping|IdentityControlsOwnerCollisionPredecessors|PartitionAttachDumpPhaseDependencies|PartitionDetach(Replay|UniqueReplay).*|DomainAlterConstraintReplayEligibility|InheritanceControls.*|TypedTemporary.*|PGAggregateIntagg.*|UserOperatorIndex.*|ExtensionTemporary.*|DefaultPrivilegesControls|PartitionConstraints.*|.*RetainedTemporary.*|.*TemporaryCollision)$'
 ```
 
 Public behavior is covered by the Dump, Restore and Control reference tests

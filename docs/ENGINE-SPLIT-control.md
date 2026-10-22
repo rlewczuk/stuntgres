@@ -145,8 +145,10 @@ owners, materialized snapshots, domain replays, ...).
   versions, frontier, sequences, `foreignNamespaces`.
 - `restoreStage` (`principal_remap.go:276`): it reads `e.roles`,
   `e.catalog`, the foreign definitions and builds a private `*Engine`.
-- `replaceCatalog` (`catalog.go:1306`): `persistentReplacementCatalog`,
-  storage reminting, `remapPreparedCatalog`, `preserveTemporaryLocked`,
+- `replaceCatalog` (`catalog.go:1306`): the call to
+  `control.PersistentReplacementCatalog` (30f), storage reminting,
+  `remapPreparedCatalog`, `preserveTemporaryLocked` (the orchestrator; its
+  decision phases are in `control` since 30f),
   `installForeignCatalogLocked`, `foreignNamespaces` replacement in the same
   publication, `clearPersistentSequenceMemoryLocked`,
   `fenceSerializableLocked`. Its lock order: `source.mu` is taken and
@@ -787,9 +789,72 @@ stage and the atomic replacement. The checks in §8.3 pass.
     `TestReferenceCompositeAlterDumpReplay`; `go list` shows only the root
     imports `control`; `make deps` clean. racecheck/finalcheck skipped at
     user request.
-- [ ] 30f — TEMP preservation phases moved (linear item 122)
+- [x] 30f — TEMP preservation phases moved (linear item 122) (`e3948ad1b`,
+  `9aec972de`, then the docs commit). Re-measured at `16cb9f7d0` with
+  `reach`: `preserveTemporaryLocked` matched the 30f plan (lines 67–635);
+  `persistentReplacementCatalog`, `arrayDomainDependency`,
+  `retainedArrayDependencies` and `temporaryInheritanceReplacementError`
+  were clean, the four `Engine` methods dirty only through `e.catalog`.
+  The moving phases read the engine through two things only: the
+  published view (`e.catalog.read(e.catalog.state)`) and
+  `e.catalog.allocateOIDLocked`, under the three-read limit.
+  - **Moved** (bodies unchanged; `e.catalog.state` became
+    `current.State()`, the published view `current`, the allocator
+    `allocate`): `control.PersistentReplacementCatalog`
+    (`persistent_replacement.go`, was `persistentReplacementCatalog`);
+    `control.TemporarySet` and `control.CheckTemporaryDependencies` with
+    `arrayDomainDependency` and `retainedArrayDependencies`
+    (`temporary_set.go`); `control.RetainTemporaryBuiltinTypes`
+    (`temporary_types.go`, returns the old `typesChanged`);
+    `control.TemporaryCollisionMapping(next, temporary, allocate)`
+    (`temporary_identity.go`, the 30e allocator shape);
+    `control.RemapReplacementIdentities` (`replacement_remap.go`, the old
+    `if len(mapping) != 0` block, now a guard). The per-kind descriptor
+    switch became `remapReplacementDescriptor`, its relation case
+    `remapReplacementRelation` (`replacement_remap_relation.go`; its
+    `break` became `return r, nil`) and the root re-keying
+    `remapStorageRoots`.
+  - **Root** (`temporary_preservation.go`, 783 → 301 lines):
+    `preserveTemporaryLocked` keeps `Engine.mu`, builds `current` once and
+    calls the phases in the old order between `retainDatabaseLocked`, the
+    source checks, `retainTemporaryViewProvidersLocked`, the scalar and
+    domain imports, `repairRemappedGenerationsLocked`, the TEMP install
+    loop, the TEMP policy and rule ref refresh, `control.RemapViewRuleOIDs`,
+    the table remaps and the final validation. Building `current` before
+    the phases instead of at each use is side-effect free
+    (`catalog.NewRead` pairs owner and state).
+  - **Layering.** `control` now imports `analyze` (L10, below L14) for
+    `analyze.WalkQueryArgumentExpression`; `go list` shows only the root
+    imports `control`.
+  - **Tests.** None moved or deleted. Adapted (engine fixtures, so they
+    stay root): `TestExtensionTemporaryReplacement`
+    (`extension_temporary_test.go`), `TestDefaultPrivilegesReplacement`
+    (`default_privileges_controls_test.go`) and
+    `TestUserOperatorIndexTemporaryCollisionReplacement`
+    (`operator_index_test.go`) call `control.PersistentReplacementCatalog`.
+    No new unit test: the move adds no semantics. The callers of
+    `preserveTemporaryLocked` (inheritance, typed, partition, aggregate and
+    operator index tests) are unchanged.
+  - **Verification**: after each commit and after the rebases onto
+    `80dda192c` (scripts only) and `475d044a2` (routine drop, which touched
+    none of the moved code), the byte-identity dump smoke (the 30d
+    `dumpsmoke`, baseline on the starting master `16cb9f7d0`, re-taken and
+    unchanged on `475d044a2`), the 30d
+    targeted engine units, the tests of every adapted file and every
+    `preserveTemporaryLocked` caller, `Test.*(Temporary|Retained).*`, the
+    `control` tests, and quick
+    `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)`,
+    `^TestReferenceControl` and `^TestReference.*Temporary`; quickcheck
+    after each rebase; `REFERENCE=1` for `^TestReferenceControl.*`,
+    `TestReferenceDumpRoundTrip`, `TestReferenceTypeCoreDumpRoundTrip`,
+    `TestReferenceCollationSeedNativeReplay` and
+    `TestReferenceCompositeAlterDumpReplay`; `go list` shows only the root
+    imports `control`; `make deps` clean. racecheck/finalcheck skipped at
+    user request.
+  - **Status page.** Its tree still showed 30e unticked although item 121
+    was ticked; fixed with this record.
 
-Outstanding aliases: none (30a, 30c, 30d and 30e added none).
+Outstanding aliases: none (30a, 30c, 30d, 30e and 30f added none).
 
 ### Notes for later steps
 
@@ -825,6 +890,14 @@ Outstanding aliases: none (30a, 30c, 30d and 30e added none).
   `remapDefinitionOIDsLocked` as a source authority; `reference/` is
   read-only for the split, so a later non-split change should rename it to
   `control.RemapDefinitionOIDs`.
+- 30f: step 30 has no planned sub-step left. What remains in
+  `temporary_preservation.go` reads only the published and candidate
+  catalogs too, except the install loop (storage and the stage lock) and
+  the imports and repair (engine state): the TEMP policy and rule ref
+  refresh, the final validation loop, `retainTemporaryViewProvidersLocked`
+  and the two source checks (`checkTemporary{Relation,Rule}SourcesReplacementLocked`,
+  also called from `replaceCatalog`) could take a `catalog.Read` and move
+  to `control` in a later cleanup; the 30f plan kept them root.
 - 30d: `dump_capture.go` is now only the lock window. Its two remaining
   engine-only steps are `validateTemporaryCollationDump` (needs
   `BeginCatalogStage` for `domainDependencyClosure`) and the
