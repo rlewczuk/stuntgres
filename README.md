@@ -328,8 +328,9 @@ and [selected checks and smoke](reference/tables/README.md#list-partition-defini
 
 ## Scalar SQL routines — change note
 
-`CREATE FUNCTION` accepts anonymous or named scalar IN arguments, scalar/VOID
-results, quoted multi-command SQL and definition-analyzed RETURN/BEGIN ATOMIC:
+`CREATE FUNCTION` accepts named/anonymous IN, scalar OUT/INOUT and array VARIADIC
+parameters, defaults, scalar/VOID results, quoted multi-command SQL and
+definition-analyzed RETURN/BEGIN ATOMIC:
 
 ```sql
 CREATE FUNCTION add1(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+1$$;
@@ -346,6 +347,15 @@ CREATE validates without effects. Quoted bodies prepare reached commands at
 invocation; standard bodies retain checked identities, selected overloads and
 hard dependencies through existing relation/view renames and native replay.
 
+Function calls support positional, named and positional-first mixed notation,
+including named default gaps. Identity, `$n` and private frames count only
+inputs; a pure OUT is omitted from actuals and INOUT belongs to both projections.
+One OUT/INOUT implies its scalar result type. Expanded VARIADIC builds an owned
+array; explicit VARIADIC preserves empty/NULL arrays, bounds and element NULLs.
+Checked declaration defaults use Assignment conversion, capture hard dependencies
+even with quoted bodies, and evaluate freshly only when omitted by a selected
+call—not at CREATE/Prepare or while considering losing overloads.
+
 `DROP FUNCTION`, `DROP PROCEDURE` and generic `DROP ROUTINE` select exact catalog
 input signatures (or an unambiguous bare name), with grouped atomic deletion,
 `IF EXISTS` notices and default `RESTRICT` / explicit `CASCADE`. Dependency
@@ -353,21 +363,25 @@ removal preserves unrelated overloads, rows and containing tables while removing
 dependent views, defaults and constraints. DROP authority is routine or schema
 ownership, not EXECUTE. Procedure declarations are supported; CALL remains separate.
 
-Quoted-body callers do not acquire hard dependencies on callees: dropping a
-callee leaves the caller installed but unresolved until recreation. Dump/Restore
-preserves that state; private replay defers only a structured terminal missing
+Incidental quoted-body calls do not acquire hard dependencies on callees:
+dropping a callee leaves the caller installed but unresolved until recreation.
+Declaration-default captures remain hard dependencies regardless of body form.
+Dump/Restore preserves that state; private replay defers only a structured terminal missing
 call, never arbitrary SQLSTATE 42883. Parsing and closed formal bounds still
 validate; checks prevented by the missing call run when invocation can bind it.
 
 SQL procedure declarations share validation/catalog/persistence but cannot be
 called as expressions; CALL execution remains separate. Native Dump/Restore
 preserves body form, names, dependencies, callers and data, including text-body
-default cycles. OUT/INOUT/default/variadic declarations, OR REPLACE, ALTER routine
-lifecycle DDL, PL/pgSQL, attributes/security clauses and set/composite returns
-remain excluded. The bounded `pg_language` inventory is unchanged.
+default cycles. Multiple-output records, SQL CALL and PL copyback belong to
+separate capabilities. OR REPLACE, ALTER routine lifecycle DDL, PL/pgSQL,
+attributes/security clauses and set/composite returns remain excluded.
+The bounded `pg_language` inventory is unchanged.
 See [native boundaries](docs/DIALECT.md#scalar-sql-routines),
 [fixture replay](docs/FIXTURES.md#sql-routine-declarations-and-callers), and
 [selected proof and smoke](reference/query_core/README.md#scalar-sql-routine-contract).
+Function-parameter proof and smoke are in
+[the callable-resolution package](reference/operators/README.md#routine-parameter-binding).
 
 ## Ordinary inheritance maintenance — change note
 

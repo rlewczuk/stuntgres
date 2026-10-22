@@ -332,7 +332,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 	case *parser.FunctionTable:
 		normalized := parser.NormalizedFunctionCalls(n)
 		for _, raw := range normalized {
-			if len(definitions) != 0 || SelectedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
+			if len(definitions) != 0 || MixedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
 				return b.BindMixedFunctionTable(normalized, n.Ordinality, ordinal, definitions, !n.RowsFrom && len(normalized) > 1)
 			}
 		}

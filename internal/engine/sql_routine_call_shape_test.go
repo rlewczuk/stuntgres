@@ -244,3 +244,63 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 		})
 	}
 }
+
+func TestSQLRoutineNamedProviderShapes(t *testing.T) {
+	e := New()
+	auth := catalogAuthorization(e, e.CatalogRead())
+	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b.Query.Auth = &auth
+	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	for _, tc := range []struct {
+		name, signature        string
+		labels                 []string
+		actual, ranked, target []sqltype.ID
+	}{
+		{"make_interval", "23,23,23,23,23,23,701", []string{"secs"}, []sqltype.ID{sqltype.Float8}, []sqltype.ID{sqltype.Float8}, []sqltype.ID{sqltype.Float8}},
+		{"make_time", "23,23,701", []string{"sec", "hour", "min"}, []sqltype.ID{sqltype.Float8, sqltype.Int4, sqltype.Int4}, []sqltype.ID{sqltype.Float8, sqltype.Int4, sqltype.Int4}, []sqltype.ID{sqltype.Float8, sqltype.Int4, sqltype.Int4}},
+		{"regexp_replace", "25,25,25,23", []string{"start", "replacement", "pattern", "string"}, []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Text, sqltype.Text}, []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Text, sqltype.Text}, []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Text, sqltype.Text}},
+		{"array_sort", "2277,16", []string{"descending", "array"}, []sqltype.ID{sqltype.Bool, 1007}, []sqltype.ID{sqltype.Bool, 2277}, []sqltype.ID{sqltype.Bool, 1007}},
+		{"parse_ident", "25,16", []string{"strict", "str"}, []sqltype.ID{sqltype.Bool, sqltype.Text}, []sqltype.ID{sqltype.Bool, sqltype.Text}, []sqltype.ID{sqltype.Bool, sqltype.Text}},
+		{"json_strip_nulls", "114,16", []string{"strip_in_arrays", "target"}, []sqltype.ID{sqltype.Bool, sqltype.JSON}, []sqltype.ID{sqltype.Bool, sqltype.JSON}, []sqltype.ID{sqltype.Bool, sqltype.JSON}},
+		{"json_populate_record", "2283,114,16", []string{"from_json", "base"}, []sqltype.ID{sqltype.JSON, sqltype.Int4}, []sqltype.ID{sqltype.JSON, 2283}, []sqltype.ID{sqltype.JSON, sqltype.Int4}},
+		{"pg_get_acl", "26,26,23", []string{"objsubid", "classid", "objid"}, []sqltype.ID{sqltype.Int4, sqltype.Oid, sqltype.Oid}, []sqltype.ID{sqltype.Int4, sqltype.Oid, sqltype.Oid}, []sqltype.ID{sqltype.Int4, sqltype.Oid, sqltype.Oid}},
+		{"uuidv7", "1186", []string{"shift"}, []sqltype.ID{sqltype.Interval}, []sqltype.ID{sqltype.Interval}, []sqltype.ID{sqltype.Interval}},
+	} {
+		t.Run(tc.name+"/"+tc.signature, func(t *testing.T) {
+			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: make([]parser.Expr, len(tc.actual)), ArgNames: make([]parser.Identifier, len(tc.actual))}
+			args := make([]functions.Argument, len(tc.actual))
+			for i, id := range tc.actual {
+				args[i].Usage = b.Type(id).Usage()
+				raw.ArgNames[i].Text = tc.labels[i]
+			}
+			found := false
+			for d := range auth.definitionProceduresNamed(namespace, tc.name) {
+				if string(d.Signature) != tc.signature {
+					continue
+				}
+				found = true
+				candidate, valid := analyze.SQLCallableShape(auth.Catalog, auth.definition, d, raw)
+				if !valid || !b.ProbeSQLCallable(raw, args, &candidate) {
+					t.Fatal("named provider rejected checked shape", candidate)
+				}
+				for i := range args {
+					if candidate.Inputs[i].Type.ID() != tc.ranked[i] || candidate.Targets[i].Type.ID() != tc.target[i] {
+						t.Fatal("written ranking/target projection", candidate)
+					}
+				}
+				bad := raw
+				bad.ArgNames = append([]parser.Identifier(nil), raw.ArgNames...)
+				bad.ArgNames[0].Text = "not_a_formal"
+				if b.ProbeSQLCallable(bad, args, &candidate) {
+					t.Fatal("provider ignored unmatched label")
+				}
+				if raw.ArgNames[0].Text != tc.labels[0] || string(d.Signature) != tc.signature {
+					t.Fatal("probe mutated caller or catalog")
+				}
+			}
+			if !found {
+				t.Fatal("missing checked declaration")
+			}
+		})
+	}
+}

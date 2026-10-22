@@ -46,16 +46,17 @@ See [selected public control proof](../reference/object_grants/README.md#transac
 ## SQL routine declarations and callers
 
 Native Dump emits genuine SQL `CREATE FUNCTION` and `CREATE PROCEDURE`
-declarations, with named inputs, canonical types, current owners and actual
-quoted/standard body forms. Quoted declarations retain original body text.
+declarations, with ordered function modes/names/defaults, canonical types, current
+owners and actual quoted/standard body forms. Quoted declarations retain original body text.
 Standard declarations emit checked BEGIN ATOMIC commands using current captured
 object names and selected implicit argument usages; they are never converted
 into unchecked strings. Frames, evaluated results, opened executors, data views
 and authorization decisions are not serialized.
 
-Signature types precede both forms. Standard body relation/type/callee edges
-also precede standard declarations; consumers follow their routines. Incidental
-quoted-body analysis does not create hard graph edges, preserving the existing
+All formal and result types precede both forms. Checked declaration-default
+captures also precede declarations even when the body is quoted. Standard body
+relation/type/callee edges precede standard declarations; consumers follow their
+routines. Incidental quoted-body analysis stays soft, preserving the existing
 text-body/table-default cycle and later rebinding to recreated objects.
 
 A dump containing SQL routines includes `SET check_function_bodies = false;`.
@@ -77,6 +78,8 @@ recovery. Deleted user overloads with builtin-family spellings (including
 `num_nulls`/`num_nonnulls`) retain the same dangling-caller replay contract.
 Specialized family-shape errors are not callable absence merely because their
 SQLSTATE is42883.
+Declaration defaults are never part of quoted-body deferral: missing or invalid
+default captures abort staged replacement.
 Read failures and cancellation leave the target and retained rows unchanged.
 The directive does not add a public live SQL setting or arbitrary script replay;
 function-free dumps retain their existing bytes.
@@ -91,6 +94,25 @@ make check RUN='^TestReferenceRoutineCorePersistence$'
 make check REFERENCE=1 RUN='^TestReferenceRoutineCorePersistence$'
 make check RUN='^TestReferenceRoutineSQLBodiesPersistence$'
 make check REFERENCE=1 RUN='^TestReferenceRoutineSQLBodiesPersistence$'
+```
+
+Function-parameter persistence additionally checks named reordered/default-gap
+calls, hidden captured defaults, expanded/explicit variadic arrays, scalar
+outputs, domain-array data, and two native replacement rounds. PortablePersistence
+uses a fresh catalog with non-NULL domain elements and plain integer-array NULL
+elements; its unchanged emitted SQL is executed on pinned PostgreSQL with the
+same independent values. Persistence preserves constrained-domain element-NULL
+data through native host-authorized provenance replay, plus shared direct SQL
+assertions; ordinary PostgreSQL SQL does not consume the native provenance
+comment payload. Neither stream nor expected data is rewritten.
+SequenceDefaultPersistence separately preserves regclass-backed default captures
+and exact sequence/table state through two native rounds and unchanged emitted
+PostgreSQL SQL. The checked lifetime mapper handles actual ObjectRefs; datum OID
+projections use the separate address mapper and grant no lifetime authority.
+
+```sh
+make check RUN='^TestReferenceRoutineParameters(DefaultIdentity|WrittenCapturePersistence|VariadicCapturePersistence|Persistence|PortablePersistence|SequenceDefaultPersistence)$'
+make check RUN='^TestReferenceRoutineParameters(DefaultIdentity|WrittenCapturePersistence|VariadicCapturePersistence|Persistence|PortablePersistence|SequenceDefaultPersistence)$' REFERENCE=1
 ```
 
 Use an external 900-second deadline for each command. See the

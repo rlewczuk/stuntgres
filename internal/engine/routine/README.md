@@ -70,13 +70,19 @@ or the engine. Step 14 of the split moves it here; see
   engine's shared dependency closure and single publication; no second registry
   or call-coercion selector exists. Quoted SQL bodies do not create hard edges.
 - **SQL routine declarations** (`function_ddl.go`): `StageCreateFunction`
-  shares function/procedure declarations, named/positional IN inputs, VOID and
-  quoted/standard body policies. Procedures remain non-expression-callable;
-  CALL execution and ALTER routine lifecycle DDL are separate capabilities.
-  `function_restore.go` holds `RestoreDirective`, `ReplayDirective` and
-  `RebindSQLDefinitions`; standard captures are never deferred as quoted text.
+  shares function/procedure body policies and VOID. Function declarations retain
+  ordered IN/OUT/INOUT/VARIADIC formals, input defaults and input-only identity.
+  One output uses the scalar executor; multiple-output adaptation, procedure
+  parameter conventions and CALL remain separate. `function_restore.go` holds
+  `RestoreDirective`, `ReplayDirective` and `RebindSQLDefinitions`: all formal
+  types stabilize before checked defaults and standard captures are remapped.
+  Declaration defaults are never deferred as quoted body text.
+  Checked defaults bind against the legitimate pre-declaration stage, including
+  prior staged objects but excluding the new declaration. Only then is the
+  declaration staged for body validation and existing self-recursion behavior.
 - **Dumps** (`operator_dump.go`, `function_dump.go`): what native Dump
-  writes for user operators and SQL routines, including standard-body graph edges.
+  writes for user operators and SQL routines, including all-formal type, checked
+  default and standard-body graph edges.
   `OperatorDumped` is the operator Collect decision; `OperatorDumpDependencies`, `OperatorDumpEvents`
   and `NormalizeOperatorDumpPredecessors` add the declaration and deferred
   link events to the `dump.Graph`; `OperatorDumpStatements` (one
@@ -114,7 +120,7 @@ The handlers run under `Engine.mu` without a statement scope. They reach the
 engine only through `DDLHost` (`host.go`), which embeds the shared
 [`ddl.Host`](../ddl/README.md) and adds the routine methods
 (`DefinitionType`, `DefinitionLookup`, `SelectFunction`, `ResolveRegtype`,
-`BindSQLRoutine`). The engine implements it on its one scope-free staging
+`BindSQLRoutine`, `BindSQLDefaults`). The engine implements it on its scope-free staging
 adapter, `ddlHost`, built once per DDL statement (the routine methods are in
 `routine_host.go`):
 
@@ -271,3 +277,14 @@ make check RUN='^TestReferenceExclusionOperatorFamilies$'
 make check RUN='^TestReferenceExclusionOperatorFamilies$' REFERENCE=1
 make check RUN='^(TestIndexClauses|TestMaterializedRefreshConcurrentMatch|TestInsertConflictPredicate|TestPartitionPruning)'
 ```
+
+Function parameter proof and smoke:
+
+```sh
+make check RUN='^(TestRoutineParameterLayout|TestSQLCallableParameterMapping|TestSQLRoutineWrittenCapture|TestSQLRoutineParameterRemap|TestRoutineDefaultOriginRestoration|TestSQLRoutineNamedProviderShapes|TestSQLRoutineDumpEventsUseResolver)$'
+make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|ScalarOutputsIdentity|Variadic|WrittenCapturePersistence)$'
+make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|ScalarOutputsIdentity|Variadic|WrittenCapturePersistence)$' REFERENCE=1
+```
+
+The shared complete contract and bounded selected groups are in
+[reference/operators](../../../reference/operators/README.md#routine-parameter-binding).

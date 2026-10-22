@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqlstate"
@@ -46,12 +48,40 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 	}
 	frame := proc.NewFrame(n.Procedure.SQL.Inputs)
 	defer frame.Close()
-	for i, arg := range n.Args {
-		v, err := arg.Eval(c)
-		if err != nil {
+	var tail []sqltype.Value
+	var expandedSlot = -1
+	for slot, source := range n.InputMap {
+		if source.Expanded {
+			expandedSlot = slot
+			tail = make([]sqltype.Value, source.Count)
+			break
+		}
+	}
+	for child, arg := range n.Args {
+		slot := n.ChildSlots[child]
+		var v sqltype.Value
+		var failure error
+		if child >= n.WrittenCount {
+			v, failure = c.evalRoutineDefault(n.Ref, slot, n.Procedure.SQLDefaults.Dependencies(), arg)
+		} else {
+			v, failure = arg.Eval(c)
+		}
+		if failure != nil {
+			return value, failure
+		}
+		if slot == expandedSlot {
+			tail[child-n.InputMap[slot].Start] = v
+		} else if err = frame.Bind(slot, v, arg.ResultUsage()); err != nil {
 			return value, err
 		}
-		if err = frame.Bind(i, v, arg.ResultUsage()); err != nil {
+	}
+	if expandedSlot >= 0 {
+		usage := n.Procedure.SQL.Inputs[expandedSlot]
+		packed, failure := sqltype.OwnedArrayValue(usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(tail))}}, tail)
+		if failure != nil {
+			return value, failure
+		}
+		if err = frame.Bind(expandedSlot, packed, usage); err != nil {
 			return value, err
 		}
 	}
@@ -68,6 +98,20 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 		return value, err // The body owner annotates its actual command ordinal.
 	}
 	return frame.Result(value, n.Usage)
+}
+
+// The declaration recipe, not the caller/table manifest, owns hidden defaults.
+func (c *Context) evalRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency, node expr.Expr) (sqltype.Value, error) {
+	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
+	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
+	c.QuoteOrigin = QuoteOrigin{Owner: owner, Attribute: int32(slot + 1)}
+	c.RoutineRecipe, c.RoutineGraft = true, false
+	c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = dependencies, nil, nil
+	defer func() {
+		c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft = quote, recipe, graft
+		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = checks, refs, consumer
+	}()
+	return node.Eval(c)
 }
 
 func SQLRoutineContext(err error, name string, runtime bool) error {

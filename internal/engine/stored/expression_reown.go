@@ -3,9 +3,7 @@ package stored
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
@@ -45,6 +43,11 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		return old
 	}
+	if typesOnly {
+		if err := reownSQLRoutineTypes(view, next, typ); err != nil {
+			return err
+		}
+	}
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
@@ -52,10 +55,10 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			if typesOnly {
 				changed := false
 				for _, check := range domain.DomainChecks {
-					analyze.WalkQueryArgumentExpression(check.Expression, func(node expr.Expr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
+					changed = changed || routineExpressionChanged(view, check.Expression, typ)
 				}
 				if domain.DomainDefault != nil {
-					analyze.WalkQueryArgumentExpression(domain.DomainDefault.Expression, func(node expr.Expr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
+					changed = changed || routineExpressionChanged(view, domain.DomainDefault.Expression, typ)
 				}
 				if !changed {
 					continue
@@ -116,7 +119,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			}
 			next.SetDescriptor(address, d)
 		}
-		if typesOnly && next.ACLItemImport() == nil && !ExpressionTypesChanged(d, typ) {
+		if typesOnly && next.ACLItemImport() == nil && !ExpressionDescriptorsChanged(view, d, typ) {
 			continue
 		}
 		if len(d.ColumnMeta.Defaults) != 0 {

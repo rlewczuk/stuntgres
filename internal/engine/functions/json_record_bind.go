@@ -51,24 +51,12 @@ func bindJSONRecord(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr,
 		if !populate {
 			return missing()
 		}
-		seen := [2]bool{}
+		slots, valid := jsonRecordSlots(raw)
+		if !valid {
+			return missing()
+		}
 		for i := range operands {
-			index := i
-			if i < len(raw.ArgNames) && raw.ArgNames[i].Text != "" {
-				switch raw.ArgNames[i].Text {
-				case "base":
-					index = 0
-				case "from_json":
-					index = 1
-				default:
-					return missing()
-				}
-			}
-			if seen[index] {
-				return missing()
-			}
-			seen[index] = true
-			if index == 0 {
+			if slots[i] == 0 {
 				baseIndex = i
 			} else {
 				jsonIndex = i
@@ -232,4 +220,23 @@ func bindJSONBRecord(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr
 	}
 	call.Info = info
 	return call, nil
+}
+
+func jsonRecordSlots(raw parser.FunctionExpr) ([7]int, bool) {
+	return namedSlots(raw, []string{"base", "from_json"}, 2)
+}
+
+func namedJSONRecord(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	if raw.Variadic || len(args) != 2 || !declaredTypes(declared, []sqltype.ID{2283, sqltype.JSON, sqltype.Bool}) {
+		return nil, nil, false
+	}
+	slots, valid := jsonRecordSlots(raw)
+	if !valid {
+		return nil, nil, false
+	}
+	inputs, targets, valid := namedInputs(args, declared, slots[:2])
+	if !valid || !probeJSONRecordCall(b, raw, args, inputs, targets) {
+		return nil, nil, false
+	}
+	return inputs, targets, true
 }

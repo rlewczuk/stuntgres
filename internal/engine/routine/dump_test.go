@@ -90,6 +90,9 @@ func TestSQLRoutineDumpEventsUseResolver(t *testing.T) {
 			Result: dumpUnitType(sqltype.Bool).Usage(),
 		},
 	}
+	if err := d.SQL.SetFormals([]proc.Formal{{Mode: "i", Usage: d.SQL.Inputs[0]}, {Mode: "o", Usage: d.SQL.Inputs[1]}}); err != nil {
+		t.Fatal(err)
+	}
 	resolver := &dumpUnitResolver{predecessors: map[ids.OID]ids.OID{ids.OID(sqltype.Int4): 91000, ids.OID(sqltype.Bool): 92000}}
 	graph := dump.Graph{}
 	if err := SQLRoutineDumpEvents(resolver, catalog.Read{}, []*catalog.Procedure{d}, graph); err != nil {
@@ -106,7 +109,7 @@ func TestSQLRoutineDumpEventsUseResolver(t *testing.T) {
 		asked = append(asked, request[0].ObjectID)
 	}
 	if want := []ids.OID{ids.OID(sqltype.Int4), ids.OID(sqltype.Text), ids.OID(sqltype.Bool)}; !reflect.DeepEqual(asked, want) {
-		t.Fatalf("asked %v, want inputs then result %v", asked, want)
+		t.Fatalf("asked %v, want all formals then result %v", asked, want)
 	}
 
 	failure := errors.New("resolver failure")

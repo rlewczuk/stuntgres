@@ -60,13 +60,8 @@ func bindACLValue(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	valid := visible && name == kind.Name() && !raw.ResolutionOnly && !raw.Variadic && len(raw.Args) == len(types)
-	named := false
-	for _, label := range raw.ArgNames {
-		if label.Text != "" {
-			named = true
-			valid = valid && kind == ACLExplode && label.Text == "acl"
-		}
-	}
+	named, labelsValid := aclValueLabels(kind, raw)
+	valid = valid && labelsValid
 	if valid {
 		for i, t := range types {
 			if operands[i].Usage.Type != nil {
@@ -133,4 +128,23 @@ func BindACLContains(b Binder, operands [2]Argument, namespace string, pos parse
 	}
 	n.Info = info
 	return n, nil
+}
+
+func aclValueLabels(kind ACLKind, raw parser.FunctionExpr) (named, valid bool) {
+	valid = true
+	for _, label := range raw.ArgNames {
+		if label.Text != "" {
+			named = true
+			valid = valid && kind == ACLExplode && label.Text == "acl"
+		}
+	}
+	return
+}
+
+func namedACLValue(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	_, valid := aclValueLabels(ACLExplode, raw)
+	if !valid || raw.Name.Parts[len(raw.Name.Parts)-1].Text != ACLExplode.Name() || raw.Variadic || len(args) != 1 || !declaredTypes(declared, ACLExplode.types()) {
+		return nil, nil, false
+	}
+	return namedInputs(args, declared, []int{0})
 }

@@ -198,10 +198,19 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 						}
 					}
 				}
+				if d.SQLDefaults != nil {
+					for _, dependency := range d.SQLDefaults.Dependencies() {
+						address := dependency.Ref.Address
+						if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
+							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+							break
+						}
+					}
+				}
 				if d.SQL != nil && target.ClassID == ids.TypeClassID {
 					uses := d.Result == target.ObjectID
-					for _, input := range d.SQL.Inputs {
-						uses = uses || ids.OID(input.Type.ID()) == target.ObjectID
+					for _, formal := range d.SQL.Formals {
+						uses = uses || ids.OID(formal.Usage.Type.ID()) == target.ObjectID
 					}
 					if uses {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})

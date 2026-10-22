@@ -30,9 +30,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if err = h.CheckCreateIn(auth, ns); err != nil {
 		return err
 	}
-	inputs := make([]sqltype.Usage, len(s.Arguments))
-	signature := make([]string, len(inputs))
-	names := make([]string, len(inputs))
+	formals := make([]proc.Formal, len(s.Arguments))
 	resolve := func(raw parser.TypeName, result bool) (sqltype.Usage, error) {
 		if raw.Setof {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "set-returning SQL functions are unsupported", raw.Pos)
@@ -54,28 +52,51 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		return typ.Usage(), nil
 	}
 	for i, arg := range s.Arguments {
-		if arg.Mode != "" && arg.Mode != "in" {
-			return expr.ErrorAt("0A000", "OUT and INOUT function arguments are unsupported", arg.Pos)
+		if s.Procedure && (arg.Mode != "" && arg.Mode != "in" || arg.Default != nil) {
+			return expr.ErrorAt("0A000", "procedure argument modes and defaults are unsupported", arg.Pos)
 		}
-		names[i] = arg.Name.Text
-		for _, earlier := range names[:i] {
-			if earlier != "" && earlier == names[i] {
-				return expr.ErrorAt("42P13", fmt.Sprintf("parameter name %q used more than once", names[i]), arg.Pos)
-			}
+		mode := "i"
+		switch arg.Mode {
+		case "out":
+			mode = "o"
+		case "inout":
+			mode = "b"
+		case "variadic":
+			mode = "v"
 		}
-		inputs[i], err = resolve(arg.Type, false)
-		if err != nil {
-			return err
+		usage, failure := resolve(arg.Type, false)
+		if failure != nil {
+			return failure
 		}
-		signature[i] = strconv.FormatUint(uint64(inputs[i].Type.ID()), 10)
+		formals[i] = proc.Formal{Mode: mode, Name: arg.Name.Text, Usage: usage, Position: arg.Pos, HasDefault: arg.Default != nil}
+	}
+	layout := &proc.Definition{}
+	if err = layout.SetFormals(formals); err != nil {
+		return err
+	}
+	inputs, names := layout.Inputs, layout.Names
+	signature := make([]string, len(inputs))
+	for i, input := range inputs {
+		signature[i] = strconv.FormatUint(uint64(input.Type.ID()), 10)
+	}
+	if !s.Procedure && len(layout.OutputFormals) > 1 {
+		return sqlError("0A000", "multiple-output SQL function execution is unsupported")
 	}
 	resultSyntax := s.Result
 	if s.Procedure {
 		resultSyntax = parser.TypeName{Name: "void"}
+	} else if !s.ResultSpecified {
+		if len(layout.OutputFormals) == 0 {
+			return sqlError("42P13", "function result type must be specified")
+		}
+		resultSyntax = s.Arguments[layout.OutputFormals[0]].Type
 	}
 	result, err := resolve(resultSyntax, true)
 	if err != nil {
 		return err
+	}
+	if !s.Procedure && len(layout.OutputFormals) == 1 && result.Type != formals[layout.OutputFormals[0]].Usage.Type {
+		return sqlError("42P13", "function result type must be "+formals[layout.OutputFormals[0]].Usage.Type.DiagnosticName()+" because of OUT parameters")
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}
@@ -90,10 +111,9 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		var diagnostic *sqlstate.Error
 		if errors.As(err, &diagnostic) && (diagnostic.Code == "42601" || diagnostic.Code == "42P02") {
 			copy := *diagnostic
-			// Dollar-quoted bodies retain their source span; parser positions are
-			// Unicode characters. Ordinary string bodies use their enclosing span.
+			// BodyPos retains the actual quote delimiter's content origin.
 			if n, parseErr := strconv.Atoi(copy.Position); parseErr == nil {
-				copy.Position = strconv.Itoa(s.BodyPos.Character + 1 + n)
+				copy.Position = strconv.Itoa(s.BodyPos.Character + n)
 			}
 			return &copy
 		}
@@ -101,6 +121,8 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	d.SQL = definition
 	definition.Name, definition.Names = name, names
+	definition.Formals, definition.InputFormals = layout.Formals, layout.InputFormals
+	definition.OutputFormals, definition.FormalInputs = layout.OutputFormals, layout.FormalInputs
 	if s.Standard != nil {
 		definition.Standard, definition.Statements = true, s.Standard
 	}
@@ -114,6 +136,11 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		return err
 	}
 	d.ACL = h.CreationACL(d.Owner, d.Namespace(), authorization.DefaultRoutines)
+	// Defaults see the legitimate pre-declaration stage. The new declaration
+	// becomes visible only afterwards, including to its own body validation.
+	if err = h.BindSQLDefaults(auth, d, s.Arguments, input); err != nil {
+		return err
+	}
 	if err = h.Stage().Create(d); err != nil {
 		return err
 	}
@@ -122,7 +149,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if errors.As(err, &diagnostic) && diagnostic.Code == "42P02" && !d.SQL.Standard {
 		copy := *diagnostic
 		if n, parseErr := strconv.Atoi(copy.Position); parseErr == nil {
-			copy.Position = strconv.Itoa(s.BodyPos.Character + 1 + n)
+			copy.Position = strconv.Itoa(s.BodyPos.Character + n)
 		}
 		copy.Context = ""
 		return &copy

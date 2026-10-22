@@ -48,6 +48,7 @@ type Procedure struct {
 	Builtin                                   *BuiltinRoutineDeclaration
 	SQL                                       *proc.Definition
 	SQLBody                                   RoutineProgram
+	SQLDefaults                               RoutineDefaults
 	Body                                      []RoutineBodyEdge
 	Owner                                     authorization.PrincipalRef
 	Result                                    ids.OID

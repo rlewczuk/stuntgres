@@ -101,10 +101,10 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 			if d.SQL != nil {
 				named := false
-				elements := make([]sqltype.Value, len(d.SQL.Names))
-				for i, name := range d.SQL.Names {
-					named = named || name != ""
-					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), name)
+				elements := make([]sqltype.Value, len(d.SQL.Formals))
+				for i, formal := range d.SQL.Formals {
+					named = named || formal.Name != ""
+					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), formal.Name)
 				}
 				if named {
 					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)

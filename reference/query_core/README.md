@@ -41,6 +41,13 @@ implicitly selected bigint formal (`1001/INT8`) from a fresh call using a later
 integer overload (`2001/INT8`). Native Dump/Reset/Restore must preserve both
 outcomes, including the stored call's original argument conversion.
 
+Function modes, declaration defaults, named/mixed/variadic calls and scalar
+OUT/INOUT are covered by
+[reference/operators](../operators/README.md#routine-parameter-binding), which
+also owns named provider competition and candidate-specific path masking.
+The superseded native-default-rejection case is removed from CoreDiagnostics;
+all other existing routine/body scenarios retain their original contract.
+
 Metadata checks are independent of value parity. INT4/INT8/FLOAT8 PostgreSQL
 ScanTypes are int32/int64/float64; native integer ScanTypes are int64.
 Length/decimal metadata is unknown. PostgreSQL nullable metadata is unknown.

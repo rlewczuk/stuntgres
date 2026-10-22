@@ -52,7 +52,7 @@ func bindCommitTimestamp(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	}
 	valid := visible && name == kind.name() && !raw.ResolutionOnly && !raw.Variadic && len(raw.Args) == count
 	if len(raw.ArgNames) != 0 {
-		valid = valid && kind == commitTimestampOrigin && len(raw.ArgNames) == 1 && raw.ArgNames[0].Text == "xid"
+		valid = valid && kind == commitTimestampOrigin && commitTimestampNamed(raw)
 	}
 	if count == 1 && operand.Usage.Type != nil {
 		valid = valid && operand.Usage.Type.BaseType() == b.Type(sqltype.Xid)
@@ -95,4 +95,18 @@ func bindCommitTimestamp(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	return commitTimestampExpression{info, kind, arg}, nil
+}
+
+func commitTimestampNamed(raw parser.FunctionExpr) bool {
+	return len(raw.ArgNames) == 1 && raw.ArgNames[0].Text == "xid"
+}
+
+func namedCommitTimestamp(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "pg_xact_commit_timestamp_origin" || raw.Variadic || len(args) != 1 || !commitTimestampNamed(raw) || !declaredTypes(declared, []sqltype.ID{sqltype.Xid}) {
+		return nil, nil, false
+	}
+	if args[0].Usage.Type != nil && args[0].Usage.Type.BaseType() != b.Type(sqltype.Xid) {
+		return nil, nil, false
+	}
+	return namedInputs(args, declared, []int{0})
 }

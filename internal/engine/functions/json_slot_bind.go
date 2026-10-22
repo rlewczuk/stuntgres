@@ -78,37 +78,22 @@ func bindSlots(b Binder, raw parser.FunctionExpr, admitted bool, spec slotSpec) 
 		return signature()
 	}
 	call.count = len(operands)
+	slots, supplied, valid := jsonSlotMapping(raw, spec)
+	if !valid {
+		return signature()
+	}
+	call.supplied = supplied
 	for i, o := range operands {
-		slot := i
-		if len(raw.ArgNames) > 0 && raw.ArgNames[i].Text != "" {
-			slot = -1
-			for j, label := range spec.labels {
-				if label == raw.ArgNames[i].Text {
-					slot = j
-					break
-				}
-			}
+		slot := slots[i]
+		call.slots[i] = uint8(slot)
+		if len(raw.ArgNames) > i {
 			call.labels[i] = raw.ArgNames[i].Text
 		}
-		if slot < 0 || slot >= count || call.supplied[slot] {
-			return signature()
-		}
-		call.supplied[slot] = true
-		call.slots[i] = uint8(slot)
 		if o.Usage.Type != nil {
 			if _, err := sqltype.PlanCoercion(o.Usage, b.Type(spec.formals[slot]).Usage(), sqltype.Implicit); err != nil {
 				return signature()
 			}
 		}
-	}
-	for slot := range spec.required {
-		if !call.supplied[slot] {
-			return signature()
-		}
-	}
-	if spec.ordinalVariadic && raw.Variadic && len(raw.ArgNames) != 0 && len(operands) != 0 &&
-		int(call.slots[len(operands)-1]) != len(operands)-1 {
-		return signature()
 	}
 	call.properties = expr.Properties{Volatility: spec.volatility}
 	for i, o := range operands {
@@ -128,17 +113,10 @@ func bindSlots(b Binder, raw parser.FunctionExpr, admitted bool, spec slotSpec) 
 
 func bindJSONBSet(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	count := 4
-	if name == "jsonb_set_lax" {
-		count = 5
-	}
-	labels := [5]string{"jsonb_in", "path", "replacement", "create_if_missing", "null_value_treatment"}
-	if name == "jsonb_insert" {
-		labels[3] = "insert_after"
-	}
-	ids := [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
+	spec, _ := jsonSlotSpecification(name)
+	count := len(spec.labels)
 	admitted := visible && !raw.ResolutionOnly && (name == "jsonb_set" || name == "jsonb_set_lax" || name == "jsonb_insert")
-	call, err := bindSlots(b, raw, admitted, slotSpec{labels: labels[:count], formals: ids[:count], required: 3, volatility: expr.Immutable})
+	call, err := bindSlots(b, raw, admitted, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +138,7 @@ func bindJSONBSet(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, e
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.BuiltinRoutineInfo(b.Info(e.Usage, raw.Pos, call.properties), JSONRoutineProvider, name, ids[:count]...)
+	info, err := b.BuiltinRoutineInfo(b.Info(e.Usage, raw.Pos, call.properties), JSONRoutineProvider, name, spec.formals...)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +157,8 @@ var (
 // ('{}'::jsonb) and silent (false) defaults.
 func bindJSONPathSlots(b Binder, raw parser.FunctionExpr, admitted bool) ([4]expr.Expr, slotCall, error) {
 	var args [4]expr.Expr
-	call, err := bindSlots(b, raw, admitted, slotSpec{labels: jsonPathLabels[:], formals: jsonPathFormals[:], required: 2, ordinalVariadic: true, volatility: expr.Immutable})
+	spec, _ := jsonSlotSpecification("jsonb_path_query")
+	call, err := bindSlots(b, raw, admitted, spec)
 	if err != nil {
 		return args, call, err
 	}
@@ -296,9 +275,8 @@ func bindJSONBPathQueryArray(b Binder, raw parser.FunctionExpr, visible bool) (e
 
 func bindJSONStripNulls(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	labels := [2]string{"target", "strip_in_arrays"}
-	ids := [2]sqltype.ID{sqltype.JSON, sqltype.Bool}
-	call, err := bindSlots(b, raw, visible && !raw.ResolutionOnly && name == "json_strip_nulls", slotSpec{labels: labels[:], formals: ids[:], required: 1, ordinalVariadic: true, volatility: expr.Immutable})
+	spec, _ := jsonSlotSpecification(name)
+	call, err := bindSlots(b, raw, visible && !raw.ResolutionOnly && name == "json_strip_nulls", spec)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +288,10 @@ func bindJSONStripNulls(b Binder, raw parser.FunctionExpr, visible bool) (expr.E
 		typ := b.Type(sqltype.Bool)
 		e.Args[1] = b.Literal(sqltype.Boolean(typ, false), raw.Pos)
 	}
-	e.Info = b.Info(b.Type(sqltype.JSON).Usage(), raw.Pos, call.properties)
+	e.Info, err = b.BuiltinRoutineInfo(b.Info(b.Type(sqltype.JSON).Usage(), raw.Pos, call.properties), JSONRoutineProvider, name, sqltype.JSON, sqltype.Bool)
+	if err != nil {
+		return nil, err
+	}
 	plan, err := sqltype.BindJSONStripNulls(e.Usage, e.Args[0].ResultUsage(), e.Args[1].ResultUsage())
 	if err != nil {
 		return nil, err
@@ -370,16 +351,10 @@ func bindJSONExtract(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr
 		}
 		path = a.Usage()
 	}
+	if !jsonExtractLabels(raw) {
+		return signature()
+	}
 	for i, o := range operands {
-		if len(raw.ArgNames) > 0 && raw.ArgNames[i].Text != "" {
-			label := "from_json"
-			if i > 0 {
-				label = "path_elems"
-			}
-			if !raw.Variadic || raw.ArgNames[i].Text != label {
-				return signature()
-			}
-		}
 		target := path
 		if i == 0 {
 			target = document
@@ -430,4 +405,91 @@ func bindJSONExtract(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr
 	e.Info = info
 	e.Plan = plan
 	return e, nil
+}
+
+var jsonSetLabels = [5]string{"jsonb_in", "path", "replacement", "create_if_missing", "null_value_treatment"}
+var jsonInsertLabels = [4]string{"jsonb_in", "path", "replacement", "insert_after"}
+var jsonSetFormals = [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
+var jsonStripLabels = [2]string{"target", "strip_in_arrays"}
+var jsonStripFormals = [2]sqltype.ID{sqltype.JSON, sqltype.Bool}
+
+func jsonSlotSpecification(name string) (slotSpec, bool) {
+	spec := slotSpec{volatility: expr.Immutable}
+	switch name {
+	case "jsonb_set":
+		spec.labels, spec.formals, spec.required = jsonSetLabels[:4], jsonSetFormals[:4], 3
+	case "jsonb_set_lax":
+		spec.labels, spec.formals, spec.required = jsonSetLabels[:], jsonSetFormals[:], 3
+	case "jsonb_insert":
+		spec.labels, spec.formals, spec.required = jsonInsertLabels[:], jsonSetFormals[:4], 3
+	case "json_strip_nulls":
+		spec.labels, spec.formals, spec.required, spec.ordinalVariadic = jsonStripLabels[:], jsonStripFormals[:], 1, true
+	case "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_array", "jsonb_path_query_first", "jsonb_path_query":
+		spec.labels, spec.formals, spec.required, spec.ordinalVariadic = jsonPathLabels[:], jsonPathFormals[:], 2, true
+	default:
+		return spec, false
+	}
+	return spec, true
+}
+
+func jsonSlotMapping(raw parser.FunctionExpr, spec slotSpec) ([7]int, [5]bool, bool) {
+	slots, valid := namedSlots(raw, spec.labels, spec.required)
+	var supplied [5]bool
+	if !valid {
+		return slots, supplied, false
+	}
+	if spec.ordinalVariadic && raw.Variadic && len(raw.ArgNames) > 0 && len(raw.Args) > 0 && slots[len(raw.Args)-1] != len(raw.Args)-1 {
+		return slots, supplied, false
+	}
+	for i := range raw.Args {
+		supplied[slots[i]] = true
+	}
+	return slots, supplied, true
+}
+
+func namedJSONCall(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if spec, known := jsonSlotSpecification(name); known {
+		if !declaredTypes(declared, spec.formals) {
+			return nil, nil, false
+		}
+		slots, _, valid := jsonSlotMapping(raw, spec)
+		if !valid {
+			return nil, nil, false
+		}
+		return namedInputs(args, declared, slots[:len(args)])
+	}
+	if name == "json_populate_record" || name == "json_populate_recordset" {
+		return namedJSONRecord(b, raw, args, declared)
+	}
+	if name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
+		if !raw.Variadic || len(args) != 2 || len(declared) != 2 || !jsonExtractLabels(raw) {
+			return nil, nil, false
+		}
+		return namedInputs(args, declared, []int{0, 1})
+	}
+	if len(args) == 1 && jsonNamedCount(raw) == 0 {
+		definition, resolution := JSONFunctionCall(name, true, 1, 0)
+		if resolution != Resolved || !declaredTypes(declared, []sqltype.ID{definition.Input}) || ResolveJSONArgument(args[0].Usage, declared[0]) != Resolved {
+			return nil, nil, false
+		}
+		return namedInputs(args, declared, []int{0})
+	}
+	return nil, nil, false
+}
+
+func jsonExtractLabels(raw parser.FunctionExpr) bool {
+	for i, label := range raw.ArgNames {
+		if label.Text == "" {
+			continue
+		}
+		expected := "from_json"
+		if i > 0 {
+			expected = "path_elems"
+		}
+		if !raw.Variadic || label.Text != expected {
+			return false
+		}
+	}
+	return true
 }

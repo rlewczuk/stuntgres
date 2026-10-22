@@ -9,6 +9,94 @@ repository root. This package owns the user-defined operator scenarios and
 [operator OID alias scenarios](../type_resolution/README.md#operator-oid-aliases)
 stay in `reference/type_resolution`.
 
+### Routine parameter binding
+
+This existing callable-resolution package also owns
+`routine_parameters_{helpers,calls,defaults,diagnostics,persistence}_test.go`,
+`routine_parameters_builtin_labels_test.go` and
+`routine_parameters_named_path_test.go`. The definitions cover function
+modes/defaults/named and mixed calls, input-only identity, scalar OUT/INOUT,
+expanded/explicit VARIADIC and shared provider/path selection.
+Query_core retains its original body scenarios; only its obsolete native
+default-rejection case is removed.
+
+The same unfiltered scenario runs on all available backends. Independent
+expectations were established against pinned18.6 before the native cutover,
+including full diagnostics/stages, scalar OUT/FROM and array metadata,
+zero-actual variadic defaults and decoration of a nonvariadic array routine.
+PostgreSQL-only discovery does not exercise native controls or emitted SQL;
+those phases require the completed unfiltered dual-mode runs.
+
+Independent outcomes include named-gap11/INT4; held defaults1 then2 with explicit
+42 consuming none; input-only OUT4→5/INT4; `{1,2,3}`, `{}` and SQL NULL as distinct
+array results; stored named102 versus fresh10102, nested stored102 versus fresh
+1102; and stored variadic `{1,2,NULL}` versus newly selected `{99}`.
+Defaults capture selected helper1001 while a fresh helper call selects2001.
+Each persistence scenario includes two native Dump→Reset→Restore rounds.
+`Persistence` retains the original `[0:1]={7,NULL}` constrained-domain array,
+metadata, prepared/held calls, late-invalid/canceled replacement, no-prefix
+publication and old Rows. Its explicit native-provenance helper uses the existing
+[domain NULL replay authority](../types/README.md); ordinary PostgreSQL SQL
+does not consume that native comment payload. Both independently populated
+backends still check every original SQL expectation.
+`PortablePersistence` uses a separate fresh catalog: constrained-domain
+`[0:1]={7,8}` plus whole NULL/empty arrays, and plain integer
+`[0:1]={7,NULL}` plus whole NULL/empty arrays. It checks domain-array
+formal/default/result remapping and executes each unchanged emitted stream on
+PostgreSQL. WrittenCapturePersistence, VariadicCapturePersistence and DefaultIdentity
+also retain their unchanged emitted-SQL PostgreSQL proof.
+`SequenceDefaultPersistence` independently requires an initially uncalled
+sequence and then exact state106 before each replay-phase reset, matching
+independently written table state. Direct/prepared default calls through plain,
+stored-view and frozen-standard callers yield100 through105; held explicit
+42/NULL/7 consume no default, so the next omission yields106. Both native rounds
+and their unchanged PostgreSQL SQL streams preserve those declarations and
+state. Full metadata retains native stored-column known nullability separately
+from computed-expression and pq unknown nullability.
+Multiple-output records, SQL CALL and PL copyback belong to downstream owners.
+
+`BuiltinLabels` preserves incumbent named datetime, regexp, parse_ident, JSON
+and polymorphic array routes in competition with SQL overloads; an explicit
+bigint call also selects the SQL sentinel instead of blindly deferring to a
+builtin. `NamedPath` requires candidate-specific labels and mapped supplied
+types before path masking, while positional signatures retain existing masking.
+Pure provider applicability never binds/evaluates a losing candidate.
+
+Review regressions extend the same owning files without duplicating baseline
+routes. `DefaultDeclarationVisibility` requires a newly declared integer
+overload's default to capture the preexisting bigint overload (1000, not1),
+while explicit integer calls retain1/42. Stored and held calls, hard dependency
+identity, absent-first-declaration diagnostics/no publication, corrected reuse
+and two native/unchanged-PG replay rounds are included.
+`DomainRecipeRefresh` renames a domain used inside an integer-returning frozen
+callee. Separate domain DEFAULT and CHECK owners still expose only integer/bool
+expressions: fresh defaults remain1; CHECK accepts2/3/NULL and rejects0 without
+publishing a row. Direct/prepared/held routes and two portable replay rounds
+exercise both owners. Full diagnostic fields/stages were observed on pinned18.6
+in root tests-47 before the genuine native failures in tests-48. This oracle/red
+evidence does not claim passing verification of the subsequent remedies.
+
+Root-owned selected commands (external900-second deadline each):
+
+```sh
+make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|DefaultIdentity|Variadic|ScalarOutputsIdentity|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|DefaultIdentity|Variadic|ScalarOutputsIdentity|Diagnostics)$'
+make check RUN='^TestReferenceRoutineParameters(WrittenCapturePersistence|VariadicCapturePersistence|Persistence|PortablePersistence|SequenceDefaultPersistence)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineParameters(WrittenCapturePersistence|VariadicCapturePersistence|Persistence|PortablePersistence|SequenceDefaultPersistence)$'
+make check RUN='^TestReferenceRoutineParameters(BuiltinLabels|NamedPath)$'
+make check RUN='^TestReferenceRoutineParameters(BuiltinLabels|NamedPath)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineParameters(DefaultDeclarationVisibility|DomainRecipeRefresh)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineParameters(DefaultDeclarationVisibility|DomainRecipeRefresh)$'
+make check RUN='^(TestRoutineParameterLayout|TestSQLCallableParameterMapping|TestSQLRoutineWrittenCapture|TestSQLRoutineParameterRemap|TestSQLRoutineDefaultAddressRemap|TestSQLRoutineTypeGenerationRefresh|TestSQLRoutineDomainRecipeTypeGeneration|TestRoutineDefaultOriginRestoration|TestSQLRoutineNamedProviderShapes|TestSQLRoutineDumpEventsUseResolver)$'
+make check RUN='^TestReferenceRoutineParameters(DefaultEvaluation|WrittenCapturePersistence|VariadicCapturePersistence|SequenceDefaultPersistence)$' RACE=1
+make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|ScalarOutputsIdentity|Variadic|WrittenCapturePersistence)$'
+make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|ScalarOutputsIdentity|Variadic|WrittenCapturePersistence)$' REFERENCE=1
+```
+
+The last group is the permanent feature-smoke selection; it reuses the owned
+definitions instead of duplicating their SQL routes in a wrapper test.
+
+
 ### Shared alias boundary
 
 `regoperator_external_test.go` retains quoted-schema output, ordered exact

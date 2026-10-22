@@ -22,6 +22,62 @@ raw type spelling or an enclosing cast. Raw view capture retains all query
 children/options and RETURNING usage. Generic reconstruction remints executable
 query/default plans after descriptor generations change.
 
+`RoutineProgram` owns checked SQL-standard actions. `RoutineDefaults` owns a
+separate immutable input-indexed declaration recipe and its source-domain/epoch
+manifest, never evaluated values. Default dependencies are hard even for quoted
+bodies. Replacement first stabilizes all routine/formal/result type handles,
+then remaps default and standard captures; address-only and full-reference maps
+remain distinct and typed children are retagged once.
+Normal type evolution also refreshes ordered formal/input/output/result handles
+before dependent trees. It copies only affected declarations and payloads,
+propagates changed callable carriers through existing hard dependency edges,
+and stabilizes destination callee handles before rebuilding defaults and frozen
+bodies. Unchanged SQL/default/body identity remains shared. Normal-evolution
+fast paths compare immutable routine declarations with `SameRoutineDeclaration`,
+not incidental COW/bootstrap descriptor pointers. This preserves exact retained
+TEMP consumer identity and its original full-reference manifest when the actual
+declaration and types are unchanged. Replacement/retag still uses the broad
+carrier-change detector to reconstruct destination metadata.
+Domain DEFAULT and CHECK consumers use this same declaration-aware ordinary
+predicate, even when every visible expression type remains integer/bool and
+only the selected callee's frozen-body/default payload changed.
+`TestSQLRoutineTypeGenerationRefresh` contrasts both predicates on flat and
+nested query carriers: equivalent fresh descriptors leave ordinary evolution
+unchanged but still require replacement retagging; changed SQL/default/body
+identities and missing descriptors require both paths.
+Regclass datum OIDs use the address mapper; only actual captures enter checked
+source-domain/epoch reference remapping. There is no zero-domain lifetime bypass.
+
+SQL routine call presentation preserves written labels and explicit VARIADIC.
+`Capture` exposes only written operands, while `Children` includes omitted
+defaults for dependency, refresh and remap traversal. The validated input map
+assembles the private frame without mutating written syntax or reselecting
+stored overloads. Shared parameter replay proof is documented in
+[reference/operators](../../../reference/operators/README.md#routine-parameter-binding).
+
+Focused owner proof is `make check RUN='^(TestSQLRoutineDefaultAddressRemap|TestSQLRoutineTypeGenerationRefresh)$'`.
+The first requires non-idempotent datum/reference mapping once, immutable source
+values and rejection of a real stale reference; the second covers current
+formal/input/output/result/default/frozen-body generations, immutable originals
+and pointer-preserving no-change refresh. The unchanged
+`TestCollationRetainedProviderProvenance` additionally requires exact retained
+TEMP provider manifests across Reset and unrelated DDL. Also run unchanged
+`TestReferenceDomainIdentityDropAtomicity` and new
+`TestReferenceRoutineParametersSequenceDefaultPersistence` in native and real
+reference modes. External selected deadlines are900 seconds; these commands
+are proof selections, not passing claims.
+
+Review owner proof adds
+`make check RUN='^TestSQLRoutineDomainRecipeTypeGeneration$'`: separate
+DEFAULT-only and CHECK-only real domain owners preserve unchanged visible
+integer/bool types while a checked callee's frozen-body/default identity changes.
+The assertions require coherent current callee carriers, immutable source
+owners/payloads/dependency slices/full refs, and pointer-preserving equivalent
+COW and subsequent no-change evolution. The fixture uses the real authorization
+seed's bootstrap owner and a valid current database descriptor; it does not
+relax the serializer's principal/provenance validation. Root proof is required
+after the matching domain-consumer remedy.
+
 ## What it owns
 
 - **Frozen payloads.** `View` (`view.go`, `view_payload.go`): a view's plan

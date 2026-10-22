@@ -545,6 +545,9 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			if b.Consumer.CheckConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 			}
+			if b.Consumer.RoutineDefault {
+				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in DEFAULT expressions", r.Pos)
+			}
 			var err error
 			var returning sqltype.Usage
 			if definition, ok := functions.LookupAggregate(r.Name); ok {
@@ -654,6 +657,9 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				break
 			}
 			if b.Consumer.DefaultConsumer {
+				if b.Consumer.RoutineDefault {
+					return nil, expr.ErrorAt("42703", fmt.Sprintf("column %q does not exist", catalog.ObjectNameText(r.Name)), r.Pos)
+				}
 				return nil, expr.ErrorAt("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
 			}
 			if policy.Context == AssignmentContext && !b.Params.ClosedRoutineFormals {

@@ -1,9 +1,11 @@
 package stored
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/proc"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -76,6 +78,30 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	result, ok := v.LookupType(d.SQL.Result.Type.ID())
 	if !ok || !result.Concrete() {
 		return invalid()
+	}
+	layout := &proc.Definition{}
+	if err := layout.SetFormals(d.SQL.Formals); err != nil {
+		return err
+	}
+	if !slices.Equal(layout.Inputs, d.SQL.Inputs) || !slices.Equal(layout.Names, d.SQL.Names) || !slices.Equal(layout.InputFormals, d.SQL.InputFormals) || !slices.Equal(layout.OutputFormals, d.SQL.OutputFormals) || !slices.Equal(layout.FormalInputs, d.SQL.FormalInputs) {
+		return invalid()
+	}
+	for _, formal := range d.SQL.Formals {
+		typ, ok := v.LookupType(formal.Usage.Type.ID())
+		if !ok || typ != formal.Usage.Type {
+			return invalid()
+		}
+	}
+	if (d.SQLDefaults != nil) != (d.SQL.DefaultCount() > 0) {
+		return invalid()
+	}
+	if d.SQLDefaults != nil {
+		if err := d.SQLDefaults.ValidateDefinition(d); err != nil {
+			return err
+		}
+		if err := d.SQLDefaults.Validate(v); err != nil {
+			return err
+		}
 	}
 	if d.SQLBody != nil {
 		program, err := RoutineProgramOf(d)

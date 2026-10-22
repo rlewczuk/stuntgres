@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/parser"
 )
 
 // SameQuerySetOccurrence reports whether a and b are the same set-returning
@@ -133,11 +132,8 @@ func QuerySetPeerClosure(requests []expr.Expr, companions [][]expr.Expr) ([]expr
 	return requests, templates
 }
 
-// Selected rendering and binding share a lane; typed admission remains owned
-// by the node's SourceAdmission after ordinary function resolution.
-func SelectedFunctionSourceName(name string) bool {
-	return name == "jsonb_path_query" || parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
-		parser.CatalogRelationFunctionName(name) ||
-		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) || parser.TransactionIdentityFunctionName(name) ||
-		name == "pgrowlocks" || name == "age" || name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
+// String-to-table retains its existing namespace lane. Every other call uses
+// shared source completion; only the resolved node's SourceAdmission admits it.
+func MixedFunctionSourceName(name string) bool {
+	return name != "string_to_table"
 }

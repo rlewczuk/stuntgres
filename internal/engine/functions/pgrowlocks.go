@@ -37,7 +37,7 @@ func bindPgrowlocks(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	}
 	valid := routine != nil && !raw.ResolutionOnly && !raw.Variadic && len(operands) == 1
 	if len(raw.ArgNames) != 0 {
-		valid = valid && len(raw.ArgNames) == 1 && raw.ArgNames[0].Text == "relname"
+		valid = valid && pgrowlocksNamed(raw)
 	}
 	formal := b.Type(sqltype.Text).Usage()
 	if valid && operands[0].Usage.Type != nil {
@@ -122,3 +122,16 @@ func (Pgrowlocks) IntrinsicVolatility() expr.Volatility { return expr.Volatile }
 func (Pgrowlocks) PlanningFold() expr.Fold              { return expr.FoldNever }
 func (Pgrowlocks) PreflightFold() expr.Preflight        { return expr.PreflightChildren }
 func (Pgrowlocks) LooksLikeFunction() bool              { return true }
+
+func pgrowlocksNamed(raw parser.FunctionExpr) bool {
+	return len(raw.ArgNames) == 1 && raw.ArgNames[0].Text == "relname"
+}
+
+func namedPgrowlocks(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	// Discovery supplied an actual installed descriptor; this never creates
+	// an extension candidate from its spelling or signature alone.
+	if raw.Variadic || len(args) != 1 || !pgrowlocksNamed(raw) || !declaredTypes(declared, []sqltype.ID{sqltype.Text}) {
+		return nil, nil, false
+	}
+	return namedInputs(args, declared, []int{0})
+}

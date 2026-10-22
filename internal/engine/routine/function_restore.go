@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -36,7 +37,7 @@ func RebindSQLDefinitions(view catalog.Read, state *catalog.State, mapping map[i
 			continue
 		}
 		definition := *d.SQL
-		definition.Inputs = make([]sqltype.Usage, len(d.SQL.Inputs))
+		definition.Formals = make([]proc.Formal, len(d.SQL.Formals))
 		mapUsage := func(u sqltype.Usage) (sqltype.Usage, error) {
 			a := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}
 			if mapped, ok := mapping[a]; ok {
@@ -49,11 +50,15 @@ func RebindSQLDefinitions(view catalog.Read, state *catalog.State, mapping map[i
 			return t.Usage(), nil
 		}
 		var err error
-		for i, input := range d.SQL.Inputs {
-			definition.Inputs[i], err = mapUsage(input)
+		for i, formal := range d.SQL.Formals {
+			definition.Formals[i] = formal
+			definition.Formals[i].Usage, err = mapUsage(formal.Usage)
 			if err != nil {
 				return err
 			}
+		}
+		if err = definition.SetFormals(definition.Formals); err != nil {
+			return err
 		}
 		definition.Result, err = mapUsage(d.SQL.Result)
 		if err != nil {
@@ -76,14 +81,23 @@ func RebindSQLDefinitions(view catalog.Read, state *catalog.State, mapping map[i
 	// attaching payloads in place preserves the already-remapped call handles.
 	for _, descriptor := range state.Descriptors() {
 		d, ok := descriptor.(*catalog.Procedure)
-		if !ok || d.SQL == nil || d.SQLBody == nil {
+		if !ok || d.SQL == nil {
 			continue
 		}
-		program, err := d.SQLBody.Rebind(view, mapping)
-		if err != nil {
-			return err
+		if d.SQLDefaults != nil {
+			defaults, err := d.SQLDefaults.Rebind(view, mapping)
+			if err != nil {
+				return err
+			}
+			d.SQLDefaults = defaults
 		}
-		d.SQLBody = program
+		if d.SQLBody != nil {
+			program, err := d.SQLBody.Rebind(view, mapping)
+			if err != nil {
+				return err
+			}
+			d.SQLBody = program
+		}
 	}
 	return nil
 }

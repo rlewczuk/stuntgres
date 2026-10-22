@@ -87,11 +87,16 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			add(d.Address(), d.Namespace(), 'n')
 			if d.SQL != nil {
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
-				for _, input := range d.SQL.Inputs {
-					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(input.Type.ID())}, 'n')
+				for _, formal := range d.SQL.Formals {
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(formal.Usage.Type.ID())}, 'n')
 				}
 				if d.SQLBody != nil {
 					for _, dependency := range d.SQLBody.Dependencies() {
+						add(d.Address(), dependency.Ref.Address, 'n')
+					}
+				}
+				if d.SQLDefaults != nil {
+					for _, dependency := range d.SQLDefaults.Dependencies() {
 						add(d.Address(), dependency.Ref.Address, 'n')
 					}
 				}

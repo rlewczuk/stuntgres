@@ -745,7 +745,11 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
 		}
-		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
+		return routineCallSQL(n, r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) {
+			argRenderer := r
+			argRenderer.ShowImplicit = true
+			return argRenderer.SQL(ctx, arg, DeparseParent{})
+		})
 	case plan.ExtensionPathsExpr:
 		args := [1]expr.Expr{n.Arg}
 		return function("pg_extension_update_paths", args[:], true)

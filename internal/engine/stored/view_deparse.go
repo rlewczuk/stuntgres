@@ -703,6 +703,12 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			if err != nil {
 				return "", err
 			}
+			if len(call.ArgNames) > i && call.ArgNames[i].Text != "" {
+				parts[i] = v.Presentation.identifier(call.ArgNames[i].Text) + " => " + parts[i]
+			}
+			if call.Variadic && i == len(call.Args)-1 {
+				parts[i] = "VARIADIC " + parts[i]
+			}
 		}
 		return name + "(" + strings.Join(parts, ", ") + ")", nil
 	}

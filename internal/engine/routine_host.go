@@ -4,9 +4,11 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -55,4 +57,38 @@ func (h ddlHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sql
 	auth.definition = h.op.Definition
 	_, _, err := h.e.bindSQLRoutineLocked(h.op, auth, d, input, nil)
 	return err
+}
+
+// Defaults never share quoted-body replay deferral. Their legitimate stage
+// includes prior staged objects, but not the declaration currently being built.
+func (h ddlHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw []parser.RoutineParameter, input sqltype.InputEnvironment) error {
+	if d.SQL.DefaultCount() == 0 {
+		return nil
+	}
+	previous := h.op.Definition
+	h.op.Definition = stageDefinitionReader{h.stage}
+	defer func() { h.op.Definition = previous }()
+	auth := ddlAuthorityOf(a)
+	auth.definition = h.op.Definition
+	b := newExpressionBinder(h.op.Context(), h.e, input, h.op, nil)
+	b.Query.Auth = &auth
+	b.Params.NoParameters = true
+	entries := make([]expr.Expr, len(d.SQL.Inputs))
+	for formal, syntax := range raw {
+		if syntax.Default == nil {
+			continue
+		}
+		slot := d.SQL.FormalInputs[formal]
+		node, err := b.BindRoutineDefault(syntax.Default, d.SQL.Inputs[slot])
+		if err != nil {
+			return err
+		}
+		entries[slot] = node
+	}
+	defaults, err := stored.NewRoutineDefaults(h.op.Context(), auth.Catalog, b.DefinitionReader(), entries)
+	if err != nil {
+		return err
+	}
+	d.SQLDefaults = defaults
+	return defaults.ValidateDefinition(d)
 }

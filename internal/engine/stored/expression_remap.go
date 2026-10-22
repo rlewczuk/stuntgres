@@ -862,15 +862,24 @@ func (m *ViewQueryRemapper) provider(slot *functions.AggregateProvider, provider
 	return err
 }
 
-// Ordinary descriptor renaming reowns only consumers of changed type
-// generations; replacement additionally remaps every imported object reference.
-func ExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
+// Ordinary descriptor evolution reowns only consumers of changed type or
+// callable carriers; replacement additionally remaps imported references.
+func ExpressionDescriptorsChanged(view catalog.Read, d *catalog.Relation, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
 	typ = analyze.RecordTypeMapper(typ)
 	changed := false
 	expression := func(node expr.Expr) {
 		analyze.WalkQueryArgumentExpression(node, func(child expr.Expr) {
 			old := child.ResultUsage().Type
 			changed = changed || old != typ(old)
+			if view.State() != nil {
+				captured, err := exec.ExpressionRoutineDescriptor(child)
+				if err != nil {
+					changed = true
+				} else if captured != nil {
+					current, _ := view.Procedure(captured.Address())
+					changed = changed || !exec.SameRoutineDeclaration(current, captured)
+				}
+			}
 		})
 	}
 	for _, definition := range d.ColumnMeta.Defaults {
@@ -887,7 +896,7 @@ func ExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *
 		for _, condition := range []*Policy{PolicyOf(policy.Using), PolicyOf(policy.Check)} {
 			if condition != nil {
 				expression(condition.expression)
-				changed = changed || analyze.QueryDescriptorsChanged(condition.presentation.query.Root, typ)
+				changed = changed || analyze.QueryDescriptorsChanged(condition.presentation.query.Root, typ) || analyze.QueryRoutineDeclarationsChanged(view, condition.presentation.query.Root)
 				for _, usage := range condition.presentation.castUsages {
 					changed = changed || usage.Type != typ(usage.Type)
 				}
@@ -937,7 +946,7 @@ func ExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *
 		for _, literal := range ViewOf(d).literals {
 			expression(literal)
 		}
-		changed = changed || analyze.QueryDescriptorsChanged(ViewOf(d).query.Root, typ)
+		changed = changed || analyze.QueryDescriptorsChanged(ViewOf(d).query.Root, typ) || analyze.QueryRoutineDeclarationsChanged(view, ViewOf(d).query.Root)
 	}
 	return changed
 }

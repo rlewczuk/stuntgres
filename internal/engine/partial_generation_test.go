@@ -79,7 +79,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			// Only the partial predicate consumes the changed generation:
 			// the admitted index has a simple INTEGER key and no stored
 			// defaults, generated columns, CHECKs or view expressions.
-			if !stored.ExpressionTypesChanged(&idx, typ) {
+			if !stored.ExpressionDescriptorsChanged(f.e.catalog.read(next), &idx, typ) {
 				t.Error("predicate-only type generation was not detected")
 			}
 			stores := map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): f.store}
@@ -151,7 +151,7 @@ func TestPartialIndexPredicateTypeGenerationUnchanged(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	next := catalog.CloneState(f.e.catalog.state)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor { return old }
-	if stored.ExpressionTypesChanged(f.index, typ) {
+	if stored.ExpressionDescriptorsChanged(f.e.catalog.read(next), f.index, typ) {
 		t.Fatal("unchanged partial predicate reported a generation change")
 	}
 	if err := stored.ReownExpressions(f.e.catalog.read(next), next, nil, true); err != nil {

@@ -75,7 +75,6 @@ func routineExcludedDeclarations(t *testing.T) {
 			create, call string
 			value        int64
 		}{
-			{"CREATE FUNCTION routine_default(integer DEFAULT 4) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_default() AS v", 4},
 			{"CREATE OR REPLACE FUNCTION routine_replace(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_replace(4) AS v", 4},
 			{"CREATE FUNCTION routine_strict(integer) RETURNS integer LANGUAGE SQL STRICT AS $$SELECT $1$$", "SELECT routine_strict(4) AS v", 4},
 			{"CREATE FUNCTION routine_security(integer) RETURNS integer LANGUAGE SQL SECURITY DEFINER AS $$SELECT $1$$", "SELECT routine_security(4) AS v", 4},

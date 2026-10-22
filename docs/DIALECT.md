@@ -300,10 +300,16 @@ not assignment history or execution scratch. See [selected contracts](../referen
 
 ## Scalar SQL routines
 
-SQL-language `CREATE FUNCTION` accepts ordinary named or anonymous typed IN
-inputs and supported scalar or VOID results. `CREATE PROCEDURE` shares
-declarations/body validation without a RETURNS clause; procedures are catalog
-objects, not scalar functions, and CALL execution remains separate.
+SQL-language `CREATE FUNCTION` accepts named/anonymous IN, OUT, INOUT and
+array VARIADIC formals, input defaults, and supported scalar/VOID results.
+A single OUT/INOUT implies its scalar result when RETURNS is omitted; an
+explicit result must agree. Multiple-output record execution is separate.
+Scalar SQL functions also use the ordinary single-row FROM source adapter.
+A sole OUT/INOUT name labels that source column and survives a table alias;
+this does not enable multiple-output record execution.
+`CREATE PROCEDURE` retains its existing IN declarations/body validation without
+a RETURNS clause; procedures are catalog objects, not scalar functions.
+Procedure parameter arrangements and SQL CALL execution remain separate.
 Quoted bodies use complete semicolon-separated SQL scripts, including normal
 comments/quoting. Standard bodies use `RETURN expression` or
 `BEGIN ATOMIC statement; ... END`, defaulting to LANGUAGE SQL when omitted.
@@ -318,6 +324,20 @@ and type-like spellings are not reserved from SQL routines: the selected actual
 signature determines scalar versus aggregate execution. Exact typed calls precede
 the existing type-name cast shortcut; unknown literals and external parameters
 retain their distinct resolution rules. Standard CAST syntax is unchanged.
+
+Function actuals support positional, named (`=>`/`:=`) and positional-first
+mixed notation, including omitted default gaps. Pure OUT parameters are excluded
+from input identity, actuals and `$n`; INOUT participates in both projections.
+Expanded VARIADIC requires elements unless an actual declaration default permits
+omission. Explicit VARIADIC passes the declared array without unpacking empty,
+NULL, nondefault bounds, multidimensional shape or NULL elements.
+All-formal declaration names are retained separately from input names.
+
+Declaration defaults are checked immutable scalar recipes using Assignment
+conversion; actual arguments still use Implicit conversion. Defaults capture
+selected identities and hard dependencies even with quoted bodies. CREATE,
+Prepare and losing candidates do not evaluate them. Each omitted default is
+evaluated once per execution with fresh private input slots.
 
 CREATE validates quoted bodies by default, without effects; standard bodies
 are analyzed immediately and retain genuine checked object/overload captures
@@ -355,15 +375,15 @@ extension members retain their protection even with CASCADE/IF EXISTS.
 
 Deletion resolves and authorizes every root before one atomic publication.
 Existing dependency owners remove the smallest dependent object; a dependent
-default/check does not remove its table or rows. Quoted SQL bodies create no hard
-callee edges: surviving callers can fail until the callee is recreated.
+default/check does not remove its table or rows. Incidental quoted-body calls
+create no hard callee edges: surviving callers can fail until recreation.
+Declaration-default dependencies are hard edges regardless of body form.
 Native replay retains those unresolved bodies only for a structured terminal
 missing callable; other errors still abort replacement, and deferred semantic
 checks run at invocation once resolution succeeds. Closed formals always validate.
 DROP retains read-only-first admission and the native autocommit-only schema-DDL
-boundary. CALL, OUT declarations, trigger providers, aggregate creators and
-external language execution remain separate capabilities.
-OUT/INOUT/default/variadic declarations, OR REPLACE, CALL, ALTER routine lifecycle
+boundary. CALL, trigger providers, aggregate creators and external language
+execution remain separate capabilities. OR REPLACE, CALL, ALTER routine lifecycle
 DDL, PL/pgSQL, security/other attributes and set/composite returns remain
 unsupported. Declaration DDL retains existing read-only/autocommit boundaries.
 This is not an external ABI, general procedural runtime or complete
@@ -371,6 +391,8 @@ This is not an external ABI, general procedural runtime or complete
 routine kind and SQL formal names.
 See [logical replay](FIXTURES.md#sql-routine-declarations-and-callers) and
 [selected evidence and smoke](../reference/query_core/README.md#scalar-sql-routine-contract).
+Function-parameter selectors and smoke are documented in
+[reference/operators](../reference/operators/README.md#routine-parameter-binding).
 
 ## Comparison resolution and predicates
 

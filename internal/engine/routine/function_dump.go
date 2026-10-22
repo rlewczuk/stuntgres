@@ -17,10 +17,10 @@ func SQLRoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalo
 	for _, d := range routines {
 		key := dump.Event{OID: d.Address().ObjectID}
 		events[key] = nil
-		for i := range len(d.SQL.Inputs) + 1 {
+		for i := range len(d.SQL.Formals) + 1 {
 			usage := d.SQL.Result
-			if i < len(d.SQL.Inputs) {
-				usage = d.SQL.Inputs[i]
+			if i < len(d.SQL.Formals) {
+				usage = d.SQL.Formals[i].Usage
 			}
 			predecessor, err := r.Predecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}, d.Address())
 			if err != nil {
@@ -37,6 +37,19 @@ func SQLRoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalo
 				if address == d.Address() {
 					continue
 				}
+				predecessor, err := r.Predecessor(view, address, d.Address())
+				if err != nil {
+					return err
+				}
+				if predecessor != 0 {
+					events[key] = append(events[key], dump.Event{OID: predecessor})
+				}
+			}
+		}
+		if d.SQLDefaults != nil {
+			for _, dependency := range d.SQLDefaults.Dependencies() {
+				address := dependency.Ref.Address
+				address.SubID = 0
 				predecessor, err := r.Predecessor(view, address, d.Address())
 				if err != nil {
 					return err
@@ -70,18 +83,36 @@ func SQLRoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authoriz
 		kind = "PROCEDURE"
 	}
 	sql.WriteString("CREATE " + kind + " " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(d.Name()) + "(")
-	for i, input := range d.SQL.Inputs {
+	for i, formal := range d.SQL.Formals {
 		if i != 0 {
 			sql.WriteString(", ")
 		}
-		if d.SQL.Names[i] != "" {
-			sql.WriteString(catalog.QuoteIdentifier(d.SQL.Names[i]) + " ")
+		switch formal.Mode {
+		case "o":
+			sql.WriteString("OUT ")
+		case "b":
+			sql.WriteString("INOUT ")
+		case "v":
+			sql.WriteString("VARIADIC ")
 		}
-		name, err := p.ColumnDeclaration(view, catalog.Column{Usage: input})
+		if formal.Name != "" {
+			sql.WriteString(catalog.QuoteIdentifier(formal.Name) + " ")
+		}
+		name, err := p.ColumnDeclaration(view, catalog.Column{Usage: formal.Usage})
 		if err != nil {
 			return dump.Statement{}, err
 		}
 		sql.WriteString(name)
+		if formal.HasDefault {
+			if d.SQLDefaults == nil {
+				return dump.Statement{}, fmt.Errorf("missing routine declaration defaults")
+			}
+			text, err := d.SQLDefaults.DefaultSQL(context.Background(), view, d.SQL.FormalInputs[i])
+			if err != nil {
+				return dump.Statement{}, err
+			}
+			sql.WriteString(" DEFAULT " + text)
+		}
 	}
 	sql.WriteString(")")
 	if d.RoutineKind != catalog.ProcedureRoutine {

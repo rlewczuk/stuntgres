@@ -252,10 +252,7 @@ func bindJSONFunction(b Binder, raw parser.FunctionExpr, visible bool) (expr.Exp
 		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	missing := func() (expr.Expr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names) }
-	namedCount := len(raw.ArgNames)
-	if (name == "json_each" || name == "json_each_text" || name == "jsonb_each" || name == "jsonb_each_text" || name == "json_array_elements" || name == "json_array_elements_text" || name == "jsonb_array_elements" || name == "jsonb_array_elements_text") && namedCount == 1 && raw.ArgNames[0].Text == "from_json" {
-		namedCount = 0
-	}
+	namedCount := jsonNamedCount(raw)
 	definition, resolution := JSONFunctionCall(name, visible, len(raw.Args), namedCount)
 	if resolution != Resolved {
 		return missing()
@@ -381,4 +378,15 @@ func bindTextObjectFunction(b Binder, raw parser.FunctionExpr, name string, visi
 		return nil, err
 	}
 	return NewBinary(info, name, args, parser.OrdinaryFunctionSyntax)
+}
+
+func jsonNamedCount(raw parser.FunctionExpr) int {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if len(raw.ArgNames) == 1 && raw.ArgNames[0].Text == "from_json" {
+		switch name {
+		case "json_each", "json_each_text", "jsonb_each", "jsonb_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text":
+			return 0
+		}
+	}
+	return len(raw.ArgNames)
 }

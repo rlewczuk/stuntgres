@@ -41,6 +41,9 @@ package parser
  grantRoutines []GrantRoutineTarget
  grantRoutineArgument GrantRoutineArgument
  grantRoutineArguments []GrantRoutineArgument
+ routineParameter RoutineParameter
+ routineParameters []RoutineParameter
+ routineResult routineResult
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -208,7 +211,7 @@ package parser
 %token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN TYPE
-%token <tok> FUNCTION PROCEDURE ROUTINE OUT_ARG INOUT_ARG
+%token <tok> FUNCTION PROCEDURE ROUTINE OUT_ARG INOUT_ARG RETURNS_CLAUSE
 %token <tok> RETURN_BODY ATOMIC_BODY
 %token <tok> PARAMETER
 %token <tok> LANGUAGE LARGE OBJECT DATA WRAPPER
@@ -439,7 +442,9 @@ package parser
 %type <stmt> create_conversion alter_conversion drop_conversion
 %type <stmt> create_function drop_routine
 %type <tok> returns_word
-%type <grantRoutineArguments> function_arguments function_declaration_argument_list
+%type <routineParameters> function_arguments function_declaration_argument_list
+%type <routineParameter> function_declaration_argument
+%type <routineResult> function_result
 %type <statements> standard_routine_body routine_body_list
 %type <stmt> routine_body_statement
 %type <stmt> nontransaction_statement transaction_common
@@ -1451,15 +1456,15 @@ alter_conversion: conversion_alter_head RENAME TO name {$1.Action="rename";$1.Ta
 drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP CONVERSION IF EXISTS relation_names drop_mode {$$=&DropConversion{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
  | DROP DEFAULT {sqllex.(*lexer).syntax($2);return 1} ;
-create_function: CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$12.text,BodyPos:$12.pos,Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:$12.text,Pos:$12.pos},Body:$10.text,BodyPos:$10.pos,Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:"sql"},Standard:$9,Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:$10.text,Pos:$10.pos},Standard:$11,Pos:$1.pos}}
- | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Body:$10.text,BodyPos:$10.pos,Pos:$1.pos}}
- | CREATE PROCEDURE relation_name '(' function_arguments ')' AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$7.text,BodyPos:$7.pos,Pos:$1.pos}}
+create_function: CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$9.text,Pos:$9.pos},Body:$11.text,BodyPos:routineBodyPosition($11),Pos:$1.pos}}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$11.text,Pos:$11.pos},Body:$9.text,BodyPos:routineBodyPosition($9),Pos:$1.pos}}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:"sql"},Standard:$8,Pos:$1.pos}}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,Language:Identifier{Text:$9.text,Pos:$9.pos},Standard:$10,Pos:$1.pos}}
+ | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Body:$10.text,BodyPos:routineBodyPosition($10),Pos:$1.pos}}
+ | CREATE PROCEDURE relation_name '(' function_arguments ')' AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$7.text,BodyPos:routineBodyPosition($7),Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:"sql"},Standard:$7,Pos:$1.pos}}
  | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Standard:$9,Pos:$1.pos}}
- | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type LANGUAGE name name {sqllex.(*lexer).failAt("0A000","SQL function attributes are unsupported",$11.pos.Offset);return 1}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result LANGUAGE name name {sqllex.(*lexer).failAt("0A000","SQL function attributes are unsupported",$10.pos.Offset);return 1}
  | CREATE OR replace_word FUNCTION {sqllex.(*lexer).failAt("0A000","CREATE OR REPLACE FUNCTION is unsupported",$1.pos.Offset);return 1} ;
 routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
@@ -1473,11 +1478,14 @@ routine_body_statement: nontransaction_statement {$$=$1}
  | COMMIT opt_transaction opt_chain {$$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos}}
  | routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=&Select{Targets:[]Expr{$2},Pos:$1.pos}} ;
 function_arguments: /* empty */ {$$=nil} | function_declaration_argument_list {$$=$1} ;
-function_declaration_argument_list: grant_routine_argument {$$=[]GrantRoutineArgument{$1}}
- | function_declaration_argument_list ',' grant_routine_argument {$$=append($1,$3)}
- | grant_routine_argument DEFAULT {sqllex.(*lexer).failAt("0A000","function argument defaults are unsupported",$2.pos.Offset);return 1}
- | function_declaration_argument_list ',' grant_routine_argument DEFAULT {sqllex.(*lexer).failAt("0A000","function argument defaults are unsupported",$4.pos.Offset);return 1} ;
-returns_word: name {if $1.text!="returns" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+function_declaration_argument_list: function_declaration_argument {$$=[]RoutineParameter{$1}}
+ | function_declaration_argument_list ',' function_declaration_argument {$$=append($1,$3)} ;
+function_declaration_argument: grant_routine_argument {$$=RoutineParameter{GrantRoutineArgument:$1}}
+ | grant_routine_argument DEFAULT target {$$=RoutineParameter{GrantRoutineArgument:$1,Default:$3}}
+ | grant_routine_argument '=' target {$$=RoutineParameter{GrantRoutineArgument:$1,Default:$3}} ;
+function_result: /* empty */ {$$=routineResult{}}
+ | returns_word declared_type {$$=routineResult{Type:$2,Specified:true}} ;
+returns_word: RETURNS_CLAUSE {$$=$1} ;
 create_operator: CREATE OPERATOR operator_name '(' operator_options ')' {$$=&CreateOperator{Name:$3,Options:$5,Pos:$1.pos}} ;
 operator_name: operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
  | name '.' operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}}} ;
@@ -2421,12 +2429,16 @@ function_argument_list: function_argument { $$=FunctionExpr{Args:[]Expr{$1}} }
 /* Ordinary calls already have separate positional/aggregate productions.
  * A named first argument disambiguates this shared notation-preserving list. */
 ordinary_named_arguments: name EQUALS_GREATER function_argument { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
- | ordinary_named_arguments ',' function_argument { $$=appendFunctionArgument($1,$3,Identifier{}) }
- | ordinary_named_arguments ',' name EQUALS_GREATER function_argument { $$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos}) } ;
-/* Transition from the existing positional routes at the first named argument.
- * Keep the named tail's labels, including later malformed positional entries. */
-ordinary_mixed_arguments: target_or ',' ordinary_named_arguments {call:=FunctionExpr{Args:[]Expr{$1}};for i,arg:=range $3.Args {call=appendFunctionArgument(call,arg,$3.ArgNames[i])};$$=call}
- | target_or ',' count_values ',' ordinary_named_arguments {call:=FunctionExpr{Args:append([]Expr{$1},$3...)};for i,arg:=range $5.Args {call=appendFunctionArgument(call,arg,$5.ArgNames[i])};$$=call} ;
+ | VARIADIC name EQUALS_GREATER function_argument {$$=appendFunctionArgument(FunctionExpr{},$4,Identifier{Text:$2.text,Pos:$2.pos});$$.Variadic=true}
+ | ordinary_named_arguments ',' function_argument {if $1.Variadic {sqllex.(*lexer).syntax(sqllex.(*lexer).current);return 1};$$=appendFunctionArgument($1,$3,Identifier{})}
+ | ordinary_named_arguments ',' name EQUALS_GREATER function_argument {if $1.Variadic {sqllex.(*lexer).syntax($3);return 1};$$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos})}
+ | ordinary_named_arguments ',' VARIADIC function_argument {$$=appendFunctionArgument($1,$4,Identifier{});$$.Variadic=true}
+ | ordinary_named_arguments ',' VARIADIC name EQUALS_GREATER function_argument {$$=appendFunctionArgument($1,$6,Identifier{Text:$4.text,Pos:$4.pos});$$.Variadic=true} ;
+/* Preserve the written prefix and the explicit-array marker on the tail. */
+ordinary_mixed_arguments: target_or ',' ordinary_named_arguments {call:=FunctionExpr{Args:[]Expr{$1}};for i,arg:=range $3.Args {call=appendFunctionArgument(call,arg,$3.ArgNames[i])};call.Variadic=$3.Variadic;$$=call}
+ | target_or ',' count_values ',' ordinary_named_arguments {call:=FunctionExpr{Args:append([]Expr{$1},$3...)};for i,arg:=range $5.Args {call=appendFunctionArgument(call,arg,$5.ArgNames[i])};call.Variadic=$5.Variadic;$$=call}
+ | target_or ',' VARIADIC function_argument {$$=appendFunctionArgument(FunctionExpr{Args:[]Expr{$1}},$4,Identifier{});$$.Variadic=true}
+ | target_or ',' count_values ',' VARIADIC function_argument {$$=appendFunctionArgument(FunctionExpr{Args:append([]Expr{$1},$3...)},$6,Identifier{});$$.Variadic=true} ;
 function_values: function_argument { $$=[]Expr{$1} } | function_values ',' function_argument { $$=append($1,$3) } ;
 string_function: STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
@@ -2531,15 +2543,14 @@ function_table_call: check_function_head function_args ')' {call,ok:=selectedSca
  | SELECTED_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
  | name '.' SELECTED_FUNC '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
  | name '.' OVERLAPS '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
- | transaction_time_base {$$=$1} ;
-/* Per-call definitions belong only to ROWS FROM members. Keeping AS off the
- * ordinary call lets from_atom own both named aliases and top-level definitions. */
-/* Ordinary names are parsed only inside ROWS FROM so resolution errors can
- * precede typed-definition restrictions. This does not admit their execution:
- * the binder still requires a selected source provider after call resolution. */
-rows_function_base: function_table_call {$$=$1}
+ | transaction_time_base {$$=$1}
  | name '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
  | name '.' col_label '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos} ;
+/* Per-call definitions belong only to ROWS FROM members. Keeping AS off the
+ * ordinary call lets from_atom own both named aliases and top-level definitions. */
+/* Ordinary calls share the scalar source path; typed source admission follows
+ * normal callable resolution, including SQL routines. */
+rows_function_base: function_table_call {$$=$1} ;
 rows_function_call: rows_function_base {$$=$1}
  | rows_function_base AS '(' name type column_collation function_column_definition_tail ')' {$$=$1;$$.ColumnDefinitions=append([]FunctionColumnDefinition{{Name:Identifier{Text:$4.text,Pos:$4.pos},Type:$5,Collation:$6}},$7...)} ;
 function_table_calls: rows_function_call {$$=[]FunctionExpr{$1}}
@@ -3057,7 +3068,7 @@ grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
  | LARGE OBJECT grant_large_objects { $$=&ObjectGrant{Kind:"large object",Relations:$3} }
  | ALL name IN SCHEMA grant_schema_list { if $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};kind:="";switch $2.text {case "tables":case "sequences":kind="sequence";case "functions":kind="function";case "procedures":kind="procedure";case "routines":kind="routine";default:sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Kind:kind,Schemas:$5} } ;
 grant_routine_kind: FUNCTION | PROCEDURE | ROUTINE ;
-routine_name_word: FUNCTION | PROCEDURE | ROUTINE | PARAMETER | RETURN_BODY | ATOMIC_BODY ;
+routine_name_word: FUNCTION | PROCEDURE | ROUTINE | PARAMETER | RETURN_BODY | ATOMIC_BODY | RETURNS_CLAUSE ;
 grant_external_name_word: LANGUAGE | LARGE | OBJECT | DATA | WRAPPER ;
 grant_routines: grant_routine { $$=[]GrantRoutineTarget{$1} }
  | grant_routines ',' grant_routine { $$=append($1,$3) } ;

@@ -48,27 +48,16 @@ func bindObjectACL(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	n := ObjectACL{Slots: [3]uint8{0, 1, 2}}
-	var occupied [3]bool
+	mapped, valid := namedSlots(raw, objectACLLabels[:], 3)
+	if !valid {
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
+	}
 	for i := range n.Args {
-		if len(raw.ArgNames) != 0 && raw.ArgNames[i].Text != "" {
-			label := raw.ArgNames[i].Text
-			slot := -1
-			for j, formal := range objectACLLabels {
-				if label == formal {
-					slot = j
-					break
-				}
-			}
-			if slot < 0 {
-				return nil, b.SignatureError(raw.Name, raw.Pos, names)
-			}
-			n.Slots[i], n.Labels[i] = uint8(slot), label
+		slot := mapped[i]
+		n.Slots[i] = uint8(slot)
+		if len(raw.ArgNames) > i {
+			n.Labels[i] = raw.ArgNames[i].Text
 		}
-		slot := n.Slots[i]
-		if occupied[slot] {
-			return nil, b.SignatureError(raw.Name, raw.Pos, names)
-		}
-		occupied[slot] = true
 		if operands[i].Usage.Type != nil {
 			if _, failure := sqltype.PlanCoercion(operands[i].Usage, b.Type(objectACLTypes[slot]).Usage(), sqltype.Implicit); failure != nil {
 				return nil, b.SignatureError(raw.Name, raw.Pos, names)
@@ -95,4 +84,11 @@ func bindObjectACL(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	}
 	n.Info = info
 	return n, nil
+}
+
+func namedObjectACL(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	if len(args) != 3 || !declaredTypes(declared, objectACLTypes[:]) {
+		return nil, nil, false
+	}
+	return fixedNamedInputs(raw, args, declared, objectACLLabels[:], 3)
 }

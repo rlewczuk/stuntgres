@@ -39,31 +39,9 @@ func bindArrayTransform(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if !visible || !kind.Arity(len(operands)) {
 		return signature()
 	}
-	slots := [3]uint8{0, 1, 2}
-	labels := [3]string{}
-	if len(raw.ArgNames) != 0 {
-		if kind != ArraySort || len(operands) == 1 {
-			return signature()
-		}
-		var seen [3]bool
-		for i, label := range raw.ArgNames {
-			slot := i
-			if label.Text != "" {
-				slot = -1
-				for j, name := range [3]string{"array", "descending", "nulls_first"} {
-					if name == label.Text {
-						slot = j
-						break
-					}
-				}
-				labels[i] = label.Text
-			}
-			if slot < 0 || slot >= len(operands) || seen[slot] {
-				return signature()
-			}
-			slots[i] = uint8(slot)
-			seen[slot] = true
-		}
+	slots, labels, valid := arrayTransformSlots(raw, kind, len(operands))
+	if !valid {
+		return signature()
 	}
 	return FinishArrayTransform(b, raw, kind, operands, slots, labels, false, signature)
 }
@@ -220,4 +198,46 @@ func FinishArrayTransform(b Binder, raw parser.FunctionExpr, kind ArrayTransform
 		}
 	}
 	return e, e.Validate()
+}
+
+func arrayTransformSlots(raw parser.FunctionExpr, kind ArrayTransformKind, count int) ([3]uint8, [3]string, bool) {
+	slots, labels := [3]uint8{0, 1, 2}, [3]string{}
+	if len(raw.ArgNames) == 0 {
+		return slots, labels, true
+	}
+	if kind != ArraySort || count < 2 || count > 3 {
+		return slots, labels, false
+	}
+	roster := [3]string{"array", "descending", "nulls_first"}
+	mapped, ok := namedSlots(raw, roster[:count], count)
+	if !ok {
+		return slots, labels, false
+	}
+	for i := range count {
+		slots[i], labels[i] = uint8(mapped[i]), raw.ArgNames[i].Text
+	}
+	return slots, labels, true
+}
+
+func namedArrayTransform(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	kind := ArrayTransformFunction(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	slots, _, valid := arrayTransformSlots(raw, kind, len(args))
+	if !valid || kind != ArraySort || len(declared) != len(args) {
+		return nil, nil, false
+	}
+	var formal [3]Argument
+	var targets [3]sqltype.Usage
+	copy(targets[:], declared)
+	for i, arg := range args {
+		formal[slots[i]] = arg
+	}
+	if !probeArrayTransform(b, raw, formal[:len(args)], declared, targets[:len(args)]) {
+		return nil, nil, false
+	}
+	storage := make([]sqltype.Usage, 2*len(args))
+	inputs, written := storage[:len(args):len(args)], storage[len(args):]
+	for i := range args {
+		inputs[i], written[i] = declared[slots[i]], targets[slots[i]]
+	}
+	return inputs, written, true
 }

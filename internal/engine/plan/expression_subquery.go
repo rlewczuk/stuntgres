@@ -39,9 +39,14 @@ func (e SubqueryExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 
 type SQLRoutineExpr struct {
 	expr.Info
-	Procedure *catalog.Procedure
-	Ref       ids.ObjectRef
-	Args      []expr.Expr
+	Procedure    *catalog.Procedure
+	Ref          ids.ObjectRef
+	Args         []expr.Expr
+	WrittenCount int
+	ArgNames     []parser.Identifier
+	Variadic     bool
+	InputMap     []RoutineInput
+	ChildSlots   []int // Validated inverse of InputMap, built once during binding.
 }
 
 func (n SQLRoutineExpr) Children() []expr.Expr { return n.Args }
@@ -50,20 +55,18 @@ func (n SQLRoutineExpr) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bo
 	if kind != expr.CaptureFunction {
 		return expr.CaptureOperands{}, false, nil
 	}
-	return expr.CaptureOperands{Args: n.Args, Count: len(n.Args), SelectedImplicit: true}, true, nil
+	if n.WrittenCount < 0 || n.WrittenCount > len(n.Args) {
+		return expr.CaptureOperands{}, false, fmt.Errorf("invalid SQL routine written projection")
+	}
+	return expr.CaptureOperands{Args: n.Args[:n.WrittenCount], Count: n.WrittenCount, SelectedImplicit: true}, true, nil
 }
 
 func (n SQLRoutineExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if current, ok := info.RoutineReference.(*catalog.Procedure); ok {
 		n.Procedure = current
 	}
-	if n.Procedure == nil || n.Procedure.SQL == nil || len(children) != len(n.Procedure.SQL.Inputs) {
-		return nil, fmt.Errorf("invalid SQL routine provider")
-	}
-	for i, child := range children {
-		if child == nil || child.ResultUsage().Type == nil || child.ResultUsage().Type.ID() != n.Procedure.SQL.Inputs[i].Type.ID() {
-			return nil, fmt.Errorf("invalid SQL routine argument")
-		}
+	if err := n.ValidateArguments(children); err != nil {
+		return nil, err
 	}
 	n.Info, n.Args = info, children
 	return n, nil
@@ -71,7 +74,7 @@ func (n SQLRoutineExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 
 func (n SQLRoutineExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, _ bool) bool {
 	o, ok := other.(SQLRoutineExpr)
-	if !ok || n.Ref != o.Ref || n.Procedure.SQL != o.Procedure.SQL || len(n.Args) != len(o.Args) {
+	if !ok || n.Ref != o.Ref || n.Procedure.SQL != o.Procedure.SQL || len(n.Args) != len(o.Args) || !n.SameArguments(o) {
 		return false
 	}
 	for i, arg := range n.Args {

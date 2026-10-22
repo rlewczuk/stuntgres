@@ -56,7 +56,7 @@ func TestListPartitionLogicalRemap(t *testing.T) {
 			break
 		}
 	}
-	if !stored.ExpressionTypesChanged(leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+	if !stored.ExpressionDescriptorsChanged(retained, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
 		if typ == leaf.Membership.Values[0].Value.Type() {
 			return replacement
 		}

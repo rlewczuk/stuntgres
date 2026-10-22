@@ -11,14 +11,18 @@ import (
 // Definition contains syntax, not executable resources or permission decisions.
 // Standard bodies additionally require a checked catalog-owned frozen program.
 type Definition struct {
-	Source     string
-	Position   parser.Position
-	Statements []parser.Statement
-	Standard   bool
-	Name       string
-	Names      []string
-	Inputs     []sqltype.Usage
-	Result     sqltype.Usage
+	Source        string
+	Position      parser.Position
+	Statements    []parser.Statement
+	Standard      bool
+	Name          string
+	Names         []string
+	Inputs        []sqltype.Usage
+	Result        sqltype.Usage
+	Formals       []Formal
+	InputFormals  []int
+	OutputFormals []int
+	FormalInputs  []int
 }
 
 func New(source string, position parser.Position, inputs []sqltype.Usage, result sqltype.Usage) (*Definition, error) {

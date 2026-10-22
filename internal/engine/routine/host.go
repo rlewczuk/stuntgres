@@ -25,4 +25,5 @@ type DDLHost interface {
 	// BindSQLRoutine binds d's body against the stage. It returns nil during
 	// Restore SQL body replay.
 	BindSQLRoutine(auth ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error
+	BindSQLDefaults(ddl.Authority, *catalog.Procedure, []parser.RoutineParameter, sqltype.InputEnvironment) error
 }

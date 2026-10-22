@@ -17,10 +17,12 @@ type SQLCallable struct {
 	Procedure *catalog.Procedure
 	Inputs    []sqltype.Usage
 	// targets are family-resolved applicability usages, never ranking inputs.
-	Targets     []sqltype.Usage
-	Path        int
-	Variadic    bool
-	polymorphic bool
+	Targets          []sqltype.Usage
+	Path             int
+	Variadic         bool
+	polymorphic      bool
+	InputMap         []plan.RoutineInput
+	NamedDeclaration []sqltype.Usage
 }
 type sqlCallableSelection struct {
 	SQLCallable
@@ -34,7 +36,7 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 		b.Clause.selectedCallReentry = false
 		return nil, false, nil
 	}
-	if raw.Syntax != parser.OrdinaryFunctionSyntax || raw.StringSyntax != parser.OrdinaryStringSyntax || len(raw.ArgNames) != 0 {
+	if raw.Syntax != parser.OrdinaryFunctionSyntax || raw.StringSyntax != parser.OrdinaryStringSyntax {
 		return nil, false, nil
 	}
 	selected, handled, err := b.selectSQLCallable(raw, nil)
@@ -64,14 +66,19 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	}
 	selection.auth = auth
 	var candidates []SQLCallable
-	seen := map[catalog.ProcedureSignature]bool{}
+	var seen map[catalog.ProcedureSignature]bool
+	if len(raw.ArgNames) == 0 {
+		seen = make(map[catalog.ProcedureSignature]bool)
+	}
 	hasSQL := false
 	for i := range path.Count() {
 		for d := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), name) {
-			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || seen[d.Signature] {
+			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || len(raw.ArgNames) == 0 && seen[d.Signature] {
 				continue
 			}
-			seen[d.Signature] = true
+			if seen != nil {
+				seen[d.Signature] = true
+			}
 			if d.SQL != nil {
 				hasSQL = true
 			}
@@ -88,6 +95,15 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	if !hasSQL {
 		return selection, false, nil
 	}
+	issue := functions.FunctionLabels(raw)
+	switch {
+	case issue.Malformed:
+		return selection, true, fmt.Errorf("invalid function argument labels")
+	case issue.Positional:
+		return selection, true, expr.ErrorAt("42601", "positional argument cannot follow named argument", issue.Position)
+	case issue.Duplicate != "":
+		return selection, true, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
+	}
 	operands := make([]ComparisonOperand, len(raw.Args))
 	names := make([]string, len(raw.Args))
 	for i, arg := range raw.Args {
@@ -98,6 +114,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		names[i] = "unknown"
 		if t := operands[i].descriptor(); t != nil {
 			names[i] = b.DiagnosticTypeName(t)
+		}
+		if len(raw.ArgNames) > i && raw.ArgNames[i].Text != "" {
+			names[i] = raw.ArgNames[i].Text + " => " + names[i]
 		}
 	}
 	var familyStorage [4]functions.Argument
@@ -113,9 +132,11 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	}
 	viable := candidates[:0]
 	for _, candidate := range candidates {
-		if candidate.polymorphic {
-			candidate.Targets = make([]sqltype.Usage, len(candidate.Inputs))
-			copy(candidate.Targets, candidate.Inputs)
+		if candidate.NamedDeclaration != nil || candidate.polymorphic {
+			if candidate.NamedDeclaration == nil {
+				candidate.Targets = make([]sqltype.Usage, len(candidate.Inputs))
+				copy(candidate.Targets, candidate.Inputs)
+			}
 			if !b.ProbeSQLCallable(raw, familyArgs, &candidate) {
 				continue
 			}
@@ -382,14 +403,44 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			}
 			frozen := parser.FunctionExpr{
 				Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: d.Name()}}},
-				Args: raw.Args, Pos: raw.Pos, StoredSQLRoutine: true,
+				Args: raw.Args, ArgNames: raw.ArgNames, Variadic: raw.Variadic, Pos: raw.Pos, StoredSQLRoutine: true,
 			}
 			if b.Stored.Syntax == nil {
 				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
 			}
 			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}] = frozen
 		}
-		return plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: selected.args}, nil
+		args := selected.args
+		assembly := selected.InputMap
+		for slot, source := range assembly {
+			if source.Start >= 0 {
+				continue
+			}
+			if d.SQLDefaults == nil {
+				return nil, fmt.Errorf("missing selected routine default")
+			}
+			node, ok := d.SQLDefaults.Default(slot)
+			if !ok {
+				return nil, fmt.Errorf("missing selected routine default slot")
+			}
+			assembly[slot] = plan.RoutineInput{Start: len(args), Count: 1}
+			args = append(args, node)
+			for _, dependency := range d.SQLDefaults.Dependencies() {
+				b.dependency(dependency.Ref, dependency.Revision)
+			}
+			info.Property = expr.MergeProperties(info.Property, node.Properties())
+		}
+		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: len(raw.Args), ArgNames: raw.ArgNames, Variadic: raw.Variadic, InputMap: assembly}
+		node.ChildSlots = make([]int, len(args))
+		for slot, source := range assembly {
+			for i := source.Start; i < source.Start+source.Count; i++ {
+				node.ChildSlots[i] = slot
+			}
+		}
+		if err := node.ValidateArguments(args); err != nil {
+			return nil, err
+		}
+		return node, nil
 	}
 	previous, previousSyntax, previousArguments := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax, b.Clause.SelectedCallArguments
 	previousReentry, previousCallee := b.Clause.selectedCallReentry, b.Clause.selectedWindowCallee

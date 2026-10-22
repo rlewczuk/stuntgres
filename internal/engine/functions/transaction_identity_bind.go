@@ -86,7 +86,7 @@ func bindTransactionIdentity(b Binder, raw parser.FunctionExpr) (expr.Expr, erro
 	}
 	valid := visible && name == kind.name() && !raw.ResolutionOnly && !raw.Variadic && len(raw.Args) == count
 	if len(raw.ArgNames) != 0 {
-		valid = valid && kind == identityMembers && len(raw.ArgNames) == 1 && raw.ArgNames[0].Text == "multixid"
+		valid = valid && kind == identityMembers && transactionMembersNamed(raw)
 	}
 	if count == 1 && operand.Usage.Type != nil {
 		valid = valid && operand.Usage.Type.BaseType() == b.Type(formal)
@@ -108,4 +108,18 @@ func bindTransactionIdentity(b Binder, raw parser.FunctionExpr) (expr.Expr, erro
 		}
 	}
 	return identityExpression(b, raw, kind, arg)
+}
+
+func transactionMembersNamed(raw parser.FunctionExpr) bool {
+	return len(raw.ArgNames) == 1 && raw.ArgNames[0].Text == "multixid"
+}
+
+func namedTransactionIdentity(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "pg_get_multixact_members" || raw.Variadic || len(args) != 1 || !transactionMembersNamed(raw) || !declaredTypes(declared, []sqltype.ID{sqltype.Xid}) {
+		return nil, nil, false
+	}
+	if args[0].Usage.Type != nil && args[0].Usage.Type.BaseType() != b.Type(sqltype.Xid) {
+		return nil, nil, false
+	}
+	return namedInputs(args, declared, []int{0})
 }

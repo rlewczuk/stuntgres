@@ -1,17 +1,54 @@
 package parser
 
+import (
+	"strings"
+	"unicode/utf8"
+)
+
 // CreateFunction is the shared SQL function/procedure declaration. Body inputs
 // are private routine parameters, never parameters of the enclosing command.
 type CreateFunction struct {
-	Name      ObjectName
-	Arguments []GrantRoutineArgument
-	Result    TypeName
-	Language  Identifier
-	Body      string
-	BodyPos   Position
-	Procedure bool
-	Standard  []Statement // Non-nil for a definition-analyzed SQL-standard body.
-	Pos       Position
+	Name            ObjectName
+	Arguments       []RoutineParameter
+	Result          TypeName
+	ResultSpecified bool
+	Language        Identifier
+	Body            string
+	BodyPos         Position
+	Procedure       bool
+	Standard        []Statement // Non-nil for a definition-analyzed SQL-standard body.
+	Pos             Position
+}
+
+// RoutineParameter is declaration syntax; identity-only DROP/GRANT arguments
+// deliberately have no default expression.
+type RoutineParameter struct {
+	GrantRoutineArgument
+	Default Expr
+}
+
+type routineResult struct {
+	Type      TypeName
+	Specified bool
+}
+
+// BodyPos is the position immediately preceding the decoded body. Keep the
+// actual quote delimiter width, rather than assuming every body uses $$.
+func routineBodyPosition(token lexeme) Position {
+	width := 0
+	if strings.HasPrefix(token.raw, "$") {
+		if end := strings.IndexByte(token.raw[1:], '$'); end >= 0 {
+			width = end + 2
+		}
+	} else if quote := strings.IndexByte(token.raw, '\''); quote >= 0 {
+		width = quote + 1
+	}
+	position := token.pos
+	if width > 0 {
+		position.Offset += width - 1
+		position.Character += utf8.RuneCountInString(token.raw[:width]) - 1
+	}
+	return position
 }
 
 func (*CreateFunction) statement() {}

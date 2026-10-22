@@ -58,6 +58,7 @@ type parameterState struct {
 // snapshot demands found while binding it.
 type ConsumerContext struct {
 	DefaultConsumer  bool
+	RoutineDefault   bool
 	DefaultTemporary ids.SessionToken
 	// Selected timezone/calendar operand analysis owns its released rejection
 	// diagnostic without admitting additional explicit cast providers.

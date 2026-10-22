@@ -322,3 +322,26 @@ func (e RegexpCall) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, 
 func (e RegexpCall) CaptureOperand(written int) (expr.Expr, error) {
 	return captureWrittenAt(e.Args, e.WrittenSlots[:], len(e.Args), len(e.Args), written)
 }
+
+func namedRegexp(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	if raw.Variadic || len(args) > 7 {
+		return nil, nil, false
+	}
+	flags, probe := RegexpReplaceSelection(raw, args)
+	if probe != nil {
+		flags = RegexpReplaceFlags(probe.Usage, b.Type(sqltype.Int4).Usage())
+	}
+	labels, types, _, valid := RegexpSignature(raw.Name.Parts[len(raw.Name.Parts)-1].Text, len(args), flags)
+	if !valid || !declaredTypes(declared, types[:len(args)]) {
+		return nil, nil, false
+	}
+	written, _, valid := RegexpSlots(raw, labels, len(args))
+	if !valid {
+		return nil, nil, false
+	}
+	var slots [7]int
+	for i := range args {
+		slots[i] = int(written[i])
+	}
+	return namedInputs(args, declared, slots[:len(args)])
+}

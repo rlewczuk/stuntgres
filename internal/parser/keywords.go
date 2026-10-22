@@ -445,7 +445,7 @@ var keywords = [...]keyword{
 	{"restrict", Unreserved, true, RESTRICT},
 	{"return", Unreserved, true, RETURN_BODY},
 	{"returning", Reserved, false, RETURNING},
-	{"returns", Unreserved, true, 0},
+	{"returns", Unreserved, true, RETURNS_CLAUSE},
 	{"revoke", Unreserved, true, REVOKE},
 	{"right", TypeFunctionName, true, RIGHT},
 	{"role", Unreserved, true, ROLE},

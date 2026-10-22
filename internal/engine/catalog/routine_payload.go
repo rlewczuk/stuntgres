@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -14,4 +15,15 @@ type RoutineProgram interface {
 	ValidateDefinition(*Procedure) error
 	Validate(Read) error
 	Rebind(Read, map[ids.ObjectAddress]ids.ObjectAddress) (RoutineProgram, error)
+}
+
+// RoutineDefaults is the checked declaration recipe, distinct from a body.
+// Entries are indexed by input slot; only the selected call evaluates them.
+type RoutineDefaults interface {
+	Default(int) (expr.Expr, bool)
+	Dependencies() []ExpressionDependency
+	DefaultSQL(context.Context, Read, int) (string, error)
+	ValidateDefinition(*Procedure) error
+	Validate(Read) error
+	Rebind(Read, map[ids.ObjectAddress]ids.ObjectAddress) (RoutineDefaults, error)
 }

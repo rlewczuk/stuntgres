@@ -4,7 +4,9 @@ import "stuntgres/internal/sqltype"
 
 // TemporalTypesFor supplies the binding catalog's usages for the types a
 // prepared datetime resolution demands, and nothing else.
-func TemporalTypesFor(b Binder, demand TemporalDemand) TemporalTypes {
+func TemporalTypesFor(b interface {
+	Type(sqltype.ID) *sqltype.Descriptor
+}, demand TemporalDemand) TemporalTypes {
 	var types TemporalTypes
 	if demand == 0 {
 		return types

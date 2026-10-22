@@ -325,3 +325,10 @@ func (e UUIDGeneration) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bo
 	args := e.Children()
 	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
 }
+
+func namedUUIDGeneration(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	if !UUIDGenerationShape(raw, true) || len(args) != 1 || !declaredTypes(declared, []sqltype.ID{sqltype.Interval}) || !UUIDShiftCompatible(args[0].Usage, declared[0]) {
+		return nil, nil, false
+	}
+	return namedInputs(args, declared, []int{0})
+}

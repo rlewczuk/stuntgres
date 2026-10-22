@@ -239,3 +239,18 @@ func (e DatetimeMake) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool
 func (e DatetimeMake) CaptureOperand(written int) (expr.Expr, error) {
 	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, e.Count, written)
 }
+
+func namedDatetimeMake(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	labels, types, count, result := DatetimeMakeSignature(name)
+	prepared := PrepareDatetimeMake(name, true, raw.Variadic, args, raw.ArgNames, &labels, &types, count, result)
+	selected := ResolveDatetimeMake(prepared, args, TemporalTypesFor(b, prepared.Demand))
+	if selected.Resolution != Resolved || !declaredTypes(declared, types[:selected.Count]) {
+		return nil, nil, false
+	}
+	var slots [7]int
+	for i := range args {
+		slots[i] = int(selected.WrittenSlots[i])
+	}
+	return namedInputs(args, declared, slots[:len(args)])
+}

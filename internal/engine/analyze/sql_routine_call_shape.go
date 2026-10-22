@@ -12,6 +12,9 @@ import (
 )
 
 func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *catalog.Procedure, raw parser.FunctionExpr) (SQLCallable, bool) {
+	if d.SQL != nil {
+		return sqlRoutineParameterShape(d, raw)
+	}
 	candidate := SQLCallable{Procedure: d}
 	var declared []sqltype.Usage
 	if d.Signature != "" {
@@ -24,6 +27,17 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 			declared = append(declared, t.Usage())
 			candidate.polymorphic = candidate.polymorphic || !t.Concrete()
 		}
+	}
+	if len(raw.ArgNames) > 0 {
+		if len(declared) == 0 {
+			return candidate, false
+		}
+		family, ok := functions.Lookup(d.Name())
+		if !ok || family.NamedCall == nil {
+			return candidate, false
+		}
+		candidate.NamedDeclaration = declared
+		return candidate, true
 	}
 	var defaults int
 	variadic := sqltype.ID(0)
@@ -95,6 +109,15 @@ func AppendSQLCallable(candidates []SQLCallable, candidate SQLCallable) []SQLCal
 }
 
 func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.Argument, candidate *SQLCallable) bool {
+	if candidate.NamedDeclaration != nil {
+		family, ok := functions.Lookup(candidate.Procedure.Name())
+		if !ok || family.NamedCall == nil {
+			return false
+		}
+		var valid bool
+		candidate.Inputs, candidate.Targets, valid = family.NamedCall(b, raw, operands, candidate.NamedDeclaration)
+		return valid
+	}
 	name := candidate.Procedure.Name()
 	if candidate.Procedure.RoutineKind == catalog.WindowRoutine {
 		if family, ok := functions.LookupWindowFunction(name); ok && family.ProbeCall != nil {

@@ -72,6 +72,16 @@ func QueryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqlt
 // catalog reownership. Pointer comparison here requests metadata reconstruction;
 // it is never an ACL or lifetime admission decision.
 func QueryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
+	return queryRoutineCarriersChanged(view, node, false)
+}
+
+// Ordinary type evolution must leave unchanged retained captures alone, even
+// when COW/bootstrap produced a fresh descriptor of the same declaration.
+func QueryRoutineDeclarationsChanged(view catalog.Read, node plan.Node) bool {
+	return queryRoutineCarriersChanged(view, node, true)
+}
+
+func queryRoutineCarriersChanged(view catalog.Read, node plan.Node, declarationsOnly bool) bool {
 	if node == nil || view.State() == nil {
 		return false
 	}
@@ -79,10 +89,17 @@ func QueryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 	plan.QueryExpressions(node, func(expression expr.Expr) {
 		plan.WalkExpression(expression, func(expression expr.Expr) {
 			captured, err := exec.ExpressionRoutineDescriptor(expression)
-			if err != nil || captured != nil && view.Get(captured.Address()) != captured {
+			if err != nil {
 				changed = true
+			} else if captured != nil {
+				if declarationsOnly {
+					current, _ := view.Procedure(captured.Address())
+					changed = changed || !exec.SameRoutineDeclaration(current, captured)
+				} else {
+					changed = changed || view.Get(captured.Address()) != captured
+				}
 			}
-			if subquery, ok := expression.(plan.SubqueryExpr); ok && QueryRoutineCarriersChanged(view, subquery.QueryPlan.Root) {
+			if subquery, ok := expression.(plan.SubqueryExpr); ok && queryRoutineCarriersChanged(view, subquery.QueryPlan.Root, declarationsOnly) {
 				changed = true
 			}
 		})
@@ -91,7 +108,7 @@ func QueryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 		return true
 	}
 	left, right := plan.QueryInputs(node)
-	return QueryRoutineCarriersChanged(view, left) || QueryRoutineCarriersChanged(view, right)
+	return queryRoutineCarriersChanged(view, left, declarationsOnly) || queryRoutineCarriersChanged(view, right, declarationsOnly)
 }
 
 // Runtime reads belong to an occurrence's physical input span in its lexical

@@ -99,38 +99,24 @@ func bindObjectAddress(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	operation := IdentifyObject
-	for operation <= DescribeObject && operation.name() != name {
-		operation++
-	}
+	operation := objectAddressOperation(name)
 	if !visible || operation > DescribeObject || len(raw.Args) != 3 || raw.ResolutionOnly {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	ids, labels := operation.signature()
 	n := ObjectAddress{op: operation, Slots: [3]uint8{0, 1, 2}}
-	var occupied [3]bool
+	mapped, valid := namedSlots(raw, labels[:], 3)
+	if !valid {
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
+	}
 	for i := range n.Args {
-		if len(raw.ArgNames) != 0 && raw.ArgNames[i].Text != "" {
-			label := raw.ArgNames[i].Text
-			slot := -1
-			for j, formal := range labels {
-				if label == formal {
-					slot = j
-					break
-				}
-			}
-			if slot < 0 {
-				return nil, b.SignatureError(raw.Name, raw.Pos, names)
-			}
-			n.Slots[i], n.Labels[i] = uint8(slot), label
+		slot := mapped[i]
+		n.Slots[i] = uint8(slot)
+		if len(raw.ArgNames) > i {
+			n.Labels[i] = raw.ArgNames[i].Text
 		}
-		slot := n.Slots[i]
-		if occupied[slot] {
-			return nil, b.SignatureError(raw.Name, raw.Pos, names)
-		}
-		occupied[slot] = true
 		if operands[i].Usage.Type != nil {
-			if _, failure := sqltype.PlanCoercion(operands[i].Expression.ResultUsage(), b.Type(ids[slot]).Usage(), sqltype.Implicit); failure != nil {
+			if _, failure := sqltype.PlanCoercion(operands[i].Usage, b.Type(ids[slot]).Usage(), sqltype.Implicit); failure != nil {
 				return nil, b.SignatureError(raw.Name, raw.Pos, names)
 			}
 		}
@@ -275,4 +261,24 @@ func (n ObjectAddress) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return runtime.DescribeObject(values, n.Usage.Type)
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid object address operation")
+}
+
+func objectAddressOperation(name string) ObjectAddressOperation {
+	operation := IdentifyObject
+	for operation <= DescribeObject && operation.name() != name {
+		operation++
+	}
+	return operation
+}
+
+func namedObjectAddress(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
+	operation := objectAddressOperation(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	if operation >= DescribeObject || len(args) != 3 {
+		return nil, nil, false
+	}
+	types, labels := operation.signature()
+	if !declaredTypes(declared, types[:]) {
+		return nil, nil, false
+	}
+	return fixedNamedInputs(raw, args, declared, labels[:], 3)
 }

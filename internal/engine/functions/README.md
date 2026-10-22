@@ -687,6 +687,19 @@ records). `json_object`/`jsonb_object` sat in the final switch, so they use
 calls, `json_strip_nulls`) share `bindSlots` in `json_slot_bind.go`.
 `JSONBPathQueryName` serves aggregate binding.
 
+Named competition with SQL routines uses the optional pure `Definition.NamedCall`
+hook alongside `ProbeCall`. Each owning provider supplies its existing roster
+and eligibility/type rules; `namedSlots` only shares unique slot assignment.
+Ranking inputs and resolved applicability targets remain separate and in written
+order. Array-sort probes temporarily use formal order before projecting targets
+back; executable argument syntax never changes order. Concrete named candidates
+are probed too. No hook binds, coerces, evaluates or captures a losing call.
+Builtin-only calls retain their original provider gateway; a common-resolver
+no-match or ambiguity is never retried through a provider fallback.
+`json_strip_nulls` now has its checked declaration/identity association for this
+already-supported executor. No third legacy JSON-populate argument or JSONB
+record labels are introduced.
+
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
 (FILTER analysis, the 100-argument limit, labels), `CallLabelError` (the
 label part alone, for families that analyze no FILTER), `CallDecorationError`

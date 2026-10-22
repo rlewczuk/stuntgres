@@ -23,6 +23,19 @@ It imports `plan`, `exec`, `catalog`, `storage`, `expr`, `functions`, `ids`,
 engine or `session`. See
 [ENGINE-SPLIT-analyze.md](../../../docs/ENGINE-SPLIT-analyze.md) (step 12).
 
+SQL function calls use one callable selector. SQL formals and provider-owned
+pure `NamedCall` shapes map supplied types in written order before labeled path
+masking; positional identity masking remains unchanged. Only the winning SQL
+call receives checked hidden defaults and a validated input assembly. Actuals
+use Implicit conversion; `BindRoutineDefault` uses Assignment conversion without
+the table-default volatility whitelist or a formal/parameter namespace.
+Defaults resolve against the legitimate staged namespace before their new
+declaration is published; other staged objects remain visible. Body validation
+then sees the declaration, preserving existing self-recursion behavior.
+Closed body formals still use input-only names and slots. Stored capture sees
+written occurrences only, while generic traversal also sees hidden defaults.
+See [parameter proof](../../../reference/operators/README.md#routine-parameter-binding).
+
 Standard SQL/JSON query syntax dispatches to the functions binder. Unlike
 constructor RETURNING, its result conversion stays in the query node's ON ERROR
 boundary. Literal capture records RETURNING usage and every document/path,

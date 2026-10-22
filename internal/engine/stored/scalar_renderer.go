@@ -30,7 +30,8 @@ type ScalarRenderer struct {
 	ACLOutput  sqltype.ACLItemFormatter
 	// Only provider validation may discard identity-only text. Real SQL output
 	// and construction labels require explicit captured role presentation.
-	Validation bool
+	Validation     bool
+	RoutineDefault bool // Declaration defaults admit ordinary volatile scalar trees.
 	// Native domain-default logical replay emits the executable live row
 	// shape; source catalog metadata retains every original written child.
 	CurrentRowShape        bool
@@ -72,7 +73,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.Owner == nil && (r.DomainValue == nil && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.DomainValue == nil {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.Owner == nil && (r.DomainValue == nil && !r.RoutineDefault && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.DomainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	if err := validateUsageCollationAt(view, r.Definition, u); err != nil {

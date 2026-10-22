@@ -5,10 +5,14 @@ value/type facilities, never engine or catalog. It does not interpret expression
 or own name lookup, permissions, query execution, transactions or prepared caches.
 
 `Definition` retains body form, original quoted text/source position, ordered
-statement syntax, input names/usages and result policy. Published syntax is
-immutable. Standard RETURN is a SELECT expression; BEGIN ATOMIC is an ordered
-SQL program, not a transaction or procedural early-return construct. Checked
-standard recipes and catalog dependencies live in `stored`, above this package.
+statement syntax and ordered formal modes/names/usages/default-presence flags.
+`SetFormals` derives input/output projections, inverse input slots and input-only
+names/usages; INOUT belongs to both, and pure OUT does not consume `$n`.
+Duplicate names are projection-aware, so pure IN/OUT name reuse is legal.
+Published syntax/metadata is immutable. Standard RETURN is a SELECT expression;
+BEGIN ATOMIC is an ordered SQL program, not a transaction or procedural return.
+Checked standard-body and declaration-default recipes live in `stored`, above
+this package, never as cached values or catalog dependencies in proc.
 
 Complete parsing closes positional formals even after an unresolved call stops
 semantic binding. Private Restore may defer only a structured terminal missing
@@ -28,9 +32,12 @@ result. Width and Assignment conversion are checked before that command's
 producers, including empty inputs. VOID discards every output and yields typed
 SQL NULL; it does not reuse an earlier SELECT result.
 
-Each invocation owns a `Frame`. Actual expressions are evaluated once by engine,
-coerced using implicit input plans, then placed in private slots. Nested/repeated
-calls cannot overwrite caller parameters. Scalar results use assignment coercion.
+Each invocation owns an input-sized `Frame`. Supplied expressions retain written
+order; a validated plan assembly maps them and hidden selected defaults into
+private slots exactly once. Expanded variadic elements transfer one owned array;
+explicit arrays are not unpacked/copied. Declaration defaults use Assignment
+conversion and fresh evaluation; actuals use Implicit conversion. Nested/repeated
+calls cannot overwrite caller parameters. Scalar results use Assignment conversion.
 Scalar/tree `sqltype.Value` payloads are immutable: a returned value survives frame
 closure without an unnecessary payload copy. Driver mutable-byte export remains
 with its existing type/driver owner. Closing a frame clears slots and result and
@@ -76,6 +83,9 @@ make check REFERENCE=1 RUN='^TestReferenceRoutineReview(ClosedFormals|ReturnRean
 make check RACE=1 RUN='^TestSQLRoutine(ClosedFormalBoundary|ReturnContract|DepthUnwind|ResultScratchUnwind)$'
 make check RUN='^TestReferenceRoutineSQLBodies(Statements|Arguments|Standard|Void|Validation|Restrictions|Atomicity|Dependencies|Persistence|ProcedureDeclarations|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferenceRoutineSQLBodies(Statements|Arguments|Standard|Void|Validation|Restrictions|Atomicity|Dependencies|Persistence|ProcedureDeclarations|FeatureSmoke)$'
+make check RUN='^(TestRoutineParameterLayout|TestSQLCallableParameterMapping|TestSQLRoutineWrittenCapture|TestSQLRoutineParameterRemap|TestRoutineDefaultOriginRestoration|TestSQLRoutineNamedProviderShapes)$'
+make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|ScalarOutputsIdentity|Variadic|WrittenCapturePersistence)$'
+make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluation|ScalarOutputsIdentity|Variadic|WrittenCapturePersistence)$' REFERENCE=1
 ```
 
 The permanent selected feature smoke is
