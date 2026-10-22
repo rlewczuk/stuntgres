@@ -1024,7 +1024,11 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   123 (`20e2675f2`, `77e73dff4`, `9e28f488c`, then the docs commit) ·
   selected unit (also `RACE=1`) and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 24e record below
-- [ ] 24f — Remaining CREATE and ALTER decisions moved (linear item 124)
+- [x] 24f — Remaining CREATE and ALTER decisions moved — linear item 124
+  (`98a193227`, `479d57f07`, `3e48a8de5`, `8f6d54f40`, `4c97e1cd9`, then
+  the docs commit) · selected unit (also `RACE=1`) and dual-mode proof and
+  quickcheck passed; racecheck/finalcheck skipped at user request; see the
+  24f record below
 - [ ] 24g — Inheritance prepare side moved (linear item 125)
 
 Outstanding aliases: none (24a and 24b added none).
@@ -1424,6 +1428,60 @@ plan. Three commits, each green on `make build` and its units; no aliases.
   providers already live in their packages); it now lists only parameter
   validation as root and names each provider's package.
 
+### 24f record
+
+Re-measured at `e52587400` (rebased onto `2b3d7a138`, after index 23e; no
+overlap): names and callers matched the plan; the scan plan had moved to
+`alter_table.go:727-746`. Five commits, each green on `make build` and its
+units; no aliases.
+
+- `98a193227`: `analyze.RelationNamespace(view, relation, ref, leaf)`
+  replaces the copies in `alter_host.go`, `alter_type.go`
+  (`alterTypeNamespace` deleted; `analyze.QueryTargetLeaf`), `generated.go`,
+  `partition_host.go` and (with the next commit) `check.go`.
+- `479d57f07`: `table.BindChecks(h, auth, relation, raw, input, altering,
+  inherited)` (`table/check_bind.go`) holds the naming, inherited merge,
+  duplicate diagnostics, ordinals and dependency rendering;
+  `Host.BindCheckExpression` binds one expression and returns its frame
+  uses. CHECK rendering reads the operation's definitions, not the stage
+  reader of `index.Host.DefinitionReader`, so `OperationDefinition` moved
+  from `AlterHost` to `Host`; the ALTER epoch check needs `LiveEpoch`,
+  which moved with it (the check stays just before each binding).
+  `Engine.bindColumnChecks`, `bindCreateChecks`, `Host.BindChecks` and
+  `AlterHost.BindAddedChecks` are gone; `partition/create.go`, ALTER
+  FOREIGN TABLE (`fdw_table.go`, an `alterHost` over its `ddlHost`) and
+  `table/alter_constraint.go` call `BindChecks`.
+- `3e48a8de5`: `table.AlterTableOf`, `table.ResolveTypedSource` and
+  `table.TypedSources` (`table/typed_alter.go`) over `table.TypedResolver`
+  (`AccessView`, `NamedType`; `ddlHost` already had both). The reference
+  path is the authority's `access.Environment.ReferencePath`. The
+  AlterTableOf admission in `relation_scope.go` uses `ResolveTypedSource`
+  too. The root keeps `namedType` (the analysis host uses it), the stage,
+  the source waits of `acquireTypedSources` and publication.
+- `8f6d54f40`: `table.CheckCreateShape(s, temporary, explicit, exists)`
+  (`table/create_shape.go`); the root now restores the permanent catalog
+  and looks the name up before the TEMP-partition check, which neither
+  affects. `table.PlanAlterScan` (`table/alter_scan.go`) returns the scan
+  validator; the root keeps the CHECK snapshot capture under `Engine.mu`
+  and `validateAddedConstraintRows`.
+- `4c97e1cd9`: the target-admission switch of `acquireRelationTarget` is a
+  registration table (§3 rule 8, split by owner at the user's choice):
+  `table.Target`, `table.TargetEntry`, `table.AdmitTarget`; entries
+  `view.TargetAdmission` (RULE, POLICY, CREATE OR REPLACE VIEW, ALTER VIEW),
+  `table.TargetAdmission` (PARTITION OF, the ALTER TABLE family, COMMENT,
+  and CREATE INDEX and ALTER OWNER, whose packages sit below `table`) and
+  `dml.TargetAdmission` (SELECT, COPY, INSERT, MERGE, DELETE, UPDATE). The
+  root registers them once as `relationTargetEntries`; statement kinds are
+  disjoint, so the order cannot change a result. The lock policy and the
+  acquire loop stay.
+- Tests: new `TestRelationNamespaceShape` (analyze), `TestTypedSources`,
+  `TestPlanAlterScan`, `TestCheckCreateShape`, `TestTableTargetAdmission`,
+  `TestAdmitTargetAsksEachEntry` (table), `TestViewTargetAdmission` (view),
+  `TestDMLTargetAdmission` (dml). Adapted to the new names, unchanged
+  otherwise: `TestRangePartitionInheritedCookedCheckStructuralIdentity`,
+  `TestAlterAddColumnSparseCheckOrdinalsAndOwnership`. None moved or
+  deleted.
+
 ### Notes for later steps
 
 - 24b: the dependency passes need `dropDependencyReader` and
@@ -1483,6 +1541,12 @@ plan. Three commits, each green on `make build` and its units; no aliases.
   replaces one relation can reuse the root `publishRestoreRepairLocked`
   tail; the receipts' `Holds` checks keep the role record and current
   relation identity without an authorization view.
+- 24f for 24g and later: `index_expression.go` (`indexExpressionBinder`)
+  and `policy_expression.go` (`BindPolicyExpression`) still build the same
+  relation namespace by hand (index 23e, which ran in parallel, kept its
+  copy); an index or view follow-up can call `analyze.RelationNamespace`. The fdw
+  and partition notes above that name `bindColumnChecks`,
+  `bindCreateChecks` or `BindChecks` now mean `table.BindChecks`.
 - 24e for 24f: `relationProvider` is a root value, not a type; new
   callers pass it as is. Nothing in 24e touched the 24f files
   (`check.go`, `relation_scope.go`, `typed_table.go`, `create_table.go`,

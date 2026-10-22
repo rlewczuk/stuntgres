@@ -184,6 +184,10 @@ it, it never imports the engine, and it never builds a binder. See
   (`NewCopyInsertionState`, `Full`), `CopyInsertionBuffer`,
   `CopyInsertionCursor`, `CopyInsertionDiagnostic`, `CopyRelationKind`,
   `CopyLineTargets`. The COPY codecs are in [`copyfmt`](../copyfmt).
+- **Target admission** (`target_admission.go`): `TargetAdmission`, the
+  `table.TargetEntry` of single-table SELECT, COPY, INSERT, MERGE, DELETE and
+  UPDATE (also while preparing), which the root registers with the `view` and
+  `table` entries.
 
 Names: everything the engine names is capitalized as it was
 (`insertConflictState` is `InsertConflictState`); helpers only the package
@@ -253,7 +257,8 @@ helpers, `readmitProgramsAfterWait`, and `preflightUpdate`/`preflightMerge`
 ## Testing
 
 `insert_conflict_predicate_test.go` and `insert_conflict_truth_test.go`
-cover the predicate proofs here. Every other DML unit test builds an engine
+cover the predicate proofs here, `TestDMLTargetAdmission` the
+target-admission entry. Every other DML unit test builds an engine
 and stays in the root package, naming the moved code as `dml.X`; the host
 seam tests are `statement_host_dml_test.go` (`LatestRow` per kind,
 `StageReplacement` stale/flush/drop, `PrepareReplacement` order, the
@@ -278,7 +283,7 @@ the scope's host; the FK seam tests are `statement_host_foreign_key_test.go`
 image).
 
 ```sh
-make check RUN='^TestInsertConflictPredicate'
+make check RUN='^TestInsertConflictPredicate|^TestDMLTargetAdmission$'
 make check RUN='^TestStatementHost'
 make check RUN='^Test(Insert|Update|Merge|Delete|Truncate|Copy|Foreign|InheritanceDML|CTE)'
 make check RUN='^Test(Unique|Exclusion|PartialUnique|ConcurrentIndex|ViewWrite|ViewCheck|UpdateCore)'

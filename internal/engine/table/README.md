@@ -207,6 +207,24 @@ admission and DML expansion goes to `dml`.
 - **Tablespace-only ALTER helpers** (24e; `alter_tablespace.go`):
   `TablespaceOnlyActions`, `ValidateAlterTablespaceMove`; the bulk
   `ALTER TABLE ALL IN TABLESPACE` handler stays in the root.
+- **Remaining CREATE and ALTER decisions** (24f): `BindChecks`
+  (`check_bind.go`), the CHECK naming, inherited merge, duplicate
+  diagnostics, ordinals and dependency rendering of CREATE and ADD
+  CONSTRAINT, binding each expression through `Host.BindCheckExpression`;
+  `CheckCreateShape` (`create_shape.go`), the CREATE TABLE shape errors in
+  order; `PlanAlterScan` (`alter_scan.go`), whether ALTER TABLE scans old
+  rows and with which validator; `AlterTableOf`, `ResolveTypedSource` and
+  `TypedSources` (`typed_alter.go`), the ALTER TABLE [NOT] OF checks over a
+  small `TypedResolver` and the OID-ordered OF types a typed-table change
+  locks.
+- **Target admission** (24f; `target_admission.go`): `Target` is how a
+  statement admits its target relation (name, lock mode, owner, rename,
+  IF EXISTS, table-rename and view-replacement flags), decided from syntax.
+  Each owning package exports a `TargetEntry` (`TargetAdmission` here, also
+  for CREATE INDEX and ALTER OWNER, whose packages sit below `table`;
+  `view.TargetAdmission`, `dml.TargetAdmission`); the root registers them
+  once (`relationTargetEntries`) and `AdmitTarget` asks them in order. Each
+  statement kind belongs to one entry, so the order cannot change a result.
 - **Stage slot** (`stage.go`, `like.go`): `Stage` holds CREATE … LIKE
   sources, recorded by `CaptureLikeSource` and checked at publication by
   `ValidateLikeSources`; the `CatalogStage` accessors stay in the engine.
@@ -220,17 +238,18 @@ collation resolution, the table and sequence stage slots
 (`TableStage`, `SequenceStage`, `SequenceColumns`, `NameBinding`,
 `StageChanged`), `StagedTemporary`, relation resolution (`Resolver`,
 `RestoreResolver`), `DescribeCreateTable` and the binders
-`BindColumnDefaults`, `BindGenerations` and `BindChecks`. The root `ddlHost`
+`BindColumnDefaults`, `BindGenerations` and `BindCheckExpression`,
+`OperationDefinition` (the operation's definition reader, which CHECK
+rendering reads) and `LiveEpoch`. The root `ddlHost`
 implements it (`table_host.go`). `Resolver` is its stage-less part, used by
 `DropTargets` before DROP TABLE begins a stage; `RestoreResolver`
 (`ResolveRestoredRelation`) is the stage-less part `RetiredConstraintCandidate`
 resolves retired parents through. `AlterHost` adds what one
 ALTER statement's bindings need: the live `Input` (captures mutate it, so
-callers read it again before each binding), `LiveEpoch`, the snapshot
+callers read it again before each binding), the snapshot
 captures (`CaptureTypeDiagnosticName`, `CaptureCommentSnapshot`,
 `CaptureCheckSnapshots`), the binders `BindDefault`, `BindGeneration`,
-`BindAddedChecks`, `RebindCheck` and `BindAlterTypeUsing`,
-`OperationDefinition`, `TypeChangeDependents` and
+`RebindCheck` and `BindAlterTypeUsing`, `TypeChangeDependents` and
 `StageIdentitySequenceOptions`. The root `alterHost{ddlHost; scope}`
 (`alter_host.go`) implements it; the root builds one per call because the
 ALTER loop begins its stage lazily, so the stage may be nil. Every method runs with
@@ -246,7 +265,7 @@ Names settled in 24b: every moved name is capitalized; `tableStage` is
 ## What stays in the engine
 
 The orchestration of CREATE and ALTER TABLE: `createTableLocked` (lock,
-persistence and namespace checks, stage lifecycle, typed sources,
+persistence and namespace checks, stage lifecycle, the typed-source waits,
 providers, overlay or publication), `schemaTableLocked` (a forwarder that
 builds the host), `dropTableLocked`, `alterSchemaLocked` and
 `prepareQueryTableLocked` around their cores, `schemaPartitionTableLocked`
@@ -266,7 +285,8 @@ lock admission (`acquireDefinitionProviders`, `admitInheritanceAlter`,
 `stageAddedUnique`, `stageAddedForeignKey`) take `Engine.mu` across the
 `table` call and build the host; nothing inside waits.
 Also in the root: the binder bodies behind the host (`bindCreateDefaults`,
-`bindCreateGenerations`, `bindColumnChecks`),
+`bindCreateGenerations`, `ddlHost.BindCheckExpression`), the
+acquire loop of `acquireRelationTarget` around `AdmitTarget`,
 `projectColumnShapeRoots` (catalog 5k moves it to `session` with the storage
 projections), `inheritanceQueryLeaves` (clean; table 24g moves it here once
 `viewLeafRowMark` is in `stored`) and the inheritance query
@@ -310,10 +330,13 @@ naming the moved code as `table.X`; the host seams have
 `TestTableHost(BindColumnDefaultsMatchesCreateTable|StageChangedReportsStagedDescriptor)`,
 `TestAlterHostInputReflectsCheckSnapshotCapture`, the validator slots
 `TestRelationValidatorsOrder` and the remap capture
-`TestGeneratedRemapCheckCapture`.
+`TestGeneratedRemapCheckCapture`. The 24f decisions have package-local
+tests: `TestTypedSources`, `TestPlanAlterScan`, `TestCheckCreateShape`,
+`TestTableTargetAdmission` and `TestAdmitTargetAsksEachEntry`.
 
 ```sh
 make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost|^TestRelationValidatorsOrder$|^TestGeneratedRemapCheckCapture$'
+make check RUN='^Test(TypedSources|PlanAlterScan|CheckCreateShape|TableTargetAdmission|AdmitTargetAsksEachEntry)$'
 make check RUN='^Test(AlterAdd|AlterGenerated|AlterTablespace|AlterType|AlterDefault|IdentityAlter|ConstraintRename|InheritanceAlter|InheritanceRetired|InheritanceMetadata)'
 make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
 make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'

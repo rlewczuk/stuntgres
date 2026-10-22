@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `eb545a156` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123 and 126). Steps 8–17 were
+Last verified against `master` at `2b3d7a138` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124 and 126). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -21,13 +21,12 @@ broad item.
   is closed).
 - **Third round, view:** none; 115, 116, 117 and 118 are done, so
   step 27 has no planned sub-step left.
-  125 (table 24g) still waits for 124.
 - **Third round, control:** none; 119 (stored 22e), 120 (control 30d),
   121 (control 30e) and 122 (control 30f) are done, so steps 22 and 30
   have no planned sub-step left.
-- **Third round, table and index:** 124 (24f; then 125; 123, table 24e,
-  is done), 127 (25e); 126 (index 23e) is done, so step 23 has no planned
-  sub-step left.
+- **Third round, table and index:** 125 (table 24g; 123 and 124, table
+  24e and 24f, are done), 127 (25e); 126 (index 23e) is done, so step 23
+  has no planned sub-step left.
 - **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
   (catalog 5k), 131 (access B7, in place; it changes `AuthorizationView`,
   so rebase other open branches after it lands).
@@ -1834,10 +1833,18 @@ branches.
      `table.ValidateAlterTablespaceMove`; no aliases · targeted units (also
      `RACE=1`), quickcheck and the quick and `REFERENCE=1` table selections
      passed; racecheck/finalcheck skipped at user request
-124. [ ] Table 24f: remaining CREATE and ALTER decisions —
-     [table](ENGINE-SPLIT-table.md) 24f · needs 123 · `bindColumnChecks`
-     core, the target-admission table, ALTER TABLE OF, CREATE TABLE shape
-     errors, the scan plan, `analyze.RelationNamespace` (about 0.4k lines)
+124. [x] Table 24f: remaining CREATE and ALTER decisions —
+     [table](ENGINE-SPLIT-table.md) 24f · needs 123 (`98a193227`,
+     `479d57f07`, `3e48a8de5`, `8f6d54f40`, `4c97e1cd9`, then the docs
+     commit) · `table.BindChecks` behind `Host.BindCheckExpression`
+     (`OperationDefinition` and `LiveEpoch` moved to `Host`),
+     `table.AlterTableOf`/`ResolveTypedSource`/`TypedSources`,
+     `table.CheckCreateShape`, `table.PlanAlterScan`, the target-admission
+     registration table (`table.Target`, `TargetEntry`, `AdmitTarget`; entries
+     in `view`, `table` and `dml`), `analyze.RelationNamespace`; no aliases
+     · targeted units (also `RACE=1`), quickcheck and the quick and
+     `REFERENCE=1` table selections passed; racecheck/finalcheck skipped at
+     user request
 125. [ ] Table 24g: inheritance prepare side —
      [table](ENGINE-SPLIT-table.md) 24g · needs 124, 115 ·
      `prepareInheritanceNode` behind a prepare host,

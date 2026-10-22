@@ -167,8 +167,8 @@ Private seam proof: `make check RUN='^TestSQLJSONDefaultShape$'`.
 - **Query namespaces** (`namespace.go`): `QueryNamespace`, `QueryQualifier`
   and `QueryColumn`, what a FROM item makes visible. Engine consumers outside
   queries (checks, defaults, generated columns, index, partition and policy
-  expressions) build one for their relation. `QueryTargetLeaf` marks a DML
-  target column.
+  expressions) build one for their relation, most through
+  `RelationNamespace`. `QueryTargetLeaf` marks a DML target column.
 - **View namespace kinds** (`view_namespace.go`): the `View*Namespace` node
   kinds stored in `ViewNamespace.Node`, `FrozenNamespaceNode` and
   `ViewFromRoot`, which view rendering also uses.
@@ -275,7 +275,8 @@ which read `stored.View`. Since 12e the engine names these types directly
 `TestCheckQuerySourcesChecksEachSourceAsItsPrincipal` and
 `TestCheckBindingDeleteChecksDeleteBeforeReads` the binding privilege walkers
 (per-source principals, validation and check order), and
-`TestQueryOuterJoinsComparisonNegators` the FULL JOIN comparison negators.
+`TestQueryOuterJoinsComparisonNegators` the FULL JOIN comparison negators,
+and `TestRelationNamespaceShape` the relation namespace.
 The binder needs an engine host, so its unit tests stay in the engine and
 name `analyze.Binder` and its exported members. The seams have engine unit tests: slots, binding
 authorities, held inputs, captured input retargeting and the host's rule
@@ -283,7 +284,7 @@ check, expression and query mapping, stored-view reads and the view read
 graph:
 
 ```sh
-make check RUN='^(TestQueryOuterJoinsComparisonNegators|TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestCheckQuerySourcesChecksEachSourceAsItsPrincipal|TestCheckBindingDeleteChecksDeleteBeforeReads|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
+make check RUN='^(TestRelationNamespaceShape|TestQueryOuterJoinsComparisonNegators|TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestCheckQuerySourcesChecksEachSourceAsItsPrincipal|TestCheckBindingDeleteChecksDeleteBeforeReads|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
 ```
 
 ON CONFLICT execution state over the clause: `TestRuleConflictInstantiation`,

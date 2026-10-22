@@ -152,6 +152,10 @@ never imports `view`.
   (`row_security.go`): `RowSecurity` (the command's state the root keeps in
   `statementMutation.rls`), `RowSecurityTarget`, `SelectRowSecurity`,
   `RowSecurityInputDenied`.
+- **Target admission** (`target_admission.go`): `TargetAdmission`, the
+  `table.TargetEntry` of CREATE/ALTER/DROP RULE and POLICY, CREATE OR
+  REPLACE VIEW and ALTER VIEW, which the root registers with the `table` and
+  `dml` entries.
 
 Names settled in 27b: types lose a stuttering view prefix (`viewWrite` is
 `Write`, `viewCheckGroup` is `CheckGroup`, `viewCreationScope` is
@@ -221,10 +225,11 @@ done), and the closure walks and materialized checks (27h, done). See
 policy, materialized-view and query preflight unit test builds an engine and
 stays in the root package, naming the moved code as `view.X`; `view_host_test.go`
 (`TestViewHostSeam`) pins the host seam and `drop_reader_test.go`
-(`TestDropReaderSeam`) the `DropReader` seam.
+(`TestDropReaderSeam`) the `DropReader` seam. `TestViewTargetAdmission`
+covers the target-admission entry.
 
 ```sh
-make check RUN='^Test(BindingSlots|ViewWriteSlot|Rule|View|Materialized|Polic|RLS|RowSecurity)'
+make check RUN='^Test(BindingSlots|ViewWriteSlot|ViewTargetAdmission|Rule|View|Materialized|Polic|RLS|RowSecurity)'
 make check RUN='^Test(DropReaderSeam|Regclass|Domain|AlterType|Collation|Composite|Extension.*Drop|PGDepend)'
 make check RUN='^Test(Query(OuterJoins|Lock|Set|Window)|CastCoercion.*Preflight|ExprCollation|ObjectAddress|Series|StringSplit|SourceProtocol)'
 make check RACE=1 RUN='^TestMaterializedRefreshConcurrent'
