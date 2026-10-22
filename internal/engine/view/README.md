@@ -4,9 +4,11 @@ The code that *uses* stored queries and needs no engine: rule rewriting and
 rule programs, the lowering of writes through auto-updatable views,
 stored-projection demand, view options, concurrent materialized refresh and
 the materialized snapshot codec, policy validation and RLS layer selection,
-and the view, rule and policy dependency checks, and the view, rule and policy
-DDL decisions behind `Host` and `StageHost`. Step 27 of the engine split
-created it (27b moved the clean set, 27d the handler decisions). It is an
+and the view, rule and policy dependency checks, the view, rule and policy
+DDL decisions behind `Host` and `StageHost`, and the execution-time query
+preflight and join legality. Step 27 of the engine split created it (27b
+moved the clean set, 27d the handler decisions, 27e the query preflight). It
+is an
 upper feature in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (types and pure functions only),
@@ -45,6 +47,17 @@ never imports `view`.
   sources) that the root stages and publishes. `FreezeDefinition` freezes
   view and materialized view queries; `freezeRuleActionPresentation` and
   `freezeRuleModifierPresentations` freeze rule actions.
+- **Query preflight** (`query_preflight.go`, `query_set_preflight.go`,
+  `query_join_legality.go`): `PreflightQuery` copies the plan paths that
+  hold folded coercions for one execution (window, join, set, DISTINCT,
+  function-from and set-project nodes, rule producer demand);
+  `PrepareStoredExecutionRoot` preflights a stored view query for its
+  demanded outputs and returns the source reads; the execution-only join
+  and row-mark legality checks `ValidateQueryJoinExecution`,
+  `ValidateMutationJoinExecution`, `ValidateExpressionJoinExecution` and
+  `ValidateMarkedQueryJoin`. They run on execution-owned parameters, never
+  at Prepare. The root's `exec` preparation forwarders (`PreflightQuery`,
+  `AdmitExpression` in `exec_preparation.go`) call them.
 - **Rule rewriting** (`rule_rewrite.go`, `rule_frames.go`,
   `rule_producer_demand.go`, `rule_query_*.go`, `rule_parameter_preflight.go`,
   `rule_update_output.go`): `RuleRewriter` (`ExpandLocked`, the INSTEAD,
@@ -122,7 +135,7 @@ AccessExclusive waits and dependents of DROP VIEW, and publication; RENAME
 and SET SCHEMA dispatch to the root's table handlers. The host bodies
 (`view_host.go`; `BindPolicyExpression` in `policy_expression.go`), rule
 program execution and admission (they run DML), `prepareStoredQueryLocked`
-and `prepareStoredExecutionRoot` (query preflight), view source opening and
+(it opens the sources under `Engine.mu`), view source opening and
 authorization (`view_source.go`), `checkViewRow`, refresh row production and
 staging (`refreshMaterializedLocked`, `materializedRefreshRowsLocked`,
 `stageMaterializedRows`), the `CatalogStage` replacement wrappers, the
@@ -133,7 +146,7 @@ privilege walkers (`CheckViewWrite`, `row_security_setting.go`), the drop
 diagnostics and `dropProvider` (it collects the live descriptors and stages
 the dependents), and the slot accessors on `CatalogStage` and
 `StatementScope`. The third round moves the clean parts here: query
-preflight (27e), the privilege walkers over `access.View` (27f), the drop
+preflight (27e, done), the privilege walkers over `access.View` (27f), the drop
 diagnostics and `dropProvider`'s read side behind a reader (27g), and the
 closure walks and materialized checks (27h). See
 [ENGINE-SPLIT-view.md](../../../docs/ENGINE-SPLIT-view.md) 27d.
@@ -160,12 +173,13 @@ closure walks and materialized checks (27h). See
 ## Testing
 
 `binding_slots_test.go` covers the slot helpers. Every other view, rule,
-policy and materialized-view unit test builds an engine and stays in the
-root package, naming the moved code as `view.X`; `view_host_test.go`
+policy, materialized-view and query preflight unit test builds an engine and
+stays in the root package, naming the moved code as `view.X`; `view_host_test.go`
 (`TestViewHostSeam`) pins the host seam.
 
 ```sh
 make check RUN='^Test(BindingSlots|ViewWriteSlot|Rule|View|Materialized|Polic|RLS|RowSecurity)'
+make check RUN='^Test(Query(OuterJoins|Lock|Set|Window)|CastCoercion.*Preflight|ExprCollation|ObjectAddress|Series|StringSplit|SourceProtocol)'
 make check RACE=1 RUN='^TestMaterializedRefreshConcurrent'
 ```
 

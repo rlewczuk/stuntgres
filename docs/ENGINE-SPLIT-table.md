@@ -865,8 +865,8 @@ Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
   `prepareIdentityDropDefinition`, `prepareConstraintIndexDrop`,
   `prepareAddedChecks`), the prepared drops crossing as
   `table.DefinitionDelta` values that also expose their next relation.
-- `inheritanceQueryLeaves` (clean; it calls `viewLeafRowMark`, in `stored`
-  after 27e) and the pending-grant decision of `acquireInheritanceSources`
+- `inheritanceQueryLeaves` (clean; it calls `stored.ViewLeafRowMark` since
+  27e) and the pending-grant decision of `acquireInheritanceSources`
   (`inheritance_query_scope.go:104-141`).
 - Delete the test-only `lockInheritanceDropClosure` and
   `inheritanceStageAlterGuard` wrappers. Correct the `table` README and

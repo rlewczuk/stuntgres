@@ -18,8 +18,9 @@ as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
 - **DML, executors:** 110c (dml 29d.3); 110d–110f follow in order.
-- **Third round, view:** 115 (27e, query preflight; first, it unblocks 116,
-  125 and 132), 117 (27g, DROP read side), 118 (27h, lock walks).
+- **Third round, view:** 116 (27f, privilege walkers and query table
+  refs; 115 is done), 117 (27g, DROP read side), 118 (27h, lock walks).
+  125 (table 24g) still waits for 124, and 132 (dml 29e) for 110f.
 - **Third round, stored and control:** 119 (22e, type provider
   validation; then 120), 121 (30e, definition OID remap; then 122).
 - **Third round, table and index:** 123 (24e; then 124 and 125), 126 (23e;
@@ -155,6 +156,9 @@ after 110a and before 110b–110f: the root is 405 files and 58.5k lines,
 25% of the engine. It planned a third round in existing packages, items
 115–132 (about 8.7k lines), and a closing review, item 133, which needs
 110f and the whole third round.
+Item 115 (view 27e) is done: query preflight and join legality live in
+`view`, the row-mark readers in `stored`, so 116 (27f) is ready; 125 now
+waits only for 124 and 132 only for 110f.
 Item 110b (DML 29d.2) is done: the unique and exclusion probing, index
 candidate validation, the write overlay probe and the `ApplyValidated`/
 `ReplaceRows` staging loops live in `dml` over `dml.Host`, so 110c (29d.3)
@@ -695,7 +699,8 @@ with the loops (the stale retry calls them).
 - [ ] **Third round** — decisions still mixed into root orchestration,
   planned by item 114 ([ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 "Third
   round"); each is a sub-step of an existing prompt file
-  - [ ] 27e — Query preflight moved ([view](ENGINE-SPLIT-view.md))
+  - [x] 27e — Query preflight moved ([view](ENGINE-SPLIT-view.md))
+    (`eb135c0fe`, `ad9c2b8ac`, then the docs commit)
   - [ ] 27f — Privilege walkers and query table refs moved
     ([view](ENGINE-SPLIT-view.md))
   - [ ] 27g — DROP read side moved ([view](ENGINE-SPLIT-view.md))
@@ -1648,10 +1653,17 @@ sub-step of an existing prompt file; none is broad. Items with "needs —"
 may run in parallel with each other and with 110b–110f, on separate
 branches.
 
-115. [ ] View 27e: query preflight to `view` — [view](ENGINE-SPLIT-view.md)
-     27e · needs — · `query_preflight.go`, `query_set_preflight.go`,
-     `query_join_legality.go`, `prepareStoredExecutionRoot`; the row-mark
-     readers to `stored` (about 1.2k lines, clean)
+115. [x] View 27e: query preflight to `view` — [view](ENGINE-SPLIT-view.md)
+     27e · needs — (`eb135c0fe`, `ad9c2b8ac`, then the docs commit) ·
+     `query_preflight.go`, `query_set_preflight.go`,
+     `query_join_legality.go`, `prepareStoredExecutionRoot` in `view`
+     (`PreflightQuery`, `PrepareStoredExecutionRoot`, the four
+     `Validate*Join*` checks); the row-mark readers in `stored`
+     (`ViewHasRowMarks`, `ViewRowLockLegality`, `ViewLeafRowMark`); no
+     aliases · targeted units, quickcheck and the quick and `REFERENCE=1`
+     view/query selections passed (four MERGE REPEATABLE READ oracle
+     failures also fail on master); racecheck/finalcheck skipped at user
+     request
 116. [ ] View 27f: privilege walkers and query table refs —
      [view](ENGINE-SPLIT-view.md) 27f · needs 115 · `CheckViewWrite`,
      `checkViewRowMarks*`, `authorizeViewSourceSnapshot`, `checkTruncate`

@@ -738,7 +738,7 @@ Planned by the end-state review (linear item 114, ENGINE-SPLIT.md §2.8 and
 - `Engine.queryTableRefsLocked` (`query_table_refs.go`, 134 lines) becomes
   `view.QueryTableRefs` over a `catalog.Read`, the catalog domain and owner
   and an authorize callback; the replaced-catalog check stays in a root
-  wrapper. It needs `viewLeafRowMark` in `stored` (27e).
+  wrapper. It needs `stored.ViewLeafRowMark` (27e, done).
 
 Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
@@ -891,7 +891,10 @@ in the root. The checks in §8.3 pass.
   `c0c3de8f8`, `d74446d38`, `41d0df237`, `bc76cde87`, then the docs commit)
   · selected unit, `RACE=1` concurrent refresh and dual-mode proof and
   quickcheck passed; racecheck/finalcheck skipped at user request; see the 27d record below
-- [ ] 27e — Query preflight moved (linear item 115)
+- [x] 27e — Query preflight moved (linear item 115) (`eb135c0fe`,
+  `ad9c2b8ac`, then the docs commit) · selected unit and dual-mode proof and
+  quickcheck passed; racecheck/finalcheck skipped at user request; see the
+  27e record below
 - [ ] 27f — Privilege walkers and query table refs moved (linear item 116)
 - [ ] 27g — DROP read side moved (linear item 117)
 - [ ] 27h — Lock walks and materialized checks moved (linear item 118)
@@ -1036,7 +1039,53 @@ Deviations from decisions 1–9:
   passed in quick and `REFERENCE=1` mode (`ref-real.log`). racecheck,
   finalcheck and bench skipped at user request (no startup change).
 
+### 27e record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-VIEW-QUERY-PREFLIGHT`, started at
+`9d0897aad`. Re-measured there: `reach` reports every moved declaration
+clean; `frontier` shows only `prepareStoredExecutionRoot`,
+`viewRowLockLegality` and `sqlError` as OUT edges (`view` has the same
+`sqlError`). No reference cancellation fixture matches a moved frame name.
+
+| Commit | Change |
+|---|---|
+| `eb135c0fe` | Row-mark readers to `stored` (`view_row_marks.go`): `ViewHasRowMarks`, `ViewRowLockLegality`, `ViewLeafRowMark`; nine root callers renamed; `TestQuerySetStoredInheritedMarks` moved to `stored/view_row_marks_test.go` |
+| `ad9c2b8ac` | `query_preflight.go`, `query_set_preflight.go` and `query_join_legality.go` to `view`, with `prepareStoredExecutionRoot`; exported `PreflightQuery`, `PrepareStoredExecutionRoot`, `ValidateQueryJoinExecution`, `ValidateMutationJoinExecution`, `ValidateExpressionJoinExecution`, `ValidateMarkedQueryJoin`; the `exec` preparation forwarders and ten root callers call `view` |
+
+Deviations and notes:
+
+- **Names.** `viewHasStoredRowMarks` became `stored.ViewHasRowMarks` (the
+  package already says "stored"). Locals named `view` that shadowed the
+  package became `read` (`AdmitExpression`, `executeSettingCall`, and two
+  engine tests).
+- **Tests.** `object_address_routine_test.go` and
+  `series_expression_test.go` called `preflightFunctionFrom` and
+  `preflightQuerySet`; they now go through `view.PreflightQuery`, whose
+  top-level switch dispatches to them, so neither had to be exported. The
+  other engine tests name `view.X`. One test moved (above); none deleted.
+- **Checks.** Every commit builds and vets; the string-literal multiset of
+  the moved code is unchanged
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-VIEW-QUERY-PREFLIGHT/lits-*.txt`); the 76
+  unit tests of the touched test files and the view, rule, query, DML,
+  cursor, COPY, domain, setting, prepared, RLS, policy, CTE and inheritance
+  units passed; quickcheck passed at `ad9c2b8ac`. `REFERENCE=1` on
+  `^TestReference(View|Rule|Materialized|RLSBase|AccessRoleRLS|InheritanceQueryRLS|InheritanceDMLRLS|DriverBatchPolicy|DumpRoundTrip$|RowLock|QuerySet|QueryOuter|QueryLock|Merge|UpdateFrom)`
+  passed except four MERGE REPEATABLE READ tests
+  (`MergeUpdateRepeatableRead`, `...Followup`, `MergeDeleteRepeatableReadFollowup`,
+  `MergeSourceUpdateRepeatableRead`), which fail the same way on master
+  `9d0897aad` in their `/postgres` oracle subtests (known drift).
+  racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
 ### Notes for later steps
+
+- 27f (from 27e): `query_table_refs.go`, `view_write_authority.go` and
+  `checkViewRowMarksExpanded` now call `stored.ViewLeafRowMark` and
+  `stored.ViewRowLockLegality`; `view.QueryTableRefs` can use them directly.
+- 24g (from 27e): `inheritanceQueryLeaves` calls `stored.ViewLeafRowMark`.
+- 29e (from 27e): the DML preflights call `view.PreflightQuery`,
+  `view.ValidateQueryJoinExecution` and `view.ValidateMutationJoinExecution`
+  (`execute_bound.go`, `merge.go`, `update.go`).
 
 - 29c (from 27d): `statementMutation.rls` holds `view.RowSecurity`;
   `configureRowSecurityLocked` composes `view.RowSecurityTarget` and

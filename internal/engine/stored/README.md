@@ -90,7 +90,9 @@ query/default plans after descriptor generations change.
   `ViewUseReference`, ...). `ProcedureProvider`. Installed-node validators
   (`ValidateInstalled{Soundex,Levenshtein,Metaphone,Crypto,UUIDOssp}`).
   The stored-view read graph and CTE volatility (`ValidateViewReadGraph`,
-  `ViewVolatile`, `CaptureRetainedInput`), view validation
+  `ViewVolatile`, `CaptureRetainedInput`), the stored row-mark readers
+  (`view_row_marks.go`: `ViewHasRowMarks`, `ViewRowLockLegality`,
+  `ViewLeafRowMark`), view validation
   (`View.Validate`, `ValidateViewLeaves`, `ValidateSetNode`,
   `ValidateViewCheckDeclaration`, `ViewOptions`) and the view-write shape
   (`ViewWriteShape`, `ViewDirectColumn`, `SameViewRelation`,
@@ -165,7 +167,7 @@ table maps the root names that older prompt files and design notes cite.
 ## Testing
 
 ```sh
-make check RUN='^Test(View|Rule)PartsRoundTrip$'
+make check RUN='^Test((View|Rule)PartsRoundTrip|QuerySetStoredInheritedMarks)$'
 make check RUN='^TestReference(View|Rule|Polic|RLS|RowSecurity|Materialized|Deparse|PGDepend|PGTableViews|GeneratedStored)'
 make check RUN='Stored|Remap'
 make check RUN='DumpRoundTrip|Restore|NativeControls'

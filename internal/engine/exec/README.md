@@ -158,10 +158,11 @@ with `InstallPreparation`; until then every method panics with
 
 Statement dispatch (`executeStatement`, `executeBoundLocked`, ...); query
 admission and capture (`query_admission.go`, `query_lock_admission.go`,
-`captureQuerySources*`, the view row-lock legality checks); query preflight
-(`query_preflight.go`, `query_set_preflight.go`, `query_join_legality.go`:
-they import `stored`, `table` and `view`, which sit above `exec` and
-`analyze`; view 27e moves them to `view`), rule parameter
+`captureQuerySources*`, the view row-lock admission walks); the
+`PreflightQuery` and `AdmitExpression` forwarders of the installed
+preparation (query preflight and join legality import `stored` and `table`,
+which sit above `exec` and `analyze`, so view 27e moved them to `view`, not
+here), rule parameter
 specialization (`view.SpecializeRuleParameterExpression` behind the
 `SpecializeRuleParameters` forwarder), the domain CHECK programme preparation (`prepareDomainConversion`, which
 keeps its phases in the statement scope) and `pruneQuoteCaptures` (stored
