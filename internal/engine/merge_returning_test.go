@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -121,7 +122,7 @@ func TestMergeReturningPublication(t *testing.T) {
 				})
 			}
 			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), cursor, state, false)
+			rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), cursor, state, false)
 			if phase == "producerClose" || phase == "outputLate" || phase == "typeDrift" {
 				if rows != nil || err == nil {
 					t.Fatal("failed private output escaped", rows, err)
@@ -150,7 +151,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					t.Fatal("accepted output count", calls, rows.Returning.Count)
 				}
 			}
-			if err = StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
+			if err = dml.StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -68,7 +69,7 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 				}
 			}
 			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := AssembleMergeRows(scope.writeHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
+			rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
 			want := primary
 			if phase == "close" {
 				want = cleanup

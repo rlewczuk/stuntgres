@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/plan"
@@ -60,7 +61,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		return Result{}, err
 	}
 	s.foreignUnlocked()
-	outcome, err := ExecuteForeign(s.writeHost(), ForeignCommand{
+	outcome, err := dml.ExecuteForeign(s.writeHost(), dml.ForeignCommand{
 		Binding: b, Op: op, Foreign: target.Foreign, Inputs: inputs, Parameters: parameters,
 		Evaluation: execution.evaluation, QueryRoot: execution.queryRoot,
 		Catalog: execution.auth.Catalog, Expressions: execution.expressions,

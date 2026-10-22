@@ -1,10 +1,9 @@
-package engine
+package dml
 
 import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -18,7 +17,7 @@ import (
 // StageMergeRows stages the assembled MERGE actions in action order: each
 // DELETE alone, and each run of INSERTs or of UPDATEs with one lock mode as
 // one batch.
-func StageMergeRows(h dml.Host, rows *dml.MergeRows, ref ids.ObjectRef) error {
+func StageMergeRows(h Host, rows *MergeRows, ref ids.ObjectRef) error {
 	for start := 0; start < len(rows.Actions); {
 		action := rows.Actions[start]
 		if action.Action == parser.MergeDeleteAction {
@@ -37,9 +36,9 @@ func StageMergeRows(h dml.Host, rows *dml.MergeRows, ref ids.ObjectRef) error {
 		if action.Action == parser.MergeUpdateAction {
 			batch := rows.WriteBatch.Slice(first, last)
 			batch.ActionMode = action.UpdateMode
-			err = dml.ReplaceRows(h, ref, rows.Predecessors[first:last], batch, dml.ReplaceMerge)
+			err = ReplaceRows(h, ref, rows.Predecessors[first:last], batch, ReplaceMerge)
 		} else {
-			err = dml.ApplyValidated(h, ref, rows.WriteBatch.Slice(first, last))
+			err = ApplyValidated(h, ref, rows.WriteBatch.Slice(first, last))
 		}
 		if err != nil {
 			return err
@@ -51,7 +50,7 @@ func StageMergeRows(h dml.Host, rows *dml.MergeRows, ref ids.ObjectRef) error {
 
 // Source completion and ON membership precede every action wait. Match marks
 // refer to captured occurrences, preserving equal values and RR old+own bags.
-func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *exec.State, unique bool) (*dml.MergeRows, error) {
+func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec.State, unique bool) (*MergeRows, error) {
 	ctx, b, target := in.Context, in.Binding, in.Target
 	sourceSchema := cursor.Schema()
 	width := len(sourceSchema)
@@ -116,12 +115,12 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 			evaluation.QueryProvenance = provenance[index*width : (index+1)*width]
 		}
 	}
-	var pairs []dml.MergeCandidate
+	var pairs []MergeCandidate
 	var targetMatched []bool
 	if b.Merge.HasBySource {
 		targetMatched = make([]bool, target.Count())
 	}
-	capture := func(i int, class parser.MergeMatch, source int) dml.MergeCandidate {
+	capture := func(i int, class parser.MergeMatch, source int) MergeCandidate {
 		slot := target.RawIndex(i)
 		old := target.VersionAt(slot)
 		deletion := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: old.Row, Version: old.Version, Ordinal: slot}
@@ -129,7 +128,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 			deletion.Own = true
 			deletion.Ordinal -= len(target.Committed)
 		}
-		return dml.MergeCandidate{UpdateCandidate: dml.UpdateCandidate{RowVersion: old, Slot: slot, SourceIndex: source}, Class: class, Deletion: deletion}
+		return MergeCandidate{UpdateCandidate: UpdateCandidate{RowVersion: old, Slot: slot, SourceIndex: source}, Class: class, Deletion: deletion}
 	}
 	for j := range sourceCount {
 		if presenceCount != 0 {
@@ -141,7 +140,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 		for i := range target.Count() {
 			old := target.VersionAt(target.RawIndex(i))
 			copy(frame, old.Values)
-			truth, err := dml.MergeMatches(&evaluation, b.Merge.On)
+			truth, err := MergeMatches(&evaluation, b.Merge.On)
 			if err != nil {
 				return nil, err
 			}
@@ -154,7 +153,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 			}
 		}
 		if !matched && b.Merge.HasByTarget {
-			pairs = append(pairs, dml.MergeCandidate{UpdateCandidate: dml.UpdateCandidate{SourceIndex: j}, Class: parser.MergeNotMatched})
+			pairs = append(pairs, MergeCandidate{UpdateCandidate: UpdateCandidate{SourceIndex: j}, Class: parser.MergeNotMatched})
 		}
 	}
 	for i, matched := range targetMatched {
@@ -169,7 +168,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 			nullSource[i] = sqltype.Null(column.Usage.Type)
 		}
 	}
-	result := &dml.MergeRows{}
+	result := &MergeRows{}
 	_, outputEnv := h.Environments()
 	output := newMergeReturningOutput(b, outputEnv)
 	if output != nil {
@@ -219,7 +218,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 			// BY SOURCE action classification owns a guarded ON evaluation,
 			// distinct from candidate matching and later update-chain rechecks.
 			// Initial BY SOURCE has no source row, so its guard skips ON.
-			matched, err := dml.MergeMatches(&evaluation, b.Merge.On)
+			matched, err := MergeMatches(&evaluation, b.Merge.On)
 			if err != nil {
 				return nil, err
 			}
@@ -228,7 +227,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 				setFrame()
 			}
 		}
-		arm, err := dml.SelectMergeArm(b.Merge, &evaluation, class)
+		arm, err := SelectMergeArm(b.Merge, &evaluation, class)
 		if err != nil {
 			return nil, err
 		}
@@ -245,7 +244,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 			if err != nil {
 				return nil, err
 			}
-			current, err := h.LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
+			current, err := h.LatestRow(MergeRowRequest(b.Ref, candidate.UpdateCandidate))
 			latest, live := current.Version, current.Live
 			if err != nil {
 				return nil, err
@@ -259,7 +258,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 					if err := h.AcquireUpdateRow(b.Ref, old.Row, lock.ForUpdate); err != nil {
 						return nil, err
 					}
-					current, err = h.LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
+					current, err = h.LatestRow(MergeRowRequest(b.Ref, candidate.UpdateCandidate))
 					latest, live = current.Version, current.Live
 					if err != nil {
 						return nil, err
@@ -282,7 +281,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 				old = latest
 				setFrame()
 				if class == parser.MergeMatched {
-					matched, err := dml.MergeMatches(&evaluation, b.Merge.On)
+					matched, err := MergeMatches(&evaluation, b.Merge.On)
 					if err != nil {
 						return nil, err
 					}
@@ -297,7 +296,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 			}
 			if !live || latest.Version != candidate.Version {
 				setFrame()
-				arm, err = dml.SelectMergeArm(b.Merge, &evaluation, class)
+				arm, err = SelectMergeArm(b.Merge, &evaluation, class)
 				if err != nil {
 					return nil, err
 				}
@@ -331,7 +330,7 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 			sourceAfter = false
 			class = parser.MergeNotMatched
 			setFrame()
-			arm, err = dml.SelectMergeArm(b.Merge, &evaluation, class)
+			arm, err = SelectMergeArm(b.Merge, &evaluation, class)
 			if err != nil {
 				return nil, err
 			}
@@ -344,14 +343,14 @@ func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *
 	return result, nil
 }
 
-func appendMergeAction(h dml.Host, b analyze.Binding, read catalog.Read, result *dml.MergeRows, evaluation *exec.Context, schema string, unique bool, arm *analyze.MergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
+func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *MergeRows, evaluation *exec.Context, schema string, unique bool, arm *analyze.MergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
 	if arm.Action == parser.MergeDeleteAction {
 		if accepted[old.Row] {
-			return dml.MergeCardinalityError()
+			return MergeCardinalityError()
 		}
 		// Initial DELETE owns rowUpdate before following a predecessor; an
 		// initial UPDATE restarts under the hasDelete strong-mode union.
-		if err := dml.ClaimUniqueRow(h, b.Ref, old); err != nil {
+		if err := ClaimUniqueRow(h, b.Ref, old); err != nil {
 			return err
 		}
 		if err := h.PhysicalRowEvent(b.Ref, old, lock.MultiUpdateAction, 0); err != nil {
@@ -362,7 +361,7 @@ func appendMergeAction(h dml.Host, b analyze.Binding, read catalog.Read, result 
 		// Canonical Delete still validates the original captured provenance at stage.
 		h.EndExclusionRow(deletion.Ref, deletion.Row, old.Version)
 		accepted[old.Row] = true
-		result.Actions = append(result.Actions, dml.MergeActionRow{Action: arm.Action, Deletion: deletion})
+		result.Actions = append(result.Actions, MergeActionRow{Action: arm.Action, Deletion: deletion})
 		return nil
 	}
 	row := make([]sqltype.Value, len(b.Relation.Columns))
@@ -389,7 +388,7 @@ func appendMergeAction(h dml.Host, b analyze.Binding, read catalog.Read, result 
 		for i, column := range b.Relation.Columns {
 			row[i] = sqltype.Null(column.Usage.Type)
 		}
-		if err := dml.EvaluateInsertValuesRow(read, &arm.Input, arm.Input.Expressions[0], arm.Syntax, row, false, evaluation); err != nil {
+		if err := EvaluateInsertValuesRow(read, &arm.Input, arm.Input.Expressions[0], arm.Syntax, row, false, evaluation); err != nil {
 			return err
 		}
 	}
@@ -399,7 +398,7 @@ func appendMergeAction(h dml.Host, b analyze.Binding, read catalog.Read, result 
 	if arm.Action == parser.MergeUpdateAction {
 		command.RLS.Proposal = command.RLS.MergeUpdate
 	}
-	if err := dml.ValidateInsertRow(h, b, schema, row, &rowContext); err != nil {
+	if err := ValidateInsertRow(h, b, schema, row, &rowContext); err != nil {
 		return err
 	}
 	predecessor := storage.RowVersion{}
@@ -407,9 +406,9 @@ func appendMergeAction(h dml.Host, b analyze.Binding, read catalog.Read, result 
 	if arm.Action == parser.MergeUpdateAction {
 		// Demanded projection/constraints precede second-modification arbitration.
 		if accepted[old.Row] {
-			return dml.MergeCardinalityError()
+			return MergeCardinalityError()
 		}
-		keyChanged, err := dml.UniqueKeyChanged(h, b.Ref, old.Values, row)
+		keyChanged, err := UniqueKeyChanged(h, b.Ref, old.Values, row)
 		if err != nil {
 			return err
 		}
@@ -418,7 +417,7 @@ func appendMergeAction(h dml.Host, b analyze.Binding, read catalog.Read, result 
 				return err
 			}
 		}
-		if err := dml.ClaimUniqueRow(h, b.Ref, old); err != nil {
+		if err := ClaimUniqueRow(h, b.Ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -434,35 +433,35 @@ func appendMergeAction(h dml.Host, b analyze.Binding, read catalog.Read, result 
 	}
 	candidate := index.WriteCandidate{Values: row}
 	if unique {
-		if err := dml.CheckUniqueRow(h, b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
+		if err := CheckUniqueRow(h, b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
 			return err
 		}
 	}
 	if arm.Action == parser.MergeUpdateAction {
 		accepted[old.Row] = true
 	}
-	result.Actions = append(result.Actions, dml.MergeActionRow{Action: arm.Action, Payload: len(result.Values), UpdateMode: actionMode})
+	result.Actions = append(result.Actions, MergeActionRow{Action: arm.Action, Payload: len(result.Values), UpdateMode: actionMode})
 	result.Predecessors = append(result.Predecessors, predecessor)
 	result.Append(candidate)
 	return nil
 }
 
-func mergeFollowChainStrong(h dml.Host, b analyze.Binding) (bool, error) {
+func mergeFollowChainStrong(h Host, b analyze.Binding) (bool, error) {
 	if b.Merge.HasDelete {
 		return true, nil
 	}
-	unique, err := dml.BindUniqueWrite(h, b.Ref)
+	unique, err := BindUniqueWrite(h, b.Ref)
 	if err != nil {
 		return false, err
 	}
-	return dml.MergeFollowStrong(b.Merge, unique.KeySlots), nil
+	return MergeFollowStrong(b.Merge, unique.KeySlots), nil
 }
 
-func newMergeReturningOutput(b analyze.Binding, output sqltype.OutputEnvironment) *dml.MergeReturningOutput {
+func newMergeReturningOutput(b analyze.Binding, output sqltype.OutputEnvironment) *MergeReturningOutput {
 	if b.Returning == nil {
 		return nil
 	}
 	rows := exec.NewFinalRows(b.Returning.Schema, 0)
 	rows.Output = output
-	return &dml.MergeReturningOutput{Returning: b.Returning, Rows: rows, Frame: make([]sqltype.Value, b.Merge.TargetWidth+b.Merge.SourceWidth)}
+	return &MergeReturningOutput{Returning: b.Returning, Rows: rows, Frame: make([]sqltype.Value, b.Merge.TargetWidth+b.Merge.SourceWidth)}
 }

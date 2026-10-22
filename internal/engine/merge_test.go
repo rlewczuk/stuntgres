@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
@@ -90,7 +91,7 @@ func TestMergeInsertPublication(t *testing.T) {
 				cursor.closeError = cleanup
 			}
 			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Ctx, b, target, nil, nil, "public"), cursor, state, false)
+			rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Ctx, b, target, nil, nil, "public"), cursor, state, false)
 			if cursor.closed != 1 || len(scope.stage.rows) != 0 {
 				t.Fatal("producer published or did not close exactly once", cursor.closed, scope.stage.rows)
 			}
@@ -98,7 +99,7 @@ func TestMergeInsertPublication(t *testing.T) {
 				if err != nil || len(rows.Values) != 2 {
 					t.Fatal("bag occurrences", rows, err)
 				}
-				if err := StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
+				if err := dml.StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
 					t.Fatal(err)
 				}
 				if err := scope.Finish(nil); err != nil {
@@ -169,7 +170,7 @@ func TestMergeInsertCancellation(t *testing.T) {
 					cursor.beforeClose = cancel
 				}
 				state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-				_, err = AssembleMergeRows(scope.writeHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
+				_, err = dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
 				if cursor.closed != 1 {
 					t.Fatal("canceled source not closed")
 				}

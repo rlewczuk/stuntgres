@@ -98,7 +98,7 @@ func TestMergeNothingPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rows, err := AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, query, false)
+			rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, query, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -106,7 +106,7 @@ func TestMergeNothingPublication(t *testing.T) {
 				t.Fatal("omission assembled mutation/output", rows)
 			}
 			defer rows.Returning.Close()
-			if err = StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
+			if err = dml.StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
 				t.Fatal(err)
 			}
 			if len(scope.stage.rows) != 0 {

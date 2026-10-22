@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -38,7 +39,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, state, false)
+		rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, state, false)
 		if err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
@@ -82,7 +83,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal("drained source/transition recipe provenance", got, want)
 		}
-		if err = StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
+		if err = dml.StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
 		}

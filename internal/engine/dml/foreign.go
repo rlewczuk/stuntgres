@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/fdw"
@@ -38,24 +37,24 @@ type ForeignCommand struct {
 // Engine.mu and the replacement read: it plans the modification, enters it,
 // then inserts the evaluated rows or updates and deletes the rows the
 // identity scan returns. The caller closes Inputs.
-func ExecuteForeign(h dml.Host, in ForeignCommand) (dml.Outcome, error) {
+func ExecuteForeign(h Host, in ForeignCommand) (Outcome, error) {
 	b, op, inputs, parameters := in.Binding, in.Op, in.Inputs, in.Parameters
 	m, err := fdw.PlanModification(h.Context(), in.Foreign, op, false)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	input, output := h.Environments()
 	state := &exec.State{Source: inputs, Parameters: parameters, Input: input, Output: output, Ctes: h.CTEInvocation()}
 	defer state.ReleaseMemberships()
 	m.Request.Parameters, err = exec.ForeignParameters(h.Context(), state, in.Foreign)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	if err = m.Begin(h.Context(), h); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	if err = exec.SelectQuerySources(h.Context(), inputs); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	evaluation := in.Evaluation
 	evaluation.Query = state
@@ -67,9 +66,9 @@ func ExecuteForeign(h dml.Host, in ForeignCommand) (dml.Outcome, error) {
 		if b.CommandQuery {
 			b.Query = &plan.Query{Root: in.QueryRoot}
 			input, output := h.Environments()
-			batch, err := dml.EvaluateInsertQuery(h.Context(), b, inputs, parameters, in.Catalog.Get(b.Relation.Namespace()).Name(), input, output, h)
+			batch, err := EvaluateInsertQuery(h.Context(), b, inputs, parameters, in.Catalog.Get(b.Relation.Namespace()).Name(), input, output, h)
 			if err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			rows = batch.Values
 		} else {
@@ -80,8 +79,8 @@ func ExecuteForeign(h dml.Host, in ForeignCommand) (dml.Outcome, error) {
 					row[j] = sqltype.Null(c.Usage.Type)
 				}
 				if len(b.Insert.Projection) != 0 {
-					if err := dml.EvaluateInsertValuesRow(in.Catalog, &b, in.Expressions[i], raw, row, len(b.Insert.Rows) > 1, &evaluation); err != nil {
-						return dml.Outcome{}, err
+					if err := EvaluateInsertValuesRow(in.Catalog, &b, in.Expressions[i], raw, row, len(b.Insert.Rows) > 1, &evaluation); err != nil {
+						return Outcome{}, err
 					}
 				} else {
 					for j, defaultExpr := range b.Insert.Defaults {
@@ -98,7 +97,7 @@ func ExecuteForeign(h dml.Host, in ForeignCommand) (dml.Outcome, error) {
 						if !supplied {
 							row[j], err = defaultExpr.Eval(&evaluation)
 							if err != nil {
-								return dml.Outcome{}, err
+								return Outcome{}, err
 							}
 						}
 					}
@@ -113,12 +112,12 @@ func ExecuteForeign(h dml.Host, in ForeignCommand) (dml.Outcome, error) {
 							row[target], err = in.Expressions[i][j].Eval(&evaluation)
 						}
 						if err != nil {
-							return dml.Outcome{}, analyze.InsertValueError(in.Catalog, err, b.Relation.Columns[target], rawValue, nil)
+							return Outcome{}, analyze.InsertValueError(in.Catalog, err, b.Relation.Columns[target], rawValue, nil)
 						}
 					}
 				}
 				if err := table.EvaluateGenerations(h.Context(), b.Relation, row, &evaluation); err != nil {
-					return dml.Outcome{}, err
+					return Outcome{}, err
 				}
 				rows = append(rows, row)
 			}
@@ -128,7 +127,7 @@ func ExecuteForeign(h dml.Host, in ForeignCommand) (dml.Outcome, error) {
 	return executeForeignRowMutation(h, m, b, state, &evaluation)
 }
 
-func foreignInsertResult(h dml.Host, m *fdw.Modification, b analyze.Binding, rows [][]sqltype.Value, evaluation *exec.Context) (dml.Outcome, error) {
+func foreignInsertResult(h Host, m *fdw.Modification, b analyze.Binding, rows [][]sqltype.Value, evaluation *exec.Context) (Outcome, error) {
 	var output *exec.FinalRows
 	if b.Returning != nil {
 		output = exec.NewFinalRows(b.Returning.Schema, 0)
@@ -136,36 +135,36 @@ func foreignInsertResult(h dml.Host, m *fdw.Modification, b analyze.Binding, row
 	}
 	rowByRow := b.Returning != nil || b.ViewWrite != nil && len(view.ViewWriteOf(b.ViewWrite).Checks) != 0
 	count, err := m.InsertRows(h.Context(), h, rows, rowByRow, func(row []sqltype.Value) error {
-		if err := dml.CheckViewRow(h, &b, row, evaluation); err != nil {
+		if err := CheckViewRow(h, &b, row, evaluation); err != nil {
 			return err
 		}
-		return dml.ProjectForeignReturning(b, output, row, nil, evaluation)
+		return ProjectForeignReturning(b, output, row, nil, evaluation)
 	})
 	if err != nil {
 		if output != nil {
 			output.Close()
 		}
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	return finishForeignResult(h, b, output, count)
 }
-func finishForeignResult(h dml.Host, b analyze.Binding, output *exec.FinalRows, count int64) (dml.Outcome, error) {
+func finishForeignResult(h Host, b analyze.Binding, output *exec.FinalRows, count int64) (Outcome, error) {
 	if output != nil && b.Returning.RegclassOutput && count != 0 {
 		if err := h.CaptureRegclassOutput(output); err != nil {
 			output.Close()
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 	}
 	if err := h.Context().Err(); err != nil {
 		if output != nil {
 			output.Close()
 		}
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
-	return dml.Outcome{Count: count, Rows: output}, nil
+	return Outcome{Count: count, Rows: output}, nil
 }
 
-func foreignTargetRows(ctx context.Context, h dml.Host, m *fdw.Modification) ([]dml.ForeignMutationRow, error) {
+func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]ForeignMutationRow, error) {
 	f := m.Source
 	r := exec.CopyForeignRequest(m.Request.ForeignRequest)
 	r.Identity = &m.Request.Targets
@@ -185,7 +184,7 @@ func foreignTargetRows(ctx context.Context, h dml.Host, m *fdw.Modification) ([]
 	if !ok {
 		return nil, sqlError("0A000", "foreign modification scan does not supply row identity")
 	}
-	var rows []dml.ForeignMutationRow
+	var rows []ForeignMutationRow
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -213,15 +212,15 @@ func foreignTargetRows(ctx context.Context, h dml.Host, m *fdw.Modification) ([]
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, dml.ForeignMutationRow{Row: values, Identity: exec.CopyForeignCells(identity)})
+		rows = append(rows, ForeignMutationRow{Row: values, Identity: exec.CopyForeignCells(identity)})
 	}
 	return rows, nil
 }
-func executeForeignRowMutation(h dml.Host, m *fdw.Modification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (dml.Outcome, error) {
+func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (Outcome, error) {
 	ctx := h.Context()
 	rows, err := foreignTargetRows(ctx, h, m)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	var from plan.Node
 	predicate := b.Predicate
@@ -251,11 +250,11 @@ func executeForeignRowMutation(h dml.Host, m *fdw.Modification, b analyze.Bindin
 		}
 		stage, err = exec.OpenNode(ctx, state, from)
 		if err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		defer stage.Close()
 		if err := stage.Drain(ctx); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 		sourceCount = stage.Count()
 		if sourceCount != 0 {
@@ -279,7 +278,7 @@ func executeForeignRowMutation(h dml.Host, m *fdw.Modification, b analyze.Bindin
 		identityChecked := false
 		for i := range sourceCount {
 			if err := ctx.Err(); err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			evaluation.Row = candidate.Row
 			if from != nil {
@@ -290,7 +289,7 @@ func executeForeignRowMutation(h dml.Host, m *fdw.Modification, b analyze.Bindin
 			}
 			matches, err := exec.UpdateMatches(evaluation, predicate)
 			if err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			if !matches {
 				continue
@@ -305,45 +304,45 @@ func executeForeignRowMutation(h dml.Host, m *fdw.Modification, b analyze.Bindin
 			var returned catalog.ForeignRow
 			var present bool
 			if b.Update != nil {
-				row, err := dml.EvaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.Row)
+				row, err := EvaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.Row)
 				if err != nil {
-					return dml.Outcome{}, err
+					return Outcome{}, err
 				}
 				if err := table.EvaluateGenerations(ctx, b.Relation, row, evaluation); err != nil {
-					return dml.Outcome{}, err
+					return Outcome{}, err
 				}
 				input, err := m.Export(ctx, row, h)
 				if err != nil {
-					return dml.Outcome{}, err
+					return Outcome{}, err
 				}
 				returned, present, err = m.Source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.Identity), input)
 				if err != nil {
-					return dml.Outcome{}, exec.ForeignCallbackError(err)
+					return Outcome{}, exec.ForeignCallbackError(err)
 				}
 			} else {
 				input, exportErr := m.Export(ctx, candidate.Row, h)
 				if exportErr != nil {
-					return dml.Outcome{}, exportErr
+					return Outcome{}, exportErr
 				}
 				returned, present, err = m.Source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.CallbackRequest(), m.State, exec.CopyForeignCells(candidate.Identity), input)
 			}
 			if err != nil {
-				return dml.Outcome{}, exec.ForeignCallbackError(err)
+				return Outcome{}, exec.ForeignCallbackError(err)
 			}
 			if !present {
 				continue
 			}
 			actual, err := m.Returned(ctx, returned, h)
 			if err != nil {
-				return dml.Outcome{}, err
+				return Outcome{}, err
 			}
 			if b.Update != nil {
-				if err := dml.CheckViewRow(h, &b, actual, evaluation); err != nil {
-					return dml.Outcome{}, err
+				if err := CheckViewRow(h, &b, actual, evaluation); err != nil {
+					return Outcome{}, err
 				}
 			}
-			if err := dml.ProjectForeignReturning(b, output, actual, candidate.Row, evaluation); err != nil {
-				return dml.Outcome{}, err
+			if err := ProjectForeignReturning(b, output, actual, candidate.Row, evaluation); err != nil {
+				return Outcome{}, err
 			}
 			count++
 		}

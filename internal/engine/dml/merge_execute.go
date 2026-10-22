@@ -1,11 +1,10 @@
-package engine
+package dml
 
 import (
 	"context"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
@@ -28,19 +27,19 @@ type MergeInput struct {
 // sources and released Engine.mu: it completes the source, assembles every
 // action in candidate order (row locks, latest reads and validation), then
 // stages them.
-func ExecuteMerge(h dml.Host, in MergeInput) (dml.Outcome, error) {
+func ExecuteMerge(h Host, in MergeInput) (Outcome, error) {
 	ctx, b, target, inputs := in.Context, in.Binding, in.Target, in.Inputs
 	defer target.Close()
 	defer inputs.Close()
-	unique, err := dml.BindUniqueWrite(h, b.Ref)
+	unique, err := BindUniqueWrite(h, b.Ref)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	input, output := h.Environments()
-	state := &exec.State{Source: inputs, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, VirtualReads: dml.MergeHasVirtualReads(b.Merge)}
+	state := &exec.State{Source: inputs, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, VirtualReads: MergeHasVirtualReads(b.Merge)}
 	if b.Returning != nil {
 		for _, expr := range b.Returning.Expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
@@ -49,11 +48,11 @@ func ExecuteMerge(h dml.Host, in MergeInput) (dml.Outcome, error) {
 	defer state.ReleaseMemberships()
 	cursor, err := exec.OpenNode(ctx, state, b.Merge.Source)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	rows, err := AssembleMergeRows(h, in, &cursor, state, len(unique.Keys) != 0 || unique.Checked)
 	if err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	complete := false
 	defer func() {
@@ -62,19 +61,19 @@ func ExecuteMerge(h dml.Host, in MergeInput) (dml.Outcome, error) {
 		}
 	}()
 	if err := ctx.Err(); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	if err := StageMergeRows(h, rows, b.Ref); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	if rows.Returning != nil && b.Returning.RegclassOutput && rows.Returning.Count != 0 {
 		if err := h.CaptureRegclassOutput(rows.Returning); err != nil {
-			return dml.Outcome{}, err
+			return Outcome{}, err
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return dml.Outcome{}, err
+		return Outcome{}, err
 	}
 	complete = true
-	return dml.Outcome{Count: int64(len(rows.Actions)), Rows: rows.Returning}, nil
+	return Outcome{Count: int64(len(rows.Actions)), Rows: rows.Returning}, nil
 }
