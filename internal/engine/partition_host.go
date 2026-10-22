@@ -23,11 +23,7 @@ var _ partition.Host = ddlHost{}
 func (h ddlHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, []int, error) {
 	auth := ddlAuthorityOf(a)
 	ref := h.e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	columns := make([]analyze.QueryColumn, len(d.Columns))
-	for j, c := range d.Columns {
-		columns[j] = analyze.QueryColumn{Descriptor: c, Slot: j, Leaf: 0, Physical: j}
-	}
-	namespace := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: d.Columns}
+	namespace := analyze.RelationNamespace(auth.Catalog, d, ref, 0)
 	binder := newExpressionBinder(h.op.Context(), h.e, input, h.op, nil)
 	binder.Consumer.PartitionConsumer, binder.Params.NoParameters, binder.Query.Auth = "partition key expression", true, &auth
 	binder.Query.Namespace = &namespace

@@ -47,13 +47,7 @@ func (e *Engine) bindCreateGenerations(op *session.Operation, auth Authorization
 }
 
 func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation) analyze.QueryNamespace {
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	columns := make([]analyze.QueryColumn, len(d.Columns))
-	for i, c := range d.Columns {
-		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
-	}
-	qualifier := analyze.QueryQualifier{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}
-	return analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: d.Columns}
+	return analyze.RelationNamespace(auth.Catalog, d, e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), 0)
 }
 
 // CREATE and ALTER share binding, security, coercion and provider capture.

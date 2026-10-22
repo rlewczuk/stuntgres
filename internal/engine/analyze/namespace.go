@@ -43,3 +43,16 @@ type QueryNamespace struct {
 	Values                    bool // Synthetic VALUES names retain PostgreSQL spelling hints.
 	IdentityValuesOrderDemand []bool
 }
+
+// RelationNamespace is the namespace of one relation for an expression bound
+// over it (a CHECK, generation, key or USING expression): its columns in
+// frame order, read from leaf, under one qualifier named after the relation
+// and its schema in view.
+func RelationNamespace(view catalog.Read, relation *catalog.Relation, ref ids.ObjectRef, leaf int) QueryNamespace {
+	columns := make([]QueryColumn, len(relation.Columns))
+	for i, column := range relation.Columns {
+		columns[i] = QueryColumn{Descriptor: column, Slot: i, Leaf: leaf, Physical: i}
+	}
+	qualifier := QueryQualifier{Name: relation.Name(), Original: relation.Name(), Schema: view.Get(relation.Namespace()).Name(), Ref: ref, Columns: columns}
+	return QueryNamespace{Columns: columns, Qualifiers: []QueryQualifier{qualifier}, Frame: relation.Columns}
+}

@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -49,14 +48,6 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Oper
 	return stage, nil
 }
 
-func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef) *analyze.QueryNamespace {
-	columns := make([]analyze.QueryColumn, len(original.Columns))
-	for i, column := range original.Columns {
-		columns[i] = analyze.QueryColumn{Descriptor: column, Slot: i, Leaf: analyze.QueryTargetLeaf, Physical: i}
-	}
-	qualifier := analyze.QueryQualifier{Name: original.Name(), Original: original.Name(), Schema: auth.Catalog.Get(original.Namespace()).Name(), Ref: ref, Columns: columns}
-	return &analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: original.Columns}
-}
 
 // prepareAlterTypeLocked admits and completes one TYPE action; the caller holds
 // Engine.mu. suppliedUsage is used only by typed propagation of an already

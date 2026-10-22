@@ -68,12 +68,7 @@ func (h alterHost) BindAddedChecks(a ddl.Authority, relation *catalog.Relation, 
 
 func (h alterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr) (expr.Expr, error) {
 	auth := ddlAuthorityOf(a)
-	columns := make([]analyze.QueryColumn, len(relation.Columns))
-	for i, column := range relation.Columns {
-		columns[i] = analyze.QueryColumn{Descriptor: column, Slot: i, Leaf: 0, Physical: i}
-	}
-	qualifier := analyze.QueryQualifier{Name: relation.Name(), Original: relation.Name(), Schema: auth.Catalog.Get(relation.Namespace()).Name(), Ref: ref, Columns: columns}
-	namespace := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: relation.Columns}
+	namespace := analyze.RelationNamespace(auth.Catalog, relation, ref, 0)
 	binder := newExpressionBinder(h.op.Context(), h.e, h.scope.input, h.op, nil)
 	binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Query.Auth = true, true, &auth
 	binder.Stored.CheckLiterals = literals
@@ -86,7 +81,8 @@ func (h alterHost) BindAlterTypeUsing(a ddl.Authority, original *catalog.Relatio
 	auth := ddlAuthorityOf(a)
 	binder := newExpressionBinder(h.scope.op.Context(), h.e, h.scope.input, h.scope.op, nil)
 	binder.Target.Relation, binder.Target.Ref, binder.Params.NoParameters, binder.Query.Auth = original, ref, true, &auth
-	binder.Query.Namespace = alterTypeNamespace(auth, original, ref)
+	namespace := analyze.RelationNamespace(auth.Catalog, original, ref, analyze.QueryTargetLeaf)
+	binder.Query.Namespace = &namespace
 	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: original}}
 	node, err := binder.Bind(using, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: usage.Type.Usage()})
 	if err == nil && (binder.Prepared.RegclassConcat || binder.Consumer.CatalogSnapshot) {
