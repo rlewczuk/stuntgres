@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `28e17c28d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133 and 134). Steps 8–17 were
+Last verified against `master` at `fdcac17ae` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133 and 134). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -808,7 +808,7 @@ evaluation template and the private roots, so 135 (table 24i) is ready.
   133 ([ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 "Fourth round"); each is a
   sub-step of an existing prompt file
   - [x] 24h — ALTER row rewrite and scan ([table](ENGINE-SPLIT-table.md))
-    (`35c4bd095`, `2425a5ac1`, then the docs commit)
+    (`b79597f14`, `656dc171c`, then the docs commit)
   - [ ] 24i — FK provider plans, validation loops and inheritance
     decisions ([table](ENGINE-SPLIT-table.md))
   - [ ] 24j — Definition-provider collection and deparse inquiries
@@ -2015,8 +2015,8 @@ may run in parallel with each other, on separate branches. The numbers are
 final; an item that splits gets lettered sub-items (rule 5 below).
 
 134. [x] Table 24h: ALTER row rewrite and scan —
-     [table](ENGINE-SPLIT-table.md) 24h · needs — (`35c4bd095`,
-     `2425a5ac1`, then the docs commit) · `table.RewriteTypeRows`,
+     [table](ENGINE-SPLIT-table.md) 24h · needs — (`b79597f14`,
+     `656dc171c`, then the docs commit) · `table.RewriteTypeRows`,
      `table.ValidateAddedConstraintRows` and `table.PlanAddedColumns` over
      a root `exec.Context` template (`alterRowEvaluation`) and the private
      write and delete roots; no aliases · targeted units (also `RACE=1`),

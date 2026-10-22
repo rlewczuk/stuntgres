@@ -1128,8 +1128,8 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   `319ad1289`, `35e3d98ae`, then the docs commit) · selected unit (also `RACE=1`) and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request; see the 24g record below
-- [x] 24h — ALTER row rewrite and scan — linear item 134 (`35c4bd095`,
-  `2425a5ac1`, then the docs commit) · selected unit (also `RACE=1`) and
+- [x] 24h — ALTER row rewrite and scan — linear item 134 (`b79597f14`,
+  `656dc171c`, then the docs commit) · selected unit (also `RACE=1`) and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request; see the 24h record below
 - [ ] 24i — FK provider plans, validation loops and inheritance decisions (linear item 135)
@@ -1628,7 +1628,8 @@ on `make build` and its units; no aliases.
 ### 24h record
 
 Started at `47331f37f` (item 133 recorded) and rebased onto `28e17c28d`
-(information_schema.key_column_usage; no overlap). `reach` at the start
+(information_schema.key_column_usage) and `fdcac17ae` (reference test
+remedies); neither overlaps. `reach` at the start
 confirmed the plan: `rewriteTypeRows`, `StatementScope.validateAddedConstraintRows`
 and `planAddedColumns` were DIRTY only through `StatementScope`; after the
 move the four touched root files keep only the candidate wrappers and
@@ -1636,7 +1637,7 @@ move the four touched root files keep only the candidate wrappers and
 `.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-ROW-REWRITE/`). Two code commits, each
 green on `make build` and its units; no aliases.
 
-- `35c4bd095` (cut in place): the three functions take an `exec.Context`
+- `b79597f14` (cut in place): the three functions take an `exec.Context`
   template by value and, for the rewrite, the private write and delete
   roots. The root `alterRowEvaluation(scope, op, read)` builds the
   template right before each call: `scope.op` and the routine authority's
@@ -1647,7 +1648,7 @@ green on `make build` and its units; no aliases.
   old relation (typed tables), the address the rewrite read before.
   Cancellation checks read the template's context, which is that same
   `op.Context()`.
-- `2425a5ac1` (move): `table.RewriteTypeRows` (new `table/alter_rewrite.go`),
+- `656dc171c` (move): `table.RewriteTypeRows` (new `table/alter_rewrite.go`),
   `table.ValidateAddedConstraintRows` (`table/alter_constraint_rows.go`) and
   `table.PlanAddedColumns` (`table/alter_add_column.go`), bodies unchanged
   apart from the `table.` qualifiers. The root `alter_constraint_rows.go`
