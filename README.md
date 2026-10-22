@@ -27,6 +27,17 @@ argument-side LO effects without changing the outer snapshot. Native replay
 reconstructs pages from the existing LO state, not a second serialized catalog.
 See [selected proof and smoke](reference/catalogs/README.md#pg_largeobject-page-projection).
 
+## Tablespace inquiries — change note
+
+`pg_tablespace_location(oid)` returns empty text for the builtin tablespaces
+and the native default (`0`); `pg_tablespace_databases(oid)` reports the genuine
+current attached database's logical occupancy. Typed NULLs, held statements,
+set-returning composition, warnings and ordinary EXECUTE admission use the
+existing typed execution path. External directory inspection remains an explicit
+non-engine boundary, not an invented path or cluster database inventory.
+See [native limits](docs/DIALECT.md#tablespace-inquiries) and
+[selected proof](reference/catalogs/README.md#tablespace-inquiry-selected-proof).
+
 ## Transactional large-object storage — change note
 
 `lo_create`, `lo_creat`, `lo_from_bytea`, both `lo_get` overloads, `lo_put`

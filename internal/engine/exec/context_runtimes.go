@@ -84,6 +84,22 @@ func (c *Context) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqlty
 	return host.CatalogUserName(oid, result)
 }
 
+func (c *Context) TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing tablespace inquiry snapshot")
+	}
+	return host.TablespaceLocation(oid, result)
+}
+
+func (c *Context) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing tablespace inquiry snapshot")
+	}
+	return host.TablespaceDatabase(oid, result)
+}
+
 func (c *Context) CommentInquiry(kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {

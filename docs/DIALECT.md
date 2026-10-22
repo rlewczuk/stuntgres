@@ -8,6 +8,49 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## Tablespace inquiries
+
+The sole signatures are `pg_tablespace_location(oid) -> text` and
+`pg_tablespace_databases(oid) -> setof oid`. Location returns empty text for
+`pg_default` (1663), `pg_global` (1664), and zero, which maps to native's only
+supported default, pg_default. This logical default invariant does not change
+`pg_database.dattablespace`'s existing unknown/NULL metadata.
+
+Native pg_default occupancy is exactly the current attached database descriptor's
+OID once, including fresh/reset databases: represented nonshared system catalog
+relations already occupy that logical database. It is independent of user table
+existence, table row count, SELECT access and RLS. Other opaque DSNs or independent
+Drivers are not cluster databases and are never enumerated. PostgreSQL instead
+scans physical database directories, including its template databases; empty
+tables have files, and dropped relations may leave observable directory contents
+until deferred physical cleanup. Native makes no disk-equivalence or new
+DROP TABLESPACE promise.
+
+Location of any nonbuiltin OID fails with 0A000,
+`pg_tablespace_location physical directory inspection is unsupported in embedded mode`.
+It does not inspect the host filesystem. PostgreSQL can return real custom paths,
+fails absent links with 58P01 and inaccessible directories with 42501. Those
+physical errors are not fabricated natively; physical CREATE/placement remains
+outside the engine.
+
+Databases on pg_global warns `global tablespace never has databases` and returns
+no rows. Zero or any other unknown OID warns `N is not a tablespace OID` and
+returns no rows (zero is not remapped for this function). Both warnings are
+WARNING/01000 and honor `client_min_messages`; they arise only on demanded
+invocations. Neither inquiry requires tablespace CREATE, database CONNECT,
+monitor membership or table SELECT. Ordinary routine EXECUTE admission applies.
+Strict scalar NULL arguments can remove the location call before EXECUTE
+admission: both backends return TEXT NULL even after location EXECUTE revocation
+on the tested NULL routes. Non-NULL location and the databases SRF enforce
+revoked EXECUTE on both backends, including strict NULL databases invocations.
+
+Strict location NULL produces one TEXT NULL; strict databases NULL produces an
+empty typed OID set, not a NULL row. Scalar FROM NULL still has one row;
+LEFT LATERAL/ROWS FROM can independently synthesize NULL padding. There is no
+portable ordering for database OIDs without ORDER BY. Prepared recipes and stored
+expressions remain symbolic; every execution captures its own catalog authority,
+and native Dump/Reset/Restore needs no new tablespace serialization.
+
 ## Text-search scalar boundaries
 
 TSVECTOR/TSQUERY storage, input and canonical output use the ordinary type,

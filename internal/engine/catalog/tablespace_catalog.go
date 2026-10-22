@@ -7,11 +7,16 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
+// DefaultTablespaceOID is the only supported native database default placement.
+// It is a logical invariant, not physical pg_database directory metadata.
+const DefaultTablespaceOID ids.OID = 1663
+const GlobalTablespaceOID ids.OID = 1664
+
 // These are real builtin identities; no physical location/provider is implied.
 var BuiltinTablespaces = [...]struct {
 	OID  ids.OID
 	Name string
-}{{1663, "pg_default"}, {1664, "pg_global"}}
+}{{DefaultTablespaceOID, "pg_default"}, {GlobalTablespaceOID, "pg_global"}}
 
 type Tablespace struct {
 	ObjectAddress  ids.ObjectAddress

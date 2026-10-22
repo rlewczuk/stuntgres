@@ -11,6 +11,8 @@ import (
 // operations. Children are evaluated by their immutable owners before this seam.
 type CatalogInquiryRuntime interface {
 	CatalogUserName(uint32, *sqltype.Descriptor) (sqltype.Value, error)
+	TablespaceLocation(uint32, *sqltype.Descriptor) (sqltype.Value, error)
+	TablespaceDatabase(uint32, *sqltype.Descriptor) (sqltype.Value, bool, error)
 	DeparseInquiry(DeparseSignature, [3]sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	CommentInquiry(CommentInquiryKind, [2]sqltype.Value, expr.Info, *sqltype.Descriptor) (sqltype.Value, error)
 	VisibilityInquiry(VisibilityInquiryKind, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)

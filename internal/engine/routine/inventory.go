@@ -1242,6 +1242,8 @@ var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{3819, ids.PGCatalogNamespaceOID, "pg_get_multixact_members", "28"}, catalog.FunctionRoutine, 2249, true, expr.Volatile, 's', true, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{1642, ids.PGCatalogNamespaceOID, "pg_get_userbyid", "26"}, catalog.FunctionRoutine, 19, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{6159, ids.PGCatalogNamespaceOID, "pg_get_catalog_foreign_keys", ""}, catalog.FunctionRoutine, 2249, true, expr.Stable, 's', true, 0, 0, functions.CatalogRoutineProvider},
+	{catalog.RoutineIdentity{3778, ids.PGCatalogNamespaceOID, "pg_tablespace_location", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider},
+	{catalog.RoutineIdentity{2556, ids.PGCatalogNamespaceOID, "pg_tablespace_databases", "26"}, catalog.FunctionRoutine, 26, true, expr.Stable, 's', true, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{3084, ids.PGCatalogNamespaceOID, "pg_extension_update_paths", "19"}, catalog.FunctionRoutine, 2249, true, expr.Stable, 's', true, 0, 0, functions.CatalogRoutineProvider},
 	{catalog.RoutineIdentity{6384, ids.PGCatalogNamespaceOID, "lgamma", "701"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.MathRoutineProvider},
 	{catalog.RoutineIdentity{1341, ids.PGCatalogNamespaceOID, "ln", "701"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.MathRoutineProvider},

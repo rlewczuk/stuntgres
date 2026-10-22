@@ -1886,6 +1886,61 @@ and Reset. The maintained `BuiltinIndexHistory` definition includes pg_database,
 pg_attribute, pg_namespace, pg_db_role_setting and pg_aggregate.
 Selected proof and standalone smoke do not replace whole-project quickcheck.
 
+### Tablespace inquiry selected proof
+
+`tablespace_info_*_test.go` covers the two sole OID signatures, direct/plain/
+prepared/held calls, complete diagnostics and warnings, metadata before iteration,
+strict scalar NULL versus an empty SRF, live EXECUTE privileges, LATERAL/
+ordinality/ROWS FROM, atomic consumers, retained rows and native controls.
+Native pg_default occupancy is the real current attachment OID once because
+nonshared catalogs exist, not a user row count or simulated cluster inventory.
+The real oracle independently checks the full default database-name bag.
+Unbounded TEXT uses the existing MaxInt64/known length contract for scalar and
+FROM routes; these computed columns retain unknown nullability. Native's absent
+builtin ACL, bootstrap owner and freshly created NOSUPERUSER establish no CREATE
+grant; the additional `has_tablespace_privilege` inquiry probe is PostgreSQL-only,
+not a prerequisite implementation added by this feature.
+
+The physical scenario owns a real custom PostgreSQL directory: initially empty,
+then occupied by a zero-row table, deduplicated across relations and callable by
+an ordinary role without CREATE or table SELECT. Chmod of its own version
+directory proves real 42501 inspection failure while location still reads the
+symlink target. Permissions are restored before relation/tablespace/directory
+cleanup. Immediate final-table DROP still reports physical occupancy on the
+pinned oracle; no polling or physical cleanup emulation is implied. Native
+physical creation/inspection independently refuses with 0A000.
+
+Revoked location EXECUTE with the tested NULL argument returns TEXT NULL on
+both backends through existing strict-scalar NULL pruning before admission.
+Non-NULL location and strict NULL databases retain the common denial contract.
+Exact diagnostics/warning demand counts come from pinned18.6 observations;
+physical-directory boundaries have independent expectations rather than parity alone.
+
+```sh
+make check RUN='^TestReferenceTablespaceInfo(Values|Metadata|Occupancy|Warnings|PhysicalBoundary|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceTablespaceInfo(Values|Metadata|Occupancy|Warnings|PhysicalBoundary|Diagnostics)$'
+make check RUN='^TestReferenceTablespaceInfo(Privileges|Physical|Composition|Lifecycle)$'
+make check REFERENCE=1 RUN='^TestReferenceTablespaceInfo(Privileges|Physical|Composition|Lifecycle)$'
+make check RUN='^TestTablespaceInfo(Binding|Protocol|Authority|Cursor|Stored)$'
+make check RACE=1 RUN='^TestReferenceTablespaceInfo(Lifecycle|Privileges)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceTablespaceInfo(Lifecycle|Privileges)$'
+```
+
+Use an external900-second command deadline. Full Docker-free quickcheck and
+post-integration finalcheck remain separate obligations. Lifecycle PostgreSQL
+replay requires the actual dump bytes produced by its native phase: no
+handcrafted dump or replacement SQL fallback is accepted.
+
+The root-run standalone public smoke is an external Go program, not an aggregate
+repository test. With `TABLESPACE_INFO_SMOKE` naming its absolute source path,
+run `go run "$TABLESPACE_INFO_SMOKE"` from the repository root under the same
+external900-second deadline. Expected output is exactly
+`tablespace info public smoke: PASS` after builtin/zero paths, typed NULL/empty
+SRF, actual attachment OID, held reuse, complete warnings, explicit physical
+refusal, retained rows and actual Dump/Reset/Restore/default/view assertions.
+Real custom paths and directory permission errors remain mandatory oracle
+proof above, not a native smoke claim.
+
 ### pg_tablespace and CREATE TABLESPACE selected proof
 
 The shared `tablespace_*_test.go` scenarios independently specify builtin

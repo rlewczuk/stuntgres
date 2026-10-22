@@ -792,8 +792,8 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   Seven catalog/session owners deliberately return retained analyzed volatility
   (Identity, CurrentSchemas, NamespaceInquiry, VisibilityInquiry, IndexProperty,
   CommentInquiry and Deparse), preserving eliminated-arm dependence even in
-  intrinsic-only walks. CatalogUserName, CatalogForeignKeys and ObjectAddress
-  instead supply STABLE plus physical-child inspection.
+  intrinsic-only walks. CatalogUserName, CatalogForeignKeys, TablespaceLocation,
+  TablespaceDatabases and ObjectAddress supply STABLE plus physical-child inspection.
 - `PlanningFold`: `FoldNever` for stage-owned and never-evaluated calls (JSON
   set and record functions, `RegexpSet`, `jsonb_path_query`,
   `string_to_table`, JSON creation, `format`, random and UUID generation,
@@ -965,16 +965,17 @@ binding.
 
 ### Catalog inquiry and session identity
 
-All ten immutable owners live here: CatalogUserName, CatalogForeignKeys,
-ObjectAddress, NamespaceInquiry, CurrentSchemas, VisibilityInquiry,
-IndexProperty, CommentInquiry, Deparse and Identity. Function-specific binding,
+The immutable catalog/session owners live here: CatalogUserName, CatalogForeignKeys,
+TablespaceLocation, TablespaceDatabases, ObjectAddress, NamespaceInquiry,
+CurrentSchemas, VisibilityInquiry, IndexProperty, CommentInquiry, Deparse and
+Identity. Function-specific binding,
 validation, properties, child evaluation, strictness, grouping, substitution,
 retagging and display/tree/replay recipes move with them. Exported recipe fields
 support genuine retained binder/stored-plan integrations; published recipes must
 not be mutated. Derived index normalization and FK payload remain private.
 
 Ordinary calls use the registry after the engine's SQL-callable selection.
-Username/linkage and object-address binders retain their own gates; identities
+Username/linkage, tablespace and object-address binders retain their own gates; identities
 keep their parser predicate, namespace inquiries additionally own spelling, and
 current_schemas, visibility, index, comment and deparse retain exact shared gates.
 `parser.IdentityExpr` uses `BindIdentity`, not ordinary lookup. Keyword identity

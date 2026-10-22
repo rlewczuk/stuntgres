@@ -63,6 +63,8 @@ type Host interface {
 	BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.CatalogInquiryRuntime
 	CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
+	TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
+	TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error)
 	CommentInquiry(c *Context, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error)
 	DeparseInquiry(c *Context, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
 	DescribeObject(c *Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
