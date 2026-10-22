@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `bfad9b467` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 111, 112, 113, 114, 115, 116, 117, 118, 119 and 120). Steps 8–17 were
+Last verified against `master` at `eaf63bb35` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119 and 120). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -17,11 +17,11 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
-- **DML, executors:** 110f (dml 29d.6, FK seam, enforcement and actions;
-  closes step 29).
+- **DML:** 132 (dml 29e, the DML preflights; 110f is done, so step 29d
+  is closed).
 - **Third round, view:** none; 115, 116, 117 and 118 are done, so
   step 27 has no planned sub-step left.
-  125 (table 24g) still waits for 124, and 132 (dml 29e) for 110f.
+  125 (table 24g) still waits for 124.
 - **Third round, control:** 121 (control 30e, definition OID remap; then
   122). 119 (stored 22e) and 120 (control 30d) are done, so step 22 has no
   planned sub-step left.
@@ -200,6 +200,13 @@ Item 110e (DML 29d.5) is done: the MERGE executor (`dml.ExecuteMerge`,
 DELETE (`dml.ExecuteForeign`) live in `dml` over `dml.Host`, so 110f
 (29d.6) is ready. No seam change was needed; `executeMerge` and
 `executeForeignCommandLocked` keep the locked prologues.
+Item 110f (DML 29d.6) is done: `dml.FinishHost` (`ForeignKeys`) and
+`dml.Authority` on the root `statementHost` and `*AuthorizationView`, and FK
+enforcement and actions (`dml.PrepareForeignActions`,
+`SettleForeignActions`, `CheckForeignKeys`, `ForeignKeyReach`) live in
+`dml`, so 29d and item 110 are closed and 132 (dml 29e) is ready. The FK
+row, grant and admission bodies stay root (ALTER and CREATE TABLE use
+them); the optional TRUNCATE cores were not needed.
 
 ## Task tree
 
@@ -680,13 +687,13 @@ DELETE (`dml.ExecuteForeign`) live in `dml` over `dml.Host`, so 110f
   - [x] 29b — `dml` created and clean set moved
     (`8b336c6c1`, `280456a1b`, `c69b2ba66`, `92fe07400`, `bb16abdca`, then the docs commit)
   - [x] 29c — Host refined (docs only) (the docs commit)
-  - [ ] 29d — Executors moved
+  - [x] 29d — Executors moved
     - [x] 29d.1 — Seam and lower moves (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, docs)
     - [x] 29d.2 — Unique and exclusion probing, staging loops (`b2f1e2058`, `fb919b1ac`, `ae653408b`, `34fb07658`, docs)
     - [x] 29d.3 — INSERT, ON CONFLICT and COPY FROM (`25829dab7`, `1b90dd9f2`, `5f4129904`, docs)
     - [x] 29d.4 — UPDATE and DELETE (`d781cc23f`, `d2b5df053`, docs)
     - [x] 29d.5 — MERGE and foreign DML (`73fbd9b0f`, `4ad348751`, docs)
-    - [ ] 29d.6 — FK enforcement and actions
+    - [x] 29d.6 — FK enforcement and actions (`2e098af92`, `80bd36830`, `80f1a03ba`, docs)
 - [x] **Step 30 — `control`** ([prompt](ENGINE-SPLIT-control.md); 30a needs
   18c; 30b needs the Part A moves and 14e, 15e)
   - [x] 30a — Restore hook table replaces the statement switch, in place
@@ -1605,7 +1612,7 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
      `access.View`; `dml.Command` replaces the DML mutation groups; TRUNCATE,
      preflight and the COPY protocol stay root; 29d split into 110a–110f ·
      baseline build and quickcheck passed
-110. [ ] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109;
+110. [x] DML 29d: executors moved — [dml](ENGINE-SPLIT-dml.md) 29d · needs 109;
      split by 29c into 110a–110f, run in order:
      - 110a. [x] 29d.1: seam and lower moves (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, then the docs
        commit) · `dml.Host` on `statementHost` (Statement, Stage, RowLocks,
@@ -1662,9 +1669,18 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
        `REFERENCE=1` selection passed (apart from the known MERGE
        REPEATABLE READ oracle drift);
        racecheck/finalcheck skipped at user request
-     - 110f. [ ] 29d.6: FK seam (`ForeignKeys`, `FinishHost`,
-       `dml.Authority`, from 110a), FK enforcement and actions; closes step
-       29 · needs 110e
+     - 110f. [x] 29d.6: FK seam, FK enforcement and actions (`2e098af92`, `80bd36830`, `80f1a03ba`,
+       then the docs commit) · `dml.FinishHost` (`ForeignKeys`: `Staged`, the
+       authority and job captures, the row images, `GrantForeignKey`, the
+       internal action windows, `PlanForeignActionInput`,
+       `SwapForeignActionAuthority`) and `dml.Authority` on `statementHost`
+       and `*AuthorizationView` (`ActingAs` replaces `foreignActionOwner`);
+       `dml.ForeignKeyReach`, `PrepareForeignActions`,
+       `SettleForeignActions`, `CheckForeignKeys` and the action apply/plan;
+       the FK row, grant and admission bodies stay root; TRUNCATE cores not
+       needed · seam tests, selected units, `RACE=1` FK actions,
+       quickcheck and `REFERENCE=1` `^TestReferenceForeign(Key|Actions)`
+       passed; racecheck/finalcheck skipped at user request
 111. [x] Control 30a: Restore hook table, in place —
      [control](ENGINE-SPLIT-control.md) 30a · needs 57 (`dc839f171`,
      `192993651`, `fbcdc7fc9`, `22ef19659`, `6dc277b11`, `2eb9396e7`,

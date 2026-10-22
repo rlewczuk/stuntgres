@@ -7,10 +7,11 @@ TRUNCATE records, foreign-key action records and COPY insertion batching,
 plus the command state `Command`, the executors' host `Host`, the unique
 and exclusion probing and staging loops, and the INSERT, ON CONFLICT DO
 UPDATE, COPY FROM, UPDATE, DELETE, MERGE and foreign DML executors that
-run over it. Step 29 of the engine split created it (29b moved the clean
-set, 29d.1 added the seam, 29d.2 moved the probing and staging loops,
-29d.3 the INSERT and COPY FROM executors, 29d.4 the UPDATE and DELETE
-executors, 29d.5 the MERGE and foreign DML executors). It sits at L13 in
+run over it, and FK enforcement and actions over `FinishHost`. Step 29 of
+the engine split created it (29b moved the clean set, 29d.1 added the
+seam, 29d.2 moved the probing and staging loops, 29d.3 the INSERT and COPY
+FROM executors, 29d.4 the UPDATE and DELETE executors, 29d.5 the MERGE and
+foreign DML executors, 29d.6 the FK seam, enforcement and actions). It sits at L13 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (payload types and pure functions only),
 `authorization`, `catalog`, `copyfmt`, `exec`, `expr`, `fdw`, `ids`,
@@ -43,6 +44,22 @@ it, it never imports the engine, and it never builds a binder. See
   `Outcome` is an executor's result. The engine's `statementHost`
   implements `Host` (`statement_host_dml.go`, `statement_host_stage.go`,
   `statement_host_latest_row.go`).
+- **Finish host** (`host.go`): `FinishHost` is `Host` plus `ForeignKeys`,
+  the FK runtime's engine side: `Staged` (never locks), the authority and
+  job captures `ForeignKeyJobs`, `RecaptureAuthority` and
+  `ForeignKeyAuthority`, the row images `ForeignKeyRows`,
+  `RetainedForeignKeyRows` and `RefreshForeignKeyRows`, the internal action
+  windows `RefreshForeignActionJob`, `AdmitForeignAction`,
+  `ForeignActionRow`, `DeleteForeignAction` and `PlanForeignActionInput`
+  (each locks once and never waits), the grant `GrantForeignKey` (waits
+  with the caller holding nothing, then locks to revalidate) and
+  `SwapForeignActionAuthority` (the running action's authority slot).
+  `Authority` is the statement authority the FK runtime checks and
+  evaluates with (`Access`, `access.Environment`,
+  `exec.AdmissionAuthority`, `ActingAs` for the referencing table's
+  owner); the engine's `*AuthorizationView` implements it, so it doubles as
+  an `exec.Context`'s `RoutineAuthority`. `statementHost` implements
+  `FinishHost` in `statement_host_foreign_key.go`.
 - **Command state** (`command.go`): `Command`, the active command's DML
   state, grouped by owner (`Indexes`, `Insert`, `Partition`, plus
   `InheritedTargets`, `ViewWrite` and `RLS`), with `TargetRefs`, `Storage`,
@@ -147,10 +164,22 @@ it, it never imports the engine, and it never builds a binder. See
   (`truncate_check.go`) `CheckTruncate` and `GuardedCatalogMutationError`
   (also the error of INSERT, UPDATE, DELETE and MERGE on a guarded system
   catalog), over `access.View`.
-- **Foreign-key actions** (`foreign_actions.go`): `ForeignKeyJob`,
-  `ForeignActionScope`, `ForeignActionAdmission`, `ForeignActionTransition`,
-  `ForeignActionPlan`, `ForeignActionQuery`, `ForeignActionSameKey`,
-  `RefreshForeignActionJob`, `SameForeignKeyDefinition`.
+- **Foreign-key actions** (`foreign_actions.go`, `foreign_key_reach.go`,
+  `foreign_action_settle.go`, `foreign_action_apply.go`): the records
+  `ForeignKeyJob`, `ForeignActionScope`, `ForeignActionAdmission`,
+  `ForeignActionTransition`, `ForeignActionPlan`, `ForeignActionQuery`,
+  `ForeignActionSameKey`, `RefreshForeignActionJob`,
+  `SameForeignKeyDefinition`; `ForeignKeyReach`, the jobs and relation lock
+  modes the staged transitions reach; `PrepareForeignActions` (capture,
+  relation locks in OID order, recapture, comparison binding) and
+  `SettleForeignActions`, which runs RESTRICT, CASCADE, SET NULL and SET
+  DEFAULT for every transition, including the ones the actions stage, as
+  the referencing table's owner, with the action's statement in the error
+  context.
+- **Foreign-key checks** (`foreign_key_check.go`): `CheckForeignKeys`, the
+  final check that every new child row has a parent and no changed or
+  deleted parent key is still referenced, with key-share grants on
+  uncommitted parents.
 - **COPY insertion** (`copy.go`): `CopyInsertionState`
   (`NewCopyInsertionState`, `Full`), `CopyInsertionBuffer`,
   `CopyInsertionCursor`, `CopyInsertionDiagnostic`, `CopyRelationKind`,
@@ -179,15 +208,21 @@ windows and stay. MERGE keeps its locked prologue in `execute_bound.go`
 and the thin wrapper `executeMerge`; foreign DML keeps
 `executeForeignCommandLocked` (the unsupported-form checks, the invoker,
 the foreign target and source captures, the unlock and
-`foreignUnlocked`) and `foreignTableScope`. TRUNCATE, FK enforcement and
-actions (until 29d.6) and `preflightConflictUpdate` stay. Also root: `truncateGraphFence` (catalog fences implement the
+`foreignUnlocked`) and `foreignTableScope`. Finish keeps the FK order
+(exclusion events, `SettleForeignActions`, exclusion events again when an
+action added one, then `CheckForeignKeys` unless the statement only
+projected catalog roots). The FK row and grant bodies (`foreignKeyGrant`,
+`captureForeignKeyRows`, `refreshForeignKeyRows`), the internal action
+admission and `WriteStage.deleteForeignAction`, `writeAuthorizationLocked`,
+the `foreignActionAuth` slot and its readers, and
+`acquireForeignKeyCreation` stay: ALTER TABLE, CREATE TABLE and the write
+stage use them too. TRUNCATE and `preflightConflictUpdate` stay. Also root: `truncateGraphFence` (catalog fences implement the
 root `catalogFence` interface; the kind order is in `catalog_fence.go`),
 `mutationTarget` (the admitted target, which statement admission and DDL
 read), `WriteStage` with the `Stage` windows (its public `Apply` checks
 each row and calls `ApplyValidated`), the exclusion projection's `*Locked`
 helpers, `readmitProgramsAfterWait`, and `preflightUpdate`/`preflightMerge`
-(root query preflight). 29d.6 moves FK enforcement and actions behind
-`FinishHost`.
+(root query preflight); 29e (item 132) moves the DML preflights.
 
 ## Invariants
 
@@ -210,6 +245,10 @@ helpers, `readmitProgramsAfterWait`, and `preflightUpdate`/`preflightMerge`
   use and keep the 57014/FATAL mapping through `CopyCommandError`.
 - A failure-only `RowDetail` takes a copy of the binding, so only the error
   path allocates it.
+- The FK runtime runs only from Finish, with the caller holding nothing; its
+  waits all go through `GrantForeignKey`. Each FK job costs one heap row
+  image (`RefreshForeignKeyRows` takes a pointer), and `ActingAs` copies the
+  authority once per job or action, never per row.
 
 ## Testing
 
@@ -231,7 +270,12 @@ DML, row-lock wait and cancellation tests; the DELETE tests call
 `dml.ExecuteDelete` over the scope's host. MERGE is covered by the
 engine's MERGE tests, which call `executeMerge` or
 `dml.AssembleMergeRows` and `dml.StageMergeRows` over the scope's host;
-foreign DML by the FDW modification tests.
+foreign DML by the FDW modification tests. FK enforcement and actions are
+covered by the engine's `TestForeignActions*` and `TestForeignKey*` tests,
+which call `dml.PrepareForeignActions` and `dml.SettleForeignActions` over
+the scope's host; the FK seam tests are `statement_host_foreign_key_test.go`
+(the authority swap, `ActingAs`, the captured jobs and modes, the retained
+image).
 
 ```sh
 make check RUN='^TestInsertConflictPredicate'
@@ -240,6 +284,7 @@ make check RUN='^Test(Insert|Update|Merge|Delete|Truncate|Copy|Foreign|Inheritan
 make check RUN='^Test(Unique|Exclusion|PartialUnique|ConcurrentIndex|ViewWrite|ViewCheck|UpdateCore)'
 make check RACE=1 RUN='^Test(Unique|Exclusion|InsertConflict)'
 make check RACE=1 RUN='^Test(Truncate|ForeignAction|Copy)'
+make check RUN='^Test(StatementHostForeign|StatementHostRetained|ForeignActions|ForeignKey|DomainProgramPhase)'
 make check RACE=1 RUN='^Test(ProtocolCopy|ProtocolTerminal|InsertReturning|InsertSelect|(Range|List)PartitionPublication)'
 make check RACE=1 RUN='^Test(Update|Delete)(Lock|Contention|Cancellation|Core|From|Using)|^TestInheritanceDML'
 make check RACE=1 RUN='^Test(Merge|GeneratedVirtualMerge|FDWModify|FDWTransaction|FDWStage)'

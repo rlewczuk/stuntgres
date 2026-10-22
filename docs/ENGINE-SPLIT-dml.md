@@ -802,7 +802,7 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
   selection passed (see the 29b record); racecheck/finalcheck skipped at
   user request
 - [x] 29c — Host refined (docs only; see the 29c record)
-- [ ] 29d — Executors moved, in six items:
+- [x] 29d — Executors moved, in six items:
   - [x] 29d.1 — Seam and lower moves (110a) (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, then the docs
     commit; see the 29d.1 record)
   - [x] 29d.2 — Unique and exclusion probing, staging loops (110b) (`b2f1e2058`, `fb919b1ac`, `ae653408b`, `34fb07658`, then the docs
@@ -813,7 +813,8 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
     commit; see the 29d.4 record)
   - [x] 29d.5 — MERGE and foreign DML (110e) (`73fbd9b0f`, `4ad348751`, then the docs
     commit; see the 29d.5 record)
-  - [ ] 29d.6 — FK enforcement and actions; close step 29 (110f)
+  - [x] 29d.6 — FK enforcement and actions; close step 29 (110f) (`2e098af92`, `80bd36830`, `80f1a03ba`, then the docs
+    commit; see the 29d.6 record)
 - [ ] 29e — DML preflights moved (linear item 132)
 
 Outstanding aliases: none (29b added none).
@@ -1178,7 +1179,79 @@ rebased onto `307583de0`.
   racecheck, finalcheck and bench skipped at user request (no startup
   change).
 
+### 29d.6 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-FOREIGN-KEYS` from `018bd1d8b`,
+rebased onto `eaf63bb35`.
+
+| Commit | Change |
+|---|---|
+| `2e098af92` | Seam: `dml.FinishHost` = `Host` + `ForeignKeys`, `dml.Authority`; root `statement_host_foreign_key.go` (`var _ dml.FinishHost`), `foreign_authority.go` (`(*AuthorizationView).ActingAs`, the value form `actingAs` replacing `foreignActionOwner`, `foreignAuthorizationOf`); the pure reach walk `dml.ForeignKeyReach`; the root FK code calls the new windows; seam tests `statement_host_foreign_key_test.go` |
+| `80bd36830` | Port in place: `PrepareForeignActions`, `SettleForeignActions`, `CheckForeignKeys`, `foreignKeyParentExists`, `applyForeignAction`, `planForeignAction`, `foreignActionError` as root functions over `h dml.FinishHost` in `dmlmv_foreign_*.go`; `foreign_actions.go` and `foreign_action_apply.go` go; Finish calls them; 3 FK test files follow |
+| `80f1a03ba` | Move: `dml/foreign_action_settle.go`, `dml/foreign_action_apply.go`, `dml/foreign_key_check.go`; Finish and the tests name `dml.X` |
+
+- **Deviations from decision 12.**
+  - `WriteAuthority(validate bool)` became the two real windows:
+    `ForeignKeyAuthority` (CheckForeignKeys: validate the operation,
+    capture, then recapture over the private catalog) and
+    `RecaptureAuthority` (prepare's second window, after the relation
+    grants). `ForeignKeyJobs` is prepare's first window and runs
+    `dml.ForeignKeyReach` under `Engine.mu`.
+  - `Staged()` was added: settle iterates every staged relation, and
+    `PrivateRows` is per address.
+  - `Authority` is implemented by `*AuthorizationView`, not the value:
+    `exec.AdmissionAuthority` has a pointer receiver and
+    `routineAuthorityView` asserts `*AuthorizationView`, so the action's
+    owner authority is still both the `exec.Context` `RoutineAuthority` and
+    the `foreignActionAuth` slot, as before. `ActingAs` with a zero owner
+    returns the receiver. The root keeps a value `actingAs` for
+    `statement_host_index.go`'s exclusion scan capture.
+  - `NewForeignActionPlan` was not split out: `planForeignAction` keeps the
+    target slots and domain-check flag, calls `PlanForeignActionInput` (the
+    input environment, the type diagnostic names and SET DEFAULT binding
+    with the root binder, on a copy of the authority as before), then fills
+    SET NULL and CASCADE, in the original order.
+  - `CheckForeignKeys` no longer reads `projectedRoots`: Finish skips the
+    call for catalog root projections, with the comment, so the order of
+    the early returns is unchanged.
+  - The optional TRUNCATE cores (`dml.TruncateGraph`,
+    `TruncateStorageChange`) were not moved: TRUNCATE stays root
+    (decision 9) and nothing needs them.
+  - `PrepareForeignActions` is exported because
+    `TestForeignActionsAdmission` calls it.
+- **Stays root.** `foreignKeyGrant`, `captureForeignKeyRows`,
+  `refreshForeignKeyRows` (ALTER TABLE ADD/VALIDATE FOREIGN KEY uses them),
+  `admitForeignAction`, `foreignActionRow`, `validateForeignActionLocked`,
+  `WriteStage.deleteForeignAction`, `recordForeignActionReplacement`,
+  `writeAuthorizationLocked`, the `foreignActionAuth` slot and its readers,
+  `foreignActions`/`foreignActionsOrZero` and `acquireForeignKeyCreation`;
+  the host methods call them.
+- **Per-row cost.** The `-gcflags=-m` "moved to heap" set of the FK files
+  differs from master only by the per-statement authority copies
+  (`ForeignKeyJobs`, `RecaptureAuthority`, `ForeignKeyAuthority`,
+  `ActingAs`) and one row image per FK job (`parentRows` in
+  `CheckForeignKeys`, `parents` in SET DEFAULT's recheck), which escape
+  through `RefreshForeignKeyRows`; nothing per row. `ownerAuth` and the SET
+  DEFAULT binder and evaluation were on the heap on master too.
+- **Tests.** Rewritten to the new names: `foreign_actions_test.go`,
+  `foreign_actions_locks_test.go`, `foreign_actions_new_rows_test.go`,
+  `domain_program_phase_test.go`. New: `statement_host_foreign_key_test.go`.
+  None moved or deleted: they all build an engine.
+- **Checks.** String-literal multiset unchanged (only import paths and the
+  new `foreignAuthorizationOf` panic text); selected units after every
+  commit (`^Test(Foreign|DomainProgramPhase|StatementHost|AlterForeignKey|Exclusion|Update|Delete|Merge|Insert|Truncate|Partition|SetConstraints)`);
+  `RACE=1` `^TestForeignActions`; quickcheck; quick-mode and `REFERENCE=1`
+  `^TestReferenceForeign(Key|Actions)` passed. racecheck, finalcheck and
+  bench skipped at user request (no startup change).
+
 ### Notes for later steps
+
+- 29d.6, for 29e: FK enforcement and actions are in `dml` over
+  `dml.FinishHost`; only TRUNCATE and the DML preflights (`preflightUpdate*`,
+  `preflightMerge`, `preflightConflictUpdate`) remain root DML. The
+  `ForeignActionScope.KeyTargets`/`AlterKeys` writers are still
+  `acquireForeignKeyCreation` (CREATE TABLE) and ALTER TABLE ADD FOREIGN KEY
+  in the root; `dml` reads neither.
 
 - 29d.5, for 29d.6: every executor now lives in `dml`; only FK enforcement
   and actions (`settleForeignActions`, `checkForeignKeys`) and TRUNCATE
