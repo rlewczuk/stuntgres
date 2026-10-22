@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
-	"stuntgres/internal/sqltype"
 )
 
 // prepareStoredQueryLocked consumes Engine.mu on every return. Standalone view
@@ -118,52 +117,7 @@ func (e *Engine) captureStoredSourceLocked(scope *StatementScope, prepared *stor
 		source.Close()
 		return nil, err
 	}
-	// Detach bundle ownership before replacing execution-local occurrences.
-	sources := source.Sources
-	source.Sources = nil
-	for i, leaf := range definition.Sources() {
-		child := source
-		if sources != nil {
-			child = sources[i]
-		}
-		live := leaves[i].Relation.Attributes
-		unchanged := len(leaf.Attributes) == len(live)
-		if unchanged {
-			for slot, attribute := range leaf.Attributes {
-				if attribute != live[slot] {
-					unchanged = false
-					break
-				}
-			}
-		}
-		if !unchanged {
-			layout := make([]int, len(leaf.Attributes))
-			for slot, attribute := range leaf.Attributes {
-				layout[slot] = -1
-				for current, id := range live {
-					if attribute == id {
-						layout[slot] = current
-						break
-					}
-				}
-			}
-			child = &exec.Source{Ref: leaves[i].Ref, Input: child, Layout: layout, Scratch: make([]sqltype.Value, len(layout)), Authority: scope.authority, Locks: child.Locks, Occurrence: child.Occurrence}
-			borrowQueryAuthority(child, scope)
-		}
-		if leaf.Ref != leaves[i].Ref {
-			child.StoredRef = leaf.Ref
-		}
-		if sources != nil {
-			sources[i] = child
-		} else {
-			source = child
-		}
-	}
-	if sources != nil {
-		source = sources[0]
-		source.Sources = sources
-	}
-	borrowQueryAuthority(source, scope)
+	source = view.FreezeStoredSources(source, definition, leaves, scope.authority, hostOf(scope))
 	// Only this opaque stored tree borrows its defining recipe. User/grafted
 	// replacements retain their existing per-node ancestry rules.
 	source.RoutineRecipe = consumer

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -20,6 +21,22 @@ import (
 type CreateOptions struct {
 	Barrier, Invoker bool
 	CheckOption      stored.CheckMode
+}
+
+// CheckColumnCollations rejects a CREATE VIEW query with an output column
+// whose collation cannot be determined (42P22). root is the bound query's
+// root, which must be its final projection.
+func CheckColumnCollations(root plan.Node) error {
+	projection, ok := root.(*plan.ProjectNode)
+	if !ok {
+		return fmt.Errorf("stuntgres: view lacks final projection")
+	}
+	for i, expression := range projection.Expressions {
+		if expression.CollationIndeterminate() {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`could not determine which collation to use for view column "%s"`, projection.Schema()[i].Name), Hint: "Use the COLLATE clause to set the collation explicitly."}
+		}
+	}
+	return nil
 }
 
 // CreateTarget looks up the relation CREATE VIEW s names in namespace ns

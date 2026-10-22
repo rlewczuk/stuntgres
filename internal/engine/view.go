@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -40,14 +39,8 @@ func (s *StatementScope) prepareViewCreation(createView *parser.CreateView) erro
 	if persistence == "temporary" && createView.Persistence != "temporary" {
 		s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, createView.Name.Parts[len(createView.Name.Parts)-1].Text)})
 	}
-	projection, ok := b.Query.Root.(*plan.ProjectNode)
-	if !ok {
-		return fmt.Errorf("stuntgres: view lacks final projection")
-	}
-	for i, expression := range projection.Expressions {
-		if expression.CollationIndeterminate() {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`could not determine which collation to use for view column "%s"`, projection.Schema()[i].Name), Hint: "Use the COLLATE clause to set the collation explicitly."}
-		}
+	if err := view.CheckColumnCollations(b.Query.Root); err != nil {
+		return err
 	}
 	changes := s.owner.Catalog.Clone()
 	ns, err := e.relationCreationNamespaceLocked(auth, createView.Name, persistence, changes)
