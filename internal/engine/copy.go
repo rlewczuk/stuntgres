@@ -306,7 +306,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 		err = ids.ErrCatalogReplaced
 		return
 	}
-	b.Storage = e.authorizationStorageLocked(auth, b.Ref.Address)
+	b.Storage = auth.StorageLocked(b.Ref.Address)
 	b.Targets, err = copyfmt.ResolveColumns(b.Relation, syntax.Columns)
 	if err != nil {
 		return

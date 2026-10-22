@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
 )
@@ -21,10 +22,15 @@ func (v AuthorizationView) AsUser(principal authorization.PrincipalRef) view.Rul
 	return v
 }
 
-// StorageLocked returns the storage this authority reads for a relation.
-// The caller holds Engine.mu.
+// StorageLocked returns the storage this authority reads for a relation: its
+// session's private storage, else the engine's published storage. The caller
+// holds Engine.mu.
 func (v AuthorizationView) StorageLocked(a ids.ObjectAddress) *storage.Relation {
-	return v.engine.authorizationStorageLocked(v, a)
+	var journal *session.Journal
+	if v.session != nil && v.session.Transactions != nil {
+		journal = v.session.Transactions.Catalog
+	}
+	return privateStorage(v.inputs.storage, journal, a)
 }
 
 // ruleAuthorizationOf recovers the full authorization view of a rule

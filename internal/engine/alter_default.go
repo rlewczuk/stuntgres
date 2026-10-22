@@ -67,7 +67,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 	if err != nil {
 		return fail(err)
 	}
-	original := e.authorizationStorageLocked(auth, ref.Address)
+	original := auth.StorageLocked(ref.Address)
 	if original == nil && old.Partition == nil {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
 	}

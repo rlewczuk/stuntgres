@@ -95,7 +95,7 @@ func (h *bindingHost) DefinitionStamp(auth analyze.Authority, d catalog.Descript
 }
 
 func (h *bindingHost) AuthorizationStorage(auth analyze.Authority, address ids.ObjectAddress) *storage.Relation {
-	return h.engine.authorizationStorageLocked(h.view(auth), address)
+	return h.view(auth).StorageLocked(address)
 }
 
 func (h *bindingHost) AdmittedReference(auth analyze.Authority, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error) {

@@ -72,7 +72,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		err = view.MaterializedConcurrentAdmission(auth.Catalog, current, stmt.NoData)
 	}
 	if err == nil {
-		s.lockedRef, s.lockedDescriptor, s.lockedStorage = ref, current, e.authorizationStorageLocked(auth, ref.Address)
+		s.lockedRef, s.lockedDescriptor, s.lockedStorage = ref, current, auth.StorageLocked(ref.Address)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -97,7 +97,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		return Result{}, err
 	}
 	d := caller.Catalog.MustRelation(ref.Address)
-	if d != scope.lockedDescriptor || e.authorizationStorageLocked(caller, ref.Address) != scope.lockedStorage {
+	if d != scope.lockedDescriptor || caller.StorageLocked(ref.Address) != scope.lockedStorage {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}

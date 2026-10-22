@@ -16,8 +16,17 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// engineDomain is the domain of the engine that built auth, or nil for a view
+// the engine did not build.
+func engineDomain(auth AuthorizationView) *ids.Domain {
+	if auth.inputs == nil {
+		return nil
+	}
+	return auth.inputs.domain
+}
+
 func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
-	if auth.session == nil || auth.Catalog.State() == nil || auth.session.SessionToken == (ids.SessionToken{}) || auth.session.SessionToken.Domain() != domainOf(auth.engine) || session.PrivateSessionOf(auth.session.SessionToken) != nil {
+	if auth.session == nil || auth.Catalog.State() == nil || auth.session.SessionToken == (ids.SessionToken{}) || auth.session.SessionToken.Domain() != engineDomain(auth) || session.PrivateSessionOf(auth.session.SessionToken) != nil {
 		return ids.ObjectAddress{}
 	}
 	table := func(a ids.ObjectAddress) bool {

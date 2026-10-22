@@ -64,17 +64,16 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *session
 
 // Callers hold Engine.mu; private storage is never installed before Finish/Commit.
 func (e *Engine) privateStorageLocked(c *session.Journal, a ids.ObjectAddress) *storage.Relation {
+	return privateStorage(&e.storage, c, a)
+}
+
+// privateStorage is a's storage as journal c sees it over the published
+// store. Callers hold Engine.mu.
+func privateStorage(published *storage.Store, c *session.Journal, a ids.ObjectAddress) *storage.Relation {
 	if c != nil {
 		if shape, ok := c.Storage[a]; ok {
 			return shape.Replacement
 		}
 	}
-	return e.storage.Relations[a]
-}
-
-func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ids.ObjectAddress) *storage.Relation {
-	if auth.session != nil && auth.session.Transactions != nil {
-		return e.privateStorageLocked(auth.session.Transactions.Catalog, a)
-	}
-	return e.storage.Relations[a]
+	return published.Relations[a]
 }
