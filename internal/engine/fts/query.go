@@ -29,7 +29,7 @@ func (q *Query) Valid() bool {
 	return q != nil && (q.root == -1 && len(q.nodes) == 0 || len(q.nodes) > 0 && q.root == len(q.nodes)-1)
 }
 
-// InputText preserves every binary association for typed logical serialization.
+// InputText preserves every operator association for typed logical serialization.
 // SQL quoting belongs to sqltype; ordinary output uses only cached String.
 func (q *Query) InputText(ctx context.Context) (string, error) { return q.render(ctx, true) }
 func (q *Query) Equal(ctx context.Context, other *Query) (bool, error) {
@@ -330,7 +330,10 @@ func (q *Query) render(ctx context.Context, lossless bool) (string, error) {
 			continue
 		}
 		if v.stage == 0 {
-			v.wrap = lossless && n.op != '!' || priority(n.op) < v.parent || (n.op == '<' && v.rightPhrase)
+			// Generated NOT chains can exceed the input grammar's pending stack.
+			// A separate lossless parenthesis frame per operator makes them replayable
+			// without changing either canonical output or the parser's input limit.
+			v.wrap = lossless || priority(n.op) < v.parent || (n.op == '<' && v.rightPhrase)
 			if v.wrap {
 				out.WriteString("( ")
 			}

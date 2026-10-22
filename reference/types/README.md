@@ -615,10 +615,61 @@ values/ScanTypes; PostgreSQL machine-stack54001 versus native iterative large
 queries; first-held PostgreSQL runtime-TEXT constant folding versus native
 per-execution evaluation; and oversized pq ErrorResponse failure versus actual
 server54000 obtained using PG-only `pg_input_error_info`. Native excludes that
-function, companion arrays, matching/operators and FTS index execution.
+function, companion arrays, matching and FTS index execution.
 The query arena's fixed32 pending-operator limit remains shared grammar, not
 one of those physical distinctions. Selected proof does not replace root's
 whole-project Docker-free quickcheck or post-integration finalcheck.
+
+### Text-search algebra
+
+`TestReferenceFTSOpsQueryAlgebra`, `Phrase`, `Containment`, `VectorConcat`,
+`NullEmpty`, `Diagnostics`, `RoutineAuthority`, `Consumers` and `FeatureSmoke`
+share the public fixture body across native and pinned18.6 backends. Independently
+specified rows cover all selected query operators, phrase2/3 and vector concat.
+The root's initial PostgreSQL discovery resolved complete error fields/phases,
+generic FTS||TEXT output, unknown-only ambiguity and bounded composition limits;
+the permanent definitions contain no observation logger or discovery filter.
+
+Query composition preserves association and repetition. Containment ignores
+Boolean/NOT/phrase structure, duplicate words, weights and prefix flags, but not
+lexeme bytes/case. Phrase distance defaults to1 and accepts0–16384. SQL NULL is
+strict and distinct from empty. Vector concat uses the global left maximum,
+left-first position priority,256/16383 caps and first-saturated-right weight.
+Exact routine identities, qualified syntax, actual named calls and held ACL
+changes prove execution authority rather than metadata-only registration.
+Consumers exercise column-sourced operands/distances, defaults, views, UPDATE,
+statement atomicity, transaction recovery, retained native cursors, atomic
+controls and replay of the actual emitted native dump on PostgreSQL.
+The seven actual operator rows also join the independent complete pg_operator
+inventory. Root must reselect the inventory consumers documented under
+[`reference/catalogs`](../catalogs/README.md#pg_operator-selected-proof) in both modes.
+Failed native Restore uses a later staged VALUES phrase expression and preserves
+the existing target; Restore INSERT SELECT remains deliberately unsupported.
+
+Root runs each command below with an external900-second deadline; every reference
+selection also requires the same command with `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceFTSOps(QueryAlgebra|Phrase|Containment)$'
+make check RUN='^TestReferenceFTSOps(VectorConcat|NullEmpty|Diagnostics)$'
+make check RUN='^TestReferenceFTSOps(RoutineAuthority|Consumers)$'
+make check RUN='^TestReferenceFTSOpsFeatureSmoke$'
+make check RUN='^TestReferenceFTSOpsGeneratedNotControls$'
+make check RUN='^TestFTSOps(QueryAlgebra|PhraseBounds|Containment|VectorConcat|Limits|Cancellation|TypedPlan|ProviderLifecycle|RoutineDeclarations)$'
+make check RUN='^TestFTSOpsRestoreScalar$'
+make check RUN='^TestFTSOpsCancellation$' RACE=1
+```
+
+Feature smoke independently expects one-row held inserts, query
+`( 'a' | 'b' ) <2> 'c':*A`, vector `'a':1,12B 'z':10`, exact result types,
+containment true, NULL versus empty query rows, and invalid-distance22023 without
+publishing the rejected id. Native controls must retain those rows/types after
+round-trip and replay the actual dump on PostgreSQL. The generated-NOT companion
+adds64 legal SQL NOT compositions, independently expected canonical output and
+lossless native restore/real dump replay. Lossless unary parentheses give each
+NOT its own input frame; canonical output and the32-pending per-frame input
+limit remain unchanged. Leaf units independently re-input and compare structure.
+
 
 ### Cube scalar oracle-first contract
 

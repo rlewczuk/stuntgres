@@ -35,6 +35,11 @@ callback. Step 18 of the split created it; see
   reject every parameter with SQLSTATE 42P02.
   Standard SQL/JSON query scalars recurse through document, path, every PASSING
   operand and both DEFAULT children, including branches skipped at runtime.
+  The seven selected FTS algebra routine names (eight phrase2/3-inclusive
+  signatures) are admitted through the same recursive INSERT VALUES whitelist.
+  Their ordinary binder still owns signatures/types, and every parameter is
+  rejected even beneath strict-NULL expressions. This supplies staged runtime
+  phrase-failure atomicity without admitting Restore INSERT query sources.
 - **Capabilities** (`capabilities.go`), implemented above this package:
   - `Resolver.Predecessor` maps a dependency address to the OID of the
     dump event that must precede its consumer, or 0.

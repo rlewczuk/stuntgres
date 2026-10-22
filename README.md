@@ -405,8 +405,14 @@ unknown/typed literals, string/textual-byte parameters, NULL and native logical
 Dump/Restore. Vector output sorts/deduplicates lexemes and preserves positions
 and weights; query output preserves Boolean/phrase structure, masks and prefix
 flags without normalization or matching. Empty query input uses the ordinary
-operation NOTICE channel. Companion arrays, FTS operators/functions, matching,
-configuration and index execution remain outside this scalar IO surface.
+operation NOTICE channel. Query `&&`, `||`, prefix `!!`, `<->`, `@>` and `<@`,
+both `tsquery_phrase` overloads, vector `||` and their genuine underlying
+routines use immutable, cancellation-aware typed providers. Containment compares
+exact lexeme sets, ignoring Boolean structure/weights/prefix flags. Phrase
+distance defaults to1 and accepts0–16384; vector concat shifts right positions
+by the global left maximum with released caps and first-saturation weight.
+SQL NULL remains distinct from empty. Companion arrays, matching, constructors,
+configuration, ranking and index execution remain outside this surface.
 See [scalar contract](docs/TYPES.md#text-search-scalar-values),
 [explicit boundaries](docs/DIALECT.md#text-search-scalar-boundaries) and
 [selected proof and feature smoke](reference/types/README.md#text-search-scalar-io).

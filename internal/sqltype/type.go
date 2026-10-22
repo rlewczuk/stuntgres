@@ -142,6 +142,7 @@ type Descriptor struct {
 	circleBoolean, circleFloat      *Descriptor
 	pointBoolean, pointFloat        *Descriptor
 	polygonBoolean, polygonPoint    *Descriptor
+	ftsBoolean, ftsDistance         *Descriptor
 	lookupOnly                      bool
 	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
 	namespace                       string
@@ -347,6 +348,9 @@ func Builtins() []*Descriptor {
 		}
 		if d.id == Polygon {
 			d.polygonBoolean, d.polygonPoint = networkBoolean, geometryPoint
+		}
+		if d.id == TSQuery {
+			d.ftsBoolean, d.ftsDistance = networkBoolean, networkMasklen
 		}
 	}
 	for _, family := range []struct {

@@ -19,6 +19,35 @@ interprets it. The only remaining type parameter is the private
 `randomInteger` sampler source, a numeric kernel detail rather than part of the
 expression contract.
 
+## Text-search algebra provider
+
+`FTS` owns a fixed three-slot operand array and finite `sqltype.FTSPlan`.
+Selected query AND/OR/NOT/phrase/containment and vector concat retain genuine
+routine identity; phrase3 has its own finite provider authority while selected
+operator-backed signatures use the ordinary operator provider. Named calls
+share the same plans, not a second evaluator. Rebuild, indexed capture,
+substitution, stored validation, grouping and call/infix/prefix replay preserve
+type ownership, operand order and syntax. The leaf owns immutable payload work;
+sqltype owns descriptors/strict NULL and the engine owns ACL admission.
+Execution preflight uses the existing strict immutable evaluation hook, so
+constant invalid phrase distances fail Execute even on an empty/false source,
+not Prepare or only after row iteration. Malformed literal coercion still
+belongs to analysis/input owners, and runtime operation errors invent no source
+position or portal context.
+
+### Testing
+
+```sh
+make check RUN='^TestFTSOpsProviderLifecycle$'
+make check RUN='^TestFTSOpsRoutineDeclarations$'
+make check RUN='^TestReferenceFTSOps(RoutineAuthority|Consumers|FeatureSmoke)$'
+make check RUN='^TestReferenceFTSOps(RoutineAuthority|Consumers|FeatureSmoke)$' REFERENCE=1
+```
+
+These selected proofs are root-owned. Remaining FTS constructors, matching,
+ranking, configuration, companion arrays and comparison/index authority are
+not admitted by this provider.
+
 ## POINT predicate provider
 
 `Point` owns a fixed pair of operands, selected predicate/routine authority and

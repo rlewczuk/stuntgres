@@ -165,6 +165,16 @@ This existing metadata seam controls ordinary `pg_operator` publication;
 lookup-only zero-function identities remain hidden rather than being fabricated
 by the catalog projection.
 
+FTS algebra similarly publishes its seven selected operator descriptors through
+`SupportedOperatorMetadata`, independently of its routine associations. The
+released vector/query result types, prefix kind, actual implementations,
+containment commutators and5040/5041 estimators are asserted by
+`TestFTSOpsRoutineDeclarations` and the shared public authority scenario. The
+independent `docs/design/pg-operator-pg18-supported.tsv` includes all seven rows,
+so complete catalog inventory consumers must also be selected in both modes.
+This does not promote FTS matching/comparison/index or estimator execution.
+
+
 ```sh
 make check RUN='^Test(OperatorRoutineLookup|PointOperatorMetadata)$'
 ```

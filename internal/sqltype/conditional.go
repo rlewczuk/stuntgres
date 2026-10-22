@@ -56,7 +56,8 @@ func equalityCategory(id ID) byte {
 	return 0
 }
 func equalityPreferred(id ID) bool {
-	return id == Inet || id == Oid || id == Text || id == Float8 || id == Bool || id == Timestamptz || id == Interval
+	// REL_18_6 pg_type.dat: VARBIT is the preferred type of bit-string category V.
+	return id == Inet || id == Oid || id == Text || id == Float8 || id == Bool || id == Timestamptz || id == Interval || id == VarBit
 }
 func equalityImplicit(from, to ID) bool {
 	if from == to {

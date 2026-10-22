@@ -24,6 +24,9 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 		return b.bindSubquery(subquery)
 	}
 	name := r.Name.Parts[len(r.Name.Parts)-1].Text
+	if node, selected, err := b.ftsOperator(r, b.Clause.SelectedOperatorArgs); selected {
+		return node, err
+	}
 	if _, point := sqltype.PointKind(name); point && len(b.Clause.SelectedOperatorArgs) == 2 &&
 		b.Clause.SelectedOperatorArgs[0].ResultUsage().Type.ID() == sqltype.Point &&
 		b.Clause.SelectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.Point {
@@ -78,17 +81,14 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 	}
 }
 func builtinOperatorSpelling(name string) bool {
-	// These geometric spellings contain bitwise characters but require actual
-	// catalog signature selection before dispatching their selected provider.
+	// Shared FTS/geometric spellings require catalog signature selection before
+	// dispatching their actual provider; spelling alone supplies no authority.
 	switch name {
-	case "~=", "<<|", "|>>", "&<|", "|&>", "?-", "<^", ">^":
+	case "~=", "<<|", "|>>", "&<|", "|&>", "?-", "<^", ">^", "||", "&&", "@>", "<@":
 		return false
 	}
 	_, comparison := ComparisonOperator(name)
-	if name == "~=" {
-		return true
-	}
-	return comparison || arithmeticName(name) || bitwiseName(name) || name == "<<=" || name == ">>=" || name == "||" || name == "^@" || likeName(name) || functions.PosixName(name) || ArrayMembershipName(name) || functions.JSONExtractionName(name) || functions.JSONBExistenceName(name) || name == "#-" || name == "@>" || name == "<@" || name == "&&" || name == "<<" || name == ">>" || name == "&<" || name == "&>" || name == "-|-"
+	return comparison || arithmeticName(name) || bitwiseName(name) || name == "<<=" || name == ">>=" || name == "^@" || likeName(name) || functions.PosixName(name) || ArrayMembershipName(name) || functions.JSONExtractionName(name) || functions.JSONBExistenceName(name) || name == "#-" || name == "<<" || name == ">>" || name == "&<" || name == "&>" || name == "-|-"
 }
 
 type operatorCandidateSet struct {
@@ -163,6 +163,9 @@ func (b *Binder) selectCatalogOperator(set operatorCandidateSet, raw parser.Oper
 		diagnosticLeft = right
 	}
 	if err != nil {
+		if !unary {
+			return nil, functions.ComparisonError(b, err, left, right, raw)
+		}
 		return nil, functions.OperatorError(err, diagnosticLeft, right, raw)
 	}
 	d := candidates[selected]

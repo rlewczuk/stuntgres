@@ -455,6 +455,10 @@ pq adapter returns bytes with interface{} ScanType. SQL NULL and typed nil
 bytes stay NULL; nonnil empty bytes produce empty nonnull values. UTF8/NUL
 validation precedes FTS grammar. Explicit TEXT↔FTS casts use the existing IO
 coercion path; numeric and FTS-family-to-family conversions are not admitted.
+Typed FTS `|| TEXT` retains the genuine generic text-concatenation overload and
+returns TEXT (for example `'a'::tsquery || 'b'::text` returns `'a'b`), not an FTS
+composition or implicit TEXT-to-FTS conversion. Two unknown strings likewise
+select TEXT; two concrete matching FTS operands select the typed algebra.
 
 Vectors sort lexemes bytewise with shorter prefixes first, without case folding
 or stemming. Quoting preserves spaces, apostrophes, backslashes and Unicode.
@@ -475,6 +479,30 @@ weight/prefix modifiers print in `*ABCD` order. A private flat arena retains
 structure independently of text. Each parenthesis frame has the released
 32-pending-operator limit, not a32-node/nesting limit.
 
+Selected query algebra uses `&&` (AND), `||` (OR), prefix `!!` (NOT), `<->`
+(distance1 phrase), and `tsquery_phrase(left,right[,distance])`. Composition
+preserves operand association, repeated lexemes, masks/prefixes and NOTs without
+simplification. Distance0–16384 is valid; invalid nonnull distances raise22023
+even with an empty query. All selected operations are strict: any SQL NULL,
+including a NULL distance, produces the correctly typed NULL instead.
+`@>`/`<@` compare exact lexeme sets, ignoring Boolean/phrase/NOT structure,
+duplicates, weights and prefix flags; bytes and case still matter. Every query
+contains empty; empty contains only empty. This supplies no default comparison,
+equality/hash, matching or FTS-array authority.
+
+Vector `||` merges sorted lexemes and shifts every right position by the maximum
+position anywhere in the left vector, or zero if the left is stripped/empty.
+Left positions retain priority, weights survive shifts, and stripped/positioned
+overlap retains positions. Appending stops at256 retained positions or16383;
+shifts clamp at16383 and the first newly saturated right weight wins. This is
+not input duplicate/max-weight merging. Aligned result storage above1048575 bytes
+raises54000. Query composition permits operand starts exactly1048575 (unlike
+text input), rejects larger starts, and checks released allocation arithmetic.
+Operations are immutable and cancellation-aware during scans/copies/rendering.
+Genuine named calls `tsvector_concat`, `tsquery_and`, `tsquery_or`, `tsquery_not`,
+`tsquery_phrase`, `tsq_mcontains` and `tsq_mcontained` share these same plans.
+
+
 Both codecs allow2046 decoded bytes per lexeme. Vector raw token starts and
 final sorted aligned lexeme/position storage allow1048575 bytes; query operand
 starts must be below1048575, including one NUL byte per preceding operand.
@@ -494,12 +522,15 @@ notice-only suppression or generalized prepared folding/cache is added.
 Native Dump/Restore uses self-typed literals and existing atomic staging.
 Captured FTS view literals own their exact typed annotation, so repeated replay
 does not accumulate redundant leaf casts; real outer conversions remain intact.
-Its query input encoding parenthesizes binary nodes to retain association even
-when PostgreSQL-canonical output erases redundant AND/OR grouping. Retained
-cursors preserve old values/descriptors across replacement. Arrays
+Its query input encoding parenthesizes every operator node to retain association
+even when PostgreSQL-canonical output erases redundant AND/OR grouping. Unary
+parenthesis frames also preserve legal generated NOT chains longer than32 across
+restore/replay, without changing canonical output or the input parser's per-frame
+pending-operator limit. Retained cursors preserve old values/descriptors across
+replacement. Arrays
 3643/3645 are catalog-visible through recursive metadata closure but remain
 non-Concrete/lookup-only for executable values. Input/output/receive/send routine
-OIDs are also metadata facts, not array codecs or callable FTS providers. See the
+OIDs remain metadata facts, not array codecs or callable IO implementations. See the
 [native boundaries](DIALECT.md#text-search-scalar-boundaries) and
 [independent proof inventory](../reference/types/README.md#text-search-scalar-io).
 
@@ -769,6 +800,11 @@ different widths are legal. Destination BIT/VARBIT assignment independently
 checks width without resizing. AND/OR/XOR require equal actual widths, NOT
 complements every digit, and shifts use INTEGER counts, retain width, reverse
 for negative counts and zero-fill at/beyond the width (no integral count mask).
+The released preferred type for bit-string category V is VARBIT. Generic catalog
+operator selection therefore keeps BIT/unknown and unknown/BIT concat results
+typed VARBIT, including NULL results, rather than selecting generic TEXT concat.
+The same rule applies to typed operands regardless of literal spelling; exact
+operator signatures take precedence over preferred-type candidates.
 Scalar comparisons are lexical over the canonical digit sequence, not numeric
 or zero-padded: `B'1' > B'01'` and `B'1' < B'10'`. NULL remains typed NULL.
 These scalar comparisons do not admit bit ordering, grouping or index providers.

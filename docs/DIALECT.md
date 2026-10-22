@@ -201,12 +201,18 @@ and native Dump/Reset/Restore needs no new tablespace serialization.
 
 ## Text-search scalar boundaries
 
-TSVECTOR/TSQUERY storage, input and canonical output use the ordinary type,
-binder, parameter, metadata and logical-control paths. They do not enable
-normalization, dictionaries/configuration, matching (`@@`), ranking, constructors,
-FTS arrays, generalized comparison/grouping, or FTS index/operator providers.
-Fixed type/companion/routine identities do not promise binary receive/send or
-callable IO implementations.
+TSVECTOR/TSQUERY storage, input, canonical output and selected algebra use the
+ordinary type, binder, parameter, metadata and logical-control paths. Query
+`&&`, `||`, prefix `!!`, `<->`, `@>`, `<@`, two/three-argument `tsquery_phrase`,
+and vector `||` execute through their genuine strict immutable routine providers.
+Containment is exact lexeme-set containment, not Boolean implication or prefix
+matching. Phrase distance defaults to1 and accepts0–16384. Vector concat offsets
+right positions by the global left maximum, caps positions at16383/256 retained
+entries, and keeps the first newly saturated position's weight. NULL and empty
+are distinct; operations do not decode stored operands or repeat input notices.
+Normalization, dictionaries/configuration, matching (`@@`), ranking, constructors,
+FTS arrays, generalized comparison/grouping and FTS index execution remain
+excluded. Fixed IO/companion identities do not promise callable IO or binary codecs.
 
 The codec reproduces the released fixed32 pending-operator stack separately
 for every parenthesis frame. Parsing/rendering are iterative: native legal

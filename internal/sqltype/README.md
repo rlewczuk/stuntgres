@@ -18,6 +18,14 @@ own CHECK/NOT NULL, builtin inventory provenance and associated identities while
 recomputing inherited flags. Catalog namespace, ownership, recipes and atomic
 publication remain with the existing catalog/type staging owners.
 
+Generic operator resolution uses the released preferred-type facts before
+unknown-input category fallback. VARBIT is preferred in bit-string category V;
+BIT can already convert implicitly to VARBIT. Thus BIT plus an unknown operand
+selects the genuine VARBIT concat signature instead of generic TEXT concat.
+This is type-based overload selection, not a special case for empty bit literals,
+NULL syntax, qualification or a particular caller. Exact signatures still win.
+
+
 POINT retains inline X/Y binary64 bits, with type-set-owned FLOAT8 coordinate
 and BOOL predicate result descriptors. Its optional-parenthesis pair decoder
 shares `geometryScanner.number` with LSEG/CIRCLE, leaving BOX grammar unchanged.
@@ -175,6 +183,16 @@ comparisons are not blanket mutable.
 
 
 ## Testing
+
+Shared operator preferred-type and conditional/comparison regression proofs:
+
+```sh
+make check RUN='^TestOperatorBitUnknownPreference$'
+make check RUN='^Test(ComparisonResolutionSignatures|ComparisonImplicitEligibility|ConditionalEqualitySignatures|ConditionalTemporalAndNameCoercion)$'
+make check RUN='^TestReferenceObjectGrantBitConcatAuthority$'
+make check RUN='^TestReferenceObjectGrantBitConcatAuthority$' REFERENCE=1
+```
+
 POINT scanner, bit-preserving immutable components, predicate kernels,
 descriptor ownership, cancellation and absent default capabilities:
 

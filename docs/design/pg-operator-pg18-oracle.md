@@ -15,6 +15,27 @@ No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### Selected text-search algebra admission
+
+PG18-FTS-OPS adds exactly seven released records3633,3680,3681,3682,3693,3694
+and5005 to the independent fifteen-field inventory. Values follow
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [REL_18_6 pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat),
+not native projection output. Namespace11/owner10 and false merge/hash flags
+apply to every row. Vector concat3633 returns3614 through3625; query algebra
+3680/3681/3682/5005 returns3615 through3669/3670/3671/5003. Prefix3682 has kind
+`l` and left0; the others are binary. These five have zero links/estimators.
+Containment3693/3694 returnsBOOL16 through3691/3692, has reciprocal commutators,
+zero negators, and released matchingsel5040/matchingjoinsel5041 metadata.
+
+The existing SupportedOperatorMetadata owner publishes these result/oprcode
+facts on genuine seeded descriptors; routine associations alone cannot publish
+pg_operator rows. No projection workaround, default comparison/index capability
+or estimator execution is implied. Matching, constructors and FTS comparisons
+remain excluded. Complete inventory, permissions, references, lifecycle and
+polymorphic/smoke consumers require fresh selected root-owned dual-mode proof.
+
+
 ### MACADDR8 scalar operator admission
 
 PG18-TYPE-MACADDR8 adds exactly six released MACADDR8×MACADDR8 records3362–3367

@@ -61,6 +61,9 @@ func RestoreScalar(raw parser.Expr, stored bool) error {
 			case "array_dims", "array_length", "array_lower", "array_upper", "array_ndims", "cardinality":
 			case "array_append", "array_prepend", "array_cat", "array_fill", "array_reverse", "array_sort", "trim_array", "array_to_string":
 			case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":
+			case "tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained":
+				// Selected scalar algebra shares its ordinary typed binder. Recurse
+				// below to retain Restore's unconditional parameter prohibition.
 			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "json_strip_nulls", "jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first":
 			case "json_typeof", "jsonb_typeof", "jsonb_pretty", "json_array_length", "jsonb_array_length":
 			case "to_json", "to_jsonb", "array_to_json", "row_to_json", "json_build_array", "jsonb_build_array", "json_build_object", "jsonb_build_object":

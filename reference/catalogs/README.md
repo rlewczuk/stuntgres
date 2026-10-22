@@ -1093,6 +1093,14 @@ relationships and false merge/hash flags. They are source-grounded expectations,
 not records copied from native output. The native complete inventory remains
 unfiltered, and PostgreSQL independently validates the admitted rows.
 
+Selected FTS algebra admits exactly3633/3680/3681/3682/3693/3694/5005 with
+independent complete rows in the same TSV. Genuine seeded result/oprcode
+publication includes prefix kind, reciprocal containment commutators and
+matching estimator metadata5040/5041; none enables adjacent FTS matching,
+comparison/index or estimator execution. The complete consumer selections
+below apply to these new rows, not only the FTS-specific authority test.
+
+
 After this shared inventory changes, use these bounded selectors in both modes:
 
 ```sh

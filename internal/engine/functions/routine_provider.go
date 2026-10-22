@@ -36,4 +36,5 @@ const (
 	LargeObjectRoutineProvider
 	CircleRoutineProvider
 	IndexSupportRoutineProvider
+	FTSRoutineProvider
 )

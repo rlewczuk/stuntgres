@@ -222,6 +222,10 @@ func canonicalVector(ctx context.Context, entries []lexeme) (*Vector, error) {
 	if size > maxStringOffset {
 		return nil, vectorSize(size)
 	}
+	return renderVector(ctx, merged)
+}
+
+func renderVector(ctx context.Context, merged []lexeme) (*Vector, error) {
 	var out strings.Builder
 	var number [20]byte
 	for i, entry := range merged {

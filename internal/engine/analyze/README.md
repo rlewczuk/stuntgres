@@ -156,6 +156,13 @@ Private seam proof: `make check RUN='^TestSQLJSONDefaultShape$'`.
   `OperatorSignature`. Engine DDL, retag, remap and preflight code call them
   too; they read only their arguments. The OVERLAPS inline cost model is
   `exec.OverlapsInlineSafe`, shared with preflight.
+- **Catalog operator diagnostics** (`operator_binding.go`, `enum_diagnostics.go`):
+  binary resolution failures reuse `functions.ComparisonError` and the binder's
+  `DiagnosticTypeName`. Array element names recurse through the same captured
+  catalog/reference path as scalar user types, omitting namespace qualification
+  only when actual visibility permits it. Descriptor persistence names are not
+  diagnostic visibility authority. Unary formatting and ambiguity behavior
+  retain the existing operator-error contract.
 - **Row-lock admission** (`lock_admission.go`): `LockAdmission`, computed
   by `NewLockAdmission` from a statement's syntax before binding (the row
   marks of each SELECT level, the locked table occurrences as
@@ -269,6 +276,16 @@ moved them to `view` (`ValidateQueryJoinExecution`,
 (`analyze.Binding`, `analyze.Binder`, ...); no aliases remain.
 
 ## Testing
+
+Catalog-first shared operator diagnostics retain the existing public array
+type/visibility expectations and FTS diagnostic fields. Root selects both modes:
+
+```sh
+make check RUN='^TestReference(ArraySearchTypesAndFrames|FTSOpsDiagnostics)$'
+make check RUN='^TestReference(ArraySearchTypesAndFrames|FTSOpsDiagnostics)$' REFERENCE=1
+make check RUN='^TestReferencePGOperator(ResolverAgreement|Diagnostics)$'
+make check RUN='^TestReferencePGOperator(ResolverAgreement|Diagnostics)$' REFERENCE=1
+```
 
 `TestInsertConflictCloneOwnsTheClauseHeader` covers `InsertConflict.Clone`,
 `TestExpectedCheckLifetimeFencesCatalogTypes` the held lifetime check, and

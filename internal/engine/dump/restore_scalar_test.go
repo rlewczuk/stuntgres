@@ -96,3 +96,27 @@ func TestRestoreScalarCastParameterGuard(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFTSOpsRestoreScalar(t *testing.T) {
+	for _, expression := range []string{
+		"tsvector_concat('a','b')", "tsquery_and('a','b')", "tsquery_or('a','b')",
+		"tsquery_not('a')", "tsquery_phrase('a','b')", "tsquery_phrase('a','b',16385)",
+		"tsq_mcontains('a','b')", "tsq_mcontained('a','b')",
+	} {
+		for _, prefix := range []string{"", "pg_catalog."} {
+			if err := RestoreScalar(selectTarget(t, "SELECT "+prefix+expression), false); err != nil {
+				t.Fatal("selected scalar rejected", expression, err)
+			}
+		}
+	}
+	for _, stored := range []bool{false, true} {
+		err := RestoreScalar(selectTarget(t, "SELECT tsquery_phrase(NULL::tsquery,$1::tsquery,1)"), stored)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" || diagnostic.Message != "parameters are not allowed in restore" || diagnostic.Position != "37" {
+			t.Fatal("strict NULL hid Restore parameter", err)
+		}
+	}
+	if err := RestoreScalar(selectTarget(t, "SELECT to_tsquery('a')"), false); err == nil {
+		t.Fatal("adjacent FTS constructor admitted")
+	}
+}

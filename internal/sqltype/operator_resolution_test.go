@@ -206,3 +206,51 @@ func TestOperatorGenericConsistency(t *testing.T) {
 		t.Fatal("prefix must ignore left input")
 	}
 }
+
+func TestOperatorBitUnknownPreference(t *testing.T) {
+	types := testTypes()
+	bitConcat := OperatorInputs{VarBit, VarBit}
+	textConcat := OperatorInputs{Text, Text}
+	nonarrayText := OperatorInputs{2776, Text}
+	textNonarray := OperatorInputs{Text, 2776}
+	signatures := [4]OperatorInputs{bitConcat, textConcat, nonarrayText, textNonarray}
+	// The released preferred VARBIT category must win before unknown inputs'
+	// string-category fallback. No literal text or NULL value participates here.
+	for _, tc := range []struct {
+		name        string
+		left, right *Descriptor
+		want        OperatorInputs
+	}{
+		{"bit_unknown", types[Bit], nil, bitConcat},
+		{"unknown_bit", nil, types[Bit], bitConcat},
+		{"varbit_unknown", types[VarBit], nil, bitConcat},
+		{"unknown_varbit", nil, types[VarBit], bitConcat},
+		{"bit_pair", types[Bit], types[Bit], bitConcat},
+		{"varbit_pair", types[VarBit], types[VarBit], bitConcat},
+		{"unknown_pair", nil, nil, textConcat},
+		{"bit_text", types[Bit], types[Text], nonarrayText},
+		{"text_bit", types[Text], types[Bit], textNonarray},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for start := range len(signatures) {
+				var candidates [4]OperatorInputs
+				for i := range candidates {
+					candidates[i] = signatures[(start+i)%len(signatures)]
+				}
+				index, err := ResolveOperator(candidates[:], tc.left, tc.right, false)
+				if err != nil || index < 0 || index >= len(candidates) || candidates[index] != tc.want {
+					t.Fatalf("selection=%d error=%v want=%v candidates=%v", index, err, tc.want, candidates)
+				}
+			}
+		})
+	}
+	// A real exact BIT signature remains decisive before preferred-type scoring.
+	exact := append(signatures[:], OperatorInputs{Bit, Bit})
+	index, err := ResolveOperator(exact, types[Bit], types[Bit], false)
+	if err != nil || index != 4 {
+		t.Fatal("preferred type displaced exact operator", index, err)
+	}
+	if equalityPreferred(Bit) || !equalityPreferred(VarBit) {
+		t.Fatal("released bit-category preference")
+	}
+}

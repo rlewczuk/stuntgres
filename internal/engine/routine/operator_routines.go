@@ -9,20 +9,27 @@ var builtinOperatorRoutineAssociations = [...]struct {
 	operator ids.OID
 	routine  ids.OID
 }{
-	{506, 131},  // point >^ (deprecated above alias)
-	{507, 132},  // point <<
-	{508, 133},  // point >>
-	{509, 134},  // point <^ (deprecated below alias)
-	{510, 135},  // point ~=
-	{713, 988},  // point <> (SQL != normalizes to <>)
-	{808, 990},  // point ?-
-	{809, 989},  // point ?|
-	{4161, 131}, // point |>>
-	{4162, 134}, // point <<|
-	{491, 339},  // polygon ~= polygon
-	{756, 1429}, // point <@ polygon
-	{757, 1428}, // polygon @> point
-	{1535, 999}, // lseg =
+	{3633, 3625}, // tsvector ||
+	{3680, 3669}, // tsquery &&
+	{3681, 3670}, // tsquery ||
+	{3682, 3671}, // prefix !!
+	{5005, 5003}, // tsquery <->
+	{3693, 3691}, // tsquery @>
+	{3694, 3692}, // tsquery <@
+	{506, 131},   // point >^ (deprecated above alias)
+	{507, 132},   // point <<
+	{508, 133},   // point >>
+	{509, 134},   // point <^ (deprecated below alias)
+	{510, 135},   // point ~=
+	{713, 988},   // point <> (SQL != normalizes to <>)
+	{808, 990},   // point ?-
+	{809, 989},   // point ?|
+	{4161, 131},  // point |>>
+	{4162, 134},  // point <<|
+	{491, 339},   // polygon ~= polygon
+	{756, 1429},  // point <@ polygon
+	{757, 1428},  // polygon @> point
+	{1535, 999},  // lseg =
 	{1586, 1482},
 	{1587, 1483},
 	{1588, 1484},
