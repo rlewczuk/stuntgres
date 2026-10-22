@@ -144,13 +144,16 @@ graph edges of type declarations are `control.ColumnPredecessors` and
 `regobj.DomainInvalidDumpEvents` (it needs `regobj.ClassReplayReferences`,
 and `regobj` imports `typedef`), and the domain owner transfer in
 `emitDumpStatement` and the `dump.Presenter` adapter are `control`'s;
-`typeProvider`
-(clean since the binder moved; stored 22e, item 119, moves it with
-`reownCatalogScalarTypes` to `stored`); domain check programs and
+domain check programs and
 evaluation; the typed
 inheritance and mutation steps that use ALTER TABLE records; the column
 default records (`domain_default.go`); `conversionDefault`
 (`domainDependency` is `table.DomainDependency` since table 24b).
+
+The type class validator is `stored.TypeProvider` (stored 22e), with the
+domain default and CHECK validators and `stored.ReownScalarTypes`. It never
+reached the binder; it sits in `stored` because it renders stored domain
+recipes through `stored.ScalarRenderer`.
 
 ## Testing
 

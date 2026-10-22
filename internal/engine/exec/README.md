@@ -165,8 +165,8 @@ which sit above `exec` and `analyze`, so view 27e moved them to `view`, not
 here), rule parameter
 specialization (`view.SpecializeRuleParameterExpression` behind the
 `SpecializeRuleParameters` forwarder), the domain CHECK programme preparation (`prepareDomainConversion`, which
-keeps its phases in the statement scope) and `pruneQuoteCaptures` (stored
-view definitions; stored 22e moves it); the binder
+keeps its phases in the statement scope) and the call of
+`stored.PruneQuoteCaptures` (stored 22e moved the pruning); the binder
 methods in the `query_*_bind.go` files; the join legality checks; the
 MERGE and foreign DML executors, which open their inputs with
 `exec.OpenNode`, and the INSERT, COPY FROM, UPDATE and DELETE prologues (the

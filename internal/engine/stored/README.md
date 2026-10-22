@@ -4,12 +4,13 @@ Stored SQL definitions and their presentation: the frozen payloads that
 catalog descriptors carry, the renderers that turn them back into SQL, and
 the mappers that retag and remap them. Step 22 of the engine split created
 it (22b moved the presentation set; 22c the rule payload, the rule and
-policy dumps and the remap protocol). The package sits at layer L11 of
+policy dumps and the remap protocol; 22e the type provider validation).
+The package sits at layer L11 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture),
 above `analyze` and `regobj`: it imports `analyze`, `authorization`, `catalog`, `dump`,
 `exec`, `expr`, `extension`, `functions`, `ids`, `plan`, `regobj`,
-`routine`, `sequence`, `typedef`, `parser`, `sqlstate`, `sqltype` and the
-standard library, and never the engine, `session`, `storage`, `visibility`,
+`routine`, `sequence`, `storage`, `typedef`, `parser`, `sqlstate`,
+`sqltype` and the standard library, and never the engine, `session`, `visibility`,
 `lock` or an upper feature. Only the engine imports it (and later the upper
 features). `analyze`, `exec`, `session`, `pgcatalog` and the lower features
 reach it through the engine's host methods. See
@@ -87,7 +88,17 @@ query/default plans after descriptor generations change.
   `PartitionDependRefs`, `DependPinned` (`expression_references.go`,
   `catalog_pinning.go`). Temporary provenance and stored-reference checks
   (`temporary_provenance.go`: `ReferenceEpochValid`, `ViewReferenceValid`,
-  `ViewUseReference`, ...). `ProcedureProvider`. Installed-node validators
+  `ViewUseReference`, ...). `ProcedureProvider`. `TypeProvider`
+  (`type_provider.go`, the type class validator) with the domain recipe
+  validators it calls, `ValidateDomainDefault` and
+  `ValidateDomainCheckDefinitions` (`domain_*_validation.go`), and
+  `ValidateTypeProviders` (`type_provider_validation.go`, the publication
+  check that types and relations name current type generations).
+  `ReownScalarTypes` (`scalar_type_reown.go`) is the scalar companion of
+  `ReownExpressions`: it points relation column types and stored datums
+  (domain values, reg* and aclitem values) at current type generations.
+  `PruneQuoteCaptures` (`quote_captures.go`) drops quote constants whose
+  column default or view definition was retired. Installed-node validators
   (`ValidateInstalled{Soundex,Levenshtein,Metaphone,Crypto,UUIDOssp}`).
   The stored-view read graph and CTE volatility (`ValidateViewReadGraph`,
   `ViewVolatile`, `CaptureRetainedInput`), the stored row-mark readers
@@ -127,6 +138,8 @@ table maps the root names that older prompt files and design notes cite.
 | `remapRules`, `remapRuleBinding`, `remapRuleConstraintIdentities`, `remapPolicies`, `remapPartitionDescriptor` | `RemapRules`, `RemapRuleBinding`, `RemapRuleConstraintIdentities`, `RemapPolicies`, `RemapPartitionDescriptor` |
 | `ruleTreeMapper`, `ruleTreeMapping`, `newRuleTreeMapper`, `mapRuleBindingRecipes`, `refreshRuleBinding` | `RuleTreeMapper`, `RuleTreeMapping`, `NewRuleTreeMapper`, `MapRuleBindingRecipes`, `RefreshRuleBinding` |
 | `Engine.reownCatalogExpressions`, `refreshGenerationChecks`, `validateRules`, `constraintName`, `constraintParent`, `rewriteViewExpression` | `ReownExpressions`, `RefreshGenerationChecks`, `ValidateRules`, `ConstraintName`, `ConstraintParent`, `RewriteViewExpression` |
+| `typeProvider`, `validateTypeProviders`, `validateDomainDefault`, `validateDomainCheckDefinitions` (22e) | `TypeProvider`, `ValidateTypeProviders`, `ValidateDomainDefault`, `ValidateDomainCheckDefinitions` |
+| `reownCatalogScalarTypes`, `pruneQuoteCaptures` (22e) | `ReownScalarTypes`, `PruneQuoteCaptures` |
 
 ## Invariants
 
@@ -142,7 +155,8 @@ table maps the root names that older prompt files and design notes cite.
   (`RewrittenIntrinsicProperties`: eliminated branches keep analyzed
   dependence; replaced child demand is dropped).
 - Temporary provenance and stored-reference epoch checks keep their
-  answers; `ProcedureProvider.Validate` is the same validator.
+  answers; `ProcedureProvider.Validate` and `TypeProvider.Validate` are
+  the same validators, with the same error text and order.
 - No mutex and no engine state: every function reads only the
   `catalog.Read`, session token and arguments its caller passes.
 
@@ -175,6 +189,7 @@ make check RUN='^Test((View|Rule)PartsRoundTrip|QuerySetStoredInheritedMarks)$'
 make check RUN='^TestReference(View|Rule|Polic|RLS|RowSecurity|Materialized|Deparse|PGDepend|PGTableViews|GeneratedStored)'
 make check RUN='Stored|Remap'
 make check RUN='DumpRoundTrip|Restore|NativeControls'
+make check RUN='^Test(DomainDefault|DomainCheck|CubeProvider|IntarrayProvider|ObjectACLType|ArrayCatalogAssociation|StringVariadicRetainedGeneration|QueryTableCreate(Regclass|XID)|NetworkDomainCatalogRemap)'
 ```
 
 Add `REFERENCE=1` for the real PostgreSQL oracle. `TestViewPartsRoundTrip`

@@ -464,7 +464,8 @@ aliases remain; the checks in §8.3 pass.
   skipped at user request
 - [x] 22d — Aliases removed *(broad)* (item 70) (`b4cdcf403`, `ffd4a418d`, then
   the docs commit) · selected unit, quick-mode reference selections, quickcheck and a narrow `REFERENCE=1` selection passed; racecheck/finalcheck skipped at user request
-- [ ] 22e — Type provider validation moved (linear item 119)
+- [x] 22e — Type provider validation moved (item 119) (`e9e8b22f8`,
+  `2fd3f1cbc`, then the docs commit) · selected unit tests, the quick-mode reference selections, quickcheck and a narrow `REFERENCE=1` selection passed; racecheck/finalcheck skipped at user request
 
 Outstanding aliases: none. 22d removed `internal/engine/stored_aliases.go`
 and its 15 type aliases.
@@ -593,6 +594,33 @@ used an alias. Commits, each replayable by a script in
 No test moved or was deleted; the 125 touched test files only changed
 spelling. The package READMEs that still named `procedureProvider` or
 `scalarRenderer` as root code now name the `stored` types.
+
+### 22e record
+
+Measured at `d5e1343cf`. Two commits, no aliases, bodies verbatim apart
+from dropping the `stored.` self-qualifier:
+
+1. `types.go` and `type_provider_validation.go` moved whole
+   (`stored/type_provider.go`, `stored/type_provider_validation.go`);
+   `validateDomainDefault` and `validateDomainCheckDefinitions` left
+   `domain_default.go` and `domain_check.go` for
+   `stored/domain_default_validation.go` and
+   `stored/domain_check_validation.go`. The domain default and CHECK
+   binders and the domain CHECK runtime stay in the root (they need the
+   engine and the statement scope).
+2. `domain_remap.go` became `stored/scalar_type_reown.go`
+   (`ReownScalarTypes`) and `string_variadic_capture.go` became
+   `stored/quote_captures.go` (`PruneQuoteCaptures`). `stored` now imports
+   `storage` directly (it was already a transitive import through `exec`).
+
+Names: `typeProvider` → `TypeProvider`, `validateTypeProviders` →
+`ValidateTypeProviders`, `validateDomainDefault` → `ValidateDomainDefault`,
+`validateDomainCheckDefinitions` → `ValidateDomainCheckDefinitions`,
+`reownCatalogScalarTypes` → `ReownScalarTypes`, `pruneQuoteCaptures` →
+`PruneQuoteCaptures`. 17 engine test files changed spelling only; no test
+moved. The `typedef` README no longer claims that `typeProvider` reached
+the binder; the `control` prompt (30d) and the `exec` README name the
+`stored` functions.
 
 ### Notes for later steps
 

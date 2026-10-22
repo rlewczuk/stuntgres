@@ -70,7 +70,7 @@ private restore stage, and install the replacement catalog atomically.
 | `dumpPredecessor` (descriptor-kind dependency resolver) | `dump_resolver.go` (was `view_dump.go`, then `dump_graph.go`) | root `dumpResolver` implements `dump.Resolver` (18b); 30b: clean, it moves as `control.Resolver` in 30c |
 
 `reownCatalogScalarTypes` (`domain_remap.go:14`) is a fifth walk of the
-same kind; it goes with `ReownExpressions` in 22c.
+same kind; it is `stored.ReownScalarTypes` since stored 22e.
 
 ### Restore, step by step (`control.go:122`–`729` since 18c)
 
@@ -453,7 +453,8 @@ are reach-clean and read only captured values:
   (`aclitem_dump.go`).
 - `captureDumpLocked` keeps its `Engine.mu` window and fills a
   `control.Source` value; the root passes it to `control.Dump`.
-- Their only outside dependency is `typeProvider`, which moves first (22e).
+- Their only outside dependency was `typeProvider`; it is
+  `stored.TypeProvider` since stored 22e.
 - Byte-identical dump smoke (`.cswd/tmp/PG18-ENGINE-SPLIT-DUMP-PACKAGE/dumpsmoke`)
   before and after.
 
