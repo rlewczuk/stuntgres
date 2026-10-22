@@ -301,7 +301,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 
 // AppendAcceptedInsert is the same catalog and index authority as StageInsert
 // for one RETURNING row, appended to amortized stage storage.
-func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate *index.WriteCandidate) (accepted, stale bool, err error) {
+func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.WriteCandidate) (accepted, stale bool, err error) {
 	s := h.scope()
 	w := &s.stage
 	row := candidate.Values

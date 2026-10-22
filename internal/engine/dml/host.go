@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -74,6 +75,9 @@ type Statement interface {
 	// CopyCommandError is CommandError for COPY, which also maps wire
 	// protocol cancellation.
 	CopyCommandError(err error) error
+	// Operation is the statement's operation: its COPY input state, pending
+	// COPY input error and context source.
+	Operation() *session.Operation
 }
 
 // PrivateRows is the statement's view of one relation's private rows: the
@@ -113,8 +117,9 @@ type Stage interface {
 	// success and dropped on failure.
 	StageReplacement(ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, modes []lock.MultiMode, lane ReplaceLane) (stale bool, err error)
 	// AppendAcceptedInsert appends one validated RETURNING insert, checking
-	// the INSERT binding in the same window. stale is as for StageInsert.
-	AppendAcceptedInsert(ref ids.ObjectRef, c *index.WriteCandidate) (accepted, stale bool, err error)
+	// the INSERT binding in the same window. stale is as for StageInsert. c
+	// is passed by value so per-row candidates stay off the heap.
+	AppendAcceptedInsert(ref ids.ObjectRef, c index.WriteCandidate) (accepted, stale bool, err error)
 	// Delete stages a granted deletion; it reports false when the row is no
 	// longer live, and flushes its physical row event after unlocking.
 	Delete(c visibility.DeleteCandidate) (bool, error)

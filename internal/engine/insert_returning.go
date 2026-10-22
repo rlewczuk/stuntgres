@@ -106,7 +106,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *index.Wr
 		return false, false, err
 	}
 	*candidate = batch.Candidate(0)
-	return s.writeHost().AppendAcceptedInsert(ref, candidate)
+	return s.writeHost().AppendAcceptedInsert(ref, *candidate)
 }
 func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partition.InsertGroup {
 	state := s.PartitionInsert

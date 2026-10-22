@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -77,6 +78,7 @@ func (h *statementHost) DisclosureEnv(v access.View) access.Environment {
 
 func (h *statementHost) CommandError(err error) error     { return h.op.CommandError(err) }
 func (h *statementHost) CopyCommandError(err error) error { return h.scope().copyCommandError(err) }
+func (h *statementHost) Operation() *session.Operation    { return h.op }
 
 func (h *statementHost) AcquireRow(c visibility.DeleteCandidate) error {
 	return h.scope().acquireRow(c)
