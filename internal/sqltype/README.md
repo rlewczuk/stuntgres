@@ -258,6 +258,26 @@ make check RUN='^TestSimilarActualMatcherCancellation$'
 make check RUN='^TestSimilarActualMatcherCancellation$' RACE=1
 ```
 
+`TestRegexpSubstrCancellation` exercises actual `RegexpPlan.Evaluate` with four
+finite named cases: flags, UTF8 start traversal, high-N occurrence traversal and
+the tagged matcher selected by whole-match demand. Its delegated real context
+calls CancelFunc only at the exact synchronous checkpoint: regexpFlags; own
+evaluate+pgRegexWork.step excluding compiler/provider frames; or
+evaluate+matchPGRegexTagged+pgRegexWork.step, respectively. Done starts open and
+must close; Err returns the embedded context's actual error, not synthetic
+cancellation. Each case requires ordinary context.Canceled, no scalar publication
+and cleared execution program, then reuses the SAME plan/state for exact TEXT
+recovery: flags `'a'`, start/occurrence NULL, tagged source `'a'` -> `'a'` and
+source `'b'` -> nonnull empty TEXT. Recovered programs retain no work context.
+These are native consumer/provider units, not PostgreSQL interrupted-frame
+claims or a substitute for the
+[dual-mode public cancellation lifecycle](../../reference/patterns_encoding/README.md#regexp_substr-selection-and-lifecycle).
+
+```sh
+make check RUN='^TestRegexpSubstrCancellation$'
+make check RACE=1 RUN='^TestRegexpSubstrCancellation$'
+```
+
 Circle codec, numeric/diagnostic precedence, area/sameness/NULL distinction,
 bit identity, binary framing and selected-plan ownership units:
 

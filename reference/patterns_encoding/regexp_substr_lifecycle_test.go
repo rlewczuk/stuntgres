@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
+	"time"
 )
 
 func TestReferenceRegexpSubstrHeldParameters(t *testing.T) {
@@ -178,15 +178,20 @@ func TestReferenceRegexpSubstrStoredControls(t *testing.T) {
 func TestReferenceRegexpSubstrCancellation(t *testing.T) {
 	regexpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`CREATE TABLE substr_cancel(s TEXT,sentinel INT)`, 0))
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`INSERT INTO substr_cancel VALUES($1,7)`, 1, strings.Repeat("a", 2*1024*1024)))
-		conn, err := b.DB.Conn(p.Ctx)
-		if err != nil {
-			t.Fatal(err)
+		source := strings.Repeat("a", 2*1024*1024)
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`INSERT INTO substr_cancel VALUES($1,7)`, 1, source))
+		conn, blocker := fixture.LockConnections(t, p.Ctx, b.DB)
+		identity := fixture.SettingsPhysical(t, conn)
+		check := func() {
+			fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select(`SELECT sentinel FROM substr_cancel`, []string{"sentinel"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			if fixture.SettingsPhysical(t, conn) != identity {
+				t.Fatal("regexp_substr recovery lost physical owner")
+			}
 		}
-		defer conn.Close()
 		const q = `UPDATE substr_cancel SET sentinel=99 WHERE regexp_substr(s,'',1,2147483647) IS NOT NULL`
 		for _, prepared := range []bool{false, true} {
 			var stmt *sql.Stmt
+			var err error
 			if prepared {
 				stmt, err = conn.PrepareContext(p.Ctx, q)
 				if err != nil {
@@ -194,30 +199,52 @@ func TestReferenceRegexpSubstrCancellation(t *testing.T) {
 				}
 				defer stmt.Close()
 			}
-			if b.PG {
-				fixture.SessionCancelQuery(t, p.Ctx, conn, prepared, q, false)
-			} else {
-				likeReferenceCancelEntered(t, "sqltype.(*PGRegexProgram)", func(ctx context.Context) error {
-					var result sql.Result
-					var err error
-					if prepared {
-						result, err = stmt.ExecContext(ctx)
-					} else {
-						result, err = conn.ExecContext(ctx, q)
-					}
-					if result != nil {
-						return errors.New("canceled UPDATE exposed result")
-					}
-					return err
-				})
+			exec := func(ctx context.Context) (sql.Result, error) {
+				if stmt != nil {
+					return stmt.ExecContext(ctx)
+				}
+				return conn.ExecContext(ctx, q)
 			}
-			fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select(`SELECT sentinel FROM substr_cancel`, []string{"sentinel"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			fixture.RunStep(t, p.Ctx, blocker, b.Recorder, fixture.Exec(`BEGIN`, 0))
+			released := false
+			t.Cleanup(func() {
+				if !released {
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					_, _ = blocker.ExecContext(ctx, `ROLLBACK`)
+				}
+			})
+			fixture.RunStep(t, p.Ctx, blocker, b.Recorder, fixture.Exec(`LOCK TABLE substr_cancel IN ACCESS EXCLUSIVE MODE`, 0))
+			// Durable admission is a relation wait, not regexp provider entry.
+			fixture.RelationLockActiveCancel(t, p, b, conn, q, func(ctx context.Context) fixture.RelationOutcome {
+				if !b.PG {
+					var cancel context.CancelFunc
+					ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+				}
+				result, err := exec(ctx)
+				return fixture.RelationOutcome{Result: result, Err: err}
+			})
+			func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				fixture.RunStep(t, ctx, blocker, b.Recorder, fixture.Exec(`ROLLBACK`, 0))
+			}()
+			released = true
+			check()
 			fixture.RunStep(t, p.Ctx, conn, b.Recorder, regexpOne(b, `regexp_substr('abc','b')`, "TEXT", "b"))
 			if _, err := conn.ExecContext(p.Ctx, `BEGIN`); err != nil {
 				t.Fatal(err)
 			}
 			func() {
-				defer conn.ExecContext(context.Background(), `ROLLBACK`)
+				rolledBack := false
+				defer func() {
+					if !rolledBack {
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+					}
+				}()
 				if _, err := conn.ExecContext(p.Ctx, `SET LOCAL statement_timeout='10ms'`); err != nil {
 					t.Fatal(err)
 				}
@@ -228,8 +255,22 @@ func TestReferenceRegexpSubstrCancellation(t *testing.T) {
 				} else {
 					fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
 				}
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				fixture.RunStep(t, ctx, conn, b.Recorder, fixture.Exec(`ROLLBACK`, 0))
+				rolledBack = true
 			}()
-			fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Select(`SELECT sentinel FROM substr_cancel`, []string{"sentinel"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			check()
+			fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(`UPDATE substr_cancel SET s='a'`, 1))
+			result, err := exec(p.Ctx)
+			if err != nil || result == nil {
+				t.Fatal("same-consumer recovery", result, err)
+			}
+			if n, err := result.RowsAffected(); err != nil || n != 0 {
+				t.Fatal("same-consumer recovery affected count", n, err)
+			}
+			check()
+			fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec(`UPDATE substr_cancel SET s=$1`, 1, source))
 		}
 	})
 }

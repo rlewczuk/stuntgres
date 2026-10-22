@@ -64,20 +64,26 @@ PostgreSQL harness or committed smoke script is needed.
 
 ### Shared cancellation admission — infrastructure change note
 
-The native LIKE/POSIX/SIMILAR/regexp cancellation helper follows the existing
-shared fixture convention: an adaptively sized `runtime.Stack` snapshot must
-contain both the actual provider and the exact helper worker in the same live
-goroutine, excluding creation metadata. After an unsuccessful sample it waits
-one millisecond using a reset timer before sampling again, allowing worker
-progress instead of continuously collecting stop-the-world profiles.
+The native LIKE/POSIX/regexp provider-observation helper uses an adaptively sized
+`runtime.Stack` snapshot containing both the actual provider and exact helper
+worker in the same live goroutine, excluding creation metadata. Unsuccessful
+samples wait one millisecond on a reset timer so observation does not monopolize
+worker progress. Complete stacks remain scheduler-dependent: finite regexp work
+can complete before a sample observes it. Earlier evidence did not establish
+32-PC truncation or a production cancellation defect as the cause.
 
-This is bounded test-observation/scheduling infrastructure, not a regexp
-production change or proof that32-PC truncation caused the earlier failure.
-Captured direct/held stacks did not establish that cause. Complete stack
-observation remains scheduler-dependent, not a synthetic provider-entry hook.
-Workloads, five-second context and joins, completed-before-observed failures,
-exact context cancellation, nil outputs, unchanged sentinels and healthy
-same-owner/held recovery assertions remain unchanged. No diagnostic mode remains.
+SIMILAR and regexp_substr caller cancellation instead reuse the fixture's durable
+relation-lock admission. The actual direct or SAME held regex-bearing UPDATE
+waits behind ACCESS EXCLUSIVE before cancellation. This proves admitted SQL
+cancellation, **not regexp evaluation or provider entry**. Separate genuine
+internal consumer/matcher units provide that evidence. regexp_substr's original
+unblocked2MiB/query/10ms configured-timeout phase is retained; timeout diagnostics
+alone do not identify the interrupted frame. No shared-helper change, longer
+sleep, larger deadline, retry or acceptance of early completion is involved.
+
+Both admission patterns reject early completion and join workers under bounded
+cleanup, preserving nil outputs, exact ordinary native cancellation versus full
+PostgreSQL diagnostics, unchanged sentinels and same-owner/held recovery.
 
 Exact affected definitions require both modes and selected race proof, each
 under an external900-second deadline:
@@ -516,6 +522,46 @@ stored rename/default/generated/CHECK/index/view results, native replacement
 and actual emitted SQL replay on the pinned oracle.
 Frozen regex view rendering preserves written argument order and named labels,
 including quoted `"N"`, rather than replaying reordered calls positionally.
+
+
+`TestReferenceRegexpSubstrCancellation` retains the original2MiB source, empty
+pattern and occurrence2147483647 UPDATE on direct and SAME preheld statement
+routes. Caller cancellation follows durable relation-lock admission, with the
+original native5s operation bound, PostgreSQL15s admission and5s worker join.
+The blocker is rolled back before reads and before the original **unblocked**
+10ms statement-timeout workload. Both failures publish no result, preserve
+sentinel7 and retain the exact physical adapter. Native caller cancellation is
+ordinary `context.Canceled`; PostgreSQL requires full ERROR/57014/user-request
+fields. Configured timeout retains full ERROR/57014/statement-timeout fields
+and checked bounded rollback. Recovery shortens only the source to `'a'`, then
+executes the SAME UPDATE/held object successfully with exactly0 affected rows;
+sentinel7 and physical identity remain unchanged. The2MiB source is restored
+before the next route. Rollback and worker failure cleanup are bounded.
+
+Public lock admission does not establish matcher entry. Internal
+`TestRegexpSubstrCancellation` uses real CancelFunc/Done at flags, UTF8 start,
+high-N consumer and tagged-provider work checkpoints through actual evaluation,
+with no scalar publication, cleared state and exact same-plan/state recovery.
+The tagged provider recovers to `'a'` for source `'a'` and nonnull empty TEXT for
+source `'b'`; start/high-N recover to typed TEXT NULL.
+
+Selected cancellation-repair proof (root runs each with an external900s bound):
+
+```sh
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceRegexpSubstrCancellation$'
+timeout 900s make check RUN='^TestReferenceRegexpSubstrCancellation$'
+timeout 900s make check RUN='^TestRegexpSubstrCancellation$'
+timeout 900s make check RACE=1 RUN='^(TestReferenceRegexpSubstrCancellation|TestRegexpSubstrCancellation)$'
+```
+
+The separate cancellation smoke is root-owned session source
+`local://regexp-cancel-smoke.go`: run `timeout 900s go run <absolute-session-source>`
+from the worktree, without adding a permanent test scaffold. Expected stdout is
+`regexp_substr cancellation/timeout/recovery smoke passed` only after both
+public routes satisfy cancellation, timeout, sentinel/physical-owner preservation
+and successful same-consumer0-row recovery. Record actual observations; the older
+value/control smoke below is not cancellation proof. Whole-project quickcheck,
+independent review and post-integration finalcheck remain required root gates.
 
 Run both modes after changes, each with an external900-second deadline:
 

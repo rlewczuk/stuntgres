@@ -3,6 +3,7 @@ package sqltype
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -138,26 +139,107 @@ func TestRegexpSubstrDemandAndOwnership(t *testing.T) {
 		t.Fatal(v, err)
 	}
 }
+
+// Cancel only at the selected consumer or tagged matcher's real work checkpoint.
+// Err always delegates to the real context; Done is closed by its CancelFunc.
+type substrActualCancelContext struct {
+	context.Context
+	cancel  context.CancelFunc
+	phase   string
+	entered bool
+}
+
+func (c *substrActualCancelContext) Err() error {
+	if !c.entered {
+		var pcs [128]uintptr
+		frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs[:])])
+		flags, consumer, step, tagged, provider := false, false, false, false, false
+		for {
+			frame, more := frames.Next()
+			flags = flags || strings.HasSuffix(frame.Function, ".regexpFlags")
+			consumer = consumer || strings.HasSuffix(frame.Function, ".RegexpPlan.evaluate")
+			step = step || strings.HasSuffix(frame.Function, ".(*pgRegexWork).step")
+			tagged = tagged || strings.HasSuffix(frame.Function, ".(*PGRegexProgram).matchPGRegexTagged")
+			provider = provider || strings.Contains(frame.Function, "compilePGRegex") ||
+				strings.Contains(frame.Function, "resolveProgram") ||
+				strings.Contains(frame.Function, "PGRegexProgram).")
+			if !more {
+				break
+			}
+		}
+		admitted := consumer && step && !provider
+		switch c.phase {
+		case "flags":
+			admitted = flags && !provider
+		case "tagged-provider":
+			admitted = consumer && tagged && step
+		}
+		if admitted {
+			c.entered = true
+			c.cancel()
+		}
+	}
+	return c.Context.Err()
+}
+
 func TestRegexpSubstrCancellation(t *testing.T) {
 	for _, c := range []struct {
-		args  []any
-		phase string
-		poll  bool
+		name string
+		args []any
+		want any
 	}{
-		{[]any{"a", "a", 1, 1, strings.Repeat("i", 20000)}, "regexpFlags", false},
-		{[]any{strings.Repeat("é", 20000), "a", 20001}, "RegexpPlan.evaluate", true},
-		{[]any{strings.Repeat("a", 20000), "", 1, 2147483647}, "RegexpPlan.evaluate", true},
+		{"flags", []any{"a", "a", 1, 1, strings.Repeat("i", 20000)}, "a"},
+		{"start", []any{strings.Repeat("é", 20000), "a", 20001}, nil},
+		{"occurrence", []any{strings.Repeat("a", 20000), "", 1, 2147483647}, nil},
+		{"tagged-provider", []any{strings.Repeat("a", 20000), "(a|aa)*", 1, 1}, "a"},
 	} {
-		p, a := regexpUnitPlan(t, "regexp_substr", c.args...)
-		state := PGRegexExecution{}
-		ctx := &regexpConsumerPhaseContext{Context: context.Background(), phase: c.phase, poll: c.poll}
-		_, err := p.Evaluate(ctx, a, &state)
-		if !errors.Is(err, context.Canceled) || !ctx.entered || state.program != nil {
-			t.Fatal(err, ctx.entered, state.program)
-		}
-		v, err := p.Evaluate(context.Background(), a, &state)
-		if err != nil {
-			t.Fatal(v, err)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			p, a := regexpUnitPlan(t, "regexp_substr", c.args...)
+			state := PGRegexExecution{}
+			base, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ctx := &substrActualCancelContext{Context: base, cancel: cancel, phase: c.name}
+			if base.Err() != nil {
+				t.Fatal("context canceled before invocation")
+			}
+			select {
+			case <-base.Done():
+				t.Fatal("Done closed before invocation")
+			default:
+			}
+			v, err := p.Evaluate(ctx, a, &state)
+			if !errors.Is(err, context.Canceled) || !ctx.entered || v != (Value{}) || state.program != nil {
+				t.Fatal("actual regexp_substr cancellation", err, ctx.entered, v, state.program)
+			}
+			select {
+			case <-base.Done():
+			default:
+				t.Fatal("real cancellation did not close embedded Done")
+			}
+			check := func(want any) {
+				t.Helper()
+				v, err := p.Evaluate(context.Background(), a, &state)
+				if err != nil {
+					t.Fatal("same-plan recovery", v, err)
+				}
+				if v.Type().ID() != Text || v.IsNull() != (want == nil) {
+					t.Fatal("same-plan recovery type/null", v, want)
+				}
+				if want != nil && v.text != want.(string) {
+					t.Fatal("same-plan recovery value", v, want)
+				}
+				if state.program != nil && (state.program.matchWork.ctx != nil || state.program.budget.work != nil) {
+					t.Fatal("recovered program retained execution context")
+				}
+			}
+			if c.name == "tagged-provider" {
+				a[0] = String(a[0].Type(), "a")
+				check("a")
+				a[0] = String(a[0].Type(), "b")
+				check("")
+			} else {
+				check(c.want)
+			}
+		})
 	}
 }
