@@ -1,4 +1,4 @@
-package engine
+package regobj
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -17,69 +17,88 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func objectLookupPath(scope *StatementScope, names []string) (analyze.NamespaceSelection, error) {
+// AddressLookup is what pg_get_object_address reads: the statement's comment
+// catalog and roles, its deparse capture (authority, reference path, database,
+// session token and TEMP namespace), and two root capabilities.
+type AddressLookup struct {
+	Catalog catalog.Read
+	Roles   authorization.Read
+	Capture InputCapture
+	// Namespace selects the namespace of a two-part name with function lookup
+	// rules, after the schema is known to exist.
+	Namespace func(parser.ObjectName) (analyze.NamespaceSelection, error)
+	// Notice receives type-name parser notices and type-modifier warnings. A
+	// nil Notice drops them.
+	Notice func(session.NoticeLevel, sqlstate.Error)
+}
+
+func (q AddressLookup) path(names []string) (analyze.NamespaceSelection, error) {
 	if len(names) == 1 {
-		return analyze.NamespaceSelection{Path: scope.inquiry.deparsePath}, nil
+		return analyze.NamespaceSelection{Path: q.Capture.Path}, nil
 	}
 	if len(names) > 3 {
 		return analyze.NamespaceSelection{}, sqlError("42601", "improper qualified name (too many dotted names): "+strings.Join(names, "."))
 	}
 	if len(names) == 3 {
-		if names[0] != scope.op.Session.DatabaseName {
+		if names[0] != q.Capture.Database {
 			return analyze.NamespaceSelection{}, sqlError("0A000", "cross-database references are not implemented: "+strings.Join(names, "."))
 		}
 		names = names[1:]
 	}
-	auth := scope.inquiry.deparseAuth
-	if auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: names[0]}) == (ids.ObjectAddress{}) && names[0] != "pg_temp" {
+	a := q.Capture.Authority
+	if catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.NamespaceClassID, Name: names[0]}) == (ids.ObjectAddress{}) && names[0] != "pg_temp" {
 		return analyze.NamespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
-	return auth.engine.lookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)
+	return q.Namespace(name)
 }
-func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (catalog.Descriptor, error) {
-	path, err := objectLookupPath(scope, names)
+func (q AddressLookup) descriptor(class ids.OID, names []string) (catalog.Descriptor, error) {
+	path, err := q.path(names)
 	if err != nil {
 		return nil, err
 	}
 	for i := range path.Count() {
-		a := scope.inquiry.commentCatalog.NameAddress(ids.NameKey{ClassID: class, Namespace: path.At(i), Name: names[len(names)-1]})
-		if d := scope.inquiry.commentCatalog.Get(a); d != nil {
+		a := q.Catalog.NameAddress(ids.NameKey{ClassID: class, Namespace: path.At(i), Name: names[len(names)-1]})
+		if d := q.Catalog.Get(a); d != nil {
 			return d, nil
 		}
 	}
 	return nil, nil
 }
-func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]sqltype.Value) (ids.ObjectAddress, error) {
+
+// Lookup resolves pg_get_object_address(type, names, args).
+func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids.ObjectAddress, error) {
 	kind, err := values[0].Text()
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
-	class, err := regobj.ObjectInputClass(kind)
+	class, err := ObjectInputClass(kind)
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
 	typeName := kind == "type" || kind == "cast" || kind == "domain constraint" || class == 3576
 	if (typeName || class == 2613) && values[1].ArrayLen() != 1 {
-		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, true)
+		return ids.ObjectAddress{}, ObjectListLength("name", 1, true)
 	}
 	if class == 2613 && values[1].ArrayElement(0).IsNull() {
 		return ids.ObjectAddress{}, sqlError("22023", "large object OID may not be null")
 	}
-	names, err := regobj.ObjectInputArray(values[1])
+	names, err := ObjectInputArray(values[1])
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
 	if len(names) == 0 {
-		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, false)
+		return ids.ObjectAddress{}, ObjectListLength("name", 1, false)
 	}
-	view := scope.inquiry.commentCatalog
-	types := regobj.NewTypeInput(regobj.InputCapture{
-		Authority: inputAuthority(scope.inquiry.deparseAuth), Path: scope.inquiry.deparsePath,
-		Database: scope.op.Session.DatabaseName, Token: scope.op.Session.SessionToken, Temporary: temporaryNamespace(scope.inquiry.deparseAuth),
-	}, scope.op)
+	view := q.Catalog
+	types := TypeInput{capture: q.Capture}
+	notices := typeNotices(q.Notice)
 	parseSyntax := func(input string) (parser.TypeName, error) {
-		return parser.ParseTypeName(ctx, input, func(notice sqlstate.Error) { scope.op.EmitNotice(session.LevelNotice, notice) })
+		return parser.ParseTypeName(ctx, input, func(notice sqlstate.Error) {
+			if notices != nil {
+				notices(session.LevelNotice, notice)
+			}
+		})
 	}
 	var typeID uint32
 	var parsedName parser.TypeName
@@ -111,34 +130,34 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 		}
 	} else {
-		args, err = regobj.ObjectInputArray(values[2])
+		args, err = ObjectInputArray(values[2])
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
 	}
 	if (class == 1418 || class == 6237) && len(names) != 1 {
-		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, true)
+		return ids.ObjectAddress{}, ObjectListLength("name", 1, true)
 	}
 	if (kind == "cast" || kind == "domain constraint" || class == 1418 || class == 6237 || class == 6106 || class == 826 || class == 3576) && len(args) != 1 {
-		return ids.ObjectAddress{}, regobj.ObjectListLength("argument", 1, true)
+		return ids.ObjectAddress{}, ObjectListLength("argument", 1, true)
 	}
 	if (class == 2616 || class == 2753) && len(names) < 2 {
-		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 2, false)
+		return ids.ObjectAddress{}, ObjectListLength("name", 2, false)
 	}
 	if (class == 2602 || class == 2603) && len(names) < 3 {
-		return ids.ObjectAddress{}, regobj.ObjectListLength("name", 3, false)
+		return ids.ObjectAddress{}, ObjectListLength("name", 3, false)
 	}
 	if (class == 2617 || class == 2602 || class == 2603) && len(args) != 2 {
-		return ids.ObjectAddress{}, regobj.ObjectListLength("argument", 2, true)
+		return ids.ObjectAddress{}, ObjectListLength("argument", 2, true)
 	}
 	switch class {
 	case 2612, 2601, 1262, 3466, 3079, 2328, 1417, 6243, 6104, 1260, 2615, 6100, 1213:
 		if len(names) != 1 {
-			return ids.ObjectAddress{}, regobj.ObjectListLength("name", 1, true)
+			return ids.ObjectAddress{}, ObjectListLength("name", 1, true)
 		}
 	}
 	if typeName {
-		typeID, err = types.ResolveParsedTypeName(ctx, parsedName, scope.op)
+		typeID, err = types.resolveParsed(ctx, parsedName, notices)
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
@@ -147,7 +166,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	if parsedArgs != nil {
 		argIDs = make([]ids.OID, len(parsedArgs))
 		for i, raw := range parsedArgs {
-			id, err := types.ResolveParsedTypeName(ctx, raw, scope.op)
+			id, err := types.resolveParsed(ctx, raw, notices)
 			if err != nil {
 				return ids.ObjectAddress{}, err
 			}
@@ -168,7 +187,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		case 2615:
 			a = view.NameAddress(ids.NameKey{ClassID: 2615, Name: name})
 		case 1260:
-			if role, ok := scope.inquiry.commentRoles.Lookup(name); ok {
+			if role, ok := q.Roles.Lookup(name); ok {
 				a.ObjectID = ids.OID(role.Ref.ID())
 			}
 		case 1213:
@@ -193,7 +212,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		}
 		return missing(code, fmt.Sprintf("%s %q does not exist", kind, name))
 	case 1255:
-		path, err := objectLookupPath(scope, names)
+		path, err := q.path(names)
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
@@ -204,9 +223,9 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				signature.WriteByte(',')
 			}
 			signature.WriteString(strconv.FormatUint(uint64(id), 10))
-			human[i] = regobj.TypeSpelling(view, scope.inquiry.deparsePath, id)
+			human[i] = TypeSpelling(view, q.Capture.Path, id)
 		}
-		p, count := regobj.SelectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
+		p, count := SelectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
 		spelling := make([]string, len(names))
 		for i, name := range names {
 			spelling[i] = catalog.Identifier(name)
@@ -232,7 +251,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		a.ObjectID = p.ID
 		return a, nil
 	case 2617:
-		path, err := objectLookupPath(scope, names)
+		path, err := q.path(names)
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
@@ -251,7 +270,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				return a, nil
 			}
 		}
-		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", regobj.TypeSpelling(view, scope.inquiry.deparsePath, ids.OID(typeID)), regobj.TypeSpelling(view, scope.inquiry.deparsePath, argIDs[0])))
+		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", TypeSpelling(view, q.Capture.Path, ids.OID(typeID)), TypeSpelling(view, q.Capture.Path, argIDs[0])))
 	case 2616, 2753:
 		method := uint32(0)
 		switch names[0] {
@@ -262,7 +281,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		default:
 			return missing("42704", fmt.Sprintf("access method %q does not exist", names[0]))
 		}
-		path, err := objectLookupPath(scope, names[1:])
+		path, err := q.path(names[1:])
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
@@ -297,7 +316,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 					}
 				}
 			}
-			return missing("42704", fmt.Sprintf("constraint %q for domain %s does not exist", args[0], regobj.TypeSpelling(view, scope.inquiry.deparsePath, ids.OID(typeID))))
+			return missing("42704", fmt.Sprintf("constraint %q for domain %s does not exist", args[0], TypeSpelling(view, q.Capture.Path, ids.OID(typeID))))
 		}
 	}
 	if class == 1259 || class == 2606 || class == 2604 || class == 2618 || class == 3256 || class == 2620 {
@@ -313,7 +332,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 			relationNames = names[:len(names)-1]
 		}
-		d, err := objectLookupDescriptor(scope, 1259, relationNames)
+		d, err := q.descriptor(1259, relationNames)
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
@@ -323,7 +342,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		relation := d.(*catalog.Relation)
 		if class == 1259 {
 			if !child {
-				actual := regobj.ObjectRelationKind(view, relation)
+				actual := ObjectRelationKind(view, relation)
 				if actual != kind {
 					return missing("42809", fmt.Sprintf("%q is not a%s %s", relation.Name(), map[string]string{"index": "n"}[kind], kind))
 				}
@@ -331,19 +350,19 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 			column := names[len(names)-1]
 			for _, sub := range relation.Attributes {
-				if regobj.ObjectAttributeName(view, relation, sub) == column {
-					return ids.ObjectAddress{1259, relation.Address().ObjectID, sub}, nil
+				if ObjectAttributeName(view, relation, sub) == column {
+					return ids.ObjectAddress{ClassID: 1259, ObjectID: relation.Address().ObjectID, SubID: sub}, nil
 				}
 			}
 			for sub := int32(-1); sub >= -6; sub-- {
-				if regobj.ObjectAttributeName(view, relation, sub) == column {
-					return ids.ObjectAddress{1259, relation.Address().ObjectID, sub}, nil
+				if ObjectAttributeName(view, relation, sub) == column {
+					return ids.ObjectAddress{ClassID: 1259, ObjectID: relation.Address().ObjectID, SubID: sub}, nil
 				}
 			}
 			return missing("42703", fmt.Sprintf("column %q of relation %q does not exist", column, strings.Join(relationNames, ".")))
 		}
 		name := names[len(names)-1]
-		id := regobj.OwnedAddressByName(relation, class, name)
+		id := OwnedAddressByName(relation, class, name)
 		if id != 0 {
 			a.ObjectID = id
 			return a, nil
@@ -361,7 +380,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		return missing("42704", fmt.Sprintf("%s %q for %s %q does not exist", object, name, owner, relation.Name()))
 	}
 	if class == 3456 || class == 2607 || class == 3764 || class == 3600 {
-		d, err := objectLookupDescriptor(scope, class, names)
+		d, err := q.descriptor(class, names)
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
