@@ -38,7 +38,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := e.assembleMergeRows(op.Context(), scope, b, target, &cursor, state, "public", false)
+		rows, err := AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, state, false)
 		if err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
@@ -82,7 +82,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal("drained source/transition recipe provenance", got, want)
 		}
-		if err = stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
+		if err = StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
 		}

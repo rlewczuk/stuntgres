@@ -121,7 +121,7 @@ func TestMergeReturningPublication(t *testing.T) {
 				})
 			}
 			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := e.assembleMergeRows(op.Context(), scope, b, target, cursor, state, "public", false)
+			rows, err := AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), cursor, state, false)
 			if phase == "producerClose" || phase == "outputLate" || phase == "typeDrift" {
 				if rows != nil || err == nil {
 					t.Fatal("failed private output escaped", rows, err)
@@ -150,7 +150,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					t.Fatal("accepted output count", calls, rows.Returning.Count)
 				}
 			}
-			if err = stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
+			if err = StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}

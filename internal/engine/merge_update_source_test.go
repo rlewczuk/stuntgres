@@ -68,7 +68,7 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 				}
 			}
 			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := e.assembleMergeRows(ctx, scope, b, target, cursor, state, "public", false)
+			rows, err := AssembleMergeRows(scope.writeHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
 			want := primary
 			if phase == "close" {
 				want = cleanup

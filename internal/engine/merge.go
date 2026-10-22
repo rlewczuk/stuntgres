@@ -109,56 +109,18 @@ func preflightMerge(c *exec.Context, merge *analyze.MergeBinding, catalog catalo
 	return nil
 }
 
+// executeMerge runs the captured MERGE through dml.ExecuteMerge; the engine
+// tests call it.
 func executeMerge(ctx context.Context, scope *StatementScope, b analyze.Binding, target, inputs *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
-	e := scope.engine()
-	defer target.Close()
-	defer inputs.Close()
-	unique, err := dml.BindUniqueWrite(scope.writeHost(), b.Ref)
+	outcome, err := ExecuteMerge(scope.writeHost(), scope.mergeInput(ctx, b, target, inputs, parameters, schema))
 	if err != nil {
 		return Result{}, err
 	}
-	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
-		return Result{}, err
-	}
-	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: dml.MergeHasVirtualReads(b.Merge)}
-	if b.Returning != nil {
-		for _, expr := range b.Returning.Expressions {
-			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
-		}
-	}
-	defer state.ReleaseMemberships()
-	cursor, err := exec.OpenNode(ctx, state, b.Merge.Source)
-	if err != nil {
-		return Result{}, err
-	}
-	rows, err := e.assembleMergeRows(ctx, scope, b, target, &cursor, state, schema, len(unique.Keys) != 0 || unique.Checked)
-	if err != nil {
-		return Result{}, err
-	}
-	complete := false
-	defer func() {
-		if !complete && rows.Returning != nil {
-			rows.Returning.Close()
-		}
-	}()
-	if err := ctx.Err(); err != nil {
-		return Result{}, err
-	}
-	if err := stageMergeRows(rows, scope.Writes(), b.Ref); err != nil {
-		return Result{}, err
-	}
-	if rows.Returning != nil && b.Returning.RegclassOutput && rows.Returning.Count != 0 {
-		if err := e.captureRegclassOutput(scope.op, rows.Returning); err != nil {
-			return Result{}, err
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return Result{}, err
-	}
-	complete = true
-	result := Result{Count: int64(len(rows.Actions))}
-	if rows.Returning != nil {
-		result.Rows = rows.Returning
-	}
-	return result, nil
+	return outcomeResult(outcome), nil
+}
+
+// mergeInput is a MERGE execution over the statement's comment catalog,
+// captured under Engine.mu before the dispatch released it.
+func (s *StatementScope) mergeInput(ctx context.Context, b analyze.Binding, target, inputs *exec.Source, parameters []sqltype.Value, schema string) MergeInput {
+	return MergeInput{Context: ctx, Binding: b, Target: target, Inputs: inputs, Parameters: parameters, Schema: schema, Catalog: s.inquiry.commentCatalog}
 }

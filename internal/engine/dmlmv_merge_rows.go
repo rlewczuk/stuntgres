@@ -1,9 +1,9 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -15,11 +15,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func stageMergeRows(rows *dml.MergeRows, w *WriteStage, ref ids.ObjectRef) error {
+// StageMergeRows stages the assembled MERGE actions in action order: each
+// DELETE alone, and each run of INSERTs or of UPDATEs with one lock mode as
+// one batch.
+func StageMergeRows(h dml.Host, rows *dml.MergeRows, ref ids.ObjectRef) error {
 	for start := 0; start < len(rows.Actions); {
 		action := rows.Actions[start]
 		if action.Action == parser.MergeDeleteAction {
-			if _, err := w.Delete(action.Deletion); err != nil {
+			if _, err := h.Delete(action.Deletion); err != nil {
 				return err
 			}
 			start++
@@ -34,9 +37,9 @@ func stageMergeRows(rows *dml.MergeRows, w *WriteStage, ref ids.ObjectRef) error
 		if action.Action == parser.MergeUpdateAction {
 			batch := rows.WriteBatch.Slice(first, last)
 			batch.ActionMode = action.UpdateMode
-			err = dml.ReplaceRows(w.scope.writeHost(), ref, rows.Predecessors[first:last], batch, dml.ReplaceMerge)
+			err = dml.ReplaceRows(h, ref, rows.Predecessors[first:last], batch, dml.ReplaceMerge)
 		} else {
-			err = dml.ApplyValidated(w.scope.writeHost(), ref, rows.WriteBatch.Slice(first, last))
+			err = dml.ApplyValidated(h, ref, rows.WriteBatch.Slice(first, last))
 		}
 		if err != nil {
 			return err
@@ -48,13 +51,14 @@ func stageMergeRows(rows *dml.MergeRows, w *WriteStage, ref ids.ObjectRef) error
 
 // Source completion and ON membership precede every action wait. Match marks
 // refer to captured occurrences, preserving equal values and RR old+own bags.
-func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b analyze.Binding, target *exec.Source, cursor exec.RowCursor, state *exec.State, schema string, unique bool) (*dml.MergeRows, error) {
+func AssembleMergeRows(h dml.Host, in MergeInput, cursor exec.RowCursor, state *exec.State, unique bool) (*dml.MergeRows, error) {
+	ctx, b, target := in.Context, in.Binding, in.Target
 	sourceSchema := cursor.Schema()
 	width := len(sourceSchema)
 	scratch := make([]sqltype.Value, width)
 	var sources []sqltype.Value
 	var occurrences, provenance []int
-	// The borrowed stage closes before actions, but executeMerge's input owner
+	// The borrowed stage closes before actions, but ExecuteMerge's input owner
 	// keeps the source namespace and any action-subquery leaves live until exit.
 	var stage *exec.Stage
 	if state.VirtualReads {
@@ -166,7 +170,8 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		}
 	}
 	result := &dml.MergeRows{}
-	output := newMergeReturningOutput(b, scope)
+	_, outputEnv := h.Environments()
+	output := newMergeReturningOutput(b, outputEnv)
 	if output != nil {
 		result.Returning = output.Rows
 	}
@@ -233,28 +238,28 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		sourceAfter := false
 		if class != parser.MergeNotMatched {
 			if arm.Action == parser.MergeDeleteAction {
-				err = scope.acquireRow(candidate.Deletion)
+				err = h.AcquireRow(candidate.Deletion)
 			} else {
-				err = scope.acquireUpdateRow(b.Ref, old.Row)
+				err = h.AcquireUpdateRow(b.Ref, old.Row, lock.ForNoKeyUpdate)
 			}
 			if err != nil {
 				return nil, err
 			}
-			current, err := scope.writeHost().LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
+			current, err := h.LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
 			latest, live := current.Version, current.Live
 			if err != nil {
 				return nil, err
 			}
 			if latest.Version != old.Version && live {
-				strong, err := scope.mergeFollowChainStrong(b)
+				strong, err := mergeFollowChainStrong(h, b)
 				if err != nil {
 					return nil, err
 				}
 				if strong && arm.Action != parser.MergeDeleteAction {
-					if err := scope.acquireUpdateRowMode(b.Ref, old.Row, lock.ForUpdate); err != nil {
+					if err := h.AcquireUpdateRow(b.Ref, old.Row, lock.ForUpdate); err != nil {
 						return nil, err
 					}
-					current, err = scope.writeHost().LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
+					current, err = h.LatestRow(dml.MergeRowRequest(b.Ref, candidate.UpdateCandidate))
 					latest, live = current.Version, current.Live
 					if err != nil {
 						return nil, err
@@ -264,7 +269,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 				if strong || arm.Action == parser.MergeDeleteAction {
 					lockMode = lock.MultiUpdateLock
 				}
-				if err := scope.physicalRowEvent(b.Ref, latest, lockMode, 0); err != nil {
+				if err := h.PhysicalRowEvent(b.Ref, latest, lockMode, 0); err != nil {
 					return nil, err
 				}
 			}
@@ -303,7 +308,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		// enters MATCHED merely because a peer made ON true.
 		for {
 			if arm != nil && arm.Action != parser.MergeNothingAction {
-				if err := e.appendMergeAction(scope, b, result, &evaluation, schema, unique, arm, old, candidate.Deletion, accepted, &excluded); err != nil {
+				if err := appendMergeAction(h, b, in.Catalog, result, &evaluation, in.Schema, unique, arm, old, candidate.Deletion, accepted, &excluded); err != nil {
 					return nil, err
 				}
 				if output != nil {
@@ -339,23 +344,23 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	return result, nil
 }
 
-func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, result *dml.MergeRows, evaluation *exec.Context, schema string, unique bool, arm *analyze.MergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
+func appendMergeAction(h dml.Host, b analyze.Binding, read catalog.Read, result *dml.MergeRows, evaluation *exec.Context, schema string, unique bool, arm *analyze.MergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
 	if arm.Action == parser.MergeDeleteAction {
 		if accepted[old.Row] {
 			return dml.MergeCardinalityError()
 		}
 		// Initial DELETE owns rowUpdate before following a predecessor; an
 		// initial UPDATE restarts under the hasDelete strong-mode union.
-		if err := dml.ClaimUniqueRow(scope.writeHost(), b.Ref, old); err != nil {
+		if err := dml.ClaimUniqueRow(h, b.Ref, old); err != nil {
 			return err
 		}
-		if err := scope.physicalRowEvent(b.Ref, old, lock.MultiUpdateAction, 0); err != nil {
+		if err := h.PhysicalRowEvent(b.Ref, old, lock.MultiUpdateAction, 0); err != nil {
 			return err
 		}
 		*excluded = append(*excluded, old)
 		// Retire exclusion authority in actual action order before later admission.
 		// Canonical Delete still validates the original captured provenance at stage.
-		scope.writeHost().EndExclusionRow(deletion.Ref, deletion.Row, old.Version)
+		h.EndExclusionRow(deletion.Ref, deletion.Row, old.Version)
 		accepted[old.Row] = true
 		result.Actions = append(result.Actions, dml.MergeActionRow{Action: arm.Action, Deletion: deletion})
 		return nil
@@ -384,16 +389,17 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		for i, column := range b.Relation.Columns {
 			row[i] = sqltype.Null(column.Usage.Type)
 		}
-		if err := dml.EvaluateInsertValuesRow(scope.inquiry.commentCatalog, &arm.Input, arm.Input.Expressions[0], arm.Syntax, row, false, evaluation); err != nil {
+		if err := dml.EvaluateInsertValuesRow(read, &arm.Input, arm.Input.Expressions[0], arm.Syntax, row, false, evaluation); err != nil {
 			return err
 		}
 	}
 	rowContext := *evaluation
-	scope.RLS.Proposal = scope.RLS.MergeInsert
+	command := h.Command()
+	command.RLS.Proposal = command.RLS.MergeInsert
 	if arm.Action == parser.MergeUpdateAction {
-		scope.RLS.Proposal = scope.RLS.MergeUpdate
+		command.RLS.Proposal = command.RLS.MergeUpdate
 	}
-	if err := dml.ValidateInsertRow(scope.writeHost(), b, schema, row, &rowContext); err != nil {
+	if err := dml.ValidateInsertRow(h, b, schema, row, &rowContext); err != nil {
 		return err
 	}
 	predecessor := storage.RowVersion{}
@@ -403,16 +409,16 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		if accepted[old.Row] {
 			return dml.MergeCardinalityError()
 		}
-		keyChanged, err := dml.UniqueKeyChanged(scope.writeHost(), b.Ref, old.Values, row)
+		keyChanged, err := dml.UniqueKeyChanged(h, b.Ref, old.Values, row)
 		if err != nil {
 			return err
 		}
 		if keyChanged {
-			if err := scope.acquireUpdateRowMode(b.Ref, old.Row, lock.ForUpdate); err != nil {
+			if err := h.AcquireUpdateRow(b.Ref, old.Row, lock.ForUpdate); err != nil {
 				return err
 			}
 		}
-		if err := dml.ClaimUniqueRow(scope.writeHost(), b.Ref, old); err != nil {
+		if err := dml.ClaimUniqueRow(h, b.Ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -420,7 +426,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 		if keyChanged {
 			actionMode = lock.MultiUpdateAction
 		}
-		if err := scope.physicalRowEvent(b.Ref, old, actionMode, 0); err != nil {
+		if err := h.PhysicalRowEvent(b.Ref, old, actionMode, 0); err != nil {
 			return err
 		}
 		*excluded = append(*excluded, old)
@@ -428,7 +434,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 	}
 	candidate := index.WriteCandidate{Values: row}
 	if unique {
-		if err := dml.CheckUniqueRow(scope.writeHost(), b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
+		if err := dml.CheckUniqueRow(h, b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
 			return err
 		}
 	}
@@ -441,13 +447,22 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b analyze.Binding, res
 	return nil
 }
 
-func (s *StatementScope) mergeFollowChainStrong(b analyze.Binding) (bool, error) {
+func mergeFollowChainStrong(h dml.Host, b analyze.Binding) (bool, error) {
 	if b.Merge.HasDelete {
 		return true, nil
 	}
-	unique, err := dml.BindUniqueWrite(s.writeHost(), b.Ref)
+	unique, err := dml.BindUniqueWrite(h, b.Ref)
 	if err != nil {
 		return false, err
 	}
 	return dml.MergeFollowStrong(b.Merge, unique.KeySlots), nil
+}
+
+func newMergeReturningOutput(b analyze.Binding, output sqltype.OutputEnvironment) *dml.MergeReturningOutput {
+	if b.Returning == nil {
+		return nil
+	}
+	rows := exec.NewFinalRows(b.Returning.Schema, 0)
+	rows.Output = output
+	return &dml.MergeReturningOutput{Returning: b.Returning, Rows: rows, Frame: make([]sqltype.Value, b.Merge.TargetWidth+b.Merge.SourceWidth)}
 }

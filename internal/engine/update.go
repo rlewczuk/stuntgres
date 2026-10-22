@@ -94,9 +94,6 @@ func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 }
 
 // SQL waits never retain replacement admission or state/manager mutexes.
-func (s *StatementScope) acquireUpdateRow(ref ids.ObjectRef, row ids.RowID) error {
-	return s.acquireUpdateRowMode(ref, row, lock.ForNoKeyUpdate)
-}
 func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, mode lock.Mode) error {
 	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
