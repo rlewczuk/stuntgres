@@ -123,6 +123,7 @@ type Operation struct {
 	CommandStart       time.Time
 	SourceContext      context.Context
 	CommandAdmission   bool
+	OriginTransaction  ids.TxRef // Immutable acquisition evidence, never transaction authority.
 	sqlActivity        bool
 	SQLFinished        bool // Session.mu: ERROR/completion fence, not transaction state
 	Lease              *StatementLease
@@ -177,6 +178,7 @@ func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error
 	}
 	s.Leases++
 	op := s.Operation(ctx, false)
+	op.OriginTransaction = s.Timeouts.Authority
 	op.sqlActivity = activity
 	if activity {
 		s.Timeouts.SQLLeases++

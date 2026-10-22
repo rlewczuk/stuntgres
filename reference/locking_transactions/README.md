@@ -410,18 +410,35 @@ Prepare before enabling that budget: analysis time is not the row-wait witness.
 The timer duration is unchanged; no retry or post-timeout queue polling is used.
 The mutation must return no result and exact57014 statement-timeout diagnostics,
 including the real PostgreSQL physical updating/deleting tuple Context. The
-transaction then reports25P02; both rollbacks preserve the original value10.
+transaction then immediately reports25P02, without polling for eventual failure;
+both rollbacks preserve the original value10.
 
 Run each command under an external900-second deadline, also with `RACE=1` for
 selected race proof:
 
 ```sh
-make check RUN='^TestReferenceTransactionIsolationQueuedConflictTimeout$'
 make check RUN='^TestReferenceTransactionIsolationQueuedConflictTimeout$' REFERENCE=1
+make check RUN='^TestReferenceTransactionIsolationQueuedConflictTimeout$'
 ```
 
 These affected-surface checks do not replace whole-project quickcheck or
 post-integration finalcheck.
+
+The internal `TestStatementTimeoutAdmission` owner tests deterministically deliver
+the exact own cancellation cause before scope creation and at an observed
+contended-admission checkpoint. They require synchronous failed-block cleanup,
+ordinary-caller no-mutation, exact incarnation/authority preservation, live COPY
+reservation preservation and canonical recovery. Those are lifecycle tests, not
+claims about wall-clock timer delivery or the original failure's precise
+scheduling. This public2ms witness remains the actual configured-timer proof,
+with full diagnostics and every direct/held-prepared UPDATE/DELETE lane unchanged.
+
+```sh
+make check RUN='^TestStatementTimeoutAdmission'
+make check RUN='^TestStatementTimeoutAdmission' RACE=1
+```
+
+These selected commands also require external900-second deadlines.
 
 ### Commit timestamp information
 

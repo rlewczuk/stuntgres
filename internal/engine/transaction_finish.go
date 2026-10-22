@@ -236,43 +236,7 @@ func (s *StatementScope) Finish(err error) error {
 		clearTransaction(t)
 		t.Session.RetireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.State == session.TxActive || t.State == session.TxAborted) {
-		if errors.Is(err, ids.ErrCatalogReplaced) {
-			ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.clear())
-			t.TruncateSavepoints(0)
-		}
-		if len(t.Savepoints) != 0 {
-			if t.State == session.TxActive {
-				mark := t.Savepoints[len(t.Savepoints)-1]
-				t.Mu.Unlock()
-				remoteErr := foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 1, mark.Serial)
-				t.Mu.Lock()
-				if remoteErr != nil {
-					ownerExtensionOf(t).retireForeign()
-				}
-				restoreSavepoint(t, mark, mark.Settings.Clone())
-				e.locks.Restore(t.Ticket, mark.Locks)
-			}
-			t.State = session.TxAborted
-		} else {
-			ownerExtensionOf(t).retireForeign()
-			t.Session.Settings.FinishTransaction(false)
-			e.endSerializable(t.Ref, false)
-			t.Isolation, t.ReadOnly = t.EntryIsolation, t.EntryReadOnly
-			t.Deferrable = t.EntryDeferrable
-			t.State = session.TxAborted
-			syncCharacteristics(t)
-			t.Writes = nil
-			t.Deletes = nil
-			t.Roots = nil
-			t.SequenceCatalog = nil
-			t.Frontier = 0
-			t.Catalog = nil
-			t.NotificationActions = nil
-			t.NotificationEvents = nil
-			endedTicket = t.Ticket
-			t.Ticket = nil
-			ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
-		}
+		endedTicket = e.failExplicitTransactionLocked(s.op, t, err)
 	}
 	e.endStatementVisibility(s.txRef, t.State != session.TxIdle && t.Isolation.Stable())
 	if s.view != nil {
@@ -317,4 +281,48 @@ func (s *StatementScope) Finish(err error) error {
 		t.Admission.Unlock()
 	}
 	return err
+}
+
+// failExplicitTransactionLocked is the canonical explicit failed-statement
+// disposal. Admission and t.Mu are held; foreign savepoint work temporarily drops
+// t.Mu exactly as ordinary Finish does. The failed block retains its incarnation.
+func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session.TransactionOwner, err error) *lock.Ticket {
+	if errors.Is(err, ids.ErrCatalogReplaced) {
+		ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.clear())
+		t.TruncateSavepoints(0)
+	}
+	if len(t.Savepoints) != 0 {
+		if t.State == session.TxActive {
+			mark := t.Savepoints[len(t.Savepoints)-1]
+			t.Mu.Unlock()
+			remoteErr := foreignSavepoint(t, context.WithoutCancel(op.Context()), 1, mark.Serial)
+			t.Mu.Lock()
+			if remoteErr != nil {
+				ownerExtensionOf(t).retireForeign()
+			}
+			restoreSavepoint(t, mark, mark.Settings.Clone())
+			e.locks.Restore(t.Ticket, mark.Locks)
+		}
+		t.State = session.TxAborted
+		return nil
+	}
+	ownerExtensionOf(t).retireForeign()
+	t.Session.Settings.FinishTransaction(false)
+	e.endSerializable(t.Ref, false)
+	t.Isolation, t.ReadOnly = t.EntryIsolation, t.EntryReadOnly
+	t.Deferrable = t.EntryDeferrable
+	t.State = session.TxAborted
+	syncCharacteristics(t)
+	t.Writes = nil
+	t.Deletes = nil
+	t.Roots = nil
+	t.SequenceCatalog = nil
+	t.Frontier = 0
+	t.Catalog = nil
+	t.NotificationActions = nil
+	t.NotificationEvents = nil
+	endedTicket := t.Ticket
+	t.Ticket = nil
+	ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
+	return endedTicket
 }

@@ -300,15 +300,14 @@ type WriteStage struct {
 func (e *Engine) StartStatement(op *session.Operation) (*StatementScope, error) {
 	start := op.StatementStart()
 	if err := e.transactionAdmission(op); err != nil {
-		return nil, err
+		return nil, e.finishStatementAdmissionError(op, err, false)
 	}
 	t := op.Session.Transactions
 	if err := t.AcquireAdmission(op.Context(), op); err != nil {
-		return nil, err
+		return nil, e.finishStatementAdmissionError(op, err, false)
 	}
 	if err := e.transactionAdmission(op); err != nil {
-		t.Admission.Unlock()
-		return nil, err
+		return nil, e.finishStatementAdmissionError(op, err, true)
 	}
 	return e.newStatementScope(op, t, start), nil
 }

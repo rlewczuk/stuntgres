@@ -1194,6 +1194,35 @@ ERROR priority independently of callback scheduling.
 make check RUN='^TestSessionTimeout(Admission|RetiredAdmission|CanceledAdmission|PendingOrder)Mechanics$'
 ```
 
+An acquired command's own statement timeout before `StartStatement` can create a
+scope synchronously fails its originating explicit block. Acquisition captures
+immutable incarnation evidence under `Session.Mu`; it is not transaction
+authority. Admission revalidates real operation membership and exact current
+incarnation before using the same explicit failure disposal as ordinary
+`StatementScope.Finish`. Settings/savepoints, private effects, visibility,
+foreign/cursor cleanup and lock retirement therefore keep their canonical
+semantics. No timer callback mutates the transaction, and timer start is unchanged.
+
+Ordinary caller cancellation/deadlines retain their context identity and
+preadmission no-mutation policy. Idle-origin or stale commands cannot poison a
+later transaction. A timed-out waiter cannot dispose a live COPY reservation,
+stop its owner's budget or wait for its external reader to finish.
+
+`TestStatementTimeoutAdmission` covers immediate failed state and recovery,
+contended admission, caller/authority/incarnation preservation, actual COPY
+reservations, savepoints, complete resource disposal and protocol admission.
+The tests deliver the exact own cause to genuine acquired commands at observed
+context checkpoints; they do not claim wall-clock timer callback delivery or
+observable mutex queue membership. The unchanged public queued-conflict
+reference scenario supplies configured-timer coverage.
+
+```sh
+make check RUN='^TestStatementTimeoutAdmission'
+make check RUN='^TestStatementTimeoutAdmission' RACE=1
+```
+
+Use external900-second deadlines for these selected commands.
+
 Private mechanisms supplement the real socket tests:
 
 `TestProtocolCopyCursorCapturedCancellation` and
