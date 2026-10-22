@@ -809,7 +809,8 @@ and the COPY protocol stay in the root. The checks in §8.3 pass.
     commit; see the 29d.2 record)
   - [x] 29d.3 — INSERT, ON CONFLICT and COPY FROM (110c) (`25829dab7`, `1b90dd9f2`, `5f4129904`, then the
     docs commit; see the 29d.3 record)
-  - [ ] 29d.4 — UPDATE and DELETE (110d)
+  - [x] 29d.4 — UPDATE and DELETE (110d) (`d781cc23f`, `d2b5df053`, then the docs
+    commit; see the 29d.4 record)
   - [ ] 29d.5 — MERGE and foreign DML (110e)
   - [ ] 29d.6 — FK enforcement and actions; close step 29 (110f)
 - [ ] 29e — DML preflights moved (linear item 132)
@@ -1073,7 +1074,62 @@ rebased onto `a388cf01f`.
   racecheck, finalcheck and bench skipped at user request (no startup
   change).
 
+### 29d.4 record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-DML-UPDATE-DELETE` from `d5e1343cf`.
+
+| Commit | Change |
+|---|---|
+| `d781cc23f` | Port in place: the `executeUpdate` body, `validateMutationRow`, `validateInheritedMutationRow`, `deleteSource` and `deleteUsingSource` as root functions over `h dml.Host` in `dmlmv_*.go` staging files with final names; `executeUpdate`/`executeDelete` become thin wrappers over `outcomeResult`; the FK action caller and 7 DELETE test files follow |
+| `d2b5df053` | Move: `dml/update.go` (`ExecuteUpdate`, `UpdateInput`), `dml/update_validate.go` (`ValidateMutationRow`, `validateInheritedMutationRow`), `dml/delete.go` (`ExecuteDelete`, `DeleteInput`), `dml/delete_using.go` (`deleteUsingSource`); root callers and tests name `dml.X` |
+
+- **Deviations.**
+  - No seam commit: every host method the executors need already existed
+    (`AcquireRow`, `AcquireUpdateRow`, `LatestRow`, `PhysicalRowEvent`,
+    `Delete`, `PrivateRows`, `PositionedRow`, `Target`, `Command`,
+    `QueryAuthority`, `Environments`, `RowDetail`, `SchemaName`,
+    `CaptureRegclassOutput`). The staged-rows reads go through
+    `PrivateRows(a).Staged`.
+  - "The `Command` inheritance methods" had nothing left to move:
+    `TargetRefs`, `Storage` and `CaptureSource` moved in 29d.1;
+    `acquireInheritedMutationTargets` and `validateInheritedReplacements`
+    stay root (decision 9).
+  - `deleteSource` became `dml.ExecuteDelete` over a `DeleteInput`;
+    `executeDelete` keeps the target capture and the view release. The
+    DELETE tests call `dml.ExecuteDelete` directly (no root wrapper for
+    `deleteSource`); `executeUpdate` stays the tests' entry.
+  - `ExecuteDelete` reads its context from `Operation()`, as
+    `deleteSource` read `s.op.Context()`; `ExecuteUpdate` takes the
+    caller's context in `UpdateInput`, as before.
+  - `rowConstraintDetail`/`rowDiagnosticDetail` stay in the root
+    `update.go`: they implement `Presentation.RowDetail`. The root
+    `acquireUpdateRow` stays for MERGE (29d.5).
+- **Per-row cost.** The `-gcflags=-m` "moved to heap" set matches master
+  apart from the inherited-leaf diagnostic's failure-only binding copy;
+  `BenchmarkUpdateCoreSparse` (512 and 8192 rows) allocates exactly as
+  master; ns/op was too noisy under load to compare.
+- **Tests.** Rewritten to the new names: `delete_atomicity_test.go`,
+  `delete_returning_atomicity_test.go`, `delete_using_test.go`,
+  `delete_using_zero_width_test.go`, `delete_using_recheck_test.go`,
+  `delete_using_authority_test.go`. None moved or deleted: they all build
+  an engine.
+- **Checks.** String-literal multiset unchanged; selected units after every
+  commit (`^Test(Update|Delete|InheritanceDML|StatementHost|ForeignAction|ViewCheck|Check)`);
+  `RACE=1` `^Test(Update|Delete)(Lock|Contention|Cancellation|Core|From|Using)|^TestInheritanceDML`;
+  quickcheck; quick-mode and `REFERENCE=1`
+  `^TestReference(Update|Delete|InheritanceDML|GeneratedStoredUpdate|ViewCheck)`
+  passed apart from the known oracle-side
+  `TestReferenceDeleteReturningBoundaries/postgres` drift (fails on master
+  too). racecheck, finalcheck and bench skipped at user request (no startup
+  change).
+
 ### Notes for later steps
+
+- 29d.4, for 29d.5: MERGE still calls the root `acquireUpdateRow` and
+  `acquireRow` (`merge_rows.go`); through the host they are
+  `AcquireUpdateRow(ref, row, lock.ForNoKeyUpdate)` and `AcquireRow`, after
+  which the root `acquireUpdateRow` wrapper can go.
+  `dml.ValidateMutationRow` is exported for the FK actions (29d.6).
 
 - 29d.3, for 29d.4: `dml.RowConstraintError`, `dml.EvaluateUpdateAssignments`
   and `dml.CheckViewRow` are already in `dml`; 29d.4's move set drops them.

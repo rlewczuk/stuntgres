@@ -168,9 +168,10 @@ specialization (`view.SpecializeRuleParameterExpression` behind the
 keeps its phases in the statement scope) and `pruneQuoteCaptures` (stored
 view definitions; stored 22e moves it); the binder
 methods in the `query_*_bind.go` files; the join legality checks; the
-UPDATE, DELETE, MERGE and foreign DML executors, which open their inputs
-with `exec.OpenNode`, and the INSERT and COPY FROM prologues (the records
-and the INSERT and COPY FROM executors are in [`dml`](../dml/README.md));
+MERGE and foreign DML executors, which open their inputs with
+`exec.OpenNode`, and the INSERT, COPY FROM, UPDATE and DELETE prologues (the
+records and the INSERT, COPY FROM, UPDATE and DELETE executors are in
+[`dml`](../dml/README.md));
 data-modifying CTE
 execution (`completeCTEMutation`); CREATE TABLE AS; SQL cursors and protocol
 portals; rule execution; `statementHost` with the capability bodies,

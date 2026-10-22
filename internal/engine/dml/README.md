@@ -6,10 +6,10 @@ outputs, MERGE and UPDATE/DELETE records, inheritance target helpers,
 TRUNCATE records, foreign-key action records and COPY insertion batching,
 plus the command state `Command`, the executors' host `Host`, the unique
 and exclusion probing and staging loops, and the INSERT, ON CONFLICT DO
-UPDATE and COPY FROM executors that run over it. Step 29 of the engine
-split created it (29b moved the clean set, 29d.1 added the seam, 29d.2
-moved the probing and staging loops, 29d.3 the INSERT and COPY FROM
-executors). It sits at L13 in
+UPDATE, COPY FROM, UPDATE and DELETE executors that run over it. Step 29
+of the engine split created it (29b moved the clean set, 29d.1 added the
+seam, 29d.2 moved the probing and staging loops, 29d.3 the INSERT and COPY
+FROM executors, 29d.4 the UPDATE and DELETE executors). It sits at L13 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 it imports `access`, `analyze` (payload types and pure functions only),
 `authorization`, `catalog`, `copyfmt`, `exec`, `expr`, `fdw`, `ids`,
@@ -98,6 +98,20 @@ it, it never imports the engine, and it never builds a binder. See
   `copy_insertion.go`): `CopyCursor` and `CopyBinaryCursor`
   (`NewCopyCursor`, `NewCopyBinaryCursor`, `Diagnostic`) over the reader
   the engine's COPY protocol builds, and the buffered insertion flush.
+- **UPDATE** (`update.go`, `update_validate.go`): `ExecuteUpdate` runs a
+  captured `UpdateInput` (target source, FROM sources, parameters, schema)
+  with the caller holding nothing and returns an `Outcome`: it freezes the
+  candidate set before the first row wait, then per candidate takes the
+  row lock, rereads the latest version, rechecks the predicate if the row
+  moved, evaluates the assignments, validates, claims and checks unique
+  keys and stages the replacement through `ReplaceRows`.
+  `ValidateMutationRow` (generation, NOT NULL and CHECK of the named
+  target; RI SET NULL/DEFAULT actions share it) and its inherited-leaf
+  variant, which reports the physical leaf with the named target's row.
+- **DELETE** (`delete.go`, `delete_using.go`): `ExecuteDelete` runs a
+  captured `DeleteInput` (target source, query sources, parameters) the
+  same way and stages each row through `Stage.Delete`; DELETE ... USING
+  freezes the qualifying target/source pairs first.
 - **RETURNING** (`returning.go`, `returning_preflight.go`):
   `InsertReturningOutput`, `MergeReturningOutput` (`Project`),
   `ForeignMutationRow`, `ProjectForeignReturning`, `PreflightReturning`.
@@ -137,17 +151,22 @@ capture, `copyIO` with `copyReader`/`copyWriter`, COPY TO output and
 `copyCommandError`). INSERT keeps its locked prologue
 (`executeInsertLocked`: snapshots, `capturePartitionInsertLocked`, source
 capture, the unlock, source selection and freezing) and wraps the
-`Outcome` in a `Result`. The other executors (`executeUpdate`,
-`executeDelete`, `executeMerge`, TRUNCATE, FK enforcement and actions,
-foreign DML) stay until 29d.4–29d.6, and so do `stageMergeRows` and
-`preflightConflictUpdate`. Also root: `truncateGraphFence` (catalog fences implement the
+`Outcome` in a `Result`. UPDATE and DELETE keep their locked prologues
+in `execute_bound.go` and thin wrappers (`executeUpdate`, `executeDelete`,
+which also captures the target source) that wrap the `Outcome`. The row
+lock waits (`acquireRow`, `acquireUpdateRowMode`), `WriteStage.Delete`,
+`acquireInheritedMutationTargets`, `validateInheritedReplacements` and the
+row detail (`rowConstraintDetail`, `rowDiagnosticDetail`) are host
+windows and stay. The other executors (`executeMerge`, TRUNCATE, FK
+enforcement and actions, foreign DML) stay until 29d.5–29d.6, and so do
+`stageMergeRows` and `preflightConflictUpdate`. Also root: `truncateGraphFence` (catalog fences implement the
 root `catalogFence` interface; the kind order is in `catalog_fence.go`),
 `mutationTarget` (the admitted target, which statement admission and DDL
 read), `WriteStage` with the `Stage` windows (its public `Apply` checks
 each row and calls `ApplyValidated`), the exclusion projection's `*Locked`
 helpers, `readmitProgramsAfterWait`, and `preflightUpdate`/`preflightMerge`
 (root query preflight). 29d moves the remaining executors behind `Host`
-in steps (29d.4–29d.6).
+in steps (29d.5–29d.6).
 
 ## Invariants
 
@@ -182,10 +201,13 @@ statement slot reads, `Active` after Finish, `ReadmitRevalidation`'s lock
 release). The probing and staging loops are covered by the engine's unique,
 exclusion, ON CONFLICT, view write and allocation tests; the per-row cost
 by `BenchmarkInsertConflictCommittedOmissions`,
-`BenchmarkInsertConflictUpdateDistinctStage` and
-`TestUpdateCoreSparseAllocation`. The INSERT and COPY FROM executors are
+`BenchmarkInsertConflictUpdateDistinctStage`, `BenchmarkUpdateCoreSparse`
+and `TestUpdateCoreSparseAllocation`. The INSERT and COPY FROM executors are
 covered by the engine's INSERT, COPY, protocol COPY and partition
 publication tests; the latter match the `dml.ApplyInsertValidated` frame.
+UPDATE and DELETE are covered by the engine's UPDATE, DELETE, inheritance
+DML, row-lock wait and cancellation tests; the DELETE tests call
+`dml.ExecuteDelete` over the scope's host.
 
 ```sh
 make check RUN='^TestInsertConflictPredicate'
@@ -195,6 +217,7 @@ make check RUN='^Test(Unique|Exclusion|PartialUnique|ConcurrentIndex|ViewWrite|V
 make check RACE=1 RUN='^Test(Unique|Exclusion|InsertConflict)'
 make check RACE=1 RUN='^Test(Truncate|ForeignAction|Copy)'
 make check RACE=1 RUN='^Test(ProtocolCopy|ProtocolTerminal|InsertReturning|InsertSelect|(Range|List)PartitionPublication)'
+make check RACE=1 RUN='^Test(Update|Delete)(Lock|Contention|Cancellation|Core|From|Using)|^TestInheritanceDML'
 ```
 
 Public behavior is covered by the dual-mode reference suite:
@@ -202,4 +225,5 @@ Public behavior is covered by the dual-mode reference suite:
 ```sh
 make check RUN='^TestReference(Insert|Update|Delete|Merge|Copy|Truncate)'
 make check RUN='^TestReference(CTE|ForeignKey|ForeignAction)'
+make check RUN='^TestReference(InheritanceDML|GeneratedStoredUpdate|ViewCheck)'
 ```

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `c28bc8a13` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 111, 112, 113, 114, 115, 116, 117 and 118). Steps 8–17 were
+Last verified against `master` at `d5e1343cf` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 111, 112, 113, 114, 115, 116, 117 and 118). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -17,7 +17,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8); none is ready now, and the third round has no
 broad item.
 
-- **DML, executors:** 110d (dml 29d.4); 110e and 110f follow in order.
+- **DML, executors:** 110e (dml 29d.5); 110f follows.
 - **Third round, view:** none; 115, 116, 117 and 118 are done, so
   step 27 has no planned sub-step left.
   125 (table 24g) still waits for 124, and 132 (dml 29e) for 110f.
@@ -188,6 +188,11 @@ Item 118 (view 27h) is done: the view source closure walk
 materialized snapshot and refresh row checks live in `view`; the acquire
 loops stay in the root. No item waits only for it; the closing review (133)
 still waits for its other items.
+Item 110d (DML 29d.4) is done: the UPDATE body, `ValidateMutationRow` and
+its inherited-leaf variant, and the DELETE and DELETE ... USING bodies live
+in `dml` over `dml.Host` (`ExecuteUpdate`, `ExecuteDelete`), so 110e
+(29d.5) is ready. No seam change was needed; the row lock waits,
+`WriteStage.Delete` and the row detail stay root host windows.
 
 ## Task tree
 
@@ -672,7 +677,7 @@ still waits for its other items.
     - [x] 29d.1 — Seam and lower moves (`b0f2220f9`, `fdecd3693`, `e0dad29db`, `08f22a454`, `43720ea7d`, docs)
     - [x] 29d.2 — Unique and exclusion probing, staging loops (`b2f1e2058`, `fb919b1ac`, `ae653408b`, `34fb07658`, docs)
     - [x] 29d.3 — INSERT, ON CONFLICT and COPY FROM (`25829dab7`, `1b90dd9f2`, `5f4129904`, docs)
-    - [ ] 29d.4 — UPDATE and DELETE
+    - [x] 29d.4 — UPDATE and DELETE (`d781cc23f`, `d2b5df053`, docs)
     - [ ] 29d.5 — MERGE and foreign DML
     - [ ] 29d.6 — FK enforcement and actions
 - [x] **Step 30 — `control`** ([prompt](ENGINE-SPLIT-control.md); 30a needs
@@ -1627,7 +1632,17 @@ item splits, add lettered sub-items (`68a`, `68b`) as rule 5 says.
        units, `RACE=1` COPY/ON CONFLICT/partition publication, escape diff
        and benchmarks, quickcheck and `REFERENCE=1` selection passed;
        racecheck/finalcheck skipped at user request
-     - 110d. [ ] 29d.4: UPDATE and DELETE · needs 110c
+     - 110d. [x] 29d.4: UPDATE and DELETE (`d781cc23f`, `d2b5df053`, then the docs
+       commit) · `dml.ExecuteUpdate` over a captured `UpdateInput`,
+       `ValidateMutationRow` and the inherited-leaf validation,
+       `dml.ExecuteDelete` over a captured `DeleteInput` with DELETE ...
+       USING; `executeUpdate`/`executeDelete` stay as thin root wrappers; no
+       seam change · selected units, `RACE=1` UPDATE/DELETE row-lock waits,
+       cancellation and inheritance DML, escape diff and
+       `BenchmarkUpdateCoreSparse` allocations, quickcheck and `REFERENCE=1`
+       selection passed (apart from the known
+       `DeleteReturningBoundaries` oracle drift); racecheck/finalcheck
+       skipped at user request
      - 110e. [ ] 29d.5: MERGE and foreign DML · needs 110d
      - 110f. [ ] 29d.6: FK seam (`ForeignKeys`, `FinishHost`,
        `dml.Authority`, from 110a), FK enforcement and actions; closes step
