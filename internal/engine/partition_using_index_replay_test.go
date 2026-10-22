@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -40,7 +41,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if !partitionUsingIndexReplayAllowed(op, auth, raw, child) || operationReplayOrZero(op).partitionUsingIndex.Index != index {
 		t.Fatal("exact private physical/index origin not captured")
 	}
-	if err := partitionConsumerBoundary(op, auth, raw, child); err != nil {
+	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err != nil {
 		t.Fatal(err)
 	}
 	lookalike := *child
@@ -62,7 +63,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	}
 	origin := operationReplayOrZero(op).partitionUsingIndex
 	operationReplay(op).partitionUsingIndex = nil
-	if err := partitionConsumerBoundary(op, auth, raw, child); err == nil {
+	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err == nil {
 		t.Fatal("public hierarchy ADD USING INDEX admitted")
 	}
 	operationReplay(op).partitionUsingIndex = origin

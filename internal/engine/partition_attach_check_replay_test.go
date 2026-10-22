@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -31,7 +32,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	if operationReplayOrZero(op).partitionCheck != child || !partitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("genuine leased physical replay rejected")
 	}
-	if err := partitionConsumerBoundary(op, auth, raw, child); err != nil {
+	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err != nil {
 		t.Fatal(err)
 	}
 	copyChild := *child

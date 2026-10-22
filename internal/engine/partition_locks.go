@@ -3,91 +3,26 @@ package engine
 import (
 	"fmt"
 	"slices"
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
-func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, statement parser.Statement, d *catalog.Relation) error {
-	if !catalog.HierarchyRelation(d) {
-		return nil
+// partitionReplayAllowed is the trust callback of partition.ConsumerBoundary:
+// the three Restore ALTER TABLE replays and the DEFAULT replay.
+func partitionReplayAllowed(op *session.Operation, auth AuthorizationView) func(parser.Statement, *catalog.Relation) bool {
+	return func(statement parser.Statement, d *catalog.Relation) bool {
+		switch s := statement.(type) {
+		case *parser.AlterTable:
+			return partitionCheckReplayAllowed(op, auth, s, d) || partitionUsingIndexReplayAllowed(op, auth, s, d) || partitionUniqueReplayAllowed(op, auth, s, d)
+		case *parser.AlterTableDefault:
+			return partitionDefaultReplayAllowed(auth.engine, op, auth, s)
+		}
+		return false
 	}
-	message := ""
-	switch s := statement.(type) {
-	case *parser.Update:
-		message = "updating partition hierarchies is unsupported"
-	case *parser.Delete:
-		message = "deleting from partition hierarchies is unsupported"
-	case *parser.Select:
-		if s.Locking != nil {
-			message = "row locking partition hierarchies is unsupported"
-		}
-	case *parser.LockTable:
-		message = "locking partition hierarchies is unsupported"
-	case *parser.CreateIndex:
-		if d.Partition != nil && !s.Unique {
-			message = "partitioned indexes are unsupported"
-		}
-	case *parser.Reindex:
-		if d.Partition != nil {
-			message = "partitioned indexes are unsupported"
-		}
-	case *parser.AlterTable:
-		for _, action := range s.Actions {
-			if action.Action == parser.InheritTable {
-				return table.RelationshipChildKind(d, action.Action)
-			}
-		}
-		if table.RelationshipOnly(s.Actions) {
-			return nil // Detach rejects actual partitions at its misc action.
-		}
-		if access.RowSecurityActions(s.Actions) || table.TablespaceOnlyActions(s.Actions) {
-			return nil
-		}
-		if partition.ExclusionAddActions(s) {
-			return nil
-		}
-		if index.PartitionConstraintDropActions(d, s.Actions) {
-			return nil
-		}
-		if partitionCheckReplayAllowed(op, auth, s, d) || partitionUsingIndexReplayAllowed(op, auth, s, d) || partitionUniqueReplayAllowed(op, auth, s, d) {
-			return nil
-		}
-		if table.PartitionConstraintActions(d, s.Actions) {
-			return nil
-		}
-		for _, action := range s.Actions {
-			if action.Action != parser.DropColumn {
-				continue
-			}
-			if s.Only && d.Partition != nil && len(d.Partition.Children) != 0 {
-				err := sqlError("42P16", "cannot drop column from only the partitioned table when partitions exist").(*sqlstate.Error)
-				err.Hint = "Do not specify the ONLY keyword."
-				return err
-			}
-			if slot, ok := d.Index[action.Column.Text]; ok && partition.KeyUsesAttribute(d, d.Attributes[slot]) {
-				return sqlError("42P16", fmt.Sprintf(`cannot drop column "%s" because it is part of the partition key of relation "%s"`, action.Column.Text, d.Name()))
-			}
-		}
-		message = "altering partition hierarchies is unsupported"
-	case *parser.AlterTableDefault:
-		if !partitionDefaultReplayAllowed(auth.engine, op, auth, s) {
-			message = "altering partition hierarchies is unsupported"
-		}
-	case *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableSetSchema:
-		message = "altering partition hierarchies is unsupported"
-	}
-	if message != "" {
-		return sqlError("0A000", message)
-	}
-	return nil
 }
 
 func partitionDefaultReplayAllowed(e *Engine, op *session.Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
