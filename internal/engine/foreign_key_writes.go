@@ -208,10 +208,10 @@ func (s *StatementScope) checkForeignKeys() error {
 		f := job.Definition
 		childAuth, parentAuth := auth, auth
 		if admission := s.foreignActionsOrZero().Admissions[job.Child.Address()]; admission != nil && admission.Mutated {
-			childAuth = foreignActionOwner(auth, admission.Relation.Owner)
+			childAuth = auth.actingAs(admission.Relation.Owner)
 		}
 		if admission := s.foreignActionsOrZero().Admissions[job.Parent.Address()]; admission != nil && admission.Mutated {
-			parentAuth = foreignActionOwner(auth, admission.Relation.Owner)
+			parentAuth = auth.actingAs(admission.Relation.Owner)
 		}
 		childRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.Child.Address())
 		parentRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), f.Target)

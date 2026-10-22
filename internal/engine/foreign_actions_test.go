@@ -169,7 +169,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, true); err != nil {
 		t.Fatal(err)
 	}
-	ownerAuth := foreignActionOwner(auth, job.Child.Owner)
+	ownerAuth := auth.actingAs(job.Child.Owner)
 	scope.foreignActionAuth = &ownerAuth
 	scope.foreignActions().Settling = true
 	if err = dml.ReplaceRows(scope.writeHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {

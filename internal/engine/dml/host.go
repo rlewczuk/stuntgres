@@ -3,6 +3,7 @@ package dml
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
@@ -11,7 +12,9 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -29,6 +32,79 @@ type Host interface {
 	Stage
 	RowLocks
 	Presentation
+}
+
+// FinishHost is Host plus the foreign-key runtime that statement Finish runs:
+// FK actions, then FK checks. The engine's statementHost implements it.
+type FinishHost interface {
+	Host
+	ForeignKeys
+}
+
+// Authority is the statement authority that FK enforcement and actions check
+// and evaluate with. The engine's *AuthorizationView implements it, so it
+// doubles as an exec.Context's RoutineAuthority.
+type Authority interface {
+	// Access is the privilege view the authority checks against.
+	Access() access.View
+	access.Environment
+	exec.AdmissionAuthority
+	// ActingAs is a copy of the authority running as owner, as RI actions run
+	// as the referencing table's owner. A zero owner returns the receiver.
+	ActingAs(owner authorization.PrincipalRef) Authority
+}
+
+// ForeignKeys is the FK runtime's engine side. The caller holds nothing; the
+// lock contract is stated per method.
+type ForeignKeys interface {
+	// Staged is the statement's staged rows and deletions by relation. Never
+	// locks; valid until the next host call that stages.
+	Staged() (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes)
+	// ForeignKeyJobs captures the write authority over the statement's
+	// private catalog and the FK jobs and relation lock modes that the staged
+	// rows reach (ForeignKeyReach). Locks once, never waits.
+	ForeignKeyJobs() ([]ForeignKeyJob, map[ids.ObjectRef]lock.Mode, Authority, error)
+	// RecaptureAuthority is a copy of a over the statement's current private
+	// catalog. Locks once.
+	RecaptureAuthority(a Authority) Authority
+	// ForeignKeyAuthority validates the operation and captures its authority
+	// over the statement's private catalog. Locks twice, never waits.
+	ForeignKeyAuthority() (Authority, error)
+	// ForeignKeyRows is the borrowed row image of ref, with idx's index root
+	// when idx is set. Locks once.
+	ForeignKeyRows(ref ids.ObjectRef, idx ids.ObjectAddress) (table.ForeignKeyRows, error)
+	// RetainedForeignKeyRows is current over the transaction snapshot's
+	// committed rows of ref under stable isolation, and empty otherwise.
+	// Locks once.
+	RetainedForeignKeyRows(ref ids.ObjectRef, current table.ForeignKeyRows) (table.ForeignKeyRows, error)
+	// RefreshForeignKeyRows moves rows to ref's current committed rows and
+	// index root. Locks once.
+	RefreshForeignKeyRows(ref ids.ObjectRef, rows *table.ForeignKeyRows) error
+	// GrantForeignKey takes ref (or its row) in mode. Waits with the caller
+	// holding nothing, releasing the replacement read across the wait; then
+	// locks once to revalidate ref and, when set, its storage.
+	GrantForeignKey(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error
+	// RefreshForeignActionJob refreshes job over the owner's private catalog
+	// (RefreshForeignActionJob). Locks once.
+	RefreshForeignActionJob(job *ForeignKeyJob) error
+	// AdmitForeignAction admits ref as job's referencing relation for an
+	// internal action, writable or read-only. Locks once.
+	AdmitForeignAction(ref ids.ObjectRef, job *ForeignKeyJob, writable bool) error
+	// ForeignActionRow is the latest physical version of an admitted
+	// referencing row and whether it is live. Locks once.
+	ForeignActionRow(ref ids.ObjectRef, candidate storage.RowVersion) (storage.RowVersion, bool, error)
+	// DeleteForeignAction stages a CASCADE deletion of a granted referencing
+	// row: the owner mutex then Engine.mu; flushes its physical row event after
+	// unlocking.
+	DeleteForeignAction(ref ids.ObjectRef, old storage.RowVersion) error
+	// PlanForeignActionInput fills plan's input environment: the type
+	// diagnostic names when the targets carry domain checks, and for SET
+	// DEFAULT the bound, admitted defaults. Locks; never waits.
+	PlanForeignActionInput(a Authority, job *ForeignKeyJob, plan *ForeignActionPlan, action parser.ForeignKeyAction) error
+	// SwapForeignActionAuthority installs next as the running RI action's
+	// authority (nil clears it) and returns the previous one, nil when none.
+	// Never locks.
+	SwapForeignActionAuthority(next Authority) Authority
 }
 
 // Statement is the active command's state. Its methods never lock and never

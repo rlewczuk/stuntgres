@@ -3,7 +3,6 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -186,33 +185,16 @@ func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, 
 	s.foreignActions().Transitions = append(s.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: ref.Address, Old: old, Next: next, Owner: admission.Relation.Owner})
 }
 
-func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {
-	if owner != (authorization.PrincipalRef{}) {
-		auth.State.CurrentUser = owner
-	}
-	return auth
-}
-
-// Borrow both current and retained images under stable isolation. Current
-// matches discover new/moved-in children; retained matches preserve moved-away
-// successor conflicts. Neither image creates another snapshot or copies values.
+// captureForeignActionRows is the current and, under stable isolation, the
+// retained image of ref.
 func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (table.ForeignKeyRows, table.ForeignKeyRows, error) {
 	rows, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		return rows, table.ForeignKeyRows{}, err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	var retained table.ForeignKeyRows
-	if stableIsolation(s.owner.Isolation) && s.owner.SnapshotSet {
-		if root, exists := s.owner.Roots[ref.Address]; exists {
-			if root.Storage != rows.Storage {
-				return table.ForeignKeyRows{}, retained, ids.ErrCatalogReplaced
-			}
-			retained = rows
-			retained.Committed, retained.Ends, retained.Frontier = root.Versions, root.Ends, s.owner.Frontier
-		}
+	retained, err := s.writeHost().RetainedForeignKeyRows(ref, rows)
+	if err != nil {
+		return table.ForeignKeyRows{}, retained, err
 	}
 	return rows, retained, nil
 }

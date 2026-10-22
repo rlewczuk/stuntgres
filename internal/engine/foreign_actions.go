@@ -4,11 +4,9 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -16,114 +14,15 @@ import (
 
 func (s *StatementScope) prepareForeignActions() ([]dml.ForeignKeyJob, AuthorizationView, error) {
 	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	jobs, modes, authority, err := s.writeHost().ForeignKeyJobs()
 	if err != nil {
-		e.mu.Unlock()
-		return nil, auth, err
+		return nil, AuthorizationView{}, err
 	}
-	changes := s.owner.Catalog
-	if s.catalog != nil {
-		changes = s.catalog
-	}
-	auth.Catalog = e.privateCatalogLocked(changes)
-	auth.Recapture(auth.Catalog)
-	relevant := false
-	for _, descriptor := range auth.Catalog.Descriptors() {
-		child, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		for _, f := range child.Constraints.ForeignKeys {
-			if len(s.stage.rows[child.Address()]) != 0 || s.stage.deletes[child.Address()] != nil || len(s.stage.rows[f.Target]) != 0 || s.stage.deletes[f.Target] != nil {
-				relevant = true
-				break
-			}
-		}
-		if relevant {
-			break
-		}
-	}
-	if !relevant {
-		e.mu.Unlock()
+	auth := *foreignAuthorizationOf(authority)
+	if jobs == nil {
 		return nil, auth, nil
 	}
-	// Reachability is by actual transition direction, not an executable global
-	// registry. Only the existing catalog is consulted while capturing authority.
-	directions := make(map[ids.ObjectAddress]uint8)
-	changed := make(map[ids.ObjectAddress]bool)
-	for a, rows := range s.stage.rows {
-		if len(rows) != 0 {
-			changed[a] = true
-			directions[a] |= 2
-		}
-	}
-	for a, root := range s.stage.deletes {
-		if root != nil {
-			changed[a] = true
-			directions[a] |= 1
-		}
-	}
-	again := true
-	for again {
-		again = false
-		for _, descriptor := range auth.Catalog.Descriptors() {
-			child, ok := descriptor.(*catalog.Relation)
-			if !ok {
-				continue
-			}
-			for _, f := range child.Constraints.ForeignKeys {
-				parentDirections := directions[f.Target]
-				next := directions[child.Address()]
-				if parentDirections&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade {
-					if f.DeleteAction == parser.ForeignKeyCascade {
-						next |= 1
-					} else {
-						next |= 2
-					}
-				}
-				if parentDirections&2 != 0 && f.UpdateAction >= parser.ForeignKeyCascade {
-					next |= 2
-				}
-				if next != directions[child.Address()] {
-					directions[child.Address()] = next
-					changed[child.Address()] = true
-					again = true
-				}
-			}
-		}
-	}
-	var jobs []dml.ForeignKeyJob
-	modes := make(map[ids.ObjectRef]lock.Mode)
-	for _, descriptor := range auth.Catalog.Descriptors() {
-		child, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		for _, f := range child.Constraints.ForeignKeys {
-			if !changed[child.Address()] && !changed[f.Target] {
-				continue
-			}
-			parent, pok := auth.Catalog.Relation(f.Target)
-			index, iok := auth.Catalog.Relation(f.Index)
-			if !pok || !iok {
-				e.mu.Unlock()
-				return nil, auth, ids.ErrCatalogReplaced
-			}
-			jobs = append(jobs, dml.ForeignKeyJob{Child: child, Parent: parent, Index: index, Definition: f})
-			for _, a := range []ids.ObjectAddress{child.Address(), parent.Address()} {
-				ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)
-				if modes[ref] == 0 {
-					modes[ref] = lock.RowShare
-				}
-			}
-			d := directions[f.Target]
-			if d&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade || d&2 != 0 && f.UpdateAction >= parser.ForeignKeyCascade {
-				modes[e.catalog.Domain.Ref(auth.Catalog.Epoch(), child.Address())] = lock.RowExclusive
-			}
-		}
-	}
-	e.mu.Unlock()
+	changes := s.foreignKeyChanges()
 	slices.SortFunc(jobs, func(a, b dml.ForeignKeyJob) int { return cmp.Compare(a.Definition.OID, b.Definition.OID) })
 	refs := make([]ids.ObjectRef, 0, len(modes))
 	for ref := range modes {

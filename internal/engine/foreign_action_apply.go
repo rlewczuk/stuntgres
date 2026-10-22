@@ -16,7 +16,6 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -41,64 +40,11 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *dml.Fore
 			return nil, ids.ErrCatalogReplaced
 		}
 	}
-	plan.Input = s.input
 	for _, slot := range plan.Targets {
 		plan.DomainChecks = plan.DomainChecks || sqltype.ContainsDomainConstraints(job.Child.Columns[slot].Usage.Type)
 	}
-	if plan.DomainChecks {
-		e := s.engine()
-		e.mu.Lock()
-		name, err := e.captureTypeDiagnosticName(auth)
-		e.mu.Unlock()
-		if err != nil {
-			return nil, err
-		}
-		plan.Input.TypeDiagnosticName = name
-	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: plan.Input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
-	if plan.DomainChecks {
-		evaluation.Input.DomainChecks = &evaluation
-	}
-	if action == parser.ForeignKeySetDefault {
-		b := analyze.Binding{Relation: job.Child}
-		e := s.engine()
-		analyze.BindInsertDefaults(e.catalog.owner(), &b, auth.Catalog, parser.OverrideNone)
-		plan.Defaults = make([]expr.Expr, len(plan.Targets))
-		plan.DefaultOrigins = make([]analyze.DefaultOrigin, len(plan.Targets))
-		for i, slot := range plan.Targets {
-			if len(b.Insert.Defaults) != 0 {
-				plan.Defaults[i] = b.Insert.Defaults[slot]
-				plan.DefaultOrigins[i] = view.BindingDefaultOrigin(&b, slot)
-			}
-		}
-		// Retained defaults can themselves cast to a checked domain even when
-		// the action destination is an ordinary base type.
-		binder := analyze.Binder{Host: e.analysisHost(s.op), Ctx: s.op.Context(), Input: plan.Input, Query: analyze.QueryScopeState{Auth: &auth}}
-		e.mu.Lock()
-		err := binder.CaptureRetainedWriteInput(plan.Defaults, nil, nil)
-		e.mu.Unlock()
-		if err != nil {
-			return nil, err
-		}
-		plan.Input, evaluation.Input = binder.Input, binder.Input
-		if plan.DomainChecks {
-			evaluation.Input.DomainChecks = &evaluation
-		}
-		for i, expression := range plan.Defaults {
-			if expression == nil {
-				continue
-			}
-			defaultEvaluation := evaluation
-			analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&b, plan.Targets[i]), &defaultEvaluation)
-			folded, _, err := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
-			if err != nil {
-				return nil, err
-			}
-			if err := exec.AdmitExpression(&defaultEvaluation, folded, auth.Catalog); err != nil {
-				return nil, err
-			}
-			plan.Defaults[i] = folded
-		}
+	if err := s.writeHost().PlanForeignActionInput(&auth, job, plan, action); err != nil {
+		return nil, err
 	}
 	if action == parser.ForeignKeySetNull && plan.DomainChecks {
 		plan.Defaults = make([]expr.Expr, len(plan.Targets))
@@ -144,7 +90,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err
 	}
-	reportAuth := foreignActionOwner(auth, event.Owner)
+	reportAuth := auth.actingAs(event.Owner)
 	if action == parser.ForeignKeyRestrict {
 		children, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
@@ -181,7 +127,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *dml.For
 			return false, &copy
 		})
 	}
-	ownerAuth := foreignActionOwner(auth, job.Child.Owner)
+	ownerAuth := auth.actingAs(job.Child.Owner)
 	previous := s.foreignActionAuth
 	s.foreignActionAuth = &ownerAuth
 	defer func() { s.foreignActionAuth = previous }()
