@@ -44,7 +44,7 @@ func stageOf(s extension.Stage) (*CatalogStage, error) {
 func (h *extensionHost) Context() context.Context { return h.op.Context() }
 func (h *extensionHost) Notice(n sqlstate.Error)  { h.op.EmitNotice(session.LevelNotice, n) }
 func (h *extensionHost) CreationPath() ([]ids.ObjectAddress, error) {
-	path, _, err := h.engine.explicitPath(h.auth)
+	path, _, err := explicitPath(h.auth)
 	return path, err
 }
 func (h *extensionHost) ReplayingTableDestination() bool {
@@ -95,7 +95,7 @@ func (h *extensionHost) ScriptFunctions(owner authorization.PrincipalRef, namesp
 	// Extension scripts replace, rather than prefix, the caller's path. The
 	// stock scripts have no prerequisite schemas; implicit pg_catalog remains,
 	// and the script's explicit pg_temp entry is excluded from function lookup.
-	path := e.effectivePath(auth, []ids.ObjectAddress{namespace}, analyze.InstalledFunctionLookup)
+	path := effectivePath(auth, []ids.ObjectAddress{namespace}, analyze.InstalledFunctionLookup)
 	found := make([]*catalog.Procedure, len(helpers))
 	for i, helper := range helpers {
 		found[i] = analyze.ProcedureInNamespaces(auth.Catalog, analyze.NamespaceSelection{Path: path}, helper.Name, helper.Signature)

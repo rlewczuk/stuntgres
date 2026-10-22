@@ -93,7 +93,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 		if err == nil {
 			auth.Catalog = view
 			auth.Recapture(view)
-			input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
+			input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
 		}
 		if err != nil {
 			e.mu.Unlock()

@@ -28,7 +28,7 @@ func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExten
 	}
 	roots := extension.RemovalRoots(auth.Catalog, selected)
 	stage := e.ownershipStage(auth, scope.op)
-	stage.dependencyPath, _ = e.referencePath(auth)
+	stage.dependencyPath, _ = referencePath(auth)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, address := range access.OwnershipRelationLocks(stage.Base, roots) {

@@ -117,15 +117,15 @@ func (h *bindingHost) LookupNamespaces(auth analyze.Authority, name parser.Objec
 }
 
 func (h *bindingHost) LookupNamespacesSnapshot(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
-	return h.engine.lookupNamespacesSnapshot(h.view(auth), name, kind)
+	return lookupNamespacesSnapshot(h.view(auth), name, kind)
 }
 
 func (h *bindingHost) LookupPath(auth analyze.Authority, kind analyze.LookupKind) ([]ids.ObjectAddress, error) {
-	return h.engine.lookupPath(h.view(auth), kind)
+	return lookupPath(h.view(auth), kind)
 }
 
 func (h *bindingHost) ReferencePath(auth analyze.Authority) ([]ids.ObjectAddress, error) {
-	return h.engine.referencePath(h.view(auth))
+	return referencePath(h.view(auth))
 }
 
 func (h *bindingHost) Regclass(auth analyze.Authority, text string) (ids.ObjectRef, error) {
@@ -217,7 +217,7 @@ func (h *bindingHost) CaptureTypeDiagnosticInput(auth analyze.Authority, input *
 }
 
 func (h *bindingHost) CaptureTypeDiagnosticName(auth analyze.Authority) (func(sqltype.ID) string, error) {
-	return h.engine.captureTypeDiagnosticName(h.view(auth))
+	return captureTypeDiagnosticName(h.view(auth))
 }
 
 func (h *bindingHost) CaptureEnumOperationInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {

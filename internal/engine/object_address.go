@@ -33,7 +33,7 @@ func addressLookup(scope *StatementScope) regobj.AddressLookup {
 			Database: scope.op.Session.DatabaseName, Token: scope.op.Session.SessionToken, Temporary: temporaryNamespace(auth),
 		},
 		Namespace: func(name parser.ObjectName) (analyze.NamespaceSelection, error) {
-			return auth.engine.lookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)
+			return lookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)
 		},
 		Notice: scope.op.EmitNotice,
 	}

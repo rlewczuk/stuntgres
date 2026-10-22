@@ -37,7 +37,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	}
 	reassign, sources, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Mode, plan.Roots, plan.PrimaryRoot
 	stage := e.ownershipStage(auth, scope.op)
-	stage.dependencyPath, _ = e.referencePath(auth)
+	stage.dependencyPath, _ = referencePath(auth)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	// Pin roots and automatic associations before producing private candidates.

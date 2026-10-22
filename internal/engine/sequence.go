@@ -417,7 +417,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	checkStage := e.BeginCatalogStage(auth.Catalog)
 	checkStage.authorizeLocked(auth, scope.op.Session)
 	defer e.DiscardCatalogStage(checkStage)
-	checkStage.dependencyPath, err = e.referencePath(auth)
+	checkStage.dependencyPath, err = referencePath(auth)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

@@ -38,7 +38,7 @@ func TestSearchPathLookupKinds(t *testing.T) {
 		kind analyze.LookupKind
 		want []string
 	}{{analyze.RelationLookup, []string{temp, "pg_catalog", "b", "a"}}, {analyze.TypeLookup, []string{temp, "pg_catalog", "b", "a"}}, {analyze.FunctionLookup, []string{"pg_catalog", "b", "a"}}, {analyze.OperatorLookup, []string{"pg_catalog", "b", "a"}}} {
-		path, err := e.lookupPath(auth, tc.kind)
+		path, err := lookupPath(auth, tc.kind)
 		if err != nil || !reflect.DeepEqual(names(path), tc.want) {
 			t.Fatal(tc.kind, names(path), tc.want, err)
 		}
@@ -115,7 +115,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, _, err := e.explicitPath(auth)
+	path, _, err := explicitPath(auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
 		{analyze.FunctionLookup, []string{"b", "pg_catalog", "a"}},
 		{analyze.OperatorLookup, []string{"b", "pg_catalog", "a"}},
 	} {
-		path, err := e.lookupPath(auth, tc.kind)
+		path, err := lookupPath(auth, tc.kind)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -35,7 +35,7 @@ func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, 
 	if err != nil {
 		return auth, nil, err
 	}
-	path, pending, err := e.explicitPath(auth)
+	path, pending, err := explicitPath(auth)
 	if err != nil || !pending {
 		return auth, path, err
 	}
@@ -52,6 +52,6 @@ func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, 
 	auth.stagedTemporary = ref.Address
 	s.inquiry.currentSchemaResult = sqltype.Value{}
 	s.inquiry.searchPathResults = [2]sqltype.Value{}
-	path, _, err = e.explicitPath(auth)
+	path, _, err = explicitPath(auth)
 	return auth, path, err
 }

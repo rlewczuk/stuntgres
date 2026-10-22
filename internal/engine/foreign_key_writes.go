@@ -128,7 +128,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 			if temporary && (len(f.Target.Parts) == 1 || f.Target.Parts[0].Text == "pg_temp") {
 				self = true
 			} else {
-				path, pathErr := e.lookupNamespacesSnapshot(auth, f.Target, analyze.RelationLookup)
+				path, pathErr := lookupNamespacesSnapshot(auth, f.Target, analyze.RelationLookup)
 				if pathErr != nil {
 					e.mu.Unlock()
 					return pathErr

@@ -26,7 +26,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	check := func(auth AuthorizationView, allowed bool) {
 		t.Helper()
 		for _, kind := range []analyze.LookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
-			selected, err := e.lookupNamespacesSnapshot(auth, qualified, kind)
+			selected, err := lookupNamespacesSnapshot(auth, qualified, kind)
 			if allowed {
 				if err != nil || selected.Qualified != namespace {
 					t.Fatal("captured superuser namespace usage", kind, selected, err)

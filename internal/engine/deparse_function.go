@@ -185,7 +185,7 @@ func deparseRelation(c *exec.Context, signature functions.DeparseSignature, valu
 			}
 			name.Parts[i].Pos = parser.Position{}
 		}
-		ref, err := scope.inquiry.deparseAuth.engine.resolveRelationSnapshot(scope.inquiry.deparseAuth, name, true)
+		ref, err := resolveRelationSnapshot(scope.inquiry.deparseAuth, name, true)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

@@ -51,7 +51,7 @@ func (h *statementHost) BindingAuthority(b *index.UniqueWriteBinding, view catal
 	if captureErr == nil {
 		auth.Catalog = view
 		auth.Recapture(view)
-		b.TypeName, captureErr = e.captureTypeDiagnosticName(auth)
+		b.TypeName, captureErr = captureTypeDiagnosticName(auth)
 	}
 	e.mu.Unlock()
 	if captureErr != nil {

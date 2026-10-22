@@ -139,7 +139,7 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 	plan.Input = s.input
 	if plan.DomainChecks {
 		e.mu.Lock()
-		name, err := e.captureTypeDiagnosticName(auth)
+		name, err := captureTypeDiagnosticName(auth)
 		e.mu.Unlock()
 		if err != nil {
 			return err

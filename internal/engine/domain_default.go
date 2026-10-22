@@ -48,7 +48,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, a
 		}
 		var path []ids.ObjectAddress
 		if op != nil {
-			path, err = e.referencePath(auth)
+			path, err = referencePath(auth)
 			if err != nil {
 				return err
 			}

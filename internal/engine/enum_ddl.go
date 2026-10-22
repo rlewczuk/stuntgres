@@ -38,7 +38,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		if !d.SQLType.IsEnum() {
 			display := d.SQLType.DiagnosticName()
 			if d.SQLType.IsUserDefined() || d.SQLType.IsDomain() || d.SQLType.IsComposite() {
-				path, err := e.referencePath(auth)
+				path, err := referencePath(auth)
 				if err != nil {
 					return nil, ref, err
 				}

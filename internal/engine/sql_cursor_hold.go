@@ -243,13 +243,13 @@ func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog ca
 	auth, err := e.authorizationLocked(s.op)
 	var path []ids.ObjectAddress
 	if err == nil {
-		path, err = e.referencePath(auth)
+		path, err = referencePath(auth)
 	}
 	var collationPath []ids.ObjectAddress
 	if err == nil {
 		for _, value := range rows.Values {
 			if !value.IsNull() && value.Type().ContainsRegcollation() {
-				collationPath, err = e.lookupPath(auth, analyze.CollationLookup)
+				collationPath, err = lookupPath(auth, analyze.CollationLookup)
 				break
 			}
 		}

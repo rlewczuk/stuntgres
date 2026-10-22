@@ -66,14 +66,14 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *session.Operation, catalog.Read,
 	return e, op, view, auth, namespaces
 }
 func TestRegTSProviderResolution(t *testing.T) {
-	e, _, view, auth, namespaces := regTSUnitSnapshot(t)
+	_, _, view, auth, namespaces := regTSUnitSnapshot(t)
 	for _, alias := range []sqltype.ID{sqltype.Regconfig, sqltype.Regdictionary} {
 		typ, ok := view.LookupType(alias)
 		if !ok || sqltype.CommonTypeCategory(typ) != 'N' {
 			t.Fatal("text-search numeric category", alias)
 		}
 	}
-	path := e.effectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
+	path := effectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
 	if len(path) != 3 || path[1] != namespaces[1] {
 		t.Fatal("TEMP text-search path isolation", path)
 	}

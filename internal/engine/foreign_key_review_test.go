@@ -198,7 +198,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 	var path []ids.ObjectAddress
 	var pathErr error
 	if trustedErr == nil {
-		path, _, pathErr = e.explicitPath(trusted)
+		path, _, pathErr = explicitPath(trusted)
 	}
 	e.importTargets = originalTargets
 	e.mu.Unlock()

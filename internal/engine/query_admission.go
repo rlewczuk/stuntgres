@@ -169,11 +169,11 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 		auth.Recapture(scope.inquiry.commentCatalog)
 		scope.inquiry.commentRoles = auth.Roles
 		scope.inquiry.deparseAuth = auth
-		scope.inquiry.deparsePath, err = e.referencePath(auth)
+		scope.inquiry.deparsePath, err = referencePath(auth)
 		if err != nil {
 			return err
 		}
-		scope.inquiry.collationPath, err = e.lookupPath(auth, analyze.CollationLookup)
+		scope.inquiry.collationPath, err = lookupPath(auth, analyze.CollationLookup)
 		if err != nil {
 			return err
 		}

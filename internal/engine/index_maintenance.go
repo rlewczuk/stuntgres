@@ -74,7 +74,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		for i, ref := range g.Indexes {
 			roots[i] = ref.Address
 		}
-		stage.dependencyPath, _ = e.referencePath(auth)
+		stage.dependencyPath, _ = referencePath(auth)
 		if err := scope.stageExpressionDependents(stage, roots, drop.Mode, nil); err != nil {
 			return Result{}, err
 		}

@@ -17,7 +17,7 @@ func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		effective := engine.effectivePath(auth, explicit, analyze.RelationLookup)
+		effective := effectivePath(auth, explicit, analyze.RelationLookup)
 		names := make([]string, len(effective))
 		for i, path := range [2][]ids.ObjectAddress{explicit, effective} {
 			for j, a := range path {

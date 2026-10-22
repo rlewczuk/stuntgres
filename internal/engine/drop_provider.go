@@ -511,7 +511,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 		return nil, ids.ErrCatalogReplaced
 	}
 	e.mu.Lock()
-	path, err := e.referencePath(auth)
+	path, err := referencePath(auth)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, err

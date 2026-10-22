@@ -33,7 +33,7 @@ func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequence.Env
 			return environment, nil
 		}
 	}
-	path, pending, err := e.explicitPath(auth)
+	path, pending, err := explicitPath(auth)
 	if err != nil {
 		return sequence.Environment{}, err
 	}

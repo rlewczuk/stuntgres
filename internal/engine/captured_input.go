@@ -29,7 +29,7 @@ func inputCapture(auth AuthorizationView, path []ids.ObjectAddress) regobj.Input
 }
 
 func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassResolver, error) {
-	path, err := e.referencePath(auth)
+	path, err := referencePath(auth)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassR
 }
 
 func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *session.Operation) (regobj.TypeInput, error) {
-	path, err := e.lookupPath(auth, analyze.TypeLookup)
+	path, err := lookupPath(auth, analyze.TypeLookup)
 	if err != nil {
 		return regobj.TypeInput{}, err
 	}
@@ -49,7 +49,7 @@ func (e *Engine) captureOperatorInput(auth AuthorizationView, op *session.Operat
 	if err != nil {
 		return regobj.OperatorInput{}, err
 	}
-	path, err := e.lookupPath(auth, analyze.OperatorLookup)
+	path, err := lookupPath(auth, analyze.OperatorLookup)
 	if err != nil {
 		return regobj.OperatorInput{}, err
 	}
@@ -59,7 +59,7 @@ func (e *Engine) captureOperatorInput(auth AuthorizationView, op *session.Operat
 // captureRoutineInput uses the type input's authority; its function path
 // excludes temporary namespaces.
 func (e *Engine) captureRoutineInput(auth AuthorizationView, types regobj.TypeInput) (regobj.RoutineInput, error) {
-	path, err := e.lookupPath(auth, analyze.FunctionLookup)
+	path, err := lookupPath(auth, analyze.FunctionLookup)
 	if err != nil {
 		return regobj.RoutineInput{}, err
 	}
@@ -67,7 +67,7 @@ func (e *Engine) captureRoutineInput(auth AuthorizationView, types regobj.TypeIn
 }
 
 func (e *Engine) captureRegTSInput(auth AuthorizationView) (regobj.TextSearchInput, error) {
-	path, err := e.lookupPath(auth, analyze.OperatorLookup) // Text search, like operators, excludes TEMP.
+	path, err := lookupPath(auth, analyze.OperatorLookup) // Text search, like operators, excludes TEMP.
 	if err != nil {
 		return regobj.TextSearchInput{}, err
 	}
@@ -75,7 +75,7 @@ func (e *Engine) captureRegTSInput(auth AuthorizationView) (regobj.TextSearchInp
 }
 
 func (e *Engine) captureRegObjectInput(auth AuthorizationView) (regobj.ObjectInput, error) {
-	path, err := e.lookupPath(auth, analyze.CollationLookup)
+	path, err := lookupPath(auth, analyze.CollationLookup)
 	if err != nil {
 		return regobj.ObjectInput{}, err
 	}

@@ -321,11 +321,11 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	if err != nil || foreignErr != nil {
 		t.Fatal(err, foreignErr)
 	}
-	ownPath, err := e.lookupPath(ownAuth, analyze.InstalledFunctionLookup)
+	ownPath, err := lookupPath(ownAuth, analyze.InstalledFunctionLookup)
 	if err != nil || slices.Contains(ownPath, namespace.Address()) {
 		t.Fatal("own TEMP helpers must be excluded", ownPath, err)
 	}
-	path, err := e.lookupPath(foreignAuth, analyze.InstalledFunctionLookup)
+	path, err := lookupPath(foreignAuth, analyze.InstalledFunctionLookup)
 	if err != nil || !slices.Contains(path, namespace.Address()) {
 		t.Fatal("authorized foreign installed path omitted", path, err)
 	}
@@ -340,7 +340,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 		}
 	}
 	for _, kind := range []analyze.LookupKind{analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
-		path, err := e.lookupPath(foreignAuth, kind)
+		path, err := lookupPath(foreignAuth, kind)
 		if err != nil || slices.Contains(path, namespace.Address()) {
 			t.Fatal("general TEMP path isolation", kind, path, err)
 		}
@@ -358,7 +358,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 		_, err := e.lookupNamespaces(denied, qualified, kind)
 		extensionUnitError(t, err, "42501")
 	}
-	path, err = e.lookupPath(denied, analyze.InstalledFunctionLookup)
+	path, err = lookupPath(denied, analyze.InstalledFunctionLookup)
 	if err != nil || slices.Contains(path, namespace.Address()) {
 		t.Fatal("denied TEMP schema was not implicitly omitted", path, err)
 	}

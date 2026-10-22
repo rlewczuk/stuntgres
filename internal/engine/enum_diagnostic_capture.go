@@ -11,8 +11,8 @@ import (
 
 // captureTypeDiagnosticName freezes input and demanded-comparison naming against
 // the catalog and reference path used for binding. Providers consult it on failure.
-func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error) {
-	path, err := e.referencePath(auth)
+func captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error) {
+	path, err := referencePath(auth)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltyp
 		return nil
 	}
 	var err error
-	input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
+	input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
 	return err
 }
 
@@ -62,7 +62,7 @@ func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *session.
 	}
 	if input.TypeDiagnosticName == nil && analyze.NeedsTypeDiagnosticInput(typ) {
 		var err error
-		input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
+		input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
 		return err
 	}
 	return nil

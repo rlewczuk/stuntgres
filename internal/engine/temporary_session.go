@@ -54,7 +54,7 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 	temp = temp || len(name.Parts) == 2
 	if !temp {
 		var err error
-		_, temp, err = e.explicitPath(auth)
+		_, temp, err = explicitPath(auth)
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}

@@ -49,7 +49,7 @@ func (h ddlHost) ReferencingFeatures(ref authorization.PrincipalRef) []string {
 
 func (h ddlHost) DescribeRoleDependency(a ddl.Authority, dep access.RoleDependency) string {
 	auth := ddlAuthorityOf(a)
-	path, _ := h.e.referencePath(auth)
+	path, _ := referencePath(auth)
 	return role.DependencyDescription(auth.View, path, dep)
 }
 

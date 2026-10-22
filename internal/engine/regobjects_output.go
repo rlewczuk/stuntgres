@@ -27,7 +27,7 @@ func (e *Engine) captureRegObjectRowsValueLocked(rows *exec.FinalRows, auth Auth
 	}
 	if value.Type().ContainsRegcollation() && *path == nil {
 		var err error
-		*path, err = e.lookupPath(auth, analyze.CollationLookup)
+		*path, err = lookupPath(auth, analyze.CollationLookup)
 		if err != nil {
 			return err
 		}

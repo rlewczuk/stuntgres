@@ -24,7 +24,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	var path []ids.ObjectAddress
 	if err == nil {
 		scope.routineAuth = auth
-		path, err = e.referencePath(auth)
+		path, err = referencePath(auth)
 	}
 	var typ *catalog.Type
 	var source *catalog.Relation

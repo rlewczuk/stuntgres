@@ -35,7 +35,7 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *table.RestoredForeign
 	defer e.mu.Unlock()
 	for i := range pending.Definitions {
 		definition := &pending.Definitions[i]
-		path, err := e.lookupNamespacesSnapshot(ddlAuthorityOf(pending.Auth), definition.Raw.Target, analyze.RelationLookup)
+		path, err := lookupNamespacesSnapshot(ddlAuthorityOf(pending.Auth), definition.Raw.Target, analyze.RelationLookup)
 		if err != nil {
 			return err
 		}

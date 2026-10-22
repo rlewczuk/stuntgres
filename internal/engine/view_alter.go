@@ -154,7 +154,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.Session)
-	stage.dependencyPath, err = e.referencePath(auth)
+	stage.dependencyPath, err = referencePath(auth)
 	if err != nil {
 		e.mu.Unlock()
 		e.DiscardCatalogStage(stage)

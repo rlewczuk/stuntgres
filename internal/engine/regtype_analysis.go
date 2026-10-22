@@ -38,7 +38,7 @@ func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []analy
 		cell.path, err = e.sequenceEnvironmentLocked(auth)
 	}
 	if err == nil && cell.collations {
-		cell.collationPath, err = e.lookupPath(auth, analyze.CollationLookup)
+		cell.collationPath, err = lookupPath(auth, analyze.CollationLookup)
 	}
 	return cell, err
 }
@@ -60,7 +60,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 		}
 	}
 	if cell.collations {
-		path, err := e.lookupPath(auth, analyze.CollationLookup)
+		path, err := lookupPath(auth, analyze.CollationLookup)
 		if err != nil {
 			return false, err
 		}

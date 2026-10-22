@@ -29,7 +29,7 @@ var _ table.AlterHost = alterHost{}
 func (h alterHost) Input() sqltype.InputEnvironment { return h.scope.input }
 
 func (h alterHost) CaptureTypeDiagnosticName(a ddl.Authority) error {
-	name, err := h.e.captureTypeDiagnosticName(ddlAuthorityOf(a))
+	name, err := captureTypeDiagnosticName(ddlAuthorityOf(a))
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (h alterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddres
 	if err := view.PolicyTypeChangeError(auth.Catalog, target); err != nil {
 		return err
 	}
-	path, err := h.e.lookupPath(auth, analyze.RelationLookup)
+	path, err := lookupPath(auth, analyze.RelationLookup)
 	if err != nil {
 		return err
 	}

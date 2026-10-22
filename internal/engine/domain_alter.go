@@ -34,7 +34,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		}
 		d := auth.Catalog.MustType(found[0])
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-		diagnosticPath, err := e.referencePath(auth)
+		diagnosticPath, err := referencePath(auth)
 		if err != nil {
 			return nil, ref, err
 		}
@@ -100,7 +100,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	next, selected, validating := edit.Next, edit.Selected, edit.Validating
 	var diagnosticPath []ids.ObjectAddress
 	if err == nil && validating {
-		diagnosticPath, err = e.referencePath(auth)
+		diagnosticPath, err = referencePath(auth)
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -112,7 +112,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
 		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
+		evaluation.Input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
 		if err != nil {
 			return Result{}, err
 		}

@@ -299,7 +299,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *session.Operation, auth Authorizat
 	}
 	sort.Slice(contained, func(i, j int) bool { return contained[i].Address().ObjectID < contained[j].Address().ObjectID })
 	sort.Slice(stage.domainTargets, func(i, j int) bool { return stage.domainTargets[i].ObjectID < stage.domainTargets[j].ObjectID })
-	stage.dependencyPath, _ = e.referencePath(auth)
+	stage.dependencyPath, _ = referencePath(auth)
 	for _, d := range contained {
 		if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), false); err != nil {
 			return err

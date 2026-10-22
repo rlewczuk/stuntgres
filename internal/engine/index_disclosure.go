@@ -19,5 +19,5 @@ func disclosureEnv(auth *AuthorizationView) index.DisclosureEnv {
 func (v *AuthorizationView) TypeDiagnosticNames(view access.View) (func(sqltype.ID) string, error) {
 	named := *v
 	named.View = view
-	return v.engine.captureTypeDiagnosticName(named)
+	return captureTypeDiagnosticName(named)
 }

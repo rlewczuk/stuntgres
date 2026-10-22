@@ -104,7 +104,7 @@ func (h ddlHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signatu
 // caller that only wants the text keeps it.
 func (h ddlHost) DependencyObject(a ddl.Authority, address ids.ObjectAddress) (string, error) {
 	v := ddlAuthorityOf(a)
-	path, err := h.e.referencePath(v)
+	path, err := referencePath(v)
 	return stored.DependencyObject(v.Catalog, address, path), err
 }
 
@@ -122,7 +122,7 @@ func (h ddlHost) DropTarget(address ids.ObjectAddress) {
 
 func (h ddlHost) RecordDependencyPath(a ddl.Authority) error {
 	var err error
-	h.stage.dependencyPath, err = h.e.referencePath(ddlAuthorityOf(a))
+	h.stage.dependencyPath, err = referencePath(ddlAuthorityOf(a))
 	return err
 }
 

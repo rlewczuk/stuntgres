@@ -87,7 +87,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}}
 	e.analysis = bindingHost{engine: e}
-	e.authority = authorityInputs{settings: &e.settings, storage: &e.storage}
+	e.authority = authorityInputs{domain: e.catalog.Domain, settings: &e.settings, storage: &e.storage}
 	e.mu.Lock()
 	e.storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{})
 	e.mu.Unlock()
@@ -459,11 +459,10 @@ func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.Ob
 	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, err
 	}
-	return e.resolveRelationSnapshot(auth, name, utility)
+	return resolveRelationSnapshot(auth, name, utility)
 }
 
-func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
-	view := auth.Catalog
+func resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
 	}
@@ -479,7 +478,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 			return ids.ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
 		}
 	}
-	path, err := e.lookupNamespacesSnapshot(auth, name, analyze.RelationLookup)
+	path, err := lookupNamespacesSnapshot(auth, name, analyze.RelationLookup)
 	if err != nil {
 		if d, yes := err.(*sqlstate.Error); yes && utility {
 			copy := *d
@@ -509,7 +508,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 			auth.session.Transactions.AccessedTemporary = true
 		}
 	}
-	return e.catalog.Domain.Ref(view.Epoch(), a), nil
+	return auth.ref(a), nil
 }
 
 func insertError(code, message string, pos parser.Position) error {

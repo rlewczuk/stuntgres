@@ -81,7 +81,7 @@ func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ [
 	var descriptor *catalog.Relation
 	var stored *storage.Relation
 	if err == nil {
-		ref, err = e.resolveRelationSnapshot(auth, name, true)
+		ref, err = resolveRelationSnapshot(auth, name, true)
 	}
 	if err == nil {
 		descriptor, _ = auth.Catalog.Relation(ref.Address)
@@ -196,7 +196,7 @@ func (s *StatementScope) pgrowlocksReadmitLocked(e *Engine, auth AuthorizationVi
 		auth.Catalog.Get(ref.Address) != descriptor || e.privateStorageLocked(s.owner.Catalog, ref.Address) != stored {
 		return ids.ErrCatalogReplaced
 	}
-	current, err := e.resolveRelationSnapshot(auth, name, true)
+	current, err := resolveRelationSnapshot(auth, name, true)
 	if err != nil {
 		return err
 	}

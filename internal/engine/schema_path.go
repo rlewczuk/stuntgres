@@ -12,24 +12,28 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// explicitPath runs under the engine mutex and captures one immutable setting value.
-func (e *Engine) explicitPath(auth AuthorizationView) ([]ids.ObjectAddress, bool, error) {
-	return e.explicitPathFor(auth, analyze.RelationLookup)
+// explicitPath runs under the engine mutex and captures one immutable setting
+// value: the session's search_path, or the engine's boot value for a view
+// without session settings.
+func explicitPath(auth AuthorizationView) ([]ids.ObjectAddress, bool, error) {
+	return explicitPathFor(auth, analyze.RelationLookup)
 }
-func (e *Engine) explicitPathFor(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAddress, bool, error) {
-	entries := e.settings.Definitions()["search_path"].BootValue().Path
-	if auth.settings != nil && !auth.materializedPopulation {
+func explicitPathFor(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAddress, bool, error) {
+	var entries []string
+	restricted := [2]string{"pg_catalog", "pg_temp"}
+	switch {
+	case auth.materializedPopulation:
+		entries = restricted[:]
+	case auth.settings != nil:
 		auth.settings.Mu.Lock()
 		entries = auth.settings.TypedValue("search_path").Path
 		auth.settings.Mu.Unlock()
-	}
-	restricted := [2]string{"pg_catalog", "pg_temp"}
-	if auth.materializedPopulation {
-		entries = restricted[:]
+	default:
+		entries = auth.inputs.settings.Definitions()["search_path"].BootValue().Path
 	}
 	var result []ids.ObjectAddress
 	if auth.pathPrefix != (ids.ObjectAddress{}) && !auth.materializedPopulation {
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), auth.pathPrefix)
+		ref := auth.ref(auth.pathPrefix)
 		if err := auth.CanUse(ref); err != nil {
 			return nil, false, err
 		}
@@ -80,7 +84,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind analyze.LookupKind
 		if duplicate {
 			continue
 		}
-		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.Catalog.Epoch(), a), false)
+		rights, err := auth.Effective(auth.ref(a), false)
 		if err != nil {
 			return nil, false, err
 		}
@@ -92,17 +96,17 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind analyze.LookupKind
 	return result, pendingTemp, nil
 }
 
-func (e *Engine) referencePath(auth AuthorizationView) ([]ids.ObjectAddress, error) {
-	return e.lookupPath(auth, analyze.RelationLookup)
+func referencePath(auth AuthorizationView) ([]ids.ObjectAddress, error) {
+	return lookupPath(auth, analyze.RelationLookup)
 }
-func (e *Engine) lookupPath(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAddress, error) {
-	path, _, err := e.explicitPathFor(auth, kind)
+func lookupPath(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAddress, error) {
+	path, _, err := explicitPathFor(auth, kind)
 	if err != nil {
 		return nil, err
 	}
-	return e.effectivePath(auth, path, kind), nil
+	return effectivePath(auth, path, kind), nil
 }
-func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind analyze.LookupKind) []ids.ObjectAddress {
+func effectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind analyze.LookupKind) []ids.ObjectAddress {
 	if kind == analyze.InstalledFunctionLookup || kind == analyze.FunctionLookup || kind == analyze.OperatorLookup || kind == analyze.CollationLookup || kind == analyze.ConversionLookup {
 		filtered := path[:0]
 		for _, a := range path {
@@ -145,13 +149,13 @@ func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName
 	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
 		return analyze.NamespaceSelection{}, err
 	}
-	return e.lookupNamespacesSnapshot(auth, name, kind)
+	return lookupNamespacesSnapshot(auth, name, kind)
 }
 
 // Immutable statement authority resolves names without consulting live epochs.
-func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
+func lookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
 	if len(name.Parts) == 1 {
-		path, err := e.lookupPath(auth, kind)
+		path, err := lookupPath(auth, kind)
 		return analyze.NamespaceSelection{Path: path}, err
 	}
 	if len(name.Parts) != 2 {
@@ -180,7 +184,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		}
 		return analyze.NamespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()), n.Pos)
 	}
-	if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)); err != nil {
+	if err := auth.CanUse(auth.ref(a)); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && n.Pos.Character > 0 {
 			copy := *diagnostic
 			copy.Position = strconv.Itoa(n.Pos.Character)
@@ -229,7 +233,7 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 			}
 		}
 	} else {
-		path, temp, err := e.explicitPath(auth)
+		path, temp, err := explicitPath(auth)
 		if err != nil {
 			return ids.ObjectRef{}, false, err
 		}

@@ -113,7 +113,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		evaluation.RoutineAuthority = &auth
 		if idx.SQLIndex.HasRuntimeDomainConversion() {
 			var err error
-			evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(indexAuth)
+			evaluation.Input.TypeDiagnosticName, err = captureTypeDiagnosticName(indexAuth)
 			if err != nil {
 				return err
 			}

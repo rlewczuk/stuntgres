@@ -16,7 +16,7 @@ func (e *Engine) captureRegclassOutput(op *session.Operation, rows *exec.FinalRo
 	if err != nil {
 		return err
 	}
-	path, err := e.referencePath(auth)
+	path, err := referencePath(auth)
 	if err != nil {
 		return err
 	}

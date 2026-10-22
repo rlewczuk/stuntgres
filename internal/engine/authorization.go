@@ -111,7 +111,7 @@ func (v AuthorizationView) TemporaryNamespace() ids.ObjectAddress { return tempo
 // ReferencePath implements access.Environment: the live search path, read
 // under the session settings mutex.
 func (v AuthorizationView) ReferencePath() ([]ids.ObjectAddress, error) {
-	return v.engine.referencePath(v)
+	return referencePath(v)
 }
 
 // Statement-local Restore authority must cover both lock resolution and effects.
@@ -192,13 +192,22 @@ func operationAuthorization(op *session.Operation) (AuthorizationView, error) {
 }
 
 // authorityInputs are the engine values an engine-built AuthorizationView
-// reads: the settings registry, for the boot search_path of a view without
-// session settings, and the published storage, which StorageLocked reads
-// under Engine.mu. The engine holds one by value; views share it by pointer,
-// so building a view allocates nothing.
+// reads: the engine's domain, which mints path references and matches the
+// session's TEMP token, the settings registry, for the boot search_path of a
+// view without session settings, and the published storage, which
+// StorageLocked reads under Engine.mu. The engine holds one by value; views
+// share it by pointer, so building a view allocates nothing.
 type authorityInputs struct {
+	domain   *ids.Domain
 	settings *settings.Registry
 	storage  *storage.Store
+}
+
+// ref mints a reference to a in the engine's domain at the view's catalog
+// epoch. Unlike View.Ref it does not read the view's owner, so a view with a
+// missing or foreign owner still reaches the check that rejects it.
+func (v AuthorizationView) ref(a ids.ObjectAddress) ids.ObjectRef {
+	return v.inputs.domain.Ref(v.Catalog.Epoch(), a)
 }
 
 // authorityView is v as an engine-built view. It is the one constructor of

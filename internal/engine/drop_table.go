@@ -53,7 +53,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 	}
 	stage := e.BeginCatalogStage(base)
 	stage.authorizeLocked(auth, op.Session)
-	path, err := e.referencePath(auth)
+	path, err := referencePath(auth)
 	if err != nil {
 		e.mu.Unlock()
 		e.DiscardCatalogStage(stage)
