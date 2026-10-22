@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -90,7 +91,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		}
 		count++
 		if scope.owner.ReadOnly && !temporaryDataTarget(auth, mutation, definition.Statement) {
-			primaryTag = modifyingTag(statement)
+			primaryTag = session.ModifyingTag(statement)
 			if primaryTag == "" {
 				primaryTag = "SELECT"
 			}

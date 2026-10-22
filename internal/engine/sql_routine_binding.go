@@ -110,7 +110,7 @@ func routineCommandTag(statement parser.Statement) string {
 			return "ROLLBACK"
 		}
 	}
-	tag, _, _, _ := classifyCommandTag(statement, session.TxIdle)
+	tag, _, _, _ := session.ClassifyCommandTag(statement, session.TxIdle)
 	return tag
 }
 func sqlRoutineFinalError(result sqltype.Usage) error {

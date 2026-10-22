@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -299,14 +300,14 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	tag := modifyingTag(stmt)
+	tag := session.ModifyingTag(stmt)
 	if prepared != nil && prepared.primaryTag != "" {
 		tag = prepared.primaryTag
 	}
 	selection, selecting := stmt.(*parser.Select)
 	if declaration, ok := stmt.(*parser.DeclareCursor); ok {
 		selection, selecting = declaration.Query, true
-		tag = modifyingTag(selection)
+		tag = session.ModifyingTag(selection)
 	}
 	// PostgreSQL reports the rewritten SELECT command for a marked view,
 	// including constant views without physical lock leaves. Physical table

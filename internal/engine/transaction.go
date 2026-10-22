@@ -515,8 +515,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		// precedence and persistent-DDL exclusions only when actually executing.
 		return s.engine().describeOperation(s, stmt)
 	}
-	indexBuild := earlyIndexUtility(stmt)
-	if !queryCreation && s.owner.State == session.TxActive && explicitUtility(stmt) && !indexBuild {
+	indexBuild := session.EarlyIndexUtility(stmt)
+	if !queryCreation && s.owner.State == session.TxActive && session.ExplicitUtility(stmt) && !indexBuild {
 		return StatementDescription{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	if err := s.selectPreparedAnalysis(stmt); err != nil {
@@ -600,7 +600,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		preparedInvocation = true
 		execute = nextExecute
 	}
-	base, counted, insert, ok := classifyCommandTag(stmt, before)
+	base, counted, insert, ok := session.ClassifyCommandTag(stmt, before)
 	if !ok {
 		return Result{}, sqlError("0A000", "statement command tag is not supported")
 	}
@@ -699,7 +699,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		}
 		return s.engine().executeStatement(s, stmt, count, importFrame)
 	}
-	indexBuild := earlyIndexUtility(stmt)
+	indexBuild := session.EarlyIndexUtility(stmt)
 	_, refreshing := stmt.(*parser.RefreshMaterializedView)
 	earlyEligibility := indexBuild || queryCreation || refreshing
 	if earlyEligibility && !queryCreation {
@@ -721,7 +721,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
-	if modifyingTag(stmt) != "" {
+	if session.ModifyingTag(stmt) != "" {
 		index, concurrent := stmt.(*parser.CreateIndex)
 		if !concurrent || index.Concurrent.Character == 0 {
 			e := s.engine()

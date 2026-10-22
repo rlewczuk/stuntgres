@@ -572,7 +572,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 		if err != nil || skipped {
 			e.mu.Unlock()
 			if err == nil {
-				return Result{CommandTag: queryCreationUtilityTag(creation.Form)}, nil
+				return Result{CommandTag: session.QueryCreationUtilityTag(creation.Form)}, nil
 			}
 			return Result{}, err
 		}
