@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -890,7 +891,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	scope.catalog = changes
 	if scope.inheritance.alter == nil {
-		emitViewCascade(op, stage.dropCascadeNames)
+		view.EmitCascade(op, stage.dropCascadeNames)
 	}
 	return Result{}, nil
 }

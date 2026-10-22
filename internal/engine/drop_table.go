@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -88,7 +89,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 			return Result{}, err
 		}
 		scope.owner.AccessedTemporary = true
-		emitViewCascade(op, stage.dropCascadeNames)
+		view.EmitCascade(op, stage.dropCascadeNames)
 		for _, notice := range notices {
 			op.EmitNotice(session.LevelNotice, notice)
 		}
@@ -99,7 +100,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 		return Result{}, err
 	}
 	scope.completed = true
-	emitViewCascade(op, append(stage.schemaCascadeNames, stage.dropCascadeNames...))
+	view.EmitCascade(op, append(stage.schemaCascadeNames, stage.dropCascadeNames...))
 	for _, notice := range notices {
 		op.EmitNotice(session.LevelNotice, notice)
 	}

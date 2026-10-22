@@ -109,9 +109,9 @@ func (h alterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddres
 	}
 	if path, pathErr := h.e.lookupPath(auth, analyze.RelationLookup); pathErr != nil {
 		return pathErr
-	} else if dependents := ruleDependentLabels(auth.Catalog, []ids.ObjectAddress{target}, path); len(dependents) != 0 {
+	} else if dependents := view.RuleDependentLabels(auth.Catalog, []ids.ObjectAddress{target}, path); len(dependents) != 0 {
 		d := sqlError("0A000", "cannot alter type of a column used by a view or rule").(*sqlstate.Error)
-		d.Detail = fmt.Sprintf(`%s depends on column "%s"`, dependents[0].label, column)
+		d.Detail = fmt.Sprintf(`%s depends on column "%s"`, dependents[0].Label, column)
 		return d
 	}
 	edges := viewDependencyClosure(auth.Catalog, []ids.ObjectAddress{target}, h.stage)

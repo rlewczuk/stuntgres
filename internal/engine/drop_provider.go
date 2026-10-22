@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -851,11 +852,11 @@ func (p *dropProvider) liveDescriptors() iter.Seq2[ids.ObjectAddress, catalog.De
 	}
 }
 
-func (p *dropProvider) policyDependentLabels(targets []ids.ObjectAddress) []supportedDependent {
+func (p *dropProvider) policyDependentLabels(targets []ids.ObjectAddress) []view.Dependent {
 	if p.prepared == nil {
-		return policyDependentLabels(p.base, targets, p.path)
+		return view.PolicyDependentLabels(p.base, targets, p.path)
 	}
-	return policyDependentLabelsFrom(p.base, targets, p.path, p.liveDescriptors())
+	return view.PolicyDependentLabelsFrom(p.base, targets, p.path, p.liveDescriptors())
 }
 
 // Catalog enumeration is discovery, not an observation of every unrelated

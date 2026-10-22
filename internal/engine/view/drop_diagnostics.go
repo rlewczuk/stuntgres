@@ -1,4 +1,4 @@
-package engine
+package view
 
 import (
 	"cmp"
@@ -12,25 +12,28 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqlstate"
 )
 
 // Generic drop diagnostics: the dependent labels and RESTRICT/CASCADE
 // messages shared by DROP and ALTER TYPE across every feature.
 
-type supportedDependent struct {
-	oid          ids.OID
+// Dependent is one dependent object a DROP or ALTER TYPE reports: its
+// identity for ordering, the target it depends on and its diagnostic label.
+type Dependent struct {
+	OID          ids.OID
 	target       ids.ObjectAddress
 	view         ids.ObjectAddress
-	label        string
+	Label        string
 	checkOwner   ids.OID
 	checkOrdinal int
 }
 
-// Walk the existing immediate-provider edges depth-first. Genuine identities
-// order mixed siblings; same-owner CHECK siblings retain declaration order.
-func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []view.DependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, foreign ...table.DomainDependency) []supportedDependent {
+// DependentLabels labels the policy, rule, default, CHECK, view and foreign
+// dependents of targets. Walk the existing immediate-provider edges
+// depth-first. Genuine identities order mixed siblings; same-owner CHECK
+// siblings retain declaration order.
+func DependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []DependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, foreign ...table.DomainDependency) []Dependent {
 	policyTargets := targets
 	if len(views) != 0 {
 		policyTargets = make([]ids.ObjectAddress, len(targets), len(targets)+len(views))
@@ -39,32 +42,34 @@ func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress,
 			policyTargets = append(policyTargets, edge.View.Address())
 		}
 	}
-	dependents := policyDependentLabels(catalog, policyTargets, path)
-	dependents = append(dependents, ruleDependentLabels(catalog, policyTargets, path)...)
-	return supportedDependentLabelsWithPolicies(catalog, targets, checks, views, defaults, path, dependents, foreign...)
+	dependents := PolicyDependentLabels(catalog, policyTargets, path)
+	dependents = append(dependents, RuleDependentLabels(catalog, policyTargets, path)...)
+	return DependentLabelsWithPolicies(catalog, targets, checks, views, defaults, path, dependents, foreign...)
 }
 
-// Other labels are captured before CASCADE mutates policy and rule metadata.
-func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []view.DependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, other []supportedDependent, foreign ...table.DomainDependency) []supportedDependent {
-	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
+// DependentLabelsWithPolicies is DependentLabels with the policy and rule
+// labels in other. Other labels are captured before CASCADE mutates policy
+// and rule metadata.
+func DependentLabelsWithPolicies(catalogView catalog.Read, targets []ids.ObjectAddress, checks []table.CheckDependencyEdge, views []DependencyEdge, defaults []table.DefaultDependencyEdge, path []ids.ObjectAddress, other []Dependent, foreign ...table.DomainDependency) []Dependent {
+	dependents := make([]Dependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
 		label := "default value for column " + catalog.DependencyIdentifier(edge.Column) + " of table " + stored.DependencyRelationName(catalogView, edge.Relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.Relation.ColumnMeta.Defaults[edge.Attribute].OID, target: edge.Target, label: label})
+		dependents = append(dependents, Dependent{OID: edge.Relation.ColumnMeta.Defaults[edge.Attribute].OID, target: edge.Target, Label: label})
 	}
 	for _, edge := range checks {
 		label := "constraint " + catalog.DependencyIdentifier(edge.Check.Name) + " on table " + stored.DependencyRelationName(catalogView, edge.Relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.Check.OID, target: edge.Target, label: label, checkOwner: edge.Relation.Address().ObjectID, checkOrdinal: edge.Check.Ordinal})
+		dependents = append(dependents, Dependent{OID: edge.Check.OID, target: edge.Target, Label: label, checkOwner: edge.Relation.Address().ObjectID, checkOrdinal: edge.Check.Ordinal})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, supportedDependent{oid: edge.View.Address().ObjectID, target: edge.Target, view: edge.View.Address(), label: catalog.RelationDiagnosticKind(edge.View) + " " + stored.DependencyRelationName(catalogView, edge.View, path)})
+		dependents = append(dependents, Dependent{OID: edge.View.Address().ObjectID, target: edge.Target, view: edge.View.Address(), Label: catalog.RelationDiagnosticKind(edge.View) + " " + stored.DependencyRelationName(catalogView, edge.View, path)})
 	}
 	for _, edge := range foreign {
 		if !edge.Automatic {
-			dependents = append(dependents, supportedDependent{oid: edge.OID, target: edge.Target, label: edge.Label})
+			dependents = append(dependents, Dependent{OID: edge.OID, target: edge.Target, Label: edge.Label})
 		}
 	}
-	slices.SortFunc(dependents, func(a, b supportedDependent) int { return cmp.Compare(a.oid, b.oid) })
+	slices.SortFunc(dependents, func(a, b Dependent) int { return cmp.Compare(a.OID, b.OID) })
 	// CHECK OIDs can be assigned in enforcement/name order. Permute only their
 	// occupied sibling slots, leaving every non-CHECK position and provider edge
 	// intact. A mixed ordinal/OID comparator would not be transitive.
@@ -83,7 +88,7 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 	if len(views) == 0 && len(targets) <= 1 {
 		return dependents
 	}
-	ordered := make([]supportedDependent, 0, len(dependents))
+	ordered := make([]Dependent, 0, len(dependents))
 	seen := make([]bool, len(dependents))
 	var visit func(ids.ObjectAddress)
 	visit = func(target ids.ObjectAddress) {
@@ -104,7 +109,9 @@ func supportedDependentLabelsWithPolicies(catalogView catalog.Read, targets []id
 	return ordered
 }
 
-func supportedRestrictErrorLabels(catalog catalog.Read, views []view.DependencyEdge, path []ids.ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
+// DependentsRestrictError is the RESTRICT error for dependents, naming the
+// requested provider unless the drop removes several objects.
+func DependentsRestrictError(catalog catalog.Read, views []DependencyEdge, path []ids.ObjectAddress, dependents []Dependent, multipleDeletion bool) error {
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
 		provider := stored.DependencyObject(catalog, dependent.target, path)
@@ -113,7 +120,7 @@ func supportedRestrictErrorLabels(catalog catalog.Read, views []view.DependencyE
 		if index, ok := catalog.Relation(dependent.target); ok && index.SQLIndex != nil {
 			provider = "index " + stored.DependencyRelationName(catalog, index, path)
 		}
-		details[i] = dependent.label + " depends on " + provider
+		details[i] = dependent.Label + " depends on " + provider
 	}
 	// Closure edges are parent-first. Walk backwards to keep the original
 	// requested provider in Message while Detail retains each actual edge.
@@ -130,7 +137,9 @@ func supportedRestrictErrorLabels(catalog catalog.Read, views []view.DependencyE
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
 
-func emitViewCascade(op *session.Operation, details []string) {
+// EmitCascade emits the CASCADE NOTICE that lists details, folding
+// several into one count.
+func EmitCascade(op *session.Operation, details []string) {
 	if len(details) == 0 {
 		return
 	}
@@ -142,12 +151,16 @@ func emitViewCascade(op *session.Operation, details []string) {
 	op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 }
 
-func ruleDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
-	return ruleDependentLabelsFrom(catalog, targets, path, catalog.Descriptors(), nil)
+// RuleDependentLabels labels the rules of other relations that depend on
+// targets.
+func RuleDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []Dependent {
+	return RuleDependentLabelsFrom(catalog, targets, path, catalog.Descriptors(), nil)
 }
 
-func ruleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
-	var dependents []supportedDependent
+// RuleDependentLabelsFrom is RuleDependentLabels over descriptors, calling
+// observe, when set, for each relation with a dependent rule.
+func RuleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], observe func(ids.ObjectAddress)) []Dependent {
+	var dependents []Dependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok || slices.Contains(targets, d.Address()) {
@@ -155,11 +168,11 @@ func ruleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddre
 		}
 		for _, r := range stored.RulesOf(d) {
 			for _, target := range targets {
-				if view.RuleDepends(catalogView, r, target) {
+				if RuleDepends(catalogView, r, target) {
 					if observe != nil {
 						observe(d.Address())
 					}
-					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + stored.DependencyRelationName(catalogView, d, path)})
+					dependents = append(dependents, Dependent{OID: r.OID, target: target, Label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + catalog.RelationDiagnosticKind(d) + " " + stored.DependencyRelationName(catalogView, d, path)})
 					break
 				}
 			}
@@ -168,12 +181,15 @@ func ruleDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddre
 	return dependents
 }
 
-func policyDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
-	return policyDependentLabelsFrom(catalog, targets, path, catalog.Descriptors())
+// PolicyDependentLabels labels the policies of other relations that depend
+// on targets.
+func PolicyDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []Dependent {
+	return PolicyDependentLabelsFrom(catalog, targets, path, catalog.Descriptors())
 }
 
-func policyDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []supportedDependent {
-	var dependents []supportedDependent
+// PolicyDependentLabelsFrom is PolicyDependentLabels over descriptors.
+func PolicyDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []Dependent {
+	var dependents []Dependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
@@ -184,8 +200,8 @@ func policyDependentLabelsFrom(catalogView catalog.Read, targets []ids.ObjectAdd
 		}
 		for _, p := range d.Security.Policies {
 			for _, target := range targets {
-				if view.PolicyDepends(p, target) {
-					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + stored.DependencyRelationName(catalogView, d, path)})
+				if PolicyDepends(p, target) {
+					dependents = append(dependents, Dependent{OID: p.OID, target: target, Label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + stored.DependencyRelationName(catalogView, d, path)})
 					break
 				}
 			}

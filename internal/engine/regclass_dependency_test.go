@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -84,14 +85,14 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 		roleExecute(t, e, op, query)
 	}
 	ref := roleTableRef(t, e, "rr_order_owner")
-	view := e.CatalogRead()
-	descriptor, _ := view.Descriptor(ref.Address)
+	read := e.CatalogRead()
+	descriptor, _ := read.Descriptor(ref.Address)
 	owner := descriptor.(*catalog.Relation)
 	target := ref.Address
 	target.SubID = owner.Attributes[owner.Index["v"]]
-	stage := e.BeginCatalogStage(view)
+	stage := e.BeginCatalogStage(read)
 	defer e.DiscardCatalogStage(stage)
-	views := viewDependencyClosure(view, []ids.ObjectAddress{target}, stage)
+	views := viewDependencyClosure(read, []ids.ObjectAddress{target}, stage)
 	expanded := []ids.ObjectAddress{target}
 	for _, edge := range views {
 		expanded = append(expanded, edge.View.Address())
@@ -104,25 +105,25 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordered := supportedDependentLabels(view, []ids.ObjectAddress{target}, checks, views, defaults, nil)
+	ordered := view.DependentLabels(read, []ids.ObjectAddress{target}, checks, views, defaults, nil)
 	var labels []string
 	for _, dependent := range ordered {
-		if dependent.oid == 0 {
+		if dependent.OID == 0 {
 			t.Fatal("missing genuine consumer identity")
 		}
-		labels = append(labels, dependent.label)
+		labels = append(labels, dependent.Label)
 	}
 	want := []string{"view rr_order_bridge", "view rr_order_view", "default value for column r of table rr_order_owner", "constraint rr_order_zfirst on table rr_order_owner", "constraint rr_order_afinal on table rr_order_owner"}
-	if !reflect.DeepEqual(labels, want) || ordered[0].oid <= ordered[1].oid || ordered[2].oid != owner.ColumnMeta.Defaults[owner.Attributes[owner.Index["r"]]].OID || ordered[3].oid != checks[0].Check.OID || ordered[4].oid != checks[1].Check.OID || ordered[3].oid <= ordered[4].oid {
+	if !reflect.DeepEqual(labels, want) || ordered[0].OID <= ordered[1].OID || ordered[2].OID != owner.ColumnMeta.Defaults[owner.Attributes[owner.Index["r"]]].OID || ordered[3].OID != checks[0].Check.OID || ordered[4].OID != checks[1].Check.OID || ordered[3].OID <= ordered[4].OID {
 		t.Fatal("provider traversal or genuine sibling identity lost", labels, ordered)
 	}
-	duplicate := supportedDependentLabels(view, []ids.ObjectAddress{target, target}, checks, views, defaults, nil)
+	duplicate := view.DependentLabels(read, []ids.ObjectAddress{target, target}, checks, views, defaults, nil)
 	if !reflect.DeepEqual(duplicate, ordered) {
 		t.Fatal("duplicate roots emitted consumers twice", duplicate)
 	}
 	other := target
 	other.SubID = owner.Attributes[owner.Index["r"]]
-	if got := supportedDependentLabels(view, []ids.ObjectAddress{other}, checks, views, defaults, nil); len(got) != 0 {
+	if got := view.DependentLabels(read, []ids.ObjectAddress{other}, checks, views, defaults, nil); len(got) != 0 {
 		t.Fatal("column identity ignored", got)
 	}
 }

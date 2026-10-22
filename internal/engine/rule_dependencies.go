@@ -9,11 +9,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) []supportedDependent {
+func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) []view.Dependent {
 	if provider.prepared == nil {
-		return ruleDependentLabels(provider.base, targets, provider.path)
+		return view.RuleDependentLabels(provider.base, targets, provider.path)
 	}
-	return ruleDependentLabelsFrom(provider.base, targets, provider.path, provider.liveDescriptors(), provider.observe)
+	return view.RuleDependentLabelsFrom(provider.base, targets, provider.path, provider.liveDescriptors(), provider.observe)
 }
 
 func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode parser.DropMode) error {

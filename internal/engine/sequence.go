@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -492,6 +493,6 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{Base: auth.Catalog.State(), Targets: targets})
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	scope.catalog = changes
-	emitViewCascade(scope.op, cascade)
+	view.EmitCascade(scope.op, cascade)
 	return Result{}, nil
 }

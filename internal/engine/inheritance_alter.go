@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
 
@@ -163,7 +164,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 	}
 	scope.catalog = state.changes
 	e.mu.Unlock()
-	emitViewCascade(op, stage.dropCascadeNames)
+	view.EmitCascade(op, stage.dropCascadeNames)
 	return Result{}, nil
 }
 

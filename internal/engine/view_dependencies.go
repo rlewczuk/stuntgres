@@ -57,12 +57,12 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		return table.ForeignKeyDependents(provider, foreign)
 	}
 	if mode == parser.DropRestrict {
-		labels := supportedDependentLabelsWithPolicies(provider.base, targets, checks, edges, defaults, provider.path, policies, foreign...)
+		labels := view.DependentLabelsWithPolicies(provider.base, targets, checks, edges, defaults, provider.path, policies, foreign...)
 		multipleDeletion := provider.scope != nil && provider.scope.inheritance.alter != nil
 		if multipleDeletion && len(targets) == 1 && targets[0].ClassID == ids.RelationClassID && targets[0].SubID != 0 {
 			multipleDeletion = provider.inheritanceColumnDropMultiple(targets[0])
 		}
-		return supportedRestrictErrorLabels(provider.base, edges, provider.path, labels, multipleDeletion)
+		return view.DependentsRestrictError(provider.base, edges, provider.path, labels, multipleDeletion)
 	}
 	if err := table.ForeignKeyDependents(provider, foreign); err != nil {
 		return err
@@ -84,8 +84,8 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		}
 		activeEdges = append(activeEdges, edge)
 	}
-	for _, dependent := range supportedDependentLabelsWithPolicies(provider.base, targets, checks, activeEdges, defaults, provider.path, policies, foreign...) {
-		provider.cascadeNotice("drop cascades to " + dependent.label)
+	for _, dependent := range view.DependentLabelsWithPolicies(provider.base, targets, checks, activeEdges, defaults, provider.path, policies, foreign...) {
+		provider.cascadeNotice("drop cascades to " + dependent.Label)
 	}
 	return nil
 }
