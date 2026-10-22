@@ -2,8 +2,6 @@ package engine
 
 import (
 	"context"
-	"maps"
-	"slices"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -110,96 +108,5 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 		}
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Input: input, Output: s.output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	for _, descriptor := range view.Descriptors() {
-		idx, ok := descriptor.(*catalog.Relation)
-		if !ok || idx.SQLIndex == nil || !idx.SQLIndex.Ready || !idx.SQLIndex.Live {
-			continue
-		}
-		rows := s.stage.rows[idx.SQLIndex.Parent]
-		if len(rows) == 0 {
-			continue
-		}
-		if idx.SQLIndex.Predicate == nil {
-			derived := false
-			for _, key := range idx.SQLIndex.Keys {
-				derived = derived || key.Derived != nil
-			}
-			if !derived {
-				continue
-			}
-		}
-		pending := idx.SQLIndex.HasRuntimeDomainConversion()
-		var ordering index.Ordering
-		var hash storage.HashBinding
-		var preparation index.ExecutionPreparation
-		parent, ok := view.Relation(idx.SQLIndex.Parent)
-		if !ok {
-			return ids.ErrCatalogReplaced
-		}
-		if pending {
-			var err error
-			if idx.SQLIndex.Method == catalog.HashMethod {
-				hash, err = index.BindHashIndex(parent, idx.SQLIndex)
-			} else {
-				ordering, err = index.BindIndexKeys(parent, idx.SQLIndex)
-			}
-			if err != nil {
-				return err
-			}
-		}
-		copied := false
-		for i, row := range rows {
-			if !index.RowMaintainsIndex(row, idx) {
-				continue
-			}
-			if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[idx.SQLIndex.Parent]) {
-				continue
-			}
-			if output, ok := row.IndexOutputs[idx.Address()]; ok && index.OutputMatches(output, idx) {
-				// The SQL producer already materialized this exact version's
-				// membership/key under the captured index semantics.
-				continue
-			}
-			if pending {
-				output, err := index.MaterializeIndexOutput(&evaluation, &preparation, parent, idx, &ordering, &hash, row.Values)
-				if err != nil {
-					return err
-				}
-				outputs := maps.Clone(row.IndexOutputs)
-				if outputs == nil {
-					outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
-				}
-				outputs[idx.Address()] = output
-				if !copied {
-					rows = slices.Clone(rows)
-					copied = true
-				}
-				rows[i].IndexOutputs = outputs
-				continue
-			}
-			matches, err := preparation.PredicateMatches(&evaluation, parent, idx.SQLIndex, row.Values, nil, nil)
-			if err != nil {
-				return err
-			}
-			if !matches {
-				continue
-			}
-			if err := preparation.PrepareOrdinaryKeys(&evaluation, parent, idx.SQLIndex); err != nil {
-				return err
-			}
-			evaluation.Row = row.Values
-			for keyIndex, key := range idx.SQLIndex.Keys {
-				if key.Derived == nil {
-					continue
-				}
-				if _, err := preparation.Ordinary[keyIndex].Eval(&evaluation); err != nil {
-					return err
-				}
-			}
-		}
-		if copied {
-			s.stage.rows[idx.SQLIndex.Parent] = rows
-		}
-	}
-	return nil
+	return index.ValidatePrivateExpressions(&evaluation, view, s.stage.rows, deletes)
 }
