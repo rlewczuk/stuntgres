@@ -113,21 +113,29 @@ func datetimeSleepStoredControls(t *testing.T, p *fixture.Pair, b fixture.Backen
 
 	// Preservation vector, not a newly inferred PostgreSQL canonical golden.
 	defaults := func() [][3]string {
-		rows, err := c.QueryContext(p.Ctx, "SELECT r.relname,a.attname,pg_get_expr(d.adbin,d.adrelid) FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class r ON d.adrelid=r.oid JOIN pg_catalog.pg_attribute a ON a.attrelid=r.oid AND a.attnum=d.adnum WHERE r.relname IN ('sleep_assignment_default','sleep_default_null','sleep_default_text','sleep_default_bool') ORDER BY r.relname,a.attname")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer rows.Close()
 		var values [][3]string
-		for rows.Next() {
-			var v [3]string
-			if err := rows.Scan(&v[0], &v[1], &v[2]); err != nil {
+		for _, name := range []string{"sleep_assignment_default", "sleep_default_bool", "sleep_default_null", "sleep_default_text"} {
+			var oid int64
+			if err := c.QueryRowContext(p.Ctx, "SELECT $1::regclass::oid::bigint", "public."+name).Scan(&oid); err != nil {
 				t.Fatal(err)
 			}
-			values = append(values, v)
-		}
-		if err := rows.Err(); err != nil {
-			t.Fatal(err)
+			rows, err := c.QueryContext(p.Ctx, "SELECT r.relname,a.attname,pg_get_expr(d.adbin,d.adrelid) FROM (SELECT * FROM pg_catalog.pg_attrdef WHERE adrelid=$1::oid) d JOIN (SELECT * FROM pg_catalog.pg_class WHERE oid=$1::oid) r ON d.adrelid=r.oid JOIN (SELECT * FROM pg_catalog.pg_attribute WHERE attrelid=$1::oid) a ON a.attrelid=r.oid AND a.attnum=d.adnum ORDER BY a.attname", oid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for rows.Next() {
+				var v [3]string
+				if err := rows.Scan(&v[0], &v[1], &v[2]); err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				values = append(values, v)
+			}
+			err = rows.Err()
+			rows.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 		return values
 	}

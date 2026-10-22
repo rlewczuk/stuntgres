@@ -6,6 +6,17 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Stored-sleep preservation probes
+
+`TestReferenceDatetimeSleepStored` retains its two-second SQL timeout while
+checking every saved default definition. Each probe independently resolves the
+fixture table's qualified identity and bounds all three catalog join inputs
+before joining; it preserves the complete ordered name/attribute/expression vector
+without database-wide catalog multiplication.
+
+Run `make check RUN='^TestReferenceDatetimeSleepStored$'` in quick,
+`REFERENCE=1`, and `RACE=1` modes after changes.
+
 ### Datetime truncation
 
 The datetime-truncation family independently asserts canonical fields/aliases,

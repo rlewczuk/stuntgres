@@ -19,11 +19,27 @@ func TestReferenceIndexMaintenanceLocks(t *testing.T) {
 					}
 					fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
 					fixture.LockExec(t, p.Ctx, a, "LOCK TABLE t IN ROW EXCLUSIVE MODE", 0)
+					// Only execution is the timeout witness; keep Prepare administrative.
+					stmt, err := c.PrepareContext(p.Ctx, q)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer stmt.Close()
+					held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
+					resetSQL := "SET " + timer.setting + "=0"
+					reset, err := c.PrepareContext(p.Ctx, resetSQL)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer reset.Close()
+					resetHeld := fixture.HeldStatement{Executor: c, Statement: reset, SQL: resetSQL}
 					fixture.LockExec(t, p.Ctx, c, "SET "+timer.setting+"='50ms'", 0)
-					s := fixture.Prepared(fixture.ImplicitError(q, fixture.Diagnostic{Code: timer.code, Message: timer.message}))
+					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: timer.code, Message: timer.message})
 					s.ErrorStage = "execute"
-					fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-					fixture.LockExec(t, p.Ctx, c, "SET "+timer.setting+"=0", 0)
+					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
+					// Reuse the pre-parsed reset on this same owner. Its Execute still
+					// obeys the inherited timer, but administrative parsing does not.
+					fixture.RunStep(t, p.Ctx, resetHeld, b.Recorder, fixture.Exec(resetSQL, 0))
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT relname FROM pg_class WHERE relname='ix'", []string{"relname"}, []string{"NAME"}, [][]any{{"ix"}}))
 					fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
@@ -134,9 +150,16 @@ func TestReferenceIndexMaintenanceLockCancellation(t *testing.T) {
 				} else {
 					// Actual native rebuild extraction/sort and final-publication veto require
 					// engine barriers, not a race-prone pre-canceled public SQL substitute.
+					resetSQL := "SET statement_timeout=0"
+					reset, err := c.PrepareContext(p.Ctx, resetSQL)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer reset.Close()
+					resetHeld := fixture.HeldStatement{Executor: c, Statement: reset, SQL: resetSQL}
 					fixture.LockExec(t, p.Ctx, c, "SET statement_timeout='50ms'", 0)
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError(q, fixture.Diagnostic{Code: "57014", Message: "canceling statement due to statement timeout"}))
-					fixture.LockExec(t, p.Ctx, c, "SET statement_timeout=0", 0)
+					fixture.RunStep(t, p.Ctx, resetHeld, b.Recorder, fixture.Exec(resetSQL, 0))
 				}
 				fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))

@@ -170,25 +170,25 @@ func TestReferencePGAttributeShape(t *testing.T) {
 	for i, q := range []string{"SELECT * FROM pg_catalog.pg_attribute WHERE FALSE", "SELECT * FROM pg_attribute WHERE attrelid=4294967295::oid"} {
 		t.Run("empty-"+strconv.Itoa(i+1), func(t *testing.T) {
 			pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-			s := fixture.Select(q, pgAttributeColumns, pgAttributeTypes, nil)
-			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgAttributeMetadata(t, rows, b.PG) }
-			for _, plain := range []bool{false, true} {
-				s.NonContext = plain
-				pgAttributeCheck(t, p, b, b.DB, s)
-				pgAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
-			}
-			s.NonContext = false
-			held := fixture.ViewHold(t, p, b, q)
-			pgAttributeCheck(t, p, b, held, s)
-			pgAttributeCheck(t, p, b, held, s)
+				s := fixture.Select(q, pgAttributeColumns, pgAttributeTypes, nil)
+				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { pgAttributeMetadata(t, rows, b.PG) }
+				for _, plain := range []bool{false, true} {
+					s.NonContext = plain
+					pgAttributeCheck(t, p, b, b.DB, s)
+					pgAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
+				}
+				s.NonContext = false
+				held := fixture.ViewHold(t, p, b, q)
+				pgAttributeCheck(t, p, b, held, s)
+				pgAttributeCheck(t, p, b, held, s)
 			})
 		})
 	}
 	tableCase := func(name string, body func(*testing.T, *fixture.Pair, fixture.Backend, int64)) {
 		t.Run(name, func(t *testing.T) {
 			pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-				pgClassExec(t, p, b, b.DB, "CREATE TABLE pa18_shape(a integer)")
-				id := pgAttributeID(t, p, b.DB, "pa18_shape")
+				pgClassExec(t, p, b, b.DB, "CREATE TABLE public.pa18_shape(a integer)")
+				id := pgAttributeID(t, p, b.DB, "public.pa18_shape")
 				body(t, p, b, id)
 			})
 		})
@@ -196,12 +196,14 @@ func TestReferencePGAttributeShape(t *testing.T) {
 	tableCase("populated", func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
 		pgAttributeRead(t, p, b, b.DB, id, " AND attnum>0", [][]any{pgAttributeRow(id, "a", 23, 4, 1, -1, 0, true, "i", "p", false, 0)})
 	})
+	// Filter each catalog input before joining: this witnesses null extension of
+	// the same relation's absent attribute, not a database-wide attribute product.
 	for i, q := range []string{
-			"SELECT attmissingval AS missing FROM pg_attribute WHERE attrelid=$1 AND attnum>0",
-			"SELECT missing FROM (SELECT attmissingval AS missing FROM pg_attribute WHERE attrelid=$1 AND attnum>0) s",
-			"SELECT (SELECT attmissingval FROM pg_attribute WHERE attrelid=$1 AND attnum=0) AS missing",
-			"SELECT absent.attmissingval AS missing FROM pg_attribute present LEFT JOIN pg_attribute absent ON absent.attrelid=present.attrelid AND absent.attnum=0 WHERE present.attrelid=$1 AND present.attnum=1",
-		} {
+		"SELECT attmissingval AS missing FROM pg_attribute WHERE attrelid=$1 AND attnum>0",
+		"SELECT missing FROM (SELECT attmissingval AS missing FROM pg_attribute WHERE attrelid=$1 AND attnum>0) s",
+		"SELECT (SELECT attmissingval FROM pg_attribute WHERE attrelid=$1 AND attnum=0) AS missing",
+		"SELECT absent.attmissingval AS missing FROM (SELECT attrelid FROM pg_catalog.pg_attribute WHERE attrelid=$1 AND attnum=1) present LEFT JOIN (SELECT attrelid,attnum,attmissingval FROM pg_catalog.pg_attribute WHERE attrelid=$1 AND attnum=0) absent ON absent.attrelid=present.attrelid AND absent.attnum=0",
+	} {
 		tableCase("anyarray-"+strconv.Itoa(i+1), func(t *testing.T, p *fixture.Pair, b fixture.Backend, id int64) {
 			s := fixture.Select(q, []string{"missing"}, []string{"ANYARRAY"}, [][]any{{nil}}, id)
 			pgAttributeCheck(t, p, b, b.DB, s)
@@ -221,8 +223,8 @@ func TestReferencePGAttributeShape(t *testing.T) {
 	})
 	t.Run("builtin-identities", func(t *testing.T) {
 		pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT oid,reltype FROM pg_class WHERE oid=1249", []string{"oid", "reltype"}, []string{"OID", "OID"}, [][]any{{int64(1249), int64(75)}}))
-		pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT 'pg_catalog.pg_attribute[]'::regtype::oid AS array_type", []string{"array_type"}, []string{"OID"}, [][]any{{int64(270)}}))
+			pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT oid,reltype FROM pg_class WHERE oid=1249", []string{"oid", "reltype"}, []string{"OID", "OID"}, [][]any{{int64(1249), int64(75)}}))
+			pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT 'pg_catalog.pg_attribute[]'::regtype::oid AS array_type", []string{"array_type"}, []string{"OID"}, [][]any{{int64(270)}}))
 		})
 	})
 }

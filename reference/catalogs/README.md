@@ -16,6 +16,12 @@ plain methods plus two reads through the SAME held statement. Literal25-column
 labels/types, raw descriptors and native label ownership remain exact.
 Each NULL composition keeps direct/fresh-prepared/held routes; count0/isnulltrue,
 CTAS42P16/no publication and builtin1249/75/270 remain independent expectations.
+The LEFT JOIN composition resolves `public.pa18_shape` independently by qualified
+REGCLASS identity, then bounds both catalog inputs by that OID and attribute
+number before joining. It retains the actual relationship predicate and the
+null-extended ANYARRAY result without multiplying the database-wide attribute
+inventory. Direct, fresh-prepared and SAME-held middleware routes use the same
+SQL and unchanged 30-second fixture context; no deadline is refreshed or raised.
 
 ```sh
 make check RUN='^TestReferencePGAttributeShape$' REFERENCE=1

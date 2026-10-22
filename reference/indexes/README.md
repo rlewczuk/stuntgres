@@ -209,6 +209,33 @@ make check RUN='^TestReferenceHashIndexBuildAdmission$' REFERENCE=1
 make check RUN='^TestReferenceHashIndexBuildAdmission$' RACE=1
 ```
 
+### Index maintenance lock fixtures
+
+`TestReferenceIndexMaintenanceLocks` prepares the actual held REINDEX/DROP
+statement before arming the unchanged50ms lock/statement timeout. The timeout
+witness executes that same held statement and requires the complete55P03/57014
+diagnostic at Execute, not Prepare. Failed maintenance retains the index and
+data; after the holder rolls back, the same physical owner executes the original
+utility successfully. Commit/rollback release, read-only admission, cancellation
+recovery and PostgreSQL lock-mode diagnostics remain separate full witnesses.
+
+Both that witness and the native timeout branch of
+`TestReferenceIndexMaintenanceLockCancellation` prepare their held timer-reset
+SET before arming the timer, then execute the reset on the same physical owner.
+This removes avoidable administrative parsing under the low timeout without
+changing the direct/prepared maintenance routes. Reset Execute still obeys the
+inherited timer: this fixture does not promise immunity to arbitrary host
+scheduling, retry failures or increase the50ms budget.
+
+```sh
+make check RUN='^TestReferenceIndexMaintenanceLock'
+make check RUN='^TestReferenceIndexMaintenanceLock' REFERENCE=1
+make check RUN='^TestReferenceIndexMaintenanceLock' RACE=1
+```
+
+Each selected command requires a900-second external deadline. These selectors
+cover all four lock definitions, not only the originally failing DROP subcase.
+
 ### Existing-index constraint attachment witnesses
 
 The thirteen shared `TestReferenceUsingIndex` definitions use the existing fixture
