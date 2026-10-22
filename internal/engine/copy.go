@@ -178,13 +178,8 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			b.Insert.Defaults[i] = nil
 			continue
 		}
-		defaultEvaluation := evaluation
-		analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
-		folded, _, planErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
+		folded, planErr := dml.FoldDefault(&evaluation, &b, i, expression, auth.Catalog, view.ValidateExpressionJoinExecution)
 		if planErr != nil {
-			return 0, planErr
-		}
-		if planErr = view.ValidateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); planErr != nil {
 			return 0, planErr
 		}
 		b.Insert.Defaults[i] = folded

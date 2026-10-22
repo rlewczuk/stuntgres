@@ -1,4 +1,4 @@
-package engine
+package dml
 
 import (
 	"context"
@@ -13,8 +13,7 @@ import (
 )
 
 func TestCTEDMLInvocationOwnership(t *testing.T) {
-	e := New()
-	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
+	integer, _ := builtinType(sqltype.Int4)
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -40,7 +39,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if width != 0 {
 				first = &rows.Values[0]
 			}
-			if err := completeCTEMutation(owner, definition, Result{Count: 3, Rows: rows}); err != nil {
+			if err := CompleteCTEMutation(owner, definition, 3, rows); err != nil {
 				t.Fatal(err)
 			}
 			producer := owner.Producers[definition]
@@ -89,14 +88,14 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if _, err := exec.OpenCTEScan(context.Background(), &exec.State{Source: fresh.State.Source, Ctes: fresh}, scan); err == nil {
 				t.Fatal("fresh invocation inherited completed producer")
 			}
-			if err := completeCTEMutation(owner, definition, Result{}); err == nil {
+			if err := CompleteCTEMutation(owner, definition, 0, nil); err == nil {
 				t.Fatal("modifier completed twice")
 			}
 		}
 	}
 	noReturning := &plan.CTEDefinition{Owner: 1, Mutation: &analyze.Binding{}}
 	completion := &exec.CTEInvocation{Frame: 1}
-	if err := completeCTEMutation(completion, noReturning, Result{Count: 2}); err != nil {
+	if err := CompleteCTEMutation(completion, noReturning, 2, nil); err != nil {
 		t.Fatal(err)
 	}
 	modifier := completion.Producers[noReturning]

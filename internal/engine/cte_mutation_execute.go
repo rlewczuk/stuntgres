@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -273,7 +274,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		if commandOwner == nil {
 			return Result{}, fmt.Errorf("stuntgres: missing admitted CTE owner")
 		}
-		if err := completeCTEMutation(commandOwner, command.definition, output); err != nil {
+		if err := dml.CompleteCTEMutation(commandOwner, command.definition, output.Count, output.Rows); err != nil {
 			return Result{}, err
 		}
 		e.mu.Lock()
@@ -290,37 +291,4 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	scope.installRuleScratch(prepared.mainScratch)
 	scope.ruleAction = originalRuleAction
 	return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
-}
-
-func completeCTEMutation(o *exec.CTEInvocation, definition *plan.CTEDefinition, result Result) error {
-	if o.Closed || o.Producers[definition] != nil {
-		if result.Rows != nil {
-			result.Rows.Close()
-		}
-		return fmt.Errorf("stuntgres: CTE modifier completed more than once")
-	}
-	producer := &exec.CTEProducer{Done: true, Closed: true, Affected: result.Count}
-	if mutation, _ := analyze.MutationBinding(definition); mutation.Returning != nil {
-		rows, ok := result.Rows.(*exec.FinalRows)
-		if !ok {
-			if result.Rows != nil {
-				result.Rows.Close()
-			}
-			return fmt.Errorf("stuntgres: CTE modifier lacks typed output")
-		}
-		producer.Source = &exec.Source{Flat: rows.Values, FlatWidth: len(rows.Columns), FlatCount: rows.Count, Materialized: true, Authority: o.State.Source.Authority, Host: o.State.Source.Host, Locks: o.State.Source.Locks}
-		rows.Values = nil // Transfer the typed buffer, never Scan/reimport/copy.
-		if err := rows.Close(); err != nil {
-			return err
-		}
-	} else if result.Rows != nil {
-		result.Rows.Close()
-		return fmt.Errorf("stuntgres: no-RETURNING CTE produced a relation")
-	}
-	if o.Producers == nil {
-		o.Producers = make(map[*plan.CTEDefinition]*exec.CTEProducer)
-	}
-	o.Producers[definition] = producer
-	o.Order = append(o.Order, producer)
-	return nil
 }

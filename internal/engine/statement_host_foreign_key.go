@@ -177,13 +177,8 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 		if expression == nil {
 			continue
 		}
-		defaultEvaluation := evaluation
-		analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&b, plan.Targets[i]), &defaultEvaluation)
-		folded, _, err := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
+		folded, err := dml.FoldDefault(&evaluation, &b, plan.Targets[i], expression, auth.Catalog, exec.AdmitExpression)
 		if err != nil {
-			return err
-		}
-		if err := exec.AdmitExpression(&defaultEvaluation, folded, auth.Catalog); err != nil {
 			return err
 		}
 		plan.Defaults[i] = folded
