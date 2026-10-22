@@ -91,8 +91,8 @@ dml-area files hold 75 `StatementScope` and 20 `Engine` methods.
 | `physicalRowEvent`, `flushPhysicalEvents` | root row-lock area (`statement_host_row_lock.go`) | done (29a) |
 | FK probe records (`foreign_key_probe.go`: `findForeignKeyParent`, `prepareForeignKeyChild`, `foreignKeyRows`, `probeForeignKeyIndex`); also used by `foreign_key_restore.go` | `table` | done (24b: `table.FindForeignKeyParent`, `table.ForeignKeyRows`, ...); `dml` imports them |
 | `inheritance_query*.go` (`captureInheritanceQueryPrefix`, `inheritanceQueryClosure`, `inheritanceQueryLeaves`, `sourceOnly`); also used by SELECT admission (`query_admission.go`) | `table` (clean helpers, 24b; `InheritanceQueryLeaves` and the pending-grant decision `InheritancePendingGrants`, 24g); the scope methods stay with root query admission | done (24b, 24g) |
-| COPY codecs (options, FORCE binding, `ResolveColumns`, text/CSV `LineReader`, `BinaryReader`) | `copyfmt` (done, 19b) | 19 |
-| COPY execution (`copy.go`, `copy_text.go`, `copy_binary.go`, `copy_insertion.go`: cursors' `Next`/`diagnostic`, `copyOutput`, `copyBinaryOutput`) | `dml` | 29b |
+| COPY codecs (options, FORCE binding, `ResolveColumns`, text/CSV `LineReader`, `BinaryReader`, the COPY TO writers `WriteRows`) | `copyfmt` (done, 19b and 19c) | 19 |
+| COPY execution (`copy.go`, `copy_text.go`, `copy_insertion.go`: cursors' `Next`/`diagnostic`, the thin `copyOutput` over `copyfmt.WriteRows`) | `dml` | 29b |
 | COPY protocol and reservation (`copy_admission.go`, `protocol_copy.go`, `protocol_copy_query.go`, `CopyBoundary`, `StatementScope.Copy`/`CopyProtocol`) | root (public facade) | — |
 
 **`statementMutation`** (`cte_mutation_scope.go`) is the per-command

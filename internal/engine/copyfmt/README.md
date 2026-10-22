@@ -1,8 +1,8 @@
 # internal/engine/copyfmt
 
 The COPY data formats: option parsing, FORCE binding, text and CSV
-reading and writing, and binary framing. It is plain Go over a reader and
-parsed options; it knows nothing of the statement, session or transaction
+reading and writing, and binary framing. It is plain Go over a reader or
+writer and parsed options; it knows nothing of the statement, session or transaction
 running the COPY.
 
 The package sits at layer L4 of
@@ -37,6 +37,13 @@ is not `copy`, which would shadow the builtin in every importing file.
   (`ReadHeader`, `BinarySignature`), and frames tuples (`Row`: field count,
   `-1` trailer, data after the trailer) and fields (`Field`: length word,
   size limits, payload).
+- **COPY TO writers** (`writer.go`, `binary_writer.go`): `WriteRows`
+  encodes the rows of a `RowSource` (`Next` into a value slice,
+  `OutputEnvironment`) to an `io.Writer`, one `Write` per line or tuple
+  (a short write is `io.ErrShortWrite`). Text and CSV write the HEADER
+  line first and use `AppendText`/`AppendCSV`; binary writes the file
+  header, the tuples and the `-1` trailer, and with `checkSend` resolves
+  the send providers before the signature.
 
 ## What stays outside
 
@@ -47,8 +54,9 @@ is not `copy`, which would shadow the builtin in every importing file.
   and cancellation. Wire-input checks (`CopyInput`,
   `PendingProtocolUserCancel`, `PendingCopyInputError`) stay in the
   cursors' `Next`, never in the codec.
-- **Execution**: binding the target and output rows in the root
-  (`copy.go`, `copy_text.go`, `copy_binary.go`); converting fields to
+- **Execution**: binding the target and producing the output rows in the
+  root (`copy.go`; `copy_text.go`'s `copyOutput` passes them to `WriteRows`
+  through `copyWriter` and re-checks the statement after the last row); converting fields to
   values, the "COPY t, line N" context and insertion in `dml`
   (`copy_cursor.go`, `copy_binary_cursor.go`, `copy_insertion.go`).
 
@@ -61,17 +69,19 @@ is not `copy`, which would shadow the builtin in every importing file.
   buffers are reused across records; `Fields`, `Line` and a `Field`
   payload are valid only until the next read. Binary payloads grow with
   bytes actually read, not the declared length.
+  `WriteRows` allocates its value slice and one output buffer per
+  statement and reuses them for every row.
 - `LineReader` and `BinaryReader` are values held by one cursor; they are
   not safe for concurrent use and need no lock.
 
 ## Testing
 
 Unit tests: option parsing (`options_test.go`), CSV framing, fields and
-output (`csv_test.go`), text escapes (`line_reader_test.go`) and context
-truncation (`context_test.go`):
+output (`csv_test.go`), text escapes (`line_reader_test.go`), context
+truncation (`context_test.go`) and the COPY TO writers (`writer_test.go`):
 
 ```sh
-make check RUN='^TestCopy(CSV(Options|Framing|Fields|Output|Context)|BinaryOptions|TextEscapeUnits)$'
+make check RUN='^TestCopy(CSV(Options|Framing|Fields|Output|Context)|BinaryOptions|TextEscapeUnits|WriteRows)$'
 ```
 
 The public behavior is covered by the dual-mode reference tests

@@ -305,7 +305,25 @@ not grow.
   binary 20,085–20,086 allocs/op on both. Selected unit/`RACE=1` and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request
-- [ ] 19c — COPY TO writers (linear item 138)
+- [x] 19c — COPY TO writers (`1ab14cd11`, then the docs commit; linear item
+  138). `copyOutput` and `copyBinaryOutput` moved to `copyfmt` as
+  `WriteRows` (`writer.go`, text/CSV) and its private `writeBinary`
+  (`binary_writer.go`, a rename of `copy_binary.go`), over the
+  `RowSource` interface (`Next`, `OutputEnvironment`; `exec.RowResult`
+  satisfies it), the schema, a `checkSend` flag and an `io.Writer`. The
+  write closures became `writeAll`. Root `copyOutput` (`copy_text.go`)
+  is now the thin adapter: it passes `s.op.Context()` once (the context
+  changes only while COPY FROM holds `CopyInput`), `copyWriter{s, w}`
+  and `protocol.command || protocol.simple`, and keeps the trailing
+  `s.active()` check. No aliases; `copyfmt` gained only `context`,
+  `encoding/binary` and `math`. New unit test `TestCopyWriteRows`
+  (`writer_test.go`: text/CSV HEADER, NULL, quoting, binary framing,
+  short write), observed failing before the move. Allocations for
+  10,000-row COPY TO, master and branch alternated: text and CSV
+  9,954 → 9,955, binary 53 → 54 allocs/op: one 16-byte allocation per
+  statement, from boxing `copyWriter` into the `io.Writer`; per-row
+  allocations are unchanged. Selected unit/`RACE=1` and dual-mode proof
+  and quickcheck passed; racecheck/finalcheck skipped at user request
 
 Outstanding aliases: none.
 
@@ -313,8 +331,9 @@ Outstanding aliases: none.
 
 - Step 29 (`dml`): the COPY execution half (`bindCopyLocked`,
   `initCopyInputLocked`, `copyTableRows`, the cursors' `Next` and
-  `diagnostic`, `copy_insertion.go`, `copyOutput`, `copyBinaryOutput`)
-  moves with the DML executors. The protocol half (`copy_admission.go`,
+  `diagnostic`, `copy_insertion.go`) moves with the DML executors. Since
+  19c the COPY TO encoding is `copyfmt.WriteRows`; the root `copyOutput`
+  is only the protocol adapter (`copyWriter`, trailing `active()`). The protocol half (`copy_admission.go`,
   `protocol_copy*.go`, `CopyBoundary`, `StatementScope.Copy` and
   `CopyProtocol`) stays in the root.
 - §6 estimated the codec at about 1.0k lines; after 19a it is 913 lines
