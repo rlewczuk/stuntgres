@@ -840,12 +840,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		scope.stageProjectedColumnRoots(ref.Address, projectedWrites, projectedDeletes)
 	}
 	if changedValues {
-		if err := scope.validateAlterForeignKeys(e.stageRead(stage), ref.Address); err != nil {
+		candidate := e.stageRead(stage)
+		if err := scope.validateForeignKeys(candidate, table.ReferencingForeignKeys(candidate, ref.Address)); err != nil {
 			return Result{}, err
 		}
 	}
-	if len(transformations) == 0 {
-		if err := scope.validateAddedForeignKeys(e.stageRead(stage), next, addedForeignKeys); err != nil {
+	if len(transformations) == 0 && len(addedForeignKeys) != 0 {
+		if err := scope.validateForeignKeys(e.stageRead(stage), table.AddedForeignKeys(next, addedForeignKeys)); err != nil {
 			return Result{}, err
 		}
 	}

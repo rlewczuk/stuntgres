@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"stuntgres/internal/engine/analyze"
@@ -11,7 +10,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // Pending declarations live only inside the isolated Restore invocation. Capture
@@ -83,22 +81,10 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 					return err
 				}
 			}
-			target := definition.Target
-			if target == (ids.ObjectAddress{}) {
-				for _, namespace := range definition.Path {
-					target = base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.Raw.Target.Parts[len(definition.Raw.Target.Parts)-1].Text})
-					if target != (ids.ObjectAddress{}) {
-						break
-					}
-				}
-			}
-			if target == (ids.ObjectAddress{}) {
+			target, err := definition.ResolveTarget(base)
+			if err != nil {
 				e.mu.Unlock()
-				return sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(definition.Raw.Target)))
-			}
-			if _, ok := base.Find(target); !ok {
-				e.mu.Unlock()
-				return ids.ErrCatalogReplaced
+				return err
 			}
 			if err := table.StageForeignKey(ddlHost{e: e, op: op, stage: stage}, declaration.Auth, child, definition.Raw, target, definition.Supporting); err != nil {
 				e.mu.Unlock()
@@ -115,34 +101,26 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 	}
 	e.mu.Unlock()
 	view := e.stageRead(stage)
+	// The Restore scan reads the committed rows and index roots directly.
+	capture := func(ref ids.ObjectRef, idx ids.ObjectAddress) (table.ForeignKeyRows, error) {
+		store := e.storage.Relations[ref.Address]
+		if store == nil {
+			return table.ForeignKeyRows{}, ids.ErrCatalogReplaced
+		}
+		rows := table.ForeignKeyRows{Storage: store, Committed: store.Versions, Ends: store.Ends, Frontier: e.visibility.CommitSeq()}
+		if idx != (ids.ObjectAddress{}) {
+			rows.Index, rows.Root = idx, e.storage.IndexRoots[idx]
+		}
+		return rows, nil
+	}
 	for _, declaration := range pending {
 		child := view.MustRelation(declaration.Child.Address)
 		auth := ddlAuthorityOf(declaration.Auth)
 		auth.Catalog = view
 		auth.Recapture(auth.Catalog)
-		for _, definition := range declaration.Definitions {
-			if definition.BoundSlot < 0 || definition.BoundSlot >= len(child.Constraints.ForeignKeys) || definition.BoundOID == 0 || child.Constraints.ForeignKeys[definition.BoundSlot].OID != definition.BoundOID {
-				return ids.ErrCatalogReplaced
-			}
-			f := child.Constraints.ForeignKeys[definition.BoundSlot]
-			if f.NotValid {
-				continue
-			}
-			parent := view.MustRelation(f.Target)
-			index := view.MustRelation(f.Index)
-			comparisons, err := table.BindForeignKeyComparison(view, child, parent, index, f)
-			if err != nil {
-				return err
-			}
-			childStore, parentStore := e.storage.Relations[child.Address()], e.storage.Relations[parent.Address()]
-			if childStore == nil || parentStore == nil {
-				return ids.ErrCatalogReplaced
-			}
-			children := table.ForeignKeyRows{Storage: childStore, Committed: childStore.Versions, Ends: childStore.Ends, Frontier: e.visibility.CommitSeq()}
-			parents := table.ForeignKeyRows{Storage: parentStore, Committed: parentStore.Versions, Ends: parentStore.Ends, Frontier: e.visibility.CommitSeq(), Index: f.Index, Root: e.storage.IndexRoots[f.Index]}
-			if err := table.ValidateForeignKeyData(ctx, auth.View, auth, child, parent, f, comparisons, children, parents, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
-				return err
-			}
+		scan := table.ForeignKeyScan{View: auth.View, Env: auth, Domain: e.catalog.Domain, Capture: capture}
+		if err := table.ScanRestoredForeignKeys(ctx, scan, child, declaration.Definitions); err != nil {
+			return err
 		}
 	}
 	prepared, err := e.ValidateCatalogStage(ctx, stage)

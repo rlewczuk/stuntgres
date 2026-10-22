@@ -68,25 +68,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		captures[i].Target = ref
 		captures[i].Storage = e.privateStorageLocked(s.owner.Catalog, ref.Address)
 		if ref != childRef {
-			parent, ok := auth.Catalog.Relation(ref.Address)
-			if ok && parent.RelationKind == catalog.TableRelation {
-				var attributes []int32
-				if len(action.ForeignKey.Referenced) == 0 {
-					for _, key := range parent.Constraints.Unique {
-						if key.Primary {
-							attributes = key.Attributes
-							break
-						}
-					}
-				} else {
-					attributes, _ = table.ForeignKeyAttributes(parent, action.ForeignKey.Referenced)
-				}
-				if len(attributes) != 0 {
-					if index, keyErr := table.ForeignKeyIndex(auth.Catalog, parent, attributes); keyErr == nil {
-						captures[i].Index = index.Address()
-					}
-				}
-			}
+			captures[i].Index = table.AlterForeignKeyIndex(auth.Catalog, ref.Address, *action.ForeignKey)
 		}
 		if !slices.Contains(refs, ref) {
 			refs = append(refs, ref)
@@ -149,59 +131,17 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	return nil
 }
 
-// Only definitions introduced by this ALTER get an initial historical scan.
-// The ordinary Finish checker remains responsible for genuine later writes.
-func (s *StatementScope) validateAddedForeignKeys(view catalog.Read, child *catalog.Relation, added []ids.OID) error {
-	if len(added) == 0 {
-		return nil
-	}
+// validateForeignKeys scans the existing rows of checks, keys of the
+// candidate view, as the operation's authority over view. Only definitions an
+// ALTER introduced or whose values it changed get this initial historical
+// scan; the ordinary Finish checker remains responsible for later writes.
+func (s *StatementScope) validateForeignKeys(view catalog.Read, checks []table.ForeignKeyCheck) error {
 	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	e := s.engine()
-	for _, f := range child.Constraints.ForeignKeys {
-		if f.NotValid || !slices.Contains(added, f.OID) {
-			continue
-		}
-		parent, ok := view.Relation(f.Target)
-		if !ok {
-			return ids.ErrCatalogReplaced
-		}
-		index, ok := view.Relation(f.Index)
-		if !ok {
-			return ids.ErrCatalogReplaced
-		}
-		comparisons, err := table.BindForeignKeyComparison(view, child, parent, index, f)
-		if err != nil {
-			return err
-		}
-		children, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), child.Address()), ids.ObjectAddress{})
-		if err != nil {
-			return err
-		}
-		parents, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), parent.Address()), f.Index)
-		if err != nil {
-			return err
-		}
-		if err := table.ValidateForeignKeyData(s.op.Context(), auth.View, auth, child, parent, f, comparisons, children, parents, s.input, s.output); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func installedForeignKey(stage *CatalogStage, address ids.ObjectAddress, f catalog.ForeignKeyConstraint) bool {
-	parent, ok := stage.Base.Relation(address)
-	if !ok {
-		return false
-	}
-	for _, old := range parent.Constraints.ForeignKeys {
-		if old.Name == f.Name && old.Target == f.Target && old.Full == f.Full && old.NotValid == f.NotValid && old.UpdateAction == f.UpdateAction && old.DeleteAction == f.DeleteAction && slices.Equal(old.DeleteAttributes, f.DeleteAttributes) && slices.Equal(old.Attributes, f.Attributes) && slices.Equal(old.Referenced, f.Referenced) {
-			return true
-		}
-	}
-	return false
+	scan := table.ForeignKeyScan{View: auth.View, Env: auth, Domain: s.engine().catalog.Domain, Capture: s.captureForeignKeyRows, Input: s.input, Output: s.output}
+	return table.ScanForeignKeys(s.op.Context(), scan, checks)
 }

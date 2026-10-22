@@ -2,6 +2,7 @@ package table
 
 import (
 	"context"
+	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
@@ -25,6 +26,29 @@ type RestoredForeignKeys struct {
 	Child       ids.ObjectRef
 	Auth        ddl.Authority // The declaring principal; root staging recovers it.
 	Definitions []RestoredForeignKey
+}
+
+// ResolveTarget is the parent the definition binds to in base: its captured
+// target, else the first relation of its name along its captured path. No
+// such relation is 42P01; a captured target base no longer holds is
+// ErrCatalogReplaced.
+func (d RestoredForeignKey) ResolveTarget(base catalog.Read) (ids.ObjectAddress, error) {
+	target := d.Target
+	if target == (ids.ObjectAddress{}) {
+		for _, namespace := range d.Path {
+			target = base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: d.Raw.Target.Parts[len(d.Raw.Target.Parts)-1].Text})
+			if target != (ids.ObjectAddress{}) {
+				break
+			}
+		}
+	}
+	if target == (ids.ObjectAddress{}) {
+		return ids.ObjectAddress{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(d.Raw.Target)))
+	}
+	if _, ok := base.Find(target); !ok {
+		return ids.ObjectAddress{}, ids.ErrCatalogReplaced
+	}
+	return target, nil
 }
 
 func StripRestoreForeignKeys(raw *parser.CreateTable) {
