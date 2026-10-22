@@ -1053,10 +1053,10 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err := normalizeReplacementIndexHistory(ctx, replacement); err != nil {
+	if err := catalog.NormalizeReplacementIndexHistory(ctx, replacement); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := normalizeReplacementSubclassHistory(ctx, replacement); err != nil {
+	if err := catalog.NormalizeReplacementSubclassHistory(ctx, replacement); err != nil {
 		return ChangeSet{}, err
 	}
 	targetRoles := e.Roles()

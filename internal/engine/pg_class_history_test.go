@@ -101,7 +101,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	view.State().SetDescriptor(child.Address(), child)
 	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, History: catalog.PublicationHistory{HasSubclasses: true}, Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
 	view.State().SetDescriptor(history.Address(), history)
-	if err := normalizeReplacementSubclassHistory(context.Background(), view); err != nil {
+	if err := catalog.NormalizeReplacementSubclassHistory(context.Background(), view); err != nil {
 		t.Fatal(err)
 	}
 	got := view.MustRelation(parent.Address())
@@ -118,12 +118,12 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := normalizeReplacementSubclassHistory(canceled, view); !errors.Is(err, context.Canceled) {
+	if err := catalog.NormalizeReplacementSubclassHistory(canceled, view); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	missing := e.catalog.read(catalog.CloneState(view.State()))
 	missing.State().RemoveDescriptor(parent.Address())
-	if err := normalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
+	if err := catalog.NormalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")
 	}
 }

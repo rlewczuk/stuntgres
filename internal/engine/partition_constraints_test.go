@@ -576,7 +576,7 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 	for a, d := range f.view.Descriptors() {
 		replacement.SetDescriptor(a, d)
 	}
-	if err := normalizeReplacementIndexHistory(context.Background(), f.e.catalog.read(&replacement)); err != nil {
+	if err := catalog.NormalizeReplacementIndexHistory(context.Background(), f.e.catalog.read(&replacement)); err != nil {
 		t.Fatal(err)
 	}
 	if !replacement.MustRelation(f.root.Address()).History.HasIndexes || !replacement.MustRelation(f.leaf.Address()).History.HasIndexes || f.root.History.HasIndexes || f.leaf.History.HasIndexes {
