@@ -19,6 +19,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -1328,7 +1329,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		return ChangeSet{}, err
 	}
 	var err error
-	replacement, err = persistentReplacementCatalog(replacement)
+	replacement, err = control.PersistentReplacementCatalog(replacement)
 	if err != nil {
 		return ChangeSet{}, err
 	}

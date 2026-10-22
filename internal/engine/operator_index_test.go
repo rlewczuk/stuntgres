@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
@@ -317,7 +318,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	}
 	target.catalog.state = target.stageRead(stage).State()
 	retained := target.catalog.state
-	projection, err := persistentReplacementCatalog(target.CatalogRead())
+	projection, err := control.PersistentReplacementCatalog(target.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +327,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	}
 	assertOperatorIndex(t, projection.State())
 	assertOperatorIndex(t, retained)
-	projectedSource, err := persistentReplacementCatalog(source.CatalogRead())
+	projectedSource, err := control.PersistentReplacementCatalog(source.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}

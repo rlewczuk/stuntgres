@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"testing"
@@ -68,7 +69,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		source := f.e.CatalogRead()
 		scoped := catalog.DefaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultTables}
 		global := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
-		projection, err := persistentReplacementCatalog(source)
+		projection, err := control.PersistentReplacementCatalog(source)
 		if err != nil {
 			t.Fatal(err)
 		}

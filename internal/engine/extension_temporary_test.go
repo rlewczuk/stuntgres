@@ -13,6 +13,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -491,7 +492,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		t.Fatal("setup did not create genuine cross-class identity collision")
 	}
 	original := e.catalog.state
-	if _, err := persistentReplacementCatalog(e.CatalogRead()); err == nil || err.Error() != "stuntgres: temporary extension installation is not portable" {
+	if _, err := control.PersistentReplacementCatalog(e.CatalogRead()); err == nil || err.Error() != "stuntgres: temporary extension installation is not portable" {
 		t.Fatal("source TEMP transfer must fail", err)
 	}
 	if e.catalog.state != original {

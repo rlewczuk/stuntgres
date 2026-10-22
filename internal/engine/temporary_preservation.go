@@ -4,14 +4,11 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -21,47 +18,6 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
-
-// Replacement transfers only portable objects. SessionToken authority belongs
-// to the source physical session and cannot be imported, even by self replacement:
-// the destination overlays its exact current live TEMP objects after capture.
-// Keep the supplied published view immutable and use this private candidate for
-// provider validation and generator/storage capture as well as installation.
-func persistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
-	for _, descriptor := range view.Descriptors() {
-		if extension, ok := descriptor.(*catalog.Extension); ok {
-			namespace, ok := view.Namespace(extension.TargetNamespace)
-			if !ok {
-				return catalog.Read{}, fmt.Errorf("stuntgres: extension namespace is missing")
-			}
-			if namespace.Temporary != (ids.SessionToken{}) {
-				return catalog.Read{}, fmt.Errorf("stuntgres: temporary extension installation is not portable")
-			}
-		}
-	}
-	next := catalog.CloneState(view.State())
-	operators := catalog.OperatorIndexEdit{Index: view.State().OperatorNames()}
-	procedures := catalog.ProcedureIndexEdit{Index: view.State().ProcedureNames()}
-	for a, d := range view.Descriptors() {
-		ns, isNamespace := d.(*catalog.Namespace)
-		parent, hasParent := view.Namespace(d.Namespace())
-		if isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
-			operators.Replace(d, nil)
-			procedures.Replace(d, nil)
-			next.RemoveDescriptor(a)
-		}
-	}
-	for key, a := range view.Names() {
-		parent, hasParent := view.Namespace(key.Namespace)
-		if view.Get(a) != nil && next.Get(a) == nil || hasParent && parent.Temporary != (ids.SessionToken{}) {
-			next.UnbindName(key)
-		}
-	}
-	next.SetOperatorNames(operators.Index)
-	next.SetProcedureNames(procedures.Index)
-	catalog.PruneNamespaceDefaults(view.State(), next, nil)
-	return view.WithState(next), nil
-}
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
@@ -73,187 +29,15 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := e.checkTemporaryRuleSourcesReplacementLocked(); err != nil {
 		return err
 	}
-	temporary := make(map[ids.ObjectAddress]catalog.Descriptor)
-	for a, d := range e.catalog.state.Descriptors() {
-		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
-			temporary[a] = d
-		}
-	}
-	namespaces := make(map[ids.ObjectAddress]bool, len(temporary))
-	for address := range temporary {
-		namespaces[address] = true
-	}
-	children, err := catalog.NamespaceChildren(e.catalog.read(e.catalog.state), namespaces)
+	current := e.catalog.read(e.catalog.state)
+	temporary, err := control.TemporarySet(current, next)
 	if err != nil {
 		return err
 	}
-	for _, address := range children {
-		descriptor := e.catalog.state.Get(address)
-		if extension, ok := descriptor.(*catalog.Extension); ok {
-			if imported, exists := next.LookupName(catalog.DescriptorNameKey(extension)); exists && next.Get(imported) != extension {
-				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.Name())
-			}
-		}
-		temporary[address] = descriptor
+	if err := control.CheckTemporaryDependencies(current, next, temporary); err != nil {
+		return err
 	}
-	// Persistent replacement cannot substitute imported domains for a live
-	// TEMP array's exact dependency identities. Fail before allocator/state work.
-	for _, descriptor := range temporary {
-		relation, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		for _, policy := range relation.Security.Policies {
-			for _, condition := range []*stored.Policy{stored.PolicyOf(policy.Using), stored.PolicyOf(policy.Check)} {
-				if condition == nil {
-					continue
-				}
-				for _, leaf := range condition.Presentation().Sources() {
-					if _, retained := temporary[leaf.Ref.Address]; retained {
-						continue
-					}
-					if next.Get(leaf.Ref.Address) != e.catalog.state.Get(leaf.Ref.Address) {
-						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
-					}
-				}
-				for _, dependency := range condition.Presentation().Dependencies() {
-					address := dependency.Ref.Address
-					address.SubID = 0
-					if _, retained := temporary[address]; retained {
-						continue
-					}
-					if next.Get(address) != e.catalog.state.Get(address) {
-						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
-					}
-				}
-			}
-		}
-		for _, column := range relation.Columns {
-			typ := column.Usage.Type
-			if !typ.BaseType().IsArray() || !arrayDomainDependency(typ) {
-				continue
-			}
-			if !retainedArrayDependencies(e.catalog.state, next, typ) {
-				return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported")
-			}
-		}
-	}
-	// Retained TEMP columns retain exact builtin generations and their array
-	// associations. Imported columns/values are reowned below, never TEMP rows.
-	typesChanged := false
-	retained := make(map[sqltype.ID]bool)
-	var retainBuiltin func(*sqltype.Descriptor)
-	retainBuiltin = func(typ *sqltype.Descriptor) {
-		if typ == nil || typ.IsDomain() || typ.IsArray() && typ.Element().IsDomain() || retained[typ.ID()] {
-			return
-		}
-		retained[typ.ID()] = true
-		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
-		source, ok := e.catalog.state.Type(address)
-		if !ok || source.SQLType != typ {
-			return
-		}
-		if imported, ok := next.Type(address); ok && imported.SQLType != typ {
-			copy := *imported
-			copy.SQLType = typ
-			next.SetDescriptor(address, &copy)
-			typesChanged = true
-		}
-		if typ.IsArray() {
-			retainBuiltin(typ.Element())
-		}
-		if source.Array != 0 {
-			if array, ok := e.catalog.state.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.Array)}); ok {
-				retainBuiltin(array.SQLType)
-			}
-		}
-	}
-	for _, descriptor := range temporary {
-		if relation, ok := descriptor.(*catalog.Relation); ok {
-			for _, column := range relation.Columns {
-				retainBuiltin(column.Usage.Type)
-			}
-			retainExpression := func(node expr.Expr) {
-				plan.WalkExpression(node, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
-			}
-			for _, definition := range relation.ColumnMeta.Defaults {
-				retainExpression(definition.Expression)
-			}
-			for _, definition := range relation.Constraints.Check {
-				retainExpression(definition.Expression)
-			}
-			for _, policy := range relation.Security.Policies {
-				for _, condition := range []*stored.Policy{stored.PolicyOf(policy.Using), stored.PolicyOf(policy.Check)} {
-					if condition != nil {
-						analyze.WalkQueryArgumentExpression(condition.Expression(), func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
-					}
-				}
-			}
-			for _, definition := range relation.ColumnMeta.Generations {
-				retainExpression(definition.Expression)
-				retainExpression(definition.Planned)
-			}
-			if index := relation.SQLIndex; index != nil {
-				for _, key := range index.Keys {
-					if key.Derived != nil {
-						retainExpression(key.Derived.Definition)
-						retainExpression(key.Derived.Execution)
-					}
-				}
-				if predicate := index.Predicate; predicate != nil {
-					retainExpression(predicate.Definition)
-					retainExpression(predicate.Execution)
-				}
-			}
-			if definition := stored.ViewOf(relation); definition != nil {
-				var retainQuery func(plan.Node)
-				retainQuery = func(node plan.Node) {
-					if node == nil {
-						return
-					}
-					for _, column := range node.Schema() {
-						retainBuiltin(column.Usage.Type)
-					}
-					plan.QueryExpressions(node, func(expression expr.Expr) {
-						plan.WalkExpression(expression, func(expression expr.Expr) {
-							retainBuiltin(expression.ResultUsage().Type)
-							if child, ok := expression.(plan.SubqueryExpr); ok {
-								retainQuery(child.QueryPlan.Root)
-							}
-						})
-					})
-					left, right := plan.QueryInputs(node)
-					retainQuery(left)
-					retainQuery(right)
-				}
-				retainQuery(definition.Query().Root)
-				for _, literal := range definition.Literals() {
-					retainBuiltin(literal.ResultUsage().Type)
-				}
-				for _, usage := range definition.CastUsages() {
-					retainBuiltin(usage.Type)
-				}
-				for ref, captured := range definition.References() {
-					address := ref.Address
-					address.SubID = 0
-					switch provider := e.catalog.state.Get(address).(type) {
-					case *catalog.Type:
-						retainBuiltin(provider.SQLType)
-					case *catalog.Relation:
-						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalog.CatalogRelation || !stored.DependPinned(e.catalog.read(e.catalog.state), nil, address) {
-							continue
-						}
-						// The exact immutable catalog provider includes unused columns.
-						// Retain their generations too, so imported scalar retagging
-						// cannot clone the certified provider on a later replacement.
-						for _, column := range provider.Columns {
-							retainBuiltin(column.Usage.Type)
-						}
-					}
-				}
-			}
-		}
-	}
+	typesChanged := control.RetainTemporaryBuiltinTypes(current, next, temporary)
 	if err := e.retainTemporaryViewProvidersLocked(next, temporary); err != nil {
 		return err
 	}
@@ -632,31 +416,6 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		}
 	}
 	return nil
-}
-
-func arrayDomainDependency(typ *sqltype.Descriptor) bool {
-	if typ.IsDomain() {
-		return true
-	}
-	return typ.IsArray() && arrayDomainDependency(typ.Element())
-}
-func retainedArrayDependencies(source, target *catalog.State, typ *sqltype.Descriptor) bool {
-	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
-	old, ok := source.Type(address)
-	if !ok {
-		return false
-	}
-	next, ok := target.Type(address)
-	if !ok || old.SQLType != typ || next.SQLType != typ || old.Array != next.Array || old.Namespace() != next.Namespace() || old.Owner != next.Owner || old.Revision() != next.Revision() {
-		return false
-	}
-	if typ.IsDomain() {
-		return retainedArrayDependencies(source, target, typ.DomainBase().Type)
-	}
-	if typ.IsArray() {
-		return retainedArrayDependencies(source, target, typ.Element())
-	}
-	return true
 }
 
 // Only immutable bootstrap catalog sources have a persistent survivor route.
