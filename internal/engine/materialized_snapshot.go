@@ -23,7 +23,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 	if len(records) == 0 {
 		return nil
 	}
-	input, _ := sessionPresentation(op.Session)
+	input, _ := op.Session.Settings.Presentation()
 	input.ExactSnapshot = true
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)

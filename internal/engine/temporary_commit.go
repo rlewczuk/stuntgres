@@ -73,12 +73,12 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 	if len(dropped) != 0 {
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
-		input, output := sessionPresentation(op.Session)
+		input, output := op.Session.Settings.Presentation()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: input, Output: output, Catalog: base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		project := func(old, replacement *catalog.Relation) error {
 			owner := op.Session.Transactions
 			snapshot, exists := owner.Roots[old.Address()]
-			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.Address()], nextDeletes[old.Address()], snapshot, exists, stableIsolation(owner.Isolation))
+			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.Address()], nextDeletes[old.Address()], snapshot, exists, owner.Isolation.Stable())
 			if err != nil {
 				return err
 			}

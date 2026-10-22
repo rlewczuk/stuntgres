@@ -267,7 +267,7 @@ func (s *StatementScope) Finish(err error) error {
 			ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
 		}
 	}
-	e.endStatementVisibility(s.txRef, t.State != session.TxIdle && stableIsolation(t.Isolation))
+	e.endStatementVisibility(s.txRef, t.State != session.TxIdle && t.Isolation.Stable())
 	if s.view != nil {
 		s.view.Release()
 		s.view = nil

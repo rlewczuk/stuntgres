@@ -1,35 +1,15 @@
 package engine
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 )
 
-// settingAccess checks whether op may set d at all: startup-only and
-// read-only settings are refused, and privileged ones need a parameter grant.
+// settingAccess binds the parameter-grant check to op's authorization.
 func settingAccess(d settings.Definition, op *session.Operation) error {
-	switch d.Access {
-	case settings.StartupOnly:
-		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed without restarting the server`, d.Name))
-	case settings.ReadOnly:
-		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed`, d.Name))
-	case settings.Privileged:
-		if d.Name == "lc_messages" {
-			allowed, err := parameterSetAllowed(op, d.Name)
-			if err != nil {
-				return err
-			}
-			if allowed {
-				return nil
-			}
-		}
-		return sqlError("42501", fmt.Sprintf(`permission denied to set parameter "%s"`, d.Name))
-	}
-	return nil
+	return session.SettingAccess(d, func(name string) (bool, error) { return parameterSetAllowed(op, name) })
 }
 
 // Only lc_messages has a real native privileged setter that accepts parameter

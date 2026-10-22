@@ -97,7 +97,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 				}
 			}
 		}
-		if stableIsolation(scope.owner.Isolation) && !shape.HasSnapshot {
+		if scope.owner.Isolation.Stable() && !shape.HasSnapshot {
 			scope.owner.Mu.Lock()
 			snapshot, exists := scope.owner.Roots[address]
 			scope.owner.Mu.Unlock()

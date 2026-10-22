@@ -19,7 +19,7 @@ import (
 // roots. The original publication preconditions remain in shape.
 func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, store *storage.Relation, shape session.StorageChange, snapshot visibility.Root, snapshotExists bool) (session.StorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	writes, deletes := scope.columnProjectionRoots(old.Address())
-	return projectColumnShapeRoots(scope.op.Context(), stableIsolation(scope.owner.Isolation), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
+	return projectColumnShapeRoots(scope.op.Context(), scope.owner.Isolation.Stable(), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
 }
 
 func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalog.Relation, store *storage.Relation, shape session.StorageChange, snapshot visibility.Root, snapshotExists bool, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) (session.StorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
@@ -107,7 +107,7 @@ func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *sess
 	snapshot, snapshotExists := scope.owner.Roots[old.Address()]
 	stage.owner.mu.Unlock()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.Isolation), metadataPrepared)
+	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, scope.owner.Isolation.Stable(), metadataPrepared)
 	if err == nil && projected {
 		scope.stageProjectedColumnRoots(old.Address(), writes, deletes)
 	}
@@ -209,7 +209,7 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 		stage.owner.mu.Lock()
 		snapshot, snapshotExists := scope.owner.Roots[address]
 		stage.owner.mu.Unlock()
-		if stableIsolation(scope.owner.Isolation) && snapshotExists && !shape.Rewritten {
+		if scope.owner.Isolation.Stable() && snapshotExists && !shape.Rewritten {
 			shape.Snapshot, err = projectVersions(scope.op.Context(), snapshot.Versions, snapshot.Relation, next, shape.Fills)
 			if err != nil {
 				return err

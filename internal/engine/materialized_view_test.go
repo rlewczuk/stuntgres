@@ -28,7 +28,7 @@ func materializedUnitStage(t *testing.T, e *Engine) (*session.Operation, func(),
 		t.Fatal(err)
 	}
 	s := statements[0].(*parser.CreateQueryTable)
-	input, _ := sessionPresentation(op.Session)
+	input, _ := op.Session.Settings.Presentation()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {

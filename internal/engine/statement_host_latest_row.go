@@ -99,7 +99,7 @@ func (s *StatementScope) latestMergeRowLocked(e *Engine, r dml.RowRequest) (dml.
 		return dml.LatestRow{}, errors.New("stuntgres: invalid MERGE predecessor")
 	}
 	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[r.Ref.Address])
-	if !live && stableIsolation(s.owner.Isolation) && store.Ends != nil {
+	if !live && s.owner.Isolation.Stable() && store.Ends != nil {
 		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.Frontier {
 			return dml.LatestRow{}, sqlError("40001", "could not serialize access due to concurrent delete")
 		}

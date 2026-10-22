@@ -33,6 +33,11 @@ const (
 	Serializable
 )
 
+// Stable reports whether the level keeps one snapshot for the transaction.
+func (i Isolation) Stable() bool {
+	return i == RepeatableRead || i == Serializable
+}
+
 type TxOptions struct {
 	Isolation     Isolation
 	ReadOnly      bool

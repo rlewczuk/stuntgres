@@ -30,7 +30,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 			defer finish()
 			roleExecute(t, e, admin, "CREATE TABLE nm_unit(ip inet,net cidr)")
 			ref := roleTableRef(t, e, "public.nm_unit")
-			input, _ := sessionPresentation(admin.Session)
+			input, _ := admin.Session.Settings.Presentation()
 			raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0]
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(admin)

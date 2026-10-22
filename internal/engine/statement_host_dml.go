@@ -34,7 +34,7 @@ func (h *statementHost) PrivateRows(a ids.ObjectAddress) dml.PrivateRows {
 }
 
 func (h *statementHost) Snapshot() (bool, ids.CommitSeq) {
-	return stableIsolation(h.owner.Isolation), h.owner.Frontier
+	return h.owner.Isolation.Stable(), h.owner.Frontier
 }
 
 func (h *statementHost) UniqueJournal() lock.UniqueJournal { return h.scope().uniqueJournal() }

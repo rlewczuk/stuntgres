@@ -103,7 +103,7 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			session := sessionStart(t, New(), nil)
 			op := transactionOperation(t, session)
 			defer op.Done()
-			s := newStatementScope(op, session.Transactions, statementOperationStart(op))
+			s := newStatementScope(op, session.Transactions, op.StatementStart())
 			m := &fdw.Modification{Source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
 			count, err := m.InsertRows(context.Background(), s.foreignWrites(), make([][]sqltype.Value, 5), false, nil)
 			if (err != nil) != tc.bad || count != tc.count {

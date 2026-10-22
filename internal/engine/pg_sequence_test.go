@@ -264,13 +264,13 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			if stableIsolation(isolation) && owner.SequenceCatalog != base || !stableIsolation(isolation) && owner.SequenceCatalog != nil {
+			if isolation.Stable() && owner.SequenceCatalog != base || !isolation.Stable() && owner.SequenceCatalog != nil {
 				t.Fatal("snapshot pointer policy")
 			}
 			mark := captureSavepoint(owner, "s")
 			owner.Catalog = session.NewJournal()
 			restoreSavepoint(owner, mark, mark.Settings.Clone())
-			if stableIsolation(isolation) && owner.SequenceCatalog != base {
+			if isolation.Stable() && owner.SequenceCatalog != base {
 				t.Fatal("savepoint discarded transaction snapshot")
 			}
 			e.mu.Lock()
@@ -279,7 +279,7 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			if stableIsolation(isolation) && owner.SequenceCatalog != base {
+			if isolation.Stable() && owner.SequenceCatalog != base {
 				t.Fatal("peer publication replaced retained pointer")
 			}
 			if _, err := e.Rollback(op, ref); err != nil {

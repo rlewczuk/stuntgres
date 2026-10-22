@@ -31,7 +31,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 			s := statements[0].(*parser.CreateQueryTable)
-			input, _ := sessionPresentation(op.Session)
+			input, _ := op.Session.Settings.Presentation()
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
 			if err != nil {
@@ -66,7 +66,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, _ := sessionPresentation(op.Session)
+	input, _ := op.Session.Settings.Presentation()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {

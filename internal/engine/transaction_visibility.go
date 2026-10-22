@@ -103,7 +103,7 @@ func (s *StatementScope) captureDataViewsAtLocked(e *Engine, refs []ids.ObjectRe
 		}
 	}
 	frontier := e.visibility.CommitSeq()
-	if !latest && stableIsolation(s.owner.Isolation) {
+	if !latest && s.owner.Isolation.Stable() {
 		frontier = s.owner.Frontier
 	}
 	if base != nil {
@@ -153,14 +153,14 @@ func (s *StatementScope) captureDataViewsAtLocked(e *Engine, refs []ids.ObjectRe
 		if s.owner.Catalog != nil {
 			rewrite = s.owner.Catalog.Storage[ref.Address]
 		}
-		if base != nil && (!stableIsolation(s.owner.Isolation) || rewrite.Rewritten) {
+		if base != nil && (!s.owner.Isolation.Stable() || rewrite.Rewritten) {
 			root, ok := base.DynamicRoots[ref.Address]
 			if !ok || root.Storage != stored {
 				return nil, ids.ErrCatalogReplaced
 			}
 			versions, ends = root.Versions, root.Ends
 		}
-		if !latest && stableIsolation(s.owner.Isolation) && !rewrite.Rewritten {
+		if !latest && s.owner.Isolation.Stable() && !rewrite.Rewritten {
 			root, exists := s.owner.Roots[ref.Address]
 			if exists {
 				current, ok := e.catalog.state.Relation(ref.Address)
@@ -192,7 +192,7 @@ func (s *StatementScope) captureDataViewsAtLocked(e *Engine, refs []ids.ObjectRe
 				versions, ends = nil, nil
 			}
 		}
-		if !latest && rewrite.Rewritten && stableIsolation(s.owner.Isolation) {
+		if !latest && rewrite.Rewritten && s.owner.Isolation.Stable() {
 			if data.RewrittenFrontiers == nil {
 				data.RewrittenFrontiers = make(map[ids.ObjectAddress]ids.CommitSeq)
 			}

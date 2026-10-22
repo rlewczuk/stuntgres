@@ -24,7 +24,7 @@ func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
 		t.Fatal(err)
 	}
 	stmt := statements[0].(*parser.CreateQueryTable)
-	input, _ := sessionPresentation(op.Session)
+	input, _ := op.Session.Settings.Presentation()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {

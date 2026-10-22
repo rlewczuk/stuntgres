@@ -174,7 +174,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		return err
 	}
 	needsProjection := func(roots map[ids.ObjectAddress]visibility.Root) bool {
-		if !stableIsolation(t.Isolation) || t.Catalog == nil {
+		if !t.Isolation.Stable() || t.Catalog == nil {
 			return false
 		}
 		for address, shape := range t.Catalog.Storage {
@@ -206,7 +206,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	}
 	roots, frontier := t.Roots, t.Frontier
 	sequenceCatalog := t.SequenceCatalog
-	if !t.SnapshotSet && stableIsolation(t.Isolation) {
+	if !t.SnapshotSet && t.Isolation.Stable() {
 		if _, err := e.visibilitySnapshotLocked(t.Ref, false); err != nil {
 			session.Mu.Unlock()
 			e.mu.Unlock()
@@ -502,7 +502,7 @@ func explicitUtility(stmt parser.Statement) bool {
 	return false
 }
 func (s *StatementScope) repeatableConflict(head storage.RowVersion, end *storage.DeletionRoot) error {
-	if !stableIsolation(s.owner.Isolation) || head.Born == 0 {
+	if !s.owner.Isolation.Stable() || head.Born == 0 {
 		return nil
 	}
 	// The snapshot's predecessor was replaced before its successor was deleted.

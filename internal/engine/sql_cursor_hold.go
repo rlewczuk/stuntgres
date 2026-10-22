@@ -35,7 +35,7 @@ func (e *Engine) holdPrecommit(op *session.Operation, owner *session.Transaction
 		return nil
 	}
 	if start.IsZero() {
-		start = statementOperationStart(op)
+		start = op.StatementStart()
 	}
 	if !op.CommandAdmission {
 		op.SnapshotNoticeThreshold()

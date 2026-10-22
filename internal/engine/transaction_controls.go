@@ -181,7 +181,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	if commit && t.State != session.TxAborted {
 		if len(ownerExtensionOrZero(t).exclusionModes.Events) != 0 || payloadOf(op.Session).cursors.hasCurrentHold(ref) {
 			if scope == nil {
-				scope = newStatementScope(op, t, statementOperationStart(op))
+				scope = newStatementScope(op, t, op.StatementStart())
 			}
 			scope.attachTransactionLocked()
 		}

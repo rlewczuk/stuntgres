@@ -30,7 +30,7 @@ func TestRoutineDropReplayClassification(t *testing.T) {
 		t.Fatal(err)
 	}
 	integer := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}).SQLType.Usage()
-	input, _ := sessionPresentation(op.Session)
+	input, _ := op.Session.Settings.Presentation()
 	for _, tc := range []struct {
 		source, code string
 		missing      bool

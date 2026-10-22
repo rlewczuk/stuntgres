@@ -5,10 +5,6 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-func stableIsolation(level session.Isolation) bool {
-	return level == session.RepeatableRead || level == session.Serializable
-}
-
 // enrollSerializableLocked fences ref against the current catalog epoch and
 // applies its isolation to the tracker. Caller holds Engine.mu.
 func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation session.Isolation) {

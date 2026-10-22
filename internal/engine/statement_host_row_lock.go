@@ -94,7 +94,7 @@ func (h *statementHost) LatestQueryRow(leaf exec.Leaf, candidate storage.RowVers
 	}
 	physical = current
 	present = visibility.LiveVersion(current, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[leaf.Ref.Address])
-	if stableIsolation(s.owner.Isolation) && current.Born != 0 {
+	if s.owner.Isolation.Stable() && current.Born != 0 {
 		changed := current.Born > s.owner.Frontier
 		if store.Ends != nil {
 			end, ok := store.Ends.Rows[current.Row]

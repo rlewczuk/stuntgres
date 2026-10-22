@@ -40,7 +40,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			reader, readerDone := roleOperation(t, e, "tid_original_reader")
 			defer readerDone()
 			ref := roleTableRef(t, e, "public.tid_inputs")
-			input, _ := sessionPresentation(reader.Session)
+			input, _ := reader.Session.Settings.Presentation()
 			raw := statement(t, "SELECT lhs "+test.operator+" rhs").(*parser.Select).Targets[0]
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(reader)

@@ -88,7 +88,7 @@ func (h *statementHost) RetainedForeignKeyRows(ref ids.ObjectRef, current table.
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var retained table.ForeignKeyRows
-	if stableIsolation(s.owner.Isolation) && s.owner.SnapshotSet {
+	if s.owner.Isolation.Stable() && s.owner.SnapshotSet {
 		if root, exists := s.owner.Roots[ref.Address]; exists {
 			if root.Storage != current.Storage {
 				return table.ForeignKeyRows{}, ids.ErrCatalogReplaced

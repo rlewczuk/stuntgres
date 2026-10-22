@@ -290,7 +290,7 @@ type WriteStage struct {
 }
 
 func (e *Engine) StartStatement(op *session.Operation) (*StatementScope, error) {
-	start := statementOperationStart(op)
+	start := op.StatementStart()
 	if err := e.transactionAdmission(op); err != nil {
 		return nil, err
 	}
@@ -313,7 +313,7 @@ func newStatementScope(op *session.Operation, owner *session.TransactionOwner, s
 	s.lease.Statement = s
 	s.stage.scope = s
 	s.stage.self = &s.stage
-	s.input, s.output = sessionPresentation(op.Session)
+	s.input, s.output = op.Session.Settings.Presentation()
 	// Only private Restore INSERT replay owns this authority. The same input
 	// flows to literal analysis and execution-time coercions; ordinary scopes
 	// (including statements after Restore) retain normal BOX normalization.
@@ -323,50 +323,6 @@ func newStatementScope(op *session.Operation, owner *session.TransactionOwner, s
 	s.rowSecurity = settings.Value("row_security") == "on"
 	settings.Mu.Unlock()
 	return s
-}
-
-func statementOperationStart(op *session.Operation) time.Time {
-	if op != nil && !op.CommandStart.IsZero() {
-		return op.CommandStart
-	}
-	return time.Now().UTC().Truncate(time.Microsecond)
-}
-
-// Admission serializes session settings; publication uses the same typed
-// presentation capture when formatting its supplementary integrity fence.
-func sessionPresentation(session *session.Session) (input sqltype.InputEnvironment, output sqltype.OutputEnvironment) {
-	settings := session.Settings
-	settings.Mu.Lock()
-	defer settings.Mu.Unlock()
-	if settings.Value("bytea_output") == "escape" {
-		output.ByteaOutput = sqltype.ByteaEscape
-	}
-	output.QuoteAllIdentifiers = settings.Value("quote_all_identifiers") == "on"
-	_, output.ClientEncoding = sqltype.ClientEncodingName(settings.Value("client_encoding"))
-	zone, ok := settings.Typed["timezone"]
-	if !ok {
-		zone = settings.DefaultTyped["timezone"]
-	}
-	style, ok := settings.Typed["datestyle"]
-	if !ok {
-		style = settings.DefaultTyped["datestyle"]
-	}
-	abbreviations, ok := settings.Typed["timezone_abbreviations"]
-	if !ok {
-		abbreviations = settings.DefaultTyped["timezone_abbreviations"]
-	}
-	input.TimezoneAbbreviations = abbreviations.TimezoneAbbreviations
-	input.Zone, output.Zone = zone.Zone, zone.Zone
-	input.DateStyle, output.DateStyle = style.DateStyle, style.DateStyle
-	output.IntervalStyle = sqltype.ParseIntervalStyle(settings.Value("intervalstyle"))
-	input.IntervalStyle = output.IntervalStyle
-	output.ExtraFloatDigits = int32(settings.TypedValue("extra_float_digits").Number)
-	output.FloatPrecisionSet = true
-	input.NumericLocale = settings.TypedValue("lc_numeric").Locale
-	input.MonetaryLocale = settings.TypedValue("lc_monetary").Locale
-	input.TimeLocale = settings.TypedValue("lc_time").Locale
-	output.NumericLocale, output.MonetaryLocale, output.TimeLocale = input.NumericLocale, input.MonetaryLocale, input.TimeLocale
-	return input, output
 }
 
 func (s *StatementScope) active() error {

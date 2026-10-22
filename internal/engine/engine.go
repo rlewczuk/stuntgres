@@ -311,7 +311,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if s.All {
 			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
-		d, err := e.sessionSetting(op.Session.Settings, s.Name.Text, false)
+		d, err := op.Session.Settings.LookupDefinition(e.settings, s.Name.Text, false)
 		if err != nil {
 			return StatementDescription{}, err
 		}

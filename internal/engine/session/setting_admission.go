@@ -54,6 +54,15 @@ func (op *Operation) CommandError(err error) error {
 	return op.fatalError(err)
 }
 
+// StatementStart is the command start captured at admission, or the current
+// time at microsecond precision for an operation without one.
+func (op *Operation) StatementStart() time.Time {
+	if op != nil && !op.CommandStart.IsZero() {
+		return op.CommandStart
+	}
+	return time.Now().UTC().Truncate(time.Microsecond)
+}
+
 func (op *Operation) RefreshStatementBudget() error {
 	if err := op.CommandContext.Err(); err != nil {
 		return err

@@ -192,7 +192,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			f.e.storage.InstallIndexRootLocked(f.index.Address(), &root)
 			f.e.mu.Unlock()
 			admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
-			if stableIsolation(isolation) {
+			if isolation.Stable() {
 				if admitted || !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("stable identity fence", admitted, err)
 				}

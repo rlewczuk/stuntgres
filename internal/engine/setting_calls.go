@@ -175,7 +175,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 			if err != nil {
 				return Result{}, err
 			}
-			d, err := e.sessionSetting(owner, name, false)
+			d, err := owner.LookupDefinition(e.settings, name, false)
 			if err != nil {
 				return Result{}, err
 			}
@@ -199,7 +199,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		if err != nil {
 			return Result{}, err
 		}
-		d, err := e.sessionSetting(owner, name, true)
+		d, err := owner.LookupDefinition(e.settings, name, true)
 		if err != nil {
 			return Result{}, err
 		}
