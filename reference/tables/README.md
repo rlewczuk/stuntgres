@@ -1454,6 +1454,45 @@ Private policy units distinguish unchanged and descriptor-retagged inputs from
 relevant changed cells/literals and owner-sensitive values, without weakening
 full destination checks for actual movement. All scenarios use one HASH runner.
 
+`Cancellation` prepares and retains the actual CREATE handle before acquiring the
+blocker or enabling the unchanged native `statement_timeout='50ms'`. Native first
+resolves the parent's actual catalog OID and observes its exact granted
+`RowExclusiveLock`; the holder keeps that conflicting lock until execution has
+finished. It does not race to observe a transient waiter within the timeout.
+PostgreSQL instead requires the exact waiter/holder lock wait before
+`pg_cancel_backend`, acknowledges the signal and joins the Exec-only worker.
+Both direct and held routes require stage `execute`, SQLSTATE57014, ERROR
+severities and all optional diagnostic fields empty. Native's exact primary is
+`canceling statement due to statement timeout`; intentional PostgreSQL user
+cancellation requires `canceling statement due to user request`. Neither accepts
+a Prepare failure or a successful result.
+
+After interruption, the new relation must be absent, its composite-type name
+reusable through CREATE TYPE/DROP TYPE, and the parent exactly the original row1
+after holder rollback. Recovery executes the SAME retained CREATE handle (or the
+direct waiter route), affects0, then INSERT17 affects1 and the new remainder4 leaf
+contains exactly17. Failure cleanup cancels/joins any worker before closing the
+held statement or rolling back/returning connections; no function-level deferred
+rollback may release the blocker ahead of the worker. Native timeout restoration
+runs after synchronous execution and before recovery.
+
+Focused cancellation verification, from the repository root with an external
+900-second deadline for each command:
+
+```sh
+make check RUN='^TestReferenceHashPartitionCancellation$' REFERENCE=1
+make check RUN='^TestReferenceHashPartitionCancellation$'
+make check RUN='^TestReferenceHashPartitionCancellation$' RACE=1
+```
+
+Run real mode first, then native and race proof. Quiet success means the
+independent cancellation, no-publication, name-reuse, parent-data and same-handle
+routing assertions passed, not that intermediate observations were printed.
+Separately exercise interruption and same-handle recovery through a standalone
+public Driver/Connector program using the sequence above; temporary smoke source
+is not a checked-in command. Selected checks replace neither that execution,
+whole-project `make quickcheck`, nor post-integration `make finalcheck`.
+
 Run each selected command in both modes, adding `REFERENCE=1` for pinned PostgreSQL,
 under external 900-second deadlines:
 
