@@ -18,10 +18,9 @@ func ComparisonCapabilities(d *Descriptor) (equality, ordering bool) {
 		return true, true
 	}
 	if d.ID() == PgNodeTree {
-		// typcache uses the binary-compatible TEXT default B-tree class,
-		// not a nonexistent pg_node_tree SQL operator signature.
-		class, ok := DefaultIndexClass(d)
-		return ok && class.input == Text, ok && class.input == Text
+		// The datum provider is binary-compatible with TEXT. This is a type
+		// capability, not a lookup of the current catalog's default class.
+		return true, true
 	}
 	switch d.ID() {
 	case ACLItem, Cid, Xid:

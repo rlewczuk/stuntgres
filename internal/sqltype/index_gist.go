@@ -7,9 +7,9 @@ import "fmt"
 func LookupGiSTIndexClass(name string) (IndexClass, bool) {
 	switch name {
 	case "inet_ops":
-		return IndexClass{Name: name, Family: "network_ops", input: Inet, gist: true, oid: 10017}, true
+		return (IndexClass{Name: name, Family: "network_ops", input: Inet, gist: true, oid: 10017}).withSeedIdentity(783), true
 	case "range_ops":
-		return IndexClass{Name: name, Family: "range_ops", input: 3831, gist: true, oid: 10078}, true
+		return (IndexClass{Name: name, Family: "range_ops", input: 3831, gist: true, oid: 10078}).withSeedIdentity(783), true
 	}
 	return IndexClass{}, false
 }

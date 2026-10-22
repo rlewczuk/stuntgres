@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -323,7 +324,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if expected == 1 && &effective[0][0] != &old.Versions[0].Values[0] {
 				t.Fatal("old matched datum buffer copied or replaced")
 			}
-			ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), d, first.SQLIndex)
+			ordering, err := index.BindIndexOrdering(e.CatalogRead(), d, first.SQLIndex)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -331,7 +332,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = index.ValidateUniqueEntries(context.Background(), d, first, entries, "public", sqltype.OutputEnvironment{}, nil, nil, false, ordering)
+			err = index.ValidateUniqueEntries(context.Background(), d, first, entries, "public", sqltype.OutputEnvironment{}, &access.View{Catalog: e.CatalogRead()}, nil, false, ordering)
 			violation := phase == "unmatched_null" || phase == "all_keys" || phase == "not_distinct_null_key"
 			if violation {
 				materializedConcurrentUnitError(t, err, "23505", `duplicate key value violates unique constraint "unit_u"`)

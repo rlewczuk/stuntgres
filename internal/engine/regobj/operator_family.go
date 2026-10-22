@@ -16,6 +16,16 @@ func OperatorFamilyDescription(view catalog.Read, d catalog.Descriptor, path []i
 	var implementation ids.OID
 	var function bool
 	switch d := d.(type) {
+	case *catalog.OperatorClass:
+		name := catalog.DependencyIdentifier(d.Name())
+		if path != nil && !NamedObjectVisible(view, path, d) {
+			name = catalog.DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
+		}
+		method, ok := catalog.AccessMethodByOID(d.Method)
+		if !ok {
+			return "", false
+		}
+		return "operator class " + name + " for access method " + method.Name, true
 	case *catalog.OperatorFamily:
 		familyID = d.Address().ObjectID
 	case *catalog.OperatorFamilyOperator:
@@ -40,12 +50,11 @@ func OperatorFamilyDescription(view catalog.Read, d catalog.Descriptor, path []i
 	if !visible {
 		name = catalog.DependencyIdentifier(view.Get(f.Namespace()).Name()) + "." + name
 	}
-	method := "btree"
-	if f.Method == 405 {
-		method = "hash"
-	} else if f.Method == 783 {
-		method = "gist"
+	fact, ok := catalog.AccessMethodByOID(f.Method)
+	if !ok {
+		return "", false
 	}
+	method := fact.Name
 	label := "operator family " + name + " for access method " + method
 	if number == 0 {
 		return label, true
@@ -92,12 +101,11 @@ func identifyOperatorFamilyMember(view catalog.Read, path []ids.ObjectAddress, d
 		return r, true
 	}
 	_, namespace := objectNamespace(view, f.Namespace())
-	method := "btree"
-	if f.Method == 405 {
-		method = "hash"
-	} else if f.Method == 783 {
-		method = "gist"
+	fact, ok := catalog.AccessMethodByOID(f.Method)
+	if !ok {
+		return r, true
 	}
+	method := fact.Name
 	ltype, rtype := objectQualifiedType(view, left), objectQualifiedType(view, right)
 	r.Found = true
 	r.Names = []string{method, namespace, f.Name(), strconv.Itoa(int(number))}

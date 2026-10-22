@@ -21,7 +21,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	owner := builtinFamily.Owner
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication_table", ObjectRevision: 1, Owner: owner, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	class, _ := sqltype.DefaultIndexClass(typ)
-	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Ready: true, Valid: true, Live: true}
+	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Ready: true, Valid: true, Live: true}
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication_index", ObjectRevision: 1, Owner: owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Attributes: []int32{1}, Columns: parent.Columns, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	one, err := sqltype.Integer(typ, 1)
 	if err != nil {

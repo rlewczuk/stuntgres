@@ -397,7 +397,7 @@ func BindKeys(h Host, auth ddl.Authority, d *catalog.Relation, raw *parser.Parti
 		if raw.Strategy == parser.PartitionHash {
 			method = catalog.HashMethod
 		}
-		bound, err := index.BindKey(h, auth, usage, r, method)
+		bound, err := index.BindKey(h, auth, usage, r, method.OID())
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" && r.Opclass == nil && raw.Strategy == parser.PartitionHash {
 				copy := *diagnostic

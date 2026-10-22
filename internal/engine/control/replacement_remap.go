@@ -84,6 +84,8 @@ func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddr
 		n := *r
 		n.OID, n.ObjectNamespace, n.Handler = target.ObjectID, namespace, handler
 		d = &n
+	case *catalog.OperatorClass:
+		d = catalog.RemapOperatorClass(r, mapping)
 	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		d = catalog.RemapOperatorFamily(r, mapping)
 	case *catalog.Operator:

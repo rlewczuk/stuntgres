@@ -26,11 +26,9 @@ func UniqueKeyHash(ctx context.Context, ordering Ordering, grouping []sqltype.Gr
 	hash := uint64(14695981039346656037)
 	for i, value := range values {
 		var h uint64
-		class := ordering.Keys[i].Class
-		defaultClass, _ := sqltype.DefaultIndexClass(value.Type())
-		// Nondefault equality can be coarser than the type's grouping hash
-		// (TEXT bpchar_ops ignores trailing spaces). Compare within one bucket.
-		if class.Family != "network_ops" && (class.Name == "" || class.Name == defaultClass.Name) {
+		// Nondefault equality can be coarser than the type's grouping hash.
+		// The immutable binding decides whether grouping is compatible.
+		if ordering.GroupingCompatible&(1<<i) != 0 {
 			var err error
 			h, err = grouping[i].Hash(ctx, value)
 			if err != nil {

@@ -47,6 +47,9 @@ func PartitionKeyDependsOn(relation *Relation, target ids.ObjectAddress) bool {
 		return false
 	}
 	for _, key := range relation.Partition.Keys {
+		if target.ClassID == ids.OperatorClassCatalogID && target.SubID == 0 && target.ObjectID == ids.OID(key.Class.OID()) && target.ObjectID != 0 {
+			return true
+		}
 		if target.ClassID == ids.TypeClassID && ids.OID(key.Usage.Type.ID()) == target.ObjectID {
 			return true
 		}

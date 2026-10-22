@@ -189,6 +189,8 @@ package parser
  familyItem OperatorFamilyItem
  familyItems []OperatorFamilyItem
  alterFamily *AlterOperatorFamily
+ createClass *CreateOperatorClass
+ alterClass *AlterOperatorClass
 }
 %token <tok> IDENT NUMBER STRING BITSTRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -201,6 +203,7 @@ package parser
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
 %token <tok> SYMBOLIC_OPERATOR
 %token <tok> OPERATOR QUALIFIED_OPERATOR
+%token <tok> OPCLASS
 %token <tok> TYPECAST
 %token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
@@ -456,6 +459,12 @@ package parser
 %type <familyItem> family_add_item family_operator_item family_function_item family_drop_item
 %type <familyItems> family_add_items family_drop_items
 %type <types> family_signature
+%type <stmt> create_operator_class alter_operator_class drop_operator_class
+%type <createClass> operator_class_head
+%type <alterClass> operator_class_alter_head
+%type <tok> class_word storage_word
+%type <familyItem> class_item
+%type <familyItems> class_items
 %type <createCollation> collation_create_head
 %type <alterCollation> collation_alter_head
 %type <collationOptions> collation_options
@@ -789,6 +798,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | alter_operator | drop_operator
  | drop_routine
  | alter_operator_family | drop_operator_family
+ | alter_operator_class | drop_operator_class
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
@@ -1331,6 +1341,7 @@ create: create_table { $$=$1 }
  | create_function { $$=$1 }
  | create_operator { $$=$1 }
  | create_operator_family { $$=$1 }
+ | create_operator_class { $$=$1 }
  | create_enum { $$=$1 }
  | create_composite { $$=$1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
@@ -1527,6 +1538,21 @@ family_signature: '(' ')' {$$=[]TypeName{}} | '(' prepare_type_list ')' {$$=$2} 
 family_drop_items: family_drop_item {$$=[]OperatorFamilyItem{$1}} | family_drop_items ',' family_drop_item {$$=append($1,$3)} ;
 family_drop_item: family_operator_word NUMBER '(' prepare_type_list ')' {$$=OperatorFamilyItem{Number:$2.text,Association:$4,Purpose:"s",Pos:$1.pos}}
  | FUNCTION NUMBER '(' prepare_type_list ')' {$$=OperatorFamilyItem{Function:true,Number:$2.text,Association:$4,Pos:$1.pos}} ;
+class_word: OPCLASS {$$=$1} ;
+storage_word: KW_U {if $1.text!="storage" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+operator_class_head: CREATE OPERATOR class_word relation_name FOR TYPE type USING name {$$=&CreateOperatorClass{Name:$4,InputType:$7,Method:Identifier{Text:$9.text,Pos:$9.pos},Pos:$1.pos}}
+ | CREATE OPERATOR class_word relation_name DEFAULT FOR TYPE type USING name {$$=&CreateOperatorClass{Name:$4,Default:true,InputType:$8,Method:Identifier{Text:$10.text,Pos:$10.pos},Pos:$1.pos}} ;
+create_operator_class: operator_class_head AS class_items {$1.Items=$3;$$=$1}
+ | operator_class_head family_word relation_name AS class_items {$1.Family=$3;$1.Items=$5;$$=$1} ;
+class_items: class_item {$$=[]OperatorFamilyItem{$1}} | class_items ',' class_item {$$=append($1,$3)} ;
+class_item: family_add_item {$$=$1}
+ | storage_word type {t:=$2;$$=OperatorFamilyItem{Storage:&t,Pos:$1.pos}} ;
+operator_class_alter_head: ALTER OPERATOR class_word relation_name USING name {$$=&AlterOperatorClass{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}} ;
+alter_operator_class: operator_class_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | operator_class_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1}
+ | operator_class_alter_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1} ;
+drop_operator_class: DROP OPERATOR class_word relation_name USING name drop_mode {$$=&DropOperatorClass{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Mode:$7,Pos:$1.pos}}
+ | DROP OPERATOR class_word IF EXISTS relation_name USING name drop_mode {$$=&DropOperatorClass{Name:$6,Method:Identifier{Text:$8.text,Pos:$8.pos},IfExists:true,Mode:$9,Pos:$1.pos}} ;
 /* Index reloptions use '='; REINDEX controls use whitespace. Keep them separate
  * so malformed option syntax fails before any earlier statement can execute. */
 maintenance_concurrent: /* empty */ {$$=lexeme{}} | CONCURRENTLY ;

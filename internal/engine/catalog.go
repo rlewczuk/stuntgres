@@ -282,6 +282,10 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		if d.(*catalog.Conversion).Seeded() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
+	case *catalog.OperatorClass:
+		if catalog.OperatorClassSeeded(d) {
+			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
+		}
 	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		if catalog.OperatorFamilySeeded(d) {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")

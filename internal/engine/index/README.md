@@ -319,6 +319,33 @@ resets stay engine callers of the registry primitives.
 
 ## Testing
 
+Operator classes now resolve through current catalog descriptors, exact method
+OID and real family members, for default/explicit binding, TYPE reconstruction,
+UNIQUE/conflict/FK/partition/exclusion and native controls. Physical method enum
+dispatch is not class identity; grouping compatibility is captured once in the
+ordering's key mask, not resolved per row. Deparse follows current class names
+and namespaces. See [design](../../../docs/design/PG18-INDEX-OPCLASS.md).
+
+Required family members retain their insertion-time INTERNAL class owner.
+The common drop closure rejects standalone deletion of those members and
+redirects implementation dependencies through the class, discovering sibling
+members and dependent indexes. Optional/cross-type and classless members stay
+loose. `TestOperatorClassDependencyClosure` checks this descriptor graph without
+duplicating the public SQL lifecycle scenario.
+
+```sh
+make check RUN='^TestOperatorClass(MethodIdentity|SupportExecution|CatalogAtomicity|DependencyClosure)$'
+make check RACE=1 RUN='^TestOperatorClass(MethodIdentity|SupportExecution|CatalogAtomicity|DependencyClosure)$'
+make check RUN='^TestReferenceOperatorClassFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceOperatorClassFeatureSmoke$'
+```
+
+Expected smoke: real custom family/class, real index over existing rows, then
+maintained INSERT; qualifying rows `(1,2),(4,2)` become `(1,2),(4,2),(6,3)`.
+Private units assert actual support IDs/routine and root membership, rather than
+treating ordinary ORDER BY results as evidence of a btree query optimizer.
+
+
 Package tests: `go test ./internal/engine/index` (the column capability
 matrix and `EffectiveRoot`). Most index tests build an engine and stay
 in the root package:

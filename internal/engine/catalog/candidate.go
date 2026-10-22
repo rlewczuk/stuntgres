@@ -56,9 +56,11 @@ func (c *Candidate) LookupName(k ids.NameKey) ids.ObjectAddress {
 	if _, removed := c.removals[address]; removed {
 		return ids.ObjectAddress{}
 	}
-	if replacement := c.descriptors[address]; replacement != nil &&
-		DescriptorNameKey(replacement) != k {
-		return ids.ObjectAddress{}
+	if replacement := c.descriptors[address]; replacement != nil {
+		defaultKey, hasDefault := descriptorDefaultKey(replacement)
+		if DescriptorNameKey(replacement) != k && (!hasDefault || defaultKey != k) {
+			return ids.ObjectAddress{}
+		}
 	}
 	return address
 }
@@ -84,6 +86,13 @@ func (c *Candidate) Create(d Descriptor) error {
 	// generations, whose private name slots can be reused by a new identity.
 	if c.LookupName(k) != (ids.ObjectAddress{}) {
 		return Conflict{}
+	}
+	if key, ok := descriptorDefaultKey(d); ok {
+		if c.LookupName(key) != (ids.ObjectAddress{}) {
+			return Conflict{}
+		}
+		c.touched[key] = c.Base.NameAddress(key)
+		c.names[key] = a
 	}
 	c.touched[k] = c.Base.NameAddress(k)
 	c.descriptors[a] = d
@@ -116,13 +125,29 @@ func (c *Candidate) Replace(d Descriptor) error {
 	if a := c.LookupName(newKey); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return Conflict{}
 	}
+	if key, ok := descriptorDefaultKey(d); ok {
+		if a := c.LookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
+			return Conflict{}
+		}
+		c.touched[key] = c.Base.NameAddress(key)
+	}
 	if previous := c.descriptors[d.Address()]; previous != nil {
 		delete(c.names, DescriptorNameKey(previous))
+		if key, ok := descriptorDefaultKey(previous); ok {
+			delete(c.names, key)
+		}
 	}
 	if c.oldNames == nil {
 		c.oldNames = make(map[ids.NameKey]bool)
 	}
 	c.oldNames[oldKey] = true
+	if key, ok := descriptorDefaultKey(old); ok {
+		c.oldNames[key] = true
+		c.touched[key] = c.Base.NameAddress(key)
+	}
+	if key, ok := descriptorDefaultKey(d); ok {
+		c.names[key] = d.Address()
+	}
 	c.touched[oldKey] = c.Base.NameAddress(oldKey)
 	c.touched[newKey] = c.Base.NameAddress(newKey)
 	c.descriptors[d.Address()] = d
@@ -142,9 +167,16 @@ func (c *Candidate) RecordRemoval(ref ids.ObjectRef, d Descriptor) {
 		if c.names[key] == ref.Address {
 			delete(c.names, key)
 		}
+		if key, ok := descriptorDefaultKey(candidate); ok {
+			delete(c.names, key)
+		}
 	}
 	delete(c.descriptors, ref.Address)
 	c.touched[DescriptorNameKey(d)] = ref.Address
+	if key, ok := descriptorDefaultKey(d); ok {
+		delete(c.names, key)
+		c.touched[key] = c.Base.NameAddress(key)
+	}
 }
 
 // State returns a new unpublished state: the base with the candidate's
@@ -162,6 +194,9 @@ func (c *Candidate) State() *State {
 		procedures.Replace(c.Base.Get(a), c.descriptors[a])
 		delete(ds, a)
 		delete(ns, DescriptorNameKey(d))
+		if key, ok := descriptorDefaultKey(d); ok {
+			delete(ns, key)
+		}
 	}
 	for k := range c.oldNames {
 		delete(ns, k)

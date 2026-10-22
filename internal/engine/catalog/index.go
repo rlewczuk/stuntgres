@@ -19,6 +19,7 @@ type IndexKey struct {
 
 type IndexDefinition struct {
 	Method             IndexMethod
+	MethodOID          ids.OID
 	Parent             ids.ObjectAddress
 	PartitionParent    ids.ObjectAddress
 	Keys               []IndexKey
@@ -30,6 +31,9 @@ type IndexDefinition struct {
 	Predicate          *IndexPredicate
 	Exclusion          []sqltype.ExclusionOperator
 }
+
+// MethodIdentity is the declared SQL method, independent of its implementation.
+func (d *IndexDefinition) MethodIdentity() ids.OID { return d.MethodOID }
 
 func (d *IndexDefinition) PublicationState() (ready, valid, live bool) {
 	return d.Ready, d.Valid, d.Live

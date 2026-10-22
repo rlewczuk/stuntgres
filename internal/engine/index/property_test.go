@@ -6,7 +6,7 @@ import (
 )
 
 func TestIndexPropertyColumnCapabilityMatrix(t *testing.T) {
-	idx := &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Desc: false, NullsFirst: true}, {Desc: true, NullsFirst: false}}, Include: []int32{3}, Ready: true, Valid: true, Live: true}
+	idx := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Keys: []catalog.IndexKey{{Desc: false, NullsFirst: true}, {Desc: true, NullsFirst: false}}, Include: []int32{3}, Ready: true, Valid: true, Live: true}
 	for _, tc := range []struct {
 		ordinal     int64
 		property    string

@@ -9,33 +9,44 @@ import (
 )
 
 // BindClassSupport captures actual members from one immutable catalog view.
-// Class lookup remains builtin-only; input adaptation belongs to sqltype.
+// The current descriptor is the sole authority for class and family identity.
 func BindClassSupport(view catalog.Read, class sqltype.IndexClass) (sqltype.IndexClass, error) {
-	var fact sqltype.IndexClassMetadata
-	found := false
-	for i := range sqltype.IndexClassMetadataCount() {
-		m, _ := sqltype.IndexClassMetadataAt(i)
-		if m.OID == class.OID() {
-			fact, found = m, true
-			break
-		}
+	method, ok := catalog.AccessMethodByOID(ids.OID(class.MethodOID()))
+	if !ok {
+		return class, fmt.Errorf("stuntgres: unavailable index access method")
 	}
+	return bindClassSupport(view, class, method)
+}
+
+func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method catalog.AccessMethod) (sqltype.IndexClass, error) {
+	fact, found := view.OperatorClass(ids.OID(class.OID()))
 	if !found {
 		return class, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "index operator class is unsupported"}
 	}
-	family, ok := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(fact.Family)})
-	if !ok || uint32(family.Method) != fact.Method {
+	if class.MethodOID() != uint32(fact.Method) || class.FamilyOID() != uint32(fact.Family) {
+		return class, fmt.Errorf("stuntgres: inconsistent index operator class identity")
+	}
+	current, ok := view.IndexClassForMethod(fact.Address().ObjectID, method)
+	if !ok {
+		return class, fmt.Errorf("stuntgres: unavailable index operator class")
+	}
+	if !class.SameIdentity(current) {
+		return class, fmt.Errorf("stuntgres: inconsistent index operator class capture")
+	}
+	class = current
+	family, ok := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: fact.Family})
+	if !ok || family.Method != fact.Method {
 		return class, fmt.Errorf("stuntgres: invalid index family method")
 	}
-	if fact.Method == 783 {
+	if class.IsGiST() {
 		return class, nil
 	}
 	slots := 1
-	if fact.Method == 405 {
+	if class.IsHash() {
 		slots = 2
 	}
 	for slot := 1; slot <= slots; slot++ {
-		support, err := selectNativeIndexSupport(view, fact.Family, fact.Input, fact.Input, int16(slot))
+		support, err := selectNativeIndexSupport(view, uint32(fact.Family), uint32(fact.InputType), uint32(fact.InputType), int16(slot))
 		if err != nil {
 			return class, err
 		}
@@ -116,43 +127,42 @@ func BindExclusionOperator(view catalog.Read, usage sqltype.Usage, class sqltype
 	if err != nil {
 		return sqltype.ExclusionOperator{}, err
 	}
-	var family uint32
-	var method uint32
-	for i := range sqltype.IndexClassMetadataCount() {
-		m, _ := sqltype.IndexClassMetadataAt(i)
-		if m.OID == class.OID() {
-			family, method = m.Family, m.Method
-			break
-		}
+	fact, ok := view.OperatorClass(ids.OID(class.OID()))
+	if !ok {
+		return sqltype.ExclusionOperator{}, fmt.Errorf("stuntgres: missing exclusion operator class")
 	}
-	input := usage.Type.BaseType().ID()
-	if input == sqltype.VarChar {
+	family := uint32(fact.Family)
+	// Resolve membership for the logical operator's inputs, independently of
+	// binary-compatible index admission. An integer column admitted by oid_ops
+	// still uses =(integer,integer), not the family's =(oid,oid).
+	t := usage.Type.BaseType()
+	input := t.ID()
+	switch input {
+	case sqltype.VarChar:
 		input = sqltype.Text
-	}
-	// CIDR keys use the compatible INET physical class input. The network
-	// family has INET operators, not invented CIDR member rows.
-	if input == sqltype.Cidr && class.Accepts(usage.Type) {
-		input = sqltype.Inet
-	}
-	if usage.Type.BaseType().IsEnum() {
-		input = 3500
-	}
-	if method == 783 && family == 3919 {
-		input = 3831
-	}
-	if sqltype.IsRegObjectAlias(input) || sqltype.IsOperatorAlias(input) || sqltype.IsRoutineAlias(input) || sqltype.IsRegTS(input) || input == sqltype.Regclass || input == sqltype.Regtype || input == sqltype.Regrole {
+	case sqltype.Regclass, sqltype.Regtype, sqltype.Regrole:
 		input = sqltype.Oid
+	case sqltype.Cidr:
+		input = sqltype.Inet
+	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange:
+		input = 3831 // Released polymorphic anyrange operator input.
+	}
+	if sqltype.IsRegObjectAlias(input) || sqltype.IsRoutineAlias(input) || sqltype.IsOperatorAlias(input) || sqltype.IsRegTS(input) {
+		input = sqltype.Oid
+	}
+	if t.IsEnum() {
+		input = 3500 // Released polymorphic anyenum operator input.
 	}
 	strategy := int16(0)
 	if name == "=" {
 		strategy = 3
-		if method == 405 {
+		if class.IsHash() {
 			strategy = 1
 		}
-		if method == 783 && family == 3550 {
+		if class.IsGiST() && input == sqltype.Inet {
 			strategy = 18
 		}
-	} else if name == "&&" && method == 783 {
+	} else if name == "&&" && class.IsGiST() {
 		strategy = 3
 	}
 	var member uint32

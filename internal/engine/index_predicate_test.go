@@ -39,7 +39,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	column := plan.ColumnExpr{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 1, Origin: ref}
 	predicate := &catalog.IndexPredicate{Definition: column, Execution: column, Attributes: parent.Attributes, Dependencies: []ids.ObjectRef{ref}}
 	class, _ := sqltype.DefaultIndexClass(integer)
-	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "pi", ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: []catalog.Column{parent.Columns[0]}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: catalog.BtreeMethod, Ready: true, Valid: true, Live: true, Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Predicate: predicate}}
+	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "pi", ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: []catalog.Column{parent.Columns[0]}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: catalog.BtreeMethod, MethodOID: 403, Ready: true, Valid: true, Live: true, Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Predicate: predicate}}
 	store := &storage.Relation{}
 	for i, k := range []int64{10, 20, 30, 0, 10} {
 		value, _ := sqltype.Integer(integer, k)
@@ -88,7 +88,7 @@ func TestPartialIndexPredicateTruth(t *testing.T) {
 		if err != nil || got != (i == 0 || i == 3 || i == 4) {
 			t.Fatal(i, got, err)
 		}
-		got, err = absent.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{}, row.Values, nil, nil)
+		got, err = absent.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403}, row.Values, nil, nil)
 		if err != nil || !got {
 			t.Fatal("absent predicate", got, err)
 		}
@@ -98,7 +98,7 @@ func TestPartialIndexPredicateTruth(t *testing.T) {
 		node := plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: value}
 		p := &catalog.IndexPredicate{Definition: node, Execution: node}
 		preparation := index.ExecutionPreparation{}
-		got, err := preparation.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: p}, nil, nil, nil)
+		got, err := preparation.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Predicate: p}, nil, nil, nil)
 		truth, _ := plan.TruthOf(value)
 		if err != nil || got != (truth == plan.True) {
 			t.Fatal(value, got, err)
@@ -246,7 +246,7 @@ func TestPartialIndexPredicateCancellation(t *testing.T) {
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for _, p := range []*catalog.IndexPredicate{nil, f.index.SQLIndex.Predicate} {
 		preparation := index.ExecutionPreparation{}
-		if _, err := preparation.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: p}, nil, nil, nil); !errors.Is(err, context.Canceled) {
+		if _, err := preparation.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Predicate: p}, nil, nil, nil); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
 	}

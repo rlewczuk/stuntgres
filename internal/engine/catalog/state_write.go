@@ -16,10 +16,25 @@ import (
 // the engine's publication swaps the whole state under its mutex.
 
 // SetDescriptor stores d at a.
-func (s *State) SetDescriptor(a ids.ObjectAddress, d Descriptor) { s.descriptors[a] = d }
+func (s *State) SetDescriptor(a ids.ObjectAddress, d Descriptor) {
+	oldKey, hadDefault := descriptorDefaultKey(s.descriptors[a])
+	newKey, hasDefault := descriptorDefaultKey(d)
+	if hadDefault && (!hasDefault || oldKey != newKey) {
+		delete(s.names, oldKey)
+	}
+	s.descriptors[a] = d
+	if hasDefault && s.names[newKey] != a {
+		s.names[newKey] = a
+	}
+}
 
 // RemoveDescriptor deletes the descriptor at a.
-func (s *State) RemoveDescriptor(a ids.ObjectAddress) { delete(s.descriptors, a) }
+func (s *State) RemoveDescriptor(a ids.ObjectAddress) {
+	if key, ok := descriptorDefaultKey(s.descriptors[a]); ok {
+		delete(s.names, key)
+	}
+	delete(s.descriptors, a)
+}
 
 // BindName binds k to a.
 func (s *State) BindName(k ids.NameKey, a ids.ObjectAddress) { s.names[k] = a }

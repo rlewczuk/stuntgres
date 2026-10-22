@@ -73,6 +73,11 @@ func DumpPredecessors(r dump.Resolver, view catalog.Read, d *catalog.Relation, p
 	}
 	if d.Partition != nil {
 		for _, key := range d.Partition.Keys {
+			if key.Class.OID() != 0 {
+				if err := add(ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(key.Class.OID())}); err != nil {
+					return nil, err
+				}
+			}
 			if key.Derived != nil {
 				for _, ref := range key.Derived.Dependencies {
 					if err := add(ref.Address); err != nil {
@@ -122,7 +127,15 @@ func KeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation) 
 			text.WriteString(" COLLATE " + name)
 		}
 		if key.ExplicitClass {
-			text.WriteString(" " + catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(key.Class.Name))
+			class, ok := catalogView.OperatorClass(ids.OID(key.Class.OID()))
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing partition operator class")
+			}
+			namespace, ok := catalogView.Namespace(class.Namespace())
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing partition operator class namespace")
+			}
+			text.WriteString(" " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(class.Name()))
 		}
 	}
 	text.WriteString(")")

@@ -33,7 +33,7 @@ func logicalGiSTFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, fun
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &catalog.Relation{ObjectName: "booking_ex", SQLIndex: &catalog.IndexDefinition{Method: catalog.GistMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: ic}, {Attribute: 2, Class: rc}}, Exclusion: []sqltype.ExclusionOperator{eq, overlap}, Ready: true, Live: true, Valid: true}}
+	index := &catalog.Relation{ObjectName: "booking_ex", SQLIndex: &catalog.IndexDefinition{Method: catalog.GistMethod, MethodOID: 783, Keys: []catalog.IndexKey{{Attribute: 1, Class: ic}, {Attribute: 2, Class: rc}}, Exclusion: []sqltype.ExclusionOperator{eq, overlap}, Ready: true, Live: true, Valid: true}}
 	index.SQLIndex.Constraint = &catalog.BackingConstraint{Kind: catalog.ExclusionBackingKind, OID: 1, Name: index.Name()}
 	row := func(id ids.RowID, tenant, during string) storage.RowVersion {
 		a, err := inet.Input(context.Background(), tenant, -1)

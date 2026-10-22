@@ -50,7 +50,7 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 			} else {
 				typ = domainUnitType(t, view, tc.typ).SQLType
 			}
-			class, ok := sqltype.DefaultIndexClass(typ)
+			class, ok := view.DefaultIndexClass(403, typ)
 			if !ok {
 				t.Fatal("missing admitted class", tc.typ)
 			}

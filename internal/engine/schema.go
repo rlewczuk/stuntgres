@@ -76,6 +76,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropOperatorFamily:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
+	case *parser.DropOperatorClass:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.AlterOperatorFamily:
 		if s.Action == "drop" {
 			domainMode = parser.DropRestrict
@@ -210,6 +212,18 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		}
 	case *parser.DropOperatorFamily:
 		if err = index.StageDropOperatorFamily(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.CreateOperatorClass:
+		if err = index.StageCreateOperatorClass(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterOperatorClass:
+		if err = index.StageAlterOperatorClass(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropOperatorClass:
+		if err = index.StageDropOperatorClass(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateOperator:

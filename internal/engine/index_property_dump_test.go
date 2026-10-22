@@ -19,7 +19,7 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	consumer := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	parent := &catalog.Relation{ObjectAddress: parentAddress, ObjectNamespace: namespace, RelationKind: catalog.TableRelation}
-	idx := &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespace, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: parentAddress, Ready: true, Valid: true, Live: true}}
+	idx := &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespace, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parentAddress, Ready: true, Valid: true, Live: true}}
 	view.State().SetDescriptor(parentAddress, parent)
 	view.State().SetDescriptor(indexAddress, idx)
 	got, err := control.Resolver{}.Predecessor(view, indexAddress, consumer)

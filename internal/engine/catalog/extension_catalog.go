@@ -109,6 +109,9 @@ func (d *TSDictionary) Name() string { return d.ObjectName }
 func (*TSDictionary) Kind() ids.ObjectKind { return ids.TSDictionaryObject }
 
 func DescriptorNameKey(d Descriptor) ids.NameKey {
+	if class, ok := d.(*OperatorClass); ok {
+		return ClassNameKey(class.Namespace(), class.Method, class.Name())
+	}
 	if family, ok := d.(*OperatorFamily); ok {
 		return FamilyNameKey(family.Namespace(), family.Method, family.Name())
 	}

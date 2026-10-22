@@ -3,7 +3,6 @@ package index
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -20,9 +19,24 @@ func OperatorFamilyDumpEvents(r dump.Resolver, view catalog.Read, descriptors []
 		}
 	}
 	for _, d := range descriptors {
+		if memberOwningClass(d) != 0 {
+			continue
+		}
 		event := dump.Event{OID: d.Address().ObjectID}
 		graph[event] = nil
-		for _, dependency := range catalog.OperatorFamilyDependencies(view, d) {
+		dependencies := catalog.OperatorFamilyDependencies(view, d)
+		if class, ok := d.(*catalog.OperatorClass); ok {
+			for _, member := range descriptors {
+				if memberOwningClass(member) == class.Address().ObjectID {
+					for _, dependency := range catalog.OperatorFamilyDependencies(view, member) {
+						if dependency.Address != class.Address() {
+							dependencies = append(dependencies, dependency)
+						}
+					}
+				}
+			}
+		}
+		for _, dependency := range dependencies {
 			if dependency.Address.ClassID == ids.NamespaceClassID {
 				continue
 			}
@@ -57,6 +71,20 @@ func familyDumpTypes(p dump.Presenter, view catalog.Read, args []ids.OID) (strin
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing family dump type")
 		}
+		// Family signatures and class inputs may name catalog pseudo-types
+		// (for example anyenum or internal), not concrete column usages.
+		if !t.Concrete() {
+			descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
+			if !ok || descriptor.SQLType != t {
+				return "", fmt.Errorf("stuntgres: invalid family dump type authority")
+			}
+			namespace, ok := view.Namespace(descriptor.Namespace())
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing family dump type namespace")
+			}
+			names[i] = catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(descriptor.Name())
+			continue
+		}
 		text, err := p.TypeDeclaration(view, nil, t.Usage())
 		if err != nil {
 			return "", err
@@ -72,6 +100,16 @@ func OperatorFamilyDumpStatements(ctx context.Context, p dump.Presenter, view ca
 		}
 		var text string
 		switch d := descriptor.(type) {
+		case *catalog.OperatorClass:
+			if catalog.OperatorClassSeeded(d) {
+				continue
+			}
+			statement, err := operatorClassDumpStatement(ctx, p, view, roles, d, descriptors)
+			if err != nil {
+				return err
+			}
+			declarations[d.Address().ObjectID] = statement
+			continue
 		case *catalog.OperatorFamily:
 			if catalog.OperatorFamilySeeded(d) {
 				continue
@@ -82,62 +120,26 @@ func OperatorFamilyDumpStatements(ctx context.Context, p dump.Presenter, view ca
 			}
 			name := familySQLName(view, d) + " USING " + familyMethodName(d.Method)
 			text = "CREATE OPERATOR FAMILY " + name + ";\nALTER OPERATOR FAMILY " + name + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n"
-		case *catalog.OperatorFamilyOperator:
-			f, ok := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: d.Family})
+		case *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+			if memberOwningClass(d) != 0 {
+				continue
+			}
+			var family ids.OID
+			switch member := d.(type) {
+			case *catalog.OperatorFamilyOperator:
+				family = member.Family
+			case *catalog.OperatorFamilySupport:
+				family = member.Family
+			}
+			f, ok := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family})
 			if !ok {
 				return fmt.Errorf("stuntgres: missing family dump owner")
 			}
-			operator, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: d.Operator})
-			if !ok {
-				return fmt.Errorf("stuntgres: missing family dump operator")
-			}
-			args, err := familyDumpTypes(p, view, []ids.OID{operator.Left, operator.Right})
+			item, err := operatorFamilyMemberDumpItem(p, view, d)
 			if err != nil {
 				return err
 			}
-			name := catalog.QuoteIdentifier(view.Get(operator.Namespace()).Name()) + "." + operator.Name()
-			text = "ALTER OPERATOR FAMILY " + familySQLName(view, f) + " USING " + familyMethodName(f.Method) + " ADD OPERATOR " + strconv.Itoa(int(d.Number)) + " " + name + " (" + args + ")"
-			if d.Purpose == 'o' {
-				sort, ok := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: d.SortFamily})
-				if !ok {
-					return fmt.Errorf("stuntgres: missing sort family dump dependency")
-				}
-				text += " FOR ORDER BY " + familySQLName(view, sort)
-			}
-			text += ";\n"
-		case *catalog.OperatorFamilySupport:
-			f, ok := view.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: d.Family})
-			if !ok {
-				return fmt.Errorf("stuntgres: missing family dump owner")
-			}
-			identity, ok := p.RoutineIdentity(view, d.Function)
-			if !ok {
-				return fmt.Errorf("stuntgres: missing support routine dump identity")
-			}
-			var formals []ids.OID
-			if identity.Signature != "" {
-				for _, part := range strings.Split(string(identity.Signature), ",") {
-					n, err := strconv.ParseUint(part, 10, 32)
-					if err != nil {
-						return err
-					}
-					formals = append(formals, ids.OID(n))
-				}
-			}
-			args, err := familyDumpTypes(p, view, formals)
-			if err != nil {
-				return err
-			}
-			associated, err := familyDumpTypes(p, view, []ids.OID{d.Left, d.Right})
-			if err != nil {
-				return err
-			}
-			ns := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: identity.Namespace})
-			if ns == nil {
-				return fmt.Errorf("stuntgres: missing support routine dump namespace")
-			}
-			name := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(identity.Name)
-			text = "ALTER OPERATOR FAMILY " + familySQLName(view, f) + " USING " + familyMethodName(f.Method) + " ADD FUNCTION " + strconv.Itoa(int(d.Number)) + " (" + associated + ") " + name + " (" + args + ");\n"
+			text = "ALTER OPERATOR FAMILY " + familySQLName(view, f) + " USING " + familyMethodName(f.Method) + " ADD " + item + ";\n"
 		default:
 			return fmt.Errorf("stuntgres: invalid family dump descriptor")
 		}

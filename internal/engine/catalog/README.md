@@ -259,6 +259,25 @@ definitions, extension implementations). Those register through the same
 Follow the [shared testing guide](../../../docs/TESTING.md). Run from the
 repository root.
 
+Operator classes are real immutable2616 descriptors. Name keys include exact
+method OID; namespace-independent default keys participate in candidate fences.
+Compiled supported facts are bootstrap inputs only. MethodOID is retained beside
+the physical implementation enum in index definitions. Package/engine proof:
+
+```sh
+make check RUN='^TestOperatorClass(CatalogMethodIdentity|CatalogDefaults|ValueIdentity|CatalogAtomicity)$'
+make check RACE=1 RUN='^TestOperatorClass(CatalogMethodIdentity|CatalogDefaults|ValueIdentity|CatalogAtomicity)$'
+```
+
+The catalog identity witness uses private distinct method OIDs sharing btree
+mechanics to check name/default keys, coherent class construction and retained
+method identity. The routine package's `TestOperatorClassMethodIdentity` supplies
+the combined executable witness: the same production binder selects actual
+family/member/Procedure351/181 captures and revisions, yielding-1/-2 for(1,3).
+See [design](../../../docs/design/PG18-INDEX-OPCLASS.md) and
+[public proof](../../../reference/indexes/README.md#operator-class-definitions).
+
+
 Extension implementations expose detached explicit base-version and directed
 script inventories. `ExtensionVersions` owns filename-safety validation,
 shortest directed paths and base-reachable installability; graph knowledge

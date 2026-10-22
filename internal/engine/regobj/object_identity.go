@@ -226,33 +226,6 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		}
 		return r, nil
 	}
-	if a.ClassID == 2616 {
-		var name string
-		var method uint32
-		for i := range sqltype.IndexClassMetadataCount() {
-			fact, _ := sqltype.IndexClassMetadataAt(i)
-			if ids.OID(fact.OID) == a.ObjectID {
-				name, method = fact.Name, fact.Method
-				break
-			}
-		}
-		if name == "" {
-			return r, nil
-		}
-		am := "btree"
-		if method == 405 {
-			am = "hash"
-		} else if method == 783 {
-			am = "gist"
-		}
-		r.Found = true
-		r.Schema = "pg_catalog"
-		r.Name = catalog.Identifier(name)
-		r.Names = []string{am, "pg_catalog", name}
-		r.Identity = "pg_catalog." + r.Name + " USING " + am
-		r.Description = kind + " " + r.Name + " for access method " + am
-		return r, nil
-	}
 	if a.ClassID == 2606 || a.ClassID == 2604 || a.ClassID == 2618 || a.ClassID == 3256 {
 		return identifyOwnedAddress(view, path, a, r), nil
 	}
@@ -279,13 +252,21 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		display = r.Name
 	}
 	switch d := d.(type) {
-	case *catalog.OperatorFamily:
-		am := "btree"
-		if d.Method == 405 {
-			am = "hash"
-		} else if d.Method == 783 {
-			am = "gist"
+	case *catalog.OperatorClass:
+		method, ok := catalog.AccessMethodByOID(d.Method)
+		if !ok {
+			return r, fmt.Errorf("stuntgres: missing operator class access method")
 		}
+		r.Names = []string{method.Name, canonical, d.Name()}
+		r.Identity = catalog.Identifier(canonical) + "." + r.Name + " USING " + method.Name
+		r.Description = "operator class " + display + " for access method " + method.Name
+		return r, nil
+	case *catalog.OperatorFamily:
+		method, ok := catalog.AccessMethodByOID(d.Method)
+		if !ok {
+			return r, fmt.Errorf("stuntgres: missing operator family access method")
+		}
+		am := method.Name
 		r.Names = []string{am, canonical, d.Name()}
 		r.Identity = catalog.Identifier(canonical) + "." + r.Name + " USING " + am
 		r.Description = "operator family " + display + " for access method " + am

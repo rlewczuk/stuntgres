@@ -1495,8 +1495,8 @@ The `TestReferencePGOpclass` scenarios specify the nine released columns,
 OID/NAME/BOOL raw codecs and metadata, fixed class/method/family/input identities,
 default and key-storage distinctions, PUBLIC reads, held execution, diagnostics,
 index/data agreement and native Dump/Reset/Restore. Expected tuples are independent
-of native lookup. Native coverage requires the complete supported62-row bag
-(30 btree,30 hash and two feature-local GiST classes); PostgreSQL permits others.
+of native lookup. Native coverage requires the complete supported63-row seed bag
+(31 btree,30 hash and two feature-local GiST classes); PostgreSQL permits others.
 GiST inet_ops is explicitly nondefault18.0; range_ops admits canonical anyrange.
 Other array/record/range classes remain unadvertised unless actually executable.
 
@@ -1507,6 +1507,16 @@ prepared fresh parameters and INSERT/UPDATE/DELETE before reading pg_opclass.
 The private supplemental `TestPGOpclassJSONBHashIdentity` checks the existing
 root, actual candidate probe and exact stored class identity without new APIs.
 The native identity must be hash10089, not inherited btree10088.
+
+Class DDL now makes current descriptors the sole live metadata/default/name
+authority. Custom classes and seed rename/schema/owner deltas supplement the
+historical seed proof rather than replacing it. Run the seven shared-body
+`TestReferenceOperatorClass` definitions in
+[`reference/indexes`](../indexes/README.md#operator-class-definitions) in both
+modes; their discovery is grounded on pinned PostgreSQL18.6. In particular,
+FeatureSmoke proves real custom family/class/index creation and maintained
+INSERT, and Roundtrip replays actual native-emitted SQL on PostgreSQL.
+
 
 Run each bounded group in both modes with an external 900-second deadline:
 

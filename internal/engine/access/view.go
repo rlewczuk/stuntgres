@@ -117,6 +117,8 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.OperatorFamily:
 		return d.Owner, authorization.ACLValue{}, nil
+	case *catalog.OperatorClass:
+		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Operator:
 		return d.Owner, authorization.ACLValue{}, nil
 	}
@@ -313,6 +315,8 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = "conversion"
 		} else if d.Kind() == ids.OperatorFamilyObject {
 			kind = "operator family"
+		} else if d.Kind() == ids.OperatorClassObject {
+			kind = "operator class"
 		} else if d.Kind() == ids.OperatorObject {
 			kind = "operator"
 		} else if d.Kind() == ids.ProcedureObject {

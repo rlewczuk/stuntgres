@@ -17,6 +17,7 @@ func RemapOperatorFamily(d Descriptor, mapping map[ids.ObjectAddress]ids.ObjectA
 		n := *d
 		n.ObjectAddress = move(d.Address())
 		n.ObjectNamespace = move(d.Namespace())
+		n.Method = oid(2601, d.Method)
 		if n == *d {
 			return d
 		}
@@ -29,6 +30,10 @@ func RemapOperatorFamily(d Descriptor, mapping map[ids.ObjectAddress]ids.ObjectA
 		n.Left = oid(ids.TypeClassID, d.Left)
 		n.Right = oid(ids.TypeClassID, d.Right)
 		n.Operator = oid(ids.OperatorClassID, d.Operator)
+		n.Method = oid(2601, d.Method)
+		if d.OwningClass != 0 {
+			n.OwningClass = oid(ids.OperatorClassCatalogID, d.OwningClass)
+		}
 		if n == *d {
 			return d
 		}
@@ -40,6 +45,9 @@ func RemapOperatorFamily(d Descriptor, mapping map[ids.ObjectAddress]ids.ObjectA
 		n.Left = oid(ids.TypeClassID, d.Left)
 		n.Right = oid(ids.TypeClassID, d.Right)
 		n.Function = oid(ids.ProcedureClassID, d.Function)
+		if d.OwningClass != 0 {
+			n.OwningClass = oid(ids.OperatorClassCatalogID, d.OwningClass)
+		}
 		if n == *d {
 			return d
 		}

@@ -9,27 +9,53 @@ import (
 // IndexClass is an immutable released method-specific class identity. Its input
 // and family belong here, not to namespace lookup or expression coercion.
 type IndexClass struct {
-	Name    string
-	Family  string
-	input   ID
-	oid     uint32
-	enum    bool
-	hash    bool
-	gist    bool
-	support [2]IndexSupport
+	Name                    string
+	Family                  string
+	input                   ID
+	oid                     uint32
+	method, family, storage uint32
+	enum                    bool
+	hash                    bool
+	gist                    bool
+	support                 [2]IndexSupport
 }
 
 // OID is the released identity. Unowned B-tree diagnostic classes do not
 // advertise an implemented ordering provider.
 func (c IndexClass) OID() uint32 { return c.oid }
 
+func (c IndexClass) MethodOID() uint32  { return c.method }
+func (c IndexClass) FamilyOID() uint32  { return c.family }
+func (c IndexClass) StorageOID() uint32 { return c.storage }
+func (c IndexClass) InputOID() uint32 {
+	if c.enum {
+		return 3500
+	}
+	return uint32(c.input)
+}
+
+// IndexClassDefinition contains catalog-selected identity and provider input.
+// Construction never resolves a class name or substitutes a builtin class.
+type IndexClassDefinition struct {
+	OID, Method, Family, Input, Storage uint32
+	Name, FamilyName                    string
+	Hash, GiST                          bool
+}
+
+func NewIndexClass(d IndexClassDefinition) IndexClass {
+	return IndexClass{Name: d.Name, Family: d.FamilyName, oid: d.OID,
+		method: d.Method, family: d.Family, storage: d.Storage,
+		input: ID(d.Input), enum: d.Input == 3500, hash: d.Hash, gist: d.GiST}
+}
+
 func (c IndexClass) IsHash() bool { return c.hash }
 func (c IndexClass) IsGiST() bool { return c.gist }
 
 // SameIdentity compares the declared class, independently of the catalog
-// members captured for execution. Runtime support is not a class annotation.
+// members captured for execution or current presentation names.
 func (c IndexClass) SameIdentity(other IndexClass) bool {
 	c.support, other.support = [2]IndexSupport{}, [2]IndexSupport{}
+	c.Name, other.Name, c.Family, other.Family = "", "", "", ""
 	return c == other
 }
 
@@ -57,7 +83,7 @@ func (c IndexClass) OIDKeyValue(v Value, oid *Descriptor) (Value, error) {
 // Inference compares the declared input and family, not class aliases or
 // CREATE's broader binary-compatible admission set.
 func (c IndexClass) SameInferenceIdentity(other IndexClass) bool {
-	return c.Family == other.Family && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist
+	return c.family == other.family && c.method == other.method && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist
 }
 
 func LookupIndexClass(name string) (IndexClass, bool) {
@@ -174,7 +200,20 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 	default:
 		return IndexClass{}, false
 	}
-	return c, true
+	return c.withSeedIdentity(403), true
+}
+
+// withSeedIdentity stamps bootstrap/test values only. Catalog construction uses
+// NewIndexClass and never resolves a released class spelling.
+func (c IndexClass) withSeedIdentity(method uint32) IndexClass {
+	c.method, c.family, c.storage = method, 0, 0
+	for _, fact := range supportedIndexClasses {
+		if fact.method == method && fact.name == c.Name {
+			c.family, c.storage = fact.family, fact.keyType
+			break
+		}
+	}
+	return c
 }
 
 func DefaultIndexClass(t *Descriptor) (IndexClass, bool) {
@@ -273,6 +312,9 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 
 // AcceptsID checks released input identity only; it grants no runtime provider.
 func (c IndexClass) AcceptsID(id ID) bool {
+	if c.gist && c.input == 3831 {
+		return isRange(id)
+	}
 	if c.input == 0 {
 		return false
 	}

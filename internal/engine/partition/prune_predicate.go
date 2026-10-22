@@ -116,7 +116,7 @@ func (p *pruneProof) term(node expr.Expr) int {
 			return i
 		}
 	}
-	class, ok := sqltype.DefaultIndexClass(node.ResultUsage().Type)
+	class, ok := p.view.DefaultIndexClass(403, node.ResultUsage().Type)
 	if !ok {
 		return -1
 	}

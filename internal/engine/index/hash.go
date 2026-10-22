@@ -22,7 +22,7 @@ func bindIndexProvider(view catalog.Read, parent *catalog.Relation, d *catalog.I
 		_, err := BindHashIndex(view, parent, d)
 		return err
 	case catalog.GistMethod:
-		_, err := bindLogicalExclusionKeys(parent, d)
+		_, err := bindLogicalExclusionKeys(view, parent, d)
 		return err
 	default:
 		return fmt.Errorf("stuntgres: invalid index method")
@@ -45,10 +45,13 @@ func BindHashIndex(view catalog.Read, parent *catalog.Relation, d *catalog.Index
 	class := key.Class
 	if class.Name == "" {
 		var exists bool
-		class, exists = d.Method.DefaultClass(usage.Type)
+		class, exists = view.DefaultIndexClass(d.MethodIdentity(), usage.Type)
 		if !exists {
 			return b, DefaultClassError(usage.Type.DiagnosticName(), d.Method)
 		}
+	}
+	if class.MethodOID() != uint32(d.MethodIdentity()) {
+		return b, fmt.Errorf("stuntgres: hash operator class method mismatch")
 	}
 	class, err = routine.BindClassSupport(view, class)
 	if err != nil {
@@ -180,13 +183,13 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 		}
 		class := key.Class
 		if class.Name == "" {
-			class, _ = d.Method.DefaultClass(usage.Type)
+			class, _ = evaluation.Catalog.DefaultIndexClass(d.MethodIdentity(), usage.Type)
 		}
 		slot := slices.Index(parent.Attributes, key.Attribute)
 		if key.Derived != nil {
 			slot = -1
 		}
-		if usage != binding.Usage || class != binding.Class || slot != binding.Slot || key.Derived != binding.Derived || key.Desc || key.NullsFirst {
+		if usage != binding.Usage || !class.SameIdentity(binding.Class) || slot != binding.Slot || key.Derived != binding.Derived || key.Desc || key.NullsFirst {
 			binding, err = BindHashIndex(evaluation.Catalog, parent, d)
 			if err != nil {
 				return nil, err

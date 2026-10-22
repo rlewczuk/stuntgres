@@ -26,7 +26,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := functions.String{Info: column.Info, Plan: plan, Args: []expr.Expr{column}, Textual: [4]bool{true}}
-	d := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: node, Execution: node}}}, Ready: true, Valid: true, Live: true}
+	d := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: node, Execution: node}}}, Ready: true, Valid: true, Live: true}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &storage.Relation{}
 	for i, v := range values {
@@ -61,7 +61,7 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	parent := &catalog.Relation{Attributes: []int32{7, 9}, Columns: []catalog.Column{{Usage: typ.Usage()}, {Usage: typ.Usage()}}}
-	d := &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 9}, {Attribute: 7}}, Unique: true, Ready: true, Valid: true, Live: true}
+	d := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Keys: []catalog.IndexKey{{Attribute: 9}, {Attribute: 7}}, Unique: true, Ready: true, Valid: true, Live: true}
 	ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, d)
 	if err != nil || !reflect.DeepEqual(ordering.Slots, []int{1, 0}) || ordering.Derived != nil {
 		t.Fatal(ordering, err)

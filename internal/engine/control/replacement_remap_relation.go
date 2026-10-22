@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/sqltype"
 )
 
 // remapReplacementRelation returns relation r moved to target with its
@@ -78,6 +79,13 @@ func remapReplacementRelation(current catalog.Read, mapping map[ids.ObjectAddres
 	}
 	if r.SQLIndex != nil {
 		definition := *r.SQLIndex
+		definition.Keys = append([]catalog.IndexKey(nil), r.SQLIndex.Keys...)
+		for i := range definition.Keys {
+			definition.Keys[i].Class = remapReplacementClass(definition.Keys[i].Class, mapping)
+		}
+		if destination, ok := mapping[ids.ObjectAddress{ClassID: 2601, ObjectID: definition.MethodOID}]; ok {
+			definition.MethodOID = destination.ObjectID
+		}
 		if parent, remapped := mapping[definition.PartitionParent]; remapped {
 			definition.PartitionParent = parent
 		}
@@ -92,6 +100,14 @@ func remapReplacementRelation(current catalog.Read, mapping map[ids.ObjectAddres
 			definition.Constraint = &constraint
 		}
 		n.SQLIndex = &definition
+	}
+	if r.Partition != nil {
+		definition := *r.Partition
+		definition.Keys = append([]catalog.PartitionKeyEntry(nil), r.Partition.Keys...)
+		for i := range definition.Keys {
+			definition.Keys[i].Class = remapReplacementClass(definition.Keys[i].Class, mapping)
+		}
+		n.Partition = &definition
 	}
 	if r.Sequence != nil {
 		o := *r.Sequence
@@ -113,4 +129,27 @@ func remapReplacementRelation(current catalog.Read, mapping map[ids.ObjectAddres
 		}
 	}
 	return &n, nil
+}
+
+// Reconstruct the identity without transplanting support captured in the source
+// engine. The ordinary destination validation/rebuild binds its own members.
+func remapReplacementClass(class sqltype.IndexClass, mapping map[ids.ObjectAddress]ids.ObjectAddress) sqltype.IndexClass {
+	if class.OID() == 0 {
+		return class
+	}
+	move := func(kind ids.OID, id uint32) uint32 {
+		if destination, ok := mapping[ids.ObjectAddress{ClassID: kind, ObjectID: ids.OID(id)}]; ok {
+			return uint32(destination.ObjectID)
+		}
+		return id
+	}
+	return sqltype.NewIndexClass(sqltype.IndexClassDefinition{
+		OID:     move(ids.OperatorClassCatalogID, class.OID()),
+		Method:  move(2601, class.MethodOID()),
+		Family:  move(ids.OperatorFamilyClassID, class.FamilyOID()),
+		Input:   move(ids.TypeClassID, class.InputOID()),
+		Storage: move(ids.TypeClassID, class.StorageOID()),
+		Name:    class.Name, FamilyName: class.Family,
+		Hash: class.IsHash(), GiST: class.IsGiST(),
+	})
 }

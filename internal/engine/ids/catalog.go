@@ -46,6 +46,7 @@ const (
 	ForeignMappingClassID        OID = 1418
 	ForeignTableClassID          OID = 3118
 	OperatorClassID              OID = 2617
+	OperatorClassCatalogID       OID = 2616
 	OperatorFamilyClassID        OID = 2753
 	AccessMethodOperatorClassID  OID = 2602
 	AccessMethodProcedureClassID OID = 2603
@@ -78,4 +79,5 @@ const (
 	OperatorFamilyObject
 	OperatorFamilyOperatorObject
 	OperatorFamilySupportObject
+	OperatorClassObject
 )

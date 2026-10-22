@@ -6,6 +6,17 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Relation-lock cancellation admission
+
+`TestReferenceRelationLockCancellation` uses the shared active relation-lock
+observer before canceling native work or signaling PostgreSQL. It retains quiet
+Prepare/nil outputs, exact cancellation errors, aborted same-owner transaction,
+rollback, preserved rows and subsequent writes. A pre-analysis caller deadline
+does not prove transaction abort; the separate bounded deadline witnesses remain.
+
+Run `make check RUN='^TestReferenceRelationLockCancellation$'` with quick,
+`REFERENCE=1`, and `RACE=1` modes.
+
 ### pgrowlocks: independently specified oracle-first contract
 
 The untagged `pgrowlocks_*_test.go` scenarios use this package's shared public

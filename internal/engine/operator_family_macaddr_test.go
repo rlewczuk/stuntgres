@@ -51,7 +51,7 @@ func TestOperatorFamilyMacaddrSupportExecution(t *testing.T) {
 		}
 	}
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90020}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "m", Usage: typ.Usage()}}, Index: map[string]int{"m": 0}}
-	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Ready: true, Valid: true, Live: true}
+	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Ready: true, Valid: true, Live: true}
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90021}, ObjectRevision: 1, SQLIndex: definition}
 	store := &storage.Relation{Versions: []storage.RowVersion{
 		{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(0x800000000000)}},

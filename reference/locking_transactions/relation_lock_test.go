@@ -267,53 +267,21 @@ func TestReferenceRelationLockCancellation(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer waiter.Rollback()
-						pid := 0
-						if backend.PG {
-							if err = waiter.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
-								t.Fatal(err)
-							}
-						}
-						callCtx, cancel := context.WithCancel(ctx)
-						if !backend.PG {
-							cancel()
-							callCtx, cancel = context.WithTimeout(ctx, 30*time.Millisecond)
-						}
-						defer cancel()
-						await := fixture.LockOperation(t, callCtx, func(ctx context.Context) fixture.RelationOutcome {
+						// Cancellation must follow real lock admission; a deadline started
+						// before analysis can expire without aborting the transaction.
+						fixture.RelationLockActiveCancel(t, pair, backend, b, q, func(callCtx context.Context) fixture.RelationOutcome {
 							o := fixture.RelationOutcome{}
 							if prepare {
-								o.Stmt, o.Err = waiter.PrepareContext(ctx, q)
+								o.Stmt, o.Err = waiter.PrepareContext(callCtx, q)
 							} else {
-								o.Result, o.Err = waiter.ExecContext(ctx, q)
+								o.Result, o.Err = waiter.ExecContext(callCtx, q)
+							}
+							if o.Stmt != nil {
+								o.Stmt.Close()
+								t.Error("canceled Prepare exposed stmt")
 							}
 							return o
 						})
-						if backend.PG {
-							fixture.LockWaitBehind(t, ctx, pid, fixture.LockPID(t, ctx, a), fixture.LockOID(t, ctx, "t"), map[bool]string{false: "RowExclusiveLock", true: "AccessShareLock"}[q[0] == 'S'])
-							var canceled bool
-							if err = fixture.Admin.QueryRowContext(ctx, "SELECT pg_cancel_backend($1)", pid).Scan(&canceled); err != nil || !canceled {
-								t.Fatal(canceled, err)
-							}
-						}
-						o := await()
-						if o.Stmt != nil {
-							o.Stmt.Close()
-							t.Fatal("canceled Prepare exposed stmt")
-						}
-						if !backend.PG {
-							if !errors.Is(o.Err, context.DeadlineExceeded) {
-								t.Fatal(o.Err)
-							}
-							var state interface{ SQLState() string }
-							if errors.As(o.Err, &state) {
-								t.Fatal("ordinary caller deadline fabricated SQLSTATE", o.Err)
-							}
-						} else {
-							want := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"}
-							if got := fixture.ExtractDiagnostic(t, o.Err); got != want {
-								t.Fatal(got, want)
-							}
-						}
 						_, err = waiter.ExecContext(ctx, "LOCK TABLE absent IN ACCESS EXCLUSIVE MODE")
 						if got := fixture.ExtractDiagnostic(t, err); got != fixture.TransactionAborted() {
 							t.Fatal(got)

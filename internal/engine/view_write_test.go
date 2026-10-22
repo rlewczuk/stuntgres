@@ -180,7 +180,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	f.e.catalog.state.SetDescriptor(indexAddress, &catalog.Relation{
 		ObjectAddress: indexAddress,
-		SQLIndex:      &catalog.IndexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
+		SQLIndex:      &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
 	conflict := dml.NewInsertConflictState(&analyze.InsertConflict{})
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}

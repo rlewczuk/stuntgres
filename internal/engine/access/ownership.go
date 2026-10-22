@@ -111,6 +111,8 @@ func OwnershipRoot(view catalog.Read, d catalog.Descriptor, operatorSeeded func(
 		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *catalog.OperatorFamily:
 		return !catalog.OperatorFamilySeeded(t)
+	case *catalog.OperatorClass:
+		return !catalog.OperatorClassSeeded(t)
 	case *catalog.Operator:
 		return !operatorSeeded(t)
 	case *catalog.Procedure:

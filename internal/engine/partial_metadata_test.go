@@ -161,7 +161,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		if err != nil || truth != plan.False {
 			t.Fatalf("row %d: original FALSE AND active truth=%v error=%v", row.Row, truth, err)
 		}
-		matched, err := preparation.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: predicate}, row.Values, nil, nil)
+		matched, err := preparation.PredicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Predicate: predicate}, row.Values, nil, nil)
 		if err != nil || matched {
 			t.Fatalf("row %d: simplified execution admitted a member: %v %v", row.Row, matched, err)
 		}

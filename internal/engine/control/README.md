@@ -187,6 +187,24 @@ implements it:
 
 ## Testing
 
+Operator-class events use the ordinary dump dependency scheduler: real family
+and implementation objects precede class, class precedes indexes and partition
+consumers. INTERNAL members are declared exactly once in CREATE CLASS; loose
+members remain separate family events. Current names/owners/schema and bootstrap
+class deltas replay without inventing source identities. Foreign Restore
+reconstructs remapped class captures and binds destination support.
+
+```sh
+make check RUN='^TestReferenceOperatorClass(Roundtrip|SeedRoundtrip)$'
+make check REFERENCE=1 RUN='^TestReferenceOperatorClass(Roundtrip|SeedRoundtrip)$'
+```
+
+Roundtrip replays actual native-emitted bytes on PostgreSQL. The user enum column
+is genuinely remapped while its polymorphic class/member input stays anyenum3500.
+The scenario checks post-Restore maintained inserts and late failed replacement
+atomicity. See [design](../../../docs/design/PG18-INDEX-OPCLASS.md).
+
+
 Package units: the driver order with a fake `Host`, and the walkers:
 
 ```sh

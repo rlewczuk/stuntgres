@@ -32,8 +32,11 @@ func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *c
 	t.Helper()
 	types := indexClausesTypes()
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{10, 20, 30}, ColumnMeta: catalog.ColumnMetadata{HighWater: 30}, Columns: []catalog.Column{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
-	c, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	def := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: c}, {Attribute: 20, Class: c, Desc: true, NullsFirst: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
+	c, ok := operatorFamilyTestRead().DefaultIndexClass(403, types[sqltype.Int4])
+	if !ok {
+		t.Fatal("missing current integer default class")
+	}
+	def := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: c}, {Attribute: 20, Class: c, Desc: true, NullsFirst: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "cover", ObjectRevision: 1, RelationKind: catalog.IndexRelation, SQLIndex: def, Columns: append([]catalog.Column(nil), parent.Columns...), Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	catalogSnapshot := operatorFamilyFixtureState(catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, idx.Address(): idx}, nil))
 	if err := index.ValidateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), idx); err != nil {
@@ -115,8 +118,8 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 func TestIndexClausesClassRoots(t *testing.T) {
 	parent, idx, catalogSnapshot, types := indexClausesFixture(t)
 	ctx := context.Background()
-	oid, _ := sqltype.LookupIndexClass("oid_ops")
-	idx.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: oid, ExplicitClass: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
+	oid, _ := operatorFamilyTestRead().IndexClass(1981)
+	idx.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: oid, ExplicitClass: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	idx.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}
 	idx.Attributes = []int32{1, 2}
 	idx.ColumnMeta.HighWater = 2
@@ -133,8 +136,8 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	if root.Entries[0].Row != 2 || root.Entries[1].Row != 1 {
 		t.Fatal("oid_ops did not choose unsigned provider", root)
 	}
-	bpchar, _ := sqltype.LookupIndexClass("bpchar_ops")
-	def := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 30, Class: bpchar, ExplicitClass: true, Collation: 950}}, Ready: true, Valid: true, Live: true}
+	bpchar, _ := operatorFamilyTestRead().IndexClass(10004)
+	def := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 30, Class: bpchar, ExplicitClass: true, Collation: 950}}, Ready: true, Valid: true, Live: true}
 	ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, def)
 	if err != nil {
 		t.Fatal(err)
@@ -151,8 +154,8 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	ctx := context.Background()
 	c := catalog.UniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: idx.Address()}
 	parent.Constraints.Unique = []catalog.UniqueConstraint{c}
-	class, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
-	idx.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Include: []int32{30}, Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: index.UniqueBacking(&c), Ready: true, Valid: true, Live: true}
+	class, _ := catalog.NewRead(nil, catalogSnapshot).DefaultIndexClass(403, types[sqltype.Int4])
+	idx.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Include: []int32{30}, Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: index.UniqueBacking(&c), Ready: true, Valid: true, Live: true}
 	idx.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}
 	idx.Attributes = []int32{1, 2}
 	idx.ColumnMeta.HighWater = 2
@@ -183,7 +186,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 func TestIndexClausesEvolution(t *testing.T) {
 	parent, idx, catalogSnapshot, types := indexClausesFixture(t)
 	idx.SQLIndex.Keys[0].ExplicitClass = true
-	textPattern, _ := sqltype.LookupIndexClass("text_pattern_ops")
+	textPattern, _ := catalog.NewRead(nil, catalogSnapshot).IndexClass(4217)
 	idx.SQLIndex.Keys[1] = catalog.IndexKey{Attribute: 30, Class: textPattern, ExplicitClass: true, Collation: 951}
 	idx.SQLIndex.Include = []int32{20}
 	idx.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2], parent.Columns[1]}
@@ -212,7 +215,7 @@ func TestIndexClausesEvolution(t *testing.T) {
 	if rebuilt.SQLIndex.Keys[0].Class.Name != "text_ops" || rebuilt.Columns[0].Usage.Type != types[sqltype.Text] {
 		t.Fatal(rebuilt)
 	}
-	oid, _ := sqltype.LookupIndexClass("oid_ops")
+	oid, _ := catalog.NewRead(nil, catalogSnapshot).IndexClass(1981)
 	retained := *idx
 	def := *idx.SQLIndex
 	def.Keys = append([]catalog.IndexKey(nil), def.Keys...)
@@ -251,7 +254,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			parent, idx, catalogSnapshot, types := indexClausesFixture(t)
 			parent.Columns[1].Usage = types[sqltype.Text].Usage()
-			textClass, _ := sqltype.DefaultIndexClass(types[sqltype.Text])
+			textClass, _ := catalog.NewRead(nil, catalogSnapshot).DefaultIndexClass(403, types[sqltype.Text])
 			idx.SQLIndex.Keys[0].ExplicitClass = true
 			idx.SQLIndex.Keys[1].Class = textClass
 			idx.SQLIndex.Keys[1].ExplicitClass = true
@@ -403,8 +406,8 @@ func TestIndexClausesDerivedProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := functions.String{Info: column.Info, Plan: plan, Args: []expr.Expr{column}, Textual: [4]bool{true}}
-	class, _ := sqltype.LookupIndexClass("bpchar_ops")
-	definition := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: node, Execution: node, Attributes: parent.Attributes}, Class: class, ExplicitClass: true, Collation: 950}}, Include: []int32{10}, Ready: true, Valid: true, Live: true}
+	class, _ := operatorFamilyTestRead().IndexClass(10004)
+	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: node, Execution: node, Attributes: parent.Attributes}, Class: class, ExplicitClass: true, Collation: 950}}, Include: []int32{10}, Ready: true, Valid: true, Live: true}
 	store := &storage.Relation{}
 	for i, text := range []string{"Alpha ", "ALPHA"} {
 		payload, err := sqltype.Integer(types[sqltype.Int4], int64(i+1))

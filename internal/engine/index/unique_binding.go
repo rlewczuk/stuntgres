@@ -190,9 +190,9 @@ func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view c
 			if idx.SQLIndex.Method == catalog.GistMethod {
 				continue
 			}
-			// network_ops owns typed comparison but not generic grouping. Its
-			// claims use the existing comparator-based shared bucket.
-			if key.Class.Family == "network_ops" {
+			// Network datums own comparison, but no generic grouping provider.
+			// Custom families use the same comparator-based claim bucket.
+			if usage.Type.BaseType().ID() == sqltype.Inet || usage.Type.BaseType().ID() == sqltype.Cidr {
 				continue
 			}
 			bound.Grouping[j], err = sqltype.BindGrouping(usage)

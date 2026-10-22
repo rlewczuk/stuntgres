@@ -411,8 +411,16 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 					if key.Collation != 0 {
 						parts[i] += " COLLATE " + typedef.CollationSQLName(view, key.Collation)
 					}
-					if key.Class.Name != "" {
-						parts[i] += " " + catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(key.Class.Name)
+					if key.Class.OID() != 0 {
+						class, exists := view.OperatorClass(ids.OID(key.Class.OID()))
+						if !exists {
+							return "", fmt.Errorf("stuntgres: missing conflict operator class")
+						}
+						namespace, exists := view.Namespace(class.Namespace())
+						if !exists {
+							return "", fmt.Errorf("stuntgres: missing conflict operator class namespace")
+						}
+						parts[i] += " " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(class.Name())
 					}
 				}
 				sql.WriteString(" (" + strings.Join(parts, ", ") + ")")

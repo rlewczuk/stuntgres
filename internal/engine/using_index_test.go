@@ -132,7 +132,7 @@ func usingIndexUnitAlter(primary bool) *parser.AlterTable {
 func TestUsingIndexEligibility(t *testing.T) {
 	e, s, parent, idx := usingIndexUnitFixture(t)
 	raw := &parser.UsingIndexConstraint{Pos: parser.Position{Character: 17}}
-	attributes, err := index.UsingIndexEligibility(parent, idx, raw)
+	attributes, err := index.UsingIndexEligibility(e.CatalogRead(), parent, idx, raw)
 	if err != nil || !slices.Equal(attributes, parent.Attributes[:2]) {
 		t.Fatal(attributes, err)
 	}
@@ -145,13 +145,13 @@ func TestUsingIndexEligibility(t *testing.T) {
 	if err := index.ValidateIndexDefinition(e.CatalogRead(), &invalid); err != nil {
 		t.Fatal(err)
 	}
-	_, err = index.UsingIndexEligibility(parent, &invalid, raw)
+	_, err = index.UsingIndexEligibility(e.CatalogRead(), parent, &invalid, raw)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "55000", Message: `index "prebuilt" is not valid`, Position: "17"})
 	// Real associated input wins over its wrong-parent relationship.
 	other := primaryKeyUnitCreate("other", "other_pk")
 	usingIndexUnitExecute(t, e, s, other)
 	owned := primaryKeyUnitRelation(t, e, "other_pk")
-	_, err = index.UsingIndexEligibility(parent, owned, raw)
+	_, err = index.UsingIndexEligibility(e.CatalogRead(), parent, owned, raw)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "55000", Message: `index "other_pk" is already associated with a constraint`, Position: "17"})
 	// Compose independently bound, provider-valid expression and predicate
 	// definitions to cover the public concurrent-partial setup boundary privately.
@@ -169,7 +169,7 @@ func TestUsingIndexEligibility(t *testing.T) {
 	if err := index.ValidateIndexDefinition(e.CatalogRead(), &combined); err != nil {
 		t.Fatal(err)
 	}
-	_, err = index.UsingIndexEligibility(parent, &combined, raw)
+	_, err = index.UsingIndexEligibility(e.CatalogRead(), parent, &combined, raw)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42809", Message: `index "expression" contains expressions`, Detail: "Cannot create a primary key or unique constraint using such an index.", Position: "17"})
 	nonunique := combined
 	nonuniqueDefinition := combinedDefinition
@@ -178,13 +178,13 @@ func TestUsingIndexEligibility(t *testing.T) {
 	if err := index.ValidateIndexDefinition(e.CatalogRead(), &nonunique); err != nil {
 		t.Fatal(err)
 	}
-	_, err = index.UsingIndexEligibility(parent, &nonunique, raw)
+	_, err = index.UsingIndexEligibility(e.CatalogRead(), parent, &nonunique, raw)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42809", Message: `"expression" is not a unique index`, Detail: "Cannot create a primary key or unique constraint using such an index.", Position: "17"})
 	// Actual HASH rejects at nonunique. Do not manufacture a unique HASH provider
 	// to exercise PostgreSQL's later, native-public-unreachable method branch.
 	usingIndexUnitExecute(t, e, s, &parser.CreateIndex{Name: parser.Identifier{Text: "hashed"}, Table: primaryKeyUnitName("t"), Method: "hash", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "a"}}}})
 	hashed := primaryKeyUnitRelation(t, e, "hashed")
-	_, err = index.UsingIndexEligibility(parent, hashed, raw)
+	_, err = index.UsingIndexEligibility(e.CatalogRead(), parent, hashed, raw)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42809", Message: `"hashed" is not a unique index`, Detail: "Cannot create a primary key or unique constraint using such an index.", Position: "17"})
 	if idx.SQLIndex.Constraint != nil || !idx.SQLIndex.Valid || !idx.SQLIndex.Unique || len(parent.Constraints.Unique) != 0 {
 		t.Fatal("eligibility mutated source")

@@ -191,7 +191,7 @@ phases:
 		if phase == 1 {
 			var err error
 			prepared.UsingCaptureOld = next
-			prepared.UsingIndexes, err = index.CaptureUsingIndexDefinitions(reader, next, actions)
+			prepared.UsingIndexes, err = index.CaptureUsingIndexDefinitions(view, reader, next, actions)
 			if err != nil {
 				prepared.UsingCaptureError = err
 				break phases

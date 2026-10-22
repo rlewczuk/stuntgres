@@ -138,7 +138,7 @@ func evolveIndexRevision(view catalog.Read, index, oldParent, parent *catalog.Re
 				oldUsage = oldParent.Columns[slices.Index(oldParent.Attributes, key.Attribute)].Usage
 				newUsage = parent.Columns[slices.Index(parent.Attributes, key.Attribute)].Usage
 			}
-			definition.Keys[i] = ReconstructIndexKey(key, oldUsage, newUsage, definition.Method)
+			definition.Keys[i] = ReconstructIndexKey(view, key, oldUsage, newUsage, definition.MethodIdentity())
 		}
 	}
 	if err := bindIndexProvider(view, parent, definition); err != nil {

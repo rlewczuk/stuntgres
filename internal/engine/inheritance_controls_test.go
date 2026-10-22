@@ -251,7 +251,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	constraint := catalog.ExclusionConstraint{OID: parent.Address().ObjectID, Name: idx.Name(), Index: idx.Address(), Operators: []sqltype.ExclusionOperator{operator}}
 	tempChild.Constraints.Exclusion = []catalog.ExclusionConstraint{constraint}
 	tempChild.History.HasIndexes = true
-	idx.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: tempChild.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Constraint: index.ExclusionBacking(&constraint), Exclusion: constraint.Operators, Ready: true, Valid: true, Live: true}
+	idx.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: tempChild.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Constraint: index.ExclusionBacking(&constraint), Exclusion: constraint.Operators, Ready: true, Valid: true, Live: true}
 	inheritanceLifecycleInstall(e, idx)
 	inheritanceLifecycleInstall(source, parent, child)
 	if err := index.ValidateExclusions(e.CatalogRead(), tempChild, map[string]bool{}); err != nil {

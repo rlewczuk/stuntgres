@@ -31,9 +31,9 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			case "table_partition":
 				child.Membership = &catalog.PartitionMembership{Parent: parent.Address()}
 			case "index_partition":
-				child.SQLIndex = &catalog.IndexDefinition{PartitionParent: parent.Address()}
+				child.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, PartitionParent: parent.Address()}
 			case "ordinary_index":
-				child.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address()}
+				child.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address()}
 			}
 			if err := stage.Create(child); err != nil {
 				t.Fatal(err)

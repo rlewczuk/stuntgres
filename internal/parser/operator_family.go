@@ -4,6 +4,7 @@ package parser
 // function/operator signature; omission matters to released ADD admission.
 type OperatorFamilyItem struct {
 	Function    bool
+	Storage     *TypeName
 	Number      string
 	Name        ObjectName
 	Arguments   []TypeName

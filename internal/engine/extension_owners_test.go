@@ -186,7 +186,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 				Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref},
 			}},
 		},
-		SQLIndex: &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{
+		SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{
 			Definition: call, Execution: call, Dependencies: []ids.ObjectRef{call.Ref},
 		}}}},
 	}

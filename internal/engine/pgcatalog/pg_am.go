@@ -2,29 +2,16 @@ package pgcatalog
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 const AMOID ids.OID = 2601
 
-// Released identities for implemented logical methods, not physical storage
-// algorithms or an inventory of currently instantiated user indexes.
-var pgAMMethods = [...]struct {
-	oid     uint32
-	name    string
-	handler uint32
-	kind    string
-}{
-	{2, "heap", 3, "t"},
-	{403, "btree", 330, "i"},
-	{405, "hash", 331, "i"},
-	{783, "gist", 332, "i"},
-}
-
 func capturePGAM(in Input) ([][]sqltype.Value, error) {
 	ctx := in.Context
-	catalog := in.Catalog
+	view := in.Catalog
 	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -33,29 +20,30 @@ func capturePGAM(in Input) ([][]sqltype.Value, error) {
 		return nil, fmt.Errorf("stuntgres: invalid access-method source shape")
 	}
 	for i, id := range [...]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Regproc, sqltype.Char} {
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign access-method source type")
 		}
 	}
-	rows := make([][]sqltype.Value, len(pgAMMethods))
-	values := make([]sqltype.Value, len(pgAMMethods)*4)
-	for i, fact := range pgAMMethods {
+	methods := catalog.AccessMethods()
+	rows := make([][]sqltype.Value, len(methods))
+	values := make([]sqltype.Value, len(methods)*4)
+	for i, fact := range methods {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		row := values[i*4 : (i+1)*4 : (i+1)*4]
 		var err error
-		row[0], err = sqltype.OIDValue(source.Columns[0].Usage.Type, fact.oid)
+		row[0], err = sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(fact.OID))
 		if err != nil {
 			return nil, err
 		}
-		row[1] = sqltype.String(source.Columns[1].Usage.Type, fact.name)
-		row[2], err = sqltype.RegprocValue(source.Columns[2].Usage.Type, fact.handler)
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, fact.Name)
+		row[2], err = sqltype.RegprocValue(source.Columns[2].Usage.Type, uint32(fact.Handler))
 		if err != nil {
 			return nil, err
 		}
-		row[3] = sqltype.String(source.Columns[3].Usage.Type, fact.kind)
+		row[3] = sqltype.String(source.Columns[3].Usage.Type, fact.Kind)
 		rows[i] = row
 	}
 	return rows, nil

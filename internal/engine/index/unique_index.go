@@ -43,13 +43,17 @@ func ValidateUniqueProviders(view catalog.Read, parent *catalog.Relation, defini
 			return insertError("0A000", "unique expression indexes are unsupported", position)
 		}
 		usage := parent.Columns[slices.Index(parent.Attributes, key.Attribute)].Usage
-		if (key.Class.Name == "bpchar_ops" || key.Class.Name == "bpchar_pattern_ops") && usage.Type.BaseType().ID() != sqltype.BPChar {
+		class, exists := view.OperatorClass(ids.OID(key.Class.OID()))
+		if !exists {
+			return insertError("42704", "index operator class does not exist", position)
+		}
+		if class.InputType == ids.OID(sqltype.BPChar) && usage.Type.BaseType().ID() != sqltype.BPChar {
 			if len(raw) != 0 && raw[i].Opclass != nil {
 				position = raw[i].Opclass.Parts[0].Pos
 			}
 			return insertError("0A000", "unique index operator class is unsupported", position)
 		}
-		if key.Class.Family == "network_ops" {
+		if usage.Type.BaseType().ID() == sqltype.Inet || usage.Type.BaseType().ID() == sqltype.Cidr {
 			if _, err := routine.BindIndexOrdering(view, KeyCollation(usage, key), key.Class); err != nil {
 				return err
 			}

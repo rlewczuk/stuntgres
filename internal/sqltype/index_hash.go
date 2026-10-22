@@ -78,7 +78,7 @@ func LookupHashIndexClass(name string) (IndexClass, bool) {
 	default:
 		return IndexClass{}, false
 	}
-	return c, true
+	return c.withSeedIdentity(405), true
 }
 
 func DefaultHashIndexClass(t *Descriptor) (IndexClass, bool) {

@@ -84,9 +84,9 @@ func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 		{ObjectAddress: address(41004), ObjectName: "pi_leaf", Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(address(41003))}},
 		{ObjectAddress: address(41005), ObjectName: "pi_partition_root", RelationKind: catalog.PartitionedRelation, Partition: &catalog.PartitionDefinition{Children: []ids.ObjectAddress{address(41006)}}},
 		{ObjectAddress: address(41006), ObjectName: "pi_partition", Membership: &catalog.PartitionMembership{Parent: address(41005)}},
-		{ObjectAddress: address(41007), ObjectName: "pi_index_root", RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: address(41005), Valid: false}},
-		{ObjectAddress: address(41008), ObjectName: "pi_index_child", RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: address(41006), PartitionParent: address(41007), Valid: false}},
-		{ObjectAddress: address(41009), ObjectName: "pi_local_index", RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: address(41003)}},
+		{ObjectAddress: address(41007), ObjectName: "pi_index_root", RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: address(41005), Valid: false}},
+		{ObjectAddress: address(41008), ObjectName: "pi_index_child", RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: address(41006), PartitionParent: address(41007), Valid: false}},
+		{ObjectAddress: address(41009), ObjectName: "pi_local_index", RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: address(41003)}},
 	} {
 		state.SetDescriptor(relation.Address(), relation)
 	}

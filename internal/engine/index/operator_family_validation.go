@@ -9,8 +9,21 @@ import (
 // stronger complete opclass validators. Explicit association need not equal
 // the routine's formal types.
 func familySupportTypes(method ids.OID, slot int16, args []ids.OID, result ids.OID, left, right ids.OID) (ids.OID, ids.OID, error) {
+	return classSupportTypes(method, slot, args, result, left, right, 0)
+}
+
+func classSupportTypes(method ids.OID, slot int16, args []ids.OID, result ids.OID, left, right, input ids.OID) (ids.OID, ids.OID, error) {
 	fail := func(message string) (ids.OID, ids.OID, error) { return 0, 0, familyError("42P17", message) }
 	options := method == 403 && slot == 5 || method == 405 && slot == 3 || method == 783 && slot == 10
+	if input != 0 {
+		if options && left != 0 && (left != input || right != input) {
+			return fail("associated data types for operator class options parsing functions must match opclass input type")
+		}
+		infer := method == 403 && (slot == 1 || slot == 3) || method == 405 && (slot == 1 || slot == 2)
+		if left == 0 && !infer {
+			left, right = input, input
+		}
+	}
 	if options {
 		if left != right {
 			return fail("left and right associated data types for operator class options parsing functions must match")

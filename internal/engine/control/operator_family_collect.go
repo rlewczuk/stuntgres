@@ -8,7 +8,7 @@ import (
 
 func isDumpOperatorFamily(d catalog.Descriptor) bool {
 	switch d.(type) {
-	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+	case *catalog.OperatorClass, *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		return true
 	}
 	return false
@@ -28,6 +28,15 @@ func collectOperatorFamilyDump(_ context.Context, c *dumpCollection, _ ids.Objec
 				return nil
 			}
 		}
+	}
+	if class, ok := d.(*catalog.OperatorClass); ok {
+		if err := (catalog.OperatorClassProvider{}).Validate(c.CatalogView, class); err != nil {
+			return err
+		}
+		if !catalog.OperatorClassSeeded(class) || catalog.OperatorClassSeedModified(class) {
+			c.OperatorFamilies = append(c.OperatorFamilies, class)
+		}
+		return nil
 	}
 	if err := (catalog.OperatorFamilyProvider{Class: d.Address().ClassID}).Validate(c.CatalogView, d); err != nil {
 		return err

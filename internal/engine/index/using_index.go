@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 type UsingIndexAttachment struct {
@@ -19,7 +18,7 @@ type UsingIndexAttachment struct {
 	NotNullPrepared bool
 }
 
-func UsingIndexEligibility(parent, index *catalog.Relation, raw *parser.UsingIndexConstraint) ([]int32, error) {
+func UsingIndexEligibility(view catalog.Read, parent, index *catalog.Relation, raw *parser.UsingIndexConstraint) ([]int32, error) {
 	definition := index.SQLIndex
 	fail := func(code, message string, detail bool) ([]int32, error) {
 		diagnostic := expr.ErrorAt(code, message, raw.Pos).(*sqlstate.Error)
@@ -65,7 +64,7 @@ func UsingIndexEligibility(parent, index *catalog.Relation, raw *parser.UsingInd
 	}
 	for i, key := range definition.Keys {
 		usage := parent.Columns[slices.Index(parent.Attributes, attributes[i])].Usage
-		class, ok := sqltype.DefaultIndexClass(usage.Type)
+		class, ok := view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
 		keyUsage, err := KeyUsage(parent, key)
 		if err != nil {
 			return nil, err
@@ -147,7 +146,7 @@ func CaptureUsingIndexes(h Host, parent *catalog.Relation, actions []parser.Alte
 			continue
 		}
 		raw := action.UsingIndex
-		attachment, err := CaptureUsingIndexDefinition(h.DefinitionReader(), parent, raw)
+		attachment, err := CaptureUsingIndexDefinition(h.StageBase(), h.DefinitionReader(), parent, raw)
 		if err != nil {
 			return nil, err
 		}

@@ -272,17 +272,11 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		}
 		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", TypeSpelling(view, q.Capture.Path, ids.OID(typeID)), TypeSpelling(view, q.Capture.Path, argIDs[0])))
 	case ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID:
-		var method ids.OID
-		switch names[0] {
-		case "btree":
-			method = 403
-		case "hash":
-			method = 405
-		case "gist":
-			method = 783
-		default:
+		fact, ok := catalog.AccessMethodByName(names[0])
+		if !ok || fact.Kind != "i" {
 			return missing("42704", fmt.Sprintf("access method %q does not exist", names[0]))
 		}
+		method := fact.OID
 		number, err := strconv.ParseInt(names[len(names)-1], 10, 16)
 		if err != nil {
 			return missing("22P02", fmt.Sprintf("invalid input syntax for type smallint: %q", names[len(names)-1]))
@@ -310,15 +304,8 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		}
 		return missing("42704", fmt.Sprintf("%s %q does not exist", kind, strings.Join(names, ".")))
 	case 2616, 2753:
-		method := uint32(0)
-		switch names[0] {
-		case "btree":
-			method = 403
-		case "hash":
-			method = 405
-		case "gist":
-			method = 783
-		default:
+		method, ok := catalog.AccessMethodByName(names[0])
+		if !ok || method.Kind != "i" {
 			return missing("42704", fmt.Sprintf("access method %q does not exist", names[0]))
 		}
 		path, err := q.path(names[1:])
@@ -327,21 +314,13 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		}
 		for i := range path.Count() {
 			if class == ids.OperatorFamilyClassID {
-				if address := view.NameAddress(catalog.FamilyNameKey(path.At(i), ids.OID(method), names[len(names)-1])); address != (ids.ObjectAddress{}) {
+				if address := view.NameAddress(catalog.FamilyNameKey(path.At(i), method.OID, names[len(names)-1])); address != (ids.ObjectAddress{}) {
 					return address, nil
 				}
 				continue
 			}
-			if path.At(i).ObjectID != ids.PGCatalogNamespaceOID {
-				continue
-			}
-			for j := range sqltype.IndexClassMetadataCount() {
-				cl, _ := sqltype.IndexClassMetadataAt(j)
-				name, id, am := cl.Name, cl.OID, cl.Method
-				if method == am && name == names[len(names)-1] {
-					a.ObjectID = ids.OID(id)
-					return a, nil
-				}
+			if class, ok := view.LookupOperatorClass(path.At(i), method.OID, names[len(names)-1]); ok {
+				return class.Address(), nil
 			}
 		}
 		return missing("42704", fmt.Sprintf("%s %q for access method %q does not exist", kind, strings.Join(names[1:], "."), names[0]))

@@ -2,10 +2,13 @@ package dml
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -21,7 +24,14 @@ func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
 	t.Helper()
 	integer, _ := builtinType(sqltype.Int4)
 	boolean, _ := builtinType(sqltype.Bool)
-	return insertConflictProofFixture{integer: integer, boolean: boolean, column: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}, ctx: exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}}
+	state := catalog.NewState(1)
+	catalog.InstallBuiltinFamilies(state, authorization.PrincipalRef{})
+	catalog.InstallBuiltinClasses(state, authorization.PrincipalRef{})
+	procedures := routine.BuiltinProcedures(authorization.PrincipalRef{})
+	for i := range procedures {
+		state.SetDescriptor(procedures[i].Address(), &procedures[i])
+	}
+	return insertConflictProofFixture{integer: integer, boolean: boolean, column: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}, ctx: exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: catalog.NewRead(nil, state)}}}
 }
 func (f insertConflictProofFixture) comparison(t *testing.T, op string, left, right expr.Expr) plan.ComparisonExpr {
 	t.Helper()

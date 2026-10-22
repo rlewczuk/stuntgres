@@ -1564,6 +1564,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.operatorDDL && l.previousToken == int('=') && token.lexeme.keyword != nil && token.lexeme.keyword.category == Reserved {
 		token.code = STRING
 	}
+	if l.previousToken == OPERATOR && token.lexeme.keyword != nil && token.lexeme.text == "class" {
+		token.code = OPCLASS
+	}
 	l.current = token.lexeme
 	v.tok = token.lexeme
 	if token.code == int('(') && l.temporalLead {

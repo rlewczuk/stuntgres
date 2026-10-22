@@ -168,7 +168,8 @@ func UniqueKeyDetailAllowed(view access.View, env access.Environment, ref ids.Ob
 // Produced keys retain their logical alias type for identity remapping; only
 // diagnostic formatting normalizes that datum, without checking it again.
 func UniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.IndexClass, catalog catalog.Read, output sqltype.OutputEnvironment) (string, error) {
-	if value.Type().IsDomain() && class.Name == "oid_ops" {
+	fact, exists := catalog.OperatorClass(ids.OID(class.OID()))
+	if value.Type().IsDomain() && exists && fact.InputType == ids.OID(sqltype.Oid) {
 		oid, ok := catalog.LookupType(sqltype.Oid)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: index OID output descriptor is missing")

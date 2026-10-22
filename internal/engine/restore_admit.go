@@ -68,7 +68,7 @@ func restoreAdmitSchemaObject(_ *restoreRun, _ *session.Operation, stmt parser.S
 // restoreAdmitOperator admits operator DDL.
 func restoreAdmitOperator(_ *restoreRun, _ *session.Operation, stmt parser.Statement) (control.Admission, error) {
 	switch stmt.(type) {
-	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily:
+	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
 		return control.Admitted, nil
 	}
 	return control.NotHandled, nil

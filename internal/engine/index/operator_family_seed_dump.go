@@ -76,5 +76,13 @@ func OperatorFamilySeedDumpStatements(ctx context.Context, view catalog.Read, ro
 		}
 		finals[f.Address().ObjectID] = dump.Statement{Owner: "postgres", SQL: final}
 	}
+	classStages, classFinals, err := operatorClassSeedDumpStatements(ctx, view, roles, descriptors)
+	if err != nil {
+		return nil, nil, err
+	}
+	stages = append(stages, classStages...)
+	for oid, statement := range classFinals {
+		finals[oid] = statement
+	}
 	return stages, finals, nil
 }

@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func PartitionUniqueCoverage(view catalog.Read, table *catalog.Relation, index *catalog.IndexDefinition) error {
@@ -56,7 +55,7 @@ func PartitionUniqueCoverage(view catalog.Read, table *catalog.Relation, index *
 			}
 			class := key.Class
 			if class.Name == "" {
-				class, _ = sqltype.DefaultIndexClass(usage.Type)
+				class, _ = view.DefaultIndexClass(index.MethodIdentity(), usage.Type)
 			}
 			selected, err := routine.BindClassSupport(view, class)
 			partitionSelected, partitionErr := routine.BindClassSupport(view, partitionKey.Class)
@@ -153,7 +152,7 @@ func MapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 }
 
 func PartitionIndexEquivalent(ctx context.Context, view catalog.Read, table *catalog.Relation, a, b *catalog.IndexDefinition) (bool, error) {
-	if a.Method != b.Method || a.Unique != b.Unique || a.NullsNotDistinct != b.NullsNotDistinct || len(a.Keys) != len(b.Keys) || !slices.Equal(a.Include, b.Include) {
+	if a.MethodIdentity() != b.MethodIdentity() || a.Method != b.Method || a.Unique != b.Unique || a.NullsNotDistinct != b.NullsNotDistinct || len(a.Keys) != len(b.Keys) || !slices.Equal(a.Include, b.Include) {
 		return false, nil
 	}
 	if len(a.Exclusion) != len(b.Exclusion) {
@@ -194,12 +193,12 @@ func PartitionIndexEquivalent(ctx context.Context, view catalog.Read, table *cat
 		}
 		ac, bc := key.Class, other.Class
 		if ac.Name == "" {
-			ac, _ = sqltype.DefaultIndexClass(au.Type)
+			ac, _ = view.DefaultIndexClass(a.MethodIdentity(), au.Type)
 		}
 		if bc.Name == "" {
-			bc, _ = sqltype.DefaultIndexClass(bu.Type)
+			bc, _ = view.DefaultIndexClass(b.MethodIdentity(), bu.Type)
 		}
-		if ac.Family != bc.Family {
+		if ac.MethodOID() != bc.MethodOID() || ac.FamilyOID() != bc.FamilyOID() {
 			return false, nil
 		}
 		if key.Derived != nil {

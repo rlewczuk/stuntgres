@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/sqltype"
 )
 
 // CREATE and ALTER share index/provider/ownership construction. ALTER appends
@@ -116,7 +115,7 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 		if err != nil {
 			return err
 		}
-		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: UniqueBacking(c), Ready: true, Valid: true, Live: true}
+		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: UniqueBacking(c), Ready: true, Valid: true, Live: true}
 		idx := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 		if source := declarations[i-start].Source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
@@ -166,7 +165,7 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 			idx.ColumnMeta.HighWater = int32(len(c.Attributes))
 			for j, a := range c.Attributes {
 				column := d.Columns[slices.Index(d.Attributes, a)]
-				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
+				class, ok := h.StageBase().DefaultIndexClass(definition.MethodIdentity(), column.Usage.Type)
 				if !ok {
 					return DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}

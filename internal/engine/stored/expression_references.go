@@ -210,7 +210,7 @@ func QueryDependRefs(ctx context.Context, catalog catalog.Read, reader catalog.D
 }
 
 // IndexDependRefs records an index definition's pg_depend references: its
-// key expressions and key collations.
+// key expressions, key collations and actual operator classes.
 func IndexDependRefs(ctx context.Context, view catalog.Read, definition *catalog.IndexDefinition) ([]ids.ObjectAddress, error) {
 	refs := DependRefs{Context: ctx, Catalog: view}
 	for _, key := range definition.Keys {
@@ -221,6 +221,7 @@ func IndexDependRefs(ctx context.Context, view catalog.Read, definition *catalog
 			refs.Expression(key.Derived.Definition)
 		}
 		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
+		refs.Add(ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(key.Class.OID())})
 	}
 	return refs.Finish()
 }
@@ -241,6 +242,7 @@ func PartitionDependRefs(ctx context.Context, view catalog.Read, relation *catal
 		refs.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(key.Usage.Type.ID())})
 		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
 		refs.Add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)})
+		refs.Add(ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(key.Class.OID())})
 	}
 	return refs.Finish()
 }

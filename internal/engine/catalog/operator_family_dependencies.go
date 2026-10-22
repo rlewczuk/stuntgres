@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqltype"
 )
 
 // FamilyDependency retains the released dependency kind. Loose members have
@@ -22,6 +21,12 @@ func OperatorFamilyDependencies(view Read, d Descriptor) []FamilyDependency {
 	switch d := d.(type) {
 	case *OperatorFamily:
 		return []FamilyDependency{{d.Namespace(), 'n'}}
+	case *OperatorClass:
+		deps := []FamilyDependency{{d.Namespace(), 'n'}, {ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.InputType}, 'n'}, {ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: d.Family}, 'a'}}
+		if d.StorageType != 0 && d.StorageType != d.InputType {
+			deps = append(deps, FamilyDependency{ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.StorageType}, 'n'})
+		}
+		return deps
 	case *OperatorFamilyOperator:
 		family, left, right, implementation, sort, class, owning = d.Family, d.Left, d.Right, d.Operator, d.SortFamily, ids.OperatorClassID, d.OwningClass
 	case *OperatorFamilySupport:
@@ -35,7 +40,7 @@ func OperatorFamilyDependencies(view Read, d Descriptor) []FamilyDependency {
 	}
 	deps := []FamilyDependency{{ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family}, 'a'}, {ids.ObjectAddress{ClassID: class, ObjectID: implementation}, flavor}}
 	if owning != 0 {
-		deps[0] = FamilyDependency{ids.ObjectAddress{ClassID: 2616, ObjectID: owning}, 'i'}
+		deps[0] = FamilyDependency{ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: owning}, 'i'}
 	}
 	if class == ids.ProcedureClassID {
 		identity, _ := BuiltinRoutineIdentityByOID(implementation)
@@ -67,16 +72,37 @@ func OperatorFamilyDependencies(view Read, d Descriptor) []FamilyDependency {
 	return deps
 }
 
+// OperatorFamilyMemberOwner returns only the insertion-time class owner.
+// Loose members, including classless family entries, have no INTERNAL owner.
+func OperatorFamilyMemberOwner(d Descriptor) ids.ObjectAddress {
+	var owning ids.OID
+	switch d := d.(type) {
+	case *OperatorFamilyOperator:
+		owning = d.OwningClass
+	case *OperatorFamilySupport:
+		owning = d.OwningClass
+	}
+	if owning == 0 {
+		return ids.ObjectAddress{}
+	}
+	return ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: owning}
+}
+
 // FamilyMemberClass applies btadjustmembers/hashadjustmembers at insertion.
 // Optional and cross-type rows are loose even when a matching class exists.
-func FamilyMemberClass(method, family, left, right ids.OID, number int16, function bool) ids.OID {
-	if left != right || method != 403 && method != 405 || function && number != 1 {
+// CREATE CLASS prefers its own descriptor for matching input; other eligible
+// inputs and ALTER FAMILY use the existing family/datatype lookup.
+func FamilyMemberClass(view Read, method, family, left, right ids.OID, number int16, function bool, creating *OperatorClass) ids.OID {
+	fact, ok := AccessMethodByOID(method)
+	if !ok || left != right || fact.Implementation != BtreeMethod && fact.Implementation != HashMethod || function && number != 1 {
 		return 0
 	}
-	for i := range sqltype.IndexClassMetadataCount() {
-		row, ok := sqltype.IndexClassMetadataAt(i)
-		if ok && row.Method == uint32(method) && row.Family == uint32(family) && row.Input == uint32(left) {
-			return ids.OID(row.OID)
+	if creating != nil && creating.Method == method && creating.Family == family && creating.InputType == left {
+		return creating.Address().ObjectID
+	}
+	for _, row := range view.OperatorClasses() {
+		if row.Method == method && row.Family == family && row.InputType == left {
+			return row.Address().ObjectID
 		}
 	}
 	return 0

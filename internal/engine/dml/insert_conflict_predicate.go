@@ -320,13 +320,13 @@ func conflictComparisonProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 		return false, nil
 	}
 	// Only owned B-tree operator families admit order implications.
-	family, ok := sqltype.DefaultIndexClass(x.Left.ResultUsage().Type)
+	family, ok := ctx.Catalog.DefaultIndexClass(403, x.Left.ResultUsage().Type)
 	if !ok {
 		return false, nil
 	}
 	for _, expression := range [4]expr.Expr{x.Left, x.Right, y.Left, y.Right} {
-		class, ok := sqltype.DefaultIndexClass(expression.ResultUsage().Type)
-		if !ok || class.Family != family.Family {
+		class, ok := ctx.Catalog.DefaultIndexClass(403, expression.ResultUsage().Type)
+		if !ok || class.FamilyOID() != family.FamilyOID() || class.MethodOID() != family.MethodOID() {
 			return false, nil
 		}
 		if _, err := sqltype.BindOrdering(expression.ResultUsage()); err != nil {

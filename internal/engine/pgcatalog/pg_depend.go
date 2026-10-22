@@ -49,6 +49,12 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			return nil, err
 		}
 		switch d := descriptor.(type) {
+		case *catalog.OperatorClass:
+			if !catalog.OperatorClassSeeded(d) {
+				for _, dependency := range catalog.OperatorFamilyDependencies(view, d) {
+					add(d.Address(), dependency.Address, dependency.Kind)
+				}
+			}
 		case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 			if !catalog.OperatorFamilySeeded(d) {
 				for _, dependency := range catalog.OperatorFamilyDependencies(view, d) {
@@ -179,6 +185,13 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 				if definition.Constraint != nil {
 					add(d.Address(), ids.ObjectAddress{ClassID: 2606, ObjectID: definition.Constraint.OID}, 'i')
+					classes := make(map[uint32]bool)
+					for _, key := range definition.Keys {
+						if oid := key.Class.OID(); oid != 0 && !classes[oid] {
+							classes[oid] = true
+							add(d.Address(), ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(oid)}, 'n')
+						}
+					}
 					continue
 				}
 				// Simple/INCLUDE ownership is a separate pass from expressions.

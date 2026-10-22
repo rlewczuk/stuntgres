@@ -34,6 +34,7 @@ func pruningProofFixture(t *testing.T) (pruneProof, plan.ColumnExpr, *sqltype.De
 	column := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 0}
 	state := catalog.NewState(1)
 	catalog.InstallBuiltinFamilies(state, authorization.PrincipalRef{})
+	catalog.InstallBuiltinClasses(state, authorization.PrincipalRef{})
 	procedures := routine.BuiltinProcedures(authorization.PrincipalRef{})
 	for i := range procedures {
 		state.SetDescriptor(procedures[i].Address(), &procedures[i])
@@ -132,9 +133,13 @@ func TestPartitionPruningProof(t *testing.T) {
 	}
 	// Same input INT4 with an OID comparator has unsigned partition ordering.
 	// A signed SQL comparison must not be substituted for that provider.
-	class, ok := sqltype.LookupIndexClass("oid_ops")
+	fact, ok := p.view.LookupOperatorClass(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, 403, "oid_ops")
 	if !ok {
 		t.Fatal("missing admitted OID class")
+	}
+	class, ok := p.view.IndexClass(fact.Address().ObjectID)
+	if !ok {
+		t.Fatal("missing current OID class")
 	}
 	ordering, err := routine.BindIndexOrdering(p.view, column.Usage, class)
 	if err != nil {

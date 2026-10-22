@@ -110,7 +110,7 @@ func TestPgClassKinds(t *testing.T) {
 	parentAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200010}
 	state := catalog.CloneState(view.State())
 	state.SetDescriptor(parentAddress, &catalog.Relation{ObjectAddress: parentAddress, Partition: &catalog.PartitionDefinition{}})
-	index := &catalog.Relation{RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: parentAddress}}
+	index := &catalog.Relation{RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parentAddress}}
 	if got := pgcatalog.ClassKind(e.catalog.read(state), index); got != "I" {
 		t.Fatal(got)
 	}

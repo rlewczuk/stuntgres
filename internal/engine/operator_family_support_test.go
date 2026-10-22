@@ -23,13 +23,9 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 	}
 	for i := range sqltype.IndexClassMetadataCount() {
 		fact, _ := sqltype.IndexClassMetadataAt(i)
-		var class sqltype.IndexClass
-		if fact.Method == 403 {
-			class, _ = sqltype.LookupIndexClass(fact.Name)
-		} else if fact.Method == 405 {
-			class, _ = sqltype.LookupHashIndexClass(fact.Name)
-		} else {
-			class, _ = sqltype.LookupGiSTIndexClass(fact.Name)
+		class, ok := view.IndexClass(ids.OID(fact.OID))
+		if !ok {
+			t.Fatalf("missing live class %d", fact.OID)
 		}
 		selected, err := routine.BindClassSupport(view, class)
 		if err != nil {
@@ -94,12 +90,12 @@ func TestOperatorFamilyProviderInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range []*sqltype.Descriptor{enum, domain} {
-		class, _ := sqltype.DefaultIndexClass(typ)
+		class, _ := view.DefaultIndexClass(403, typ)
 		comparison, err := routine.BindIndexOrdering(view, typ.Usage(), class)
 		if err != nil || comparison.Support().Routine != 3514 {
 			t.Fatal("enum/domain comparator", comparison, err)
 		}
-		hashClass, _ := sqltype.DefaultHashIndexClass(typ)
+		hashClass, _ := view.DefaultIndexClass(405, typ)
 		if _, err := routine.BindPartitionHash(view, typ.Usage(), hashClass); err != nil {
 			t.Fatal("enum/domain extended hash", err)
 		}
@@ -120,7 +116,7 @@ func TestOperatorFamilySupportExecution(t *testing.T) {
 	}
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90010}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}}
 	class, _ := sqltype.DefaultIndexClass(typ)
-	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Ready: true, Valid: true, Live: true}
+	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Ready: true, Valid: true, Live: true}
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90011}, ObjectRevision: 1, SQLIndex: definition}
 	ordering, err := index.BindIndexOrdering(view, parent, definition)
 	if err != nil {
@@ -174,7 +170,7 @@ func TestOperatorFamilySupportExecution(t *testing.T) {
 	}
 
 	hashClass, _ := sqltype.DefaultHashIndexClass(typ)
-	hashDefinition := &catalog.IndexDefinition{Method: catalog.HashMethod, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: hashClass}}, Ready: true, Valid: true, Live: true}
+	hashDefinition := &catalog.IndexDefinition{Method: catalog.HashMethod, MethodOID: 405, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: hashClass}}, Ready: true, Valid: true, Live: true}
 	hashIndex := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90012}, ObjectRevision: 1, SQLIndex: hashDefinition}
 	hashRoot, err := index.BuildHashIndexRoot(evaluation, parent, hashDefinition, store, true, nil)
 	if err != nil {

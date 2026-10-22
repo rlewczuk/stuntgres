@@ -6,6 +6,58 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Operator-class definitions
+
+The untagged `TestReferenceOperatorClass` definitions specify real user
+family/class/index creation over old rows and maintained inserts; exact catalog
+relationships; direct, fresh-prepared and genuinely held queries; complete
+diagnostics and failure atomicity; authority, dependencies and lexical lifecycle.
+`ComparisonConsumption` intentionally selects the registered subtraction routine
+in a separate real family: opposite INT4 extremes must overflow during index
+build/maintenance rather than silently use builtin comparison.
+
+`Roundtrip` and `SeedRoundtrip` include explicit native Dump/Reset/Restore phases,
+foreign-destination remapping and actual native-emitted SQL replay on PostgreSQL.
+The ordinary SQL assertions are shared, not reconstructed replay scripts.
+All seven definitions passed pinned PostgreSQL18.6 discovery before native RED;
+the temporary PostgreSQL-only discovery filter is removed. Final evidence must
+run the unchanged shared definitions in both modes after production edits.
+Roundtrip uses a genuine anyenum class with five anyenum operators and enum_cmp;
+the concrete user enum column separately proves foreign type remapping and
+maintained execution. An admitted incomplete concrete enum default is removed
+before the builtin enum index control; it is not claimed to build an index.
+Catalog relationships are checked using independently name-qualified identity
+probes and exact reference comparisons, rediscovered after replacement rather
+than assuming stable user OIDs. Single-catalog probes keep repeated metadata
+checks bounded without multiplying the full attribute/class/type catalogs.
+The foreign destination also checks the remapped enum column and members, then
+inserts an enum value and asserts declared enum-label order.
+Class-owned dump items use deterministic lexical order; failed Restore must leave
+the source dump bytes and independently checked catalog/data relationships intact.
+
+`MemberOwnership` covers both btree and hash with an older incomplete class and
+the creating class sharing a family/input. Required same-input operators and
+support function 1 belong to the creating class, not the older class; optional
+and cross-type members remain loose. Dropping the older class preserves the
+members and maintained index. Creating-class RESTRICT is atomic, then CASCADE
+retires its required members/index while preserving family, loose members and
+table rows. Native replacement and actual emitted PostgreSQL replay rediscover
+and check these exact INTERNAL owners before exercising both drop paths.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceOperatorClass(FeatureSmoke|Definitions|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceOperatorClass(ComparisonConsumption|Lifecycle|Roundtrip|SeedRoundtrip)$'
+make check REFERENCE=1 RUN='^TestReferenceOperatorClassMemberOwnership$'
+# Select the identical definitions natively:
+make check RUN='^TestReferenceOperatorClass(FeatureSmoke|Definitions|Diagnostics)$'
+make check RUN='^TestReferenceOperatorClass(ComparisonConsumption|Lifecycle|Roundtrip|SeedRoundtrip)$'
+make check RUN='^TestReferenceOperatorClassMemberOwnership$'
+```
+
+Actual feature smoke: `make check RUN='^TestReferenceOperatorClassFeatureSmoke$'`
+and the same selector with `REFERENCE=1`. Expected qualifying `(id,n)` rows are
+`(1,2),(4,2)` before insertion and `(1,2),(4,2),(6,3)` afterward.
+
 ### Partial-index type and window boundaries
 
 `TestReferencePartialIndexTypeGeneration` composes the same supported domain/

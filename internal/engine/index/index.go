@@ -23,6 +23,8 @@ type Ordering struct {
 	Comparisons []sqltype.IndexComparison
 	Keys        []catalog.IndexKey
 	Derived     []expr.Expr
+	// GroupingCompatible is captured at bind time, never resolved per row.
+	GroupingCompatible uint32
 }
 
 func ColumnLabel(name string, suffix int) string {
@@ -64,10 +66,16 @@ func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *
 			class := key.Class
 			if class.Name == "" {
 				var exists bool
-				class, exists = sqltype.DefaultIndexClass(usage.Type)
+				class, exists = view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
 				if !exists {
 					return o, DefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
+			}
+			if class.MethodOID() != uint32(definition.MethodIdentity()) {
+				return o, fmt.Errorf("stuntgres: index operator class method mismatch")
+			}
+			if groupingCompatible(view, definition.MethodIdentity(), usage, class) {
+				o.GroupingCompatible |= 1 << i
 			}
 			o.Comparisons[i], err = routine.BindIndexOrdering(view, usage, class)
 			if err != nil {
@@ -92,10 +100,16 @@ func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *
 		class := key.Class
 		if class.Name == "" {
 			var exists bool
-			class, exists = sqltype.DefaultIndexClass(usage.Type)
+			class, exists = view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
 			if !exists {
 				return o, DefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
 			}
+		}
+		if class.MethodOID() != uint32(definition.MethodIdentity()) {
+			return o, fmt.Errorf("stuntgres: index operator class method mismatch")
+		}
+		if groupingCompatible(view, definition.MethodIdentity(), usage, class) {
+			o.GroupingCompatible |= 1 << i
 		}
 		comparison, err := routine.BindIndexOrdering(view, usage, class)
 		if err != nil {
@@ -104,6 +118,13 @@ func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *
 		o.Slots[i], o.Comparisons[i] = slot, comparison
 	}
 	return o, nil
+}
+
+func groupingCompatible(view catalog.Read, method ids.OID, usage sqltype.Usage, class sqltype.IndexClass) bool {
+	defaultClass, ok := view.DefaultIndexClass(method, usage.Type)
+	// Network comparison has no generic grouping provider. A nondefault
+	// family may have coarser equality, so its claims share a comparer bucket.
+	return ok && usage.Type.BaseType().ID() != sqltype.Inet && usage.Type.BaseType().ID() != sqltype.Cidr && class.SameInferenceIdentity(defaultClass)
 }
 
 func ValidateIndexDefinition(view catalog.Read, index *catalog.Relation) error {

@@ -174,6 +174,32 @@ descriptor fields and absent ordinary equality/order associations. End-to-end
 predicate, catalog-row and authorization proof remains in the shared
 [POINT reference definitions](../../../reference/types/README.md#point-oracle-first-contract).
 
+Index support binding reads the current operator-class descriptor and verifies
+exact method/family coherence before selecting the real registered member and
+native routine signature. Names/defaults are not a fallback authority; captures
+are immutable and destination Restore binds destination members. No scalar
+support-function exposure or arbitrary SQL callback ABI is added.
+
+```sh
+make check RUN='^TestOperatorClass(SupportExecution|MethodIdentity|CatalogAtomicity)$'
+make check RACE=1 RUN='^TestOperatorClass(SupportExecution|MethodIdentity|CatalogAtomicity)$'
+```
+`TestOperatorClassMethodIdentity` passes immutable403/90000 method facts sharing
+btree mechanics through the production constructor and private binder path.
+Real Procedure descriptors reach `selectNativeIndexSupport`; the test never
+installs captures with `WithSupport`. Same-spelling class/default keys select
+independent family/member/routine identities and revisions, with351(1,3)=-1
+versus181(1,3)=-2. Crossed facts/family/input captures, missing support/procedures
+and invalid native signatures/results/identities fail without default fallback.
+
+
+The custom-class root witness independently distinguishes351(1,3)=-1 from
+181(1,3)=-2, checks existing-row build and maintained INSERT and retains the old
+root. Public anti-fallback overflow proof:
+`make check RUN='^TestReferenceOperatorClassComparisonConsumption$'`, and the
+identical selector with `REFERENCE=1`.
+
+
 Package seams and option validation:
 
 ```sh
@@ -220,3 +246,18 @@ Use an external 900-second deadline. The selected public feature smoke is
 Expect preserved text overload104/INT8, precise view/default/check cascade,
 RESTRICT2BP01, missing NOTICE00000, wrong-kind42809 and a dangling caller that
 survives native replay and returns14/INT4 after callee recreation.
+
+Index/exclusion support consumes current catalog classes, family members and
+routine descriptors. Binary-compatible index input admission does not establish
+exclusion operator membership: an integer column with `oid_ops` still resolves
+`=(integer,integer)`, and a text column with `bpchar_ops` resolves `=(text,text)`.
+Both remain SQLSTATE `42809` when that actual operator is absent from the selected
+family. Reduced internal fixtures must install class authority as well as family
+and routine authority; uniqueness diagnostics require a populated catalog view.
+
+```sh
+make check RUN='^TestExclusionOperatorFamilyMembership$'
+make check RUN='^TestReferenceExclusionOperatorFamilies$'
+make check RUN='^TestReferenceExclusionOperatorFamilies$' REFERENCE=1
+make check RUN='^(TestIndexClauses|TestMaterializedRefreshConcurrentMatch|TestInsertConflictPredicate|TestPartitionPruning)'
+```

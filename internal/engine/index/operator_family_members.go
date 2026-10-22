@@ -88,13 +88,19 @@ func familyRoutine(h FamilyDDLHost, auth ddl.Authority, item parser.OperatorFami
 	return identity, args, result, nil
 }
 func familyOperator(h FamilyDDLHost, auth ddl.Authority, item parser.OperatorFamilyItem) (*catalog.Operator, error) {
-	if !item.Signature {
+	return familyOperatorInput(h, auth, item, 0)
+}
+func familyOperatorInput(h FamilyDDLHost, auth ddl.Authority, item parser.OperatorFamilyItem, input ids.OID) (*catalog.Operator, error) {
+	if !item.Signature && input == 0 {
 		return nil, familyError("42601", "operator argument types must be specified in ALTER OPERATOR FAMILY")
 	}
-	if len(item.Arguments) != 2 {
+	if item.Signature && len(item.Arguments) != 2 {
 		return nil, familyError("42P17", "index operators must be binary")
 	}
 	args := make([]ids.OID, 2)
+	if !item.Signature {
+		args[0], args[1] = input, input
+	}
 	for i, t := range item.Arguments {
 		if strings.EqualFold(t.Name, "none") && t.Schema == nil && !t.Quoted {
 			continue
@@ -146,12 +152,36 @@ func familyAssociation(h FamilyDDLHost, auth ddl.Authority, raw []parser.TypeNam
 }
 
 func stageFamilyMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.OperatorFamily, s *parser.AlterOperatorFamily) error {
+	return stageOperatorMembers(h, auth, family, s, nil, nil)
+}
+
+// stageOperatorMembers shares resolution and storage phases while retaining
+// CREATE CLASS's input fallback, storage admission and unique-index diagnostics.
+func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.OperatorFamily, s *parser.AlterOperatorFamily, class *catalog.OperatorClass, beforeStore func() error) error {
 	view := h.AccessView(auth).Catalog
 	// Phase 1 follows SQL order, resolving and validating the entire list before
 	// consulting stored members. DROP records keys, not stored descriptors.
 	var operators, procedures []catalog.Descriptor
 	seen := make(map[ids.NameKey]bool, len(s.Items))
+	storageSeen := false
 	for _, item := range s.Items {
+		if item.Storage != nil {
+			if storageSeen {
+				return familyError("42P17", "storage type specified more than once")
+			}
+			storageSeen = true
+			storage, err := h.ResolveRegtype(auth, *item.Storage)
+			if err != nil {
+				return err
+			}
+			if storage != class.InputType {
+				if family.Method != 783 {
+					return familyError("42P17", fmt.Sprintf(`storage type cannot be different from data type for access method "%s"`, familyMethodName(family.Method)))
+				}
+				class.StorageType = storage
+			}
+			continue
+		}
 		maximum := int64(5)
 		kind := "operator"
 		if family.Method == 405 {
@@ -198,13 +228,21 @@ func stageFamilyMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.Ope
 			if err != nil {
 				return err
 			}
-			left, right, err = familySupportTypes(family.Method, int16(number), args, result, left, right)
+			input := ids.OID(0)
+			if class != nil {
+				input = class.InputType
+			}
+			left, right, err = classSupportTypes(family.Method, int16(number), args, result, left, right, input)
 			if err != nil {
 				return err
 			}
 			next = &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID}, Family: family.Address().ObjectID, Left: left, Right: right, Number: int16(number), Function: identity.ID}
 		} else {
-			operator, err := familyOperator(h, auth, item)
+			input := ids.OID(0)
+			if class != nil {
+				input = class.InputType
+			}
+			operator, err := familyOperatorInput(h, auth, item, input)
 			if err != nil {
 				return err
 			}
@@ -240,6 +278,11 @@ func stageFamilyMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.Ope
 			procedures = append(procedures, next)
 		} else {
 			operators = append(operators, next)
+		}
+	}
+	if beforeStore != nil {
+		if err := beforeStore(); err != nil {
+			return err
 		}
 	}
 
@@ -294,6 +337,9 @@ func stageFamilyMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.Ope
 				continue
 			}
 			if stored != nil {
+				if class != nil {
+					return classMemberCollision(requested)
+				}
 				return familyError("42710", fmt.Sprintf(`%s %d(%s) already exists in operator family "%s"`, kind, number, familyTypeNames(view, []ids.OID{left, right}, ","), catalog.ObjectNameText(s.Name)))
 			}
 			if member, ok := requested.(*catalog.OperatorFamilyOperator); ok {
@@ -326,11 +372,14 @@ func stageFamilyMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.Ope
 			case *catalog.OperatorFamilyOperator:
 				d.ObjectAddress.ObjectID = oid
 				d.ObjectRevision = revision
-				d.OwningClass = catalog.FamilyMemberClass(family.Method, d.Family, d.Left, d.Right, d.Number, false)
+				d.OwningClass = catalog.FamilyMemberClass(h.StageRead(), family.Method, d.Family, d.Left, d.Right, d.Number, false, class)
 			case *catalog.OperatorFamilySupport:
 				d.ObjectAddress.ObjectID = oid
 				d.ObjectRevision = revision
-				d.OwningClass = catalog.FamilyMemberClass(family.Method, d.Family, d.Left, d.Right, d.Number, true)
+				d.OwningClass = catalog.FamilyMemberClass(h.StageRead(), family.Method, d.Family, d.Left, d.Right, d.Number, true, class)
+				if class != nil && family.Method == 783 && (d.Number == 1 || d.Number == 2 || d.Number == 5 || d.Number == 6 || d.Number == 7) {
+					d.OwningClass = class.Address().ObjectID
+				}
 			}
 			if err = h.Stage().Create(d); err != nil {
 				return err

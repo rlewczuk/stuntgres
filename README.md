@@ -879,12 +879,13 @@ See [native limits](docs/DIALECT.md#pg_am-supported-access-methods) and
 
 `pg_catalog.pg_opclass` exposes the nine PostgreSQL operator-class metadata
 columns for implemented btree/hash and bounded GiST classes, with exact released
-OIDs, method/family/input linkage, default flags and key-storage types. The catalog is
-PUBLIC-readable and immutable; it describes supported providers, not only
-currently created indexes. Domains and concrete enums do not invent new classes.
-The existing JSONB hash provider now reports its own hash-class identity rather
-than the btree identity. No new index provider, pg_opfamily source or pg_index
-vector columns are introduced by that operator-class work.
+seed OIDs and current method/family/input/default/storage/namespace/owner facts.
+The catalog is PUBLIC-readable; ordinary class DDL changes real descriptors,
+not system-table rows. `CREATE OPERATOR CLASS` supports DEFAULT, explicit or
+implicit FAMILY, STORAGE and real method-specific member declarations.
+`ALTER` supports rename, owner and schema; `DROP` uses ordinary dependencies.
+Custom classes select their real registered comparison/hash support for index
+build and maintenance, without a static builtin-name/default fallback.
 See [native limits](docs/DIALECT.md#pg_opclass-supported-operator-classes) and
 [selected proof and feature smoke](reference/catalogs/README.md#pg_opclass-selected-proof).
 
@@ -4866,7 +4867,7 @@ Actual candidate-route witness:
 
 Change note: ordinary `CREATE INDEX [name] ON [schema.]table [USING btree]`
 supports multicolumn simple or same-table scalar expression keys with ASC/DESC,
-NULLS FIRST/LAST, owned built-in COLLATE/operator classes and optional
+NULLS FIRST/LAST, current catalog COLLATE/operator classes and optional
 `INCLUDE (column, ...)`. The 32-attribute limit counts keys plus included columns,
 including repeats. INCLUDE is projectable table payload, never a search/comparison
 or uniqueness key; it needs no ordering provider. Explicit classes select actual
@@ -4896,15 +4897,28 @@ owner/schema changes and IF EXISTS notices. `pg_opfamily`, `pg_amop` and
 `pg_amproc` expose exact released family/member identities, associated types,
 strategy/support numbers and REGPROC support references. Incomplete families
 are legal; ADD admission is not complete operator-class validation.
-Existing builtin classes select registered family support, captured immutably
-with their roots. Loose family edits refresh metadata, not every warmed root.
-Custom class DDL and custom family→class→new-index association remain outside
-this feature. Dump/Restore serializes custom families and loose members with
-their real dependencies and current names. Original bootstrap family/member
-objects, including optional and cross-type members, are pinned.
+Classes select registered family support, captured immutably with their roots.
+Loose family edits refresh metadata, not every warmed root. Operator-class DDL
+adds real custom family→class→new-index association, including index construction
+over existing rows and maintained INSERT. Class/default lookup uses exact method
+OID independently of physical implementation. Incomplete definitions are legal;
+executable index binding still requires genuine available native support.
+Dump/Restore serializes classes, families and loose members with real dependencies,
+current names and fresh destination support. Bootstrap objects remain pinned.
 See [operator-family design](docs/design/PG18-INDEX-OPERATOR-FAMILY.md).
 Feature smoke: `make check RUN='^TestReferenceOperatorFamilySmoke$'`;
 use the identical RUN with `REFERENCE=1` for pinned PostgreSQL18.6.
+
+Operator-class feature smoke:
+`make check RUN='^TestReferenceOperatorClassFeatureSmoke$'`;
+use the identical RUN with `REFERENCE=1` for pinned PostgreSQL18.6.
+The comparison anti-fallback witness is
+`make check RUN='^TestReferenceOperatorClassComparisonConsumption$'` (also
+`REFERENCE=1`): a genuine subtraction support routine can raise22003 atomically,
+where ordinary `btint4cmp` succeeds. No new scalar function, physical method,
+arbitrary SQL callback ABI or btree query optimizer is introduced.
+See [operator-class design](docs/design/PG18-INDEX-OPCLASS.md).
+
 
 Ordinary B-tree partial indexes accept same-table immutable Boolean `WHERE` predicates. Only
 TRUE rows enter the root; FALSE and NULL rows skip even derived-key evaluation.

@@ -24,6 +24,19 @@ import (
 // descendants before resuming its parent's remaining dependents.
 func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDependency, error) {
 	ctx, base, path := r.Context(), r.BaseRead(), r.Path()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// An explicit hard-member deletion cannot bypass its class owner. A
+	// containing owner already in the retirement roots legitimately consumes it.
+	for _, target := range targets {
+		owner := catalog.OperatorFamilyMemberOwner(r.RetirementDescriptor(target))
+		if owner != (ids.ObjectAddress{}) && !slices.Contains(targets, owner) && !r.Removed(owner) {
+			object := stored.DependencyObject(base, target, path)
+			owning := stored.DependencyObject(base, owner, path)
+			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + object + " because " + owning + " requires it", Hint: "You can drop " + owning + " instead."}
+		}
+	}
 	domains := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, a := range targets {
 		domains[a] = true
@@ -132,10 +145,19 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				continue
 			}
 			switch d := descriptor.(type) {
-			case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+			case *catalog.OperatorClass, *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 				for _, dependency := range catalog.OperatorFamilyDependencies(base, d) {
 					if dependency.Address == target {
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: dependency.Kind == 'a', Label: stored.DependencyObject(base, a, path)})
+						address := a
+						automatic := dependency.Kind == 'a' || dependency.Kind == 'i'
+						// Reaching a hard member through its implementation/type
+						// means deleting its owning class, not detaching the member.
+						// Traversing that class then discovers all INTERNAL members
+						// and its external consumers through the ordinary closure.
+						if owner := catalog.OperatorFamilyMemberOwner(d); owner != (ids.ObjectAddress{}) && dependency.Kind == 'n' {
+							address = owner
+						}
+						direct = append(direct, table.DomainDependency{Address: address, Target: target, Root: root, OID: address.ObjectID, Automatic: automatic, Label: stored.DependencyObject(base, address, path)})
 						break
 					}
 				}
@@ -261,6 +283,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					depends, automatic := false, false
 					for _, key := range d.SQLIndex.Keys {
 						depends = depends || target == (ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
+						depends = depends || target == (ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(key.Class.OID())})
 						if key.Derived != nil {
 							for _, dep := range key.Derived.Dependencies {
 								depends = depends || dep.Address == target
@@ -443,7 +466,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			slot := len(result)
 			resultSlots[edge.Address] = len(result)
 			result = append(result, edge)
-			if edge.Address.ClassID == ids.TypeClassID || edge.Address.ClassID == ids.RelationClassID || edge.Address.ClassID == ids.ExtensionClassID || edge.Address.ClassID == ids.ProcedureClassID || edge.Address.ClassID == ids.TSTemplateClassID || edge.Address.ClassID == ids.TSDictionaryClassID || edge.Address.ClassID == ids.ForeignWrapperClassID || edge.Address.ClassID == ids.ForeignServerClassID || edge.Address.ClassID == ids.ForeignMappingClassID {
+			if edge.Address.ClassID == ids.OperatorClassCatalogID || edge.Address.ClassID == ids.OperatorFamilyClassID || edge.Address.ClassID == ids.TypeClassID || edge.Address.ClassID == ids.RelationClassID || edge.Address.ClassID == ids.ExtensionClassID || edge.Address.ClassID == ids.ProcedureClassID || edge.Address.ClassID == ids.TSTemplateClassID || edge.Address.ClassID == ids.TSDictionaryClassID || edge.Address.ClassID == ids.ForeignWrapperClassID || edge.Address.ClassID == ids.ForeignServerClassID || edge.Address.ClassID == ids.ForeignMappingClassID {
 				if err := visit(edge.Address, root); err != nil {
 					return err
 				}

@@ -140,6 +140,9 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 			return nil, err
 		}
 	}
+	if err := e.RegisterCatalogProvider(catalog.OperatorClassProvider{}); err != nil {
+		return nil, err
+	}
 	if err := e.RegisterCatalogProvider(parameterProvider{&e.settings}); err != nil {
 		return nil, err
 	}
@@ -210,6 +213,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	}
 	e.installBuiltinOperators()
 	catalog.InstallBuiltinFamilies(e.catalog.state, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	catalog.InstallBuiltinClasses(e.catalog.state, e.roles.domain.Principal(authorization.BootstrapPrincipalID))
 	e.seedProcedureNames()
 	e.initializeDatabase(database)
 	if err := e.installBuiltinDomainChecks(); err != nil {
@@ -298,7 +302,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return StatementDescription{}, nil
-	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily:
+	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
 		return StatementDescription{}, nil
 	case *parser.CreateExtension, *parser.DropExtension, *parser.AlterExtensionUpdate:
 		return StatementDescription{}, nil

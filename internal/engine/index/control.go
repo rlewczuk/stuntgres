@@ -69,7 +69,11 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 	}
 	// Canonical replay spells the supported access methods as SQL tokens.
 	// Session inquiry alone follows quote_all_identifiers.
-	method := index.SQLIndex.Method.String()
+	methodFact, ok := catalog.AccessMethodByOID(index.SQLIndex.MethodIdentity())
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing index method identity")
+	}
+	method := methodFact.Name
 	if !presentation.Dump {
 		method = identifier(method)
 	}
@@ -104,7 +108,7 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 			if wrapped {
 				sql.WriteByte(')')
 			}
-			presented = ReconstructIndexKey(key, usage, usage, index.SQLIndex.Method)
+			presented = ReconstructIndexKey(view, key, usage, usage, index.SQLIndex.MethodIdentity())
 			if !presentation.Reconstruct {
 				actual, err := KeyUsage(parent, key)
 				if err != nil {
@@ -143,11 +147,19 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 			}
 		}
 		if presented.ExplicitClass {
-			sql.WriteByte(' ')
-			if presentation.Dump {
-				sql.WriteString(catalog.QuoteIdentifier("pg_catalog") + ".")
+			class, exists := view.OperatorClass(ids.OID(presented.Class.OID()))
+			if !exists {
+				return "", fmt.Errorf("stuntgres: missing index operator class")
 			}
-			sql.WriteString(identifier(presented.Class.Name))
+			schema, exists := view.Namespace(class.Namespace())
+			if !exists {
+				return "", fmt.Errorf("stuntgres: missing operator class namespace")
+			}
+			sql.WriteByte(' ')
+			if presentation.Dump || class.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+				sql.WriteString(identifier(schema.Name()) + ".")
+			}
+			sql.WriteString(identifier(class.Name()))
 		}
 		if index.SQLIndex.Method == catalog.BtreeMethod {
 			if key.Desc {

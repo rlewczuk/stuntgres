@@ -120,6 +120,8 @@ func schemaDependents(read catalog.Read, children []ids.ObjectAddress) ([]*catal
 			domains = append(domains, c)
 		} else if family, ok := d.(*catalog.OperatorFamily); ok {
 			domains = append(domains, family)
+		} else if class, ok := d.(*catalog.OperatorClass); ok {
+			domains = append(domains, class)
 		} else if d.Kind() == ids.OperatorFamilyOperatorObject || d.Kind() == ids.OperatorFamilySupportObject {
 			continue // family retirement owns its separately addressed members
 		} else if operator, ok := d.(*catalog.Operator); ok {

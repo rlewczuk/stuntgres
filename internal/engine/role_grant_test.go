@@ -211,7 +211,7 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 		ObjectName:      "grant_unit_b_idx",
 		Owner:           parent.Owner,
 		RelationKind:    catalog.IndexRelation,
-		SQLIndex:        &catalog.IndexDefinition{Parent: address},
+		SQLIndex:        &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: address},
 	}
 	var dependencies []access.RoleDependency
 	access.DescriptorRoleDependencies(parent, parent.Owner, &dependencies)

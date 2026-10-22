@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,10 +20,10 @@ func KeyCollation(u sqltype.Usage, key catalog.IndexKey) sqltype.Usage {
 	return u
 }
 
-func ReconstructIndexKey(key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, method catalog.IndexMethod) catalog.IndexKey {
-	oldDefault, _ := method.DefaultClass(oldUsage.Type)
+func ReconstructIndexKey(view catalog.Read, key catalog.IndexKey, oldUsage, newUsage sqltype.Usage, methodOID ids.OID) catalog.IndexKey {
+	oldDefault, _ := view.DefaultIndexClass(methodOID, oldUsage.Type)
 	if key.Class.Name == "" || key.Class.SameIdentity(oldDefault) {
-		key.Class, _ = method.DefaultClass(newUsage.Type)
+		key.Class, _ = view.DefaultIndexClass(methodOID, newUsage.Type)
 		key.ExplicitClass = false
 	}
 	if key.Collation == oldUsage.Collation.ID {

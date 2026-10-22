@@ -3713,19 +3713,21 @@ nonnull columns: OID `oid`, OID `opcmethod`, NAME `opcname`, OID
 C collation950. Captured results retain their generation, while held numeric
 parameter queries read fresh owned descriptors after native replacement.
 
-The inventory contains62 implemented classes:30 btree403,30 hash405 and the two
-feature-local GiST783 classes inet_ops/range_ops, independent of user indexes.
-Names/identities/family/input/default/storage facts match the pinned
-PostgreSQL18.0 UTF8/C oracle's supported subset. VARCHAR aliases use
-TEXT25 input and are nondefault; pattern aliases are nondefault. Btree name_ops
+The bootstrap inventory contains63 implemented classes:31 btree403,30 hash405
+and two feature-local GiST783 classes inet_ops/range_ops, independent of user
+indexes. Historical seed identities were grounded on PostgreSQL18.0 UTF8/C;
+class DDL and its current diagnostics are grounded on pinned PostgreSQL18.6.
+VARCHAR aliases use TEXT25 input and are nondefault; pattern aliases are nondefault. Btree name_ops
 has keytype cstring2275, versus hash keytype0. Concrete enums share anyenum3500
 input; domains and object aliases reuse their original provider classes.
 Existing JSONB hash uses class10089/family4034, distinct from btree10088/4033.
 
 Recognized diagnostic-only array/record/range/multirange/bit/varbit/pg_lsn/
 tsquery/tsvector classes are not advertised without executable method providers.
-The existing native hash-array0A000 and btree-array42704 boundaries remain;
-no gin/spgist/brin provider, class DDL, direct catalog writes or
+Hash array inputs and btree NAME[] inputs (including domains) retain native0A000
+after collation validation and before class lookup, without diagnostic-class
+fallback. Other btree arrays retain missing-default42704. No
+gin/spgist/brin provider, direct catalog writes or
 pg_index.indclass/vector projection is added. Existing bounded GiST exclusion
 providers and the represented pg_am source do not claim physical index storage.
 Full diagnostic and lifecycle expectations and actual feature smoke selectors
@@ -3760,8 +3762,24 @@ signature checks do not impose full opclass completeness or callback execution.
 Existing class consumers bind registered support once; held metadata reads
 fresh rows after member replacement, while retained rows and roots stay
 immutable. There is no blanket warmed-opclass/root invalidation promise.
-Custom class creation, FAMILY association and a new custom-class index belong
-to the downstream operator-class feature.
+CREATE/ALTER/DROP OPERATOR CLASS now consumes this same family authority.
+Explicit/default selection uses current descriptors and exact access-method OID,
+not only the physical enum or a compiled class name. DEFAULT is unique across
+namespaces per method/input type. Implicit families are created or reused in the
+class creation namespace; STORAGE=input normalizes to0. Full-list admission and
+member storage publish atomically. Incomplete class definitions are admitted,
+but actual indexes require real registered executable support. ALTER changes
+name/schema/owner without moving the family. Index→class NORMAL and member→class
+INTERNAL dependencies drive RESTRICT/CASCADE through the common graph; dropping
+a class preserves its family and underlying operators/routines.
+
+Native class Dump/Reset/Restore retains actual relationships, seed rename/schema/
+owner deltas and current names. Foreign Restore remaps user identities and rebuilds
+support from destination reads, never source captures. Real user enum column
+remapping is distinct from the polymorphic anyenum3500 class input/member types.
+Custom support binding does not expose new scalar SQL functionality or arbitrary
+user callback execution. See [operator-class design](design/PG18-INDEX-OPCLASS.md)
+and [selected proof](../reference/indexes/README.md#operator-class-definitions).
 
 Native Dump/Restore uses ordinary dependency events, current names and fresh
 destination identities for custom families/members. See the

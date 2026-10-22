@@ -24,24 +24,17 @@ func familyError(code, message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }
 func familyMethod(name string) (ids.OID, error) {
-	switch name {
-	case "btree":
-		return 403, nil
-	case "hash":
-		return 405, nil
-	case "gist":
-		return 783, nil
+	if method, ok := catalog.AccessMethodByName(name); ok {
+		if method.Kind != "i" {
+			return 0, familyError("55000", fmt.Sprintf(`access method "%s" is not of type INDEX`, name))
+		}
+		return method.OID, nil
 	}
 	return 0, familyError("42704", fmt.Sprintf(`access method "%s" does not exist`, name))
 }
 func familyMethodName(method ids.OID) string {
-	switch method {
-	case 403:
-		return "btree"
-	case 405:
-		return "hash"
-	case 783:
-		return "gist"
+	if fact, ok := catalog.AccessMethodByOID(method); ok {
+		return fact.Name
 	}
 	return ""
 }

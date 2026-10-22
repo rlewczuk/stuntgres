@@ -119,6 +119,15 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 	event := dump.Event{OID: oid}
 	c.Graph[event] = []dump.Event{{OID: r.SQLIndex.Parent.ObjectID}}
 	for _, key := range r.SQLIndex.Keys {
+		if key.Class.OID() != 0 {
+			predecessor, err := Resolver{}.Predecessor(c.CatalogView, ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(key.Class.OID())}, r.Address())
+			if err != nil {
+				return err
+			}
+			if predecessor != 0 {
+				c.Graph[event] = append(c.Graph[event], dump.Event{OID: predecessor})
+			}
+		}
 		if key.Derived == nil {
 			continue
 		}
