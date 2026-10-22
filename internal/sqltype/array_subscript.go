@@ -90,6 +90,9 @@ func ArrayFetch(ctx context.Context, v Value, indices []ArraySubscriptValue) (Va
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
+	if v.Type().BaseType().id == Box {
+		return boxFetch(v, indices)
+	}
 	null := Null(v.Type().BaseType().Element())
 	if v.IsNull() || v.array == nil {
 		return null, nil
@@ -193,6 +196,9 @@ func ArraySlice(ctx context.Context, v Value, bounds []ArraySubscriptValue) (Val
 	if v.IsNull() {
 		return Null(d), nil
 	}
+	if d.id == Box {
+		return Value{}, failure("0A000", "slices of fixed-length arrays not implemented")
+	}
 	if v.ArrayLen() == 0 || len(bounds) > len(v.array.dimensions) {
 		return OwnedArrayValue(d, nil, nil)
 	}
@@ -244,6 +250,9 @@ func ArraySetElement(ctx context.Context, v Value, bounds []ArraySubscriptValue,
 		return Value{}, err
 	}
 	d := v.Type().BaseType()
+	if d.id == Box {
+		return boxSet(v, bounds, rhs, false)
+	}
 	if v.ArrayLen() == 0 {
 		dims := make([]ArrayDimension, len(bounds))
 		for i, b := range bounds {
@@ -314,6 +323,9 @@ func ArraySetSlice(ctx context.Context, v Value, bounds []ArraySubscriptValue, r
 		return Value{}, err
 	}
 	d := v.Type().BaseType()
+	if d.id == Box {
+		return boxSet(v, bounds, rhs, true)
+	}
 	if rhs.IsNull() {
 		if v.IsNull() {
 			return OwnedArrayValue(d, nil, nil)

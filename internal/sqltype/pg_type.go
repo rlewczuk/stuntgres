@@ -94,6 +94,10 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	var f PGTypeMetadata
 	// REL_18_6 pg_type.dat and pg_proc.dat. No lookup-identity fallback.
 	switch d.id {
+	case Point:
+		f = PGTypeMetadata{Kind: "b", Category: "G", Element: Float8, Subscript: 6180, Input: 117, Output: 118, Receive: 2428, Send: 2429}
+	case Box:
+		f = PGTypeMetadata{Kind: "b", Category: "G", Element: Point, Subscript: 6180, Input: 123, Output: 124, Receive: 2484, Send: 2485}
 	case TSVector:
 		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 3610, Output: 3611, Receive: 3639, Send: 3638, Analyze: 3688}
 	case TSQuery:

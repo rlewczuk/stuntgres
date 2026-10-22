@@ -55,6 +55,10 @@ func SameDatum(a, b Value) bool {
 		return true
 	}
 	switch a.typ.BaseType().id {
+	case Point:
+		return math.Float64bits(a.floating) == math.Float64bits(b.floating) && a.integer == b.integer
+	case Box:
+		return a.geometry != nil && b.geometry != nil && a.sameGeometry(b)
 	case TSVector, TSQuery:
 		if !a.validFTS() || !b.validFTS() {
 			return false

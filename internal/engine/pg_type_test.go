@@ -45,24 +45,24 @@ func pgTypeUnitBag(t *testing.T, source *exec.Source, d *catalog.Relation) map[u
 		}
 		bag[id] = row
 	}
-	for _, id := range []uint32{16, 20, 23, 25, 19, 1003, 71, 210, 13254, 13253, 3614, 3615, 3643, 3645} {
+	for _, id := range []uint32{16, 20, 23, 25, 19, 1003, 71, 210, 13254, 13253, 3614, 3615, 3643, 3645, 600, 603, 1017, 1020} {
 		if bag[id] == nil {
 			t.Fatal("missing genuine type", id)
 		}
 	}
-	for _, id := range []uint32{142, 143, 600, 1017, 4533, 4534, 4535, 6152, 6153, 6155, 22, 30, 1790} {
+	for _, id := range []uint32{142, 143, 4533, 4534, 4535, 6152, 6153, 6155, 22, 30, 1790} {
 		if bag[id] != nil {
 			t.Fatal("unsupported advertised type", id)
 		}
 	}
-	for _, pair := range [][2]uint32{{3614, 3643}, {3615, 3645}} {
+	for _, pair := range [][2]uint32{{3614, 3643}, {3615, 3645}, {600, 1017}, {603, 1020}} {
 		array, err := bag[pair[0]][14].OID()
 		if err != nil || array != pair[1] {
-			t.Fatal("FTS companion identity", pair, array, err)
+			t.Fatal("scalar companion identity", pair, array, err)
 		}
 		element, err := bag[pair[1]][13].OID()
 		if err != nil || element != pair[0] {
-			t.Fatal("FTS element identity", pair, element, err)
+			t.Fatal("companion element identity", pair, element, err)
 		}
 	}
 	int4 := bag[23]

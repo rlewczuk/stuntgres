@@ -108,11 +108,16 @@ may be unavailable while expression ARRAY construction is executable.
 Excluded stock companions: temporal multiranges; MONEY/TID/network/transaction/
 operator-alias/regconfig/regdictionary/CHAR/bit/range arrays lacking concrete
 builtin authority/codecs. This does **not** exclude separately constructible
-arrays of domains or occurrence shapes. Other lookup-only identities (geometry,
-MAC/XML/text-search/LSN/snapshot/vector/handler/internal/refcursor and unpromoted
+arrays of domains or occurrence shapes. BOX and minimal POINT now have real
+scalar value/input providers, but BOX's fuzzy area operators do not grant default
+comparison capabilities; their companion arrays remain lookup-only. Their
+feature-specific witnesses live in reference/types rather than expanding this
+historical finite87-type corpus. Other lookup-only identities (remaining geometry,
+XML/LSN/snapshot/vector/handler/internal/refcursor and unpromoted
 information_schema domains) lack actual value/input providers; an OID naming a
-type is not a value of that type. Installed query_int is an executable
-parameterized negative-space class; no extension is installed to inflate T.
+type is not a value of that type. Promoted MACADDR and TSVECTOR/TSQUERY have
+separate feature coverage. Installed query_int is an executable parameterized
+negative-space class; no extension is installed to inflate T.
 Missing comparison/coercion on an admitted route is never an exclusion.
 
 ## Complete enumeration and independent outcomes

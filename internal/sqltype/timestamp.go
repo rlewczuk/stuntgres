@@ -47,6 +47,9 @@ type InputEnvironment struct {
 	// ExactSnapshot is private native-import policy. Codecs and coercions reject
 	// modifier loss throughout nested values; ordinary SQL leaves it disabled.
 	ExactSnapshot bool
+	// RawBoxReplay preserves raw BOX pairs only in isolated Restore INSERT data.
+	// It does not enable the broader exact snapshot coercion policy.
+	RawBoxReplay bool
 	// LockedDomainInput is supplied explicitly by a mutex-owning binder caller.
 	// Codecs never invoke it; only literal binding uses this narrow boundary.
 	LockedDomainInput DomainInputBoundary

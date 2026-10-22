@@ -3,17 +3,43 @@
 ## Provenance and status
 
 The companion `pg-operator-pg18-supported.tsv` is an independently constructed
-expected inventory, **554 admitted records out of 799 released identities**;
-245 remain identity-only. Of the admitted records, 3552 is executable through
+expected inventory, currently **570 admitted records out of 799 released identities**;
+229 remain identity-only. Of the admitted records, 3552 is executable through
 the bounded exclusion provider rather than general scalar SQL. The inventory
 has a header and exactly15 raw catalog columns,
 ordered numerically by OID. Root confirmed the initial531-row metadata against
 pinned PostgreSQL18.0 before production. Subsequent rebases synchronize existing
 TID/INET, ACL-inclusion, RECORD and exclusion providers. The latest complete
-554-row definitions require fresh root-owned proof; source facts are not a pass.
+570-row definitions require fresh root-owned proof; source facts are not a pass.
 No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
+
+### BOX geometric operator admission
+
+PG18-TYPE-GEOM-BOX adds only the six released BOX scalar operators:
+499 (`~=`),501 (`>=`),502 (`>`),503 (`=`),504 (`<`),505 (`<=`).
+Their independent15-field rows come from
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and procedure identities from
+[REL_18_6 pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat),
+not from native projection output. Namespace11, owner10, binary kind and BOOL16
+are fixed; all six have false merge/hash flags. Coordinate sameness and area
+equality have no negator. Area inequalities retain their released reciprocal
+commutator/negator relationships, procedures126–130, and areasel139/
+areajoinsel140; sameness uses186 and eqsel101/eqjoinsel105.
+
+The six rows extend the pre-BOX564-row file to570, while all799 alias identities
+remain unchanged. Historical554-row checkpoints below remain historical.
+Production SupportedOperatorMetadata is the existing owner of catalog row
+publication, separate from actual operator-routine associations. Both must agree
+with genuine providers. This promotion adds no BOX default B-tree/hash class,
+spatial operators, POINT comparisons, or companion-array execution.
+
+Selected proof must include all consumers of the independent inventory: direct/
+prepared catalog inventory, provider agreement, complete relationships, permissions,
+polymorphic identity, lifecycle and FeatureSmoke, in both native and pinned modes.
+Fresh proof for these additions remains root-owned.
 
 ### JSONB JSONPath operator admission
 

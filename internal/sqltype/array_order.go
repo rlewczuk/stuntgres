@@ -58,6 +58,9 @@ func (p Comparison) EqualValues(ctx context.Context, a, b Value, input InputEnvi
 	if err := p.demandEquality(input); err != nil {
 		return false, err
 	}
+	if p.left.BaseType().id == Box && p.right.BaseType().id == Box {
+		return boxPredicate(CompareEqual, a, b)
+	}
 	if p.composite != nil {
 		sign, err := p.compareComposites(ctx, a, b, input, false)
 		return sign == 0, err

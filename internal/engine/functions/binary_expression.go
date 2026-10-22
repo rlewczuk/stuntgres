@@ -588,7 +588,7 @@ func (e Binary) rendering() (expr.Rendering, error) {
 // Operator reports whether the call displays as an infix operator.
 func (e Binary) Operator() bool {
 	switch e.Plan.Name() {
-	case "||", "-", "#-", "@>", "<@", "?", "?|", "?&", "@?", "@@", "->", "->>", "#>", "#>>":
+	case "~=", "||", "-", "#-", "@>", "<@", "?", "?|", "?&", "@?", "@@", "->", "->>", "#>", "#>>":
 		return true
 	}
 	return false

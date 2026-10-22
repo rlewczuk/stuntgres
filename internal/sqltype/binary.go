@@ -20,6 +20,8 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	p := BinaryPlan{name: name, result: result, arity: len(args)}
 	ids, arity, id := [4]ID{Bytea, Bytea}, 2, Bytea
 	switch name {
+	case "~=":
+		ids, id = [4]ID{Box, Box}, Bool
 	case "->", "->>", "#>", "#>>":
 		right := Text
 		if name == "#>" || name == "#>>" {
@@ -279,6 +281,12 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return p.jsonbConcat(ctx, a, values[1])
 	}
 	switch p.name {
+	case "~=":
+		same, err := boxSame(a, values[1])
+		if err != nil {
+			return Value{}, err
+		}
+		return Boolean(p.result.Type, same), nil
 	case "->", "->>", "#>", "#>>":
 		if a.typ.ID() == JSONB {
 			return p.jsonbExtraction(ctx, a, values[1])

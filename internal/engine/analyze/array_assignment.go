@@ -19,15 +19,15 @@ func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sql
 			return usage
 		}
 	}
-	if usage.Type.IsArray() {
-		usage.Type = usage.Type.Element()
+	if usage.Type.IsArray() || usage.Type.ID() == sqltype.Box {
+		usage.Type = usage.Type.SubscriptElement()
 	}
 	return usage
 }
 
 func (b *Binder) BindArrayTarget(column catalog.Column, raw []parser.ArraySubscript, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
 	usage := column.Usage.BaseUsage()
-	if !usage.Type.IsArray() {
+	if !usage.Type.IsArray() && usage.Type.ID() != sqltype.Box {
 		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.DiagnosticTypeName(usage.Type)), pos)
 	}
 	subs, slice, err := b.bindArrayBounds(raw)

@@ -22,6 +22,12 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// catalog identities, independently of executable array admission.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.typtype,t.typbasetype::integer AS base,t.typtypmod,t.typcollation::integer AS collation,(a.typelem=t.oid AND a.typnamespace=t.typnamespace) AS companion FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE n.nspname='information_schema' AND t.typname='yes_or_no'", []string{"typtype", "base", "typtypmod", "collation", "companion"}, []string{"CHAR", "INT4", "INT4", "INT4", "BOOL"}, [][]any{{"d", int64(1043), int64(7), int64(950), true}}))
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.typtype,t.typbasetype::integer AS base,t.typtypmod,t.typcollation::integer AS collation,(a.typelem=t.oid AND a.typnamespace=t.typnamespace) AS companion FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE n.nspname='information_schema' AND t.typname='cardinal_number'", []string{"typtype", "base", "typtypmod", "collation", "companion"}, []string{"CHAR", "INT4", "INT4", "INT4", "BOOL"}, [][]any{{"d", int64(23), int64(-1), int64(0), true}}))
+		// Raw geometric typelem facts are distinct from companion SQL-array
+		// metadata. Native companions remain lookup-only, not executable arrays.
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid,typelem,typarray FROM pg_type WHERE oid IN (600,603,1017,1020) ORDER BY oid", []string{"oid", "typelem", "typarray"}, []string{"OID", "OID", "OID"}, [][]any{
+			{int64(600), int64(701), int64(1017)}, {int64(603), int64(600), int64(1020)},
+			{int64(1017), int64(600), int64(0)}, {int64(1020), int64(603), int64(0)},
+		}))
 		if b.PG {
 			return
 		} // PostgreSQL genuinely implements additional families.
@@ -36,6 +42,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// MACADDR's scalar metadata and associated lookup identity are visible;
 		// catalog presence does not make the companion an executable array.
 		expected[829], expected[1040] = true, true
+		expected[600], expected[603], expected[1017], expected[1020] = true, true, true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")
@@ -81,9 +88,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 			want = append(want, []any{id})
 		}
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type ORDER BY oid", []string{"oid"}, []string{"OID"}, want))
-		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (22,30,142,143,600,1017,1006,1013,1790,2201,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (22,30,142,143,1006,1013,1790,2201,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
 		// Lookup identity is deliberately broader than SQL catalog/codec admission.
-		for _, id := range []int64{142, 600, 4533} {
+		for _, id := range []int64{142, 601, 4533} {
 			literal := fmt.Sprint(id)
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT '"+literal+"'::regtype::bigint AS identity", []string{"identity"}, []string{"INT8"}, [][]any{{id}}))
 		}

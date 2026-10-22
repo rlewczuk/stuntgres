@@ -14,6 +14,13 @@ import (
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 var BuiltinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
+	// PostgreSQL REL_18_6 BOX scalar operators; no default comparison class.
+	{catalog.RoutineIdentity{126, ids.PGCatalogNamespaceOID, "box_ge", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{127, ids.PGCatalogNamespaceOID, "box_gt", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{128, ids.PGCatalogNamespaceOID, "box_eq", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{129, ids.PGCatalogNamespaceOID, "box_lt", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{130, ids.PGCatalogNamespaceOID, "box_le", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{186, ids.PGCatalogNamespaceOID, "box_same", "603,603"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	// PostgreSQL REL_18_6 selected SQL large-object wrappers.
 	{catalog.RoutineIdentity{715, ids.PGCatalogNamespaceOID, "lo_create", "26"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},
 	{catalog.RoutineIdentity{957, ids.PGCatalogNamespaceOID, "lo_creat", "23"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider},

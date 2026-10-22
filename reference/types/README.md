@@ -6,6 +6,54 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### BOX scalar contract
+
+Eight bounded shared scenarios cover independently expected canonical IO,
+direct/prepared/held bindings, raw metadata/cells, complete diagnostics and
+positions, area comparisons versus coordinate sameness, raw POINT component
+reads/writes, statement atomicity and native exact replay. Pinned18.6 oracle
+discovery settled these definitions before production implementation.
+
+```sh
+make check RUN='^TestReferenceBox(Values|Comparison|Components|Diagnostics|Metadata)$'
+make check RUN='^TestReferenceBox(Values|Comparison|Components|Diagnostics|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceBox(Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceBox(Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceBoxCharacterCasts$'
+make check RUN='^TestReferenceBoxCharacterCasts$' REFERENCE=1
+make check RUN='^TestBox(InputOutput|Comparison|Components|ExactReplay)$'
+make check RUN='^TestRegtypeInventoryCapability$'
+```
+
+Use external900-second deadlines. Native control phases retain inverted
+components, precise floats, signed zero, subnormals, infinities/NaN and NULL
+through same/fresh-driver replay; held readers and failed/canceled/I/O-error
+imports preserve their prior state. PostgreSQL exercises the same ordinary SQL
+facts without invented host controls.
+
+CharacterCasts independently checks BOX/POINT explicit constrained VARCHAR/CHAR
+truncation and padding, unconstrained TEXT, direct/prepared/held bindings and
+target metadata (including held NULL executions). Genuinely held INSERT/UPDATE
+assignments fail with complete22001 diagnostics and unchanged rows, then accept
+NULL on the same statement with exact affected counts and resulting state.
+Valid-first/later-overlong multirow INSERTs retain statement atomicity coverage.
+It was added oracle-first for the constrained-character sizing regression;
+explicit cast truncation does not weaken assignment-length checks.
+
+Standalone feature smoke (run separately from the corpus):
+
+```sh
+make check RUN='^TestReferenceBoxFeatureSmoke$'
+make check RUN='^TestReferenceBoxFeatureSmoke$' REFERENCE=1
+```
+
+Expected exit0 means literal/held reverse inputs return identical canonical
+BOX/POINT values and metadata, NULL binds stay NULL, area equality differs from
+coordinate sameness, and raw component inversion survives native replay.
+Use `RACE=1` on selected Controls proof when needed; whole-project Docker-free
+verification is `make quickcheck`. These commands document proof obligations,
+not a claim that this implementation round has already passed them.
+
 ### MACADDR scalar contract
 
 The eight shared scenarios cover documented forms and scanf edges, full

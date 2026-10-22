@@ -28,6 +28,8 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Xid8:    {"0", "9223372036854775808", "18446744073709551615"},
 		sqltype.Tid:     {"(0,0)", "(1,2)", "(4294967295,65535)", "(-1,0)"},
 		sqltype.Macaddr: {"00:00:00:00:00:00", "08002b010203", "80:00:00:00:00:00", "ff:ff:ff:ff:ff:ff"},
+		sqltype.Box:     {"(1,4),(3,2)", "(1.0000005,1),(0,0)", "(-0,-0),(-0,-0)", "(5e-324,1),(0,0)", "(NaN,Infinity),(-Infinity,0)"},
+		sqltype.Point:   {"(1,2)", "(1.0000005,2)", "(-0,-0)", "(5e-324,0)", "(NaN,Infinity)"},
 		sqltype.Money:   {"-92233720368547758.08", "92233720368547758.07", "0", "1.235"},
 		sqltype.Date:    {"2000-02-29", "infinity"}, sqltype.Time: {"24:00:00", "12:34:56.123456"}, sqltype.Timetz: {"12:34:56.123456+02"},
 		sqltype.Timestamp: {"2000-02-29 12:34:56.123456", "-infinity"}, sqltype.Timestamptz: {"2000-02-29 12:34:56.123456+02", "infinity"},
@@ -195,6 +197,22 @@ func TestAnyValueProviderDatums(t *testing.T) {
 					t.Fatal(err)
 				}
 				values = append(values, v)
+			}
+			if d.ID() == sqltype.Box {
+				point, err := d.SubscriptElement().Input(ctx, "(-5,-6)", -1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw, err := sqltype.ArraySetElement(ctx, values[0], []sqltype.ArraySubscriptValue{{Upper: 0, HasUpper: true}}, point)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// A real component write retains an inverted pair. ANY_VALUE
+				// must carry it without normalization or codec reconstruction.
+				if out, err := d.Output(ctx, raw); err != nil || out != "(-5,-6),(1,2)" {
+					t.Fatal("raw BOX carrier construction", out, err)
+				}
+				values = append(values, raw)
 			}
 			for _, want := range values {
 				p := AnyValue{d.Usage()}

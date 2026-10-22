@@ -835,7 +835,7 @@ supplements, never substitutes for, whole-project quickcheck.
 ### pg_operator selected proof
 
 The `TestReferencePGOperator` scenarios use the independent
-[554-row released supported inventory](../../docs/design/pg-operator-pg18-supported.tsv)
+[570-row released supported inventory](../../docs/design/pg-operator-pg18-supported.tsv)
 and [all-family admission/provenance note](../../docs/design/pg-operator-pg18-oracle.md).
 All 15 fields are asserted, including numeric implementation/estimator references;
 native inventory reads are unfiltered so extra records fail. This does not
@@ -844,6 +844,13 @@ The JSONB JSONPath part adds only released4012/4013 with actual two-argument
 implementation routines4010/4011 and estimators5040/5041. The existing shared
 inventory and reference checks assert all fifteen fields for these rows; no
 additional projection columns or text-search execution are implied.
+BOX promotion adds only499 and501–505, with false merge/hash flags, exact
+commutator/negator relationships and released implementation/estimator identities.
+The six independent rows require fresh selected inventory/reference/lifecycle
+proof in both modes; BOX's fuzzy scalar comparisons do not enable default
+ordering, grouping or indexing. `TestReferencePGTypeAdmission` additionally
+checks600/603 and lookup-only companion metadata1017/1020, including raw typelem
+versus SQL-array relationships.
 
 Root completed pinned PostgreSQL18.0 discovery and observed genuine native
 missing-source failure before production. Temporary discovery filters are gone.

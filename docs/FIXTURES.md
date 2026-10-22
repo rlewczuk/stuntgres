@@ -2,6 +2,23 @@
 
 [README](../README.md) · [Native compatibility limits](DIALECT.md)
 
+## Raw BOX snapshots
+
+BOX component writes can retain inverted corner pairs. Dump emits those pairs
+in stored order with shortest roundtrip coordinates, independent of
+`extra_float_digits`. Private native Restore INSERT replay preserves their order
+through an operation-local BOX-only input policy shared by literal binding and
+execution-time TEXT coercions. It does not enable general snapshot-coercion
+exceptions, alter session settings, or change ordinary post-Restore BOX input.
+
+Same/fresh-driver replacement preserves raw components, precise finite values,
+signed zero, subnormals, nonfinite coordinates and NULL. Retained result rows
+keep their prior metadata and captured presentation. Failed/canceled/I/O-error
+Restore retains the target state through the existing staged publication path.
+Ordinary PostgreSQL INSERT replay of inverted BOX text normalizes that input;
+native exact replay is not a claim of physical PostgreSQL persistence parity.
+See [selected control proof and smoke](../reference/types/README.md#box-scalar-contract).
+
 ## Large-object snapshots
 
 Native Dump captures only committed immutable large-object descriptors under the

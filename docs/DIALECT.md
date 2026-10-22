@@ -8,6 +8,27 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## BOX geometric boundary
+
+BOX storage/IO, five area comparisons (`=`, `<`, `<=`, `>`, `>=`), coordinate
+sameness (`~=`), and two zero-based raw POINT components use ordinary typed
+SQL/driver paths. Raw point assignment does not renormalize stored corners.
+BOX has no `<>`/`!=` operator and no default B-tree/hash comparison authority:
+ORDER BY, DISTINCT/GROUP BY and reached composite comparison leaves cannot
+invent serialized-text comparisons or index classes.
+
+POINT provides the real coordinate codec and scalar identity required by BOX
+components and assignment. This does not enable POINT equality/order, POINT
+coordinate subscripting, constructors, spatial operators/functions, companion
+SQL arrays, binary receive/send, physical geometric indexes or a native ABI.
+Released catalog identities alone are not callable implementations.
+
+Native Dump/Restore is logical host-authorized replacement, not PostgreSQL
+physical storage, WAL or crash durability. Its isolated INSERT replay preserves
+raw inverted BOX pairs; replaying those same textual literals as ordinary
+PostgreSQL INSERT input normalizes them. No PostgreSQL Reset/Dump/Restore API is
+invented by the reference scenarios. See [BOX proof](../reference/types/README.md#box-scalar-contract).
+
 ## Tablespace inquiries
 
 The sole signatures are `pg_tablespace_location(oid) -> text` and
@@ -3241,9 +3262,11 @@ A same-numbered but foreign immediate-base generation is not interchangeable;
 retained roots keep their own installation while fresh publication/reinstallation
 uses current authority. This metadata composition adds no codec or SQL capability.
 
-This inventory is deliberately narrower than REGTYPE lookup. Unimplemented
-xml/geometry/full-text/refcursor/vector/pseudo families and unrelated
-lookup-only relation identities are absent. Temporal multiranges4533/4534/4535
+This inventory is deliberately narrower than REGTYPE lookup. Remaining
+unimplemented xml/geometry/full-text/refcursor/vector/pseudo families and unrelated
+lookup-only relation identities are absent. BOX/POINT scalar and companion
+metadata are admitted; companion catalog visibility does not enable their SQL
+array codecs. Temporal multiranges4533/4534/4535
 and arrays6152/6153/6155 remain absent even though pg_range preserves their
 released identity links. Existing concrete and lookup-only companion codec
 flags are unchanged: catalog visibility never enables storage, input, casts,

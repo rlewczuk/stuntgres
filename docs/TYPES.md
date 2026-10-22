@@ -31,6 +31,50 @@ Dump recreates the extension before its consumers and restores fresh identities,
 without changing retained result metadata or values. Associated _citext remains
 lookup-only. Binary codecs, case-insensitive operators and arrays are excluded.
 
+## BOX and minimal POINT transport
+
+BOX (OID603) and POINT (OID600) are concrete scalar datums with immutable
+fixed-size binary64 payloads. Ordinary BOX input normalizes each coordinate
+axis independently, so both `(1,4),(3,2)` and `(3,2),(1,4)` display as
+`(3,4),(1,2)`. POINT displays as `(x,y)`. Display honors `extra_float_digits`;
+persisted literals retain full roundtrip precision independently of display.
+
+Contextual strings, owned nonnil bytes and `driver.Valuer` values enter the
+ordinary codecs. Nil and typed-nil bytes are SQL NULL; nonnil empty input is
+malformed. Native result cells are strings or nil, DatabaseTypeName is BOX or
+POINT, and ScanType is string. These scalars have no character-length or decimal
+precision metadata. Physical source nullability follows the normal column
+contract; computed expression nullability can be unknown. The pq adapter instead
+exports nonnull textual bytes and interface ScanType.
+Explicit character/geometry casts use the shared IO coercion plan, including
+runtime TEXT input. Geometry can assign to character destinations through its
+output codec; typed character assignment into geometry still requires a cast.
+For BOX/POINT output, explicit casts to `varchar(n)` or `char(n)` truncate
+to the target character count; CHAR also pads short output. Assignment retains
+the ordinary length check: overlong non-space output fails22001 without changing
+stored rows. Unconstrained TEXT retains the full geometric output.
+
+BOX `=`, `<`, `<=`, `>`, `>=` compare area with the released1e-6 tolerance.
+`~=` compares all four stored coordinates with that tolerance. NaN fuzzy
+predicates are false, and checked area arithmetic can fail22003. Approximate
+scalar equality is not exact datum identity or default grouping/sort authority.
+BOX and POINT remain scalars despite raw catalog `typelem`/subscripting facts;
+their companion SQL arrays are lookup-only.
+
+BOX components are zero-based POINTs: `b[0]` and `b[1]`. Missing/out-of-range,
+NULL or multidimensional reads yield POINT NULL. Element assignment replaces a
+raw point without normalization; assigning component0=`(-5,-6)` to
+`(3,4),(1,2)` retains `(-5,-6),(1,2)`. A NULL POINT RHS leaves a nonnull BOX
+unchanged, and assignment to a NULL BOX stays NULL. NULL assignment bounds still
+error. Fixed-length slices are unsupported except existing NULL short circuits.
+
+Native Restore INSERT data replay alone enables raw BOX input, retaining
+inverted pairs and full coordinate precision from Dump. Both analysis-time
+literals and execution-time coercions receive the same operation-local policy.
+Ordinary SQL input after Restore continues to normalize. Exact snapshot import
+also preserves raw pairs. Copies/retags never format or reparse coordinates;
+datum identity compares bits, retaining signed-zero differences.
+
 ## Installed cube transport
 
 `CREATE EXTENSION cube` allocates a genuine scalar identity with immutable

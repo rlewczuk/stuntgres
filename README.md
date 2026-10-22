@@ -26,6 +26,18 @@ This does not implement case-insensitive operators, indexes or citext arrays.
 See [native limits](docs/DIALECT.md#citext-extension-type) and
 [selected proof and smoke](reference/types/README.md#citext-storage-and-value-round-trips).
 
+## BOX geometric scalar — change note
+
+BOX stores real binary64 opposite corners, normalizes ordinary input to
+upper-right/lower-left coordinates, and exposes two real POINT components.
+Its five scalar comparisons compare area with PostgreSQL's geometric tolerance;
+`~=` compares coordinates. These operators do not grant generic ordering,
+grouping, indexing, or `<>`/`!=`. Component assignment retains raw pair order
+without renormalization, including through native Dump/Reset/Restore.
+See [typed transport](docs/TYPES.md#box-and-minimal-point-transport),
+[native boundaries](docs/DIALECT.md#box-geometric-boundary), and
+[selected proof and smoke](reference/types/README.md#box-scalar-contract).
+
 ## Large-object page catalog — change note
 
 `pg_catalog.pg_largeobject` exposes genuine stored `(loid,pageno,data)` rows.

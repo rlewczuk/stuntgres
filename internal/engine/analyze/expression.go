@@ -1127,7 +1127,7 @@ func (b *Binder) Cast(raw parser.CastExpr, outerPolicy ExpressionPolicy) (expr.E
 	target = info.Usage
 	coercionPlan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if sqltype.IsFTS(source.Type.BaseType().ID()) || sqltype.IsFTS(target.Type.BaseType().ID()) {
+		if sqltype.IsFTS(source.Type.BaseType().ID()) || sqltype.IsFTS(target.Type.BaseType().ID()) || source.Type.BaseType().ID() == sqltype.Box || source.Type.BaseType().ID() == sqltype.Point || target.Type.BaseType().ID() == sqltype.Box || target.Type.BaseType().ID() == sqltype.Point {
 			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.DiagnosticTypeName(source.Type), b.DiagnosticTypeName(target.Type)), raw.Pos)
 		}
 		if source.Type.BaseType().ID() == sqltype.Tid || target.Type.BaseType().ID() == sqltype.Tid {
