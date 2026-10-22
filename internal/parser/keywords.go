@@ -324,7 +324,7 @@ var keywords = [...]keyword{
 	{"like", TypeFunctionName, true, LIKE},
 	{"limit", Reserved, false, LIMIT},
 	{"listen", Unreserved, true, LISTEN},
-	{"load", Unreserved, true, 0},
+	{"load", Unreserved, true, LOAD},
 	{"local", Unreserved, true, LOCAL},
 	{"localtime", Reserved, true, LOCALTIME},
 	{"localtimestamp", Reserved, true, LOCALTIMESTAMP},

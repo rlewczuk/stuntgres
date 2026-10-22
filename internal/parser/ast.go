@@ -5,6 +5,14 @@ import "strings"
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
+// Load retains a decoded filename; native library loading is external.
+type Load struct {
+	Filename string
+	Pos      Position
+}
+
+func (*Load) statement() {}
+
 // CreateTablespace retains SQL validation inputs; physical creation is external.
 type CreateTablespace struct {
 	Name        Identifier

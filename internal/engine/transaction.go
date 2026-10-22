@@ -512,7 +512,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return s.engine().describeOperation(s, stmt)
 	case *parser.ForeignDDL:
 		return s.engine().describeOperation(s, stmt)
-	case *parser.CreateTablespace:
+	case *parser.CreateTablespace, *parser.Load:
 		return s.engine().describeOperation(s, stmt)
 	case *parser.Truncate:
 		return s.engine().describeOperation(s, stmt)

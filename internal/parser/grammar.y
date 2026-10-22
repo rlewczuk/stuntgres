@@ -280,7 +280,7 @@ package parser
 %token <tok> INCLUDE TABLESPACE
 %token <tok> EXCLUDE
 %token <tok> POLICY
-%token <tok> RULE ALSO INSTEAD NOTIFY LISTEN UNLISTEN
+%token <tok> RULE ALSO INSTEAD NOTIFY LISTEN UNLISTEN LOAD
 %token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
@@ -326,8 +326,8 @@ package parser
  * existing type-tail decision, exactly as for REINDEX above. */
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE likewise retains KW_U's contextual identifier/type-tail precedence. */
-/* LISTEN/UNLISTEN also retain their former KW_U type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN '.'
+/* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
 %nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -724,7 +724,7 @@ package parser
 %type <tok> grant_external_name_word
 %type <typ> standalone_type
 %type <stmt> prepare_sql execute_sql deallocate_sql preparable discard
-%type <stmt> notify listen unlisten
+%type <stmt> notify listen unlisten load
 %type <types> prepare_types prepare_type_list
 %type <row> execute_arguments execute_argument_list
 %%
@@ -765,10 +765,11 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | alter_composite | drop_composite | alter_table_of
  | foreign_statement
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | notify | listen | unlisten
+ | notify | listen | unlisten | load
  | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
+load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
 create_tablespace: CREATE TABLESPACE name tablespace_owner tablespace_location STRING tablespace_options {
  $$=&CreateTablespace{Name:Identifier{Text:$3.text,Pos:$3.pos},Owner:$4,Location:$6.text,LocationPos:$6.pos,Options:$7,Pos:$1.pos}
 } ;
@@ -2696,7 +2697,7 @@ setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
 non_between_name: window_name | PARTITION | FRAME_UNIT | MATCH | PERIOD ;
-window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN
+window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
@@ -2736,7 +2737,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | COLLATION
  | EXCLUDE
  | POLICY
- | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN
+ | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD
  | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | WITHIN | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;

@@ -6,6 +6,64 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### LOAD native-library boundary
+
+The six shared `TestReferenceLoad` definitions cover syntax/string decoding,
+unreserved identifiers, direct/prepared authorization, lexical filename rules,
+held execution-time role and SUPERUSER changes, real lookup versus the embedded
+boundary, repeated installed-library requests, read-only/savepoint recovery,
+sentinel and installed-extension preservation, and unexpected notices.
+`TestReferencePGExtensionCommandBoundaries` also checks LOAD's execution-time
+boundary instead of the obsolete native parser rejection.
+
+Expectations originate in PostgreSQL 18 `LOAD`, dynamic-loading documentation,
+and released `REL_18_6` `dfmgr.c`/`gram.y`; the selected oracle is the repository's
+pinned PostgreSQL 18.6 UTF8/C container. Each backend is asserted independently:
+
+| Request | Native | PostgreSQL |
+|---|---|---|
+| Ordinary role, bare name or nested/traversing plugin path | `42501`, `access to library "<filename>" is not allowed` | Same |
+| Superuser, `$bad/missing` | `42602`, `invalid macro name in path: $bad/missing` | Same |
+| Authorized absent bare/plugin/absolute/relative filename | `0A000`, `LOAD native libraries are unsupported in embedded mode` | `58P01`, `could not access file "<filename>": No such file or directory` |
+| Superuser, installed `plpgsql`, including repeated attempts | Same `0A000` | Success, affected count zero |
+
+Valid protocol Prepare succeeds before authorization/loading; malformed grammar
+fails at Prepare (or direct execution). SQL `PREPARE ... AS LOAD` is not valid.
+The fixture checks missing-file candidates and `.so` retries **inside the oracle
+container only**, requires `dynamic_library_path=$libdir`, and proves the
+installed `plpgsql.so` witness. Unexpected files, a missing library, Docker or
+image failures are failed preconditions, never skips or manufactured fixtures.
+No SQL sentinel alone proves the absence of dynamic loading: the native
+implementation deliberately contains only authority and lexical checks.
+
+Cancellation checks are native-only: pre-canceled Prepare/Execute require
+`context.Canceled` with no published handle/result. Pinned pq pre-canceled
+Prepare showed varying handle/connection outcomes during oracle runs, including
+connection closure; this adapter lifecycle is not LOAD behavior. The reference
+scenario does not exercise pq pre-cancellation or impose a driver outcome.
+Ordinary non-canceled direct/prepared/held LOAD behavior remains shared.
+
+```sh
+timeout 900s make check REFERENCE=1 RUN='^TestReference(Load(Syntax|Authorization|Resolution|Prepared|Transactions|FeatureSmoke)|PGExtensionCommandBoundaries)$'
+timeout 900s make check RUN='^TestReference(Load(Syntax|Authorization|Resolution|Prepared|Transactions|FeatureSmoke)|PGExtensionCommandBoundaries)$'
+timeout 900s make check RUN='^TestLoad(Grammar|Syntax|Validation|ExecutorNoPublication)$'
+timeout 900s make check RACE=1 RUN='^(TestLoadExecutorNoPublication|TestReferenceLoadPrepared)$'
+```
+
+Bounded public feature smoke:
+
+```sh
+timeout 900s make check RUN='^TestReferenceLoadFeatureSmoke$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceLoadFeatureSmoke$'
+```
+
+Expected observations: exact `42501`/`42602`, native `0A000` versus genuine oracle
+`58P01`, held authority changes, read-only savepoint recovery, sentinel `7`,
+unchanged extension identities/rows, and no notices. Native never opens host
+files or loads process code. These selectors state the proof contract, not an
+unexercised claim of passing verification.
+
+
 ### pg_largeobject page projection
 
 The shared `TestReferencePGLargeobject` scenarios specify actual sparse page

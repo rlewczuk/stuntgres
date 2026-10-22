@@ -46,6 +46,8 @@ func classifyCommandTag(stmt parser.Statement, before session.TxState) (base str
 		base = fdw.CommandTag(s)
 	case *parser.CreateTablespace:
 		base = "CREATE TABLESPACE"
+	case *parser.Load:
+		base = "LOAD"
 	case *parser.CreateTable:
 		base = "CREATE TABLE"
 	case *parser.DropTable:

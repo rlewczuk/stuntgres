@@ -60,6 +60,13 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   TABLESPACE or ALL IN TABLESPACE destination (none for `pg_default`), and
   `AlterTablespaceKind(relation)` rejects SET TABLESPACE on relation kinds
   without their own storage (42809).
+- **LOAD lexical boundary**: `Load(ctx, view, s)` uses the current actor's
+  SUPERUSER attribute, then PostgreSQL's exact plugin-prefix/suffix restriction
+  and slash-containing filename macro validation. Once valid it always returns
+  `0A000` with `LoadUnsupported`. It never expands paths, inspects files, loads
+  process code, stages objects or allocates catalog identities. The engine's
+  `executeLoad` owns argument count, mutex and fresh authority capture;
+  preparation performs none of these execution checks.
 
 ## Lock rule
 
@@ -121,6 +128,19 @@ package (`ddl_host_test.go`):
 ```sh
 timeout 900s make check RUN='^TestDDLHost'
 ```
+
+`TestLoadValidation` and `TestLoadExecutorNoPublication` in the engine package
+exercise the real role view, lexical edge cases whose physical PostgreSQL
+outcomes are environment-dependent, effect-free description, complete errors
+and native cancellation without catalog/role/allocator/identity publication:
+
+```sh
+timeout 900s make check RUN='^TestLoad(Validation|ExecutorNoPublication)$'
+```
+
+Public direct/prepared/held LOAD behavior and independent native/PostgreSQL
+outcomes live in the [catalog reference scenarios](../../../reference/catalogs/README.md#load-native-library-boundary).
+
 
 `TestDDLHostStageSchemaTableKeepsAuthority` (`schema_host_test.go`) pins
 that `StageSchemaTable` leaves the caller's authority unchanged and stages

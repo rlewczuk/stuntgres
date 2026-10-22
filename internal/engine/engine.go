@@ -246,7 +246,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil
-	case *parser.CreateTablespace:
+	case *parser.CreateTablespace, *parser.Load:
 		return StatementDescription{}, nil
 	case *parser.Truncate:
 		return StatementDescription{}, nil

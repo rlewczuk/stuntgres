@@ -92,9 +92,38 @@ RESTRICT rejects external stored dependencies; CASCADE removes their closure,
 not unrelated objects or installation schemas. Transaction rollback restores
 the original callable member identities. Native Dump/Reset/Restore retains only
 surviving persistent installations, plus the existing authentic live TEMP
-provenance rules. ALTER EXTENSION and arbitrary module loading remain outside
-the native boundary.
+provenance rules. ALTER EXTENSION remains outside this boundary; arbitrary
+module loading has the separate [LOAD capability boundary](#load-native-library-boundary).
 See [removal proof](../reference/catalogs/README.md#extension-removal).
+
+## LOAD native-library boundary
+
+`LOAD` accepts a decoded SQL string filename. Protocol/`database/sql`
+preparation is effect-free: authorization and filename checks occur when the
+statement executes, using the current role's actual SUPERUSER attribute rather
+than session identity or inherited membership. SQL `PREPARE ... AS LOAD` is
+not admitted, matching PostgreSQL's preparable-statement grammar.
+
+Non-superusers require the exact case-sensitive `$libdir/plugins/` prefix
+and no further `/` in its suffix. This is a lexical restriction, not path
+normalization; backslashes are ordinary filename characters under the pinned
+Linux contract. Denied names return `42501` with PostgreSQL's English primary.
+Authorized slash-containing names beginning `$` accept only the `$libdir`
+macro; invalid macros return `42602`. A leading `$` without any slash is not
+itself an invalid macro.
+
+After those checks, native always returns `0A000`:
+`LOAD native libraries are unsupported in embedded mode`.
+It never inspects host files, searches directories, expands paths, loads process
+code, invokes initialization functions or publishes a library/extension record.
+This includes installed names such as `plpgsql` and repeated attempts. Missing
+libraries on PostgreSQL can instead return real `58P01`; native does not invent
+that filesystem diagnosis or claim a successful no-op. LOAD is permitted in
+explicit/read-only transactions before its ordinary execution diagnostic;
+errors retain normal failed-transaction and savepoint recovery behavior.
+
+See [independent outcomes and selected proof](../reference/catalogs/README.md#load-native-library-boundary).
+
 
 ## UPDATE assignment-group boundaries
 

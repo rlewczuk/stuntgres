@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -109,7 +110,7 @@ func TestReferencePGExtensionDiagnostics(t *testing.T) {
 }
 
 func TestReferencePGExtensionCommandBoundaries(t *testing.T) {
-	pgExtensionScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+	loadScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		// CREATE parses and prepares on both backends, but only the registered
 		// native provider is available. Native does not invent host control files
 		// or PostgreSQL's system-installation Hint.
@@ -132,21 +133,9 @@ func TestReferencePGExtensionCommandBoundaries(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			}
 		}
-		if !b.PG {
-			// These unchanged command families remain outside native admission.
-			for _, tc := range []struct{ query, code, message, position string }{
-				{"LOAD 'pgext_missing_library'", "42601", "syntax error at or near \"LOAD\"", "1"},
-			} {
-				for _, prepared := range []bool{false, true} {
-					s := fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: tc.code, Message: tc.message, Position: tc.position})
-					s.Prepared, s.ErrorStage = prepared, "execute"
-					if prepared {
-						s.ErrorStage = "prepare"
-					}
-					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-				}
-			}
-		}
+		// LOAD prepares successfully; authority and the external-mechanism
+		// boundary are execution-time checks, independently specified per mode.
+		loadError(t, p, b, c, loadSQL(loadMissing), loadBoundary(b, loadMissing), false)
 		pgExtensionEmpty(t, p, b, pgExtensionProbe, "pgext_missing_control")
 		pgExtensionInstalled(t, p, b)
 		pgExtensionClass(t, p, b)

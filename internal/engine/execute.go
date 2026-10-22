@@ -41,6 +41,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return result, err
 	case *parser.CreateTablespace:
 		return e.executeCreateTablespace(op, stmt.(*parser.CreateTablespace), count)
+	case *parser.Load:
+		return e.executeLoad(op, stmt.(*parser.Load), count)
 	case *parser.Truncate:
 		return Result{}, scope.stageTruncate()
 	case *parser.CreateExtension:
