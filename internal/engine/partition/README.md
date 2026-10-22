@@ -9,7 +9,7 @@ It is an upper feature package (L12 in
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture)),
 above `index` and `table`: it imports `access`, `analyze` (types and pure
 functions only), `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`, `ids`,
-`index`, `plan`, `regobj`, `sequence`, `stored`, `table`, `typedef`,
+`index`, `plan`, `regobj`, `sequence`, `storage`, `stored`, `table`, `typedef`,
 `visibility`, `parser`,
 `sqlstate`, `sqltype` and the standard library. It never imports the
 engine, `view` or `dml`; only the engine and `dml` import it. It never builds a
@@ -45,6 +45,14 @@ binder. Partitioned indexes are `index` code. See
   `ExclusionAddActions`; the key dependency check is
   `catalog.PartitionKeyDependsOn`; `AppendCompatible`,
   `KeyUsesAttribute`, `WriteExtensionBoundary`.
+- **Admission decisions** (`locks.go`, 25e): `ConsumerBoundary` rejects the
+  statements partition hierarchies do not support (0A000, and the 42P16
+  DROP COLUMN errors); the caller's Restore trust check is one callback,
+  consulted only for ALTER TABLE and ALTER ... DEFAULT at their old place
+  in the check order. `Ancestors` returns a relation's ancestors root
+  first, for the caller to lock before the leaf. `CaptureCatalog` puts the
+  statement's admitted descriptors back over their append growth. None of
+  them waits or locks.
 - **Proofs and retained checks** (`proof.go`, `retained_checks.go`):
   `ConstraintProven` proves a child's constraints imply its partition
   bound, so ATTACH can skip the scan; `ProofGoal`, `ProofTuple`.
@@ -75,8 +83,10 @@ binder. Partitioned indexes are `index` code. See
   `IndexDumpAttachmentSQL`), `DumpPredecessors`, the dump-event graph
   (`DumpEvents`, `InvalidDumpEvents`), the constraint-name replay record
   `ConstraintReplay` (built by `ConstraintDumpCatalog`) and
-  `InvalidReplay`; the remap repair rows (`HasHashPartition`,
-  `ReplacementRow`); and the Restore replay records `UniqueReplay`,
+  `InvalidReplay`; the remap repair (`HasHashPartition`,
+  `ReplacementRow`, and `RepairRemappedHash`, which routes and validates
+  the live rows of remapped hash leaves and returns the `HashRepair` moves
+  without changing storage); and the Restore replay records `UniqueReplay`,
   `UsingIndexReplay`, `ReplayTeardown` and `CheckReplayActions`, which the
   root leases on its `restoreReplay` slot. Dump code resolves
   predecessors through the `dump.Resolver` the root passes in.
@@ -111,14 +121,15 @@ diagnostic order and takes `Engine.mu` for the index children;
 `attachPartitionLocked` and `detachPartitionLocked` (`Engine.mu` windows,
 lock waits, the attach frontier and capture, stage replacement, validation
 and publication); `executePartitionExclusionAddLocked`'s windows; lock
-admission (`partition_locks.go`; `partitionConsumerBoundary` waits on
-nothing and moves here in 25e, item 127); the
+admission (`partition_locks.go`: the lock waits and the observed
+descriptors around `Ancestors`, with `Engine.mu` held for the walk); the
 authorization captures and trust checks (`partitionConstraintReplayImport`,
 `partitionParentAuthorization`, `partitionAttachAuthorization`,
-`partitionDefaultReplayAllowed`); the `begin*Replay` and `*ReplayAllowed`
+`partitionDefaultReplayAllowed`, and `partitionReplayAllowed`, the
+`ConsumerBoundary` callback over the four `*ReplayAllowed` checks); the `begin*Replay` and `*ReplayAllowed`
 hook wrappers and the Restore executors
-(`executePartitionUniqueReplayLocked`, `repairRemappedHashPartitions`, the
-teardown capture); `dropProvider.removePartitionHierarchyLocked` (over
+(`executePartitionUniqueReplayLocked`, `repairRemappedHashPartitions` with
+the storage install loop under `Engine.mu`, the teardown capture); `dropProvider.removePartitionHierarchyLocked` (over
 `WithoutChild`); the storage-read fences (`storage_read_fence.go`); and
 INSERT routing execution around `InsertState` (the capture under
 `Engine.mu`, the partition lock, physical validation, the target

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `2b3d7a138` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124 and 126). Steps 8–17 were
+Last verified against `master` at `2b3d7a138` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 126 and 127). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -25,8 +25,8 @@ broad item.
   121 (control 30e) and 122 (control 30f) are done, so steps 22 and 30
   have no planned sub-step left.
 - **Third round, table and index:** 125 (table 24g; 123 and 124, table
-  24e and 24f, are done), 127 (25e); 126 (index 23e) is done, so step 23
-  has no planned sub-step left.
+  24e and 24f, are done); 126 (index 23e) and 127 (partition 25e) are
+  done, so steps 23 and 25 have no planned sub-step left.
 - **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
   (catalog 5k), 131 (access B7, in place; it changes `AuthorizationView`,
   so rebase other open branches after it lands).
@@ -1863,10 +1863,17 @@ branches.
      index `RACE=1` selection, quickcheck and the quick and `REFERENCE=1`
      index/constraint/partition/dump selections passed;
      racecheck/finalcheck skipped at user request
-127. [ ] Partition 25e: consumer boundary and hash repair —
-     [partition](ENGINE-SPLIT-partition.md) 25e · needs — ·
-     `partitionConsumerBoundary`, `partitionCaptureCatalog`, the
-     `repairRemappedHashPartitions` core (about 0.2k lines)
+127. [x] Partition 25e: consumer boundary and hash repair —
+     [partition](ENGINE-SPLIT-partition.md) 25e · needs — (`70351c00d`,
+     `bcef8bbed`, `b7a0239e7`, then the docs commit) · `partition.ConsumerBoundary`
+     with the four `*ReplayAllowed` trust checks as one root callback
+     (`partitionReplayAllowed`), `partition.CaptureCatalog`,
+     `partition.Ancestors`, the `partition.RepairRemappedHash` core
+     (`HashRepair`; the root keeps the install loop); no aliases ·
+     targeted units (the growth test also `RACE=1`), quickcheck and the
+     quick and `REFERENCE=1` partition/dump selections passed
+     (`PartitionExclusion*` is known `master` oracle drift);
+     racecheck/finalcheck skipped at user request
 128. [ ] Regobj 21d: object address inquiries —
      [regobj](ENGINE-SPLIT-regobj.md) 21d · needs — ·
      `object_address_lookup.go`, `identifyObjectValues`,

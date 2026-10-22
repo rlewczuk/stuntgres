@@ -715,7 +715,32 @@ too; the root keeps only the orchestration listed above. The checks in
     `stagePartitionIndexChildren` stays for the unique-replay executor;
     `partition_bind.go`, `partition_create_child.go` and
     `partition_hash_bounds.go` are gone.
-- [ ] 25e — Consumer boundary and hash repair moved (linear item 127)
+- [x] 25e — Consumer boundary and hash repair moved (linear item 127)
+  (`70351c00d`, `bcef8bbed`, `b7a0239e7`, then the docs commit) ·
+  targeted units (the growth test also `RACE=1`), quickcheck and the quick
+  and `REFERENCE=1` partition/dump selections passed (`REFERENCE=1`
+  `PartitionExclusion*` fails identically on `master`: known oracle
+  drift); racecheck/finalcheck skipped at user request
+  - Re-measured at `c40b97c0f`: the plan's line numbers had drifted (the
+    ancestor walk is `partition_locks.go:177-185`), the code had not.
+  - `70351c00d`: `partition.ConsumerBoundary(statement, d, replayAllowed)` in
+    `locks.go`. The four trust checks are one callback, the root
+    `partitionReplayAllowed(op, auth)`: ALTER TABLE runs the CHECK, USING
+    INDEX and UNIQUE replay checks in their old short-circuit order, ALTER
+    ... DEFAULT the default replay check. It is called at the same two
+    points of the old body, so the first-error order is unchanged. The
+    three replay unit tests call `partition.ConsumerBoundary` with the
+    root callback.
+  - `bcef8bbed`: `partition.CaptureCatalog(read, admitted)` takes the scope's
+    `PartitionRelations` (three `query_admission.go` callers and
+    `TestPartitionAttachGrowth`); `partition.Ancestors(view, ref)` is the
+    first lookup, the epoch check and the walk, root first. The root keeps
+    `Engine.mu` around it and the lock waits outside.
+  - `b7a0239e7`: `partition.RepairRemappedHash` returns a `HashRepair`
+    (`Removed`, `Incoming`, `Dirty`) and changes nothing; the root
+    `repairRemappedHashPartitions` keeps its signature and the install
+    loop under `Engine.mu`. New import edge `partition` → `storage`.
+  - Tests: none moved or deleted; four root tests changed call shape only.
 
 Outstanding aliases: none (25a, 25b and 25d added none).
 
@@ -747,6 +772,10 @@ Outstanding aliases: none (25a, 25b and 25d added none).
   over the engine's Restore state; 30b can fold them into one root helper.
   Control 30b: they stay root and the fold is a separate root cleanup,
   not part of 30c.
+- Step 29 (`dml`), from 25e: the routing descent of
+  `RepairRemappedHash` repeats `InsertState.Route` except for the row
+  mapper (`ReplacementRow` instead of the segment layout). Sharing it
+  would put a closure on the INSERT path; it was kept verbatim.
 - Catalog 5i: `relationDefiningAuthorityCompatible`
   (`materialized_refresh.go`) is a pure catalog comparison used by
   `partition_locks.go` and `relation_scope.go`; it belongs in `catalog`.
