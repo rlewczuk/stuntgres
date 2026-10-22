@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `c378ffbcc` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122 and 123). Steps 8–17 were
+Last verified against `master` at `eb545a156` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123 and 126). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -26,8 +26,8 @@ broad item.
   121 (control 30e) and 122 (control 30f) are done, so steps 22 and 30
   have no planned sub-step left.
 - **Third round, table and index:** 124 (24f; then 125; 123, table 24e,
-  is done), 126 (23e;
-  touches `set_constraints.go`, which 110b also edited), 127 (25e).
+  is done), 127 (25e); 126 (index 23e) is done, so step 23 has no planned
+  sub-step left.
 - **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
   (catalog 5k), 131 (access B7, in place; it changes `AuthorizationView`,
   so rebase other open branches after it lands).
@@ -1843,11 +1843,19 @@ branches.
      `prepareInheritanceNode` behind a prepare host,
      `inheritanceQueryLeaves`, the pending-grant decision (about 0.3k
      lines)
-126. [ ] Index 23e: pure index algorithms — [index](ENGINE-SPLIT-index.md)
-     23e · needs — · snapshot parents, reminted storage, expression
-     validation, layout capture, SET CONSTRAINTS names, the maintenance
-     grant plan, `index.EffectiveRoot`; dead wrappers deleted (about 0.5k
-     lines)
+126. [x] Index 23e: pure index algorithms — [index](ENGINE-SPLIT-index.md)
+     23e · needs — (`cde98e8e6`, `bf853e512`, `c0cefcab1`, `459cf5149`,
+     `50c210b8a`, then the docs commit) · `index.CaptureSnapshot`,
+     `index.RemintStorage`, `index.ValidatePrivateExpressions`,
+     `index.CaptureLayouts`, `index.SelectConstraintName` and
+     `SelectInheritedExclusions`, the `MaintenanceGrant` plan steps and
+     `index.EffectiveRoot` (nine copies); the root keeps the capture
+     windows, name resolution and the acquire loop; `bindIndexKey`,
+     `bindIndexAttributes`, `stagePartitionIndexAttach` and
+     `stagePartitionIndexDrop` deleted; no aliases · targeted units, the
+     index `RACE=1` selection, quickcheck and the quick and `REFERENCE=1`
+     index/constraint/partition/dump selections passed;
+     racecheck/finalcheck skipped at user request
 127. [ ] Partition 25e: consumer boundary and hash repair —
      [partition](ENGINE-SPLIT-partition.md) 25e · needs — ·
      `partitionConsumerBoundary`, `partitionCaptureCatalog`, the

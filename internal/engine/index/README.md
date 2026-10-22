@@ -29,16 +29,24 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   `ValidateIndexReloptions`, `ValidateReindexOptions`,
   `ReindexControlError`); `Capability`, `ColumnCapability`; `CatalogKey`.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
-  `build_transport.go`, `layout_transport.go`, `snapshot.go`,
-  `snapshot_repair.go`, `replacement.go`, `alter_type.go`,
-  `exclusion_type.go`): `PrepareIndexPublication` over `RowPublication`
-  (which engine publication fills); index evolution (`EvolveIndex`,
-  `EvolveIndexes`, `ApplyIndexEvolution`, `EvolutionInput`) over
-  `EvolutionReader` and `EvolutionTarget`; `LayoutCapture`,
-  `TransportCapturedIndexLayouts`, `TransportEmptyIndexStorage`;
-  `Snapshot`; `RemintedIndexStorage`; `AlterIndexBuild`,
-  `ValidateAlterIndexBuilds`, `PrepareAlterIndexRoots`,
-  `ColumnTransformation`; `RebindExclusionOperators`.
+  `build_transport.go`, `layout_transport.go`, `layout_capture.go`,
+  `snapshot.go`, `snapshot_capture.go`, `snapshot_repair.go`,
+  `replacement.go`, `remint.go`, `expression_validation.go`,
+  `effective_root.go`, `alter_type.go`, `exclusion_type.go`):
+  `PrepareIndexPublication` over `RowPublication` (which engine publication
+  fills); `ValidatePrivateExpressions` (the explicit-statement derived-key
+  preflight); index evolution (`EvolveIndex`, `EvolveIndexes`,
+  `ApplyIndexEvolution`, `EvolutionInput`) over `EvolutionReader` and
+  `EvolutionTarget`; `CaptureLayouts` over `LayoutCaptureInput`,
+  `LayoutCapture`, `TransportCapturedIndexLayouts`,
+  `TransportEmptyIndexStorage`; `Snapshot` and `CaptureSnapshot` over
+  `SnapshotCapture`; `RemintedIndexStorage` and `RemintStorage` over
+  `RemintBase`; `EffectiveRoot` (a transaction's private root, else the
+  committed one); `AlterIndexBuild`, `ValidateAlterIndexBuilds`,
+  `PrepareAlterIndexRoots`, `ColumnTransformation`;
+  `RebindExclusionOperators`. The engine fills the capture inputs under
+  `Engine.mu` after its own epoch checks and holds the lock across the
+  call.
 - **Write-time maintenance records** (`write_candidate.go`,
   `insertion.go`, `unique_binding.go`, `unique_key.go`): `WriteBatch`,
   `WriteCandidate`, `WriteState`, `OutputMatches`,
@@ -60,12 +68,17 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   (`disclosure.go`) is the environment ALTER TYPE builds and publication
   pass.
 - **DDL records and presentation** (`control.go`, `metadata.go`,
-  `maintenance_grant.go`, `rename.go`, `using_index.go`,
+  `maintenance_grant.go`, `maintenance_plan.go`, `set_constraints.go`,
+  `rename.go`, `using_index.go`,
   `using_index_prepare.go`, `concurrent.go`, `domain_outputs.go`):
   `DefinitionSQL` (`pg_get_indexdef` and Dump) with `Presentation`,
   `PGIndexFunctionExpression`; `Metadata` (`pg_index`) and
   `IndexesMetadata` (`pg_indexes`) through `ProjectIndexMetadata` and
-  `CatalogMetadata`; `MaintenanceGrant`, `WrongKind`, `RelationDropOwner`;
+  `CatalogMetadata`; `MaintenanceGrant` with its grant plan
+  (`MaintenanceNames`, `AddTarget`, `CollectGroup`, `NeedsAttach`,
+  `AddAttach`, `FinishPlan`, `SortLockOrder`, `ParentMode`, `AlterTarget`),
+  `WrongKind`, `RelationDropOwner`; SET CONSTRAINTS name selection
+  (`SelectConstraintName`, `SelectInheritedExclusions`);
   `StageBackingIndexRename` over `DescriptorStage`; the `USING INDEX`
   records; `RootCandidate`,
   `SimpleConcurrentIndex`; `ReownDomainIndexOutputs`.
@@ -256,24 +269,27 @@ Names settled in 23d.2 (engine name → `index` name): `uniqueParent` →
 ## What stays in the engine
 
 The orchestration: the `Engine.mu` windows, the CONCURRENTLY phases and
-their waits, lock admission (`acquireIndexMaintenance`), unique key pins,
+their waits, lock admission (`acquireIndexMaintenance`: name resolution
+under `Engine.mu` and the acquire loop with its recheck, over the `index`
+grant plan), unique key pins,
 the registry instances, savepoint marks (`exclusionMark`), the Finish
 order, and publication and Restore storage (`prepareIndexCatalog`,
-`catalog_overlay_indexes.go`). `executeCreateIndex` and
-`executeIndexMaintenance` stay as orchestration: the retry loop and lock,
+`catalog_overlay_indexes.go`), with the capture windows of
+`captureIndexSnapshotParents`, `prepareRemintedStorage`,
+`captureIndexLayouts` and `validatePrivateIndexExpressions`.
+`executeCreateIndex` and `executeIndexMaintenance` stay as orchestration: the retry loop and lock,
 authorization and identity capture, the stage lifecycle, RENAME, the
 unlocked DROP path with its dependency recording, validation, the
 partitioned-index transaction overlay, publication and the conflict
 recheck. So do `executePartitionConstraintDropLocked`,
 `partitionIndexTransaction`, `stageDomainIndexGenerationsLocked`, SET
-CONSTRAINTS, `InspectIndex`, the `IndexProperty` snapshot read, and thin
-wrappers that build a `ddlHost` for callers outside the moved set
-(`stageUsingIndex`, `prepareUsingIndexMetadata`,
-`stagePartitionIndexChildren`, ...). Table 24d and partition 25d are done;
-the wrappers left with no production caller (`bindIndexKey`) or only test
-callers (`bindIndexAttributes`, `stagePartitionIndexAttach`,
-`stagePartitionIndexDrop`) go in index 23e (item 126), with the pure
-snapshot, remint, layout and maintenance-plan decisions. The write-time
+CONSTRAINTS (the namespace lookup, the mode candidate and the event
+checks), `InspectIndex`, the `IndexProperty` snapshot read, and thin
+wrappers that build a `ddlHost` for production callers outside the moved
+set (`lookupIndexClass`, `stageUsingIndex`, `prepareUsingIndexMetadata`,
+`stagePartitionIndexChildren`, `stagePartitionIndexValidity`,
+`stagePartitionConstraintDrop`). Tests call the `index` functions
+directly with a `ddlHost`; 23e deleted the wrappers that only they used. The write-time
 loops are `dml`'s (29d.2) and run over this host through `dml.Host`: the
 unique probe and claim (`dml.ProbeUniqueRow`, `ClaimUniqueRow`,
 `CheckUniqueRow`, `BindUniqueWrite`, `ExistingUniqueOutput`) and the
@@ -286,10 +302,11 @@ resets stay engine callers of the registry primitives.
 ## Testing
 
 Package tests: `go test ./internal/engine/index` (the column capability
-matrix). Most index tests build an engine and stay in the root package:
+matrix and `EffectiveRoot`). Most index tests build an engine and stay
+in the root package:
 
 ```sh
-make check RUN='^Test(Index|Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex|PartitionDetach(Unique|UsingIndex)Replay|PartitionAttachIndex|PartitionConstraint|PrimaryKey)'
+make check RUN='^Test(Index|Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex|EffectiveRoot|PartitionDetach(Unique|UsingIndex)Replay|PartitionAttachIndex|PartitionConstraint|PrimaryKey)'
 make check RACE=1 RUN='^Test(ConcurrentIndex|Exclusion|UniqueClaim|HashIndexMergeCancellation|IndexWriteHost)'
 ```
 

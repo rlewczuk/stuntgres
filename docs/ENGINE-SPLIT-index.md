@@ -963,7 +963,13 @@ listed above. The checks in §8.3 pass.
   bound, existing output, exclusion visit, projection edits and ALTER shape
   entries are `index` functions; the probe loops stay root until `dml`; no
   aliases. See the 23d.2 record.
-- [ ] 23e — Pure index algorithms moved (linear item 126)
+- [x] 23e — Pure index algorithms moved (linear item 126; `cde98e8e6`,
+  `bf853e512`, `c0cefcab1`, `459cf5149`, `50c210b8a`, then the docs commit).
+  The snapshot capture, storage reminting, private expression validation,
+  layout capture, SET CONSTRAINTS name selection and the maintenance grant
+  plan are `index` functions over inputs the root captures under
+  `Engine.mu`; `index.EffectiveRoot` replaces nine copies; the dead and
+  test-only wrappers are deleted; no aliases. See the 23e record.
 
 Outstanding aliases: none (23b added none).
 
@@ -1285,6 +1291,65 @@ between). Scripts in `.cswd/tmp/PG18-ENGINE-SPLIT-INDEX-WRITE-DECISIONS/`
   identically on a clean `edba54105` snapshot (oracle drift); every stuntgres
   leaf passed. racecheck, finalcheck and bench skipped at user request (no
   startup change).
+
+### 23e record
+
+Done on `implement-part/PG18-ENGINE-SPLIT-INDEX-ALGORITHMS`, started at
+master `c378ffbcc` and rebased onto `eb545a156` (table 24e, item 123,
+and three unrelated commits landed in between; no code conflict).
+Scripts and logs in `.cswd/tmp/PG18-ENGINE-SPLIT-INDEX-ALGORITHMS/`.
+
+| Commit | Change |
+|---|---|
+| `cde98e8e6` | `index.EffectiveRoot` (test first) and the replaced copies |
+| `bf853e512` | `index.CaptureSnapshot` over `SnapshotCapture`; `index.RemintStorage` over `RemintBase` |
+| `c0cefcab1` | `index.ValidatePrivateExpressions`; `index.CaptureLayouts` over `LayoutCaptureInput` |
+| `459cf5149` | `index.SelectConstraintName`, `SelectInheritedExclusions`; the `MaintenanceGrant` plan steps |
+| `50c210b8a` | Dead and test-only wrappers deleted; tests call the `index` functions |
+
+- **Shape.** Each moved decision takes a value input that the root fills in
+  its existing `Engine.mu` window after its own checks (cancellation,
+  owner, epoch, frontier); the root holds the lock across the call, as
+  before. `captureIndexSnapshotParents`, `prepareRemintedStorage`,
+  `captureIndexLayouts` and `validatePrivateIndexExpressions` keep their
+  signatures, so callers and tests did not change. `SnapshotCapture` takes
+  the current store and root as lookups: the store is the root's
+  `privateStorageLocked`, which is not copied into `index`.
+- **Maintenance grant plan.** Relation resolution stays in the root under
+  `Engine.mu`, so no callback runs under the lock: `MaintenanceNames`
+  (before the lock, with the REINDEX checks), then `AddTarget` per resolved
+  name (the root passes `table.RenameMissing`, which `index` cannot
+  import), `CollectGroup`, `NeedsAttach`/`AddAttach` (the root resolves the
+  partition), `FinishPlan`; after the unlock `SortLockOrder`, `ParentMode`
+  and `AlterTarget`. The acquire loop and its recheck stay. The order of
+  checks, resolutions, errors and locks is unchanged.
+- **Deviations.** (1) `EffectiveRoot` also replaces the identical copies
+  in `foreign_key_writes.go` (two) and `domain_alter_message.go`, nine in
+  all. (2) `CaptureExclusionScan` and `ExclusionScanCurrent` tested map
+  presence, not a non-nil root. Every `UniqueRoots` write stores a built
+  root (`RetainIndexBuild` and the stage candidates, whose roots come from
+  `BuildIndexRoot`, `BaselineRoot`, `TransportRows` or
+  `NewLogicalIndexRoot`, none nil), so the forms read the same.
+- **Tests.** New `index/effective_root_test.go` (observed failing first).
+  `materialized_refresh_concurrent_test.go`, `table_like_partial_test.go`
+  and `index_clauses_test.go` call `index.BindAttributes` with a `ddlHost`;
+  `partition_constraints_test.go` calls `index.StagePartitionIndexAttach`
+  and `index.StagePartitionIndexDrop`. Two locals named `index` were
+  renamed. None moved or deleted.
+- **Checks.** `index` imports nothing new (`go list`); the string-literal
+  multiset of `internal/engine` changed only by import paths. Targeted
+  units (index, unique, exclusion, partition, foreign key, materialized
+  refresh, domain, replacement, Restore, Dump, SET CONSTRAINTS and the
+  DROP/ALTER/REINDEX INDEX tests) passed per commit; `RACE=1` over
+  `ConcurrentIndex`, `Exclusion`, `UniqueClaim`, `UniqueLifetime`,
+  `HashIndexMergeCancellation`, `IndexWriteHost`, `IndexMaintenance` and
+  `EffectiveRoot` passed; the quick reference selection and quickcheck
+  passed, on the rebased tree too. With `REFERENCE=1` the selection
+  (index, unique, exclusion, ON CONFLICT, ALTER ADD CONSTRAINT, SET
+  CONSTRAINTS, REINDEX/DROP/ALTER INDEX, partition constraint and Dump
+  round-trip tests) passed in full. `make deps` lists only this module.
+  racecheck, finalcheck and bench skipped at user request (no startup
+  change).
 
 ### Notes for later steps
 
