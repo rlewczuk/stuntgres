@@ -2,12 +2,14 @@
 
 Catalog objects and typed values as SQL text, and the way back: the
 object-identifier types, type declarations, typed literals, `aclitem`
-I/O and object identity. Step 21 of the engine split created it (21b moved
-the clean set; 21c moved the captured input resolvers). The package sits at
+I/O, object identity and the catalog inquiries over them. Step 21 of the
+engine split created it (21b moved the clean set; 21c moved the captured
+input resolvers; 21d moved the object address, comment and visibility
+inquiries). The package sits at
 layer L11 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
-it imports `access`, `analyze`, `authorization`, `catalog`, `exec`, `expr`,
-`ids`, `pgcatalog`, `plan`, `routine`, `session`, `typedef`, `parser`,
+it imports `access`, `analyze`, `authorization`, `catalog`, `dump`, `exec`,
+`expr`, `functions`, `ids`, `pgcatalog`, `plan`, `routine`, `session`, `typedef`, `parser`,
 `sqlstate`, `sqltype` and the standard library, and never the engine, `stored` or an upper
 feature. Only the upper features, `stored` and the engine import it; never
 `analyze`, `exec`, `session`, `pgcatalog` or a lower feature. See
@@ -57,9 +59,12 @@ feature. Only the upper features, `stored` and the engine import it; never
 - **Type declarations and literals** (`catalog_literal.go`):
   `TypeDeclaration(At)`, `ColumnDeclaration`, `Literal`,
   `LiteralWithACL(At)`, `ConstantLiteral`.
-- **Search-path visibility of named objects** (`namespace_visibility.go`):
-  `NamedObjectVisible`, `CollationCandidate`, `SelectCollation`,
-  `VisibleCollation`. These are name-visibility rules, not MVCC visibility.
+- **Search-path visibility of named objects** (`namespace_visibility.go`,
+  `visibility_inquiry.go`): `NamedObjectVisible`, `CollationCandidate`,
+  `SelectCollation`, `VisibleCollation`, and `VisibilityInquiry`, which
+  answers the `pg_*_is_visible` and collation-version inquiries over the
+  statement's visibility snapshot (catalog, relation path, TEMP-filtered
+  path). These are name-visibility rules, not MVCC visibility.
 - **`aclitem` I/O** (`aclitem_input.go`, `aclitem_output.go`,
   `aclitem_dump.go`, `acl_empty.go`): `ACLItemInput`, `ACLItemOutput`,
   `ACLItemValidationOutput`, `ACLItemContextFormatter`,
@@ -71,6 +76,18 @@ feature. Only the upper features, `stored` and the engine import it; never
   `ObjectAddressTextArray`, `ObjectAttributeName`, `ObjectRelationKind`,
   `OwnedAddressByName`. Rule identity is read through
   `(*catalog.Relation).VisitRules`.
+- **Object address inquiries** (`object_address_lookup.go`,
+  `identify_values.go`): `AddressLookup.Lookup` answers
+  `pg_get_object_address` over the comment catalog and roles and an
+  `InputCapture` of the deparse authority and reference path; two root
+  capabilities complete it, `Namespace` (the function-lookup selection of a
+  two-part name, called only after the schema is known to exist) and
+  `Notice` (parser notices and type-modifier warnings, in order).
+  `IdentifyValues` builds the `pg_identify_object`,
+  `pg_identify_object_as_address` and `pg_describe_object` results.
+- **Comment inquiries** (`comment_inquiry.go`): `CommentText` answers
+  `obj_description`, `col_description` and `shobj_description` over the
+  comment catalog and roles; an empty text is NULL.
 
 Names settled in 21b: the engine's `regclass*`, `regproc*`, `regtype*`,
 `regTS*`, `regObject*` and `regrole*` prefixes became `Class`, `Proc`,
@@ -115,6 +132,16 @@ their lower-case names.
   captured `AuthorizationView`), and the `analyze.Host` resolver methods
   (forwarders).
 - `statementHost.TypeNameNotice`, the `NoticeHost` implementation.
+- The inquiry host adapters (`object_address.go`, `comment_inquiry.go`,
+  `visibility_inquiry.go`): the snapshot checks, `admitInquiryBody`, the
+  `addressLookup` builder (its `Namespace` is
+  `Engine.lookupNamespacesSnapshot` over the deparse authority, which reads
+  the engine's TEMP ownership and domain), the `Engine.mu`
+  `pg_import_system_collations` branch and `captureVisibilitySnapshotLocked`.
+- `deparse_function.go` (`pg_get_constraintdef`, `pg_get_expr`,
+  `pg_get_viewdef`, `pg_get_indexdef`): it renders through `stored` and
+  `index`, which import `regobj`; its constraint search is clean and would
+  belong to `table` (21d decision).
 - `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
   prepared-statement regtype analysis cell is statement state, not SQL text.
 - `aclitem_remap.go` and `principal_remap.go` (the Restore stage and
@@ -127,14 +154,16 @@ their lower-case names.
 
 ```sh
 make check RUN='^TestVisibilityInquiryCollationSelection$'
-make check RUN='^(TestCapturedInputsRetargetOnlyTheirSinks|TestRoutineInputParameterAndLiteralCopies|TestTypeInputNoticesFollowTheCurrentHost)$'
+make check RUN='^(TestCapturedInputsRetargetOnlyTheirSinks|TestRoutineInputParameterAndLiteralCopies|TestTypeInputNoticesFollowTheCurrentHost|TestAddressLookupNamespaceAndNoticeCuts)$'
 make check RUN='^TestReference(Reg|ACLItem|ObjectAddress|FormatRegclass|SequenceRegclass|ArrayRegclass|RLSPolicyRegtype|SQLCursorRegtype|UpdateReturningCapturedRegclass|PGDependRegclass|PartitionConstraintsRegclass)'
 make check RUN='DumpRoundTrip|NativeControls'
+make check RUN='^TestReference(ObjectAddress|Comment|CollationVersion|VisibilityInquiry|RegCollationVisibility|CheckReviewScalarComment|DeparseConstraintsReviewProviderVisibility)'
 ```
 
 Add `REFERENCE=1` for the real PostgreSQL oracle. The engine unit tests of
 this code need an `Engine` and stay in `internal/engine`
-(`TestObjectAddress*`, `TestRegTS*`, `TestRegOperator*`, `TestRoutine*`
+(`TestObjectAddress*`, `TestCommentInquiry*`, `TestVisibilityInquiry*`,
+`TestRegTS*`, `TestRegOperator*`, `TestRoutine*`
 in `regproc_test.go`, `TestRegrole*`, `TestRegclass*`, `TestACLValues*`,
 `TestACLItem*`, `TestRegObjectAlias*`, `TestMaterializedRefreshOwnerContext`,
 `TestConversionRegprocCapturedProcedurePresentation`).

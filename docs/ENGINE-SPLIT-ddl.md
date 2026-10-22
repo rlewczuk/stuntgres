@@ -171,11 +171,11 @@ The second planning round gave schema-level DDL no package of its own
 | ALTER TABLE action preparation (`alter_tablespace.go`: `prepareAlterTableActions`, `alterTablePreparation`) | `table` | 24a |
 | RENAME (`rename.go`, `renameRelationLocked`) | `table` | 24 |
 | Search path (`schema_path.go`: `referencePath`, `creationNamespace`, `lookupNamespaces`) | root | — |
-| COMMENT (`comment.go`, `comment_inquiry.go`) | root | — |
+| COMMENT (`comment.go`, the `comment_inquiry.go` host adapter) | root; the inquiry body is `regobj.CommentText` | 21d |
 | Seed comments (`comment_builtin.go`: `builtinTypeComment`, `namespaceCommentBaseline`) | `catalog` (`BuiltinTypeComment`, `NamespaceCommentBaseline`; 20c decided) | 20d |
 | DROP pipeline (`drop_provider.go`, `dropProvider`, 37 methods) | root; no `ddl` removal interface (24c: no feature needs one; `table.DropDependencyReader` is passed in) | 24c |
 | Object identity (`object_identity.go`, clean part of `object_address_lookup.go`) | `regobj` | 21b |
-| `object_address.go`, `lookupObjectAddress` | root | — |
+| `object_address.go` host adapters | root; the lookup is `regobj.AddressLookup` | 21d |
 | Definition identity, clean part (done: `catalog.DefinitionOIDUsed`, `ReserveDefinitionOIDs`, `ValidateDefinitionOIDs`; `structuralNull` is `plan.StructuralNull`) | `catalog`, `plan` | 5i |
 | `assignDefinitionOIDsLocked` | root | — |
 | `remapDefinitionOIDsLocked` | `control` | 30 |

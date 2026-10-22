@@ -14,7 +14,7 @@ constraints, verification, documentation and report.
   accessor, see 21b step 1). 21c: 21b (item 65).
 - **Effort:** high for each sub-step.
 - **Session size:** one sub-step per session.
-- **Linear items:** 21a = 64, 21b = 65, 21c = 66.
+- **Linear items:** 21a = 64, 21b = 65, 21c = 66, 21d = 128.
 - **Tools:** `reach`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach -dir . -files '<regexp>'`)
   and `frontier`
@@ -504,9 +504,55 @@ no aliases remain; the checks in §8.3 pass.
     refresh tests; the reference selections under Targeted tests in quick
     mode and with `REFERENCE=1`; `make quickcheck` on the rebased branch.
     `make bench` not needed.
-- [ ] 21d — Object address inquiries moved (linear item 128)
+- [x] 21d — Object address inquiries moved (item 128) (`ae350e2cf`, `1a3319362`,
+  `200813a82`, then the docs commit) · targeted units, quickcheck and the quick
+  and `REFERENCE=1` object address/comment/visibility selections passed;
+  racecheck/finalcheck skipped at user request
+  - Started at `9b7bd449b`; rebased onto `9d67eaef5` (session 13g) before the docs commit. Re-measured with `frontier` over
+    `object_address_lookup.go`, `comment_inquiry.go` and
+    `identifyObjectValues`: the OUT edges were the ones listed above
+    (`scopeOf` and the `inquirySnapshot` fields, `definitionLookup`,
+    `lookupNamespacesSnapshot`, `inputAuthority`, `temporaryNamespace`,
+    `sqlError`) plus `admitInquiryBody`, which stays with the
+    `CommentInquiry` adapter. About 0.5k lines left the root.
+  - `ae350e2cf` (seam and move): `regobj.AddressLookup` (comment catalog and
+    roles, an `InputCapture` of the deparse authority and reference path,
+    `Namespace` and `Notice` functions) with `Lookup`; the file moved with
+    `git mv`. The root `addressLookup` builds it with the same unstripped
+    deparse authority as before; `Namespace` is
+    `Engine.lookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)`
+    and `Notice` is `scope.op.EmitNotice`. Inside `regobj` the type
+    arguments resolve through `TypeInput.resolveParsed` with that notice
+    function, which is what `ResolveParsedTypeName(ctx, raw, op)` did. The
+    seam test `TestAddressLookupNamespaceAndNoticeCuts` was written first
+    and failed to build without the seam. Deviation: no separate in-place
+    commit, because the notice-taking resolver entry is unexported in
+    `regobj`.
+  - `1a3319362`: `regobj.IdentifyValues`; `identifyObjectValues` keeps only the
+    `scopeOf` check.
+  - `200813a82`: `regobj.CommentText` and `regobj.VisibilityInquiry` (new
+    `visibility_inquiry.go` beside `namespace_visibility.go`); the root
+    keeps `admitInquiryBody`, the snapshot checks, the OID parsing and the
+    `Engine.mu` `pg_import_system_collations` branch. `regobj` now also
+    imports `functions` (L3). Two unkeyed `ids.ObjectAddress` literals were
+    keyed so `regobj` adds no `composites` vet finding.
+  - Decision, `deparse_function.go` (237 lines): stays in the root. Its
+    constraint search (lines 48–144, about 0.1k, `pg_get_constraintdef`
+    over domain CHECKs and the relation constraint lists) is clean and
+    belongs to `table` (it owns the constraint lists and imports `index`
+    and `stored`), not `regobj`, which `stored` and `index` import. The
+    expression-tree branch, `deparseRelation` (`resolveRelationSnapshot`,
+    `temporaryNamespace`) and `evalSerialSequence` read engine state.
+  - Tests: new `regobj.TestAddressLookupNamespaceAndNoticeCuts`. No engine
+    test moved, changed or was deleted; `TestObjectAddress*`,
+    `TestCommentInquiry*` and `TestVisibilityInquiry*` build an `Engine`.
+  - Verification: build and vet (only the known `composites`, `copylocks`
+    and `lostcancel` findings) after every commit; the targeted units; the
+    `regobj` README reference selection in quick mode and with
+    `REFERENCE=1`; `make quickcheck` on the rebased branch. `make bench`
+    not needed.
 
-Outstanding aliases: none (21b and 21c added none).
+Outstanding aliases: none (21b, 21c and 21d added none).
 
 ### Notes for later steps
 
@@ -526,5 +572,8 @@ Outstanding aliases: none (21b and 21c added none).
   declaration and literal methods can be implemented over `regobj`
   (`TypeDeclaration`, `ColumnDeclaration`, `Literal*`,
   `RoutineIdentityByOID`).
+- 21d: the clean constraint search of `deparse_function.go` can move to
+  `table` (see the 21d decision); the closing review (item 133) should
+  count it.
 - `presentationCaches` stays a root scope slot; its maps are keyed by
   `exec` keys and filled through the `regobj` spellings.
