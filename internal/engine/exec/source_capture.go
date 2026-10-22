@@ -15,7 +15,12 @@ func CaptureSource(ctx context.Context, view *visibility.View, ref ids.ObjectRef
 		return nil, err
 	}
 	data := source.View.Data()
-	return SelectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
+	heap, err := visibility.ResolveHeapAccess(data.Catalog, 2)
+	if err != nil {
+		source.Close()
+		return nil, err
+	}
+	return SelectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address], heap)
 }
 
 func CapturePrefix(view *visibility.View, ref ids.ObjectRef) (*Source, error) {

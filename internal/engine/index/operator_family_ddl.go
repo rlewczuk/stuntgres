@@ -23,18 +23,18 @@ type FamilyDDLHost interface {
 func familyError(code, message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }
-func familyMethod(name string) (ids.OID, error) {
-	if method, ok := catalog.AccessMethodByName(name); ok {
-		if method.Kind != "i" {
+func familyMethod(view catalog.Read, name string) (ids.OID, error) {
+	if method, ok := view.LookupAccessMethod(name); ok {
+		if method.MethodKind() != "i" {
 			return 0, familyError("55000", fmt.Sprintf(`access method "%s" is not of type INDEX`, name))
 		}
-		return method.OID, nil
+		return method.Address().ObjectID, nil
 	}
 	return 0, familyError("42704", fmt.Sprintf(`access method "%s" does not exist`, name))
 }
-func familyMethodName(method ids.OID) string {
-	if fact, ok := catalog.AccessMethodByOID(method); ok {
-		return fact.Name
+func familyMethodName(view catalog.Read, method ids.OID) string {
+	if fact, ok := view.AccessMethod(method); ok {
+		return fact.Name()
 	}
 	return ""
 }
@@ -68,7 +68,7 @@ func findFamily(h FamilyDDLHost, auth ddl.Authority, name parser.ObjectName, met
 			return d, nil
 		}
 	}
-	return nil, familyError("42704", fmt.Sprintf(`operator family "%s" does not exist for access method "%s"`, catalog.ObjectNameText(name), familyMethodName(method)))
+	return nil, familyError("42704", fmt.Sprintf(`operator family "%s" does not exist for access method "%s"`, catalog.ObjectNameText(name), familyMethodName(v, method)))
 }
 func familyOwner(h FamilyDDLHost, auth ddl.Authority, d *catalog.OperatorFamily) error {
 	if err := ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
@@ -84,7 +84,7 @@ func StageCreateOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.Cr
 	if err = h.CheckCreateIn(auth, ns); err != nil {
 		return err
 	}
-	method, err := familyMethod(s.Method.Text)
+	method, err := familyMethod(h.StageRead(), s.Method.Text)
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func StageCreateOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.Cr
 	return h.Stage().Create(&catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectRevision: revision, ObjectName: name, Method: method, Owner: h.AccessView(auth).State.CurrentUser})
 }
 func StageAlterOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.AlterOperatorFamily) error {
-	method, err := familyMethod(s.Method.Text)
+	method, err := familyMethod(h.StageRead(), s.Method.Text)
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func StageAlterOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.Alt
 	return h.Stage().Replace(&next)
 }
 func StageDropOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.DropOperatorFamily) error {
-	method, err := familyMethod(s.Method.Text)
+	method, err := familyMethod(h.StageRead(), s.Method.Text)
 	if err != nil {
 		return err
 	}

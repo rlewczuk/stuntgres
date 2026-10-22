@@ -110,7 +110,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, next *catalog.State
 		}
 		address := snapshot.Destination(sourceAddress)
 		index, ok := next.Relation(address)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != snapshot.Destination(source.Parent.Address()) || len(index.SQLIndex.Keys) != len(source.Index.SQLIndex.Keys) || index.SQLIndex.Method != source.Index.SQLIndex.Method {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != snapshot.Destination(source.Parent.Address()) || len(index.SQLIndex.Keys) != len(source.Index.SQLIndex.Keys) || index.SQLIndex.Method != source.Index.SQLIndex.Method || index.SQLIndex.MethodIdentity() != snapshot.Destination(ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: source.Index.SQLIndex.MethodIdentity()}).ObjectID {
 			return nil, ids.ErrCatalogReplaced
 		}
 		parent, ok := next.Relation(index.SQLIndex.Parent)

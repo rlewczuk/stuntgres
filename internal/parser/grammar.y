@@ -460,6 +460,8 @@ package parser
 %type <alterOperator> operator_alter_head
 %type <stmt> create_operator_family alter_operator_family drop_operator_family
 %type <tok> family_word search_word family_operator_word
+%type <stmt> create_access_method drop_access_method
+%type <tok> method_word access_method_kind
 %type <alterFamily> operator_family_head
 %type <familyItem> family_add_item family_operator_item family_function_item family_drop_item
 %type <familyItems> family_add_items family_drop_items
@@ -804,6 +806,7 @@ nontransaction_statement: create | create_sequence | alter_sequence | drop_seque
  | drop_routine
  | alter_operator_family | drop_operator_family
  | alter_operator_class | drop_operator_class
+ | drop_access_method
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
@@ -1348,6 +1351,7 @@ create: create_table { $$=$1 }
  | create_operator { $$=$1 }
  | create_operator_family { $$=$1 }
  | create_operator_class { $$=$1 }
+ | create_access_method { $$=$1 }
  | create_enum { $$=$1 }
  | create_composite { $$=$1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
@@ -1520,6 +1524,11 @@ drop_operator: DROP OPERATOR operator_signatures drop_mode {$$=&DropOperator{Sig
  | DROP OPERATOR IF EXISTS operator_signatures drop_mode {$$=&DropOperator{Signatures:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 drop_routine: DROP grant_routine_kind grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($3),Mode:$4,Pos:$1.pos}}
  | DROP grant_routine_kind IF EXISTS grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($5),IfExists:true,Mode:$6,Pos:$1.pos}} ;
+method_word: KW_U {if $1.text!="method" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+access_method_kind: INDEX {$$=$1} | TABLE {$$=$1} ;
+create_access_method: CREATE ACCESS method_word name TYPE access_method_kind FDW_HANDLER relation_name {$$=&CreateAccessMethod{Name:Identifier{Text:$4.text,Pos:$4.pos},MethodKind:$6.text,Handler:$8,Pos:$1.pos}} ;
+drop_access_method: DROP ACCESS method_word name drop_mode {$$=&DropAccessMethod{Name:Identifier{Text:$4.text,Pos:$4.pos},Mode:$5,Pos:$1.pos}}
+ | DROP ACCESS method_word IF EXISTS name drop_mode {$$=&DropAccessMethod{Name:Identifier{Text:$6.text,Pos:$6.pos},IfExists:true,Mode:$7,Pos:$1.pos}} ;
 family_word: KW_U {if $1.text!="family" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 search_word: name {if $1.text!="search" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 create_operator_family: CREATE OPERATOR family_word relation_name USING name {$$=&CreateOperatorFamily{Name:$4,Method:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}} ;

@@ -15,7 +15,7 @@ import (
 
 // LookupClass resolves the current descriptor by namespace and exact method.
 func LookupClass(h KeyHost, auth ddl.Authority, raw parser.ObjectName, methodOID ids.OID) (sqltype.IndexClass, error) {
-	method, ok := catalog.AccessMethodByOID(methodOID)
+	method, ok := h.AccessView(auth).Catalog.AccessMethod(methodOID)
 	if !ok {
 		return sqltype.IndexClass{}, fmt.Errorf("stuntgres: unknown index method identity")
 	}
@@ -31,18 +31,21 @@ func LookupClass(h KeyHost, auth ddl.Authority, raw parser.ObjectName, methodOID
 			}
 		}
 	}
-	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(raw), method.Name))
+	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(raw), method.Name()))
 }
 
 // BindKey binds one index key of type u: collation, operator class and the
 // ordering options method allows.
 func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey, methodOID ids.OID) (catalog.IndexKey, error) {
 	key := catalog.IndexKey{Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc}
-	fact, ok := catalog.AccessMethodByOID(methodOID)
+	fact, ok := h.AccessView(auth).Catalog.AccessMethod(methodOID)
 	if !ok {
 		return key, fmt.Errorf("stuntgres: unknown index method identity")
 	}
-	method := fact.Implementation
+	method, indexKind := fact.IndexImplementation()
+	if !indexKind {
+		return key, sqlError("55000", fmt.Sprintf(`access method "%s" is not of type INDEX`, fact.Name()))
+	}
 	if raw.Collation != nil {
 		id, err := h.LookupCollation(*raw.Collation)
 		if err != nil {
@@ -78,7 +81,7 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 		exists = true
 	}
 	if !exists {
-		return key, DefaultClassError(u.Type.DiagnosticName(), method)
+		return key, DefaultClassError(u.Type.DiagnosticName(), fact.Name())
 	}
 	var supportErr error
 	c, supportErr = routine.BindClassSupport(h.AccessView(auth).Catalog, c)
@@ -88,12 +91,12 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 	key.Class = c
 	if method == catalog.GistMethod {
 		if raw.DirectionExplicit || raw.Nulls != parser.NullsDefault {
-			return key, sqlError("0A000", `access method "gist" does not support ordering options`)
+			return key, sqlError("0A000", fmt.Sprintf(`access method "%s" does not support ordering options`, fact.Name()))
 		}
 		return key, nil
 	}
 	if method == catalog.HashMethod {
-		if err := ValidateHashKeyDirection(raw); err != nil {
+		if err := ValidateHashKeyDirection(raw, fact.Name()); err != nil {
 			return key, err
 		}
 		_, err := sqltype.BindIndexHash(KeyCollation(u, key), c)
@@ -126,8 +129,8 @@ func validateSystemKey(h KeyHost, auth ddl.Authority, raw parser.IndexKey, metho
 			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), name))
 		}
 	} else if _, exists := h.AccessView(auth).Catalog.DefaultIndexClassID(methodOID, id); !exists {
-		fact, _ := catalog.AccessMethodByOID(methodOID)
-		return DefaultClassError(name, fact.Implementation)
+		fact, _ := h.AccessView(auth).Catalog.AccessMethod(methodOID)
+		return DefaultClassError(name, fact.Name())
 	}
 	return nil
 }
@@ -136,12 +139,20 @@ func validateSystemKey(h KeyHost, auth ddl.Authority, raw parser.IndexKey, metho
 // definition without its predicate, the index columns, their attribute
 // numbers and the name lookup.
 func BindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
-	total := len(s.Keys) + len(s.Include)
-	method, ok := catalog.AccessMethodByName(s.Method)
+	method, ok := h.AccessView(auth).Catalog.LookupAccessMethod(s.Method)
 	if !ok {
 		return nil, nil, nil, nil, fmt.Errorf("stuntgres: unknown index method identity")
 	}
-	d := &catalog.IndexDefinition{Method: method.Implementation, MethodOID: method.OID, Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
+	if _, indexKind := method.IndexImplementation(); !indexKind {
+		return nil, nil, nil, nil, sqlError("55000", fmt.Sprintf(`access method "%s" is not of type INDEX`, method.Name()))
+	}
+	return bindAttributes(h, auth, input, parent, s, method)
+}
+
+func bindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, s *parser.CreateIndex, method *catalog.AccessMethod) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
+	total := len(s.Keys) + len(s.Include)
+	physical, _ := method.IndexImplementation()
+	d := &catalog.IndexDefinition{Method: physical, MethodOID: method.Address().ObjectID, Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
 	columns := make([]catalog.Column, total)
 	attributes := make([]int32, total)
 	lookup := make(map[string]int, total)
@@ -190,7 +201,7 @@ func BindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 					return fail(err)
 				}
 				if !included && d.Method == catalog.HashMethod {
-					if err := ValidateHashKeyDirection(raw); err != nil {
+					if err := ValidateHashKeyDirection(raw, method.Name()); err != nil {
 						return fail(err)
 					}
 				}

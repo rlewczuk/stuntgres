@@ -110,6 +110,18 @@ func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddr
 		n := *r
 		n.OID, n.ObjectNamespace, n.Handler = target.ObjectID, namespace, handler
 		d = &n
+	case *catalog.AccessMethod:
+		n := *r
+		n.ObjectAddress = target
+		if dest, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: n.Handler}]; ok {
+			n.Handler = dest.ObjectID
+		}
+		if catalog.AccessMethodSeeded(r) && target != a {
+			return nil, fmt.Errorf("stuntgres: pinned access method identity collision")
+		}
+		if n != *r {
+			d = &n
+		}
 	case *catalog.OperatorClass:
 		d = catalog.RemapOperatorClass(r, mapping)
 	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:

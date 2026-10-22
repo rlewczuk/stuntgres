@@ -6,6 +6,17 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Access-method utility syntax
+
+`TestAccessMethodGrammar` covers positioned global names, INDEX/TABLE handler
+names, folding/quoting, DROP IF EXISTS/modes and complete-input rejection of
+qualified AM names, invalid TYPE, handler argument lists and trailing junk.
+Edit `grammar.y`; root generation owns `grammar_gen.go`.
+
+```sh
+make check RUN='^TestAccessMethodGrammar$'
+```
+
 ### Recursive view lowering
 
 `make check RUN='^TestCreateRecursiveView(Lowering|SyntheticPositions)$'`

@@ -68,7 +68,7 @@ func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *
 				var exists bool
 				class, exists = view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
 				if !exists {
-					return o, DefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
+					return o, DefaultClassError(usage.Type.DiagnosticName(), familyMethodName(view, definition.MethodIdentity()))
 				}
 			}
 			if class.MethodOID() != uint32(definition.MethodIdentity()) {
@@ -102,7 +102,7 @@ func BindIndexOrdering(view catalog.Read, parent *catalog.Relation, definition *
 			var exists bool
 			class, exists = view.DefaultIndexClass(definition.MethodIdentity(), usage.Type)
 			if !exists {
-				return o, DefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
+				return o, DefaultClassError(usage.Type.DiagnosticName(), familyMethodName(view, definition.MethodIdentity()))
 			}
 		}
 		if class.MethodOID() != uint32(definition.MethodIdentity()) {

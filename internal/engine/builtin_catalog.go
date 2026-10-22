@@ -48,6 +48,16 @@ func (e *Engine) installBuiltinConversionRoutines() {
 	}
 }
 
+func (e *Engine) installNativeAccessMethods() {
+	procedures := routine.NativeAccessMethodProcedures(e.roles.domain.Principal(authorization.BootstrapPrincipalID))
+	for i := range procedures {
+		d := &procedures[i]
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
+	}
+	catalog.InstallBuiltinAccessMethods(e.catalog.state)
+}
+
 // installBuiltinDomainChecks binds the builtin domain CHECK and DEFAULT seeds
 // into their seeded types. It uses the same VALUE binder and dependency
 // cooking as user domains, without a session, SQL execution or a separately

@@ -22,6 +22,13 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
     captured publication, `Recapture` binds a substituted catalog to the same
     role root.
   - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`.
+    Global access methods have no owner or ACL: ValidateACL classifies them
+    alongside the existing ownerless descriptors, while their catalog provider
+    validates structural and handler authority. Owning descriptors still reject
+    every zero/foreign principal.
+    `make check RUN='^TestAccessMethodOwnerlessACLValidation$'` covers this boundary
+    without public SQL; publication and control witnesses remain in the shared
+    [access-method suite](../../../reference/indexes/README.md#access-method-definitions).
 - **`Environment`**: the two session inputs of the checks.
   `TemporaryNamespace()` returns the session's own TEMP namespace, and
   `ReferencePath()` returns the search path that qualifies type names in

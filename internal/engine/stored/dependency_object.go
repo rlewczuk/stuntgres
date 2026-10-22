@@ -128,6 +128,11 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		}
 		return "conversion " + name
 	}
+	if base.ClassID == ids.AccessMethodClassID {
+		if d, ok := read.AccessMethod(base.ObjectID); ok {
+			return "access method " + catalog.DependencyIdentifier(d.Name())
+		}
+	}
 	d := read.MustRelation(base)
 	if d.SQLIndex != nil && d.SQLIndex.Constraint != nil {
 		parent := read.MustRelation(d.SQLIndex.Parent)

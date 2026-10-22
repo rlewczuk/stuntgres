@@ -21,11 +21,24 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   `operator_family_dump.go`): positioned parser items resolve through the shared
   namespace/type/routine/operator authorities, validate the complete ordered
   list privately, then use the ordinary catalog stage and drop closure.
-  No class DDL or family-as-class shortcut is provided. `catalog.OperatorFamily`,
-  `OperatorFamilyOperator` and `OperatorFamilySupport` own metadata; immutable
+  Genuine class DDL shares this machinery; no family-as-class shortcut is provided.
+  `catalog.OperatorFamily`, `OperatorFamilyOperator` and `OperatorFamilySupport` own metadata; immutable
   `Read.FamilyOperator`/`Read.FamilySupport` selectors are the only member lookup
   authority. Registered routine identity selects runtime operations outside
   the DDL validator; metadata-only optional callbacks are not callable grants.
+  Access-method utility staging (`access_method_ddl.go`) uses current global
+  catalog descriptors and genuine registered native handlers. SQL MethodOID is
+  retained independently of physical mechanics. Custom methods require their own
+  real class/default/family and actual registered support. Family/member validation
+  dispatches on physical implementation while all keys retain exact SQL identity.
+  TABLE-kind definitions are rejected before index operation dispatch. Method
+  property inquiries use the captured descriptor's physical authority; dump
+  deparse quotes custom method names.
+  Capability restrictions use the physical implementation but diagnostics use
+  the exact declared method name, including hash/GiST ordering boundaries.
+  Exclusion staging consults live descriptors before applying an unresolved
+  gin/brin spelling boundary; registered custom btree methods with those names
+  retain genuine btree class/support and exclusion behavior.
 
 - **Keys, roots and programs** (`index.go`, `hash.go`, `gist.go`,
   `predicate.go`, `expression.go`, `program.go`, `clauses.go`,
@@ -34,8 +47,9 @@ See [ENGINE-SPLIT-index.md](../../../docs/ENGINE-SPLIT-index.md).
   `MergeIndexRoot`; `BindHashIndex`, `BuildHashIndexRoot`,
   `MergeHashIndexRoot`, `PublicationSlot`; `BindIndexKeys` (GiST);
   `ExecutionPreparation`, `PrepareIndexRecipe`, `NewLogicalIndexRoot`;
-  `KeyUsage`, `KeyBaseUsage`, `ExpressionDepends`; the clause and option
-  validators (`ValidateIndexMethod`, `ValidateIndexInclude`,
+  `KeyUsage`, `KeyBaseUsage`, `ExpressionDepends`; `ResolveIndexMethod`
+  (captured method resolution and capability validation); the clause and option
+  validators (`ValidateIndexInclude`,
   `ValidateHashKeyDirection`, `ValidateIndexOptions`,
   `ValidateIndexReloptions`, `ValidateReindexOptions`,
   `ReindexControlError`); `Capability`, `ColumnCapability`; `CatalogKey`.

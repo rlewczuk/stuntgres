@@ -25,6 +25,12 @@ func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
 	integer, _ := builtinType(sqltype.Int4)
 	boolean, _ := builtinType(sqltype.Bool)
 	state := catalog.NewState(1)
+	catalog.InstallBuiltinAccessMethods(state)
+	handlers := routine.NativeAccessMethodProcedures(authorization.PrincipalRef{})
+	for i := range handlers {
+		state.SetDescriptor(handlers[i].Address(), &handlers[i])
+		state.BindName(catalog.DescriptorNameKey(&handlers[i]), handlers[i].Address())
+	}
 	catalog.InstallBuiltinFamilies(state, authorization.PrincipalRef{})
 	catalog.InstallBuiltinClasses(state, authorization.PrincipalRef{})
 	procedures := routine.BuiltinProcedures(authorization.PrincipalRef{})

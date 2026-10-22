@@ -33,6 +33,12 @@ func pruningProofFixture(t *testing.T) (pruneProof, plan.ColumnExpr, *sqltype.De
 	columnRef.Address.SubID = 1
 	column := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 0}
 	state := catalog.NewState(1)
+	catalog.InstallBuiltinAccessMethods(state)
+	handlers := routine.NativeAccessMethodProcedures(authorization.PrincipalRef{})
+	for i := range handlers {
+		state.SetDescriptor(handlers[i].Address(), &handlers[i])
+		state.BindName(catalog.DescriptorNameKey(&handlers[i]), handlers[i].Address())
+	}
 	catalog.InstallBuiltinFamilies(state, authorization.PrincipalRef{})
 	catalog.InstallBuiltinClasses(state, authorization.PrincipalRef{})
 	procedures := routine.BuiltinProcedures(authorization.PrincipalRef{})

@@ -118,7 +118,7 @@ func OperatorFamilyDumpStatements(ctx context.Context, p dump.Presenter, view ca
 			if err != nil {
 				return err
 			}
-			name := familySQLName(view, d) + " USING " + familyMethodName(d.Method)
+			name := familySQLName(view, d) + " USING " + catalog.Identifier(familyMethodName(view, d.Method))
 			text = "CREATE OPERATOR FAMILY " + name + ";\nALTER OPERATOR FAMILY " + name + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n"
 		case *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 			if memberOwningClass(d) != 0 {
@@ -139,7 +139,7 @@ func OperatorFamilyDumpStatements(ctx context.Context, p dump.Presenter, view ca
 			if err != nil {
 				return err
 			}
-			text = "ALTER OPERATOR FAMILY " + familySQLName(view, f) + " USING " + familyMethodName(f.Method) + " ADD " + item + ";\n"
+			text = "ALTER OPERATOR FAMILY " + familySQLName(view, f) + " USING " + catalog.Identifier(familyMethodName(view, f.Method)) + " ADD " + item + ";\n"
 		default:
 			return fmt.Errorf("stuntgres: invalid family dump descriptor")
 		}

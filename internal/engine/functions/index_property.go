@@ -264,22 +264,17 @@ func (e IndexProperty) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	// ASCII names only; Unicode case folding must not invent builtin aliases.
 	property = indexPropertyName(property)
-	var result, known bool
-	if e.Kind == AccessMethodProperty {
-		result, known = indexAMProperty(oid, property)
-	} else {
-		runtime, failure := catalogInquiryRuntime(c)
-		if failure != nil {
-			return sqltype.Value{}, failure
-		}
-		var ordinal sqltype.Value
-		if e.Kind == IndexColumnProperty {
-			ordinal = values[1]
-		}
-		result, known, err = runtime.IndexProperty(e.Kind, oid, ordinal, property)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
+	runtime, failure := catalogInquiryRuntime(c)
+	if failure != nil {
+		return sqltype.Value{}, failure
+	}
+	var ordinal sqltype.Value
+	if e.Kind == IndexColumnProperty {
+		ordinal = values[1]
+	}
+	result, known, err := runtime.IndexProperty(e.Kind, oid, ordinal, property)
+	if err != nil {
+		return sqltype.Value{}, err
 	}
 	if !known {
 		return sqltype.Null(e.Usage.Type), nil
@@ -299,35 +294,4 @@ func indexPropertyName(name string) string {
 		}
 	}
 	return ""
-}
-
-func indexAMProperty(oid uint32, property string) (bool, bool) {
-	var order, unique, multi, exclude, include bool
-	switch oid {
-	case 403:
-		order, unique, multi, exclude, include = true, true, true, true, true
-	case 405:
-		exclude = true
-	case 783:
-		multi, exclude, include = true, true, true
-	case 2742, 3580:
-		multi = true
-	case 4000:
-		exclude, include = true, true
-	default:
-		return false, false
-	}
-	switch property {
-	case "can_order":
-		return order, true
-	case "can_unique":
-		return unique, true
-	case "can_multi_col":
-		return multi, true
-	case "can_exclude":
-		return exclude, true
-	case "can_include":
-		return include, true
-	}
-	return false, false
 }

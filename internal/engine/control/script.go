@@ -110,6 +110,19 @@ func (s *dumpScript) renderForeignDefaults(ctx context.Context) error {
 // to the graph and rewrites relation predecessors to their column sources.
 func (s *dumpScript) addDeclarationEdges() error {
 	s.domainNodes = make(map[ids.OID]*catalog.Type, len(s.Domains))
+	for _, method := range s.AccessMethods {
+		event := dump.Event{OID: method.Address().ObjectID}
+		s.Graph[event] = nil
+		for _, dependency := range catalog.AccessMethodDependencies(method) {
+			id, err := (Resolver{}).Predecessor(s.CatalogView, dependency.Address, method.Address())
+			if err != nil {
+				return err
+			}
+			if id != 0 {
+				s.Graph[event] = append(s.Graph[event], dump.Event{OID: id})
+			}
+		}
+	}
 	for _, d := range s.Domains {
 		id := d.Address().ObjectID
 		s.domainNodes[id] = d
@@ -283,6 +296,13 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 			return err
 		}
 		s.declarations[d.Address().ObjectID] = declaration
+	}
+	for _, method := range s.AccessMethods {
+		text, err := index.AccessMethodSQL(s.CatalogView, method)
+		if err != nil {
+			return err
+		}
+		s.declarations[method.Address().ObjectID] = dump.Statement{Owner: "postgres", SQL: text + "\n"}
 	}
 	if err := index.OperatorFamilyDumpStatements(ctx, Presenter{}, s.CatalogView, s.DomainRoles, s.OperatorFamilies, s.declarations); err != nil {
 		return err

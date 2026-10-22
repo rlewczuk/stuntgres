@@ -27,6 +27,12 @@ type PrivateDeletes struct{ Rows map[ids.RowID]DeleteCandidate }
 // retained snapshot may share RowID without
 // sharing lineage. End only the deleted version and its actual replacement base.
 func LiveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *PrivateDeletes) bool {
+	return (HeapOperations{}).LiveVersion(v, frontier, ends, own)
+}
+
+// LiveVersion applies the ordinary heap's single liveness rule to real versions,
+// committed ends and private deletion/replacement overlays.
+func (HeapOperations) LiveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *PrivateDeletes) bool {
 	if own != nil {
 		if deleted, ok := own.Rows[v.Row]; ok && (v.Version == deleted.Version || deleted.Base != 0 && v.Version == deleted.Base) {
 			return false

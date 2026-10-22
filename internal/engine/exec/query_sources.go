@@ -17,7 +17,7 @@ import (
 )
 
 // Query and catalog replacement share one physical-to-live head selection.
-func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *visibility.PrivateDeletes) (*Source, error) {
+func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *visibility.PrivateDeletes, heap visibility.HeapOperations) (*Source, error) {
 	if source.RlsDenied {
 		return source, ctx.Err()
 	}
@@ -46,7 +46,7 @@ func SelectQuerySource(ctx context.Context, source *Source, frontier ids.CommitS
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		live := visibility.LiveVersion(source.VersionAt(raw), frontier, ends, own)
+		live := heap.LiveVersion(source.VersionAt(raw), frontier, ends, own)
 		if source.Visible == nil && (!live || raw != ordinal) {
 			source.Visible = make([]int, ordinal, total)
 			for j := range ordinal {
@@ -102,7 +102,11 @@ func (s *Source) selectInheritancePrefixes(ctx context.Context) error {
 	total := 0
 	for i, segment := range s.Inheritance {
 		data := segment.Prefix.View.Data()
-		if _, err := SelectQuerySource(ctx, segment.Prefix, data.FrontierAt(segment.Leaf.Ref.Address), data.Ends[segment.Leaf.Ref.Address], data.Deleted[segment.Leaf.Ref.Address]); err != nil {
+		heap, err := visibility.ResolveHeapAccess(data.Catalog, 2)
+		if err != nil {
+			return err
+		}
+		if _, err := SelectQuerySource(ctx, segment.Prefix, data.FrontierAt(segment.Leaf.Ref.Address), data.Ends[segment.Leaf.Ref.Address], data.Deleted[segment.Leaf.Ref.Address], heap); err != nil {
 			return err
 		}
 		total += segment.Prefix.Count()
@@ -371,7 +375,11 @@ func SelectQuerySources(ctx context.Context, source *Source) error {
 			return ctx.Err()
 		}
 		data := source.View.Data()
-		_, err := SelectQuerySource(ctx, source, data.FrontierAt(source.Ref.Address), data.Ends[source.Ref.Address], data.Deleted[source.Ref.Address])
+		heap, err := visibility.ResolveHeapAccess(data.Catalog, 2)
+		if err != nil {
+			return err
+		}
+		_, err = SelectQuerySource(ctx, source, data.FrontierAt(source.Ref.Address), data.Ends[source.Ref.Address], data.Deleted[source.Ref.Address], heap)
 		return err
 	}
 	if source.Sources == nil {

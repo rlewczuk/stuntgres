@@ -11,14 +11,14 @@ import (
 // BindClassSupport captures actual members from one immutable catalog view.
 // The current descriptor is the sole authority for class and family identity.
 func BindClassSupport(view catalog.Read, class sqltype.IndexClass) (sqltype.IndexClass, error) {
-	method, ok := catalog.AccessMethodByOID(ids.OID(class.MethodOID()))
+	method, ok := view.AccessMethod(ids.OID(class.MethodOID()))
 	if !ok {
 		return class, fmt.Errorf("stuntgres: unavailable index access method")
 	}
 	return bindClassSupport(view, class, method)
 }
 
-func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method catalog.AccessMethod) (sqltype.IndexClass, error) {
+func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catalog.AccessMethod) (sqltype.IndexClass, error) {
 	fact, found := view.OperatorClass(ids.OID(class.OID()))
 	if !found {
 		return class, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "index operator class is unsupported"}

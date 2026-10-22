@@ -51,6 +51,7 @@ type Capture struct {
 	Collations          []*catalog.Collation
 	Conversions         []*catalog.Conversion
 	Operators           []*catalog.Operator
+	AccessMethods       []*catalog.AccessMethod
 	OperatorFamilies    []catalog.Descriptor
 	SQLRoutines         []*catalog.Procedure
 	Tables              []table.DumpRelation

@@ -646,9 +646,10 @@ differently; this is an explicit native identity boundary.
 
 Partitioned parents fail42809 with the partition detail; views, materialized
 views, sequences, indexes and foreign tables fail42809 before table ACL checks.
-All represented native ordinary storage uses heap; no native table-AM descriptor
-or CREATE ACCESS METHOD setup exists. The independently exercised PostgreSQL
-nonheap0A000 case does not imply a fabricated native access-method marker.
+All represented native ordinary storage uses the registered heap2 authority;
+custom TABLE definitions do not add table-method selection. The independently
+exercised PostgreSQL nonheap0A000 case does not advertise an unsupported native
+storage algorithm.
 Superuser, table-level SELECT or inherited pg_stat_scan_tables privileges allow
 the scan, but do not bypass namespace USAGE/TEMP checks. Column SELECT is not
 enough. Ordinary SELECT predicates, RLS and descendant expansion do not filter
@@ -3865,10 +3866,11 @@ all typmods are -1. `pg_class`, `pg_attribute` and `pg_tables` describe the
 represented permanent indexed catalog table, without inventing backing-index
 relations. It is not a `pg_views` entry.
 
-The complete native inventory is heap2/handler3/type`t`, btree403/330/`i`,
-hash405/331/`i` and GiST783/332/`i`. Ordinary symbolic handler output is
-`heap_tableam_handler`, `bthandler`, `hashhandler`, `gisthandler`; numeric
-`amhandler::oid` retains the same identities. The existing REGPROC output
+The native bootstrap inventory is heap2/handler3/type`t`, btree403/330/`i`,
+hash405/331/`i` and GiST783/332/`i`; user-defined methods extend the live catalog.
+Ordinary symbolic bootstrap handler output is `heap_tableam_handler`, `bthandler`,
+`hashhandler`, `gisthandler`; numeric `amhandler::oid` retains the same identities.
+The existing REGPROC output
 authority resolves names per statement; cells are not preformatted TEXT.
 Methods exist before any user index and remain after indexes are dropped.
 GiST represents existing INET/range exclusion execution, not a physical tree.
@@ -3889,9 +3891,43 @@ and descriptors; held readers rebind after native Reset/Restore. Logical dumps
 contain real user data/views, never catalog INSERTs. Failed/canceled staged
 Restore preserves the prior catalog and user data. Native controls do not
 claim PostgreSQL physical durability, storage layout or pg_dump equivalence.
-Handler identities do not add callable handlers, access-method DDL, full
-builtin pg_proc population, or physical heap/btree/hash/GiST algorithms.
+Handler identities do not make handlers scalar-callable or add physical
+PostgreSQL heap/btree/hash/GiST algorithms.
 See [selected proof and smoke](../reference/catalogs/README.md#pg_am-selected-proof).
+
+`CREATE ACCESS METHOD name TYPE INDEX|TABLE HANDLER [schema.]function` and
+`DROP ACCESS METHOD [IF EXISTS] name [RESTRICT|CASCADE]` use a database-global
+superuser-only definition, not a schema/owner/ACL object. Exact `(internal)`
+signature and INDEX/TABLE result-kind validation precede finite native capability
+selection. Stock btree/hash/GiST handlers select existing logical index mechanics;
+heap_tableam_handler resolves the existing ordinary heap's concrete visibility
+operations over actual storage versions, distinct from index mechanics.
+Ordinary source selection binds captured heap2/handler3 once, outside its row
+loop; default heap visibility uses the same single liveness rule.
+No arbitrary C-ABI loader is supplied.
+Valid but unregistered native handlers return0A000
+`access method handler has no registered native implementation`.
+
+Custom B-tree defaults/classes/families are separate SQL identities: builtin
+int4_ops cannot stand in for a custom-method class. Empty family/class trees
+auto-drop under RESTRICT; actual index consumers block, and CASCADE preserves
+the parent table/data. Dump quotes custom method names and emits no AM owner
+directive. Restore rebinds actual destination handler/member capabilities.
+Capability diagnostics retain the declared custom method name while restrictions
+dispatch on physical mechanics. Classless custom GiST ordering deliberately
+retains native early0A000; PostgreSQL first returns the missing-default42704 and
+standard Hint. Registered descriptors take precedence over unsupported gin/brin
+spellings in exclusion admission; only unresolved native names retain that boundary.
+
+TABLE definitions support catalog/dump/restore/drop only: `CREATE TABLE USING`,
+`ALTER TABLE SET ACCESS METHOD`, `default_table_access_method` and custom TABLE
+DML are not added. Ordinary table relam remains2. TABLE-as-INDEX is rejected
+before operation dispatch with native55000; pinned PG18.6 instead reportsXX000
+from its attempted index-handler struct interpretation. AM property inquiries
+read current descriptors: missing native GIN/SP-GiST/BRIN identities return NULL,
+not static capabilities for absent methods. Existing builtin B-tree/hash/GiST
+property values remain unchanged.
+
 
 ## pg_opclass supported operator classes
 

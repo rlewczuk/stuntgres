@@ -7,31 +7,7 @@ import (
 	"testing"
 )
 
-func TestIndexPropertyCapabilityMatrix(t *testing.T) {
-	props := []string{"can_order", "can_unique", "can_multi_col", "can_exclude", "can_include"}
-	for _, tc := range []struct {
-		oid  uint32
-		want [5]bool
-	}{
-		{403, [5]bool{true, true, true, true, true}}, {405, [5]bool{false, false, false, true, false}},
-		{783, [5]bool{false, false, true, true, true}}, {2742, [5]bool{false, false, true, false, false}},
-		{4000, [5]bool{false, false, false, true, true}}, {3580, [5]bool{false, false, true, false, false}},
-	} {
-		for i, prop := range props {
-			got, known := indexAMProperty(tc.oid, prop)
-			if !known || got != tc.want[i] {
-				t.Fatal(tc.oid, prop, got, known)
-			}
-		}
-	}
-	for _, oid := range []uint32{0, 2, 4294967295} {
-		if _, known := indexAMProperty(oid, "can_order"); known {
-			t.Fatal(oid)
-		}
-	}
-	if _, known := indexAMProperty(403, "asc"); known {
-		t.Fatal("wrong property level")
-	}
+func TestIndexPropertyNames(t *testing.T) {
 	for _, tc := range []struct{ input, want string }{{"CaN_OrDeR", "can_order"}, {"DESC", "desc"}, {" can_order", ""}, {"can_order ", ""}, {"ſearch_nulls", ""}, {"bogus", ""}, {"", ""}} {
 		if got := indexPropertyName(tc.input); got != tc.want {
 			t.Fatal(tc, got)
@@ -50,12 +26,8 @@ func TestIndexPropertyExpressionGuardsAndNull(t *testing.T) {
 	oid, _ := sqltype.OIDValue(oidType, 403)
 	n := IndexProperty{Info: expr.Info{Usage: boolType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Kind: AccessMethodProperty, Args: [3]expr.Expr{literal(oid), literal(sqltype.String(textType, "can_order"))}}
 	value, err := n.Eval(&temporalTestContext{Context: context.Background()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := value.Boolean()
-	if err != nil || !got || value.Type() != boolType {
-		t.Fatal(value, err)
+	if err == nil {
+		t.Fatal("method inquiry without a catalog runtime succeeded", value)
 	}
 	for i := range 2 {
 		null := n

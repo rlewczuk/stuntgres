@@ -76,6 +76,12 @@ no state between calls. Step 30 of the split created it; see
   precede its consumer) and `ColumnPredecessors` adds a relation's row and
   column type predecessors; `Presenter` is the `dump.Presenter`. Both read
   only their arguments.
+  Global access methods use ordinary declaration events: one quoted CREATE with
+  qualified destination handler, no owner directive, before dependent families/
+  classes/indexes. Builtin methods/registered handlers are validated and omitted.
+  Restore admits the utility through normal staging; existing typed identity/
+  TEMP remapping also moves AM descriptors and their consumers, then rebuilds
+  destination support/root captures rather than transplanting source operations.
 - **Large objects** (`largeobject.go`): immutable captured descriptors use a
   separate fixed-OID-sorted list, outside numeric relation graph keys. Owner and
   raw ACL formatting is preflighted through existing codecs before writer I/O.

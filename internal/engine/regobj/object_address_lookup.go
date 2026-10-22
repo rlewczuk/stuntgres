@@ -178,6 +178,11 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		return ids.ObjectAddress{}, sqlError(code, message)
 	}
 	switch class {
+	case ids.AccessMethodClassID:
+		if m, ok := view.LookupAccessMethod(names[0]); ok {
+			return m.Address(), nil
+		}
+		return missing("42704", fmt.Sprintf(`access method "%s" does not exist`, names[0]))
 	case 1247:
 		a.ObjectID = ids.OID(typeID)
 		return a, nil
@@ -272,11 +277,11 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		}
 		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", TypeSpelling(view, q.Capture.Path, ids.OID(typeID)), TypeSpelling(view, q.Capture.Path, argIDs[0])))
 	case ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID:
-		fact, ok := catalog.AccessMethodByName(names[0])
-		if !ok || fact.Kind != "i" {
+		fact, ok := view.LookupAccessMethod(names[0])
+		if !ok || fact.MethodKind() != "i" {
 			return missing("42704", fmt.Sprintf("access method %q does not exist", names[0]))
 		}
-		method := fact.OID
+		method := fact.Address().ObjectID
 		number, err := strconv.ParseInt(names[len(names)-1], 10, 16)
 		if err != nil {
 			return missing("22P02", fmt.Sprintf("invalid input syntax for type smallint: %q", names[len(names)-1]))
@@ -304,8 +309,8 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		}
 		return missing("42704", fmt.Sprintf("%s %q does not exist", kind, strings.Join(names, ".")))
 	case 2616, 2753:
-		method, ok := catalog.AccessMethodByName(names[0])
-		if !ok || method.Kind != "i" {
+		method, ok := view.LookupAccessMethod(names[0])
+		if !ok || method.MethodKind() != "i" {
 			return missing("42704", fmt.Sprintf("access method %q does not exist", names[0]))
 		}
 		path, err := q.path(names[1:])
@@ -314,12 +319,12 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		}
 		for i := range path.Count() {
 			if class == ids.OperatorFamilyClassID {
-				if address := view.NameAddress(catalog.FamilyNameKey(path.At(i), method.OID, names[len(names)-1])); address != (ids.ObjectAddress{}) {
+				if address := view.NameAddress(catalog.FamilyNameKey(path.At(i), method.Address().ObjectID, names[len(names)-1])); address != (ids.ObjectAddress{}) {
 					return address, nil
 				}
 				continue
 			}
-			if class, ok := view.LookupOperatorClass(path.At(i), method.OID, names[len(names)-1]); ok {
+			if class, ok := view.LookupOperatorClass(path.At(i), method.Address().ObjectID, names[len(names)-1]); ok {
 				return class.Address(), nil
 			}
 		}

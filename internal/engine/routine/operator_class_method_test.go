@@ -10,11 +10,10 @@ import (
 )
 
 func TestOperatorClassMethodIdentity(t *testing.T) {
-	// Immutable facts enter the same constructor/binder used by compiled methods;
-	// neither fact is registered and no executable capture is installed by hand.
-	facts := [2]catalog.AccessMethod{
-		{OID: 403, Name: "btree", Kind: "i", Implementation: catalog.BtreeMethod},
-		{OID: 90000, Name: "other_btree", Kind: "i", Implementation: catalog.BtreeMethod},
+	// Distinct immutable descriptors share physical mechanics, not SQL identity.
+	facts := [2]*catalog.AccessMethod{
+		{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 403}, ObjectName: "btree", ObjectRevision: 1, Handler: 330, Native: catalog.BtreeAccessMethod},
+		{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 90000}, ObjectName: "other_btree", ObjectRevision: 1, Handler: 330, Native: catalog.BtreeAccessMethod},
 	}
 	state := catalog.NewState(1)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
@@ -27,8 +26,11 @@ func TestOperatorClassMethodIdentity(t *testing.T) {
 	}
 	candidate := catalog.NewCandidate(catalog.NewRead(nil, state))
 	for i, method := range facts {
-		family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: ns, ObjectName: "same_family", ObjectRevision: ids.DefinitionRevision(11 + i), Method: method.OID}
-		class := &catalog.OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(92000 + i)}, ObjectNamespace: ns, ObjectName: "same_class", ObjectRevision: ids.DefinitionRevision(21 + i), Method: method.OID, Family: family.Address().ObjectID, InputType: 23, Default: true}
+		if err := candidate.Create(method); err != nil {
+			t.Fatal(err)
+		}
+		family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: ns, ObjectName: "same_family", ObjectRevision: ids.DefinitionRevision(11 + i), Method: method.Address().ObjectID}
+		class := &catalog.OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(92000 + i)}, ObjectNamespace: ns, ObjectName: "same_class", ObjectRevision: ids.DefinitionRevision(21 + i), Method: method.Address().ObjectID, Family: family.Address().ObjectID, InputType: 23, Default: true}
 		routine := ids.OID(351)
 		if i == 1 {
 			routine = 181
@@ -58,11 +60,11 @@ func TestOperatorClassMethodIdentity(t *testing.T) {
 	}
 	var retained [2]catalog.IndexDefinition
 	for i, method := range facts {
-		class, ok := view.LookupOperatorClass(ns, method.OID, "same_class")
-		if !ok || class.Address().ObjectID != ids.OID(92000+i) || class.Method != method.OID || class.Family != ids.OID(91000+i) || class.Revision() != ids.DefinitionRevision(21+i) {
+		class, ok := view.LookupOperatorClass(ns, method.Address().ObjectID, "same_class")
+		if !ok || class.Address().ObjectID != ids.OID(92000+i) || class.Method != method.Address().ObjectID || class.Family != ids.OID(91000+i) || class.Revision() != ids.DefinitionRevision(21+i) {
 			t.Fatal("independent class selection", class)
 		}
-		def, ok := view.DefaultOperatorClass(method.OID, 23)
+		def, ok := view.DefaultOperatorClass(method.Address().ObjectID, 23)
 		if !ok || def != class {
 			t.Fatal("independent default selection", def)
 		}
@@ -96,13 +98,13 @@ func TestOperatorClassMethodIdentity(t *testing.T) {
 				t.Fatal("compiled binder differs from fact binder", ordinary.Support(), err)
 			}
 		}
-		retained[i] = catalog.IndexDefinition{Method: method.Implementation, MethodOID: method.OID, Keys: []catalog.IndexKey{{Class: bound}}}
+		retained[i] = catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: method.Address().ObjectID, Keys: []catalog.IndexKey{{Class: bound}}}
 		if _, err := bindClassSupport(view, capture, facts[1-i]); err == nil {
 			t.Fatal("crossed method fact accepted")
 		}
-		wrongKind := method
-		wrongKind.Kind = "t"
-		if _, err := bindClassSupport(view, capture, wrongKind); err == nil {
+		wrongKind := *method
+		wrongKind.Native = catalog.HeapAccessMethod
+		if _, err := bindClassSupport(view, capture, &wrongKind); err == nil {
 			t.Fatal("table method accepted")
 		}
 		without := catalog.CloneState(view.State())

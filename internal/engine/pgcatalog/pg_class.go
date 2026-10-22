@@ -90,13 +90,7 @@ func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
 		method = 2
 	}
 	if relation.SQLIndex != nil {
-		method = 403
-		if relation.SQLIndex.Method == catalog.HashMethod {
-			method = 405
-		}
-		if relation.SQLIndex.Method == catalog.GistMethod {
-			method = 783
-		}
+		method = uint32(relation.SQLIndex.MethodIdentity())
 	}
 	shared := relation.RelationKind == catalog.CatalogRelation && (relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID)
 	tablespace := uint32(0)

@@ -26,7 +26,7 @@ func findOperatorClass(h FamilyDDLHost, auth ddl.Authority, name parser.ObjectNa
 			return d, nil
 		}
 	}
-	return nil, familyError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(name), familyMethodName(method)))
+	return nil, familyError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(name), familyMethodName(h.AccessView(auth).Catalog, method)))
 }
 func classOwner(h FamilyDDLHost, auth ddl.Authority, d *catalog.OperatorClass) error {
 	if err := ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
@@ -35,7 +35,7 @@ func classOwner(h FamilyDDLHost, auth ddl.Authority, d *catalog.OperatorClass) e
 	return nil
 }
 func StageAlterOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.AlterOperatorClass) error {
-	method, err := familyMethod(s.Method.Text)
+	method, err := familyMethod(h.StageRead(), s.Method.Text)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func StageAlterOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Alte
 	return h.Stage().Replace(&next)
 }
 func StageDropOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.DropOperatorClass) error {
-	method, err := familyMethod(s.Method.Text)
+	method, err := familyMethod(h.StageRead(), s.Method.Text)
 	if err != nil {
 		return err
 	}

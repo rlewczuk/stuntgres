@@ -86,6 +86,9 @@ feature. Only the upper features, `stored` and the engine import it; never
   `Notice` (parser notices and type-modifier warnings, in order).
   `IdentifyValues` builds the `pg_identify_object`,
   `pg_identify_object_as_address` and `pg_describe_object` results.
+  Access-method lookup/identity and family/class descriptions use the captured
+  global descriptor authority, including quoted custom method names. Handler
+  identity metadata remains separate from executable native capability.
 - **Comment inquiries** (`comment_inquiry.go`): `CommentText` answers
   `obj_description`, `col_description` and `shobj_description` over the
   comment catalog and roles; an empty text is NULL.

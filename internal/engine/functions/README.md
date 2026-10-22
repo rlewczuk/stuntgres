@@ -11,6 +11,12 @@ narrow capability interfaces recovered from it (below). `expr` owns
 `RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
 `IntrinsicPropertyRule`; this package uses them under their `expr` names.
 
+AM property inquiries use the same catalog-snapshot runtime as relation/column
+properties. Functions is catalog-free: the engine resolves a real current method,
+and index mechanics supply its capabilities. Missing/TABLE methods return NULL;
+there is no static unsupported-builtin OID fallback.
+
+
 Function nodes are plain types over the `expr` contract: they embed
 `expr.Info`, hold children as `expr.Expr` and evaluate with `Eval(expr.Context)`,
 using only the `expr.Context` capabilities they need. `StringVariadic.Origin`

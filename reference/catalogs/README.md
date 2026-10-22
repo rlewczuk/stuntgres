@@ -744,18 +744,22 @@ Released [pg_am.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_
 [pg_am.h](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_am.h)
 and [pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat)
 specify identities; the [manual](https://www.postgresql.org/docs/18/catalog-pg-am.html)
-specifies the four fields. The fixture remains PostgreSQL18.0 UTF8/C, while the
-manual currently serves18.6; local20devel sources are research only. Oracle-first
-discovery observed all nine scenarios passing before production implementation,
-then native Inventory/Shape failed on missing pg_am relations.
+specifies the four fields. The current fixture is pinned PostgreSQL18.6 UTF8/C;
+local20devel sources are research only. The original18.0 oracle-first discovery
+observed all nine scenarios passing before that implementation, then native
+Inventory/Shape failed on missing pg_am relations; those are historical results.
 
-Native must return the entire four-row inventory heap2/handler3/type`t`,
+Before user definitions, native must return the complete four-row bootstrap inventory heap2/handler3/type`t`,
 btree403/330/`i`, hash405/331/`i`, GiST783/332/`i`. PostgreSQL independently
 returns those plus gin2742/333, brin3580/335 and spgist4000/334, all type`i`.
 Shared supported-subset queries do not conceal extra native rows. Separate
 numeric and symbolic handler assertions preserve REGPROC identity. Methods
 describe implemented logical execution, not physical storage algorithms or
 callable handlers; GIN/SP-GiST/BRIN are not native capabilities.
+Custom global method definitions and genuine installed native handlers are
+covered in [reference/indexes](../indexes/README.md#access-method-definitions).
+This does not advertise GIN/SP-GiST/BRIN or turn handler values into callable
+PostgreSQL internal-pointer routines.
 
 Direct, freshly prepared and SAME held OID/NAME readers retain all four
 descriptors for populated, unknown, false and NULL results. Names/types are

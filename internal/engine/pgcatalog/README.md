@@ -39,6 +39,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   `Roles.BelongsTo(Owner.Principals)` and `Source` identity must agree before
   rows are produced. Absent and explicit-empty ACLs stay different: `ClassACL`
   returns NULL for an absent ACL.
+  `pg_am` enumerates live global method descriptors (four bootstrap rows plus
+  real custom definitions), with owned contiguous typed cells per capture.
+  `pg_class.relam` retains declared custom index identity. Family→method AUTO
+  and method→handler NORMAL dependencies use shared selectors; references to
+  pinned stock handlers are suppressed, not fabricated as pg_depend rows.
 
 `pg_largeobject` (2613) enumerates actual immutable LO stored chunks, not
 zero-filled logical reads. Its producer validates source/descriptor provenance

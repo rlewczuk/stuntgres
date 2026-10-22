@@ -64,16 +64,21 @@ func (r Read) IndexClass(oid ids.OID) (sqltype.IndexClass, bool) {
 	if !ok {
 		return sqltype.IndexClass{}, false
 	}
-	method, ok := AccessMethodByOID(d.Method)
+	method, ok := r.AccessMethod(d.Method)
 	if !ok {
 		return sqltype.IndexClass{}, false
 	}
 	return r.IndexClassForMethod(oid, method)
 }
 
-// IndexClassForMethod constructs a class from a selected immutable implementation
-// fact. It neither registers the method nor changes compiled production facts.
-func (r Read) IndexClassForMethod(oid ids.OID, method AccessMethod) (sqltype.IndexClass, bool) {
+// IndexClassForMethod constructs a class from the captured method descriptor.
+func (r Read) IndexClassForMethod(oid ids.OID, method *AccessMethod) (sqltype.IndexClass, bool) {
+	if method == nil {
+		return sqltype.IndexClass{}, false
+	}
+	if owned, ok := r.AccessMethod(method.Address().ObjectID); !ok || owned != method {
+		return sqltype.IndexClass{}, false
+	}
 	d, ok := r.OperatorClass(oid)
 	if !ok {
 		return sqltype.IndexClass{}, false
@@ -82,10 +87,11 @@ func (r Read) IndexClassForMethod(oid ids.OID, method AccessMethod) (sqltype.Ind
 	if !ok || f.Method != d.Method {
 		return sqltype.IndexClass{}, false
 	}
-	if method.OID != d.Method || method.Kind != "i" {
+	if method.Address().ObjectID != d.Method || method.MethodKind() != "i" {
 		return sqltype.IndexClass{}, false
 	}
-	return sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: uint32(oid), Method: uint32(d.Method), Family: uint32(d.Family), Input: uint32(d.InputType), Storage: uint32(d.StorageType), Name: d.Name(), FamilyName: f.Name(), Hash: method.Implementation == HashMethod, GiST: method.Implementation == GistMethod}), true
+	physical, _ := method.IndexImplementation()
+	return sqltype.NewIndexClass(sqltype.IndexClassDefinition{OID: uint32(oid), Method: uint32(d.Method), Family: uint32(d.Family), Input: uint32(d.InputType), Storage: uint32(d.StorageType), Name: d.Name(), FamilyName: f.Name(), Hash: physical == HashMethod, GiST: physical == GistMethod}), true
 }
 func (r Read) DefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sqltype.IndexClass, bool) {
 	if t == nil || !t.Concrete() {
@@ -120,7 +126,7 @@ func (r Read) DefaultIndexClassID(method ids.OID, input sqltype.ID) (sqltype.Ind
 			return r.IndexClass(d.Address().ObjectID)
 		}
 	}
-	if m, ok := AccessMethodByOID(method); ok && m.Implementation == GistMethod {
+	if m, ok := r.AccessMethod(method); ok && m.Native == GistAccessMethod {
 		if d, ok := r.DefaultOperatorClass(method, 3831); ok {
 			if c, ok := r.IndexClass(d.Address().ObjectID); ok && c.AcceptsID(input) {
 				return c, true
@@ -138,7 +144,7 @@ func (OperatorClassProvider) Validate(v Read, d Descriptor) error {
 	if !ok || c.Address().ClassID != ids.OperatorClassCatalogID || c.Address().ObjectID == 0 || c.Address().SubID != 0 || c.Revision() == 0 || c.Name() == "" || v.NameAddress(DescriptorNameKey(c)) != c.Address() {
 		return fmt.Errorf("stuntgres: invalid operator class authority")
 	}
-	if method, ok := AccessMethodByOID(c.Method); !ok || method.Kind != "i" {
+	if method, ok := v.AccessMethod(c.Method); !ok || method.MethodKind() != "i" {
 		return fmt.Errorf("stuntgres: invalid operator class method")
 	}
 	if _, ok := v.Namespace(c.Namespace()); !ok {

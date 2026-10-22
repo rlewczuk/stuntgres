@@ -20,7 +20,7 @@ func OperatorFamilyDependencies(view Read, d Descriptor) []FamilyDependency {
 	var class ids.OID
 	switch d := d.(type) {
 	case *OperatorFamily:
-		return []FamilyDependency{{d.Namespace(), 'n'}}
+		return []FamilyDependency{{d.Namespace(), 'n'}, {ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: d.Method}, 'a'}}
 	case *OperatorClass:
 		deps := []FamilyDependency{{d.Namespace(), 'n'}, {ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.InputType}, 'n'}, {ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: d.Family}, 'a'}}
 		if d.StorageType != 0 && d.StorageType != d.InputType {
@@ -93,8 +93,8 @@ func OperatorFamilyMemberOwner(d Descriptor) ids.ObjectAddress {
 // CREATE CLASS prefers its own descriptor for matching input; other eligible
 // inputs and ALTER FAMILY use the existing family/datatype lookup.
 func FamilyMemberClass(view Read, method, family, left, right ids.OID, number int16, function bool, creating *OperatorClass) ids.OID {
-	fact, ok := AccessMethodByOID(method)
-	if !ok || left != right || fact.Implementation != BtreeMethod && fact.Implementation != HashMethod || function && number != 1 {
+	fact, ok := view.AccessMethod(method)
+	if !ok || left != right || fact.Native != BtreeAccessMethod && fact.Native != HashAccessMethod || function && number != 1 {
 		return 0
 	}
 	if creating != nil && creating.Method == method && creating.Family == family && creating.InputType == left {

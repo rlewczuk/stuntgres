@@ -18,7 +18,7 @@ func StageCreateOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Cre
 	if err = h.CheckCreateIn(auth, ns); err != nil {
 		return err
 	}
-	method, err := familyMethod(s.Method.Text)
+	method, err := familyMethod(h.StageRead(), s.Method.Text)
 	if err != nil {
 		return err
 	}

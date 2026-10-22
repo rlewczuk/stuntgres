@@ -152,6 +152,10 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "ALTER OPERATOR FAMILY"
 	case *parser.DropOperatorFamily:
 		base = "DROP OPERATOR FAMILY"
+	case *parser.CreateAccessMethod:
+		base = "CREATE ACCESS METHOD"
+	case *parser.DropAccessMethod:
+		base = "DROP ACCESS METHOD"
 	case *parser.CreateOperatorClass:
 		base = "CREATE OPERATOR CLASS"
 	case *parser.AlterOperatorClass:

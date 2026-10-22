@@ -167,6 +167,10 @@ after the matching domain-consumer remedy.
   `ValidateDomainCheckDefinitions` (`domain_*_validation.go`), and
   `ValidateTypeProviders` (`type_provider_validation.go`, the publication
   check that types and relations name current type generations).
+  ProcedureProvider also validates exact registered native access-method
+  identity/signature/result/kind and exclusive capability association. Dependency
+  pinning follows those real bootstrap handlers/methods, not an OID cutoff;
+  method dependency labels are global, with no invented namespace or owner.
   `ReownScalarTypes` (`scalar_type_reown.go`) is the scalar companion of
   `ReownExpressions`: it points relation column types and stored datums
   (domain values, reg* and aclitem values) at current type generations.

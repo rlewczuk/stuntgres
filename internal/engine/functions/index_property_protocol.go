@@ -58,7 +58,7 @@ func (IndexProperty) PlanningFold() expr.Fold                { return expr.FoldN
 func (IndexProperty) PreflightFold() expr.Preflight          { return expr.PreflightChildren }
 func (IndexProperty) LooksLikeFunction() bool                { return true }
 func (n IndexProperty) SnapshotDemand(func(expr.Expr) bool) (bool, bool, bool) {
-	return n.Kind != AccessMethodProperty, false, false
+	return true, false, false
 }
 func (n IndexProperty) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(IndexProperty)
@@ -81,7 +81,7 @@ func (n IndexProperty) Render() (expr.Rendering, error) {
 	for i, arg := range children {
 		args[i] = expr.RenderArg{Expr: arg}
 	}
-	spec := expr.Rendering{Tree: fmt.Sprintf("IndexProperty kind %d", n.Kind), Inputs: children, Form: expr.FormCall, Name: n.Kind.name(), Args: args, Replay: expr.Replay{RelationOnly: true, CatalogSnapshot: n.Kind != AccessMethodProperty}}
+	spec := expr.Rendering{Tree: fmt.Sprintf("IndexProperty kind %d", n.Kind), Inputs: children, Form: expr.FormCall, Name: n.Kind.name(), Args: args, Replay: expr.Replay{RelationOnly: true, CatalogSnapshot: true}}
 	if n.Kind != AccessMethodProperty {
 		spec.Replay.Types = []*sqltype.Descriptor{n.oidUsage.Type}
 	}

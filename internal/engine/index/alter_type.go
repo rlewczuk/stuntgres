@@ -292,7 +292,7 @@ func RebuildAlterUniques(h Host, parent *catalog.Relation, transformations []Col
 			clone.Columns[j].Usage = parent.Columns[slot].Usage
 			class, ok := h.StageBase().DefaultIndexClass(definition.MethodIdentity(), clone.Columns[j].Usage.Type)
 			if !ok {
-				return nil, DefaultClassError(clone.Columns[j].Usage.Type.DiagnosticName(), catalog.BtreeMethod)
+				return nil, DefaultClassError(clone.Columns[j].Usage.Type.DiagnosticName(), familyMethodName(h.StageBase(), definition.MethodIdentity()))
 			}
 			definition.Keys[j].Class = class
 			clone.Columns[j].OriginTable = uint32(id)

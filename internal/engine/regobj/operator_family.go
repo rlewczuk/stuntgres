@@ -21,11 +21,11 @@ func OperatorFamilyDescription(view catalog.Read, d catalog.Descriptor, path []i
 		if path != nil && !NamedObjectVisible(view, path, d) {
 			name = catalog.DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 		}
-		method, ok := catalog.AccessMethodByOID(d.Method)
+		method, ok := view.AccessMethod(d.Method)
 		if !ok {
 			return "", false
 		}
-		return "operator class " + name + " for access method " + method.Name, true
+		return "operator class " + name + " for access method " + catalog.DependencyIdentifier(method.Name()), true
 	case *catalog.OperatorFamily:
 		familyID = d.Address().ObjectID
 	case *catalog.OperatorFamilyOperator:
@@ -50,11 +50,11 @@ func OperatorFamilyDescription(view catalog.Read, d catalog.Descriptor, path []i
 	if !visible {
 		name = catalog.DependencyIdentifier(view.Get(f.Namespace()).Name()) + "." + name
 	}
-	fact, ok := catalog.AccessMethodByOID(f.Method)
+	fact, ok := view.AccessMethod(f.Method)
 	if !ok {
 		return "", false
 	}
-	method := fact.Name
+	method := catalog.DependencyIdentifier(fact.Name())
 	label := "operator family " + name + " for access method " + method
 	if number == 0 {
 		return label, true
@@ -101,16 +101,16 @@ func identifyOperatorFamilyMember(view catalog.Read, path []ids.ObjectAddress, d
 		return r, true
 	}
 	_, namespace := objectNamespace(view, f.Namespace())
-	fact, ok := catalog.AccessMethodByOID(f.Method)
+	fact, ok := view.AccessMethod(f.Method)
 	if !ok {
 		return r, true
 	}
-	method := fact.Name
+	method := fact.Name()
 	ltype, rtype := objectQualifiedType(view, left), objectQualifiedType(view, right)
 	r.Found = true
 	r.Names = []string{method, namespace, f.Name(), strconv.Itoa(int(number))}
 	r.Args = []string{ltype, rtype}
-	r.Identity = fmt.Sprintf("%s %d (%s, %s) of %s.%s USING %s", kind, number, ltype, rtype, catalog.Identifier(namespace), catalog.Identifier(f.Name()), method)
+	r.Identity = fmt.Sprintf("%s %d (%s, %s) of %s.%s USING %s", kind, number, ltype, rtype, catalog.Identifier(namespace), catalog.Identifier(f.Name()), catalog.Identifier(method))
 	r.Description, _ = OperatorFamilyDescription(view, d, path)
 	return r, true
 }

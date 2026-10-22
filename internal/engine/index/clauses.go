@@ -44,9 +44,9 @@ func SemanticError(err error) error {
 	return err
 }
 
-func DefaultClassError(name string, method catalog.IndexMethod) error {
+func DefaultClassError(name, method string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704",
-		Message: fmt.Sprintf("data type %s has no default operator class for access method %q", name, method.String()),
+		Message: fmt.Sprintf(`data type %s has no default operator class for access method "%s"`, name, method),
 		Hint:    "You must specify an operator class for the index or define a default operator class for the data type."}
 }
 
@@ -64,47 +64,73 @@ func ValidateIndexInclude(raw parser.IndexKey) error {
 	return nil
 }
 
-func ValidateHashKeyDirection(key parser.IndexKey) error {
+func ValidateHashKeyDirection(key parser.IndexKey, methodName string) error {
 	if key.DirectionExplicit {
-		return sqlError("0A000", `access method "hash" does not support ASC/DESC options`)
+		return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support ASC/DESC options`, methodName))
 	}
 	if key.Nulls != parser.NullsDefault {
-		return sqlError("0A000", `access method "hash" does not support NULLS FIRST/LAST options`)
+		return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support NULLS FIRST/LAST options`, methodName))
 	}
 	return nil
 }
 
-func ValidateIndexMethod(s *parser.CreateIndex) error {
-	switch s.Method {
-	case "btree":
+// Resolve once from the captured catalog, retaining SQL identity separately
+// from physical validation. Absent advertised-unsupported builtins retain their
+// existing clause diagnostics; no unknown method defaults to B-tree.
+func ResolveIndexMethod(view catalog.Read, s *parser.CreateIndex) (*catalog.AccessMethod, error) {
+	method, exists := view.LookupAccessMethod(s.Method)
+	if !exists {
+		return nil, unresolvedIndexMethod(s)
+	}
+	physical, ok := method.IndexImplementation()
+	if !ok {
+		return nil, sqlError("55000", fmt.Sprintf(`access method "%s" is not of type INDEX`, method.Name()))
+	}
+	if err := validateIndexMethod(s, physical, method.Name()); err != nil {
+		return nil, err
+	}
+	return method, nil
+}
+func validateIndexMethod(s *parser.CreateIndex, physical catalog.IndexMethod, methodName string) error {
+	switch physical {
+	case catalog.BtreeMethod:
 		return nil
-	case "hash":
+	case catalog.HashMethod:
 		if s.Unique {
-			return sqlError("0A000", `access method "hash" does not support unique indexes`)
+			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support unique indexes`, methodName))
 		}
 		if len(s.Include) > 0 {
-			return sqlError("0A000", `access method "hash" does not support included columns`)
+			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support included columns`, methodName))
 		}
 		if len(s.Keys) > 1 {
-			return sqlError("0A000", `access method "hash" does not support multicolumn indexes`)
+			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support multicolumn indexes`, methodName))
 		}
 		if s.Predicate != nil {
 			return sqlError("0A000", "partial indexes are unsupported")
 		}
 		return nil
-	case "gist":
+	case catalog.GistMethod:
 		if s.Unique {
-			return sqlError("0A000", `access method "gist" does not support unique indexes`)
+			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support unique indexes`, methodName))
 		}
 		for _, key := range s.Keys {
 			if key.DirectionExplicit {
-				return sqlError("0A000", `access method "gist" does not support ASC/DESC options`)
+				return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support ASC/DESC options`, methodName))
 			}
 			if key.Nulls != parser.NullsDefault {
-				return sqlError("0A000", `access method "gist" does not support NULLS FIRST/LAST options`)
+				return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support NULLS FIRST/LAST options`, methodName))
 			}
 		}
 		return nil
+	default:
+		return sqlError("42704", fmt.Sprintf(`access method "%s" does not exist`, methodName))
+	}
+}
+
+// Only unresolved advertised-unsupported builtin names retain the historical
+// native capability boundary. A registered descriptor always wins first.
+func unresolvedIndexMethod(s *parser.CreateIndex) error {
+	switch s.Method {
 	case "gin", "spgist", "brin":
 		if len(s.Include) > 0 && s.Method == "gin" {
 			return sqlError("0A000", `access method "gin" does not support included columns`)
@@ -124,18 +150,6 @@ func ValidateIndexMethod(s *parser.CreateIndex) error {
 	default:
 		return sqlError("42704", fmt.Sprintf(`access method "%s" does not exist`, s.Method))
 	}
-}
-
-// MethodOf maps a CREATE INDEX access method name to its method. Names that
-// ValidateIndexMethod rejects never reach it; anything else is B-tree.
-func MethodOf(name string) catalog.IndexMethod {
-	switch name {
-	case "hash":
-		return catalog.HashMethod
-	case "gist":
-		return catalog.GistMethod
-	}
-	return catalog.BtreeMethod
 }
 
 // RejectVirtualUses rejects an index that reads a virtual generated column

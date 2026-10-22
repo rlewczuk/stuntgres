@@ -71,7 +71,9 @@ building, index builds and maintenance orchestration, Restore, Dump and
 replacement, and sequence DDL and transactional sequence metadata. Session
 sequence memories belong to [`sequence`](../sequence/README.md). Index key comparison
 (`index.OutputMatches`) belongs to [`index`](../index/README.md). The transaction-private deletion overlay and
-`LiveVersion` belong to [`visibility`](../visibility/README.md).
+the single concrete `HeapOperations.LiveVersion` rule belong to
+[`visibility`](../visibility/README.md). Registered heap operations consume these
+existing version vectors/end roots; they do not wrap or replace `storage.Relation`.
 
 ## Testing
 

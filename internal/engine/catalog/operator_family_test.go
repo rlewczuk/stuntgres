@@ -12,13 +12,14 @@ func familyCatalogFixture() Read {
 	namespace := &Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, ObjectName: "pg_catalog", ObjectRevision: 1}
 	state.SetDescriptor(namespace.Address(), namespace)
 	state.BindName(DescriptorNameKey(namespace), namespace.Address())
+	InstallBuiltinAccessMethods(state)
 	InstallBuiltinFamilies(state, authorization.PrincipalRef{})
 	return NewRead(nil, state)
 }
 func TestOperatorFamilyCatalog(t *testing.T) {
 	view := familyCatalogFixture()
 	t.Run("dependency classification", func(t *testing.T) { operatorFamilyDependencyCases(t, view) })
-	if view.DescriptorCount() != 1+49+292+185 {
+	if view.DescriptorCount() != 1+4+49+292+185 {
 		t.Fatal("incomplete released family inventory", view.DescriptorCount())
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}
@@ -54,6 +55,9 @@ func TestOperatorFamilyCatalog(t *testing.T) {
 	}
 	for _, d := range view.Descriptors() {
 		if _, ok := d.(*Namespace); ok {
+			continue
+		}
+		if _, ok := d.(*AccessMethod); ok {
 			continue
 		}
 		if err := (OperatorFamilyProvider{Class: d.Address().ClassID}).Validate(view, d); err != nil {

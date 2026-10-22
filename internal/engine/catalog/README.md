@@ -125,6 +125,12 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   `OperatorIndexEdit` and `RebuildOperatorNames`; default ACL helpers
   (`OverlayDefaultACLs`, `PruneNamespaceDefaults`, `RemapDefaultSchemas`,
   `ValidateDefaultACLs`, ...).
+- **Access methods** (`access_method.go`) are global immutable class2601
+  descriptors. `Read.AccessMethod`, `LookupAccessMethod` and `AccessMethods`
+  are the sole live authority. Finite native handler selectors bind existing
+  heap versus index operation authorities; bootstrap facts serve seeding/pinning
+  only. Validation requires an actual installed and validated Procedure
+  capability, never lookup-only handler signature metadata.
 - **Operator families and members** (`operator_family*.go`). Ordinary immutable
   family/amop/amproc descriptors use namespace+method family names and typed
   member keys. `Read.OperatorFamily`, `Read.FamilyOperator` and `Read.FamilySupport`
@@ -208,6 +214,11 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   private candidate through a `PrincipalRemap` (principal and seeded-owner
   mappers, an operator-seeded predicate). The engine builds the mappers and
   validates the default ACLs afterwards.
+  Global access-method descriptors have no principal fields and retain their
+  immutable records through principal remapping; their object/handler identities
+  use the separate typed address remapper. Unknown descriptor kinds still fail.
+  `TestAccessMethodPrincipalRemap` covers builtin/custom methods alongside a real
+  owning family: `make check RUN='^TestAccessMethodPrincipalRemap$'`.
 - **reg\* alias references** (`alias_references.go`): `AliasAddress` and the
   walkers `WalkAliasReferences(At)` and `WalkAliasDependencies(At)` visit the
   existing objects a reg* value names, for dependency recording and replay.

@@ -82,7 +82,8 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 				t.Fatal("final outcome replaced admitted snapshot")
 			}
 			reader.owner.Mu.Unlock()
-			source, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: root.Versions}, frontier, root.Ends, nil)
+			heap := accessMethodHeapOperationsUnit(t, e.CatalogRead())
+			source, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: root.Versions}, frontier, root.Ends, nil, heap)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -96,7 +97,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			}
 			e.mu.Lock()
 			current := e.storage.Relations[relation.Address]
-			published, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: current.Versions}, e.visibility.CommitSeq(), current.Ends, nil)
+			published, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: current.Versions}, e.visibility.CommitSeq(), current.Ends, nil, heap)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

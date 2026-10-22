@@ -18,6 +18,8 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 		return false
 	}
 	switch d := d.(type) {
+	case *catalog.AccessMethod:
+		return catalog.AccessMethodSeeded(d)
 	case *catalog.Type:
 		return catalog.TypePinned(view, reader, d)
 	case *catalog.Collation:

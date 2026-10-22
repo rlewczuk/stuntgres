@@ -119,6 +119,9 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.ConversionProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(catalog.AccessMethodProvider{}); err != nil {
+		return nil, err
+	}
 	for _, class := range []ids.OID{ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID} {
 		if err := e.RegisterCatalogProvider(catalog.ForeignCatalogProvider{class}); err != nil {
 			return nil, err
@@ -203,6 +206,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	}
 	e.installBuiltinConversionRoutines()
 	e.installBuiltinProcedures()
+	e.installNativeAccessMethods()
 	e.initializeTablespaces()
 	for i := range catalog.BuiltinConversions {
 		d := new(catalog.Conversion)
@@ -306,6 +310,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return StatementDescription{}, nil
 	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
+		return StatementDescription{}, nil
+	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		return StatementDescription{}, nil
 	case *parser.CreateExtension, *parser.DropExtension, *parser.AlterExtensionUpdate:
 		return StatementDescription{}, nil

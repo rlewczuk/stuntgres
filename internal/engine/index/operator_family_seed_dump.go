@@ -46,7 +46,7 @@ func OperatorFamilySeedDumpStatements(ctx context.Context, view catalog.Read, ro
 		}
 		fixed, _ := catalog.OperatorFamilySeedName(f.Address().ObjectID)
 		from := initial + "." + catalog.QuoteIdentifier(fixed)
-		using := " USING " + familyMethodName(f.Method)
+		using := " USING " + catalog.Identifier(familyMethodName(view, f.Method))
 		var final string
 		if f.Name() != fixed || f.Namespace() != namespace.Address() {
 			base := "__stuntgres_family_seed_" + strconv.FormatUint(uint64(f.Address().ObjectID), 10)

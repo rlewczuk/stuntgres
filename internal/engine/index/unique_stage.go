@@ -167,7 +167,7 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := h.StageBase().DefaultIndexClass(definition.MethodIdentity(), column.Usage.Type)
 				if !ok {
-					return DefaultClassError(column.Usage.Type.DiagnosticName(), catalog.BtreeMethod)
+					return DefaultClassError(column.Usage.Type.DiagnosticName(), familyMethodName(h.StageBase(), definition.MethodIdentity()))
 				}
 				definition.Keys[j] = catalog.IndexKey{Attribute: a, Class: class}
 				column.Nullable, column.NullabilityKnown = true, true

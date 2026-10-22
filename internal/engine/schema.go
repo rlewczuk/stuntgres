@@ -60,6 +60,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	domainMode := parser.DropCascade
 	cascade := false
 	switch s := stmt.(type) {
+	case *parser.DropAccessMethod:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropComposite:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropDomain:
@@ -166,6 +168,14 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 	stage.authorizeLocked(auth, op.Session)
 	host := ddlHost{e: e, op: op, stage: stage}
 	switch s := stmt.(type) {
+	case *parser.CreateAccessMethod:
+		if err = index.StageCreateAccessMethod(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropAccessMethod:
+		if err = index.StageDropAccessMethod(host, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.CreateComposite:
 		if err = typedef.StageCreateCompositeLocked(host, auth, s); err != nil {
 			return nil, err

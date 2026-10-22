@@ -51,6 +51,12 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		}
 		return extension.Address().ObjectID, nil
 	}
+	if method, ok := object.(*catalog.AccessMethod); ok {
+		if catalog.AccessMethodSeeded(method) {
+			return 0, nil
+		}
+		return method.Address().ObjectID, nil
+	}
 	if class, ok := object.(*catalog.OperatorClass); ok {
 		if catalog.OperatorClassSeeded(class) && !catalog.OperatorClassSeedModified(class) {
 			return 0, nil

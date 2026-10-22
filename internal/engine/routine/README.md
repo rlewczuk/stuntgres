@@ -26,6 +26,11 @@ or the engine. Step 14 of the split moves it here; see
   name and input types) and the seed constructor `BuiltinProcedures`;
   `IdentityDefaults` (`identity_defaults.go`) counts a builtin identity's
   defaulted arguments, including lookup-only ones.
+  `NativeAccessMethodProcedures` installs exact released internal handler
+  identities with finite native heap/B-tree/hash/GiST capability associations.
+  These are utility capabilities, not scalar internal-pointer return routines.
+  Heap selects existing ordinary storage/visibility and does not enable custom
+  TABLE selection syntax. Lookup-only routine identities cannot grant a binding.
 - **Routine bodies** (`body.go`): the builtin SQL-body edges, resolved once
   per process and attached to fresh descriptors by `BuiltinProcedures`, and
   `EmbeddedCastOID` for body capture. The instance-selected body walk

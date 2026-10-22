@@ -14,6 +14,7 @@ import (
 // Selection occurrence identity is VersionID, not RowID. A MERGE descendant
 // based on an invisible peer head coexists with the retained snapshot version.
 func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
+	heap := accessMethodHeapOperationsUnit(t, New().CatalogRead())
 	for _, multiple := range []bool{false, true} {
 		for _, matching := range []bool{false, true} {
 			name := "singleMismatch"
@@ -26,7 +27,7 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				captured := []storage.RowVersion{{Row: 1, Version: 10, Born: 1}, {Row: 2, Version: 20, Born: 1}}
 				before := append([]storage.RowVersion(nil), captured...)
-				retained, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: captured}, 1, nil, nil)
+				retained, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: captured}, 1, nil, nil, heap)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -40,7 +41,7 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 					own = append(own, storage.RowVersion{Row: 2, Version: 200, Base: 20})
 				}
 				own = append(own, storage.RowVersion{Row: 3, Version: 300})
-				selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: captured, Own: own}, 1, &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 10, End: 2}}}, nil)
+				selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: captured, Own: own}, 1, &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 10, End: 2}}}, nil, heap)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -75,9 +76,10 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 }
 
 func TestMergeUpdateCaptureCancellation(t *testing.T) {
+	heap := accessMethodHeapOperationsUnit(t, New().CatalogRead())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	source, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: []storage.RowVersion{{Row: 1, Version: 10, Born: 1}}, Own: []storage.RowVersion{{Row: 1, Version: 100, Base: 11}}}, 1, nil, nil)
+	source, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: []storage.RowVersion{{Row: 1, Version: 10, Born: 1}}, Own: []storage.RowVersion{{Row: 1, Version: 100, Base: 11}}}, 1, nil, nil, heap)
 	if source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("capture escaped cancellation", source, err)
 	}

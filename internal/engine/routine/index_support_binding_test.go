@@ -13,6 +13,12 @@ import (
 
 func TestExclusionOperatorFamilyMembership(t *testing.T) {
 	state := catalog.NewState(1)
+	catalog.InstallBuiltinAccessMethods(state)
+	handlers := NativeAccessMethodProcedures(authorization.PrincipalRef{})
+	for i := range handlers {
+		state.SetDescriptor(handlers[i].Address(), &handlers[i])
+		state.BindName(catalog.DescriptorNameKey(&handlers[i]), handlers[i].Address())
+	}
 	catalog.InstallBuiltinFamilies(state, authorization.PrincipalRef{})
 	catalog.InstallBuiltinClasses(state, authorization.PrincipalRef{})
 	procedures := BuiltinProcedures(authorization.PrincipalRef{})

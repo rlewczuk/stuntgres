@@ -253,23 +253,23 @@ func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 	}
 	switch d := d.(type) {
 	case *catalog.OperatorClass:
-		method, ok := catalog.AccessMethodByOID(d.Method)
+		method, ok := view.AccessMethod(d.Method)
 		if !ok {
 			return r, fmt.Errorf("stuntgres: missing operator class access method")
 		}
-		r.Names = []string{method.Name, canonical, d.Name()}
-		r.Identity = catalog.Identifier(canonical) + "." + r.Name + " USING " + method.Name
-		r.Description = "operator class " + display + " for access method " + method.Name
+		r.Names = []string{method.Name(), canonical, d.Name()}
+		r.Identity = catalog.Identifier(canonical) + "." + r.Name + " USING " + catalog.Identifier(method.Name())
+		r.Description = "operator class " + display + " for access method " + catalog.DependencyIdentifier(method.Name())
 		return r, nil
 	case *catalog.OperatorFamily:
-		method, ok := catalog.AccessMethodByOID(d.Method)
+		method, ok := view.AccessMethod(d.Method)
 		if !ok {
 			return r, fmt.Errorf("stuntgres: missing operator family access method")
 		}
-		am := method.Name
+		am := method.Name()
 		r.Names = []string{am, canonical, d.Name()}
-		r.Identity = catalog.Identifier(canonical) + "." + r.Name + " USING " + am
-		r.Description = "operator family " + display + " for access method " + am
+		r.Identity = catalog.Identifier(canonical) + "." + r.Name + " USING " + catalog.Identifier(am)
+		r.Description = "operator family " + display + " for access method " + catalog.DependencyIdentifier(am)
 		return r, nil
 	case *catalog.Namespace:
 		_, canonical = objectNamespace(view, d.Address())

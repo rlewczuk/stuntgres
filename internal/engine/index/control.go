@@ -67,15 +67,14 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 	if presentation.Pretty && !presentation.Output.QuoteAllIdentifiers {
 		parentName = stored.RelationDiagnosticNameAt(view, parent, presentation.Path)
 	}
-	// Canonical replay spells the supported access methods as SQL tokens.
-	// Session inquiry alone follows quote_all_identifiers.
-	methodFact, ok := catalog.AccessMethodByOID(index.SQLIndex.MethodIdentity())
+	// Builtin tokens retain canonical spelling; custom identifiers are quoted.
+	methodFact, ok := view.AccessMethod(index.SQLIndex.MethodIdentity())
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing index method identity")
 	}
-	method := methodFact.Name
+	method := catalog.Identifier(methodFact.Name())
 	if !presentation.Dump {
-		method = identifier(method)
+		method = identifier(methodFact.Name())
 	}
 	var sql strings.Builder
 	if presentation.Exclusion {

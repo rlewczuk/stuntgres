@@ -159,6 +159,12 @@ func stageFamilyMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.Ope
 // CREATE CLASS's input fallback, storage admission and unique-index diagnostics.
 func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.OperatorFamily, s *parser.AlterOperatorFamily, class *catalog.OperatorClass, beforeStore func() error) error {
 	view := h.AccessView(auth).Catalog
+	method, exists := view.AccessMethod(family.Method)
+	if !exists || method.MethodKind() != "i" {
+		return fmt.Errorf("stuntgres: missing family method")
+	}
+	physical, _ := method.IndexImplementation()
+	physicalOID := physical.OID()
 	// Phase 1 follows SQL order, resolving and validating the entire list before
 	// consulting stored members. DROP records keys, not stored descriptors.
 	var operators, procedures []catalog.Descriptor
@@ -175,8 +181,8 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 				return err
 			}
 			if storage != class.InputType {
-				if family.Method != 783 {
-					return familyError("42P17", fmt.Sprintf(`storage type cannot be different from data type for access method "%s"`, familyMethodName(family.Method)))
+				if physical != catalog.GistMethod {
+					return familyError("42P17", fmt.Sprintf(`storage type cannot be different from data type for access method "%s"`, familyMethodName(view, family.Method)))
 				}
 				class.StorageType = storage
 			}
@@ -184,14 +190,14 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 		}
 		maximum := int64(5)
 		kind := "operator"
-		if family.Method == 405 {
+		if physical == catalog.HashMethod {
 			maximum = 1
-		} else if family.Method == 783 {
+		} else if physical == catalog.GistMethod {
 			maximum = 32767
 		}
 		if item.Function {
 			kind = "function"
-			switch family.Method {
+			switch physicalOID {
 			case 403:
 				maximum = 6
 			case 405:
@@ -232,7 +238,7 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 			if class != nil {
 				input = class.InputType
 			}
-			left, right, err = classSupportTypes(family.Method, int16(number), args, result, left, right, input)
+			left, right, err = classSupportTypes(physicalOID, int16(number), args, result, left, right, input)
 			if err != nil {
 				return err
 			}
@@ -260,8 +266,8 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 				return familyError("42P17", "index operators must be binary")
 			}
 			if purpose == 'o' {
-				if family.Method != 783 {
-					return familyError("42P17", fmt.Sprintf(`access method "%s" does not support ordering operators`, familyMethodName(family.Method)))
+				if physical != catalog.GistMethod {
+					return familyError("42P17", fmt.Sprintf(`access method "%s" does not support ordering operators`, familyMethodName(view, family.Method)))
 				}
 			} else if operator.Result != 16 {
 				return familyError("42P17", "index search operators must return boolean")
@@ -377,7 +383,7 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 				d.ObjectAddress.ObjectID = oid
 				d.ObjectRevision = revision
 				d.OwningClass = catalog.FamilyMemberClass(h.StageRead(), family.Method, d.Family, d.Left, d.Right, d.Number, true, class)
-				if class != nil && family.Method == 783 && (d.Number == 1 || d.Number == 2 || d.Number == 5 || d.Number == 6 || d.Number == 7) {
+				if class != nil && physical == catalog.GistMethod && (d.Number == 1 || d.Number == 2 || d.Number == 5 || d.Number == 6 || d.Number == 7) {
 					d.OwningClass = class.Address().ObjectID
 				}
 			}

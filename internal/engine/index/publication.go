@@ -563,7 +563,7 @@ func SameIndexKeySemantics(a, b *catalog.Relation) bool {
 }
 
 func sameIndexDefinitionSemantics(a, b *catalog.IndexDefinition) bool {
-	return a != nil && b != nil && a.Method == b.Method && a.Parent == b.Parent && slices.Equal(a.Keys, b.Keys) && slices.Equal(a.Include, b.Include) && slices.Equal(a.Exclusion, b.Exclusion) && a.Unique == b.Unique && a.NullsNotDistinct == b.NullsNotDistinct && a.Predicate == b.Predicate
+	return a != nil && b != nil && a.Method == b.Method && a.MethodIdentity() == b.MethodIdentity() && a.Parent == b.Parent && slices.Equal(a.Keys, b.Keys) && slices.Equal(a.Include, b.Include) && slices.Equal(a.Exclusion, b.Exclusion) && a.Unique == b.Unique && a.NullsNotDistinct == b.NullsNotDistinct && a.Predicate == b.Predicate
 }
 
 // Only changed roots require a storage fence. Unchanged siblings may have

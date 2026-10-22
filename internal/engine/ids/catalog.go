@@ -50,6 +50,7 @@ const (
 	OperatorFamilyClassID        OID = 2753
 	AccessMethodOperatorClassID  OID = 2602
 	AccessMethodProcedureClassID OID = 2603
+	AccessMethodClassID          OID = 2601
 	LargeObjectClassID           OID = 2995
 	PGCatalogNamespaceOID        OID = 11
 	PGToastNamespaceOID          OID = 99
@@ -80,4 +81,5 @@ const (
 	OperatorFamilyOperatorObject
 	OperatorFamilySupportObject
 	OperatorClassObject
+	AccessMethodObject
 )

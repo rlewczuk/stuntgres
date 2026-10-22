@@ -8,8 +8,11 @@ import (
 )
 
 func TestOperatorClassCatalogMethodIdentity(t *testing.T) {
-	// This private fact input never registers a SQL-visible access method.
-	facts := []AccessMethod{{OID: 403, Name: "btree", Kind: "i", Implementation: BtreeMethod}, {OID: 90000, Name: "other_btree", Kind: "i", Implementation: BtreeMethod}}
+	// Both descriptors use the same live authority as builtin methods.
+	facts := []*AccessMethod{
+		{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 403}, ObjectName: "btree", ObjectRevision: 1, Native: BtreeAccessMethod, Handler: 330},
+		{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 90000}, ObjectName: "other_btree", ObjectRevision: 1, Native: BtreeAccessMethod, Handler: 330},
+	}
 	state := NewState(1)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}
 	namespace := &Namespace{ObjectAddress: ns, ObjectName: "pg_catalog", ObjectRevision: 1}
@@ -17,8 +20,11 @@ func TestOperatorClassCatalogMethodIdentity(t *testing.T) {
 	state.BindName(DescriptorNameKey(namespace), ns)
 	candidate := NewCandidate(NewRead(nil, state))
 	for i, fact := range facts {
-		family := &OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: ns, ObjectName: "same_family", ObjectRevision: 1, Method: fact.OID}
-		class := &OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(92000 + i)}, ObjectNamespace: ns, ObjectName: "same_class", ObjectRevision: 1, Method: fact.OID, Family: family.Address().ObjectID, InputType: 23, Default: true}
+		if err := candidate.Create(fact); err != nil {
+			t.Fatal(err)
+		}
+		family := &OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: ns, ObjectName: "same_family", ObjectRevision: 1, Method: fact.Address().ObjectID}
+		class := &OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: ids.OID(92000 + i)}, ObjectNamespace: ns, ObjectName: "same_class", ObjectRevision: 1, Method: fact.Address().ObjectID, Family: family.Address().ObjectID, InputType: 23, Default: true}
 		for _, d := range []Descriptor{family, class} {
 			if err := candidate.Create(d); err != nil {
 				t.Fatal(err)
@@ -28,19 +34,19 @@ func TestOperatorClassCatalogMethodIdentity(t *testing.T) {
 	read := NewRead(nil, candidate.State())
 	var retained [2]IndexDefinition
 	for i, fact := range facts {
-		class, ok := read.LookupOperatorClass(ns, fact.OID, "same_class")
-		if !ok || class.Method != fact.OID {
+		class, ok := read.LookupOperatorClass(ns, fact.Address().ObjectID, "same_class")
+		if !ok || class.Method != fact.Address().ObjectID {
 			t.Fatal("name lost exact method", class)
 		}
-		def, ok := read.DefaultOperatorClass(fact.OID, 23)
+		def, ok := read.DefaultOperatorClass(fact.Address().ObjectID, 23)
 		if !ok || def != class {
 			t.Fatal("default lost exact method", def)
 		}
 		c, ok := read.IndexClassForMethod(class.Address().ObjectID, fact)
-		if !ok || c.MethodOID() != uint32(fact.OID) || c.FamilyOID() != uint32(class.Family) {
+		if !ok || c.MethodOID() != uint32(fact.Address().ObjectID) || c.FamilyOID() != uint32(class.Family) {
 			t.Fatal("construction lost exact identity", c)
 		}
-		retained[i] = IndexDefinition{Method: fact.Implementation, MethodOID: fact.OID, Keys: []IndexKey{{Class: c}}}
+		retained[i] = IndexDefinition{Method: BtreeMethod, MethodOID: fact.Address().ObjectID, Keys: []IndexKey{{Class: c}}}
 	}
 	if retained[0].Method != retained[1].Method || retained[0].MethodIdentity() == retained[1].MethodIdentity() || retained[0].Keys[0].Class.SameInferenceIdentity(retained[1].Keys[0].Class) {
 		t.Fatal("physical implementation collapsed exact identity")

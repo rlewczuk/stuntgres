@@ -42,7 +42,7 @@ func operatorClassSeedDumpStatements(ctx context.Context, view catalog.Read, rol
 		}
 		fixed, _ := catalog.OperatorClassSeedName(class.Address().ObjectID)
 		from := initial + "." + catalog.QuoteIdentifier(fixed)
-		using := " USING " + familyMethodName(class.Method)
+		using := " USING " + catalog.Identifier(familyMethodName(view, class.Method))
 		var final string
 		if class.Name() != fixed || class.Namespace() != namespace.Address() {
 			base := "__stuntgres_class_seed_" + strconv.FormatUint(uint64(class.Address().ObjectID), 10)

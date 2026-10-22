@@ -60,6 +60,17 @@ func TestReferenceIndexPropertiesAccessMethods(t *testing.T) {
 			{783, []any{false, false, true, true, true}}, {2742, []any{false, false, true, false, false}},
 			{4000, []any{false, false, false, true, true}}, {3580, []any{false, false, true, false, false}},
 		} {
+			// Native exposes no method descriptor for these unsupported AMs.
+			// Preserve the released PostgreSQL vectors independently; native
+			// inquiry must agree with its actual catalog rather than static OIDs.
+			if tc.oid == 2742 || tc.oid == 4000 || tc.oid == 3580 {
+				n := int64(1)
+				if !b.PG {
+					tc.values = []any{nil, nil, nil, nil, nil}
+					n = 0
+				}
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, amCount(`SELECT count(*) FROM pg_am WHERE oid=$1::oid`, n, tc.oid))
+			}
 			calls := make([]string, len(props))
 			for i, prop := range props {
 				calls[i] = fmt.Sprintf("pg_indexam_has_property(%d,'%s') AS %s", tc.oid, prop, prop)

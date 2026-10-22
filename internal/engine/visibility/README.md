@@ -25,9 +25,17 @@ standard library. It never imports the root engine. Layering is in
   read, captured storage `Generation`s, end roots, own writes and the
   private deletion overlay. `Root` is the repeatable-read retention of one
   relation.
-- **The private deletion overlay:** `PrivateDeletes` with `DeleteCandidate`
-  rows, and `LiveVersion`, the version-liveness rule over a frontier, end
-  markers and the overlay.
+- **The ordinary heap operation authority:** zero-state concrete
+  `HeapOperations` owns the single `LiveVersion` implementation over real
+  `storage.RowVersion`, frontier, end roots and `PrivateDeletes` overlays.
+  `ResolveTableAccess` selects it only for the finite Heap capability.
+  `ResolveHeapAccess` binds from an actual captured method descriptor and its
+  installed, provider-validated handler3. It does not infer registration from
+  a signature or marker. Default `visibility.LiveVersion` remains the legitimate
+  ordinary-heap API and forwards to this same implementation.
+  Source capture/reselection and catalog replacement bind builtin heap2 once
+  outside their row loops, then pass concrete operations to `exec.SelectQuerySource`.
+  This does not add custom TABLE selection, storage types or callback dispatch.
 - **Repeatable-read fetch conflicts:** `RepeatableConflict` (`repeatable.go`),
   the 40001 "concurrent update"/"concurrent delete" rule for a row fetched
   under a stable snapshot, over its frontier and the end markers. The DML
@@ -141,6 +149,14 @@ Package seam tests:
 ```sh
 make check RACE=1 RUN='^Test(Registry|NextFullXID|LiveVersion|SafeSnapshot|View|SerializableGraph|SerializablePrecommit)'
 make check RUN='^TestWriteSetMerges'
+```
+
+Registered heap authority and real source-selection regression:
+
+```sh
+make check RUN='^TestAccessMethodHeapOperations$'
+make check RUN='^TestAccessMethodHeapOperations$' RACE=1
+make check RUN='^TestLiveVersionOverlayAndEnds$'
 ```
 
 Engine tests exercise the registry through sessions, publication and SQL

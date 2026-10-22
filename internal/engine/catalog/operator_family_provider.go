@@ -14,7 +14,8 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 	}
 	switch d := d.(type) {
 	case *OperatorFamily:
-		if _, ok := v.Namespace(d.Namespace()); !ok || d.Name() == "" || d.Method != 403 && d.Method != 405 && d.Method != 783 {
+		method, exists := v.AccessMethod(d.Method)
+		if _, ok := v.Namespace(d.Namespace()); !ok || d.Name() == "" || !exists || method.MethodKind() != "i" {
 			return fmt.Errorf("stuntgres: invalid operator family")
 		}
 	case *OperatorFamilyOperator:
@@ -22,7 +23,8 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 		if !ok || f.Method != d.Method || d.Left == 0 || d.Right == 0 || d.Operator == 0 || d.Number <= 0 || d.Purpose != 's' && d.Purpose != 'o' || d.Purpose == 's' && d.SortFamily != 0 {
 			return fmt.Errorf("stuntgres: invalid operator family operator")
 		}
-		if p.Class != ids.AccessMethodOperatorClassID || f.Method == 403 && d.Number > 5 || f.Method == 405 && d.Number > 1 || d.Purpose == 'o' && (f.Method != 783 || d.SortFamily == 0) {
+		method, exists := v.AccessMethod(f.Method)
+		if !exists || p.Class != ids.AccessMethodOperatorClassID || method.Native == BtreeAccessMethod && d.Number > 5 || method.Native == HashAccessMethod && d.Number > 1 || d.Purpose == 'o' && (method.Native != GistAccessMethod || d.SortFamily == 0) {
 			return fmt.Errorf("stuntgres: invalid family operator method")
 		}
 		if OperatorFamilySeeded(d) {
@@ -47,10 +49,14 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 		if !ok || p.Class != ids.AccessMethodProcedureClassID || d.Left == 0 || d.Right == 0 || d.Function == 0 || d.Number <= 0 {
 			return fmt.Errorf("stuntgres: invalid operator family support")
 		}
+		method, exists := v.AccessMethod(family.Method)
+		if !exists {
+			return fmt.Errorf("stuntgres: invalid family method")
+		}
 		maximum := int16(12)
-		if family.Method == 403 {
+		if method.Native == BtreeAccessMethod {
 			maximum = 6
-		} else if family.Method == 405 {
+		} else if method.Native == HashAccessMethod {
 			maximum = 3
 		}
 		if d.Number > maximum {

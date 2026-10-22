@@ -105,7 +105,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 			if source.Committed != nil || source.Own != nil || source.Visible != nil || source.HashIndexes != nil || source.PartialMask != nil {
 				t.Fatal("denied target captured physical prefixes or live selection")
 			}
-			selected, err := exec.SelectQuerySource(op.Ctx, source, data.FrontierAt(address), committedEnd, privateEnd)
+			selected, err := exec.SelectQuerySource(op.Ctx, source, data.FrontierAt(address), committedEnd, privateEnd, accessMethodHeapOperationsUnit(t, data.Catalog))
 			if err != nil || selected != source || source.Visible != nil || source.Committed != nil || source.Own != nil {
 				t.Fatal("hidden history revived denied target", err)
 			}

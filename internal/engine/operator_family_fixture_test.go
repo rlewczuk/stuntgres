@@ -17,7 +17,7 @@ func operatorFamilyTestRead() catalog.Read { return operatorFamilyUnitSeed() }
 func operatorFamilyFixtureState(state *catalog.State) *catalog.State {
 	for address, descriptor := range operatorFamilyTestRead().Descriptors() {
 		switch address.ClassID {
-		case ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.ProcedureClassID, ids.OperatorClassID:
+		case ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.ProcedureClassID, ids.OperatorClassID:
 			state.SetDescriptor(address, descriptor)
 			state.BindName(catalog.DescriptorNameKey(descriptor), address)
 		}

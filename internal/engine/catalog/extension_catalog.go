@@ -59,6 +59,7 @@ type Procedure struct {
 	Implementation ExtensionImplementation
 	Aggregate      *OwnedAggregate
 	Conversion     sqltype.EncodingConversionHandler
+	AccessMethod   NativeAccessMethod
 	ACL            authorization.ACLValue
 	Dictionary     ids.ObjectAddress
 	Foreign        *ForeignProcedure

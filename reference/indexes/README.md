@@ -6,6 +6,80 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Access-method definitions
+
+The untagged `TestReferenceAccessMethodDefinitions`, `Diagnostics`,
+`QuotedDiagnostics`, `BtreeSmoke`, `Dependencies`, `Controls` and `Capabilities`
+definitions share the same native-first backend
+body. The temporary PG discovery filter is removed. Initial pinned PG18.6
+discovery and native RED were root-observed before production implementation;
+implementation proof remains root-owned, not a passing claim here.
+
+The contract includes exact complete diagnostics/stages, genuine INDEX/TABLE
+handlers, effect-free Prepare, global/quoted names and method-specific classes.
+Quoted diagnostic names preserve literal backslashes and embedded double quotes,
+matching PostgreSQL's primary message rather than Go string-literal escaping.
+Both missing-default index errors and missing `pg_get_object_address` lookups
+before creation and after DROP retain exact primary messages and execution phases.
+The mandatory B-tree smoke first fails missing-default42704, creates a genuine
+custom-method default class/family, builds over old rows, then maintains inserted
+rows. Expected order is0,1,2,2,2,NULL,NULL; equality2 count3 and NULL count2.
+SQL relam/class/family/amop references retain the custom method identity.
+Independent structural units inspect actual support351 and sorted live
+row/version roots4→7; query results do not claim optimizer index selection.
+
+Empty family/class trees auto-drop silently. A real index blocks RESTRICT with
+index→class detail; CASCADE reports only the actual normal consumer and preserves
+the parent table/data. Methods are database-global: bounded before/after admin
+cleanup explicitly drops each scenario's names after borrowers close, rather
+than relying on public-schema reset.
+
+Controls have explicit native Dump/Reset/Restore phases, exact quoted INDEX and
+TABLE declarations, actual native-emitted-byte PG replay, foreign destination/
+retained TEMP, eager Rows/held recapture and atomic canceled/late-failed restore.
+No reconstructed script substitutes for emitted bytes.
+
+Each selected command has an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceAccessMethod(Definitions|Diagnostics|QuotedDiagnostics)$'
+make check RUN='^TestReferenceAccessMethod(Definitions|Diagnostics|QuotedDiagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceAccessMethodBtreeSmoke$'
+make check RUN='^TestReferenceAccessMethodBtreeSmoke$' REFERENCE=1
+make check RUN='^TestReferenceAccessMethod(Dependencies|Controls)$'
+make check RUN='^TestReferenceAccessMethod(Dependencies|Controls)$' REFERENCE=1
+make check RUN='^TestAccessMethod(Descriptor|HandlerRegistration|IndexRouting|DropClosure|CaptureReplacement|Property|Grammar|OwnerlessACLValidation|PrincipalRemap|HeapOperations|ExclusionDescriptorPrecedence)$'
+make check RUN='^TestAccessMethod(IndexRouting|DropClosure|CaptureReplacement|HeapOperations|ExclusionDescriptorPrecedence)$' RACE=1
+```
+
+Also repeat the unchanged supported pg_am inventory/linkage/held/control and
+operator-class/family families documented here and in the
+[design](../../docs/design/PG18-INDEX-ACCESS-METHOD.md). The intentionally corrected
+existing `TestReferenceIndexPropertiesAccessMethods` asserts native NULL for all
+five properties of absent2742/4000/3580 and native pg_am count0, retaining exact
+PG vectors/count1 independently.403/405/783 expectations are unchanged.
+Run that definition plus NullAndInvalid/NativeControls in both modes; expression
+snapshot consumers also need selected Consumers/FeatureSmoke and diagnostics/
+signature coverage.
+
+TYPE TABLE definitions do not add custom TABLE selection/DML or arbitrary C-ABI
+loading. Valid unregistered native handler0A000 and native TABLE-as-INDEX55000
+are explicit boundaries; PG18.6 TABLE-as-INDEX independently expectsXX000.
+
+`TestReferenceAccessMethodCapabilities` keeps custom hash/GiST SQL identity in
+direct/prepared capability diagnostics without inventing custom defaults.
+Classless GiST ordering options retain the existing native early0A000 boundary;
+PostgreSQL independently expects42704 for the missing integer default class,
+with its exact default-class Hint. Root observed that precedence for both DESC
+and NULLS during pinned-oracle discovery. Both retain the custom method name.
+The temporary PG-only filter is removed; native RED and final dual-mode proof
+use the same complete shared definition.
+
+```sh
+make check RUN='^TestReferenceAccessMethodCapabilities$' REFERENCE=1
+make check RUN='^TestReferenceAccessMethodCapabilities$'
+```
+
 ### Operator-class definitions
 
 The untagged `TestReferenceOperatorClass` definitions specify real user

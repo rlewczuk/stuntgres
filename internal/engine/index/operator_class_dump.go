@@ -125,7 +125,7 @@ func operatorClassDumpStatement(ctx context.Context, p dump.Presenter, view cata
 		return dump.Statement{}, err
 	}
 	name := classSQLName(view, class)
-	using := " USING " + familyMethodName(class.Method)
+	using := " USING " + catalog.Identifier(familyMethodName(view, class.Method))
 	text := "CREATE OPERATOR CLASS " + name
 	if class.Default {
 		text += " DEFAULT"

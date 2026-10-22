@@ -25,6 +25,9 @@ func (ProcedureProvider) ClassID() ids.OID { return ids.ProcedureClassID }
 func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Procedure)
 	if ok && d.Implementation != nil {
+		if d.AccessMethod != catalog.NoAccessMethod {
+			return extension.InvalidProviderDescriptor()
+		}
 		return extension.CatalogProvider{ids.ProcedureClassID}.Validate(v, d)
 	}
 	invalid := extension.InvalidProviderDescriptor
@@ -33,6 +36,14 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 	}
 	if !ok {
 		return invalid()
+	}
+	if d.AccessMethod != catalog.NoAccessMethod {
+		identity, known := catalog.BuiltinRoutineIdentityByOID(d.Address().ObjectID)
+		result, _ := catalog.BuiltinRoutineResultByOID(d.Address().ObjectID)
+		if !known || catalog.NativeHandler(d.Address().ObjectID) != d.AccessMethod || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.Name() != identity.Name || d.Signature != identity.Signature || d.Result != result || d.RoutineKind != catalog.FunctionRoutine || d.Volatility != expr.Volatile || !d.Strict || d.Builtin != nil || d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 {
+			return invalid()
+		}
+		return nil
 	}
 	switch {
 	case d.SQL != nil:

@@ -992,8 +992,8 @@ See [native limits](docs/DIALECT.md#text-slicing) and
 
 `pg_catalog.pg_am` exposes exact PostgreSQL access-method identities and the
 four documented fields, including genuine REGPROC handler values. The complete
-native inventory is heap2/handler3, btree403/330, hash405/331 and bounded logical
-GiST783/332. It is PUBLIC-readable, independent of user-index creation, and
+bootstrap inventory is heap2/handler3, btree403/330, hash405/331 and bounded logical
+GiST783/332. User-defined methods extend that captured inventory. It is PUBLIC-readable and
 recreated by native Reset/Restore. Ordinary-role writes preserve PostgreSQL
 permission diagnostics; native superuser writes remain unsupported.
 These are implemented logical methods, not physical PostgreSQL heap or index
@@ -1001,6 +1001,18 @@ algorithms. GIN, SP-GiST and BRIN are not advertised; handler metadata does not
 make handlers callable.
 See [native limits](docs/DIALECT.md#pg_am-supported-access-methods) and
 [selected proof and feature smoke](reference/catalogs/README.md#pg_am-selected-proof).
+
+Change note: `CREATE/DROP ACCESS METHOD` supports database-global INDEX and TABLE
+definitions backed by genuine registered native handlers. Custom B-tree methods
+retain their own SQL identity and require a genuine method-specific operator
+class before index CREATE/INSERT maintenance. Catalogs, dependency-aware drop
+and logical Dump/Restore preserve that identity. TABLE definitions select the
+existing heap authority but do not add custom TABLE selection or DML routes.
+Arbitrary PostgreSQL C-ABI/shared-library handlers remain external; a valid but
+unregistered native handler returns an explicit0A000 capability boundary.
+See [the design](docs/design/PG18-INDEX-ACCESS-METHOD.md) and
+[selected proof](reference/indexes/README.md#access-method-definitions).
+
 
 ## Operator-class catalog — change note
 

@@ -178,3 +178,35 @@ func TestOperatorFamilyMemberOwnershipValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestAccessMethodOwnerlessACLValidation(t *testing.T) {
+	f := newAccessFixture(t)
+	other := newAccessFixture(t)
+	roles := f.view(t, "postgres").Roles
+	method := &catalog.AccessMethod{
+		ObjectAddress:  ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: 90000},
+		ObjectRevision: 1, ObjectName: "ownerless_method",
+		Handler: 330, Native: catalog.BtreeAccessMethod,
+	}
+	owner, acl, columns := DescriptorACL(method)
+	if owner != (authorization.PrincipalRef{}) || acl.Explicit || len(acl.Entries) != 0 || len(columns) != 0 {
+		t.Fatal("global access method acquired permission state", method)
+	}
+	if err := ValidateACL(roles, method); err != nil {
+		t.Fatal("ownerless access method rejected", err)
+	}
+	for _, principal := range []authorization.PrincipalRef{f.bootstrap, other.bootstrap} {
+		var dependencies []RoleDependency
+		if DescriptorRoleDependencies(method, principal, &dependencies) || len(dependencies) != 0 {
+			t.Fatal("global access method acquired role dependencies", dependencies)
+		}
+	}
+	// The ownerless classification does not relax any owning descriptor's
+	// zero/foreign-principal checks. Structural method validation remains the
+	// separate catalog provider's responsibility.
+	for _, principal := range []authorization.PrincipalRef{{}, other.bootstrap} {
+		if err := ValidateACL(roles, &catalog.OperatorFamily{Owner: principal}); err == nil {
+			t.Fatal("owning descriptor accepted invalid principal", principal)
+		}
+	}
+}

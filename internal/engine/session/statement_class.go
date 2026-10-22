@@ -149,6 +149,10 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "ALTER OPERATOR FAMILY"
 	case *parser.DropOperatorFamily:
 		return "DROP OPERATOR FAMILY"
+	case *parser.CreateAccessMethod:
+		return "CREATE ACCESS METHOD"
+	case *parser.DropAccessMethod:
+		return "DROP ACCESS METHOD"
 	case *parser.CreateOperatorClass:
 		return "CREATE OPERATOR CLASS"
 	case *parser.AlterOperatorClass:
@@ -223,6 +227,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
 	case *parser.CreateFunction, *parser.DropRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
+		return true
+	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		return true
 	case *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
 		return true

@@ -206,7 +206,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 			source.Close()
 			t.Fatal("source dropped capture birth provenance")
 		}
-		source, err = exec.SelectQuerySource(context.Background(), source, data.FrontierAt(test.ref.Address), data.Ends[test.ref.Address], data.Deleted[test.ref.Address])
+		source, err = exec.SelectQuerySource(context.Background(), source, data.FrontierAt(test.ref.Address), data.Ends[test.ref.Address], data.Deleted[test.ref.Address], accessMethodHeapOperationsUnit(t, data.Catalog))
 		if err != nil {
 			t.Fatal(err)
 		}

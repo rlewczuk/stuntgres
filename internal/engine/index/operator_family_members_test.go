@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -70,6 +71,12 @@ func familyUnitDrop(function bool, number string) parser.OperatorFamilyItem {
 
 func TestOperatorFamilyMemberPhases(t *testing.T) {
 	state := catalog.NewState(1)
+	catalog.InstallBuiltinAccessMethods(state)
+	handlers := routine.NativeAccessMethodProcedures(authorization.PrincipalRef{})
+	for i := range handlers {
+		state.SetDescriptor(handlers[i].Address(), &handlers[i])
+		state.BindName(catalog.DescriptorNameKey(&handlers[i]), handlers[i].Address())
+	}
 	catalog.InstallBuiltinFamilies(state, authorization.PrincipalRef{})
 	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 90001}, Method: 403, ObjectName: "probe"}
 	state.SetDescriptor(family.Address(), family)

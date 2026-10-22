@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/visibility"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -282,6 +283,14 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		if d.(*catalog.Conversion).Seeded() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
+	case *catalog.AccessMethod:
+		method := d.(*catalog.AccessMethod)
+		if catalog.AccessMethodSeeded(method) {
+			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
+		}
+		if err := (catalog.AccessMethodProvider{}).Validate(provider.base, d); err != nil {
+			return err
+		}
 	case *catalog.OperatorClass:
 		if catalog.OperatorClassSeeded(d) {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
@@ -512,6 +521,10 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			return ChangeSet{}, catalog.Conflict{}
 		}
 		if !table.TypedObservationValid(s.typed, e.catalog.read(current)) {
+			e.mu.Unlock()
+			return ChangeSet{}, catalog.Conflict{}
+		}
+		if !accessMethodStageCurrent(s, e.catalog.read(current)) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -1096,11 +1109,15 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	var indexes *index.Snapshot
 	copyRows := func(owner *Engine) error {
 		source, frontier := owner.storage.Relations, owner.visibility.CommitSeq()
+		heap, err := visibility.ResolveHeapAccess(owner.catalog.read(owner.catalog.state), 2)
+		if err != nil {
+			return err
+		}
 		for _, a := range relationAddresses {
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
 			}
-			selected, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: source[a].Versions}, frontier, source[a].Ends, nil)
+			selected, err := exec.SelectQuerySource(ctx, &exec.Source{Committed: source[a].Versions}, frontier, source[a].Ends, nil, heap)
 			if err != nil {
 				return err
 			}
@@ -1111,7 +1128,6 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			selected.Close()
 			relations[a] = &storage.Relation{Versions: versions}
 		}
-		var err error
 		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.storage.IndexRoots, frontier)
 		return err
 	}

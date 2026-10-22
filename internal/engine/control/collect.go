@@ -101,6 +101,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"parameter", isDumpParameter, collectParameterDump},
 	{"tablespace", isDumpTablespace, collectTablespaceDump},
 	{"large object", isDumpLargeObject, collectLargeObjectDump},
+	{"access method", isDumpAccessMethod, collectAccessMethodDump},
 	{"operator family", isDumpOperatorFamily, collectOperatorFamilyDump},
 	{"operator", isDumpOperator, collectOperatorDump},
 	{"procedure", isDumpProcedure, collectProcedureDump},
@@ -260,6 +261,15 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		}
 		return nil
 	}
+	if t.AccessMethod != catalog.NoAccessMethod {
+		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
+			return err
+		}
+		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
+			return fmt.Errorf("stuntgres: dump cannot serialize altered native access method handler authority")
+		}
+		return nil
+	}
 	if t.Conversion.Name() != "" {
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
@@ -362,6 +372,18 @@ func collectConversionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 	}
 	if !t.Seeded() {
 		c.Conversions = append(c.Conversions, t)
+	}
+	return nil
+}
+
+func isDumpAccessMethod(d catalog.Descriptor) bool { _, ok := d.(*catalog.AccessMethod); return ok }
+func collectAccessMethodDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
+	method := d.(*catalog.AccessMethod)
+	if err := (catalog.AccessMethodProvider{}).Validate(c.CatalogView, method); err != nil {
+		return err
+	}
+	if !catalog.AccessMethodSeeded(method) {
+		c.AccessMethods = append(c.AccessMethods, method)
 	}
 	return nil
 }

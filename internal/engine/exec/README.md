@@ -20,6 +20,13 @@ It imports `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`,
   (an indexed producer stage), `FinalRows`, `Authority` (the borrowed
   statement authority a held cursor keeps), `Leaf`, `LockContext`,
   inheritance segments and physical rows.
+  `SelectQuerySource` takes concrete `visibility.HeapOperations` explicitly.
+  Captured-source/inheritance/reselection owners resolve it once from their
+  actual captured builtin heap2 descriptor and genuine handler3; catalog
+  replacement passes the owner engine's resolved authority. Direct-vector
+  callers also pass real resolved operations, with no nil-View fallback.
+  The row loop calls the concrete liveness implementation, not a catalog
+  lookup, callback or alternate visibility algorithm.
 - **Openers and producers** (`query*.go`, `window*_query.go`,
   `aggregate_query.go`, `view_producer.go`): `OpenNode` dispatches every
   plan node; `Finalize` and `FinalizeSelect` (with the parallel finalizer)
@@ -209,6 +216,17 @@ hooks, and the ordered-aggregate sort cancellation):
 
 ```sh
 make check RUN='^(TestMissingPreparationFailsLoudly|TestInstallPreparation|TestSortOrderedAggregateCancellation)$'
+```
+
+Heap source selection and migrated direct-vector/denied/prepared captures retain
+their existing independent assertions and bind actual bootstrap operations:
+
+```sh
+make check RUN='^TestAccessMethodHeapOperations$'
+make check RUN='^TestMergeUpdateCapture(BaseOverlay|Cancellation)$'
+make check RUN='^TestRLSBase(Decision|DeniedTargetHistory)$'
+make check RUN='^TestPrepared(PopulatedCompetingCompletionAndRetry|CompetingGIDDisposesWholeLoser|LateCancellationAndWaiterObservePublication)$'
+make check RUN='^(TestPreparedSerializableCandidateRetainsAdmittedSnapshot|TestTruncateSnapshotsBirthFilter)$'
 ```
 
 Routine call admission is pinned by engine units that build their

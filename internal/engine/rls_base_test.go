@@ -124,7 +124,7 @@ func TestRLSBaseDecision(t *testing.T) {
 		if stage.Source != source {
 			t.Fatal("denied input lost its owned source")
 		}
-		selected, err := exec.SelectQuerySource(op.Ctx, source, 0, nil, nil)
+		selected, err := exec.SelectQuerySource(op.Ctx, source, 0, nil, nil, accessMethodHeapOperationsUnit(t, source.View.Data().Catalog))
 		if err != nil || selected != source || selected.Visible != nil {
 			t.Fatal("live selection revived denied input", err)
 		}

@@ -497,6 +497,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		if stmt.(*parser.AlterOwner).Kind == "domain" {
 			return s.engine().describeOperation(s, stmt)
 		}
+	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
+		return s.engine().describeOperation(s, stmt)
 	case *parser.CreateFunction, *parser.DropRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		// These utilities have no result signature. Admission, read-only
 		// precedence and the explicit-transaction boundary belong to Execute.

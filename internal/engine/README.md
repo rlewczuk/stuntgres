@@ -59,10 +59,51 @@ expression/plan reference walking in `expression_references.go`; those are not
 producer ownership. Engine code names the moved types directly
 (`pgcatalog.Input`, `pgcatalog.Runtime`, `pgcatalog.DependEdge`, ...).
 
+## Registered access-method publication
+
+Access-method descriptors and finite native handler associations are seeded in
+the ordinary catalog before family/class validation. Global method utilities
+use the existing schema stage and dependency closure, not a parallel registry.
+`access_method.go` fences outgoing method/handler reads and newly incoming
+consumers at publication under Engine.mu. Physical index mechanics remain
+separate from exact SQL MethodOID. Native Heap resolves through captured method/
+handler validation to concrete `visibility.HeapOperations`; ordinary source
+selection consumes its real existing liveness rule without custom TABLE syntax.
+
 ## Testing
 
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
+
+### Access methods
+
+```sh
+make check RUN='^TestAccessMethod(Descriptor|HandlerRegistration|IndexRouting|DropClosure|CaptureReplacement)$'
+make check RUN='^TestAccessMethod(IndexRouting|DropClosure|CaptureReplacement)$' RACE=1
+make check RUN='^TestAccessMethod(HeapOperations|ExclusionDescriptorPrecedence)$'
+make check RUN='^TestAccessMethod(HeapOperations|ExclusionDescriptorPrecedence)$' RACE=1
+```
+
+These direct structural units inspect the installed capability/provider,
+separate method-owned defaults, actual support351, sorted live root membership
+4→7 and immutable predecessor roots, shared drop closure, owned captures and
+typed replacement remapping with foreign destination root rebuild/maintenance.
+HeapOperations proves actual ordinary/registered heap liveness, concrete source
+selection, immutable borrowed roots and forged-handler rejection.
+ExclusionDescriptorPrecedence proves registered btree methods named gin/brin win
+over absent-builtin spelling, while unresolved and TABLE-kind boundaries remain.
+Public SQL/API proof and the runtime smoke contract belong to
+[reference/indexes](../../reference/indexes/README.md#access-method-definitions).
+Root owns generation/formatting/proof; these commands are not claimed passed.
+
+Reduced structural fixtures must retain real access-method descriptors and
+registered native handler Procedures alongside their family/class/support seeds.
+The shared `operatorFamilyFixtureState` copies `AccessMethodClassID` from the
+ordinary immutable engine bootstrap; package-local predicate/pruning/member/
+membership fixtures use the normal method and handler seed constructors. Missing
+fixture authority is not repaired by production OID/name fallbacks.
+
+### Earthdistance
 
 Earthdistance installs an ordinary cube-based domain and three real CHECK records.
 `extension_earth.go` attaches bounded internal recipes under the catalog mutex;

@@ -47,7 +47,7 @@ func BindHashIndex(view catalog.Read, parent *catalog.Relation, d *catalog.Index
 		var exists bool
 		class, exists = view.DefaultIndexClass(d.MethodIdentity(), usage.Type)
 		if !exists {
-			return b, DefaultClassError(usage.Type.DiagnosticName(), d.Method)
+			return b, DefaultClassError(usage.Type.DiagnosticName(), familyMethodName(view, d.MethodIdentity()))
 		}
 	}
 	if class.MethodOID() != uint32(d.MethodIdentity()) {

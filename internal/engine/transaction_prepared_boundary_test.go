@@ -406,6 +406,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 
 func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransaction, parent ids.ObjectAddress) {
 	t.Helper()
+	heap := accessMethodHeapOperationsUnit(t, e.CatalogRead())
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.prepared[entry.gid] != nil || e.visibility.CommitSeq() != entry.frontier+1 {
@@ -416,7 +417,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 		t.Fatal("catalogue shape did not publish")
 	}
 	store := e.storage.Relations[parent]
-	selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil)
+	selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil, heap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,9 +578,10 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	if e.locks.TransactionTicket(refs[winner.owner]) != nil {
 		t.Fatal("winner resources survived outcome")
 	}
+	heap := accessMethodHeapOperationsUnit(t, e.CatalogRead())
 	for address := range entry.writes {
 		store := e.storage.Relations[address]
-		selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil)
+		selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil, heap)
 		if err != nil {
 			t.Fatal(err)
 		}
