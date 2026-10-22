@@ -109,27 +109,28 @@ type Codec interface {
 
 // Descriptor has no mutable or execution-local state. Catalogs own generations.
 type Descriptor struct {
-	id                            ID
-	name, sql, database           string
-	base                          Usage
-	ownDomainChecks, domainChecks bool
+	id                              ID
+	name, sql, database             string
+	base                            Usage
+	ownDomainChecks, domainChecks   bool
 	ownDomainNotNull, domainNotNull bool
-	element                       *Descriptor
-	associatedArray               ID
-	delimiter                     byte
-	enum                          *enumDefinition
-	queryInt                      bool
-	cube                          bool
-	composite                     *compositeDefinition
-	rangeSubtype                  *Descriptor
-	rangeBoolean                  *Descriptor
-	multirangeRange               *Descriptor
-	multirangeCompanion           *Descriptor
-	networkCIDR                   *Descriptor
-	networkMasklen                *Descriptor
-	lookupOnly                    bool
-	catalogNullOwner              *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
-	namespace                     string
+	element                         *Descriptor
+	associatedArray                 ID
+	delimiter                       byte
+	enum                            *enumDefinition
+	queryInt                        bool
+	cube                            bool
+	composite                       *compositeDefinition
+	rangeSubtype                    *Descriptor
+	rangeBoolean                    *Descriptor
+	multirangeRange                 *Descriptor
+	multirangeCompanion             *Descriptor
+	networkCIDR                     *Descriptor
+	networkMasklen                  *Descriptor
+	networkBoolean                  *Descriptor
+	lookupOnly                      bool
+	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
+	namespace                       string
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
@@ -292,18 +293,21 @@ func Builtins() []*Descriptor {
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
 	}
-	var networkCIDR, networkMasklen *Descriptor
+	var networkCIDR, networkMasklen, networkBoolean *Descriptor
 	for _, d := range types {
 		switch d.id {
 		case Cidr:
 			networkCIDR = d
 		case Int4:
 			networkMasklen = d
+		case Bool:
+			networkBoolean = d
 		}
 	}
 	for _, d := range types {
 		if IsNetwork(d.id) {
 			d.networkCIDR, d.networkMasklen = networkCIDR, networkMasklen
+			d.networkBoolean = networkBoolean
 		}
 	}
 	for _, family := range []struct {

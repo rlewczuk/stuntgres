@@ -1973,8 +1973,16 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Both accept -1 as full width and reject other invalid lengths with22023.
   Merge requires the same address family. These strict immutable signatures
   share ordinary metadata, exact overload ACLs and symbolic stored replay.
-  This adds no INET XOR/shifts, containment, network arrays, grouping/hash
-  providers or OS networking.
+  INET `<<`, `<<=`, `>>`, `>>=` and `&&` compare network bits only and return
+  BOOL: strict containment excludes equal prefixes, inclusive containment
+  includes them, and overlap accepts either direction. CIDR promotes to INET;
+  mixed families return false and NULL returns typed BOOL NULL. These operators
+  and their original `pg_catalog.network_sub`, `network_subeq`, `network_sup`,
+  `network_supeq` and `network_overlap` routines share exact EXECUTE authority,
+  dependencies and symbolic stored replay. Unsupported known signatures fail
+  42883; malformed literals/binds retain the existing22P02 input diagnostics.
+  This adds no INET XOR/integer shifts, network arrays, grouping/hash providers
+  or OS networking.
 - XID/CID/XID8 are distinct scalar identifiers, not integer/OID aliases or
   generated system attributes. XID supports equality/inequality (including INT4
   only on its right); CID only equality; XID8 unsigned comparisons/order.

@@ -106,3 +106,10 @@ SEARCH-bearing expandability is deferred to binder analysis/rewrite boundaries;
 the same validators retain CYCLE-only early errors and identity-aware nested WITH
 shadowing. Ordinary recursion and subquery/count restrictions remain early.
 Public SQL diagnostics/results remain in `reference/query_core`, not this package.
+
+### Network subnet syntax
+
+`make check RUN='^TestINETSubnetParser$'` covers all five existing symbolic
+spellings, inclusive maximal munch, adjacent comments, qualified operators and
+Unicode character positions. No new token or precedence convention is introduced.
+Public signature/diagnostic expectations remain in `reference/types`.

@@ -41,6 +41,7 @@ type Definition struct {
 // The static table is the registry: no init() registration. Names must not
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
+	{Names: []string{"network_sub", "network_subeq", "network_sup", "network_supeq", "network_overlap"}, ExactSpelling: true, SharedGates: true, Bind: bindNetworkSubnet},
 	{Names: []string{"lo_create", "lo_creat", "lo_from_bytea", "lo_get", "lo_put", "lo_unlink"}, ExactSpelling: true, SharedGates: true, Bind: bindLargeObject},
 	{Names: []string{"mxid_age", "pg_current_xact_id", "pg_current_xact_id_if_assigned", "pg_xact_status", "pg_get_multixact_members"}, Claims: parser.TransactionIdentityFunctionName, Bind: bindTransactionIdentity},
 	{Names: []string{"pg_xact_commit_timestamp", "pg_xact_commit_timestamp_origin", "pg_last_committed_xact"}, Claims: parser.CommitTimestampFunctionName, Bind: bindCommitTimestamp},

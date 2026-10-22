@@ -96,8 +96,8 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		leftID, rightID := integer(candidate[3]), integer(candidate[4])
 		t.Run(fmt.Sprint(oid), func(t *testing.T) {
 			if oid == 3552 {
-				// This released predicate is executable only through the bounded
-				// exclusion owner; advertising it does not enable scalar SQL.
+				// Keep the exclusion-owner witness as well as the ordinary scalar
+				// binder proof below for this shared released predicate.
 				inet := physical(sqltype.Inet, false)
 				class, ok := sqltype.LookupGiSTIndexClass("inet_ops")
 				operator, err := sqltype.BindExclusionOperator(inet.Usage(), class, "&&")
@@ -120,8 +120,6 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				if _, ok := want[oid]; !ok || production[oid].Result != 16 {
 					t.Fatal("missing released metadata", oid)
 				}
-				admitted[oid] = true
-				return
 			}
 			// Repeat generic array declarations with two genuine element types.
 			witnesses := []bool{false}

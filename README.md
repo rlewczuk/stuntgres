@@ -220,7 +220,11 @@ return full-width INET; network and merge return canonical CIDR. Prefix
 rewriting preserves INET host bits but clears excluded CIDR bits, with -1
 selecting the full address width. IPv4, IPv6 and mapped IPv6 preserve their
 family semantics. Stored expressions replay symbolically through native
-Dump/Restore. Containment, XOR/shifts, arrays and OS networking remain excluded.
+Dump/Restore. INET `<<`, `<<=`, `>>`, `>>=` and `&&` compare network prefixes,
+ignoring host bits: strict containment excludes equal prefixes, inclusive
+containment includes them, and overlap accepts either containment direction.
+Mixed families return false; CIDR promotes implicitly to INET. XOR/integer
+shifts, network arrays and OS networking remain excluded.
 See [network transport](docs/TYPES.md#textual-structured-and-network-transport),
 [native authority boundaries](docs/DIALECT.md) and
 [selected proof and standalone smoke](reference/types/README.md#inet-mask-network-and-merge-contract).
@@ -2043,8 +2047,10 @@ output and prefix-aware ordering distinguish network values from TEXT.
 INET `~`, `&` and `|` return INET, as do address-plus-BIGINT (either order)
 and address-minus-BIGINT; address-minus-address returns BIGINT. Operations use
 the full IPv4/IPv6 address width, preserve host bits and enforce family/range
-boundaries. CIDR operands implicitly convert to INET. Network arrays, helper
-functions and containment operators remain outside this scalar feature.
+boundaries. CIDR operands implicitly convert to INET. Network-prefix predicates
+`<<`, `<<=`, `>>`, `>>=` and `&&` return BOOL and ignore host bits; different
+families return false. Network arrays and unlisted helper functions remain
+outside this scalar feature.
 See [network operators](https://www.postgresql.org/docs/18/functions-net.html#CIDR-INET-OPERATORS-TABLE)
 and [network transport and boundaries](docs/TYPES.md#textual-structured-and-network-transport).
 Storage smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;

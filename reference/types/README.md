@@ -351,8 +351,8 @@ held recovery: 22023 invalid mask; 22023 mixed families; valid again
 stored replay: all six signatures; same/fresh Driver 3 rows
 ```
 
-These operations add no containment, INET XOR/shifts, network arrays,
-grouping/hash providers, DNS or OS networking.
+These operations add no INET XOR/integer shifts, network arrays,
+grouping/hash providers, DNS or OS networking. Subnet predicates are covered below.
 
 ### INET formatting oracle-first contract
 
@@ -1899,3 +1899,50 @@ fresh INT4 generation reownership and logical descriptions:
 make check RUN='^TestInfo(CardinalNumber(BuiltinDescriptor|BuiltinCatalog|BuiltinBaseRebind|LogicalDescriptions)|SQLIdentifierBuiltinDescriptor|TimeStampBuiltinDescriptor|YesOrNoBuiltinDescriptor)$'
 ```
 
+
+### INET subnet predicate oracle-first contract
+
+The untagged `TestReferenceINETSubnetValues`, `Boundaries`, `Resolution`,
+`SharedOperators`, `CatalogPaths`, `Diagnostics`, `Atomicity`, `BindsMetadata`,
+`Controls` and `FeatureSmoke` definitions independently specify `<<`, `<<=`,
+`>>`, `>>=` and `&&`. Strict containment excludes equal prefix widths;
+inclusive containment and overlap compare network bits, not host bits.
+Non-NULL mixed families always return false, including mapped IPv6 versus
+IPv4. CIDR and scalar domain chains reuse implicit INET conversion.
+
+The root recorded pinned PostgreSQL oracle-first discovery and native
+failing-before evidence before production editing. Discovery filters are removed.
+The shared scenarios retain independent truth tables, exact English diagnostics,
+operator positions/stages, computed BOOL metadata and demand-sensitive routine
+ACL expectations. Known-TEXT rejection uses the supported `'::1'::text` spelling;
+range/multirange collateral uses typed columns and input rather than enabling
+adjacent constructors or explicit casts.
+
+```sh
+make check RUN='^TestReferenceINETSubnet(Values|Boundaries|Resolution|SharedOperators|CatalogPaths|Diagnostics|Atomicity|BindsMetadata|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceINETSubnet(Values|Boundaries|Resolution|SharedOperators|CatalogPaths|Diagnostics|Atomicity|BindsMetadata|Controls|FeatureSmoke)$'
+```
+
+Use external900-second deadlines. Repeat both selected modes after implementation.
+After implementation repeat both selected modes, whole-project `make quickcheck`
+(external900 seconds by assignment override), and the public consumer executable
+from session artifact `local://net-ip-ops-smoke.go`, materialized temporarily as
+`net-ip-ops-smoke-temporary/main.go`: `go run ./net-ip-ops-smoke-temporary/main.go`.
+Controls verify actual native Dump/Reset/Restore, a fresh Driver, emitted SQL on
+PostgreSQL, regenerated expressions and retained rows after failed staged restore.
+These definitions do not enable INET integer shifts/XOR, network arrays or
+grouping/hash providers, DNS or OS networking.
+
+Component supplements (no public SQL/API scenarios):
+
+```sh
+make check RUN='^Test(NetworkSubnet(Values|Boundaries|PlanValidation)|NetworkSubnetProviderLifecycle|INETSubnetBinding|INETSubnetRoutineAuthority|INETSubnetParser)$'
+make check RUN='^TestReferenceObjectGrantINETSubnetAuthority$'
+make check RUN='^TestReferenceObjectGrantINETSubnetAuthority$' REFERENCE=1
+```
+
+The executable smoke must print only after checked assertions: nested TTFFT,
+equal FTFTT, disjoint FFFFF; IPv4/IPv6 partial-byte boundaries and unchanged host
+bits; mapped-family FFFFF and NULL vectors; BOOL/bool empty/all-NULL metadata;
+22P02 held-input diagnostics with valid recovery and three unchanged rows;
+default/generated/view recomputation after same/fresh-Driver native replay.

@@ -746,3 +746,23 @@ both still require the surviving child. Neither case licenses a permission cache
 make check RUN='^TestReferenceObjectGrantPartitionKey(Authority|DDLAuthority)$'
 make check RUN='^TestReferenceObjectGrantPartitionKey(Authority|DDLAuthority)$' REFERENCE=1
 ```
+
+### INET subnet original-routine authority
+
+`TestReferenceObjectGrantINETSubnetAuthority` covers the original INTERNAL
+`network_sub`, `network_subeq`, `network_sup`, `network_supeq` and
+`network_overlap` identities (927–930/3551), BOOL result, strict immutable
+parallel-safe declarations, CIDR coercion, qualified/direct/alias/view consumers,
+independent sibling rights and row-dependent same-held revoke/grant/revoke.
+Reader schema USAGE and table SELECT are granted legitimately.
+Literal NULL, runtime row NULL, untaken CASE and empty sources retain independent
+pinned PostgreSQL demand expectations. Oracle-discovery filtering has been
+removed; native failing-before evidence precedes production editing.
+
+```sh
+make check RUN='^TestReferenceObjectGrantINETSubnetAuthority$' REFERENCE=1
+make check RUN='^TestReferenceObjectGrantINETSubnetAuthority$'
+```
+
+Both selected modes require fresh root evidence after implementation, with
+external900-second deadlines. Discovery success alone is not compatibility proof.

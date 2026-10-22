@@ -190,3 +190,18 @@ OrderingBound versus authentic physical scalar opclass identity. General arrays,
 named composites and occurrence-record physical indexes remain unadmitted.
 `make check RUN='^TestOrderingBtreeIdentity$'` retains scalar identity/allocation
 coverage. Public SEARCH witnesses remain in `reference/query_core`.
+
+### Network subnet predicates
+
+`NetworkSubnetPlan` keeps catalog-owned INET inputs separate from BOOL result
+authority and compares inline prefix bits without parsing, formatting or heap
+argument slices. CIDR/domain coercion belongs to analysis. Cross-family values
+return false; host bits are never changed.
+
+```sh
+make check RUN='^TestNetworkSubnet(Values|Boundaries|PlanValidation)$'
+```
+
+These units include every IPv4/IPv6 prefix width, host-bit changes, significant-bit
+neighbors, descriptor rejection, typed NULL and cancellation. Public contracts and
+both-mode selectors belong to [`reference/types`](../../reference/types/README.md).

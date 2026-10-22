@@ -1815,3 +1815,30 @@ whole-project Docker-free verification, `racecheck` for the full quick-mode race
 suite, and `bench` for five fresh-engine Ping/Close startup measurements. The
 post-integration `finalcheck` deadline is1800 seconds. This extraction adds no SQL
 surface or oracle-version changes.
+
+### Network subnet provider
+
+`NetworkSubnet` is a BOOL-returning infix provider over inline operands and a
+type-owned prefix plan, not an arithmetic/bitwise-result node. Composite rebuild,
+stored validation, symbolic rendering, grouping, substitution and operator capture
+reuse the ordinary expression protocols; ACLs remain admission-owned.
+
+The five original `pg_catalog.network_sub`, `network_subeq`, `network_sup`,
+`network_supeq` and `network_overlap` calls enter through the existing static
+function-definition table. Their binder transforms children once, applies ordinary
+call syntax and function visibility, implicitly coerces CIDR/unknown inputs to
+INET, and attaches the same `OperatorRoutineProvider` declaration as the symbolic
+operator. Routine inventory/association entries establish identity and authority;
+they do not by themselves register a callable function provider.
+
+```sh
+make check RUN='^TestNetworkSubnetProviderLifecycle$'
+make check RUN='^(TestINETSubnetRoutineAuthority|TestPGOperatorProviderAgreement)$'
+make check RUN='^(TestReferenceINETSubnet(CatalogPaths|Controls|FeatureSmoke)|TestReferenceObjectGrantINETSubnetAuthority)$'
+make check RUN='^(TestReferenceINETSubnet(CatalogPaths|Controls|FeatureSmoke)|TestReferenceObjectGrantINETSubnetAuthority)$' REFERENCE=1
+```
+
+This component selection covers evaluation order, row-NULL versus literal-NULL
+demand, cancellation, separate input/result descriptor ownership, reconstruction
+and render/capture identity. Public dual-mode subnet selectors and executable
+smoke instructions live in `reference/types/README.md`.

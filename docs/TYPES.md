@@ -374,7 +374,18 @@ remain immutable. Stored defaults, generated columns, CHECKs and views use
 ordinary symbolic native replay. Held statements check current routine EXECUTE;
 the narrowly observed PostgreSQL warmed-constant distinction is documented in
 [dialect authorization](DIALECT.md).
-Containment, INET XOR/shifts and network array/grouping/hash providers remain
+INET `<<`, `<<=`, `>>`, `>>=` and `&&` return BOOL using only network-prefix
+bits. Strict containment requires a narrower/wider prefix; inclusive containment
+also accepts equal prefixes even when host addresses differ. Overlap accepts
+either containment direction. Different families (including mapped IPv6 versus
+IPv4) return false, not a family-size error. CIDR and scalar domains reuse
+implicit INET conversion; NULL yields typed BOOL NULL. Typed TEXT/integer/array
+operands do not become network values implicitly. Unknown strings/parameters
+resolve to INET only after signature selection; two unknown operands remain
+ambiguous for shared `<<`, `>>` and `&&`, but resolve for `<<=` and `>>=`.
+Malformed literals fail during analysis; malformed typed binds fail at execution
+with the existing22P02 input diagnostics and portal context.
+INET XOR/integer shifts and network array/grouping/hash providers remain
 excluded; none of these computations perform DNS or OS networking.
 
 BIT/VARBIT byte binds are textual digits, never packed bits. Typed-nil bytes are

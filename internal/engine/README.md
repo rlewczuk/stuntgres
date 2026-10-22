@@ -1192,3 +1192,17 @@ live in [`control`](control/README.md). The root keeps the `Engine.mu`
 window and the Collect tables of the Dump capture, the restore stage,
 `restoreRun` with the `restoreHooks` table and every entry, and the atomic
 `replaceCatalog`; the `control` README lists the selectors.
+
+### Network subnet binding and authority
+
+```sh
+make check RUN='^TestINETSubnet(Binding|RoutineAuthority)$'
+```
+
+The component units exercise CIDR coercion, independent BOOL authority, stored
+rendering/retagging/group identity and the five original INTERNAL routine
+dependencies. Shared shift/overlap dispatch analyzes children once; custom
+catalog selection still owns masking and namespace resolution. Public direct,
+held, ACL and native replay witnesses use the dual-mode definitions documented in
+[`reference/types`](../../reference/types/README.md) and
+[`reference/object_grants`](../../reference/object_grants/README.md).

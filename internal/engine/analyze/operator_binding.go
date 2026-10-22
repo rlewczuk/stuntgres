@@ -27,6 +27,8 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 	switch {
 	case rangeSharedOperator(r):
 		return b.bindRangeShared(r)
+	case (name == "<<=" || name == ">>=") && len(r.Args) == 2:
+		return b.bindNetworkSubnet(r)
 	case name == "||":
 		return b.BindStringConcat(r)
 	case name == "^@":
@@ -57,7 +59,7 @@ func (b *Binder) bindBuiltinOperator(r parser.OperatorExpr, policy ExpressionPol
 }
 func builtinOperatorSpelling(name string) bool {
 	_, comparison := ComparisonOperator(name)
-	return comparison || arithmeticName(name) || bitwiseName(name) || name == "||" || name == "^@" || likeName(name) || functions.PosixName(name) || ArrayMembershipName(name) || functions.JSONExtractionName(name) || functions.JSONBExistenceName(name) || name == "#-" || name == "@>" || name == "<@" || name == "&&" || name == "<<" || name == ">>" || name == "&<" || name == "&>" || name == "-|-"
+	return comparison || arithmeticName(name) || bitwiseName(name) || name == "<<=" || name == ">>=" || name == "||" || name == "^@" || likeName(name) || functions.PosixName(name) || ArrayMembershipName(name) || functions.JSONExtractionName(name) || functions.JSONBExistenceName(name) || name == "#-" || name == "@>" || name == "<@" || name == "&&" || name == "<<" || name == ">>" || name == "&<" || name == "&>" || name == "-|-"
 }
 
 type operatorCandidateSet struct {

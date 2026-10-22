@@ -36,6 +36,9 @@ func (b *Binder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, error) {
 		}
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, nil, raw)
 	}
+	if _, subnet := sqltype.NetworkSubnetKind(name); subnet && (networkSubnetOperand(left) || networkSubnetOperand(right)) {
+		return b.finishNetworkSubnet(raw, operands)
+	}
 	if !sqltype.IsRangeInspectType(left) && !sqltype.IsRangeInspectType(right) && (left != nil || right != nil) {
 		if ArrayMembershipName(name) {
 			return b.finishArrayMembership(raw, operands)
