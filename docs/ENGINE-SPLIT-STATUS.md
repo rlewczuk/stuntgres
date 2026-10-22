@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `307583de0` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 111, 112, 113, 114, 115, 116, 117, 118 and 119). Steps 8–17 were
+Last verified against `master` at `bfad9b467` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 111, 112, 113, 114, 115, 116, 117, 118, 119 and 120). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
 
@@ -22,9 +22,9 @@ broad item.
 - **Third round, view:** none; 115, 116, 117 and 118 are done, so
   step 27 has no planned sub-step left.
   125 (table 24g) still waits for 124, and 132 (dml 29e) for 110f.
-- **Third round, stored and control:** 120 (control 30d, Dump Collect
-  tables; 119 is done), 121 (30e, definition OID remap; then 122).
-  Step 22 has no planned sub-step left.
+- **Third round, control:** 121 (control 30e, definition OID remap; then
+  122). 119 (stored 22e) and 120 (control 30d) are done, so step 22 has no
+  planned sub-step left.
 - **Third round, table and index:** 123 (24e; then 124 and 125), 126 (23e;
   touches `set_constraints.go`, which 110b also edited), 127 (25e).
 - **Third round, the rest:** 128 (regobj 21d), 129 (session 13g), 130
@@ -746,8 +746,10 @@ DELETE (`dml.ExecuteForeign`) live in `dml` over `dml.Host`, so 110f
   - [x] 27h — Lock walks and materialized checks moved
     ([view](ENGINE-SPLIT-view.md)) (`12af345ea`, `e63ef11e2`, `dd8a270f4`,
     then the docs commit)
-  - [ ] 22e — Type provider validation moved ([stored](ENGINE-SPLIT-stored.md))
-  - [ ] 30d — Dump Collect tables moved ([control](ENGINE-SPLIT-control.md))
+  - [x] 22e — Type provider validation moved ([stored](ENGINE-SPLIT-stored.md))
+    (`e9e8b22f8`, `2fd3f1cbc`, then the docs commit)
+  - [x] 30d — Dump Collect tables moved ([control](ENGINE-SPLIT-control.md))
+    (`10b014190`, `d4932f20f`, then the docs commit)
   - [ ] 30e — Definition OID remap moved ([control](ENGINE-SPLIT-control.md))
   - [ ] 30f — TEMP preservation phases moved
     ([control](ENGINE-SPLIT-control.md))
@@ -1775,10 +1777,15 @@ branches.
      targeted units, quickcheck and the quick and `REFERENCE=1`
      domain/type/stored/dump selections passed; racecheck/finalcheck
      skipped at user request
-120. [ ] Control 30d: Dump Collect tables —
-     [control](ENGINE-SPLIT-control.md) 30d · needs 119 · `dump_collect*.go`,
-     the clean part of `dump_capture.go`, `preflightACLItemDump`;
-     `captureDumpLocked` fills a `control.Source` (about 0.9k lines, clean)
+120. [x] Control 30d: Dump Collect tables —
+     [control](ENGINE-SPLIT-control.md) 30d · needs 119 (`10b014190`, `d4932f20f`,
+     then the docs commit) · `control.Collect` over a root-filled
+     `control.Source` inside the `Engine.mu` window, both Collect tables,
+     the builtin-schema preamble, `control.CheckPortable`,
+     `control.PreflightACLItems`, `control.BootstrapNamespaceDumpable`; no
+     aliases · targeted units, the dump smoke, quickcheck and the quick and
+     `REFERENCE=1` dump/restore/control selections passed;
+     racecheck/finalcheck skipped at user request
 121. [ ] Control 30e: definition OID remap —
      [control](ENGINE-SPLIT-control.md) 30e · needs — ·
      `remapDefinitionOIDsLocked`, `remapViewRuleOIDs` over an allocator

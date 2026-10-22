@@ -62,29 +62,12 @@ functions that `routine` (14e), `typedef` (15e), `partition` (25b),
 ### The capture (root)
 
 `Engine.Dump` takes `Engine.mu`, calls `captureDumpLocked`
-(`dump_capture.go`) and unlocks once. The capture checks portability,
-builds the builtin-schema preamble and passes every descriptor to the
-Collect tables. It returns a `control.Capture` and hands it to
-`control.Dump`; nothing after the unlock reads engine state. The Collect
-tables below are clean and move to `control` in 30d (item 120); only the
-`Engine.mu` window of `captureDumpLocked` stays.
-
-**Collect tables** (`dump_collect.go`, `dump_collect_relation.go`).
-`dumpCollectors` is an ordered list of
-`{name, matches(Descriptor), collect(ctx, *dumpCollection, address, Descriptor)}`
-entries. The first entry whose `matches` accepts a descriptor collects it;
-a descriptor no entry accepts is `unsupported catalog descriptor kind`.
-Objects in temporary namespaces are skipped before matching. The relation
-entry runs the checks shared by every relation, then
-`dumpRelationCollectors` (composite, index, view, sequence, table) in the
-same first-match way. Entries fill the capture and read locked engine
-state only through `dumpCollection.source`, which never outlives
-`Engine.mu`; the generation recipe plan they share is
-`dumpCollection.recipePlan`. Order is error precedence: keep it when
-adding an entry. A feature package takes over a Collect entry's decision
-when its dump code moves: `collectOperatorDump` calls
-`routine.OperatorDumped`; `collectProcedureDump` validates through
-`stored.ProcedureProvider` (moved in 22b).
+(`dump_capture.go`) and unlocks once. Inside that window the root reads
+the engine state and runs `control.Collect`, the Collect tables, over a
+`control.Source`; it returns a `control.Capture` and hands it to
+`control.Dump`. Nothing after the unlock reads engine state. The Collect
+tables and their entry contract are described in the
+[`control` README](../control/README.md) (moved there in control 30d).
 
 ## Testing
 

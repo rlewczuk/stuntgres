@@ -695,11 +695,63 @@ stage and the atomic replacement. The checks in §8.3 pass.
     `TestReferenceCompositeAlterDumpReplay`; `go list` shows only the root
     imports `control`; `make deps` clean. racecheck/finalcheck skipped at
     user request.
-- [ ] 30d — Dump Collect tables moved (linear item 120)
+- [x] 30d — Dump Collect tables moved (linear item 120) (`10b014190`,
+  `d4932f20f`, then the docs commit). Re-measured at `307583de0`: the moving
+  files matched the 30d plan; rebased onto `018bd1d8b` (dml 29d.5) and
+  `bfad9b467` (partition constraints).
+  - **Collect** (`control/collect.go`, `collect_relation.go`, from
+    `dump_collect.go` and `dump_collect_relation.go`): `Source`,
+    `Collect(ctx, source) (*Capture, error)`, the unexported
+    `dumpCollection` (`*Capture` plus `source`), both Collect tables and
+    their entries under their old names, and
+    `BootstrapNamespaceDumpable`. `Source` carries the capture's reads,
+    the constraint replay, the ACL output, the generation recipe plan
+    (`RecipePlan`, formerly `dumpCollection.recipePlan`) and the locked
+    state (`State`, `Relations`, `Sequences`, `Frontier`, `Bootstrap`,
+    `Foreign`).
+  - **Capture checks** (`control/capture_checks.go`,
+    `aclitem_preflight.go`): `CheckPortable` (was `dumpPortable`), the
+    unexported builtin-schema preamble, `PreflightACLItems` (was
+    `preflightACLItemDump`, `aclitem_dump.go`).
+  - **Root** (`dump_capture.go`, 65 lines): `captureDumpLocked` keeps every
+    engine read and today's order: context, `CheckPortable`, catalog and
+    role reads, recipe plan, ACL output context, `PreflightACLItems`,
+    constraint catalog, domain roles, `validateTemporaryCollationDump`,
+    the configured foreign namespace check, then `Collect`.
+  - **Correction to the 30d plan.** The plan said the root "passes
+    `control.Source` to `control.Dump`". Collection reads relation roots,
+    sequence generators and the foreign registry, which are valid only
+    under `Engine.mu`, so `Collect` runs inside the root's lock window and
+    `control.Dump` still takes the finished `Capture`. The temporary
+    collation check stays root (it opens a catalog stage), and so does the
+    configured foreign namespace check, so error order is unchanged.
+  - **Layering.** `control` now imports `access`, `extension`, `fdw`,
+    `plan`, `storage` and `visibility` too (all below L14); `fdw` is the
+    only one new to its dependency closure. `go list` shows only the root
+    imports `control`.
+  - **Tests.** None moved or deleted (no test named the Collect tables).
+    Adapted: `TestPGNamespaceShape` and `TestPredefinedRoleControls` call
+    `control.BootstrapNamespaceDumpable`; the latter's loop variable
+    `control` became `run` (it shadowed the package). No new unit test:
+    the move adds no semantics.
+  - **Verification**: after each commit and after the rebase, the
+    byte-identity dump smoke (the 30c `dumpsmoke`, baseline on the
+    starting master and re-taken on each new master: unchanged on
+    `018bd1d8b`; `bfad9b467` changed it through its own partition
+    constraint work, and the rebased branch matched the new baseline), the 30c
+    targeted engine units plus the two adapted tests and the `control`
+    tests, and quick `^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)`
+    and `^TestReferenceControl`; `RACE=1` for `^TestReferenceControl`,
+    `^TestControlTransactions` and `^TestRestore(Driver|Hooks)`;
+    quickcheck; `REFERENCE=1` for `^TestReferenceControl`,
+    `TestReferenceDumpRoundTrip`, `TestReferenceTypeCoreDumpRoundTrip`,
+    `TestReferenceCollationSeedNativeReplay` and
+    `TestReferenceCompositeAlterDumpReplay`; `make deps` clean.
+    racecheck/finalcheck skipped at user request.
 - [ ] 30e — Definition OID remap moved (linear item 121)
 - [ ] 30f — TEMP preservation phases moved (linear item 122)
 
-Outstanding aliases: none (30a and 30c added none).
+Outstanding aliases: none (30a, 30c and 30d added none).
 
 ### Notes for later steps
 
@@ -728,3 +780,8 @@ Outstanding aliases: none (30a and 30c added none).
   of 30c.
 - `restore_replay.go` (`restoreReplay`, the `Operation` replay slot) stays
   in the root: about 58 root handler sites read it.
+- 30d: `dump_capture.go` is now only the lock window. Its two remaining
+  engine-only steps are `validateTemporaryCollationDump` (needs
+  `BeginCatalogStage` for `domainDependencyClosure`) and the
+  `e.foreign.NamespaceEntries` check; moving either needs a host, which
+  Dump does not have, so they stay.

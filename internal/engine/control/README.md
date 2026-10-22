@@ -6,9 +6,10 @@ table. Before step 30 both lived in the root's `control.go`, which named
 the internals of almost every feature. Now a feature adds a table entry
 instead of editing a central switch.
 
-The package imports `authorization`, `catalog`, `dump`, `expr`, `ids`,
-`index`, `partition`, `pgcatalog`, `regobj`, `routine`, `sequence`, `session`, `stored`,
-`table`, `typedef`, `view`, `parser`, `sqltype` and `sqlstate`. Only the
+The package imports `access`, `authorization`, `catalog`, `dump`, `expr`,
+`extension`, `fdw`, `ids`, `index`, `partition`, `pgcatalog`, `plan`,
+`regobj`, `routine`, `sequence`, `session`, `storage`, `stored`, `table`,
+`typedef`, `view`, `visibility`, `parser`, `sqltype` and `sqlstate`. Only the
 root `engine` package imports it. It holds no mutex, no engine pointer and
 no state between calls. Step 30 of the split created it; see
 [ENGINE-SPLIT-control.md](../../../docs/ENGINE-SPLIT-control.md).
@@ -17,6 +18,32 @@ no state between calls. Step 30 of the split created it; see
 
 ### Dump
 
+- **Collect** (`collect.go`, `collect_relation.go`): `Collect(ctx,
+  source)` builds the builtin-schema preamble, then hands every descriptor
+  of `source.State` to the Collect tables and returns the filled
+  `Capture`. `Source` is what the tables read: the capture's catalog and
+  role reads, the constraint replay, the ACL output, the generation recipe
+  plan, and the locked engine state (catalog state, relation roots,
+  sequence generators, commit frontier, bootstrap principal, foreign
+  registry). The root fills it under `Engine.mu` and calls `Collect`
+  inside that window, with the ACL output context on `ctx`; nothing in
+  `Source` is read after the unlock. `dumpCollectors` is an ordered list
+  of `{name, matches(Descriptor), collect(ctx, *dumpCollection, address,
+  Descriptor)}` entries: the first entry whose `matches` accepts a
+  descriptor collects it, a descriptor no entry accepts is `unsupported
+  catalog descriptor kind`, and objects in temporary namespaces are
+  skipped before matching. The relation entry runs the checks shared by
+  every relation, then `dumpRelationCollectors` (composite, index, view,
+  sequence, table) the same way. Order is error precedence: keep it when
+  adding an entry. A feature package owns an entry's decision once its
+  dump code moves (`routine.OperatorDumped`, `stored.ProcedureProvider`,
+  `stored.TypeProvider`). `BootstrapNamespaceDumpable` is the builtin
+  namespace ACL check.
+- **Capture checks** (`capture_checks.go`, `aclitem_preflight.go`):
+  `CheckPortable` rejects catalogs Dump cannot serialize (SQL/MED
+  metadata, default privileges, invalid indexes); `PreflightACLItems`
+  checks every ACL leaf a dump would write. The root calls both in its
+  lock window, before `Collect`, in today's order.
 - **Capture record** (`dump.go`): `Capture` is everything Dump reads from
   the engine (the catalog and role reads, the constraint replay, the ACL
   output, the collected schemas, types, routines, tables, views, indexes
@@ -87,15 +114,15 @@ implements it:
 
 ## What stays in the engine
 
-- `Engine.mu` and the Dump capture: `captureDumpLocked`, the Collect tables
-  (`dumpCollectors`, `dumpRelationCollectors`) and `dumpCollection`, which
-  embeds the `*Capture` beside the generation recipe plan and the locked
-  `dumpSource`. The root hands the capture over: `Dump` sorts and completes
-  it in place, and the root never reads it after the call. The Collect
-  tables and `dumpCollection` are reach-clean; control 30d (item 120) moves
-  them here and leaves only `captureDumpLocked`'s window in the root.
-  `remapDefinitionOIDsLocked` and the TEMP preservation phases follow in
-  30e and 30f.
+- `Engine.mu` and the Dump capture window: `captureDumpLocked`
+  (`dump_capture.go`) reads the engine state, calls `CheckPortable`, builds
+  the generation recipe plan, calls `PreflightACLItems`, projects the
+  constraint catalog, runs the temporary collation check (it needs a
+  catalog stage) and the configured foreign namespace check, then fills a
+  `Source` and calls `Collect`. The root hands the capture over: `Dump`
+  sorts and completes it in place, and the root never reads it after the
+  call. `remapDefinitionOIDsLocked` and the TEMP preservation phases
+  follow in 30e and 30f.
 - The restore stage (`restoreStage` in `principal_remap.go`) and the atomic
   publication (`replaceCatalog`): its lock order, the fence after unlock,
   the sequence-memory and serializable fences and the `foreignNamespaces`
@@ -120,10 +147,10 @@ make check RUN='^TestRestore(Driver|Hooks).*'
 ```
 
 Engine witnesses: the INSERT admit entry, the presenter's domain
-expressions, and the resolver users:
+expressions, the builtin namespace ACL check, and the resolver users:
 
 ```sh
-make check RUN='^Test(RestoreAdmitsInsertTargetIndirection|DumpPresenterDomainExpressions|IndexPropertyDump.*|IdentityDumpProviderMapping|IdentityControlsOwnerCollisionPredecessors|PartitionAttachDumpPhaseDependencies|PartitionDetach(Replay|UniqueReplay).*|DomainAlterConstraintReplayEligibility)$'
+make check RUN='^Test(RestoreAdmitsInsertTargetIndirection|DumpPresenterDomainExpressions|PGNamespaceShape|PredefinedRoleControls|IndexPropertyDump.*|IdentityDumpProviderMapping|IdentityControlsOwnerCollisionPredecessors|PartitionAttachDumpPhaseDependencies|PartitionDetach(Replay|UniqueReplay).*|DomainAlterConstraintReplayEligibility)$'
 ```
 
 Public behavior is covered by the Dump, Restore and Control reference tests
@@ -134,6 +161,6 @@ make check RUN='^TestReference.*(Dump|Restore|Native|RoundTrip|Replay)|^TestRefe
 make check RACE=1 RUN='^TestReferenceControl|^TestControlTransactions|^TestRestore(Driver|Hooks)'
 ```
 
-Changes to the Emit table, the sections or the script also need a dump,
+Changes to the Collect or Emit tables, the sections or the script also need a dump,
 restore and re-dump comparison against a `master` baseline (see 18b and
 18c in [ENGINE-SPLIT-dump.md](../../../docs/ENGINE-SPLIT-dump.md)).

@@ -117,10 +117,10 @@ their lower-case names.
 - `statementHost.TypeNameNotice`, the `NoticeHost` implementation.
 - `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
   prepared-statement regtype analysis cell is statement state, not SQL text.
-- `preflightACLItemDump` (part of the locked Dump capture),
-  `aclitem_remap.go` and `principal_remap.go` (the Restore stage and
+- `aclitem_remap.go` and `principal_remap.go` (the Restore stage and
   publication); they stay in the root after step 30 (see the
-  [`control` README](../control/README.md)). The scalar renderer and its
+  [`control` README](../control/README.md)). The Dump ACL preflight is
+  `control.PreflightACLItems` since control 30d. The scalar renderer and its
   `record*` methods are `stored.ScalarRenderer` since 22b.
 
 ## Testing
