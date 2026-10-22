@@ -184,9 +184,10 @@ execution (completion is `dml.CompleteCTEMutation`); CREATE TABLE AS; SQL cursor
 portals; rule execution; `statementHost` with the capability bodies,
 `enginePreparation`, query grouping admission (`admitQueryGroupings`, which
 needs `analyze`), and the engine-side helpers that take a `*Context` (the
-domain-check preparation, `deparseRelation`, `identifyObjectValues`,
-`expressionPrincipal`, `evalSerialSequence`, `validateSelectedDomainRows`,
-...). `ValidInstalledText` is `analyze.ValidInstalledText`.
+domain-check preparation, `identifyObjectValues`,
+`expressionPrincipal`, ...). The deparse inquiry bodies and the ALTER
+DOMAIN row scan are `table.Deparse` and `table.ValidateSelectedDomainRows`
+(table 24j). `ValidInstalledText` is `analyze.ValidInstalledText`.
 
 The engine, the root driver and `cmd/stuntgres` name these types directly
 (`exec.Context`, `exec.Source`, `exec.RowResult`, ...); no aliases remain.

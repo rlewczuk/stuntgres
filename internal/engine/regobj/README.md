@@ -139,10 +139,11 @@ their lower-case names.
   `Engine.lookupNamespacesSnapshot` over the deparse authority, which reads
   the engine's TEMP ownership and domain), the `Engine.mu`
   `pg_import_system_collations` branch and `captureVisibilitySnapshotLocked`.
-- `deparse_function.go` (`pg_get_constraintdef`, `pg_get_expr`,
-  `pg_get_viewdef`, `pg_get_indexdef`): it renders through `stored` and
-  `index`, which import `regobj`; its constraint search is clean and would
-  belong to `table` (21d decision).
+- `deparse_function.go`: only the missing-snapshot check and the
+  `table.DeparseInputs` builder. The `pg_get_*def`, `pg_get_expr` and
+  `pg_get_serial_sequence` bodies render through `stored` and `index`,
+  which import `regobj`, so table 24j moved them to `table.Deparse` (the
+  21d decision).
 - `regtypeAnalysis` and `Engine.regtypeAnalysisLocked`/`ValidLocked`: the
   prepared-statement regtype analysis cell is statement state, not SQL text.
 - `aclitem_remap.go` and `principal_remap.go` (the Restore stage and

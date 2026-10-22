@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `8b401d705` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135 and 137). Steps 8–17 were
+Last verified against `master` at `42fe008a5` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136 and 137). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,7 +20,7 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, table family and DML:** 136 (table 24j), 138 (copyfmt
+- **Fourth round, table family and DML:** 138 (copyfmt
   19c), 139 (view 27i), 140 (partition 25f), 141 (fdw 26f), 142 (index
   23f).
 - **Fourth round, statement and session:** 143 (session 13h), 144 (exec
@@ -229,6 +229,12 @@ fallback and scan, the inheritance drop closure, the DROP COLUMN
 multiple-deletion test and the initial-table check are `table` functions;
 the grant loops, `Engine.mu` windows and authority captures stay root.
 Only the second closing review (151) needs it.
+Item 136 (table 24j) is done: the definition-provider collection is
+`table.Stage.DefinitionProviders`, the deparse inquiries are
+`table.Deparse` over `table.DeparseInputs`, and the ALTER DOMAIN row scan
+is `table.ValidateSelectedDomainRows`; the provider grant loop, the
+post-wait checks and the deparse snapshot check stay root. Step 24 has no
+planned sub-step left; only 151 needs it.
 
 ## Task tree
 
@@ -815,12 +821,15 @@ Only the second closing review (151) needs it.
   sub-step of an existing prompt file
   - [x] 24h — ALTER row rewrite and scan ([table](ENGINE-SPLIT-table.md))
     (`b79597f14`, `656dc171c`, then the docs commit)
-  - [ ] 24i — FK provider plans, validation loops and inheritance
-    decisions ([table](ENGINE-SPLIT-table.md))
-  - [ ] 24j — Definition-provider collection and deparse inquiries
-    ([table](ENGINE-SPLIT-table.md))
-  - [ ] 29f — DML prologue decisions and latest-row readers
-    ([dml](ENGINE-SPLIT-dml.md))
+  - [x] 24i — FK provider plans, validation loops and inheritance
+    decisions ([table](ENGINE-SPLIT-table.md)) (`82bded1cd`, `9d38f7d39`,
+    then the docs commit)
+  - [x] 24j — Definition-provider collection and deparse inquiries
+    ([table](ENGINE-SPLIT-table.md)) (`5d66c4037`, `7ef360259`, then the
+    docs commit)
+  - [x] 29f — DML prologue decisions and latest-row readers
+    ([dml](ENGINE-SPLIT-dml.md)) (`773d664c2`, `ad272a0ba`, `eb6429c5c`,
+    `adda24bd7`, `d00a15833`, then the docs commit)
   - [ ] 19c — COPY TO writers ([copyfmt](ENGINE-SPLIT-copyfmt.md))
   - [ ] 27i — RLS binding checks and query lock walks
     ([view](ENGINE-SPLIT-view.md))
@@ -2041,8 +2050,14 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      quickcheck and the quick and `REFERENCE=1` FK, inheritance DROP and
      CREATE TABLE AS selections passed; racecheck/finalcheck skipped at
      user request
-136. [ ] Table 24j: definition-provider collection and deparse inquiries —
-     [table](ENGINE-SPLIT-table.md) 24j · needs —
+136. [x] Table 24j: definition-provider collection and deparse inquiries —
+     [table](ENGINE-SPLIT-table.md) 24j · needs — (`5d66c4037`,
+     `7ef360259`, then the docs commit) · `table.Stage.DefinitionProviders`
+     (`DefinitionProviderRequest`), `table.Deparse` over
+     `table.DeparseInputs`, `table.ValidateSelectedDomainRows`; no aliases ·
+     targeted units (also `RACE=1`), quickcheck and the quick and
+     `REFERENCE=1` LIKE, deparse, serial-sequence and ALTER DOMAIN
+     selections passed; racecheck/finalcheck skipped at user request
 137. [x] DML 29f: DML prologue decisions and latest-row readers —
      [dml](ENGINE-SPLIT-dml.md) 29f · needs — (`773d664c2`, `ad272a0ba`,
      `eb6429c5c`, `adda24bd7`, `d00a15833`, then the docs commit) ·

@@ -1143,7 +1143,10 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   — linear item 135 (`82bded1cd`, `9d38f7d39`, then the docs commit) · selected
   unit (also `RACE=1`) and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 24i record below
-- [ ] 24j — Definition-provider collection and deparse inquiries (linear item 136)
+- [x] 24j — Definition-provider collection and deparse inquiries — linear
+  item 136 (`5d66c4037`, `7ef360259`, then the docs commit) · selected unit
+  (also `RACE=1`) and dual-mode proof and quickcheck passed;
+  racecheck/finalcheck skipped at user request; see the 24j record below
 
 Outstanding aliases: none (24a and 24b added none).
 
@@ -1726,7 +1729,58 @@ request (no startup change).
   (`plan.ColumnDropMultiple`) and `materialized_view_test.go`
   (`table.ValidateInitialTables`). None moved or deleted.
 
+### 24j record
+
+Started at `8b401d705` (partition tree navigation, after 24i) and rebased
+onto `42fe008a5` (dml 29f; no overlap). `reach` at
+the start confirmed the plan: `acquireDefinitionProviders`,
+`DeparseInquiry`, `deparseRelation` and `evalSerialSequence` were DIRTY
+only through `StatementScope`; `validateSelectedDomainRows` was clean
+(outputs in `.cswd/tmp/PG18-ENGINE-SPLIT-TABLE-DEFINITION-PROVIDERS/`).
+Two code commits, each green on `make build` and its units; no aliases, no
+new import edge, the string-literal multiset of the root and `table` and
+the vet output equal the start. The targeted units passed, also with
+`RACE=1`; quickcheck passed after the rebase (before it, only
+`TestReferenceRegexpSubstrCancellation/memory` failed under load and
+passed three times alone); the quick and `REFERENCE=1`
+`^TestReference(TableLike|DeparseConstraints|DeparseRelations|SerialIdentity|DomainAlter|CheckReview|QueryTableCreate|InheritanceAlter|TypedTable|AlterDefault|MaterializedViewCreate)`
+selections passed. racecheck, finalcheck and bench skipped at user
+request (no startup change).
+
+- `5d66c4037` (providers): `(*table.Stage).DefinitionProviders(base,
+  staged, descriptors, domain)` (new `table/definition_providers.go`)
+  returns OID-ordered `DefinitionProviderRequest{Ref, Mode}`s and the
+  retained map; the per-ref mode (inheritance parent of a staged relation)
+  is decided with the walk, before any wait, over the same private stage
+  descriptors the loop read before. The root keeps the FK provider call,
+  the acquire loop, the post-wait checks under `Engine.mu` and the final
+  `validateLikeSources`; a nil table slot reads as no LIKE sources, as
+  `tableOrZero` did.
+- `7ef360259` (deparse and domain rows): `table.Deparse` over
+  `table.DeparseInputs` (new `table/deparse.go`, with `deparseRelation` and
+  `serialSequence`); the root `statementHost.DeparseInquiry` keeps the
+  missing-snapshot check and `StatementScope.deparseInputs` builds the
+  inputs. `serial_sequence.go` was deleted. `Temporary` is a callback
+  because `temporaryNamespace` may scan every descriptor and only index
+  deparse reads it; the relation resolver wraps `resolveRelationSnapshot`
+  (it still marks TEMP access). The old helpers read `scopeOf(c.LiveHost())`,
+  which is the dispatching host, so one inputs value is equivalent.
+  `table.ValidateSelectedDomainRows` (new `table/domain_rows.go`) is the
+  unchanged body.
+- **Deviation.** `deparseInputs` reads `op.NonstandardStrings` only when
+  the scope has an operation: `pg_get_serial_sequence` never read it, and
+  `TestSerialSequenceSystemColumns` runs it on a scope without one.
+- Tests: new `TestDefinitionProviders(Invalid)`,
+  `TestDeparse(SerialSequence|MissingObjects)` and
+  `TestValidateSelectedDomainRows` (table; observed failing to compile
+  first). None moved, adapted or deleted.
+
 ### Notes for later steps
+
+- 24j: step 24 has no planned sub-step left. `acquireDefinitionProviders`
+  is now the FK provider call, one `DefinitionProviders` call and the
+  grant loop; `deparse_function.go` is the snapshot check and the inputs
+  builder.
 
 - 24i for 24j: `definition_providers.go` changed not at all; it still
   calls `acquireForeignKeyDefinitionProviders` first, which now walks with

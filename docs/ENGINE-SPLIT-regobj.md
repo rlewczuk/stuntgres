@@ -607,6 +607,7 @@ Outstanding aliases: none (21b, 21c and 21d added none).
 - 21d: the clean constraint search of `deparse_function.go` can move to
   `table` (see the 21d decision); the closing review (item 133) should
   count it. Item 133 planned it, with the `DeparseInquiry` body, as table
-  24j (item 136).
+  24j (item 136). Settled: 24j moved the bodies to `table.Deparse`; the
+  root keeps the snapshot check and the `table.DeparseInputs` builder.
 - `presentationCaches` stays a root scope slot; its maps are keyed by
   `exec` keys and filled through the `regobj` spellings.

@@ -237,9 +237,11 @@ table maps the root names that older prompt files and design notes cite.
   `PartitionReferences` (`catalog_source_runtime.go`). `IndexDefinition`
   renders through `index.DefinitionSQL`.
 - `statementHost.DeparseInquiry` and `deparseRelation`: 22c measured them
-  and left them in the engine. Exclusion constraints and `pg_get_indexdef`
-  render through `index.DefinitionSQL` (above `stored`), and the view-name form resolves through
-  `Engine.resolveRelationSnapshot`. The statement-scope `conversionDefault`
+  and left them in the engine; table 24j moved the bodies to
+  `table.Deparse`, because exclusion constraints and `pg_get_indexdef`
+  render through `index.DefinitionSQL` (above `stored`). The view-name form
+  still resolves through the root's `resolveRelationSnapshot`, passed in as
+  `DeparseInputs.ResolveRelation`. The statement-scope `conversionDefault`
   cache stays too.
 
 ## Testing

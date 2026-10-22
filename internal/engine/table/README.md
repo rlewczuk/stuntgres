@@ -263,6 +263,27 @@ pending-grant decision they call live here.
   whether a recursive DROP COLUMN deletes more than one physical column.
   `ValidateInitialTables` (`query_table_create.go`) checks the rows CREATE
   TABLE AS staged, over the stage's descriptor getter.
+- **Definition providers** (24j; `definition_providers.go`):
+  `Stage.DefinitionProviders` collects the incumbent relations a stage's
+  definitions depend on (LIKE sources, view leaves and dependencies,
+  CHECKs, defaults, generations, index keys and predicates), proves each
+  original attribute reference, and returns OID-ordered
+  `DefinitionProviderRequest`s (`ShareUpdateExclusive` for an inheritance
+  parent of a staged relation, else `AccessShare`) with the base
+  descriptors of providers first referenced at an older epoch. The root
+  takes the locks and rechecks each provider under `Engine.mu`.
+- **Deparse inquiries** (24j; `deparse.go`): `Deparse` answers
+  `pg_get_constraintdef`, `pg_get_expr`, `pg_get_indexdef`,
+  `pg_get_viewdef` and `pg_get_serial_sequence` over `DeparseInputs` (the
+  statement's catalog snapshot, path, output settings, database, a lazy
+  TEMP namespace and a relation resolver), which the root builds from the
+  statement's inquiry snapshot after its missing-snapshot check. It lives
+  here, not in `view`, because the serial form needs
+  `regobj.ClassQualifiedName`.
+- **Domain row validation** (24j; `domain_rows.go`):
+  `ValidateSelectedDomainRows` scans one domain use's live rows for ALTER
+  DOMAIN SET NOT NULL and VALIDATE CONSTRAINT; the root keeps the fence,
+  waits and `Engine.mu` windows of `executeAlterDomain`.
 - **Target admission** (24f; `target_admission.go`): `Target` is how a
   statement admits its target relation (name, lock mode, owner, rename,
   IF EXISTS, table-rename and view-replacement flags), decided from syntax.
@@ -324,7 +345,8 @@ builds the host), `dropTableLocked`, `alterSchemaLocked` and
 functions that stage or wait (`addColumnCandidate`, `alterTypeCandidate`,
 `dropColumnCandidate`, ...), the row evaluation template
 (`alterRowEvaluation`) and projection roots, `Engine.mu` windows,
-lock admission (`acquireDefinitionProviders`, `admitInheritanceAlter`,
+lock admission (the acquire loop and post-wait checks of
+`acquireDefinitionProviders`, `admitInheritanceAlter`,
 `acquireInheritanceDefinitions`, the FK provider grant loops of
 `acquireAlterForeignKeys` and `acquireForeignKeyTypeProviders`, the
 acquire loop and epoch reconciliation of `admitInheritanceDropClosure`),
@@ -401,13 +423,20 @@ small catalog: `TestForeignKey(TypeProviders|DefinitionProviders|Checks)`,
 scans themselves need an engine and are reached by the root FK and Restore
 tests (`TestForeignKey*`, `TestRestoreInheritedForeignKey*`), and
 `ColumnDropMultiple` and `ValidateInitialTables` by
-`TestInheritanceMaint*` and `TestMaterializedView*`.
+`TestInheritanceMaint*` and `TestMaterializedView*`. The 24j moves have
+package-local tests over a small catalog:
+`TestDefinitionProviders(Invalid)`, `TestDeparse(SerialSequence|MissingObjects)`
+and `TestValidateSelectedDomainRows`; the provider waits are reached by the
+root LIKE and inheritance admission tests (`TestTableLike*`,
+`TestInheritanceAdmission*`), and the deparse and ALTER DOMAIN paths by
+`TestDeparseConstraints*`, `TestSerialSequence*` and `TestDomainAlter*`.
 
 ```sh
 make check RUN='^TestOwnedSequenceName|^TestTableHost|^TestAlterHost|^TestRelationValidatorsOrder$|^TestGeneratedRemapCheckCapture$'
 make check RUN='^Test(TypedSources|PlanAlterScan|CheckCreateShape|TableTargetAdmission|AdmitTargetAsksEachEntry)$'
 make check RUN='^Test(PrepareInheritanceNode|InheritancePendingGrants|ValidateAddedConstraintRows)'
 make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|ScanForeignKeysReplaced|ScanRestoredForeignKeysSlots|RestoredForeignKeyTarget|InheritanceDropClosure)$'
+make check RUN='^Test(DefinitionProviders.*|Deparse.*|ValidateSelectedDomainRows|SerialSequence.*|DomainAlter.*)$'
 make check RUN='^Test(AlterAdd|AlterGenerated|AlterTablespace|AlterType|AlterDefault|IdentityAlter|ConstraintRename|InheritanceAlter|InheritanceRetired|InheritanceMetadata)'
 make check RUN='^Test(NotNull|Inheritance|PhysicalNotNull|RestoreInherited|TableLike|Typed|AlterDropColumn|GeneratedVirtual|Check(Native|Descriptor|Completed|Review))'
 make check RUN='^Test(Serial|Identity|SchemaTable|DDLHostStageSchemaTable|QueryTableCreate|TemporaryTable)'
@@ -420,4 +449,5 @@ Public behavior is covered by the dual-mode reference suite:
 ```sh
 make check RUN='^TestReference(TableCore|TableLike|Like|NotNull|Check|Default|GeneratedStored|GeneratedVirtual|ForeignKey|ForeignActions|Inheritance|ConstraintRename|TypedTable|Identity|Serial|Truncate|DumpRound)'
 make check RUN='^TestReferenceAlter(AddColumn|AddConstraint|Default|DropColumn|Generated|Identity|Nullability|Rename|Schema|Tablespace|Type)'
+make check RUN='^TestReference(DeparseConstraints|DeparseRelations|SerialIdentity|DomainAlter)'
 ```
