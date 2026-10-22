@@ -291,6 +291,42 @@ make check RUN='^TestReferenceDatetimeSleep(Cancellation|FeatureSmoke)$' REFEREN
 make check RUN='^TestReferenceDatetimeSleep(Cancellation|FeatureSmoke)$' RACE=1
 ```
 
+`TestReferenceDatetimeSleepStored` observes each native Dump, Reset and Restore
+separately under the existing30-second scenario context, rather than sharing a
+two-second control budget. Complete live stacks must contain both the named
+operation worker and the sleep provider in the same goroutine (not creation
+metadata) before reporting actual stored evaluation. Completion/context failures
+without that admission have a distinct diagnostic. Every worker is canceled and
+joined before connection cleanup; a real public600-second SQL calibration proves
+the observer detects and cancels an active wait, then recovers on the same consumer.
+No control success deadline is added and the600-second stored recipe is unchanged.
+
+The native-only phase also checks writer/read errors, pre-canceled Reset,
+Restore cancellation during finite Read, and a late replay NOT NULL failure.
+Each preserves exact original rows, view deparse and stored default declarations
+on the same held connection; failed/canceled Restore publishes no staged table.
+Successful Reset removes the persistent objects; Restore preserves declarations,
+two held executions each taking at least75ms, and exact default inserts afterward.
+These are native control witnesses, not a PostgreSQL Restore simulation.
+
+Run the completed stored definition oracle-first, then native and selected race:
+
+```sh
+make check RUN='^TestReferenceDatetimeSleepStored$' REFERENCE=1
+make check RUN='^TestReferenceDatetimeSleepStored$'
+make check RUN='^TestReferenceDatetimeSleepStored$' RACE=1
+```
+
+The complete public-driver source `local://stored-controls-smoke.go` is an OMP
+session artifact, not a committed executable. Root materializes it as
+`.stored-controls-smoke/main.go` and runs
+`timeout 900s go run ./.stored-controls-smoke` from the assigned worktree.
+It calibrates real sleep admission/cancellation, invokes actual native controls,
+checks failed/canceled Restore publication and same-consumer recovery, verifies
+restored declarations and repeated minimum75ms waits, and inserts exact defaults.
+Success prints `stored sleep controls smoke passed (native-only controls)`.
+Root records observations and removes only the throwaway materialization.
+
 Root runs these selected commands from the assigned worktree, each with an
 external900-second deadline:
 

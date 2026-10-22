@@ -1,10 +1,7 @@
 package reference_test
 
 import (
-	"bytes"
-	"context"
 	"database/sql"
-	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -72,28 +69,38 @@ func datetimeSleepStoredExecution(t *testing.T, p *fixture.Pair, b fixture.Backe
 	} {
 		run(fixture.Exec(q, 0))
 	}
-	for _, oracle := range []struct{ view, definition string }{
-		{"sleep_composed", " SELECT pg_sleep(0::double precision)::text AS v;"},
-		{"sleep_delayed", " SELECT pg_sleep(0.075::double precision) IS NULL AS v;"},
-		{"sleep_serialization", " SELECT pg_sleep(600::double precision) IS NULL AS v;"},
-	} {
-		t.Run(oracle.view+"-deparse-oracle", func(t *testing.T) {
-			var definition string
-			if err := c.QueryRowContext(p.Ctx, "SELECT pg_get_viewdef($1::regclass,true)", oracle.view).Scan(&definition); err != nil {
-				t.Fatal(err)
-			}
-			if definition != oracle.definition {
-				t.Fatalf("view=%s definition=%q want=%q", oracle.view, definition, oracle.definition)
-			}
-		})
+	checkDefinitions := func() {
+		for _, oracle := range []struct{ view, definition string }{
+			{"sleep_composed", " SELECT pg_sleep(0::double precision)::text AS v;"},
+			{"sleep_delayed", " SELECT pg_sleep(0.075::double precision) IS NULL AS v;"},
+			{"sleep_serialization", " SELECT pg_sleep(600::double precision) IS NULL AS v;"},
+		} {
+			t.Run(oracle.view+"-deparse-oracle", func(t *testing.T) {
+				var definition string
+				if err := c.QueryRowContext(p.Ctx, "SELECT pg_get_viewdef($1::regclass,true)", oracle.view).Scan(&definition); err != nil {
+					t.Fatal(err)
+				}
+				if definition != oracle.definition {
+					t.Fatalf("view=%s definition=%q want=%q", oracle.view, definition, oracle.definition)
+				}
+			})
+		}
 	}
-	check := func() {
+	checkDefinitions()
+	checkState := func() {
 		run(fixture.Select("SELECT id,v FROM sleep_assignment ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), ""}, {int64(2), nil}, {int64(3), ""}, {int64(4), nil}}))
 		run(fixture.Select("SELECT v,n FROM sleep_assignment_default", []string{"v", "n"}, []string{"TEXT", "TEXT"}, [][]any{{"", nil}}))
 		run(fixture.Select("SELECT v FROM sleep_null_text", []string{"v"}, []string{"TEXT"}, [][]any{{nil}}))
 		run(fixture.Select("SELECT v FROM sleep_default_null", []string{"v"}, []string{"TEXT"}, [][]any{{nil}}))
 		run(fixture.Select("SELECT v FROM sleep_composed", []string{"v"}, []string{"TEXT"}, [][]any{{""}}))
 		run(fixture.Select("SELECT id,v FROM sleep_rows ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), ""}, {int64(2), ""}}))
+		run(fixture.Select("SELECT v FROM sleep_default_text", []string{"v"}, []string{"TEXT"}, [][]any{{""}}))
+		run(fixture.Select("SELECT v FROM sleep_default_bool", []string{"v"}, []string{"BOOL"}, [][]any{{false}}))
+		run(fixture.Select("SELECT v FROM sleep_check", []string{"v"}, []string{"INT4"}, [][]any{{int64(1)}}))
+		run(fixture.Select("SELECT id,delay FROM sleep_inputs ORDER BY id", []string{"id", "delay"}, []string{"INT4", "FLOAT8"}, [][]any{{int64(1), float64(0)}, {int64(2), -0.1}}))
+	}
+	check := func() {
+		checkState()
 		q := "SELECT v FROM sleep_delayed"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -111,20 +118,10 @@ func datetimeSleepStoredExecution(t *testing.T, p *fixture.Pair, b fixture.Backe
 	}
 	check()
 	if !b.PG {
-		// A ten-minute wait in a stored definition must not execute during
-		// control serialization/rebinding. Context bounds catch accidental Eval.
-		ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
-		defer cancel()
-		var dump bytes.Buffer
-		if err := stuntgres.Dump(ctx, p.Native, &dump); err != nil {
-			t.Fatal("Dump evaluated stored sleep", err)
-		}
-		if err := stuntgres.Reset(ctx, p.Native); err != nil {
-			t.Fatal(err)
-		}
-		if err := stuntgres.Restore(ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
-			t.Fatal("Restore evaluated stored sleep", err)
-		}
+		datetimeSleepStoredControls(t, p, b, c, func() {
+			checkState()
+			checkDefinitions()
+		})
 		check()
 		run(fixture.Exec("INSERT INTO sleep_default_null DEFAULT VALUES", 1))
 		run(fixture.Select("SELECT v FROM sleep_default_null", []string{"v"}, []string{"TEXT"}, [][]any{{nil}, {nil}}))
@@ -149,7 +146,7 @@ func datetimeSleepVoidViewBoundary(t *testing.T, p *fixture.Pair, b fixture.Back
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 			}
 			// A long volatile operand must not execute during either rejected
-			// definition; the scenario's two-second timeout bounds that mistake.
+			// definition; the existing SQL statement timeout bounds that mistake.
 			fail("CREATE VIEW "+fresh+"(effective) AS SELECT pg_sleep(600) AS original", `column "effective" has pseudo-type void`)
 			fail("CREATE OR REPLACE VIEW "+fresh+"(effective) AS SELECT pg_sleep(600) AS original", `column "effective" has pseudo-type void`)
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) AS n FROM pg_catalog.pg_views WHERE viewname='"+fresh+"'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
