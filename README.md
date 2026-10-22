@@ -2302,10 +2302,19 @@ forms, PostgreSQL18.6 scanner edges, canonical lowercase colon output and
 unsigned byte-order comparisons. Direct/prepared textual parameters, nullable
 metadata, defaults/CHECKs/views and native logical Dump/Restore share one codec.
 Malformed syntax and octet ranges retain PostgreSQL English diagnostics.
-MACADDR8, executable MACADDR arrays, MAC helper functions, bitwise/truncation
-operators and independent binary transport remain outside this scalar feature.
+Executable MAC address arrays, MAC helper functions, bitwise/truncation
+operators and independent binary transport remain outside these scalar features.
 See [MAC address contracts](docs/TYPES.md#mac-addresses) and
 [selected reference proof](reference/types/README.md#macaddr-scalar-contract).
+
+Change note: MACADDR8 now owns inline eight-octet values (OID774), accepts six-
+and eight-octet spellings with consistent optional separators and surrounding
+C whitespace, and emits canonical lowercase colon text. Six-octet inputs insert
+FF:FE without flipping the modified-EUI bit. Released PostgreSQL18.6 scanner
+edges, exact22P02 diagnostics, six strict unsigned scalar comparisons, textual
+driver transport and typed logical replay share one codec. Its array identity775
+stays lookup-only; default ordering/index classes, binary codecs and helpers are
+not provided. Native metadata is MACADDR8; lib/pq reports an empty type name.
 
 Change note: INET and CIDR now store typed IPv4/IPv6 scalar values through
 direct/prepared binds, metadata and native Dump/Restore. INET preserves host

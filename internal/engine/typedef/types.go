@@ -12,7 +12,7 @@ func StoredArrayElement(typ *sqltype.Descriptor) bool {
 		return false
 	}
 	physical := typ.BaseType()
-	if physical.ID() == sqltype.Lseg || physical.ID() == sqltype.Circle || physical.ID() == sqltype.Tid || physical.ID() == sqltype.Macaddr || sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
+	if physical.ID() == sqltype.Lseg || physical.ID() == sqltype.Circle || physical.ID() == sqltype.Tid || physical.ID() == sqltype.Macaddr || physical.ID() == sqltype.Macaddr8 || sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
 		return false
 	}
 	if physical.IsArray() {
@@ -68,7 +68,7 @@ func UnsupportedColumnType(raw parser.TypeName) bool {
 	case "char",
 		"timetz",
 		"timestamptz", "xml",
-		"name", "macaddr8", "point", "line",
+		"name", "point", "line",
 		"lseg", "box", "path", "polygon", "record":
 		return true
 	}

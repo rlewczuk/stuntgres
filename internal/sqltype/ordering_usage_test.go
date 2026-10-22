@@ -16,7 +16,7 @@ func TestOrderingUsage(t *testing.T) {
 				return
 			}
 			// Concrete means a valid runtime result, not a sortable SQL type.
-			if d.ID() == Box || d.ID() == Point || d.ID() == Lseg || d.ID() == Path || d.ID() == Circle || d.ID() == Line || d.ID() == Polygon || IsFTS(d.ID()) || d.ID() == ACLItem || d.ID() == Void || d.IsArray() || d.ID() == JSON || d.ID() == JSONPath || isBitString(d.ID()) || d.ID() == Xid || d.ID() == Cid || isRange(d.ID()) || isMultirange(d.ID()) {
+			if d.ID() == Box || d.ID() == Point || d.ID() == Lseg || d.ID() == Path || d.ID() == Circle || d.ID() == Line || d.ID() == Polygon || d.ID() == Macaddr8 || IsFTS(d.ID()) || d.ID() == ACLItem || d.ID() == Void || d.IsArray() || d.ID() == JSON || d.ID() == JSONPath || isBitString(d.ID()) || d.ID() == Xid || d.ID() == Cid || isRange(d.ID()) || isMultirange(d.ID()) {
 				if err == nil {
 					t.Fatalf("%s ordering admitted", d.Name())
 				}

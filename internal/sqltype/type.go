@@ -46,6 +46,7 @@ const (
 	Circle           ID = 718
 	Money            ID = 790
 	Macaddr          ID = 829
+	Macaddr8         ID = 774
 	Inet             ID = 869
 	NameArray        ID = 1003
 	ACLItem          ID = 1033
@@ -181,7 +182,7 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 	case Tid, Macaddr:
 		return 6
 	case Int8, Float8, Money, Time, Timestamp, Timestamptz, Xid8,
-		774, 3220: // macaddr8, pg_lsn
+		Macaddr8, 3220: // pg_lsn
 		return 8
 	case 32, 2281: // pg_ddl_command, internal: SIZEOF_POINTER
 		return int16(strconv.IntSize / 8)
@@ -266,6 +267,7 @@ func Builtins() []*Descriptor {
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
 		{id: Tid, name: "tid", sql: "TID", database: "TID"},
 		{id: Macaddr, name: "macaddr", sql: "MACADDR", database: "MACADDR", associatedArray: 1040},
+		{id: Macaddr8, name: "macaddr8", sql: "MACADDR8", database: "MACADDR8", associatedArray: 775},
 		{id: Xid, name: "xid", sql: "XID", database: "XID", associatedArray: 1011},
 		{id: Cid, name: "cid", sql: "CID", database: "CID"},
 		{id: Xid8, name: "xid8", sql: "XID8", database: "XID8"},
@@ -743,6 +745,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.tidInput(ctx, text)
 	case Macaddr:
 		return d.macaddrInput(ctx, text)
+	case Macaddr8:
+		return d.macaddr8Input(ctx, text)
 	case ACLItem:
 		return d.aclitemInput(ctx, text, env)
 	case Inet, Cidr:
@@ -1031,6 +1035,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return tidOutput(v)
 	case Macaddr:
 		return macaddrOutput(v)
+	case Macaddr8:
+		return macaddr8Output(v)
 	case ACLItem:
 		return v.aclitemOutput(env)
 	case Inet, Cidr:
@@ -1180,7 +1186,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "", fmt.Errorf("invalid literal value")
 	}
 	if v.null {
-		if IsNetwork(d.BaseType().id) || d.BaseType().id == Tid || d.BaseType().id == Macaddr {
+		if IsNetwork(d.BaseType().id) || d.BaseType().id == Tid || d.BaseType().id == Macaddr || d.BaseType().id == Macaddr8 {
 			return "CAST(NULL AS " + d.BaseType().SQLName() + ")", nil
 		}
 		if d.BaseType().id == Money {
@@ -1274,6 +1280,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "MACADDR '" + text + "'", nil
+	case Macaddr8:
+		text, err := macaddr8Output(v)
+		if err != nil {
+			return "", err
+		}
+		return "MACADDR8 '" + text + "'", nil
 	case Inet, Cidr:
 		text, err := d.Output(ctx, v)
 		if err != nil {
@@ -1669,7 +1681,7 @@ func StoredScalarCastType(id ID) bool {
 	switch id {
 	case TSVector, TSQuery, Box, Point, Lseg, Circle, Line, Path, Polygon:
 		return true
-	case Bool, Int2, Int4, Int8, Oid, Tid, Macaddr, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
+	case Bool, Int2, Int4, Int8, Oid, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
 		return true
 	}
@@ -1763,12 +1775,12 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 			return p, failure("42804", "incompatible source and destination types")
 		}
 	}
-	if source.Type.id == Macaddr || target.Type.id == Macaddr {
+	if source.Type.id == Macaddr || target.Type.id == Macaddr || source.Type.id == Macaddr8 || target.Type.id == Macaddr8 {
 		switch {
 		case source.Type == target.Type:
 			return p, nil
-		case context == Explicit && source.Type.id == Text && target.Type.id == Macaddr,
-			context >= Assignment && source.Type.id == Macaddr && IsCharacter(target.Type.id):
+		case context == Explicit && source.Type.id == Text && (target.Type.id == Macaddr || target.Type.id == Macaddr8),
+			context >= Assignment && (source.Type.id == Macaddr || source.Type.id == Macaddr8) && IsCharacter(target.Type.id):
 			p.method = viaIO
 			return p, nil
 		default:
@@ -2207,7 +2219,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 			// Explicit character casts size the captured output with cast semantics.
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
 		}
-		if (p.source.Type.id == Box || p.source.Type.id == Point || p.source.Type.id == Line || p.source.Type.id == Lseg || p.source.Type.id == Path || p.source.Type.id == Tid || p.source.Type.id == Macaddr || p.source.Type.id == JSONPath || p.source.Type.id == ACLItem) && IsCharacter(p.target.Type.id) {
+		if (p.source.Type.id == Box || p.source.Type.id == Point || p.source.Type.id == Line || p.source.Type.id == Lseg || p.source.Type.id == Path || p.source.Type.id == Tid || p.source.Type.id == Macaddr || p.source.Type.id == Macaddr8 || p.source.Type.id == JSONPath || p.source.Type.id == ACLItem) && IsCharacter(p.target.Type.id) {
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, p.context == Explicit)
 		}
 		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
@@ -2517,6 +2529,21 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		return 0, nil
 	}
 	switch p.left.id {
+	case Macaddr8:
+		left, err := a.MACADDR8()
+		if err != nil {
+			return 0, err
+		}
+		right, err := b.MACADDR8()
+		if err != nil {
+			return 0, err
+		}
+		if left < right {
+			return -1, nil
+		}
+		if left > right {
+			return 1, nil
+		}
 	case Macaddr:
 		left, err := a.MACADDR()
 		if err != nil {

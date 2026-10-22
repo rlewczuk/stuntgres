@@ -29,7 +29,7 @@ func ComparisonCapabilities(d *Descriptor) (equality, ordering bool) {
 	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Float4, Float8,
 		Numeric, Money, Text, BPChar, VarChar, Bit, VarBit,
 		Date, Time, Timetz, Timestamp, Timestamptz, Interval,
-		Oid, Tid, Macaddr, Xid8, UUID, Inet, Cidr, JSONB,
+		Oid, Tid, Macaddr, Macaddr8, Xid8, UUID, Inet, Cidr, JSONB,
 		Regclass, Regtype, Regrole, Regproc, Regprocedure,
 		Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary:
 		return true, true

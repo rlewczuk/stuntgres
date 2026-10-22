@@ -169,10 +169,8 @@ func TestReferenceMACADDRBoundaries(t *testing.T) {
 		if b.PG {
 			return
 		}
-		for _, q := range []string{"CREATE TABLE excluded(v macaddr[])", "CREATE TABLE excluded(v macaddr8)"} {
-			d := fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: "25"}
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.ImplicitError(q, d))
-		}
+		d := fixture.Diagnostic{Code: "0A000", Message: "unsupported column type", Position: "25"}
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.ImplicitError("CREATE TABLE excluded(v macaddr[])", d))
 		for _, tc := range []struct{ q, message, position string }{
 			{"SELECT ARRAY[MACADDR '08:00:2b:01:02:03']", "unsupported array element type", "8"},
 			{"SELECT '{}'::macaddr[]", "unsupported column type", "14"},

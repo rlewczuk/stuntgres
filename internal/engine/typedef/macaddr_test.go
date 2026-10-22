@@ -11,8 +11,8 @@ func TestMACADDRStorageAdmission(t *testing.T) {
 	if UnsupportedColumnType(parser.TypeName{Name: "macaddr"}) {
 		t.Fatal("scalar still unsupported")
 	}
-	if !UnsupportedColumnType(parser.TypeName{Name: "macaddr8"}) {
-		t.Fatal("macaddr8 admitted")
+	if UnsupportedColumnType(parser.TypeName{Name: "macaddr8"}) {
+		t.Fatal("macaddr8 scalar still unsupported")
 	}
 	for _, d := range sqltype.Builtins() {
 		if d.ID() == sqltype.Macaddr && (StoredArrayElement(d) || !sqltype.StoredScalarCastType(d.ID())) {

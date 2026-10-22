@@ -8,6 +8,7 @@ var equalitySignatures = [...]EqualitySignature{
 	{Oid, Oid},
 	{Tid, Tid},
 	{Macaddr, Macaddr},
+	{Macaddr8, Macaddr8},
 	{Box, Box},
 	{Line, Line},
 	{Lseg, Lseg},
@@ -49,7 +50,7 @@ func equalityCategory(id ID) byte {
 		return 'D'
 	case Interval:
 		return 'T'
-	case UUID, Bytea, Tid, Macaddr, Xid, Cid, Xid8:
+	case UUID, Bytea, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8:
 		return 'U'
 	}
 	return 0

@@ -78,6 +78,8 @@ func SameDatum(a, b Value) bool {
 	case Macaddr:
 		return a.integer >= 0 && uint64(a.integer)>>48 == 0 &&
 			b.integer >= 0 && uint64(b.integer)>>48 == 0 && a.integer == b.integer
+	case Macaddr8:
+		return a.integer == b.integer
 	case Inet, Cidr:
 		return a.network.valid(a.typ.BaseType().id == Cidr) && b.network.valid(b.typ.BaseType().id == Cidr) && a.network == b.network
 	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:

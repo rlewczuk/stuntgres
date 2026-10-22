@@ -49,6 +49,8 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// MACADDR's scalar metadata and associated lookup identity are visible;
 		// catalog presence does not make the companion an executable array.
 		expected[829], expected[1040] = true, true
+		// MACADDR8's scalar admission likewise exposes only companion metadata.
+		expected[774], expected[775] = true, true
 		expected[600], expected[603], expected[1017], expected[1020] = true, true, true, true
 		// LSEG is concrete; its canonical companion remains metadata-only.
 		expected[601], expected[1018] = true, true

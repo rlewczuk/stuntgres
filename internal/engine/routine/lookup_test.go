@@ -101,6 +101,38 @@ func TestPointOperatorMetadata(t *testing.T) {
 	}
 }
 
+func TestMACADDR8OperatorMetadata(t *testing.T) {
+	descriptors := BuiltinOperatorDescriptors(authorization.PrincipalRef{})
+	for _, want := range []struct {
+		oid, routine, commutator, negator, restriction, join ids.OID
+	}{
+		{3362, 4113, 3362, 3363, 101, 105},
+		{3363, 4118, 3363, 3362, 102, 106},
+		{3364, 4114, 3366, 3367, 103, 107},
+		{3365, 4115, 3367, 3366, 336, 386},
+		{3366, 4116, 3364, 3365, 104, 108},
+		{3367, 4117, 3365, 3364, 337, 398},
+	} {
+		found := false
+		for _, d := range descriptors {
+			if d.Address().ObjectID != want.oid {
+				continue
+			}
+			found = true
+			equality := want.oid == 3362
+			if d.Left != 774 || d.Right != 774 || d.Result != 16 || d.Function != want.routine ||
+				d.Commutator != want.commutator || d.Negator != want.negator ||
+				d.Restriction != want.restriction || d.Join != want.join ||
+				d.Merge != equality || d.Hash != equality {
+				t.Fatalf("macaddr8 operator %d descriptor = %+v, want %+v", want.oid, d, want)
+			}
+		}
+		if !found {
+			t.Fatalf("macaddr8 operator %d has no seeded descriptor", want.oid)
+		}
+	}
+}
+
 func TestSeededOperatorNamesIsOneIndex(t *testing.T) {
 	first := SeededOperatorNames()
 	if first == nil || first != SeededOperatorNames() {

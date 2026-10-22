@@ -261,7 +261,7 @@ func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 			return quote(text), nil
 		}
 		return quote(text) + "::" + typ, nil
-	case sqltype.Tid, sqltype.Macaddr:
+	case sqltype.Tid, sqltype.Macaddr, sqltype.Macaddr8:
 		return quote(text) + "::" + typ, nil
 	case sqltype.ACLItem, sqltype.Inet, sqltype.Cidr, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.JSON, sqltype.JSONB, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
 		return quote(text) + "::" + typ, nil

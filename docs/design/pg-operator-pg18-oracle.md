@@ -15,6 +15,20 @@ No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### MACADDR8 scalar operator admission
+
+PG18-TYPE-MACADDR8 adds exactly six released MACADDR8×MACADDR8 records3362–3367
+to the independent supported inventory. Their15-field rows follow
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and [REL_18_6 pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat):
+namespace11, owner10, binary kind, operands774, BOOL16 result and routines4113,
+4118,4114,4115,4116,4117 in operator-OID order. Equality alone retains released
+merge/hash flags; reciprocal commutators/negators and estimator identities are
+asserted exactly. These catalog flags do not grant native default ordering,
+grouping, indexing, or companion-array execution. All other admitted rows remain
+unchanged. Complete capture/inventory, permission, lifecycle, polymorphic and
+symbolic-reference consumers require fresh root-owned proof in both modes.
+
 ### POINT predicate admission
 
 PG18-TYPE-GEOM-POINT adds exactly ten released POINT×POINT operator records:

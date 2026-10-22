@@ -389,7 +389,7 @@ use the catalog array name for copied rank-zero declarations.
 | FLOAT4, FLOAT8 | `float64` |
 | NAME, TEXT, BPCHAR, VARCHAR | `string` |
 | Exact NUMERIC, MONEY | `string` |
-| UUID, TID, MACADDR, INET, CIDR, CIRCLE, LSEG, POLYGON, BIT, VARBIT | Canonical `string` |
+| UUID, TID, MACADDR, MACADDR8, INET, CIDR, CIRCLE, LSEG, POLYGON, BIT, VARBIT | Canonical `string` |
 | JSON | Exact source `string` |
 | JSONB, JSONPath | Canonical `string` |
 | TSVECTOR, TSQUERY | Cached canonical `string` |
@@ -653,9 +653,32 @@ Typed-nil bytes mean NULL; nonnil empty bytes are invalid input. Explicit TEXT
 input and character output casts do not add numeric or implicit TEXT conversions.
 Tables, defaults, CHECKs, views and logical Dump/Restore retain typed values.
 
-MACADDR arrays remain lookup-only. This feature adds no MACADDR8, MAC helper functions,
-bitwise/truncation operators, six-byte binary parameter API, binary COPY codec,
-wire-protocol server, OS networking or physical PostgreSQL storage mechanism.
+MACADDR8 is an eight-octet scalar (OID774, lookup-only companion775), stored
+inline as unsigned network-order bits. It accepts the documented six/eight-byte
+forms, case-insensitive hexadecimal pairs, consistent optional `:`, `-` or `.`
+separators at byte boundaries, and surrounding C whitespace. Six-byte
+`08002b010203` becomes `08:00:2b:ff:fe:01:02:03`; eight-byte
+`08002b0102030405` stays `08:00:2b:01:02:03:04:05`. No modified-EUI bit is flipped.
+The released PostgreSQL18.6 pair scanner also accepts a final single character
+or consistent trailing separator; it is not a strict full-consumption validator.
+Every malformed MACADDR8 input returns22P02 with the original input, never the
+MACADDR-specific22003 range error.
+
+MACADDR8's six strict comparisons use unsigned order across all64 bits and have
+the genuine macaddr8_eq/ne/lt/le/gt/ge routine associations. Their `pg_operator`
+rows retain released implementation, commutator/negator, estimator and equality
+merge/hash flags; those catalog facts do not authorize native default ORDER BY,
+grouping, hashing or index classes. Native transport and persistence follow the
+same owned textual/NULL contracts described above.
+Native DatabaseTypeName is `MACADDR8`, whereas lib/pq reports an empty name for
+OID774; native raw values are string and pq raw values are textual bytes.
+
+Both MAC address arrays remain lookup-only. Neither scalar adds MACADDR↔MACADDR8
+casts, MAC helper functions, bitwise/truncation operators, binary parameter APIs,
+binary COPY codecs, wire servers, OS networking or physical PostgreSQL storage.
+Embedded binary COPY resolves these missing codecs when a non-NULL datum is
+demanded; an empty export does not demonstrate codec support. Protocol COPY's
+declared-provider initialization remains a separate, eager boundary.
 
 ## Textual structured and network transport
 

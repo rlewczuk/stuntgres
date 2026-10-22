@@ -1961,3 +1961,25 @@ installed but unresolved caller through native replay/exact PostgreSQL stream,
 and17/INT4 after recreation. Full negative Restore records and byte-equivalent
 failed replacement protect permission/ambiguity/operator/type/formal boundaries.
 These selections are proof requirements, not a claim of author-run checks.
+
+### MACADDR8 scalar comparison provider
+
+The six exact `macaddr8_eq/ne/lt/le/gt/ge` spellings use the static function
+registry, established call-syntax/visibility/coercion gates, and the genuine
+OperatorRoutineProvider declarations4113–4118. `MACADDR8Comparison` delegates to
+the same unsigned scalar ComparisonPredicate as symbolic operators; it adds no
+second comparator, helper family or default index authority. Rebuild, render,
+capture, grouping and substitution retain the selected name/predicate and normal
+routine provenance. Literal NULL follows the existing strict-function demand
+rule; a row NULL does not conceal a later child error.
+
+```sh
+make check RUN='^TestMACADDR8ComparisonProviderLifecycle$'
+make check RUN='^TestReferenceMACADDR8(Comparison|Identity|Controls)$'
+make check RUN='^TestReferenceMACADDR8(Comparison|Identity|Controls)$' REFERENCE=1
+```
+
+Use external900-second deadlines. The lifecycle unit supplements—not duplicates—
+the public scalar/NULL witnesses. Controls retain a qualified callable predicate
+in the existing view through actual same/fresh-driver dumps and PostgreSQL replay.
+These are root verification requirements, not claims of executed checks.

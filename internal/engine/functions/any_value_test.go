@@ -61,6 +61,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Cidr:             {"10", "192.168/25", "2001:db8::/113"},
 		sqltype.Regcollation:     {"0", "4294967295"},
 		sqltype.Regnamespace:     {"0", "4294967295"},
+		sqltype.Macaddr8:         {"00:00:00:00:00:00:00:00", "08002b010203", "08:00:2b:01:02:03:04:05", "80:00:00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff:ff:ff"},
 	}
 	for _, d := range sqltype.Builtins() {
 		if !d.Concrete() {

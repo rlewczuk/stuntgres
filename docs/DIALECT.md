@@ -2347,9 +2347,19 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   strict. Public textual direct/prepared transport, MACADDR metadata and logical
   replay of tables/data/defaults/CHECKs/views share the scalar codec. Invalid
   syntax22P02 and out-of-range octets22003 retain English primaries and
-  phase-specific positions/context. Companion1040 remains lookup-only; MACADDR8,
+  phase-specific positions/context. Companion1040 remains lookup-only;
   MAC functions, bitwise/truncation operators and binary transport are excluded.
   No wire server, physical durability or OS networking is implied.
+- MACADDR8 stores eight unsigned network-order octets inline, accepts six/eight
+  octets with consistent optional separators and surrounding C whitespace, and
+  inserts FF:FE into six-octet inputs without a modified-EUI bit flip. Its
+  PostgreSQL18.6 pair scanner preserves released trailing-character edges.
+  Canonical lowercase colon output, strict scalar comparisons, textual driver
+  transport and typed defaults/CHECKs/views/logical replay share one codec.
+  Malformed input returns22P02 with the original English primary and established
+  source positions/context. Native DatabaseTypeName is MACADDR8; lib/pq is empty.
+  Companion775 stays lookup-only. Arrays, binary transport, MACADDR conversions,
+  helpers, default ordering/grouping/index providers remain excluded.
 - INET `~`, `&`, `|`, address-plus-BIGINT in either order, and
   address-minus-BIGINT return INET; address-minus-address returns INT8.
   CIDR/domain inputs reuse implicit INET coercion. Full32/128-bit operations

@@ -6,6 +6,43 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### MACADDR8 scalar oracle contract
+
+MACADDR8 scenarios specify documented six/eight-octet input spellings,
+six-octet FF:FE insertion (without setting the modified-EUI bit), canonical
+eight-octet output, released scanner edges, unsigned comparisons and NULL,
+complete diagnostics and statement atomicity. Transport covers direct,
+new-prepared and held string/byte/Valuer/NULL frames, raw values and detached
+metadata. Controls use actual native dumps, same/fresh-driver replay, typed
+defaults/CHECK/view constants, retained cursors and failed-restore atomicity;
+real mode also replays the actual native dump inside a PostgreSQL transaction.
+Native-only boundary phases retain arrays, binary codecs and default
+ordering/index-class exclusions without attributing those limits to PostgreSQL.
+Metadata expectations intentionally differ: native `DatabaseTypeName` is
+`MACADDR8`, while lib/pq returns an empty name for PostgreSQL OID 774.
+Both backends retain explicit MACADDR8 raw codec assertions independently
+of that name (native string versus lib/pq `[]byte`); transport also checks
+native string versus lib/pq any ScanType before iteration and retains the
+backend-specific name after close.
+
+```sh
+make check RUN='^TestReferenceMACADDR8(Values|Scanner|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceMACADDR8(Comparison|Transport|Identity|Boundaries)$' REFERENCE=1
+make check RUN='^TestReferenceMACADDR8Controls$' REFERENCE=1
+```
+
+Use external900-second deadlines. Pinned PostgreSQL18.6 oracle discovery passed
+all eight definitions, including scanner quirks, complete diagnostics and exact
+backend metadata; the discovery guard was then removed and all eight native
+scenarios exhibited missing-feature failures before production implementation.
+The shared loop now always retains native execution. Repeat these selectors
+without `REFERENCE=1` for native proof and repeat both modes on completed
+definitions before review. Also select `^TestReferenceMACADDRBoundaries$` in both
+modes because its obsolete MACADDR8 rejection was removed. The standalone
+session-owned `macaddr8-smoke.go` exercises the public API without duplicating a
+permanent test. Internal `^TestMACADDR8(InputOutput|Scanner|Comparison|Datum|Descriptor|ArrayBoundary|ParserAdmission|StorageAdmission)$`
+covers representation, cancellation, allocation and admission edges.
+
 ### Composite-field domain-default fixture ownership
 
 `TestReferenceDomainDefaultCompositeFieldDependencies` keeps each direct/prepared

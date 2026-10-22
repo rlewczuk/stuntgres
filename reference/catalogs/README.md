@@ -27,6 +27,38 @@ Use external900-second deadlines. Standalone public smoke should inspect actual
 empty raw metadata, scalar/LEFT JOIN ANYARRAY NULL,0/true and rejected CTAS
 absence, not infer them from source structure or backend parity.
 
+### MACADDR8 catalog admission
+
+The independent supported-operator TSV admits only released MACADDR8 identities
+3362–3367, with operands774, BOOL16 results, routines4113–4118 and exact released
+commutator/negator/estimator fields. Equality's merge/hash flags remain catalog
+facts, not native default ordering, grouping or indexing providers. Existing
+complete bags remain unfiltered on native; no other type's rows are removed.
+`TestReferencePGTypeAdmission` adds scalar774 and lookup-only companion775.
+`TestAnyValueProviderDatums` now exercises concrete eight-byte MACADDR8 carriers,
+six-byte expansion, zero, high-bit and all-one addresses; `TestOrderingUsage`
+continues to reject default MACADDR8 ordering.
+
+Changed shared expectations affect `TestPGOperatorCaptureOwnership` and these
+reference definitions: `TestReferencePGOperatorInventory`, `Permissions`,
+`Lifecycle`, `FeatureSmoke`, `PolymorphicRelationships`, `PolymorphicIdentity`,
+and `References` (all suffixes use the `TestReferencePGOperator` prefix).
+The fixed-signature ResolverAgreement and focused LSEG consumers retain their
+existing expected rows; FeatureSmoke still exercises them as dependencies.
+
+```sh
+make check RUN='^TestReference(PGOperator(Inventory|Permissions|Lifecycle|FeatureSmoke|PolymorphicRelationships|PolymorphicIdentity|References)|PGTypeAdmission)$' REFERENCE=1
+make check RUN='^TestReference(PGOperator(Inventory|Permissions|Lifecycle|FeatureSmoke|PolymorphicRelationships|PolymorphicIdentity|References)|PGTypeAdmission)$'
+make check RUN='^(TestPGOperatorCaptureOwnership|TestAnyValueProviderDatums|TestOrderingUsage)$'
+```
+
+Use external900-second deadlines. Both selected public modes are required after
+these shared expectation changes. For the feature smoke, select
+`make check RUN='^TestReferencePGOperatorFeatureSmoke$'` with and without
+`REFERENCE=1`; expect exit0/package `ok`, complete exact inventory and symbolic
+references, and the existing lifecycle replay/permissions/polymorphic assertions.
+These commands describe required proof, not verification already performed.
+
 ### PATH catalog admission
 
 PATH scalar602 and lookup-only companion1019 join the complete independent
