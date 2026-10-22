@@ -45,5 +45,5 @@ func partitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationV
 	if op == nil || raw == nil || operationReplayOrZero(op).partitionUsingIndex == nil {
 		return false
 	}
-	return operationReplayOrZero(op).partitionUsingIndex.Matches(auth.Catalog, raw, table) && partitionConstraintReplayImport(auth.engine, op, auth)
+	return operationReplayOrZero(op).partitionUsingIndex.Matches(auth.Catalog, raw, table) && partitionConstraintReplayImport(operationEngine(op), op, auth)
 }

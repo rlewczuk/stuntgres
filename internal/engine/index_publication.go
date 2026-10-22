@@ -87,7 +87,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 		}
 		auth := programmeAuth
 		var err error
-		if auth.engine == nil {
+		if !auth.live() {
 			auth, err = s.writeAuthorizationLocked(e)
 		}
 		if err == nil {
@@ -102,7 +102,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 		break
 	}
 	e.mu.Unlock()
-	if programmeAuth.engine != nil {
+	if programmeAuth.live() {
 		if err := s.readmitPreparedPrograms(programmeAuth); err != nil {
 			return err
 		}

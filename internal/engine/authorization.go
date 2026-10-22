@@ -55,13 +55,13 @@ func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []a
 var _ analyze.Privileges = AuthorizationView{}
 
 // AuthorizationView is statement-level authority. It embeds the captured
-// access.View and adds the session and statement inputs: the engine (for
-// identity checks and pass-throughs), the session settings and the path
-// inputs. Its Check, CanUse, CheckCreate, Effective and CheckColumns are entry
-// points that pass the view itself as the access.Environment.
+// access.View and adds the session and statement inputs: the engine inputs
+// (authorityInputs), the session settings and the path inputs. It holds no
+// engine: identity checks compare the view's catalog owner. Its Check, CanUse,
+// CheckCreate, Effective and CheckColumns are entry points that pass the view
+// itself as the access.Environment.
 type AuthorizationView struct {
 	access.View
-	engine     *Engine
 	inputs     *authorityInputs         // Nil unless the engine built the view.
 	definition catalog.DefinitionReader // Cooking-only sparse effects; never SQL execution authority.
 	settings   *session.SettingsStore
@@ -74,6 +74,10 @@ type AuthorizationView struct {
 	session                *session.Session
 	materializedPopulation bool
 }
+
+// live reports whether the engine built v (authorityView); zero views and
+// unit fixtures are not live.
+func (v AuthorizationView) live() bool { return v.inputs != nil }
 
 func (v AuthorizationView) Effective(ref ids.ObjectRef, grantOptions bool) (authorization.Privileges, error) {
 	return v.View.Effective(v, ref, grantOptions)
@@ -213,7 +217,7 @@ func (v AuthorizationView) ref(a ids.ObjectAddress) ids.ObjectRef {
 // authorityView is v as an engine-built view. It is the one constructor of
 // the engine inputs, so a view and its copies and recaptures cannot drift.
 func (e *Engine) authorityView(v access.View) AuthorizationView {
-	return AuthorizationView{View: v, engine: e, inputs: &e.authority}
+	return AuthorizationView{View: v, inputs: &e.authority}
 }
 
 // operationAuthority is v with op's environment: the definition reader,

@@ -10,10 +10,10 @@ func (v *AuthorizationView) AdmissionAccess() exec.RoutineAccess { return v.rout
 func routineAccessOf(auth AuthorizationView) exec.RoutineAccess { return auth.routineAccess() }
 
 // routineAccess is v as routine admission reads it. Env borrows v and stays
-// nil unless v has a live engine, which is what RoutineAccess.Live reports.
+// nil unless the engine built v, which is what RoutineAccess.Live reports.
 func (v *AuthorizationView) routineAccess() exec.RoutineAccess {
 	access := exec.RoutineAccess{View: v.View}
-	if v.engine != nil {
+	if v.live() {
 		access.Env = v
 	}
 	return access

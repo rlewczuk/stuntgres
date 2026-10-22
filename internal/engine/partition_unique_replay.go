@@ -53,7 +53,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.A
 }
 
 func partitionUniqueReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
-	if op == nil || raw == nil || operationReplayOrZero(op).partitionUnique == nil || !partitionConstraintReplayImport(auth.engine, op, auth) {
+	if op == nil || raw == nil || operationReplayOrZero(op).partitionUnique == nil || !partitionConstraintReplayImport(operationEngine(op), op, auth) {
 		return false
 	}
 	return operationReplayOrZero(op).partitionUnique.Matches(auth.Catalog, raw, table)

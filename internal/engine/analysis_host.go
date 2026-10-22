@@ -283,12 +283,12 @@ func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth analyze.Auth
 			return sqltype.Value{}, err
 		}
 	}
-	if owner.routineAuth.engine != nil && owner.foreignActionAuth == nil {
+	if owner.routineAuth.live() && owner.foreignActionAuth == nil {
 		authority.State.CurrentUser = owner.routineAuth.State.CurrentUser
 		if err := authority.Roles.ValidatePrincipal(authority.State.CurrentUser); err != nil {
 			return sqltype.Value{}, err
 		}
-	} else if owner.routineAuth.engine == nil {
+	} else if !owner.routineAuth.live() {
 		owner.routineAuth = authority
 	}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(owner), Catalog: read, Input: input, Output: owner.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &authority}}

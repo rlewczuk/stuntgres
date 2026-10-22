@@ -10,10 +10,10 @@ import (
 
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
-// The engine and catalog owner checks stay here; view.QueryTableRefs walks.
+// The view and catalog owner checks stay here; view.QueryTableRefs walks.
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []exec.Leaf, refs []ids.ObjectRef, token ids.SessionToken, inherited plan.RowMark) ([]ids.ObjectRef, error) {
 	read := auth.Catalog
-	if auth.engine != e || read.Owner() != e.catalog.owner() || read.State() == nil {
+	if auth.Owner != e.catalog.owner() || read.Owner() != e.catalog.owner() || read.State() == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return view.QueryTableRefs(auth.View, auth, invoker, leaves, refs, token, inherited)

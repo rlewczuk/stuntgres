@@ -24,7 +24,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR WITH HOLD FOR SELECT abs(i) FROM unit_rows")
 					c := payloadOf(s).cursors.entries["c"]
 					root, catalog, actor := c.root, c.routineAuth.Catalog.State(), c.routineAuth.State.CurrentUser
-					if c.routineAuth.engine != engineOf(s) || catalog == nil || c.authority.Host != nil {
+					if c.routineAuth.inputs != &engineOf(s).authority || catalog == nil || c.authority.Host != nil {
 						t.Fatal("DECLARE did not detach its original routine authority")
 					}
 					original := slices.Clone(c.routineDependencies)
@@ -59,7 +59,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					}
 					result, err := cursorUnitExecute(t, s, context.Background(), query)
 					if mutation != "intact" && mutation != "relation_metadata" {
-						if err == nil || result.Rows != nil || result.Count != 0 || c.source != nil || c.routineAuth.engine != nil {
+						if err == nil || result.Rows != nil || result.Count != 0 || c.source != nil || c.routineAuth.live() {
 							t.Fatal("invalid original manifest survived producer admission", result, err)
 						}
 						return
@@ -71,7 +71,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 						result.Rows.Close()
 					}
 					if promotion {
-						if !c.promoted || c.routineAuth.engine != nil || c.routineDependencies != nil || c.root != nil {
+						if !c.promoted || c.routineAuth.live() || c.routineDependencies != nil || c.root != nil {
 							t.Fatal("promotion retained declaration authority")
 						}
 					} else {
@@ -80,7 +80,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 						}
 					}
 					sessionSQL(t, s, "CLOSE c")
-					if c.routineAuth.engine != nil || c.routineDependencies != nil {
+					if c.routineAuth.live() || c.routineDependencies != nil {
 						t.Fatal("CLOSE retained declaration authority")
 					}
 				})

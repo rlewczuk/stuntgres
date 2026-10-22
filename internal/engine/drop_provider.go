@@ -501,7 +501,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.engine != e || auth.session != scope.op.Session || auth.Catalog.Owner() != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.finished || auth.Owner != e.catalog.owner() || auth.session != scope.op.Session || auth.Catalog.Owner() != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, present := auth.Catalog.Relation(ref.Address); !present {

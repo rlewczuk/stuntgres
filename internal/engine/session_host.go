@@ -32,6 +32,14 @@ func (h *sessionHost) Unregister(token ids.SessionToken, s *session.Session) {
 // engine returns the engine that runs the statement.
 func (s *StatementScope) engine() *Engine { return engineOf(s.op.Session) }
 
+// operationEngine is the engine of op's session, or nil without one.
+func operationEngine(op *session.Operation) *Engine {
+	if op == nil || op.Session == nil {
+		return nil
+	}
+	return engineOf(op.Session)
+}
+
 // operationAllocation places an operation and its binding host in one
 // allocation.
 type operationAllocation struct {

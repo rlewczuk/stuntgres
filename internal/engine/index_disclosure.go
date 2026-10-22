@@ -7,9 +7,9 @@ import (
 )
 
 // disclosureEnv is auth as the environment of index validation: nil for a
-// nil view or one without an engine, both of which are trusted publication.
+// nil view or one the engine did not build, both of which are trusted publication.
 func disclosureEnv(auth *AuthorizationView) index.DisclosureEnv {
-	if auth == nil || auth.engine == nil {
+	if auth == nil || !auth.live() {
 		return nil
 	}
 	return auth
