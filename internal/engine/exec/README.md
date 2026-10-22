@@ -60,6 +60,13 @@ It imports `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`,
   `functions` runtimes, `sqltype.DomainCheckEvaluator` and the
   `pgcatalog` ACL inquiry. The `Eval*` bodies and frame reads live here;
   capability methods forward to the host.
+  `InputDomainChecks(evaluator, capturedCatalog)` scopes fresh text input:
+  descriptor-owned domain violations remain soft, while errors executing CHECK
+  expressions retain the shared `sqlstate.InputError` hard marker outside their
+  original, unwrap-preserved cause, including a directly soft-marked alias cause.
+  It captures no live catalog and changes no ordinary/default/predicate environment.
+  `FunctionJSONBRecordInput` remains the JSONB expression-context seam and
+  delegates to this adapter; COPY wraps its existing captured scope evaluator.
 - **Routine call admission** (`routine_admission.go`,
   `routine_body_admission.go`, `routine_program.go`): EXECUTE admission of
   the routines an expression invokes at planning time (`AdmitRoutineCall`,
@@ -300,6 +307,13 @@ make check RUN='^TestReference(RowLock|QueryLock|ViewLocks|SQLCursor|PGCursor|Tr
 make check RUN='^TestReferenceFDW(Scan|Rescan|CursorLifecycle|LocalRechecks|LocalConsumers|Transactions|Concurrency)'
 make check RUN='^TestReference(Domain|Reg(class|type|proc|role|oper|namespace|collation|config|dictionary)|GroupingSets|CTEDML|CommitTime|TransactionIdentity|Advisory|Routine)'
 ```
+
+Scoped input provenance proof: `make check RUN='^TestCopyFilter(InputProvenance|AliasProvenance)$'`
+and existing `^TestJSONBRecordDomainErrors$`. Alias proof invokes the actual scoped
+adapter with a direct soft-marked42P01 CHECK-body cause and requires a hard outer
+result, unchanged public diagnostic/cause, and cancellation identity. Both COPY-filter and JSONB-record
+dual-mode contracts remain required when this shared adapter changes; selectors
+are documented by their owning reference packages.
 
 ## Row-policy runtime
 

@@ -10,7 +10,7 @@ import (
 // type resolution; their errors stop parsing without prevalidating later text.
 func ParseRegOperatorSignature(text string, name func(string) error, operand func(string) error) error {
 	fail := func(message string) error {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: message}
+		return sqlstate.SoftInputError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: message})
 	}
 	quoted, opener := false, -1
 	for i := range len(text) {

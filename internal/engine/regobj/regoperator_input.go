@@ -52,7 +52,7 @@ func (r OperatorInput) numeric(ctx context.Context, text string) (uint32, bool, 
 func (r OperatorInput) candidates(text string) ([]*catalog.Operator, error) {
 	raw, err := parser.ParseRegclassName(text)
 	if err != nil {
-		return nil, sqlError("42602", "invalid name syntax")
+		return nil, sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))
 	}
 	parts := raw.Parts
 	names := make([]string, len(parts))
@@ -101,10 +101,10 @@ func (r OperatorInput) ResolveRegoper(ctx context.Context, text string) (uint32,
 		return 0, err
 	}
 	if len(candidates) == 0 {
-		return 0, sqlError("42883", "operator does not exist: "+text)
+		return 0, sqlstate.SoftInputError(sqlError("42883", "operator does not exist: "+text))
 	}
 	if len(candidates) > 1 {
-		return 0, sqlError("42725", "more than one operator named "+text)
+		return 0, sqlstate.SoftInputError(sqlError("42725", "more than one operator named "+text))
 	}
 	return uint32(candidates[0].Address().ObjectID), nil
 }
@@ -126,7 +126,7 @@ func (r OperatorInput) ResolveRegoperator(ctx context.Context, text string) (uin
 		// Split syntax precedes the right delimiter; semantic namespace checks
 		// still follow resolution of every operand.
 		if _, err := parser.ParseRegclassName(name); err != nil {
-			return sqlError("42602", "invalid name syntax")
+			return sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))
 		}
 		return nil
 	}, func(arg string) error {
@@ -141,7 +141,7 @@ func (r OperatorInput) ResolveRegoperator(ctx context.Context, text string) (uin
 		// PostgreSQL resolves even the first over-limit operand before checking
 		// FUNC_MAX_ARGS. Only the first two identities are needed for lookup.
 		if count >= 100 {
-			return sqlError("54023", "too many arguments")
+			return sqlstate.SoftInputError(sqlError("54023", "too many arguments"))
 		}
 		if count < len(oids) {
 			oids[count] = ids.OID(id)
@@ -159,7 +159,7 @@ func (r OperatorInput) ResolveRegoperator(ctx context.Context, text string) (uin
 			d.Message = "missing argument"
 			d.Hint = "Use NONE to denote the missing argument of a unary operator."
 		}
-		return 0, d
+		return 0, sqlstate.SoftInputError(d)
 	}
 	candidates, err := r.candidates(name)
 	if err != nil {
@@ -170,5 +170,5 @@ func (r OperatorInput) ResolveRegoperator(ctx context.Context, text string) (uin
 			return uint32(d.Address().ObjectID), nil
 		}
 	}
-	return 0, sqlError("42883", "operator does not exist: "+text)
+	return 0, sqlstate.SoftInputError(sqlError("42883", "operator does not exist: "+text))
 }

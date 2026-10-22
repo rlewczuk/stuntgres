@@ -53,6 +53,15 @@ the first saturated weight rather than input max-weight merging. Final aligned
 storage is checked before rendering. Operation scans/copies/rendering check
 cancellation at bounded intervals, return no partial result and never mutate inputs.
 
+Owned input lexer/position/operand errors and released text-input word/storage
+limits carry the shared `sqlstate` soft-input origin, allowing COPY/JSONB conversion
+seams to recover without class-wide42601/54000 rules. Cancellation and the
+defensive `XX000 tsquery stack too small` path retain hard authority. The parser
+does not catch arbitrary errors or own command-level recovery; CHECK expression
+execution is still made hard by the actual scoped domain adapter.
+The shared vector-size diagnostic is unmarked; only the two actual parser size
+checks attach soft origin. Algebra's Concat size failure retains its own hard
+operation authority, with no input wrapper or changed limit/English diagnostic.
 
 ## Testing
 

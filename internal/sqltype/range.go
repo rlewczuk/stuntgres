@@ -199,13 +199,15 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string, env InputEnvi
 		}
 		datum.upper = bound
 	}
-	datum, err = d.canonicalRange(datum)
+	datum, err = d.canonicalRange(datum, true)
 	if err != nil {
 		return Value{}, err
 	}
 	return Value{typ: d, rangeDatum: datum}, nil
 }
-func (d *Descriptor) canonicalRange(x rangeDatum) (rangeDatum, error) {
+
+// inputSave belongs only to text input, not binary/constructor/operator callers.
+func (d *Descriptor) canonicalRange(x rangeDatum, inputSave bool) (rangeDatum, error) {
 	if x.flags == rangeEmpty {
 		return x, nil
 	}
@@ -213,7 +215,11 @@ func (d *Descriptor) canonicalRange(x rangeDatum) (rangeDatum, error) {
 	if !lo && !hi {
 		cmp := d.compareRangeBounds(x.lower, x.upper)
 		if cmp > 0 {
-			return x, failure("22000", "range lower bound must be less than or equal to range upper bound")
+			err := failure("22000", "range lower bound must be less than or equal to range upper bound")
+			if inputSave {
+				err = sqlstate.SoftInputError(err)
+			}
+			return x, err
 		}
 		if cmp == 0 && x.flags&(rangeLowerInclusive|rangeUpperInclusive) != rangeLowerInclusive|rangeUpperInclusive {
 			return rangeDatum{flags: rangeEmpty}, nil

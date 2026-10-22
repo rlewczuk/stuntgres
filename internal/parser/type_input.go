@@ -24,7 +24,7 @@ func ParseTypeName(ctx context.Context, input string, notice func(sqlstate.Error
 		if errors.As(l.err, &diagnostic) {
 			copied := *diagnostic
 			copied.Context = fmt.Sprintf("invalid type name \"%s\"", input)
-			return TypeName{}, &copied
+			return TypeName{}, sqlstate.HardInputError(&copied)
 		}
 		return TypeName{}, l.err
 	}
@@ -35,7 +35,7 @@ func ParseTypeName(ctx context.Context, input string, notice func(sqlstate.Error
 }
 
 func invalidTypeName(input string) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: fmt.Sprintf("invalid type name \"%s\"", input)}
+	return sqlstate.SoftInputError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: fmt.Sprintf("invalid type name \"%s\"", input)})
 }
 
 func inputColumnType(l sqlLexer, tok lexeme) TypeName {

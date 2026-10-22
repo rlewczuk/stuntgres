@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
@@ -70,12 +71,15 @@ func TestJSONPathSharedSourceErrorAndPersistenceLiteral(t *testing.T) {
 	d, _ := e.CatalogRead().LookupType(sqltype.JSONPath)
 	ctx := context.Background()
 	_, err := d.Input(ctx, `$?(@ like_regex "(")`, -1)
-	original, ok := err.(*sqlstate.Error)
-	if !ok {
+	var original *sqlstate.Error
+	if !errors.As(err, &original) {
 		t.Fatal(err)
 	}
-	enriched := analyze.InputErrorAt(err, parser.Position{Character: 14}).(*sqlstate.Error)
-	if enriched.Code != "2201B" || enriched.Position != "14" || original.Position != "" || enriched.Context != "" {
+	var enriched *sqlstate.Error
+	if !errors.As(analyze.InputErrorAt(err, parser.Position{Character: 14}), &enriched) {
+		t.Fatal("positioned error lost SQL diagnostic", err)
+	}
+	if enriched.Code != "2201B" || enriched.Position != "14" || original.Position != "" || enriched.Context != "" || enriched == original {
 		t.Fatal(enriched, original)
 	}
 	for _, tc := range []struct {

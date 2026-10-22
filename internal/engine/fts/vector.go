@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"stuntgres/internal/sqlstate"
 )
 
 type position struct {
@@ -89,7 +91,7 @@ func (l *lexer) positions() ([]position, error) {
 		}
 		p := position{number: decimalPosition(l.text[start:l.pos])}
 		if p.number == 0 {
-			return nil, failure("42601", "wrong position info in tsvector: \""+l.text+"\"")
+			return nil, sqlstate.SoftInputError(failure("42601", "wrong position info in tsvector: \""+l.text+"\""))
 		}
 		for l.pos < len(l.text) && !space(l.text[l.pos]) && l.text[l.pos] != ',' {
 			c := l.text[l.pos]
@@ -175,10 +177,10 @@ func ParseVector(ctx context.Context, text string) (*Vector, error) {
 			return nil, err
 		}
 		if len(word) > maxWordBytes {
-			return nil, failure("54000", fmt.Sprintf("word is too long (%d bytes, max 2046 bytes)", len(word)))
+			return nil, sqlstate.SoftInputError(failure("54000", fmt.Sprintf("word is too long (%d bytes, max 2046 bytes)", len(word))))
 		}
 		if rawBytes > maxStringOffset {
-			return nil, vectorSize(rawBytes)
+			return nil, sqlstate.SoftInputError(vectorSize(rawBytes))
 		}
 		rawBytes += len(word)
 		entries = append(entries, lexeme{word: word, positions: positions})
@@ -220,7 +222,7 @@ func canonicalVector(ctx context.Context, entries []lexeme) (*Vector, error) {
 		}
 	}
 	if size > maxStringOffset {
-		return nil, vectorSize(size)
+		return nil, sqlstate.SoftInputError(vectorSize(size))
 	}
 	return renderVector(ctx, merged)
 }

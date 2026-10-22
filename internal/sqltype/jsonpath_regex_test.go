@@ -41,8 +41,8 @@ func TestJSONPathRegexModesAndSyntax(t *testing.T) {
 	}
 	for _, tc := range invalid {
 		_, err := validateJSONPathRegex(context.Background(), tc.pattern, "")
-		e, ok := err.(*sqlstate.Error)
-		if !ok || e.Code != "2201B" || e.Message != "invalid regular expression: "+tc.suffix || e.Detail != "" || e.Position != "" || e.Context != "" {
+		var e *sqlstate.Error
+		if !errors.As(err, &e) || e.Code != "2201B" || e.Message != "invalid regular expression: "+tc.suffix || e.Detail != "" || e.Position != "" || e.Context != "" {
 			t.Fatalf("%q: %#v want %s", tc.pattern, err, tc.suffix)
 		}
 	}
@@ -102,8 +102,8 @@ func TestJSONPathRegexReviewBoundaries(t *testing.T) {
 				}
 				return
 			}
-			e, ok := err.(*sqlstate.Error)
-			if !ok || e.Code != "2201B" || e.Message != "invalid regular expression: "+tc.suffix || e.Detail != "" || e.Position != "" || e.Context != "" {
+			var e *sqlstate.Error
+			if !errors.As(err, &e) || e.Code != "2201B" || e.Message != "invalid regular expression: "+tc.suffix || e.Detail != "" || e.Position != "" || e.Context != "" {
 				t.Fatalf("%q: %#v want %s", tc.pattern, err, tc.suffix)
 			}
 		})
@@ -181,8 +181,8 @@ func TestJSONPathRegexBoundStopping(t *testing.T) {
 								}
 								return
 							}
-							e, ok := err.(*sqlstate.Error)
-							if !ok || e.Code != "2201B" || e.Message != "invalid regular expression: "+suffix || e.Detail != "" || e.Position != "" || e.Context != "" {
+							var e *sqlstate.Error
+							if !errors.As(err, &e) || e.Code != "2201B" || e.Message != "invalid regular expression: "+suffix || e.Detail != "" || e.Position != "" || e.Context != "" {
 								t.Fatalf("%q: %#v want %s", pattern, err, suffix)
 							}
 						})

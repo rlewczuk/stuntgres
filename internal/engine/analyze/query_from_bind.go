@@ -72,7 +72,7 @@ func (b *Binder) QueryColumnAt(c QueryColumn, pos parser.Position) expr.Expr {
 	}
 	column := plan.ColumnExpr{Info: b.Info(c.Descriptor.Usage, pos, expr.Properties{RowDependent: true}), Origin: origin, Scope: 1, Frame: b.FrameID(), Slot: c.Slot}
 	column.MergeSource = c.Leaf != QueryTargetLeaf && b.mergeReturningFrame(b.FrameID())
-	if b.Target.GeneratedOwner == nil {
+	if b.Target.GeneratedOwner == nil && !b.Consumer.CopyWhere {
 		column = column.WithGeneration(relation, c.Physical, c.Slot-c.Physical)
 		if column.Virtual != nil && c.Leaf >= 0 {
 			column.QueryOccurrence = c.Leaf + 1

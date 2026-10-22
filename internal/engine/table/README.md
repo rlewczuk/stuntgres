@@ -43,6 +43,10 @@ pending-grant decision they call live here.
   `StatementScope` slot),
   `RenameColumnCandidate`, `RenameLocalConstraint`,
   `ValidateQueryTableOutputType`.
+  `AlterCookingError` and `AlterTypeCheckReparseError` clone underlying public
+  diagnostics without dropping a direct input-origin annotation or mutating the
+  source. CHECK reparse clears only its internal source's `Position`,
+  `InternalPosition` and `InternalQuery`; all other fields stay unchanged.
 - **NOT NULL** (`not_null_*.go`, `physical_not_null*.go`): `NotNullCandidate`
   with `NotNullRecursion`, `NameCreateNotNull`, `UsingIndexNotNullCandidate`;
   physical NOT NULL transitions (`PhysicalNotNullFromType`,

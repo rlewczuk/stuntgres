@@ -12,6 +12,41 @@ fresh input. Admitted arrays and composites recursively retain their member
 usages and NULL identities. NULL belongs to the caller's framing: it is not the
 empty text/byte value or the zero `Value`.
 
+`InputSoftError` first reads a direct `sqlstate.InputError` origin marker;
+producers mark only their own save-context errors. Explicit hard markers cover
+regtype parser/typmod helpers, LINE construction arithmetic, JSONPath numeric/
+recursive helpers and domain CHECK execution, even when their causes have
+primitive-looking SQLSTATEs or a nested soft marker. Unmarked
+primitive input keeps the existing exact-code fallback. The classifier never
+unwraps errors or treats an entire SQLSTATE class as recoverable. COPY and JSONB
+invoke it only at their fresh conversion seams; presentation helpers preserve
+the marker while copying public diagnostics.
+Additional source-soft origins include array dimensions, text range reversal,
+JSONPath lexer/grammar/Unicode/regex flags, BIT width, decoded JSONB Unicode NUL,
+FTS, query_int and ACL names/role lookup. The shared range canonicalizer receives
+text-save authority only from text input, not binary/operators; BIT's shared
+assignment/binary width helper is unchanged. JSONPath's validation-only regex
+adapter marks its compiler-owned direct2201B result, never cancellation or a
+whole parser/regex return. No global state/message rules or valid-input rework.
+Private source/noninput-caller and actual scoped-domain proof:
+`make check RUN='^TestCopyFilterProviderProvenance$'` (sqltype and engine packages).
+`ParseInt8` reuses bigint input spelling and diagnostic precedence for numeric
+COPY options; it does not create another integer parser or catalog identity.
+
+Text-array input validates each declared dimension and the rank limit early,
+then demands actual contents. A cumulative declared product does not preempt
+child input or later individual-bound diagnostics: a child conversion or hard
+domain CHECK exception precedes the containing extent mismatch. Existing token,
+open-brace and post-scalar depth/closing-extent checks keep their order.
+Element storage grows only with actual parsed children, never the declared
+product. The common `ownedArray` constructor retains its checked product,
+dimension, actual element-count and descriptor guards for text input and all
+other builders; binary metadata/receive guards are unchanged.
+Real descriptor precedence, tiny-payload final construction and cancellation
+proof: `make check RUN='^TestCopyFilterArrayInputDemand$'`. The public hard-domain
+text/CSV regression is `TestReferenceCopyFilterArrayInputDemand`, run in both
+native and real-reference modes.
+
 `Descriptor.RebindDomain(base, name, declaration)` rebuilds a same-ID immutable
 domain generation with current naming and immediate-base authority. It preserves
 own CHECK/NOT NULL, builtin inventory provenance and associated identities while
@@ -176,6 +211,14 @@ lookup while evaluating every input. Query/value selection fully demands strict
 tails and discards structural-error prefixes. Result conversion uses destination
 input/domain/array/composite providers; SQL VALUE temporal text and UTC JSON
 temporal encoding are separate. Selected behavior conversion is terminal.
+
+These semantic policies inspect underlying diagnostics through input annotations:
+`IS JSON` still maps only `22P02`/`22P05` to false, while query conversion's
+existing ON ERROR policy still admits only classes `22`/`23`. Behavior conversion
+retains its `42804` diagnostic and original message detail. Neither policy uses
+or broadens COPY's source-soft classifier; ordinary errors and cancellation keep
+their identity. Real target-input proof:
+`make check RUN='^(TestSQLJSONScannerKindsAndUniqueness|TestSQLJSONMarkedInputConversion)$'`.
 
 `JSONTableRows` reuses those typed bindings and the same evaluator for complete
 row-path selection. Selected rows retain both the borrowed immutable JSON tree

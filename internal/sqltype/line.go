@@ -67,15 +67,15 @@ func (d *Descriptor) lineFromPointsWithCode(p [4]float64, code string) (Value, e
 	default:
 		dy, err := lineArithmetic(ArithmeticSubtract, p[1], p[3])
 		if err != nil {
-			return Value{}, err
+			return Value{}, sqlstate.HardInputError(err)
 		}
 		dx, err := lineArithmetic(ArithmeticSubtract, p[0], p[2])
 		if err != nil {
-			return Value{}, err
+			return Value{}, sqlstate.HardInputError(err)
 		}
 		m, err := lineArithmetic(ArithmeticDivide, dy, dx)
 		if err != nil {
-			return Value{}, err
+			return Value{}, sqlstate.HardInputError(err)
 		}
 		if math.IsInf(m, 0) {
 			c = [4]float64{-1, 0, p[0], 0}
@@ -84,11 +84,11 @@ func (d *Descriptor) lineFromPointsWithCode(p [4]float64, code string) (Value, e
 		} else {
 			product, err := lineArithmetic(ArithmeticMultiply, m, p[0])
 			if err != nil {
-				return Value{}, err
+				return Value{}, sqlstate.HardInputError(err)
 			}
 			intercept, err := lineArithmetic(ArithmeticSubtract, p[1], product)
 			if err != nil {
-				return Value{}, err
+				return Value{}, sqlstate.HardInputError(err)
 			}
 			if intercept == 0 {
 				intercept = 0

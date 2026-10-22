@@ -229,7 +229,7 @@ func (p *arrayReader) boundInteger(initial bool) (int32, error) {
 	}
 	n, err := strconv.ParseInt(p.input[start:p.at], 10, 32)
 	if err != nil {
-		return 0, failure("54000", "array bound is out of integer range")
+		return 0, sqlstate.SoftInputError(failure("54000", "array bound is out of integer range"))
 	}
 	return int32(n), nil
 }
@@ -437,7 +437,6 @@ func (d *Descriptor) arrayInput(ctx context.Context, text string, typmod int32, 
 	p := arrayReader{ctx: ctx, input: text, descriptor: d, typmod: typmod, environment: env}
 	p.whitespace()
 	var dimensions []ArrayDimension
-	product := int64(1)
 	for p.at < len(text) && text[p.at] == '[' {
 		if len(dimensions) == 6 {
 			return Value{}, failure("54000", "number of array dimensions exceeds the maximum allowed (6)")
@@ -461,19 +460,15 @@ func (d *Descriptor) arrayInput(ctx context.Context, text string, typmod int32, 
 			return Value{}, p.malformed(`Missing "]" after array dimensions.`)
 		}
 		if upper < lower {
-			return Value{}, failure("2202E", "upper bound cannot be less than lower bound")
+			return Value{}, sqlstate.SoftInputError(failure("2202E", "upper bound cannot be less than lower bound"))
 		}
 		if upper == math.MaxInt32 {
-			return Value{}, failure("54000", "array upper bound is too large: 2147483647")
+			return Value{}, sqlstate.SoftInputError(failure("54000", "array upper bound is too large: 2147483647"))
 		}
 		length := int64(upper) - int64(lower) + 1
 		if length > math.MaxInt32 {
-			return Value{}, failure("54000", "array size exceeds the maximum allowed")
+			return Value{}, sqlstate.SoftInputError(arraySizeFailure())
 		}
-		if product > int64(math.MaxInt32)/length {
-			return Value{}, failure("54000", "array size exceeds the maximum allowed")
-		}
-		product *= length
 		dimensions = append(dimensions, ArrayDimension{lower, int32(length)})
 		p.at++
 		p.whitespace()

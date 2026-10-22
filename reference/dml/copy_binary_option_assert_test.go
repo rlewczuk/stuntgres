@@ -11,14 +11,10 @@ import (
 
 func copyBinaryOptionOutcome(t *testing.T, c copyTextConnection, name, direction, query string, result copyTextResult, err error, output []byte) {
 	t.Helper()
-	// Oracle capability observations do not grant new native error-skipping or
-	// transcoding support. These cases stay present and assert the genuine
-	// native unsupported boundary independently of the PostgreSQL outcome.
+	// Transcoding remains an independent native capability boundary.
 	if !c.pg {
 		option := ""
 		switch name {
-		case "on_error_stop", "on_error_ignore":
-			option = "ON_ERROR"
 		case "encoding":
 			option = "ENCODING"
 		}

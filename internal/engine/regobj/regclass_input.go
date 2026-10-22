@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -62,7 +63,7 @@ func (r ClassInput) ResolveRegclass(ctx context.Context, text string) (uint32, e
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
-		return 0, sqlError("42602", "invalid name syntax")
+		return 0, sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))
 	}
 	name, err = ClassQualifiedName(name, text, r.capture.Database)
 	if err != nil {
@@ -96,5 +97,5 @@ func (r ClassInput) ResolveRegclass(ctx context.Context, text string) (uint32, e
 			return uint32(address.ObjectID), nil
 		}
 	}
-	return 0, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(name)))
+	return 0, sqlstate.SoftInputError(sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(name))))
 }

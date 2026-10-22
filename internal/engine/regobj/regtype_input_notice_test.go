@@ -2,6 +2,7 @@ package regobj
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -34,7 +35,8 @@ func TestTypeInputNoticesFollowTheCurrentHost(t *testing.T) {
 	resolve := func() {
 		t.Helper()
 		_, err := input.resolveTypeName(context.Background(), long)
-		if d, ok := err.(*sqlstate.Error); !ok || d.Code != "42704" {
+		var d *sqlstate.Error
+		if !errors.As(err, &d) || d.Code != "42704" {
 			t.Fatalf("resolve %q: %v", long, err)
 		}
 	}

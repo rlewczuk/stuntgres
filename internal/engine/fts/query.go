@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"stuntgres/internal/sqlstate"
 )
 
 type queryNode struct {
@@ -159,10 +161,10 @@ func ParseQuery(ctx context.Context, text string) (*Query, error) {
 				return nil, err
 			}
 			if len(word) > maxWordBytes {
-				return nil, failure("54000", "word is too long in tsquery: \""+text+"\"")
+				return nil, sqlstate.SoftInputError(failure("54000", "word is too long in tsquery: \""+text+"\""))
 			}
 			if operandBytes >= maxStringOffset {
-				return nil, failure("54000", "value is too big in tsquery: \""+text+"\"")
+				return nil, sqlstate.SoftInputError(failure("54000", "value is too big in tsquery: \""+text+"\""))
 			}
 			operandBytes += len(word) + 1
 			n := queryNode{op: 'v', word: word}
@@ -252,14 +254,14 @@ func ParseQuery(ctx context.Context, text string) (*Query, error) {
 			}
 		}
 		if queryTooBig(uint64(len(nodes)), uint64(operandBytes)) {
-			return nil, failure("54000", "tsquery is too large")
+			return nil, sqlstate.SoftInputError(failure("54000", "tsquery is too large"))
 		}
 	}
 	if expecting {
 		if len(nodes) == 0 && len(ops) == 0 {
 			return &Query{root: -1}, nil
 		}
-		return nil, failure("42601", "no operand in tsquery: \""+text+"\"")
+		return nil, sqlstate.SoftInputError(failure("42601", "no operand in tsquery: \""+text+"\""))
 	}
 	if len(frames) != 0 {
 		return nil, l.syntax()
@@ -276,7 +278,7 @@ func ParseQuery(ctx context.Context, text string) (*Query, error) {
 		return nil, l.syntax()
 	}
 	if queryTooBig(uint64(len(nodes)), uint64(operandBytes)) {
-		return nil, failure("54000", "tsquery is too large")
+		return nil, sqlstate.SoftInputError(failure("54000", "tsquery is too large"))
 	}
 	q := &Query{nodes: nodes, root: values[0]}
 	rendered, err := q.render(ctx, false)

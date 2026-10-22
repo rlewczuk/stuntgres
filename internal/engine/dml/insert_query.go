@@ -128,6 +128,16 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				}
 			}
 		}
+		if command != nil && command.CopyFrom != nil {
+			evaluation.Row, evaluation.PhysicalTable = row, b.Ref
+			accepted, err := command.CopyFrom.admit(&evaluation)
+			if err != nil {
+				return index.WriteBatch{}, err
+			}
+			if !accepted {
+				continue
+			}
+		}
 		candidate := index.WriteCandidate{Values: row}
 		if command != nil && command.PartitionInsert != nil {
 			if err := ValidateInsertRow(h, b, schema, row, &evaluation); err != nil {

@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -332,7 +333,7 @@ func (b *Binder) columnAt(i int, pos parser.Position) expr.Expr {
 func (b *Binder) columnAtOf(relation *catalog.Relation, i int, pos parser.Position) expr.Expr {
 	ref := b.useColumnOf(relation, i)
 	column := plan.ColumnExpr{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: i}
-	if b.Target.GeneratedOwner == nil {
+	if b.Target.GeneratedOwner == nil && !b.Consumer.CopyWhere {
 		column = column.WithGeneration(relation, i, 0)
 	}
 	return column
@@ -377,6 +378,28 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			boundResult = nil
 		}
 	}()
+	if b.Consumer.CopyWhere {
+		switch r := raw.(type) {
+		case parser.SubqueryExpr:
+			return nil, expr.ErrorAt("0A000", "cannot use subquery in COPY FROM WHERE condition", r.Pos)
+		case parser.IndexSubqueryExpr:
+			return nil, expr.ErrorAt("0A000", "cannot use subquery in COPY FROM WHERE condition", r.Pos)
+		case parser.AggregateExpr:
+			if r.Window != nil {
+				return nil, expr.ErrorAt("42P20", "window functions are not allowed in COPY FROM WHERE conditions", r.Pos)
+			}
+			for _, arg := range r.Args {
+				if _, err := b.Bind(arg, ExpressionPolicy{Context: ProjectionContext}); err != nil {
+					return nil, err
+				}
+			}
+			return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in COPY FROM WHERE conditions", r.Pos)
+		case parser.FunctionExpr:
+			if r.Window != nil {
+				return nil, expr.ErrorAt("42P20", "window functions are not allowed in COPY FROM WHERE conditions", r.Pos)
+			}
+		}
+	}
 	var node expr.Expr
 	if selected, handled, err := b.BindSQLRoutineSyntax(raw, policy); handled {
 		if err != nil {
@@ -923,6 +946,9 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			return nil, fmt.Errorf("stuntgres: unsupported scalar node")
 		}
 	}
+	if b.Consumer.CopyWhere && exec.SourceReturnsSet(node) {
+		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in COPY FROM WHERE conditions", node.SourcePosition())
+	}
 	if b.Clause.FunctionProjection.matches(raw) && b.Clause.FunctionProjection.Operand == nil && node.ResultUsage().Type != nil && node.ResultUsage().Type.Concrete() && node.ResultUsage().Type.BaseType().IsComposite() {
 		b.Clause.FunctionProjection.Operand = node
 	}
@@ -1427,10 +1453,11 @@ func (b *Binder) InputConstant(text string, u sqltype.Usage, pos parser.Position
 		}
 		value, err := b.decodeLiteralInput(text, u.Type, -1, b.Input.LiteralInput(pos.Character))
 		if err != nil {
-			if diagnostic, ok := err.(*sqlstate.Error); ok && pos.Character > 0 {
+			var diagnostic *sqlstate.Error
+			if errors.As(err, &diagnostic) && pos.Character > 0 {
 				copy := *diagnostic
 				copy.Position = strconv.Itoa(pos.Character)
-				return sqltype.Value{}, &copy
+				return sqltype.Value{}, sqlstate.InputDiagnostic(err, &copy)
 			}
 			return sqltype.Value{}, err
 		}

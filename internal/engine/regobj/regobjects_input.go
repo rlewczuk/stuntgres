@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // Namespace input uses only catalog names. Collation input additionally owns an
@@ -24,13 +25,13 @@ func (r ObjectInput) ResolveRegnamespace(ctx context.Context, input string) (uin
 	}
 	parts, err := parser.ParseRegclassName(input)
 	if err != nil || len(parts.Parts) != 1 {
-		return 0, sqlError("42602", "invalid name syntax")
+		return 0, sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))
 	}
 	name := parts.Parts[0].Text
 	a := r.capture.Authority
 	address := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 	if _, exists := catalog.DefinitionNamespaceAt(a.View.Catalog, a.Definitions, address); !exists {
-		return 0, sqlError("3F000", `schema "`+name+`" does not exist`)
+		return 0, sqlstate.SoftInputError(sqlError("3F000", `schema "`+name+`" does not exist`))
 	}
 	return uint32(address.ObjectID), nil
 }
@@ -41,7 +42,7 @@ func (r ObjectInput) ResolveRegcollation(ctx context.Context, input string) (uin
 	}
 	raw, err := parser.ParseRegclassName(input)
 	if err != nil {
-		return 0, sqlError("42602", "invalid name syntax")
+		return 0, sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))
 	}
 	a := r.capture.Authority
 	parts := raw.Parts
@@ -68,7 +69,7 @@ func (r ObjectInput) ResolveRegcollation(ctx context.Context, input string) (uin
 		parts = parts[1:]
 	}
 	missing := func() (uint32, error) {
-		return 0, sqlError("42704", `collation "`+spelling()+`" for encoding "UTF8" does not exist`)
+		return 0, sqlstate.SoftInputError(sqlError("42704", `collation "`+spelling()+`" for encoding "UTF8" does not exist`))
 	}
 	path := analyze.NamespaceSelection{Path: r.capture.Path}
 	if len(parts) == 2 {

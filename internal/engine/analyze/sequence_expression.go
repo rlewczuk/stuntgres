@@ -1,6 +1,7 @@
 package analyze
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -117,7 +118,8 @@ func (b *Binder) bindRegclassCast(raw parser.Expr, pos parser.Position) (expr.Ex
 	return plan.CoercionExpr{Info: b.Info(target, raw.SourcePosition(), CoercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}, nil
 }
 func SequenceInputError(err error, pos parser.Position, context string, parameter int) error {
-	if d, ok := err.(*sqlstate.Error); ok {
+	var d *sqlstate.Error
+	if errors.As(err, &d) {
 		copy := *d
 		copy.Position = ""
 		if parameter != 0 {
@@ -125,7 +127,7 @@ func SequenceInputError(err error, pos parser.Position, context string, paramete
 		} else if pos.Character > 0 {
 			copy.Position = strconv.Itoa(pos.Character)
 		}
-		return &copy
+		return sqlstate.InputDiagnostic(err, &copy)
 	}
 	return err
 }

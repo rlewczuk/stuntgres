@@ -43,7 +43,7 @@ func TestJSONBRecordResultPlan(t *testing.T) {
 	_, err = PlanJSONBRecordResult(empty, target, InputEnvironment{})
 	var diagnostic *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "function return row and query-specified return row do not match", Detail: "Returned row contains 0 attributes, but query expects 2."}
-	if !errors.As(err, &diagnostic) || *diagnostic != want || JSONBRecordSoftError(err) {
+	if !errors.As(err, &diagnostic) || *diagnostic != want || InputSoftError(err) {
 		t.Fatal("caller arity is a hard error", err)
 	}
 	wide, err := RecordShape([]CompositeMember{{Attribute: 1, Name: "a", Usage: types[Int8].Usage()}, {Attribute: 2, Name: "b", Usage: types[Text].Usage()}})
@@ -59,7 +59,7 @@ func TestJSONBRecordResultPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PlanJSONBRecordResult(source, other, InputEnvironment{}); err == nil || JSONBRecordSoftError(err) {
+	if _, err := PlanJSONBRecordResult(source, other, InputEnvironment{}); err == nil || InputSoftError(err) {
 		t.Fatal("foreign field generation accepted", err)
 	}
 	if _, err := plan.Apply(context.Background(), Null(target), InputEnvironment{}); err == nil {

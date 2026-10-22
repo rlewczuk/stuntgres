@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/copyfmt"
@@ -11,6 +12,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/sqlstate"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -149,6 +151,15 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		return 0, err
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
+	if b.Predicate != nil {
+		b.Predicate, _, err = exec.PreflightCoercionsWithPolicy(&evaluation, b.Predicate, true)
+		if err == nil {
+			err = view.ValidateExpressionJoinExecution(&evaluation, b.Predicate, auth.Catalog)
+		}
+		if err != nil {
+			return 0, err
+		}
+	}
 	selected := make([]bool, len(b.Relation.Columns))
 	for _, target := range b.Targets {
 		selected[target] = true
@@ -196,6 +207,9 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	if err == nil {
 		err = auth.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Targets)
+		if err == nil && len(b.UsedColumns) != 0 {
+			err = auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns)
+		}
 	}
 	if err == nil {
 		err = e.visibilityWriteLocked(s.txRef)
@@ -230,6 +244,11 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		return
 	}
 	h := s.writeHost()
+	state := &dml.CopyFromState{Options: options, Predicate: b.Predicate}
+	if options.OnError == copyfmt.Ignore {
+		state.InputChecks = exec.InputDomainChecks(s.input.DomainChecks, s.domains.inputCatalog)
+	}
+	s.CopyFrom = state
 	var cursor interface {
 		exec.RowCursor
 		Diagnostic(error) error
@@ -237,7 +256,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if options.Format == copyfmt.Binary {
 		cursor = dml.NewCopyBinaryCursor(h, b, copyfmt.NewBinaryReader(bufio.NewReader(copyReader{s, source})))
 	} else {
-		cursor = dml.NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(copyReader{s, source}), dml.CopyLineTargets(b)))
+		cursor = dml.NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(copyReader{s, source}), dml.CopyLineTargets(b)), state)
 	}
 	rows, err := func() (index.WriteBatch, error) {
 		if s.protocolOrZero().command || s.protocolOrZero().simple {
@@ -302,6 +321,33 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 		return
 	}
 	b.Storage = auth.StorageLocked(b.Ref.Address)
+	if syntax.Where != nil {
+		binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+		binder.Query.Auth = &auth
+		binder.Target.Relation, binder.Target.Ref = b.Relation, b.Ref
+		binder.Target.Name = b.Relation.Name()
+		// Read actual pre-generation row values. Generated references are
+		// rejected using captured uses before any preflight folding.
+		binder.Consumer.CopyWhere = true
+		binder.Query.Frame = 1
+		namespace := analyze.RelationNamespace(auth.Catalog, b.Relation, b.Ref, analyze.QueryTargetLeaf)
+		binder.Query.Namespace = &namespace
+		b.Predicate, err = binder.BindBoolean(syntax.Where, analyze.FilterContext, "WHERE")
+		if err != nil {
+			return
+		}
+		for _, slot := range binder.Target.Uses {
+			if _, generated := b.Relation.ColumnMeta.Generations[b.Relation.Attributes[slot]]; generated {
+				record := sqlError("42P10", "generated columns are not supported in COPY FROM WHERE conditions").(*sqlstate.Error)
+				record.Detail = fmt.Sprintf("Column \"%s\" is a generated column.", b.Relation.Columns[slot].Name)
+				err = record
+				return
+			}
+		}
+		b.UsedColumns, b.Dependencies = binder.Target.Uses, binder.Dependencies
+		s.input = binder.Input
+		s.routineDependencies = b.Dependencies
+	}
 	b.Targets, err = copyfmt.ResolveColumns(b.Relation, syntax.Columns)
 	if err != nil {
 		return
@@ -311,6 +357,9 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 		privilege = authorization.InsertPrivilege
 	}
 	err = auth.CheckColumns(b.Ref, b.Relation, privilege, b.Targets)
+	if err == nil && len(b.UsedColumns) != 0 {
+		err = auth.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns)
+	}
 	return
 }
 

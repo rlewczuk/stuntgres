@@ -98,7 +98,7 @@ func TestJSONBRecordProvider(t *testing.T) {
 	}
 	call.Args[0] = arg(0, sqltype.Null(shape))
 	call.Unresolved = true
-	if _, err := call.Eval(ctx); err == nil || sqltype.JSONBRecordSoftError(err) {
+	if _, err := call.Eval(ctx); err == nil || sqltype.InputSoftError(err) {
 		t.Fatal("unresolved setup softened", err)
 	}
 	call.Unresolved = false

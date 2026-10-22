@@ -1,6 +1,7 @@
 package routine
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -112,7 +113,8 @@ func StageDropRoutine(h DDLHost, auth ddl.Authority, s *parser.DropRoutine) erro
 			signature, canonical, written, err = dropRoutineArguments(h, auth, target)
 		}
 		if err != nil {
-			if d, ok := err.(*sqlstate.Error); ok && s.IfExists && (d.Code == "3F000" || d.Code == "42704") {
+			var d *sqlstate.Error
+			if s.IfExists && errors.As(err, &d) && (d.Code == "3F000" || d.Code == "42704") {
 				h.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: d.Message + ", skipping"})
 				continue
 			}

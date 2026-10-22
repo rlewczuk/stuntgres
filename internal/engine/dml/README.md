@@ -68,6 +68,17 @@ it, it never imports the engine, and it never builds a binder. See
   RETURNING's INSERT write overlay) and `PartitionStoredRow` with the
   partition insertion groups. The engine embeds it by value in its per-command
   mutation, so writable CTEs, rules and SQL routines swap it whole.
+  COPY's `Insert.CopyFrom` points at the single `CopyFromState`: predicate,
+  parsed policy, captured input-domain adapter and per-command reject state.
+  A soft conversion yields one present pending-rejected row; omitted defaults
+  run before rejection/limit admission. The shared post-default stage rejects
+  or filters before generation/routing/constraints. Ordinary INSERT has no
+  COPY state; binary shares filtering without a conversion-recovery seam.
+  Reached selected DEFAULT markers execute immediately in COPY-list order
+  through the existing default-origin evaluator, using the real host
+  environments without the soft-input adapter. Their assembler mask is
+  consumed so they never execute twice; later fields/markers remain undemanded
+  after an earlier failure. Omitted defaults stay in the assembler.
 - **ON CONFLICT** (`insert_conflict.go`, `insert_conflict_predicate.go`):
   `InsertConflictState` (`NewInsertConflictState`, `SelectArbiters`,
   `Matches`, `MarkAffected`), `BindingForConflict`,
@@ -126,6 +137,12 @@ it, it never imports the engine, and it never builds a binder. See
   `copy_insertion.go`): `CopyCursor` and `CopyBinaryCursor`
   (`NewCopyCursor`, `NewCopyBinaryCursor`, `Diagnostic`) over the reader
   the engine's COPY protocol builds, and the buffered insertion flush.
+  A source-marked fresh-input diagnostic may retain inner parser Context before
+  its COPY frame. Other already-contextual primary errors keep their original
+  diagnostic and wrapper identity, including a primary joined with pending
+  cancellation. COPY must not flatten that error or let cancellation replace it.
+  Existing actual-owner proof: `make check RUN='^TestProtocolCopyCancellationContext$'`;
+  marked parser-prefix coverage remains in both-mode `CopyFilterAliasHardErrors`.
 - **UPDATE** (`update.go`, `update_validate.go`): `ExecuteUpdate` runs a
   captured `UpdateInput` (target source, FROM sources, parameters, schema)
   with the caller holding nothing and returns an `Outcome`: it freezes the
@@ -368,3 +385,9 @@ ownership. Select `make check RUN='^TestRLSRoutedProposalLayout$'`.
 The failure observer also requires finalized generated values in NamedRow at
 the RowDetail call boundary, including no-program constraint failures.
 Shared public routing/privacy regressions remain the independent SQL proof.
+
+COPY filter units: `make check RUN='^TestCopyFilterRowAdmission$'`; root engine
+units `^TestCopyFilter(InputProvenance|FinishVeto)$` cover scoped hard/soft causes
+and actual terminal/final publication vetoes. External definitions and their
+dual-mode selectors live in
+[`reference/dml`](../../../reference/dml/README.md#copy-filtering-and-conversion-error-policy).

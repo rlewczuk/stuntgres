@@ -46,6 +46,12 @@ feature. Only the upper features, `stored` and the engine import it; never
   already-parsed type syntax. The `Retarget*` methods implement the
   `analyze` retarget interfaces, and `DetachCursorInput` rebinds a cursor's
   resolvers to its execution authority.
+  Fresh-input recoverability is producer-owned: `sqlstate.SoftInputError` marks
+  only the bounded alias input's own name/missing/ambiguity/signature failures.
+  Type grammar and modifier helpers use `HardInputError`; ACL, cancellation,
+  structural-name and unrelated callback failures retain their hard authority.
+  Ordinary STOP diagnostics remain unchanged, including missing-schema errors;
+  no SQLSTATE-family rule or cause-unwrapping decides recovery.
 - **Dump spellings, stored-value walkers and remap**
   (`regclass_dump.go`, `regproc_persistence.go`,
   `regoperator_persistence.go`, `regts_persistence.go`,
@@ -172,3 +178,23 @@ this code need an `Engine` and stay in `internal/engine`
 in `regproc_test.go`, `TestRegrole*`, `TestRegclass*`, `TestACLValues*`,
 `TestACLItem*`, `TestRegObjectAlias*`, `TestMaterializedRefreshOwnerContext`,
 `TestConversionRegprocCapturedProcedurePresentation`).
+
+Input-origin/caller preservation uses these bounded public groups, each both
+as written and with `REFERENCE=1` (external900-second deadline):
+
+```sh
+make check RUN='^TestReferenceRegclass(Diagnostics|Authorization|Constructor|WriteDiagnosticPresentation|ContextualConstructorParameters)$'
+make check RUN='^TestReferenceRegtype(Input|Diagnostics|InvalidSQLAndDemand|AliasModifierSyntax|HeldFrames)$'
+make check RUN='^TestReferenceRegProc(Diagnostics|SignatureTypeSyntax|ValuesMetadata|Signatures|PreparedAuthority)$'
+make check RUN='^TestReferenceRegOperator(Diagnostics|ParserEdges|NamespaceAuthorization|Signatures|PreparedAnalysis)$'
+make check RUN='^TestReference(RegCollationInput|RegNamespaceInput|RegObjectBoundaryStringCasts|RegObjectBoundaryByteParameters|RegCollationVisibility)$'
+make check RUN='^TestReferenceRegrole(Diagnostics|Parameters|AtomicityCancellation)$'
+make check RUN='^TestReferenceRegTS(Diagnostics|NamespaceAuthorization|ValuesMetadata|PreparedLifetime)$'
+make check RUN='^TestReferenceSequenceRegclass(InputSyntaxDiagnostics|ParameterInput|ParameterPresentationAndDemand|ParameterNamespaceInput|SourceInputStream)$'
+make check RUN='^TestReference(ObjectAddressDiagnostics|ObjectAddressDiagnosticParameters|ObjectAddressTypeArgumentOrder|FDWImport|FDWImportAtomicity)$'
+```
+
+These exercise direct literal/parameter/runtime presentation, parsed signature
+callbacks, qualified absence versus ACL, nested aliases and ordinary STOP
+diagnostics. COPY-alias and all JSONB-record selected groups remain separately
+required; these ordinary-consumer groups do not substitute for them.

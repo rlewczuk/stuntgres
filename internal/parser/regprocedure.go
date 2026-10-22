@@ -10,7 +10,7 @@ import (
 // and avoiding an intermediate argument vector. Segments retain their own source.
 func ParseRegprocedureName(input string, argument func(string) error) (ObjectName, error) {
 	failure := func(code, message string) (ObjectName, error) {
-		return ObjectName{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
+		return ObjectName{}, sqlstate.SoftInputError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message})
 	}
 	quoted, left := false, -1
 	for i := 0; i < len(input); i++ {

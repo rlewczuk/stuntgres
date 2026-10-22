@@ -593,7 +593,7 @@ func (l *jsonLexer) stringToken() error {
 				if decoded == 0 {
 					err := l.fail(`\u0000 cannot be converted to text.`).(*sqlstate.Error)
 					err.Code, err.Message = "22P05", "unsupported Unicode escape sequence"
-					return err
+					return sqlstate.SoftInputError(err)
 				}
 				if !l.discard {
 					b.WriteRune(decoded)

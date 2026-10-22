@@ -1,6 +1,7 @@
 package table
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
@@ -66,10 +67,11 @@ func CaptureAlterTypeChecks(op *session.Operation, view catalog.Read, original, 
 }
 
 func AlterTypeCheckReparseError(err error) error {
-	if diagnostic, ok := err.(*sqlstate.Error); ok {
+	var diagnostic *sqlstate.Error
+	if errors.As(err, &diagnostic) {
 		copy := *diagnostic
 		copy.Position, copy.InternalPosition, copy.InternalQuery = "", "", ""
-		return &copy
+		return sqlstate.InputDiagnostic(err, &copy)
 	}
 	return err
 }

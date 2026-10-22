@@ -21,6 +21,7 @@ func (s *StatementScope) Finish(err error) error {
 	if s.finished {
 		return s.result
 	}
+	copyState := s.CopyFrom
 	// Finishing still consumes held cursors, foreign-action recipes and index
 	// expressions. Their borrowed admission context ends only after those users.
 	defer func() {
@@ -275,6 +276,9 @@ func (s *StatementScope) Finish(err error) error {
 		err = cleanupErr
 	}
 	s.result = err
+	if err == nil {
+		copyState.Success(s.op)
+	}
 	e.endLockOwner(endedTicket)
 	s.releaseCopyReservation()
 	if !s.message {

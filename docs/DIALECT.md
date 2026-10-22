@@ -1939,9 +1939,38 @@ its base receiver; a NULL record resolves the base on invocation, after the
 response, and preserves actual COPY row/column error context.
 
 File and PROGRAM endpoints fail explicitly and never perform external I/O.
-Encoding overrides, freezing, row filtering and error-skipping/logging options
-remain excluded. Legacy CSV option spellings are outside the modern CSV
-implementation. Physical export of a virtual partition root is unavailable.
+Encoding overrides and freezing remain excluded. COPY FROM WHERE uses existing
+expression providers over the whole destination row, including omitted defaults;
+only TRUE inserts. Conversion and demanded defaults precede the filter, while
+generation, routing and table constraints follow it. Text/CSV ON_ERROR IGNORE
+skips supported fresh-input conversion errors, not framing, encoding, default,
+predicate, table-constraint, I/O or cancellation errors. Domain-own constraints
+may be soft; errors executing their CHECK expressions remain hard. REJECT_LIMIT
+permits exactly N rejected rows and fails atomically at N+1. LOG_VERBOSITY and
+client_min_messages govern row/summary notices. Binary supports WHERE/STOP,
+not IGNORE; no new expression or binary provider is implied.
+Array text input keeps individual bound/rank checks early, but a cumulative
+declared dimension product does not shield demanded element conversions.
+Child input precedes closing-extent validation, so a hard domain CHECK exception
+still aborts IGNORE atomically even for a short value declaring large dimensions.
+Only actual parsed elements drive storage growth; final checked construction
+retains the existing size and shape guards.
+Recoverability follows the actual provider's error-save boundary, not broad
+SQLSTATE classes: array dimensions, range reversal, JSONPath grammar/regex,
+BIT width, JSONB Unicode NUL, FTS, installed query_int and ACL input-owned errors
+may recover. LINE arithmetic and JSONPath numeric/recursive helpers remain hard,
+as do regtype parser/typmod and predicate/default failures. Native domain CHECK
+evaluation does not currently capture
+catalog authority for a nested regclass cast (`regclass input lacks catalog authority`).
+This ordinary unsupported path is not softened or implemented by COPY recovery;
+primitive domain CHECK expressions and the scoped hard-origin boundary remain
+independently covered.
+Native explicit text-to-int4range casts in WHERE or domain CHECK binding remain
+unsupported (`0A000 explicit casts are supported only for int4, int8, text and bool`).
+Direct range COPY input/recovery is fully supported independently of that cast;
+no cast provider is added to implement conversion-error policy.
+Legacy CSV option spellings are outside the modern CSV implementation.
+Physical export of a virtual partition root is unavailable.
 Binary providers do not add storage, cast, DDL or catalog mutation capabilities;
 `pg_node_tree` binary input is excluded.
 

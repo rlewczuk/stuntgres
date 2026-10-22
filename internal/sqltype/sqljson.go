@@ -2,6 +2,7 @@ package sqltype
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"stuntgres/internal/sqlstate"
@@ -185,7 +186,8 @@ func JSONPredicate(ctx context.Context, value Value, kind string, unique bool) (
 	scan := jsonScanResult{classify: true, unique: unique}
 	_, err := value.typ.scanJSON(ctx, value.text, &scan)
 	if err != nil {
-		if d, ok := err.(*sqlstate.Error); ok && (d.Code == "22P02" || d.Code == "22P05") {
+		var d *sqlstate.Error
+		if errors.As(err, &d) && (d.Code == "22P02" || d.Code == "22P05") {
 			return false, nil
 		}
 		return false, err

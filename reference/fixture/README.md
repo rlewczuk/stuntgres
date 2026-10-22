@@ -317,3 +317,22 @@ make check RUN='^TestReferenceRegOperator(ExternalBoundary|PreparedLifetime|Prep
 make check RUN='^TestReferenceRegOperator(ExternalBoundary|PreparedLifetime|PreparedAnalysis|Persistence|FeatureSmoke)$'
 ```
 
+### Genuine COPY notice connections
+
+`CopyNoticeConnection(t, pair, postgres, &records, handler)` configures the
+existing unwrapped stream connector with a case-scoped handler: public native
+`WithNoticeHandler` on the pair-owned connector, or pgx `OnNotice` on the same
+pinned oracle/DSN. It returns a pinned borrower and owns borrower/pool cleanup
+before the pair reset. It never passes wrapped pq connections to pgx Raw.
+Records contain complete owned `Diagnostic` values, including absent fields;
+inspect them after command completion. A custom handler must not reenter its
+Raw-owning `*sql.Conn`; independent peer SQL is permitted. PostgreSQL synchronous
+network delivery and native post-operation delivery need not have equal timing.
+
+Existing `CopyFrom`, `Pair.CopyPostgres` and wrapped ordinary SQL pools retain
+their APIs and ownership. The new helper's callsites are the COPY filter
+scenarios and the native notice-handler peer witness. Selected proof is the
+small COPY filter groups documented in [dml testing](../dml/README.md#copy-filtering-and-conversion-error-policy),
+each in native and real pinned modes; no existing COPY definition is migrated
+to a new transport.
+

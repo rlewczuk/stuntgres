@@ -271,7 +271,7 @@ func (d *Descriptor) binaryRange(ctx context.Context, p []byte, env InputEnviron
 			}
 		}
 		var err error
-		datum, err = d.canonicalRange(datum)
+		datum, err = d.canonicalRange(datum, false)
 		if err != nil {
 			return Value{}, 0, err
 		}

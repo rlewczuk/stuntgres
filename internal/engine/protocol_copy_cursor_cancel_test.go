@@ -108,7 +108,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 				copyfmt.Options{Delimiter: '\t', Null: "\\N"},
 				bufio.NewReader(strings.NewReader(tc.input)),
 				[]copyfmt.Target{{Name: "v"}},
-			))
+			), nil)
 			if binaryInput {
 				// Consume a valid file header (no flags, no extension) before
 				// Next, so the cursor starts at the tuple with its header done.

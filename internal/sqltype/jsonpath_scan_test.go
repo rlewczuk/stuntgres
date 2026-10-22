@@ -2,6 +2,7 @@ package sqltype
 
 import (
 	"context"
+	"errors"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -40,8 +41,8 @@ func TestJSONPathScannerDecodedTokensAndSpans(t *testing.T) {
 	for _, tc := range []struct{ input, raw string }{{"1.type()", "1.t"}, {"1a", "1a"}, {"01", "01"}, {"1_", "1_"}} {
 		scanner := jsonpathScanner{ctx: context.Background(), text: tc.input}
 		_, err := scanner.next()
-		e, ok := err.(*sqlstate.Error)
-		if !ok || e.Message != `trailing junk after numeric literal at or near "`+tc.raw+`" of jsonpath input` {
+		var e *sqlstate.Error
+		if !errors.As(err, &e) || e.Message != `trailing junk after numeric literal at or near "`+tc.raw+`" of jsonpath input` {
 			t.Fatal(tc, err)
 		}
 	}

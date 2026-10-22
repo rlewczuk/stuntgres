@@ -38,7 +38,7 @@ func AlterCookingError(err error) error {
 	if errors.As(err, &diagnostic) {
 		copy := *diagnostic
 		copy.Position = ""
-		return &copy
+		return sqlstate.InputDiagnostic(err, &copy)
 	}
 	return err
 }

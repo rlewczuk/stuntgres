@@ -3,6 +3,7 @@ package stuntgres
 import (
 	"context"
 	"database/sql/driver"
+	"errors"
 	"reflect"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
@@ -76,8 +77,8 @@ func TestJSONPathAdapterSharedPortalDiagnostics(t *testing.T) {
 	} {
 		importer := frameImporter([]driver.Value{tc.raw})
 		err := importer(context.Background(), analyze.ParameterInfo{Types: []sqltype.Usage{d.Usage()}}, make([]sqltype.Value, 1), sqltype.InputEnvironment{})
-		diagnostic, ok := err.(*Error)
-		if !ok || diagnostic.Code != tc.code || diagnostic.Context != tc.context || diagnostic.Position != "" {
+		var diagnostic *Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Context != tc.context || diagnostic.Position != "" {
 			t.Fatal(err)
 		}
 	}

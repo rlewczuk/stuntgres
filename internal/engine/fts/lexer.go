@@ -50,7 +50,7 @@ func (l *lexer) syntax() error {
 	if l.query {
 		typ = "tsquery"
 	}
-	return failure("42601", "syntax error in "+typ+": \""+l.text+"\"")
+	return sqlstate.SoftInputError(failure("42601", "syntax error in "+typ+": \""+l.text+"\""))
 }
 
 // word borrows a source substring unless FTS quoting requires decoding. It leaves
@@ -82,7 +82,7 @@ func (l *lexer) word() (string, error) {
 			out.WriteString(l.text[segment:l.pos])
 			l.pos++
 			if l.pos == len(l.text) {
-				return "", failure("42601", "there is no escaped character: \""+l.text+"\"")
+				return "", sqlstate.SoftInputError(failure("42601", "there is no escaped character: \""+l.text+"\""))
 			}
 			_, n := utf8.DecodeRuneInString(l.text[l.pos:])
 			out.WriteString(l.text[l.pos : l.pos+n])

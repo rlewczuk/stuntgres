@@ -19,6 +19,9 @@ is not `copy`, which would shadow the builtin in every importing file.
   options in PostgreSQL's order and applies the format defaults into
   `Options` (`Format` is `Text`, `CSV` or `Binary`; `Header` is 0, 1 or
   2 for MATCH). Error SQLSTATEs, texts and positions match PostgreSQL 18.
+  `OnError` defaults to STOP, `LogVerbosity` to default, and zero
+  `RejectLimit` means unlimited. Only positive bigint limits with IGNORE are
+  admitted; binary accepts STOP only. These are plain values, never callbacks.
 - **FORCE binding** (`force.go`): `Options.BindForces` turns
   FORCE_QUOTE/FORCE_NULL/FORCE_NOT_NULL into per-field flags, read with
   `Forced`. Relation COPY resolves names through `ResolveColumns`, the same
@@ -33,6 +36,8 @@ is not `copy`, which would shadow the builtin in every importing file.
   (including MATCH) and applies the CSV FORCE null flags (`FieldNull`).
   `LineError` builds its 22P04 errors. Output: `AppendText`, `AppendCSV`.
   `ContextValue` truncates a value quoted in a diagnostic.
+  DEFAULT fields retain decoded marker bytes for errors during immediate
+  selected-default evaluation; recognition does not erase diagnostic input.
 - **Binary** (`binary_reader.go`): `BinaryReader` checks the file header
   (`ReadHeader`, `BinarySignature`), and frames tuples (`Row`: field count,
   `-1` trailer, data after the trailer) and fields (`Field`: length word,
@@ -88,3 +93,9 @@ The public behavior is covered by the dual-mode reference tests
 (`make check RUN='^TestReferenceCopy'`, plus `REFERENCE=1`); the root
 cursor, protocol and cancellation units are `^Test(Copy|ProtocolCopy)`
 in `internal/engine`.
+
+Filter/error option and marker-byte units:
+`make check RUN='^TestCopyFilter(Options|MarkerBytes)$'`.
+Shared native/pinned behavioral selectors, including the migrated existing
+binary options definition, are listed in
+[`reference/dml`](../../../reference/dml/README.md#copy-filtering-and-conversion-error-policy).

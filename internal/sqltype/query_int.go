@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"stuntgres/internal/sqlstate"
 )
 
 // QueryInt is an extension-allocated base identity, not a builtin OID or TEXT.
@@ -27,7 +29,7 @@ type queryIntPayload struct {
 	root  int
 }
 
-func queryIntSyntax() error { return failure("42601", "syntax error") }
+func queryIntSyntax() error { return sqlstate.SoftInputError(failure("42601", "syntax error")) }
 
 // REL_18_0 tokenizes at most fifteen sign/digit characters and uses strtol
 // base zero without an end-pointer check. Partial octal and a lone minus are
@@ -116,7 +118,7 @@ func (d *Descriptor) queryIntInput(ctx context.Context, text string) (Value, err
 			switch {
 			case ch == '!':
 				if len(operators)-frameStart == 16 {
-					return Value{}, failure("54001", "statement too complex")
+					return Value{}, sqlstate.SoftInputError(failure("54001", "statement too complex"))
 				}
 				operators = append(operators, ch)
 				pos++

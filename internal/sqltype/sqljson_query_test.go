@@ -73,6 +73,68 @@ func TestSQLJSONQueryPlan(t *testing.T) {
 	}
 }
 
+// SQL/JSON's existing ON ERROR policy is diagnostic-class based, not COPY's
+// source-soft policy. Both soft and hard input annotations remain transparent.
+func TestSQLJSONMarkedInputConversion(t *testing.T) {
+	types := testTypes()
+	ctx := context.Background()
+	path := jsonbSetUnitInput(t, types[JSONPath], "$")
+	for _, tc := range []struct {
+		name, document, code, message string
+		result                        ID
+		caught, soft                  bool
+	}{
+		{"array_bound", `"[1:0]={}"`, "2202E", "upper bound cannot be less than lower bound", 1007, true, true},
+		{"range_bound", `"[3,1)"`, "22000", "range lower bound must be less than or equal to range upper bound", Int4Range, true, true},
+		{"jsonpath_numeric", `"1e131072"`, "22003", "value overflows numeric format", JSONPath, true, false},
+		{"jsonpath_scope", `"last"`, "42601", "LAST is allowed only in array subscripts", JSONPath, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			plan, err := BindSQLJSONQuery("json_value", "", false, types[tc.result].Usage(), types[JSONB].Usage(), types[JSONPath].Usage(), types[JSONB].Usage(), nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			document := jsonbSetUnitInput(t, types[JSONB], tc.document)
+			outcome, err := plan.Evaluate(ctx, document, path, nil, InputEnvironment{}, OutputEnvironment{})
+			cause := err
+			if tc.caught {
+				if err != nil || outcome.Error == nil {
+					t.Fatal("conversion did not enter existing ON ERROR route", outcome, err)
+				}
+				cause = outcome.Error
+			} else if err == nil || outcome.Error != nil {
+				t.Fatal("ON ERROR broadened beyond existing diagnostic classes", outcome, err)
+			}
+			var diagnostic *sqlstate.Error
+			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
+			if outcome.Value != (Value{}) || outcome.Empty || !errors.As(cause, &diagnostic) || *diagnostic != want || InputSoftError(cause) != tc.soft {
+				t.Fatal("conversion changed source diagnostic or input authority", outcome, cause)
+			}
+			snapshot := *diagnostic
+			behavior := SQLJSONBehaviorError("ERROR", "default", cause)
+			if tc.caught {
+				var record *sqlstate.Error
+				expected := sqlstate.Error{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804",
+					Message: "could not coerce ON ERROR expression (DEFAULT) to the RETURNING type",
+					Detail:  tc.message,
+				}
+				if !errors.As(behavior, &record) || *record != expected || InputSoftError(behavior) {
+					t.Fatal("behavior lost the original message detail or invented soft input", behavior)
+				}
+			} else if behavior != cause {
+				t.Fatal("non-conversion error identity changed", behavior, cause)
+			}
+			if *diagnostic != snapshot {
+				t.Fatal("semantic consumer mutated source diagnostic", diagnostic, snapshot)
+			}
+		})
+	}
+	if SQLJSONBehaviorError("ERROR", "default", context.Canceled) != context.Canceled {
+		t.Fatal("behavior changed cancellation identity")
+	}
+}
+
 func TestSQLJSONPathMutable(t *testing.T) {
 	types := testTypes()
 	for _, tc := range []struct {

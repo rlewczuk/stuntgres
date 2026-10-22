@@ -116,20 +116,25 @@ type domainCheckPhases interface{ DomainCheckPhasesSlot() }
 
 func (c *Context) FunctionJSONBRecordInput() sqltype.InputEnvironment {
 	input := c.Input
-	input.DomainChecks = jsonbRecordDomainChecks{c}
+	input.DomainChecks = InputDomainChecks(c, preparation.DomainCatalog(c))
 	return input
 }
 
 // PostgreSQL saves a domain's own constraint violation, not errors raised while
 // executing its CHECK expression. Keep that distinction across nested text
 // composite/array input as well as JSON-node conversion.
-type jsonbRecordDomainChecks struct{ evaluation *Context }
+type inputDomainChecks struct {
+	evaluation sqltype.DomainCheckEvaluator
+	view       catalog.Read
+}
 
-type jsonbRecordHardDomainError struct{ error }
+// InputDomainChecks preserves captured domain-own violations as soft input
+// errors while marking failures executing CHECK expressions as hard causes.
+func InputDomainChecks(evaluation sqltype.DomainCheckEvaluator, view catalog.Read) sqltype.DomainCheckEvaluator {
+	return inputDomainChecks{evaluation: evaluation, view: view}
+}
 
-func (e jsonbRecordHardDomainError) Unwrap() error { return e.error }
-
-func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltype.Descriptor, value sqltype.Value) error {
+func (c inputDomainChecks) CheckDomain(ctx context.Context, target *sqltype.Descriptor, value sqltype.Value) error {
 	err := c.evaluation.CheckDomain(ctx, target, value)
 	if err == nil {
 		return nil
@@ -139,7 +144,7 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 	}
 	var diagnostic *sqlstate.Error
 	if errors.As(err, &diagnostic) && (diagnostic.Code == "23514" || diagnostic.Code == "23502") {
-		view := preparation.DomainCatalog(c.evaluation)
+		view := c.view
 		if view.State() != nil {
 			d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
 			if ok && d.SQLType == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.Get(d.ObjectNamespace).Name() {
@@ -169,5 +174,5 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 	}
 	// Soft-error classification deliberately examines the direct error, whereas
 	// ordinary SQL diagnostics and cancellation follow this unchanged cause.
-	return jsonbRecordHardDomainError{err}
+	return sqlstate.HardInputError(err)
 }

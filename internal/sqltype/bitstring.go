@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"stuntgres/internal/sqlstate"
 )
 
 const maximumBitLength int32 = 83886080
@@ -73,7 +75,7 @@ func (d *Descriptor) bitInput(text string, typmod int32) (Value, error) {
 	// Bounded provider input checks encoded width before validating digits.
 	// SQL constants and parameters deliberately input at typmod -1 instead.
 	if err := checkBitWidth(d.id, length, typmod); err != nil {
-		return Value{}, err
+		return Value{}, sqlstate.SoftInputError(err)
 	}
 	for i := range len(text) {
 		c := text[i]

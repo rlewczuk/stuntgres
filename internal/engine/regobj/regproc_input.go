@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -80,7 +81,7 @@ func (r RoutineInput) resolveRoutine(ctx context.Context, text string, signature
 	} else {
 		name, err = parser.ParseRegclassName(text)
 		if err != nil {
-			err = sqlError("42602", "invalid name syntax")
+			err = sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))
 		}
 	}
 	if err != nil {
@@ -97,7 +98,9 @@ func (r RoutineInput) resolveRoutine(ctx context.Context, text string, signature
 		parts = parts[1:]
 	}
 	selection := analyze.NamespaceSelection{Path: r.path}
-	missing := func() (uint32, error) { return 0, sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, text)) }
+	missing := func() (uint32, error) {
+		return 0, sqlstate.SoftInputError(sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, text)))
+	}
 	if len(parts) == 2 {
 		namespace := catalog.DefinitionLookupAt(a.View.Catalog, a.Definitions, ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
@@ -119,7 +122,7 @@ func (r RoutineInput) resolveRoutine(ctx context.Context, text string, signature
 		return missing()
 	}
 	if count > 1 {
-		return 0, sqlError("42725", fmt.Sprintf(`more than one function named "%s"`, text))
+		return 0, sqlstate.SoftInputError(sqlError("42725", fmt.Sprintf(`more than one function named "%s"`, text)))
 	}
 	if r.operands != nil {
 		if owner := RoutineDescriptorOwner(a.View.Catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {

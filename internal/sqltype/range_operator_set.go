@@ -30,7 +30,7 @@ func (r *Descriptor) subtractRange(a, b rangeDatum) (left, right rangeDatum, cou
 		if b.flags&rangeLowerInclusive == 0 {
 			x.flags |= rangeUpperInclusive
 		}
-		x, err = r.canonicalRange(x)
+		x, err = r.canonicalRange(x, false)
 		if err != nil {
 			return left, right, 0, err
 		}
@@ -46,7 +46,7 @@ func (r *Descriptor) subtractRange(a, b rangeDatum) (left, right rangeDatum, cou
 		if b.flags&rangeUpperInclusive == 0 {
 			x.flags |= rangeLowerInclusive
 		}
-		x, err = r.canonicalRange(x)
+		x, err = r.canonicalRange(x, false)
 		if err != nil {
 			return left, right, 0, err
 		}

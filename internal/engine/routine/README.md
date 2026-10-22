@@ -324,3 +324,16 @@ make check RUN='^TestReferenceRoutineParameters(NotationDefaults|DefaultEvaluati
 
 The shared complete contract and bounded selected groups are in
 [reference/operators](../../../reference/operators/README.md#routine-parameter-binding).
+
+Input-origin wrappers do not change utility IF EXISTS semantics. Routine and
+operator DROP inspect the existing SQL diagnostic authority for their unchanged
+suppression codes, emit the existing complete notice, and return every
+unsuppressed error with its outer provenance/identity intact. This is semantic
+error handling, not fresh-input recoverability classification.
+
+```sh
+make check RUN='^TestReferenceRoutineDrop(Diagnostics|AuthorityAndAdmission|Atomicity)$'
+make check RUN='^TestReferenceUserOperator(EdgeDiagnostics|DiagnosticsAtomicity)$'
+```
+
+Run both reference groups again with `REFERENCE=1`; external900-second deadlines.

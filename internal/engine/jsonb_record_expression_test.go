@@ -169,7 +169,7 @@ func TestJSONBRecordDomainErrors(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.DataType != tc.dataType {
 				t.Fatal("lost original diagnostic", err)
 			}
-			if sqltype.JSONBRecordSoftError(err) != tc.soft {
+			if sqltype.InputSoftError(err) != tc.soft {
 				t.Fatal("incorrect saved-error classification", err)
 			}
 		})

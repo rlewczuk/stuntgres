@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"reflect"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -34,8 +35,8 @@ func TestRegOperatorSignatureSeparation(t *testing.T) {
 	}
 	for _, tc := range []struct{ input, message string }{{`+`, `expected a left parenthesis`}, {`+(integer,integer`, `expected a right parenthesis`}, {`+(integer,)`, `expected a type name`}, {`+("unterminated,integer)`, `improper type name`}, {`+(integer[,integer)`, `improper type name`}, {`+(numeric(10,2),integer))`, `improper type name`}} {
 		_, _, err := regOperatorSignatureParts(tc.input)
-		d, ok := err.(*sqlstate.Error)
-		if !ok || d.Code != "22P02" || d.Message != tc.message {
+		var d *sqlstate.Error
+		if !errors.As(err, &d) || d.Code != "22P02" || d.Message != tc.message {
 			t.Fatal(tc.input, err)
 		}
 	}
@@ -99,7 +100,8 @@ func TestRegOperatorSignatureIncrementalOrder(t *testing.T) {
 		called = true
 		return typeFailure
 	})
-	if d, ok := err.(*sqlstate.Error); !ok || d.Message != "expected a right parenthesis" || called {
+	var d *sqlstate.Error
+	if !errors.As(err, &d) || d.Message != "expected a right parenthesis" || called {
 		t.Fatal("operand visited before right delimiter", err, called)
 	}
 	_, args, err := regOperatorSignatureParts("+(,integer)")

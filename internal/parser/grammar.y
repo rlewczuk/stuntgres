@@ -17,6 +17,7 @@ package parser
  copyStmt *Copy
  copyOption CopyOption
  copyOptions []CopyOption
+ copyWhere copyWhereClause
  insertConflict *InsertConflict
  col *Column
  columns []Column
@@ -408,8 +409,10 @@ package parser
 %type <tok> copy_direction
 %type <copyOptions> copy_options copy_option_list copy_legacy_options
 %type <copyOption> copy_option copy_option_value copy_legacy_option
+%type <tok> copy_option_string
+%type <identifiers> copy_option_strings
 %type <tok> copy_option_name
-%type <expr> copy_where
+%type <copyWhere> copy_where
 %type <stmt> declare_cursor fetch_cursor close_cursor
 %type <cursorFetch> cursor_direction
 %type <integer> cursor_scroll cursor_integer
@@ -907,7 +910,8 @@ drop_policy: DROP POLICY name ON relation_name drop_mode {
  $$=&DropPolicy{Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,IfExists:true,Mode:$8,Pos:$1.pos}
 } ;
 copy: COPY copy_target copy_direction copy_endpoint copy_options copy_where {
- $$=$2;$2.Pos=$1.pos;$2.From=$3.text=="from";$2.Endpoint=$4.Endpoint;$2.Filename=$4.Filename;$2.Options=$5;$2.Where=$6
+ $$=$2;$2.Pos=$1.pos;$2.From=$3.text=="from";$2.Endpoint=$4.Endpoint;$2.Filename=$4.Filename;$2.Options=$5;$2.Where=$6.expression
+ if !$2.From && $6.expression!=nil {sqllex.(*lexer).failAt("42601","WHERE clause not allowed with COPY TO",$6.pos.Offset);return 1}
  if $2.Query!=nil && $2.From {sqllex.(*lexer).syntax($3);return 1}
  if ($2.From && $2.Endpoint==CopyStdout)||(!$2.From && $2.Endpoint==CopyStdin) {sqllex.(*lexer).syntax($1);return 1}
 } ;
@@ -929,20 +933,22 @@ copy_option_list: copy_option { $$=[]CopyOption{$1} }
 copy_option_name: generic_word | NULL | DEFAULT ;
 copy_option: copy_option_name { $$=CopyOption{Name:$1.text,Pos:$1.pos} }
  | copy_option_name copy_option_value { $$=$2;$$.Name=$1.text;$$.Pos=$1.pos} ;
-copy_option_value: STRING { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
+copy_option_string: STRING | generic_word | TEXT | TRUE | FALSE ;
+copy_option_strings: copy_option_string { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
+ | copy_option_strings ',' copy_option_string { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+copy_option_value: copy_option_string { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
  | NUMBER { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text,Numeric:true} }
- | TRUE { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"true"} }
- | FALSE { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"false"} }
- | generic_word { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
- | TEXT { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:$1.text} }
+ | '+' NUMBER { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"+"+$2.text,Numeric:true} }
+ | '-' NUMBER { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"-"+$2.text,Numeric:true} }
+ | DEFAULT { $$=CopyOption{Argument:CopyArgumentScalar,HasValue:true,Value:"default"} }
  | '*' { $$=CopyOption{Argument:CopyArgumentStar,HasValue:true,Value:"*"} }
- | '(' view_names ')' { $$=CopyOption{Argument:CopyArgumentColumns,HasValue:true,Columns:$2} } ;
+ | '(' copy_option_strings ')' { $$=CopyOption{Argument:CopyArgumentColumns,HasValue:true,Columns:$2} } ;
 copy_legacy_options: copy_legacy_option { $$=[]CopyOption{$1} }
  | copy_legacy_options copy_legacy_option { $$=append($1,$2) } ;
 copy_legacy_option: generic_word STRING { $$=CopyOption{Argument:CopyArgumentScalar,Name:$1.text,Pos:$1.pos,HasValue:true,Value:$2.text} }
  | NULL STRING { $$=CopyOption{Argument:CopyArgumentScalar,Name:"null",Pos:$1.pos,HasValue:true,Value:$2.text} }
  | generic_word {if $1.text!="header" {sqllex.(*lexer).syntax($1);return 1};$$=CopyOption{Name:"header",Pos:$1.pos}} ;
-copy_where: /* empty */ { $$=nil } | WHERE target_or { $$=$2 } ;
+copy_where: /* empty */ { $$=copyWhereClause{} } | WHERE target_or { $$=copyWhereClause{expression:$2,pos:$1.pos} } ;
 prepare_sql: PREPARE name prepare_types AS preparable { $$=&PrepareSQL{Name:Identifier{Text:$2.text,Pos:$2.pos},Types:$3,Body:$5,Source:sqllex.(*lexer).input,Pos:$1.pos} } ;
 prepare_types: /* empty */ { $$=nil } | '(' prepare_type_list ')' { $$=$2 } ;
 prepare_type_list: type { $$=[]TypeName{$1} } | prepare_type_list ',' type { $$=append($1,$3) } ;

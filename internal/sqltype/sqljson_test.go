@@ -24,6 +24,10 @@ func TestSQLJSONScannerKindsAndUniqueness(t *testing.T) {
 		{`[{"a":1},{"a":2}]`, "ARRAY", true, true},
 		{`{"a":1,"a":2} x`, "VALUE", true, false},
 		{`{"a":1,"a":2}`, "VALUE", false, true},
+		{`"\u0000"`, "VALUE", false, true},
+		{`"\u0000"`, "VALUE", true, false},
+		{`{"\u0000":1}`, "OBJECT", false, true},
+		{`{"\u0000":1}`, "OBJECT", true, false},
 	} {
 		got, err := JSONPredicate(context.Background(), String(types[Text], tc.source), tc.kind, tc.unique)
 		if err != nil || got != tc.want {

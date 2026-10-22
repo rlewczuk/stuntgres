@@ -407,6 +407,54 @@ pinned `*sql.Conn`: `database/sql` Raw retains that connection's ownership for
 the entire transfer even while engine mutexes are released. Use independent peer
 connections for concurrent SQL and controls.
 
+`COPY ... FROM STDIN ... WHERE predicate` evaluates against the complete
+destination row, not COPY-list ordinal order. Conversion and demanded defaults
+run first; only predicate TRUE reaches generation, routing and table constraints.
+FALSE/NULL exclusions do not count as rejects. Existing expression-provider
+boundaries remain unchanged.
+
+Text/CSV accept `ON_ERROR stop` (the default) or `ON_ERROR ignore`. IGNORE only
+recovers supported fresh selected-field input errors: a domain's own failed
+CHECK/NOT NULL may be recoverable, but errors executing its CHECK expression,
+defaults, WHERE, framing/encoding, table constraints and caller I/O remain hard.
+Existing catalog aliases use explicit producer-owned input provenance rather
+than broad SQLSTATE rules: ordinary STOP diagnostics are unchanged, recoverable
+missing-schema input can be skipped, and raw type-parser/typmod or ACL failures
+remain hard. This does not add native named regconfig lookup or catalog capture
+for a nested regclass cast in a domain CHECK expression.
+Other existing input providers likewise distinguish owned saved errors from
+thrown helpers: array/range/JSONPath/bit/JSONB/FTS/query_int/ACL conversion may
+recover, while LINE coefficient arithmetic and JSONPath numeric or recursive
+bound overflow stay fatal even with a primitive-looking SQLSTATE. This does not
+admit unsupported text-to-int4range casts in WHERE/domain binding.
+The first failed field rejects its row once and prevents later field demand.
+Reached selected DEFAULT markers follow COPY-list order; omitted defaults still
+run on rejected rows. Sequence effects retain ordinary nontransactional behavior.
+`REJECT_LIMIT N` permits exactly N rejects; N+1 fails with22P02 and a zero result,
+without visible partial table changes. Binary accepts WHERE and STOP only.
+
+For example:
+
+```sql
+COPY incoming(id,keep) FROM STDIN
+WITH (FORMAT csv, HEADER MATCH, ON_ERROR ignore, REJECT_LIMIT 2,
+      LOG_VERBOSITY verbose)
+WHERE keep;
+```
+
+`LOG_VERBOSITY default` emits a success-only summary when rows were rejected;
+`verbose` additionally emits ordered row notices at conversion failure, including
+before a later fatal omitted-default failure; `silent` emits neither.
+`client_min_messages` still filters delivery. A failed command has no success
+summary. Counts/tags include accepted rows only, not headers, filtered rows or
+rejects. Public connector notice handlers run after operation locks/leases are
+released. Do not reenter the Raw-owning COPY connection from a handler; use an
+independent peer for concurrent SQL, and reuse the COPY owner after return.
+
+Feature smoke: `make check RUN='^TestReferenceCopyFilterFeatureSmoke$'` and the
+same selector with `REFERENCE=1`. The standalone public executable recipe and
+small proof groups are in [dml testing](../reference/dml/README.md#copy-filtering-and-conversion-error-policy).
+
 Feature smoke: `make check RUN='^TestReferenceCopyCSVFeatureSmoke$'`;
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceCopyCSVFeatureSmoke$'`.
@@ -1143,6 +1191,11 @@ distinct from decoded input failures. Bound text is data, not SQL escape source:
 input rejects NUL/malformed UTF8 with `22021` and actual parameter-index Context,
 without inventing a decoded-value suffix. Parameter annotation never changes
 ordinary Go errors or later expression/preflight conversion errors.
+The importer annotates SQL diagnostics through input-origin wrappers while
+preserving their outer soft/hard provenance and any inner Context. It neither
+changes the recovery classifier nor turns ordinary Go errors into SQL errors.
+Private seam proof: `make check RUN='^TestCopyFilterParameterOrigin$'`; existing
+dual-mode alias parameter/byte-parameter definitions own the public diagnostics.
 
 The focused public proof is `make check RUN='^TestStringLiteralsSmoke$'`; it asserts direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary. Go test reports the result.
 

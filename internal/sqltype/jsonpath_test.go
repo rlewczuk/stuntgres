@@ -166,8 +166,8 @@ func TestJSONPathDiagnosticContract(t *testing.T) {
 	d := testTypes()[JSONPath]
 	for _, tc := range cases {
 		_, err := d.Input(context.Background(), tc.input, -1)
-		e, ok := err.(*sqlstate.Error)
-		if !ok || e.Code != tc.code || e.Message != tc.message || e.Detail != tc.detail || e.Position != "" || e.Context != "" {
+		var e *sqlstate.Error
+		if !errors.As(err, &e) || e.Code != tc.code || e.Message != tc.message || e.Detail != tc.detail || e.Position != "" || e.Context != "" {
 			t.Fatalf("%q: %#v want %s/%s/%s", tc.input, err, tc.code, tc.message, tc.detail)
 		}
 	}

@@ -313,7 +313,7 @@ func (r *Descriptor) rangeBoundsAdjacent(a, b rangeDatum) bool {
 	if b.flags&rangeLowerInclusive == 0 {
 		gap.flags |= rangeUpperInclusive
 	}
-	canonical, err := r.canonicalRange(gap)
+	canonical, err := r.canonicalRange(gap, false)
 	return err == nil && canonical.flags&rangeEmpty != 0
 }
 func (r *Descriptor) compareRangeValues(a, b rangeDatum) int {

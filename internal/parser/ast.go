@@ -162,6 +162,11 @@ type Copy struct {
 
 func (*Copy) statement() {}
 
+type copyWhereClause struct {
+	expression Expr
+	pos        Position
+}
+
 type CopyArgument uint8
 
 const (

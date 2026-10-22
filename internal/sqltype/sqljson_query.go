@@ -2,6 +2,7 @@ package sqltype
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"stuntgres/internal/sqlstate"
@@ -216,8 +217,8 @@ func sqlJSONMaterialize(item jsonpathItem) (*jsonbNode, error) {
 }
 
 func sqlJSONConversionError(err error) bool {
-	diagnostic, ok := err.(*sqlstate.Error)
-	return ok && (strings.HasPrefix(diagnostic.Code, "22") || strings.HasPrefix(diagnostic.Code, "23"))
+	var diagnostic *sqlstate.Error
+	return errors.As(err, &diagnostic) && (strings.HasPrefix(diagnostic.Code, "22") || strings.HasPrefix(diagnostic.Code, "23"))
 }
 
 func (p SQLJSONQueryPlan) convert(ctx context.Context, item jsonpathItem, input InputEnvironment, output OutputEnvironment) (Value, error) {
@@ -299,7 +300,8 @@ func SQLJSONBehaviorError(branch, kind string, cause error) error {
 		return cause
 	}
 	diagnostic := failure("42804", "could not coerce ON "+branch+" expression ("+strings.ToUpper(kind)+") to the RETURNING type").(*sqlstate.Error)
-	if inner, ok := cause.(*sqlstate.Error); ok {
+	var inner *sqlstate.Error
+	if errors.As(cause, &inner) {
 		diagnostic.Detail = inner.Message
 	}
 	return diagnostic

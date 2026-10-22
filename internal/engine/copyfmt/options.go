@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Force is one parsed FORCE_QUOTE, FORCE_NULL or FORCE_NOT_NULL option:
@@ -23,6 +24,21 @@ const (
 	Binary
 )
 
+type ErrorAction uint8
+
+const (
+	Stop ErrorAction = iota
+	Ignore
+)
+
+type LogVerbosity uint8
+
+const (
+	LogDefault LogVerbosity = iota
+	LogVerbose
+	LogSilent
+)
+
 // Options are the parsed COPY options with PostgreSQL's defaults applied.
 // Header is 0 (none), 1 (true) or 2 (MATCH). The *Fields flags are filled by
 // BindForces, one per COPY field.
@@ -34,6 +50,9 @@ type Options struct {
 	Header                                 uint8
 	ForceQuote, ForceNull, ForceNotNull    Force
 	QuoteFields, NullFields, NotNullFields []bool
+	OnError                                ErrorAction
+	LogVerbosity                           LogVerbosity
+	RejectLimit                            int64 // Zero means unlimited.
 }
 
 // ParseOptions validates the options of a COPY statement in PostgreSQL's
@@ -49,7 +68,7 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 			}
 		}
 		switch name {
-		case "format", "delimiter", "null", "default":
+		case "format", "delimiter", "null", "default", "on_error", "log_verbosity":
 			if !v.HasValue {
 				return o, sqlError("42601", name+" requires a parameter")
 			}
@@ -120,11 +139,65 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 			case "force_not_null":
 				o.ForceNotNull = force
 			}
-		case "freeze", "on_error", "reject_limit", "log_verbosity", "encoding":
+		case "on_error", "log_verbosity":
+			value := v.Value
+			if v.Argument == parser.CopyArgumentColumns {
+				var name strings.Builder
+				for i, column := range v.Columns {
+					if i != 0 {
+						name.WriteByte('.')
+					}
+					name.WriteString(column.Text)
+				}
+				value = name.String()
+			}
+			if name == "on_error" {
+				if !s.From {
+					return o, insertError("22023", "COPY ON_ERROR cannot be used with COPY TO", v.Pos)
+				}
+				switch strings.ToLower(value) {
+				case "stop":
+					o.OnError = Stop
+				case "ignore":
+					o.OnError = Ignore
+				default:
+					return o, insertError("22023", fmt.Sprintf("COPY ON_ERROR \"%s\" not recognized", value), v.Pos)
+				}
+			} else {
+				switch strings.ToLower(value) {
+				case "default":
+					o.LogVerbosity = LogDefault
+				case "verbose":
+					o.LogVerbosity = LogVerbose
+				case "silent":
+					o.LogVerbosity = LogSilent
+				default:
+					return o, insertError("22023", fmt.Sprintf("COPY LOG_VERBOSITY \"%s\" not recognized", value), v.Pos)
+				}
+			}
+		case "reject_limit":
+			if !v.HasValue || v.Argument != parser.CopyArgumentScalar {
+				return o, sqlError("42601", "reject_limit requires a numeric value")
+			}
+			limit, err := sqltype.ParseInt8(v.Value)
+			if err != nil {
+				return o, err
+			}
+			if limit <= 0 {
+				return o, sqlError("22023", fmt.Sprintf("REJECT_LIMIT (%d) must be greater than zero", limit))
+			}
+			o.RejectLimit = limit
+		case "freeze", "encoding":
 			return o, sqlError("0A000", "COPY "+strings.ToUpper(name)+" is unsupported")
 		default:
 			return o, insertError("42601", fmt.Sprintf("option \"%s\" not recognized", name), v.Pos)
 		}
+	}
+	if o.RejectLimit != 0 && o.OnError != Ignore {
+		return o, sqlError("22023", "COPY REJECT_LIMIT requires ON_ERROR to be set to IGNORE")
+	}
+	if o.Format == Binary && o.OnError != Stop {
+		return o, sqlError("42601", "only ON_ERROR STOP is allowed in BINARY mode")
 	}
 	if o.Format == Binary {
 		for _, option := range []struct {
@@ -169,9 +242,6 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 		}
 	}
 	if o.Format == Binary {
-		if s.Where != nil {
-			return o, sqlError("0A000", "COPY FROM WHERE is unsupported")
-		}
 		return o, nil
 	}
 	if o.ForceQuote.specified && s.From {
@@ -218,9 +288,6 @@ func ParseOptions(s *parser.Copy) (Options, error) {
 		if o.Null == o.Default {
 			return o, sqlError("0A000", "NULL specification and DEFAULT specification cannot be the same")
 		}
-	}
-	if s.Where != nil {
-		return o, sqlError("0A000", "COPY FROM WHERE is unsupported")
 	}
 	return o, nil
 }

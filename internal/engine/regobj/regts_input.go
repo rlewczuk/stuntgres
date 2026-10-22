@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 type TextSearchInput struct {
@@ -27,7 +28,7 @@ func (r TextSearchInput) name(ctx context.Context, text string) ([]parser.Identi
 	}
 	raw, err := parser.ParseRegclassName(text)
 	if err != nil {
-		return nil, "", sqlError("42602", "invalid name syntax")
+		return nil, "", sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))
 	}
 	parts := raw.Parts
 	names := make([]string, len(parts))
@@ -85,5 +86,5 @@ func (r TextSearchInput) ResolveRegdictionary(ctx context.Context, text string) 
 			return uint32(d.Address().ObjectID), nil
 		}
 	}
-	return 0, sqlError("42704", "text search dictionary \""+spelling+"\" does not exist")
+	return 0, sqlstate.SoftInputError(sqlError("42704", "text search dictionary \""+spelling+"\" does not exist"))
 }

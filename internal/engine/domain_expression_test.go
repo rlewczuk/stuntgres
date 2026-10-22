@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/analyze"
@@ -271,8 +272,8 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 	raw := statement(t, "SELECT '[1:0]={}'::public.a FROM public.one").(*parser.Select).Targets[0]
 	_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	domainUnitDiagnostic(t, err, "2202E", "upper bound cannot be less than lower bound")
-	diagnostic, ok := err.(*sqlstate.Error)
-	if !ok || diagnostic.Position != "8" {
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Position != "8" {
 		t.Fatal("array bound input lost literal source position", err)
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"stuntgres/internal/sqlstate"
 )
 
 type jsonpathParser struct {
@@ -269,7 +271,7 @@ func (p *jsonpathParser) number() *jsonpathNode {
 		err = validateNumericFormat(v)
 	}
 	if err != nil {
-		p.err = err
+		p.err = sqlstate.HardInputError(err)
 		return nil
 	}
 	p.advance()
@@ -411,7 +413,7 @@ func (p *jsonpathParser) level() int32 {
 	}
 	v, err := strconv.ParseInt(text, base, 32)
 	if err != nil {
-		p.err = failure("22003", fmt.Sprintf("value \"%s\" is out of range for type integer", p.tok.text))
+		p.err = sqlstate.HardInputError(failure("22003", fmt.Sprintf("value \"%s\" is out of range for type integer", p.tok.text)))
 		return 0
 	}
 	p.advance()

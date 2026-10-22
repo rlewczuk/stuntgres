@@ -41,6 +41,7 @@ type Indexes struct {
 type Insert struct {
 	InsertConflict  *InsertConflictState
 	InsertReturning *InsertReturningOutput
+	CopyFrom        *CopyFromState
 }
 
 // Partition holds INSERT partition routing (partition).

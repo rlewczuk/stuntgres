@@ -79,6 +79,9 @@ func TestFTSVectorLimits(t *testing.T) {
 	codecError(t, err, "54000", "word is too long (2047 bytes, max 2046 bytes)")
 	_, err = ParseVector(ctx, strings.Repeat(strings.Repeat("x", 2046)+" ", 514))
 	codecError(t, err, "54000", "string is too long for tsvector (1049598 bytes, max 1048575 bytes)")
+	if origin, ok := err.(*sqlstate.InputError); !ok || !origin.Recoverable() {
+		t.Fatal("raw vector input size failure lost source-soft authority", err)
+	}
 	words := make([]string, 512)
 	for i := range words {
 		words[i] = fmt.Sprintf("%04d", i) + strings.Repeat("x", 2036) + ":1,2,3"
@@ -86,6 +89,9 @@ func TestFTSVectorLimits(t *testing.T) {
 	// Each positioned word uses2040+2+6 bytes;512*2048=1048576.
 	_, err = ParseVector(ctx, strings.Join(words, " "))
 	codecError(t, err, "54000", "string is too long for tsvector (1048576 bytes, max 1048575 bytes)")
+	if origin, ok := err.(*sqlstate.InputError); !ok || !origin.Recoverable() {
+		t.Fatal("canonical vector input size failure lost source-soft authority", err)
+	}
 }
 
 func TestFTSQueryGrammar(t *testing.T) {

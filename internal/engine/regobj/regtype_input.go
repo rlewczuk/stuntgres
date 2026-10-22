@@ -164,7 +164,7 @@ func (r TypeInput) resolveParsed(ctx context.Context, raw parser.TypeName, emit 
 			ns = r.capture.Temporary
 		}
 		if ns == (ids.ObjectAddress{}) {
-			return 0, sqlError("3F000", fmt.Sprintf("schema \"%s\" does not exist", parts[0].Text))
+			return 0, sqlstate.SoftInputError(sqlError("3F000", fmt.Sprintf("schema \"%s\" does not exist", parts[0].Text)))
 		}
 		namespace, _ := catalog.DefinitionNamespaceAt(a.View.Catalog, a.Definitions, ns)
 		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.capture.Token {
@@ -201,7 +201,7 @@ func (r TypeInput) resolveParsed(ctx context.Context, raw parser.TypeName, emit 
 		typ, _ = catalog.DefinitionArrayAt(a.View.Catalog, a.Definitions, typ)
 	}
 	if typ == nil {
-		return 0, sqlError("42704", fmt.Sprintf("type \"%s\" does not exist", parsedName()))
+		return 0, sqlstate.SoftInputError(sqlError("42704", fmt.Sprintf("type \"%s\" does not exist", parsedName())))
 	}
 	if len(raw.Modifiers) > 0 {
 		provider := typ
@@ -211,12 +211,12 @@ func (r TypeInput) resolveParsed(ctx context.Context, raw parser.TypeName, emit 
 		switch provider.ID() {
 		case sqltype.BPChar, sqltype.VarChar, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.Timetz, sqltype.Bit, sqltype.VarBit, sqltype.Numeric:
 		default:
-			return 0, sqlError("42601", fmt.Sprintf("type modifier is not allowed for type \"%s\"", parsedName()))
+			return 0, sqlstate.HardInputError(sqlError("42601", fmt.Sprintf("type modifier is not allowed for type \"%s\"", parsedName())))
 		}
 		modifiers := make([]int32, len(raw.Modifiers))
 		for i, m := range raw.Modifiers {
 			if m.NonSimple || m.UnaryPlus {
-				return 0, sqlError("42601", "type modifiers must be simple constants or identifiers")
+				return 0, sqlstate.HardInputError(sqlError("42601", "type modifiers must be simple constants or identifiers"))
 			}
 			if m.Integer != nil {
 				modifiers[i] = *m.Integer
@@ -225,7 +225,7 @@ func (r TypeInput) resolveParsed(ctx context.Context, raw parser.TypeName, emit 
 			integer, _ := catalog.DefinitionTypeAt(a.View.Catalog, a.Definitions, sqltype.Int4)
 			v, err := integer.Input(ctx, m.Raw, -1)
 			if err != nil {
-				return 0, err
+				return 0, sqlstate.HardInputError(err)
 			}
 			n, _ := v.Integer()
 			modifiers[i] = int32(n)
@@ -233,12 +233,12 @@ func (r TypeInput) resolveParsed(ctx context.Context, raw parser.TypeName, emit 
 		switch provider.ID() {
 		case sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Timetz:
 			if len(modifiers) != 1 {
-				return 0, sqlError("22023", "invalid type modifier")
+				return 0, sqlstate.HardInputError(sqlError("22023", "invalid type modifier"))
 			}
 		}
 		_, warning, err := provider.ResolveModifiers(modifiers...)
 		if err != nil {
-			return 0, err
+			return 0, sqlstate.HardInputError(err)
 		}
 		if warning != nil && emit != nil {
 			if r.position.Character > 0 {

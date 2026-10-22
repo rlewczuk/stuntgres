@@ -178,3 +178,22 @@ SecondaryUniqueness reference definitions.
 ```sh
 make check RUN='^TestOperatorFamilyParser$'
 ```
+
+### COPY row policy syntax
+
+COPY retains its complete WHERE expression and ordered positioned options.
+Signed numeric option arguments preserve their spelling/numeric shape; quoted
+action/verbosity values preserve case. Scalar and list option strings share
+their admitted word/literal production; unquoted scalar DEFAULT is retained
+as a parameter, while keyword option-list items such as verbose are not
+restricted to ordinary column-name grammar. COPY TO WHERE fails at the actual
+WHERE token during parsing, not a later engine SQL rescan. Private syntax proof:
+`make check RUN='^TestCopyFilterParser$'`; public diagnostics and option/value
+contracts remain in the dual-mode COPY filter definitions.
+
+Alias input splitters mark only their own save-context failures with the shared
+`sqlstate` input-origin marker. Decoded type input's own empty/SETOF failures are
+soft; raw type grammar errors are explicitly hard. Callback errors retain their
+origin unchanged, so a signature's type-parser/typmod exception cannot become a
+recoverable delimiter error. Diagnostic presentation may unwrap to copy fields
+but must preserve the outer origin; the recovery classifier never unwraps.

@@ -28,7 +28,7 @@ func (r ACLItemInput) ResolveACLRole(ctx context.Context, name string) (uint32, 
 	}
 	role, ok := r.Roles.Lookup(name)
 	if !ok {
-		return 0, sqlError("42704", `role "`+name+`" does not exist`)
+		return 0, sqlstate.SoftInputError(sqlError("42704", `role "`+name+`" does not exist`))
 	}
 	if role.Ref.ID() > math.MaxUint32 {
 		return 0, fmt.Errorf("stuntgres: ACL role identity out of range")

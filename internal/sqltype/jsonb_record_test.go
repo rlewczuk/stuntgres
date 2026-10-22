@@ -70,7 +70,7 @@ func TestJSONBRecordConversion(t *testing.T) {
 	for _, input := range []string{`null`, `[]`, `1`, `"x"`} {
 		_, err := JSONBPopulateRecord(ctx, pair.Usage(), Null(pair), jsonbRecordUnitInput(t, types[JSONB], input), InputEnvironment{})
 		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != "22023" || !JSONBRecordSoftError(err) {
+		if !errors.As(err, &d) || d.Code != "22023" || !InputSoftError(err) {
 			t.Fatal(input, err)
 		}
 	}
@@ -82,7 +82,7 @@ func TestJSONBRecordConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreign := jsonbRecordUnitType(t, 26020, CompositeMember{1, "a", types[Int4].Usage()}, CompositeMember{2, "b", types[Text].Usage()})
-	if _, err := JSONBPopulateRecord(ctx, pair.Usage(), Null(foreign), Null(types[JSONB]), InputEnvironment{}); err == nil || JSONBRecordSoftError(err) {
+	if _, err := JSONBPopulateRecord(ctx, pair.Usage(), Null(foreign), Null(types[JSONB]), InputEnvironment{}); err == nil || InputSoftError(err) {
 		t.Fatal("foreign descriptor accepted", err)
 	}
 	if _, err := OwnedCompositeValue(pair, []Value{Null(types[Text]), Null(types[Text])}); err == nil {
@@ -185,7 +185,7 @@ func TestJSONBRecordArraysDomains(t *testing.T) {
 	env := InputEnvironment{DomainChecks: rule}
 	for _, doc := range []string{`{}`, `{"d":null}`, `{"d":0}`} {
 		_, err := JSONBPopulateRecord(ctx, row.Usage(), Null(row), jsonbRecordUnitInput(t, types[JSONB], doc), env)
-		if !JSONBRecordSoftError(err) {
+		if !InputSoftError(err) {
 			t.Fatal("missing fresh domain check", doc, err)
 		}
 	}
@@ -219,7 +219,7 @@ func TestJSONBRecordCancellation(t *testing.T) {
 	doc := Value{typ: types[JSONB], jsonb: &jsonbPayload{root: jsonbNode{kind: jsonbObject, fields: []jsonbEntry{{key: "a", value: jsonbNode{kind: jsonbArray, items: items}}}}}}
 	ctx := &jsonCreateWorkContext{Context: context.Background(), remaining: 30}
 	v, err := JSONBPopulateRecord(ctx, row.Usage(), Null(row), doc, InputEnvironment{})
-	if !errors.Is(err, context.Canceled) || v.typ != nil || JSONBRecordSoftError(err) {
+	if !errors.Is(err, context.Canceled) || v.typ != nil || InputSoftError(err) {
 		t.Fatal("conversion cancellation swallowed/published", v, err)
 	}
 	ctx = &jsonCreateWorkContext{Context: context.Background(), remaining: 40}

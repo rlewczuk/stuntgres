@@ -69,6 +69,7 @@ type ConsumerContext struct {
 	IndexConsumer           bool
 	IndexPredicateConsumer  bool
 	PartitionConsumer       string
+	CopyWhere               bool
 	CheckDefinitionEquality bool
 	VisibilitySnapshot      bool
 	CatalogSnapshot         bool // Demanded inquiry nodes after STRICT folding.

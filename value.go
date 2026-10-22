@@ -3,6 +3,7 @@ package stuntgres
 import (
 	"context"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -178,7 +180,8 @@ func frameImporter(values []driver.Value) engine.FrameImporter {
 			}
 			value, err := importParameter(ctx, raw, parameters.Types[i], parameterInput)
 			if err != nil {
-				if diagnostic, ok := err.(*Error); ok {
+				var diagnostic *Error
+				if errors.As(err, &diagnostic) {
 					copy := *diagnostic
 					if copy.Context != "" {
 						copy.Context += "\n"
@@ -191,7 +194,7 @@ func frameImporter(values []driver.Value) engine.FrameImporter {
 							copy.Context += " = '...'"
 						}
 					}
-					return &copy
+					return sqlstate.InputDiagnostic(err, &copy)
 				}
 				return err
 			}

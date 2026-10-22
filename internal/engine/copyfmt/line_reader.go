@@ -10,8 +10,9 @@ import (
 )
 
 // Field is one split field of the current record. Decoded is valid until
-// the next Split; Default marks a DEFAULT marker. Null input is read through
-// LineReader.FieldNull, which applies the CSV FORCE flags.
+// the next Split, including DEFAULT marker bytes needed by diagnostics.
+// Default marks a DEFAULT marker. Null input is read through FieldNull,
+// which applies the CSV FORCE flags.
 type Field struct {
 	Decoded                 []byte
 	start, end              int
@@ -246,7 +247,7 @@ func (r *LineReader) Split(defaultMarkers bool) error {
 				return d
 			}
 		}
-		if !isNull && !isDefault {
+		if !isNull {
 			r.decoded = decodeField(r.decoded, raw)
 		}
 		// Offsets rather than slices survive growth of the reusable decode buffer.

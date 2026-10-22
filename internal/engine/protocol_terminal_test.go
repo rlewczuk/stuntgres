@@ -127,7 +127,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			if present, err := in.ReadLine(); !present || err != nil {
 				t.Fatal("line reader setup", present, err)
 			}
-			cursor := dml.NewCopyCursor(scope.writeHost(), analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in)
+			cursor := dml.NewCopyCursor(scope.writeHost(), analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in, nil)
 			got := cursor.Diagnostic(context.Canceled)
 			if !wire {
 				if got != context.Canceled {

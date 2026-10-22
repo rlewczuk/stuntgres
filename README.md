@@ -2402,8 +2402,18 @@ options. Table FROM STDIN, table/query TO STDOUT, ordered columns, defaults,
 ACLs and transactions share existing authorities. Caller I/O runs without
 engine/owner mutexes; same-owner commands wait on a cancellable reservation.
 Binary uses PostgreSQL18 network-order framing and descriptor-owned scalar/nested
-providers, preserving NULL/empty and exact numeric/temporal values. File/PROGRAM,
-encoding overrides and error-skipping remain explicit capability boundaries.
+providers, preserving NULL/empty and exact numeric/temporal values. COPY FROM
+WHERE retains only TRUE after conversion/defaults and before generation or table
+constraints, including binary STOP. Text/CSV ON_ERROR IGNORE recovers supported
+fresh provider-owned failures, including array dimensions, range reversal,
+JSONPath grammar/regex, BIT width, JSONB Unicode escapes, FTS, installed intarray,
+ACL items and catalog aliases. Thrown LINE arithmetic, JSONPath numeric/recursive
+helpers, regtype parser/typmod helpers and default/WHERE/CHECK execution remain
+hard. Recovery does not add native named regconfig lookup, domain regclass
+capture or unsupported text-to-int4range casts in WHERE/domain expressions.
+REJECT_LIMIT is exact and an overrun publishes
+no table prefix. LOG_VERBOSITY controls rejection notices; COPY counts only
+accepted rows. File/PROGRAM and encoding overrides remain explicit boundaries.
 Nullable constraint-free domain scalars/element arrays are actual receive/export
 paths, distinct from excluded constraint DDL. Canonical numeric infinity bounds
 retain valid native range/multirange values through typed reads and Dump/Restore.
@@ -2414,6 +2424,8 @@ Binary feature smoke: `make check RUN='^TestReferenceCopyBinaryFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceCopyBinaryFeatureSmoke$'`.
 Review-regression proof: `make check RUN='^TestReferenceCopyBinaryReviewRegressions$'`
 and `make check REFERENCE=1 RUN='^TestReferenceCopyBinaryReviewRegressions$'`.
+Filter/error feature smoke: `make check RUN='^TestReferenceCopyFilterFeatureSmoke$'`
+and `make check REFERENCE=1 RUN='^TestReferenceCopyFilterFeatureSmoke$'`.
 
 Change note: externally supplied XID/CID unsigned32 and XID8 unsigned64 scalars now
 support direct/held prepared values, typed NULL, fresh canonical decimal byte

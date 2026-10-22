@@ -72,25 +72,6 @@ func JSONBPopulateRecordset(ctx context.Context, name string, destination Usage,
 	return rows, ctx.Err()
 }
 
-// JSONBRecordSoftError excludes setup/import/internal/context errors. Only the
-// destination conversion seam calls it; JSONB input import happens beforehand.
-// Do not unwrap: the selected domain evaluator preserves CHECK-expression
-// failures as hard wrapped causes even when their SQLSTATE resembles input.
-func JSONBRecordSoftError(err error) bool {
-	e, ok := err.(*sqlstate.Error)
-	if !ok {
-		return false
-	}
-	switch e.Code {
-	case "22001", "22003", "22007", "22008", "22009", "22015", "22018", "22023", "22P02", "23502", "23514":
-		return true
-	}
-	if e.Code == "54000" {
-		return e.Message == "number of array dimensions exceeds the maximum allowed (6)" || e.Message == "array size exceeds the maximum allowed"
-	}
-	return false
-}
-
 func populateJSONBField(ctx context.Context, u Usage, base Value, node *jsonbNode, env InputEnvironment, key string) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err

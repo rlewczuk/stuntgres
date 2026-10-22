@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"stuntgres/internal/sqlstate"
 )
 
 type jsonpathToken struct {
@@ -22,9 +24,9 @@ type jsonpathScanner struct {
 
 func jsonpathSyntax(message, raw string) error {
 	if raw == "" {
-		return failure("42601", message+" at end of jsonpath input")
+		return sqlstate.SoftInputError(failure("42601", message+" at end of jsonpath input"))
 	}
-	return failure("42601", fmt.Sprintf("%s at or near \"%s\" of jsonpath input", message, raw))
+	return sqlstate.SoftInputError(failure("42601", fmt.Sprintf("%s at or near \"%s\" of jsonpath input", message, raw)))
 }
 func jsonpathBlank(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' }
 func jsonpathOther(c byte) bool {
@@ -267,7 +269,7 @@ func (s *jsonpathScanner) name(quoted bool) (string, error) {
 					return "", jsonpathUnicodeZero()
 				}
 				if v > utf8.MaxRune {
-					return "", failure("42601", "invalid Unicode code point")
+					return "", sqlstate.SoftInputError(failure("42601", "invalid Unicode code point"))
 				}
 				b.WriteRune(rune(v))
 			}

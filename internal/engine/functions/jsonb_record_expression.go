@@ -148,7 +148,7 @@ func (e JSONBRecord) Eval(c expr.Context) (sqltype.Value, error) {
 	value, err := sqltype.JSONBPopulateRecord(ctx, destination, base, document, input)
 	if e.Name == "jsonb_populate_record_valid" {
 		if err != nil {
-			if sqltype.JSONBRecordSoftError(err) {
+			if sqltype.InputSoftError(err) {
 				return sqltype.Boolean(e.Usage.Type, false), nil
 			}
 			return sqltype.Value{}, err

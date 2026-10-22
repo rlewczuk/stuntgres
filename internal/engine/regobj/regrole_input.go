@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 type RoleInput struct{ Roles authorization.Read }
@@ -18,12 +19,12 @@ func (r RoleInput) ResolveRegrole(ctx context.Context, input string) (uint32, er
 	}
 	parts, err := parser.ParseRegclassName(input)
 	if err != nil || len(parts.Parts) != 1 {
-		return 0, sqlError("42602", "invalid name syntax")
+		return 0, sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))
 	}
 	name := parts.Parts[0].Text
 	role, ok := r.Roles.Lookup(name)
 	if !ok {
-		return 0, sqlError("42704", `role "`+name+`" does not exist`)
+		return 0, sqlstate.SoftInputError(sqlError("42704", `role "`+name+`" does not exist`))
 	}
 	if role.Ref.ID() > math.MaxUint32 {
 		return 0, fmt.Errorf("stuntgres: regrole identity out of range")

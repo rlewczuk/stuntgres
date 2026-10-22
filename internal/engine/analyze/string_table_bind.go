@@ -57,6 +57,9 @@ func (b *Binder) stringSetAllowed(pos parser.Position) error {
 	if b.Consumer.IndexPredicateConsumer {
 		kind = "index predicates"
 	}
+	if b.Consumer.CopyWhere {
+		kind = "COPY FROM WHERE conditions"
+	}
 	hint := ""
 	if b.Clause.StringSetGuard != "" {
 		kind = b.Clause.StringSetGuard

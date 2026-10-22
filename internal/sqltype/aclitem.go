@@ -131,7 +131,7 @@ func aclName(text string, offset int) (string, int, error) {
 }
 
 func aclNameTooLong() error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42622", Message: "identifier too long", Detail: "Identifier must be less than 64 characters."}
+	return sqlstate.SoftInputError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42622", Message: "identifier too long", Detail: "Identifier must be less than 64 characters."})
 }
 
 func aclHint(message, hint string) error {

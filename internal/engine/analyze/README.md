@@ -408,3 +408,14 @@ and empty installed-SRF records through direct and prepared execution.
 ```sh
 make check RUN='^(TestQueryOuterJoins|TestQueryWindow|TestQuerySet|TestStringSplit|TestQuerySubquery)'
 ```
+
+COPY WHERE uses the existing full relation namespace and Boolean binder under
+`Consumer.CopyWhere`, with COPY-specific forbidden subquery/aggregate/window/set
+diagnostics. Target-use capture rejects generated references before preflight
+folding and supplies actual SELECT-column privileges. It introduces neither an
+expression evaluator nor a new expression provider. Dual-mode Binding and
+Privileges witnesses belong to the COPY filter suite in `reference/dml`.
+The COPY consumer is independent of `Target.GeneratedOwner`: it suppresses
+generation expansion in the real column binders without invoking generation
+definition restrictions. The existing SRF placement owner reads CopyWhere
+directly, preserving COPY diagnostics rather than rewriting another error.

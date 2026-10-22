@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/sqlstate"
 )
 
 func TestFTSOpsVectorConcat(t *testing.T) {
@@ -60,6 +62,9 @@ func TestFTSOpsVectorConcat(t *testing.T) {
 		result, err := left.Concat(ctx, tail)
 		if size == 1048576 {
 			codecError(t, err, "54000", "string is too long for tsvector (1048576 bytes, max 1048575 bytes)")
+			if _, marked := err.(*sqlstate.InputError); marked {
+				t.Fatal("vector algebra size failure gained input-origin authority", err)
+			}
 		} else if err != nil || len(result.lexemes) != 512 {
 			t.Fatal(result, err)
 		}

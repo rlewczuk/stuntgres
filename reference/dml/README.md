@@ -1595,3 +1595,220 @@ Use external900-second deadlines. TSTZRANGE text reflects the session zone;
 binary endpoints remain UTC instants. Companion arrays and temporal multiranges
 remain outside native execution.
 
+### COPY filtering and conversion-error policy
+
+The untagged `copy_filter_*_test.go` definitions specify TRUE-only admission
+after conversion/defaults but before generation/constraints, supported input
+recovery versus hard failures, exact reject boundaries, atomicity, accepted-row
+counts and complete ordered notice/error diagnostics. Text and CSV recover
+conversion errors; binary uses the existing providers with WHERE/STOP only.
+The genuine stream notice fixture shares the scenario's native Driver or single
+pinned18.6 oracle. Wrapped direct/held consumers retain their middleware owners.
+Recovery witnesses read actual stored typed columns with exact database type
+names and values; they do not require adjacent range/numeric-to-text casts.
+
+Small selected proof groups (external900-second deadline each):
+
+```sh
+make check RUN='^TestReferenceCopyFilter(Where|Ordering|Binary)$'
+make check RUN='^TestReferenceCopyFilter(Ignore|RejectLimit|Defaults)$'
+make check RUN='^TestReferenceCopyFilter(HardErrors|Domains|Notices)$'
+make check RUN='^TestReferenceCopyFilter(Options|Binding|Privileges)$'
+make check RUN='^TestReferenceCopyFilter(Lifecycle|FeatureSmoke)$'
+make check RUN='^TestReferenceCopyBinaryOptions$'
+```
+
+Run every group with `REFERENCE=1` as well. Initial oracle discovery can select
+the actual immediate `postgres` backend subtest without editing a backend gate:
+`make check REFERENCE=1 RUN='^TestReferenceCopyFilter(Where|Ordering|Binary)$$/^postgres$$'`;
+substitute each remaining small group, and use
+`'^TestReferenceCopyBinaryOptions$$/^postgres$$'` for the migrated definition.
+The doubled dollar survives Make expansion. These are discovery-only selectors;
+completed proof requires both backends, not PostgreSQL alone or no-match output.
+Expectations are independently reasoned released contracts pending pinned
+characterization, not a claim of observed passing behavior.
+
+Feature smoke: both modes of `TestReferenceCopyFilterFeatureSmoke`. The separate
+public executable source supplied as session artifact `copy-filter-smoke.go`
+is materialized by the root as `.copy-filter-smoke/main.go` and run with
+`go run ./.copy-filter-smoke`, then removed. It checks direct/SAME-held complete
+rows and metadata, CSV filter/default/recovery/counts, success/failure notices,
+atomic reject-limit failure, generated-expression ordering, handmade binary
+WHERE/STOP, soft-domain versus hard-domain-expression provenance and named
+regclass success/STOP/reject-limit plus hard predicate/type-modifier controls. Expected
+stdout is exactly `COPY filter/errors smoke passed` plus newline, stderr empty,
+exit0 only after assertions. Selected definitions supplement, not replace,
+this actual public executable observation and whole-project verification.
+
+#### Existing catalog-alias input recovery
+
+`TestReferenceCopyFilterAliasInputs`, `AliasLimits` and `AliasHardErrors` extend
+the same native/pinned stream bodies over already-supported alias providers.
+The regclass witness imports named existing relations before and after missing
+names, asserting complete typed/exported rows, COPY counts/tags, ordered full
+notices, exact reject-limit success/atomic failure and unchanged STOP errors.
+The bounded matrix covers input-owned missing/name/ambiguity/signature failures
+without treating all lookup SQLSTATEs as recoverable. Real parser/typmod/ACL
+exceptions and alias failures inside supported WHERE evaluation remain hard.
+The domain-alias subcase first makes the same ordinary sentinel INSERT on both
+backends. Native asserts its exact existing `regclass input lacks catalog authority`
+Go error, no SQLState, empty complete typed table and no notices, returning only
+from that capability subcase. PostgreSQL retains the sentinel and full hard42P01
+COPY atomicity proof. The actual scoped native adapter's hard-over-direct-soft
+proof is `TestCopyFilterAliasProvenance`; existing shared primitive-domain cases
+remain required. No adjacent domain alias capture is introduced. Native named
+regconfig lookup likewise stays an explicit capability boundary, not a new type
+feature or a suppressed unsupported error.
+
+Tests-only oracle discovery (external900-second deadline):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceCopyFilterAlias(Inputs|Limits|HardErrors)$$/^postgres$$'
+make check RUN='^TestReferenceCopyFilterAlias(Inputs|Limits|HardErrors)$'
+```
+
+After the authorized remedy, run the latter command both as written and with
+`REFERENCE=1`. Public diagnostics/notices are independently specified, not
+native-generated goldens. Existing hard-domain, default, lifecycle and JSONB
+preservation groups remain required. Supplementary producer/nested-input proof:
+
+```sh
+make check RUN='^(TestCopyFilterAliasProvenance|TestRegOperatorSignatureSeparation|TestRegOperatorSignatureIncrementalOrder|TestTypeInputNoticesFollowTheCurrentHost)$'
+```
+
+#### Remaining existing-provider input origins
+
+`TestReferenceCopyFilterProviderInputs`, `ProviderLimits` and `ProviderHardErrors`
+use the same genuine notice/stream fixture, with a family/group before the backend.
+Each bounded group owns its Pair under the unchanged30-second fixture context.
+Inputs/Limits names are `family/backend/format/failure`; HardErrors names are
+`direct/backend/format/control` or `family_default|where|domain/backend/format/failure`.
+Role cleanup is registered on its owning group before Pair creation; no nested
+fixtures, deadline changes or additional package container are used.
+Independently specified text/CSV cases cover array dimension/bound/size failures;
+all six existing scalar ranges and three existing multiranges; JSONPath
+scope/lexer/grammar/Unicode/regex/expanded-flag branches; BIT width; JSONB Unicode
+NUL; FTS syntax/lexeme limits; installed intarray query syntax/complexity;
+ACL missing grantee/grantor and identifier lengths; and nested BIT composite/domain
+propagation. The ACL fixture creates and cleans its own named grantor role.
+No new type, cast, extension implementation or transport is introduced.
+
+Each soft case independently checks default/explicit STOP and no prefix/notices,
+IGNORE continuation with valid rows before and after, full typed stored values
+and text export, exact COPY count/tag, ordered verbose and summary diagnostics,
+exact-limit success, second-reject atomic failure and silent owner reuse.
+The explicit array-length overflow uses the common released English diagnostic
+`array size exceeds the maximum allowed (134217727)`, not a native-message override.
+
+Hard controls distinguish LINE arithmetic and JSONPath numeric/recursive helper
+overflow from soft input of the same SQLSTATE. Supported text-to-provider WHERE
+and domain CHECK casts remain hard. The existing native text-to-int4range cast
+capability is asserted explicitly: domain CREATE fails with complete0A000 and
+no Position/Context/domain; WHERE fails with the same message and actual `::`
+Position, zero result, full sentinel and no notices. Only these native capability
+phases differ; PostgreSQL retains the original full hard range-expression proof.
+Direct range input/STOP/recovery/limits/defaults remain shared. Other supported
+casts plus actual scoped-domain private proof retain hard-origin coverage.
+Every soft case also demands an actual
+omitted nextval default after rejection: exhaustion must retain the already
+emitted row notice, return zero, preserve the complete sentinel and emit no
+summary. BIT explicit casts pad/truncate rather than invoke fresh-input width
+checking; ACL domain catalog capture is not added. Existing primitive-domain and
+alias capability controls remain intact.
+
+Oracle-first characterization (external900-second deadline each):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceCopyFilterProviderInputs$$/./^postgres$$'
+make check REFERENCE=1 RUN='^TestReferenceCopyFilterProviderLimits$$/./^postgres$$'
+make check REFERENCE=1 RUN='^TestReferenceCopyFilterProviderHardErrors$$/./^postgres$$'
+```
+
+After oracle characterization root records the meaningful native-red versions
+without the backend selector. No code gates/skips or native-derived goldens.
+Final proof requires each full definition with and without `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceCopyFilterProviderInputs$'
+make check RUN='^TestReferenceCopyFilterProviderLimits$'
+make check RUN='^TestReferenceCopyFilterProviderHardErrors$'
+```
+
+Oracle-only discovery/native red are not completed-production evidence. Repeat
+both final modes after changes. All prior COPY/alias/JSONB preservation,
+whole-project proof and the actual expanded public executable remain required.
+
+The same OMP-session public `copy-filter-smoke.go` executable retains all prior
+assertions and adds text/CSV array/range/JSONPath/BIT/JSONB/FTS/query_int/ACL/LINE
+producer recovery, complete direct/SAME-held typed state and exports, original
+STOP errors and limit atomicity. Opposite-origin LINE/JSONPath22003 failures,
+supported array WHERE/CHECK casts and real omitted-default exhaustion are fatal.
+Its materialization/`go run ./.copy-filter-smoke` argv and exact success stdout
+above are unchanged; a fresh actual run is required after provider remedies.
+
+#### Array child-input demand and declared-dimension precedence
+
+`TestReferenceCopyFilterArrayInputDemand` adds one bounded scenario using the
+existing notice/stream Pair. The backend is the immediate child:
+`TestReferenceCopyFilterArrayInputDemand/{memory,postgres}/{text,csv}/case/action`.
+No new fixture, transport, container, timeout or backend gate is introduced.
+This is the 21st COPY-filter definition; the existing provider families and
+49 soft-input cases are unchanged.
+
+Short explicit-dimension witnesses distinguish cumulative declared metadata
+from actual child demand. The domain is the existing supported integer CHECK
+`10 / VALUE > 0`; its array contains a zero only in the failing row. A committed
+`99/{{9}}` sentinel and valid `1/{{1}}`, `3/{{2}}` COPY rows distinguish a hard
+atomic failure from an incorrectly successful skip.
+
+Independently specified text/CSV controls:
+
+| Case | Decoded array field | Expected STOP diagnostic |
+| --- | --- | --- |
+| `hard_domain` | `[1:50000][1:50000]={{0}}` | `22012`, `division by zero`; also hard under IGNORE |
+| `stop_child` | `[1:50000][1:50000]={{bad}}` | `22P02`, `invalid input syntax for type integer: "bad"`; both default and explicit STOP |
+| `mismatch` | `[1:50000][1:50000]={{1}}` | `22P02`, malformed array literal, with `Specified array dimensions do not match array contents.` detail |
+| `declared_rank` | `[1:50000][1:50000]` plus five `[1:1]` dimensions and `={{0}}` | `54000`, `number of array dimensions exceeds the maximum allowed (6)` |
+| `declared_zero` | `[1:50000][1:50000][1:0]={{0}}` | `2202E`, `upper bound cannot be less than lower bound` |
+
+The first two demand child input before final extent validation. The latter
+declaration checks must remain early, before the zero's domain CHECK; their STOP
+records distinguish them from an earlier cumulative-product error. All failure
+records include exact line-2/column-`v` decoded-field context and all other public
+diagnostic fields, zero COPY result, sentinel-only state and no notices/summary.
+The four soft controls additionally check IGNORE with exact limit1, COPY2,
+complete valid-before/after state, and ordered row notice plus success summary.
+Direct and SAME-held consumers check canonical array text and metadata; COPY TO
+independently exports the actual typed column. No large array payload is needed.
+
+Root oracle-first characterization and native-red gate (external900 seconds):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceCopyFilterArrayInputDemand$$/^postgres$$'
+make check RUN='^TestReferenceCopyFilterArrayInputDemand$'
+```
+
+These full expectations are pinned to PostgreSQL18.6, not native observations.
+The producer remedy removes only the premature text-array cumulative-product
+check: individual bounds/rank remain early, actual element demand is unchanged,
+and common final construction retains its checked size/shape/type guards.
+Both full modes remain required after implementation and before review:
+
+```sh
+make check RUN='^TestReferenceCopyFilterArrayInputDemand$'
+make check REFERENCE=1 RUN='^TestReferenceCopyFilterArrayInputDemand$'
+```
+
+Actual-descriptor/private final-construction proof:
+
+```sh
+make check RUN='^TestCopyFilterArrayInputDemand$'
+```
+
+The same standalone COPY-filter executable retains all earlier assertions and
+also exercises these five short witnesses in text and CSV, including hard-domain
+STOP/IGNORE, default STOP child precedence, exact soft counts/notices, full
+direct/SAME-held state and typed export. Its existing materialization/argv,
+bounded notice-peer query and exact success output are unchanged. An actual
+fresh run after the remedy is required; the earlier executable does not establish
+the new combined-demand contract.

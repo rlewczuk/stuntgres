@@ -22,6 +22,8 @@ func (b *Binder) regexpPlacement(call functions.RegexpCall) error {
 		switch {
 		case b.Params.ExecuteParameters:
 			context = "EXECUTE parameters"
+		case b.Consumer.CopyWhere:
+			context = "COPY FROM WHERE conditions"
 		case b.Target.GeneratedOwner != nil:
 			context = "column generation expressions"
 		case b.Consumer.IndexPredicateConsumer:

@@ -1,6 +1,7 @@
 package routine
 
 import (
+	"errors"
 	"fmt"
 
 	"stuntgres/internal/engine/access"
@@ -322,7 +323,8 @@ func StageDropOperator(h DDLHost, auth ddl.Authority, s *parser.DropOperator) er
 	for _, sig := range s.Signatures {
 		d, err := findUtilityOperator(h, auth, sig)
 		if err != nil {
-			if diag, ok := err.(*sqlstate.Error); ok && s.IfExists && (diag.Code == "42883" || diag.Code == "3F000") {
+			var diag *sqlstate.Error
+			if s.IfExists && errors.As(err, &diag) && (diag.Code == "42883" || diag.Code == "3F000") {
 				message := diag.Message + ", skipping"
 				if diag.Code == "42883" {
 					message = "operator " + catalog.ObjectNameText(sig.Name) + " does not exist, skipping"

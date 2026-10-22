@@ -30,10 +30,10 @@ type jsonpathNode struct {
 type jsonpathIndex struct{ from, to *jsonpathNode }
 
 func jsonpathDetail(code, detail string) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: "invalid input syntax for type jsonpath", Detail: detail}
+	return sqlstate.SoftInputError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: "invalid input syntax for type jsonpath", Detail: detail})
 }
 func jsonpathUnicodeZero() error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P05", Message: "unsupported Unicode escape sequence", Detail: `\u0000 cannot be converted to text.`}
+	return sqlstate.SoftInputError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P05", Message: "unsupported Unicode escape sequence", Detail: `\u0000 cannot be converted to text.`})
 }
 func (d *Descriptor) jsonpathInput(ctx context.Context, text string) (Value, error) {
 	p, err := parseJSONPath(ctx, text)
@@ -93,10 +93,10 @@ func validateJSONPathScope(ctx context.Context, root *jsonpathNode) error {
 			continue
 		}
 		if n.kind == "@" && e.filters == 0 {
-			return failure("42601", "@ is not allowed in root expressions")
+			return sqlstate.SoftInputError(failure("42601", "@ is not allowed in root expressions"))
 		}
 		if n.kind == "last" && !e.subscript {
-			return failure("42601", "LAST is allowed only in array subscripts")
+			return sqlstate.SoftInputError(failure("42601", "LAST is allowed only in array subscripts"))
 		}
 		if n.next != nil {
 			stack = append(stack, entry{n.next, e.filters, e.subscript})
