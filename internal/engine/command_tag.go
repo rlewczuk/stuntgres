@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -43,7 +42,7 @@ func classifyCommandTag(stmt parser.Statement, before session.TxState) (base str
 			return "", false, false, false
 		}
 	case *parser.ForeignDDL:
-		base = fdw.CommandTag(s)
+		base = session.ForeignDDLTag(s)
 	case *parser.CreateTablespace:
 		base = "CREATE TABLESPACE"
 	case *parser.Load:

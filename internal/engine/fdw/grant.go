@@ -11,11 +11,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// GrantKind reports whether a GRANT object kind is a wrapper or server.
-func GrantKind(kind string) bool {
-	return kind == "foreign server" || kind == "foreign-data wrapper"
-}
-
 // GrantChange is the new descriptor of one wrapper or server whose
 // ACL a GRANT or REVOKE changes.
 type GrantChange struct {

@@ -6,10 +6,10 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
@@ -146,7 +146,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return result, err
 	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
-		if grant, ok := stmt.(*parser.ObjectGrant); ok && fdw.GrantKind(grant.Kind) {
+		if grant, ok := stmt.(*parser.ObjectGrant); ok && session.ForeignGrantKind(grant.Kind) {
 			return e.executeForeignGrant(scope, grant, count)
 		}
 		if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {

@@ -3,7 +3,6 @@ package fdw
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -95,22 +94,6 @@ func RunValidations(ctx context.Context, jobs []Validation) error {
 
 func IsCatalogClass(class ids.OID) bool {
 	return class == ids.ForeignWrapperClassID || class == ids.ForeignServerClassID || class == ids.ForeignMappingClassID
-}
-
-func CommandTag(s *parser.ForeignDDL) string {
-	if s.Action == "import" {
-		return "IMPORT FOREIGN SCHEMA"
-	}
-	kind := "FOREIGN TABLE"
-	switch s.Kind {
-	case "wrapper":
-		kind = "FOREIGN DATA WRAPPER"
-	case "server":
-		kind = "SERVER"
-	case "mapping":
-		kind = "USER MAPPING"
-	}
-	return strings.ToUpper(s.Action) + " " + kind
 }
 
 func MappingDiagnostic(view access.View, role authorization.PrincipalRef, server *catalog.ForeignObject, exists bool) string {
