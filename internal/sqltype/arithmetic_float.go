@@ -10,10 +10,20 @@ func (p Arithmetic) floatingBinary(x, y float64) (Value, error) {
 		}
 		return Value{typ: p.result, floating: n}, nil
 	}
+	n, err := checkedFloatingBinary(p.operator, p.result.id, x, y)
+	if err != nil {
+		return Value{}, err
+	}
+	return Value{typ: p.result, floating: n}, nil
+}
+
+// checkedFloatingBinary also serves fixed geometric datums; it never mints a
+// temporary descriptor or value to perform a checked float8 calculation.
+func checkedFloatingBinary(operator ArithmeticOperator, result ID, x, y float64) (float64, error) {
 	var n float64
-	if p.result.id == Float4 {
+	if result == Float4 {
 		a, b := float32(x), float32(y)
-		switch p.operator {
+		switch operator {
 		case ArithmeticAdd:
 			n = float64(a + b)
 		case ArithmeticSubtract:
@@ -24,7 +34,7 @@ func (p Arithmetic) floatingBinary(x, y float64) (Value, error) {
 			n = float64(a / b)
 		}
 	} else {
-		switch p.operator {
+		switch operator {
 		case ArithmeticAdd:
 			n = x + y
 		case ArithmeticSubtract:
@@ -35,20 +45,20 @@ func (p Arithmetic) floatingBinary(x, y float64) (Value, error) {
 			n = x / y
 		}
 	}
-	if p.operator == ArithmeticDivide && y == 0 && !math.IsNaN(x) {
-		return Value{}, failure("22012", "division by zero")
+	if operator == ArithmeticDivide && y == 0 && !math.IsNaN(x) {
+		return 0, failure("22012", "division by zero")
 	}
 	overflow := math.IsInf(n, 0) && !math.IsInf(x, 0)
-	if p.operator != ArithmeticDivide {
+	if operator != ArithmeticDivide {
 		overflow = overflow && !math.IsInf(y, 0)
 	}
 	if overflow {
-		return Value{}, failure("22003", "value out of range: overflow")
+		return 0, failure("22003", "value out of range: overflow")
 	}
-	if n == 0 && x != 0 && (p.operator == ArithmeticMultiply && y != 0 || p.operator == ArithmeticDivide && !math.IsInf(y, 0)) {
-		return Value{}, failure("22003", "value out of range: underflow")
+	if n == 0 && x != 0 && (operator == ArithmeticMultiply && y != 0 || operator == ArithmeticDivide && !math.IsInf(y, 0)) {
+		return 0, failure("22003", "value out of range: underflow")
 	}
-	return Value{typ: p.result, floating: n}, nil
+	return n, nil
 }
 
 func floatingPower(x, y float64) (float64, error) {

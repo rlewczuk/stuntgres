@@ -54,6 +54,49 @@ Use `RACE=1` on selected Controls proof when needed; whole-project Docker-free
 verification is `make quickcheck`. These commands document proof obligations,
 not a claim that this implementation round has already passed them.
 
+### Circle scalar contract
+
+The eight shared `TestReferenceCircle` scenarios cover input/output (including
+observed release scanner edges), binds/metadata, all bounded circle predicates
+and radius, complete diagnostics and atomicity, unavailable default capabilities,
+24-byte binary COPY, native controls and actual PostgreSQL dump replay.
+No scenario orders by a circle or imports internal providers. POINT operations
+and circle arrays remain outside this scalar feature; the independent BOX/POINT
+contract above is unchanged.
+
+`Operators` projects direct/prepared subquery `ANY` results: smaller-area `<`
+is true, NaN `<>` NaN is false, NULL-left and unmatched-plus-NULL are unknown,
+and a decisive true comparison wins over another NULL candidate. These use
+scalar subqueries, not circle arrays. `Controls` stores both generated radius
+and a generated BOOL comparing area to a radius-two circle. Different centers
+with the same area yield true, different areas and NaN yield false, and NULL
+remains unknown. The same direct/prepared rows survive low-precision native
+Dump/Reset/Restore and actual PostgreSQL dump replay; subsequent radius-six
+and radius-two inserts exercise both restored generated expressions. Detached
+reader/metadata and failed-restore atomicity assertions remain in that cycle.
+
+Run selected proof on the same completed definitions in both modes:
+
+```sh
+make check RUN='^TestReferenceCircle(InputOutput|BindingsMetadata|Operators|Diagnostics|Capabilities|Binary|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceCircle(InputOutput|BindingsMetadata|Operators|Diagnostics|Capabilities|Binary|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestCircle(InputOutput|NumericEdges|Operators|DatumIdentity|Binary|Provider.*)$'
+make quickcheck
+```
+
+Actual new-behavior feature smoke:
+
+```sh
+make check RUN='^TestReferenceCircleFeatureSmoke$'
+make check RUN='^TestReferenceCircleFeatureSmoke$' REFERENCE=1
+```
+
+Expected: canonical seven-row center/radius transport, held string/byte binds,
+NULL, area equality versus geometric sameness, distance3, exact negative-radius
+error and unchanged count; native Dump/Reset/Restore repeats those expectations.
+Use external900-second deadlines. Commands are verification obligations, not
+claims of observed success. Whole-project Docker-free verification is quickcheck.
+
 ### MACADDR scalar contract
 
 The eight shared scenarios cover documented forms and scanf edges, full

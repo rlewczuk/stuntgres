@@ -29,6 +29,21 @@ raw inverted BOX pairs; replaying those same textual literals as ordinary
 PostgreSQL INSERT input normalizes them. No PostgreSQL Reset/Dump/Restore API is
 invented by the reference scenarios. See [BOX proof](../reference/types/README.md#box-scalar-contract).
 
+## Circle scalar
+
+Builtin `circle` is concrete; `_circle` remains lookup-only. Circle-only
+`= <> < > <= >= ~= << >> &< &> <<| |>> &<| |&> @> <@ && <->` and
+`radius(circle)` execute through selected signatures, including strict NULL.
+The six ordinary predicates compare fuzzy areas and do not provide default
+equality/ordering capabilities: ORDER BY, DISTINCT/GROUP BY and default
+B-tree/hash operator classes remain unavailable. NaN area predicates are all
+false, including `<>`. Circle adds no center-returning operation,
+constructor/conversion involving adjacent geometry, transformations, area or
+diameter function, circle array or spatial index; the independent BOX/POINT
+boundary above is unchanged.
+Text and 24-byte binary codecs, metadata and native logical controls share the
+[type-owned circle contract](TYPES.md#circle).
+
 ## Tablespace inquiries
 
 The sole signatures are `pg_tablespace_location(oid) -> text` and
@@ -3290,7 +3305,7 @@ empty/custom ACLs and actual owner principals. Zero REGPROC displays `-`.
 PUBLIC reads expose the inventory independently of schema/type USAGE grants.
 
 Families deliberately opt into metadata: implemented scalar/alias/temporal/
-JSON/numeric/network/bit/UUID/ACL families, the six executable ranges and three
+JSON/numeric/network/bit/UUID/ACL families, circle718, the six executable ranges and three
 executable integer/numeric multiranges, unknown/void/record/anyarray, actual
 enum/domain/composite/installed-query_int definitions, and real represented
 catalog/user-relation rowtypes. Every admitted element retains its genuine
@@ -3309,9 +3324,9 @@ uses current authority. This metadata composition adds no codec or SQL capabilit
 
 This inventory is deliberately narrower than REGTYPE lookup. Remaining
 unimplemented xml/geometry/full-text/refcursor/vector/pseudo families and unrelated
-lookup-only relation identities are absent. BOX/POINT scalar and companion
-metadata are admitted; companion catalog visibility does not enable their SQL
-array codecs. Temporal multiranges4533/4534/4535
+lookup-only relation identities are absent. BOX/POINT and circle718 scalar and
+companion metadata are admitted; companion catalog visibility does not enable
+their SQL array codecs. Temporal multiranges4533/4534/4535
 and arrays6152/6153/6155 remain absent even though pg_range preserves their
 released identity links. Existing concrete and lookup-only companion codec
 flags are unchanged: catalog visibility never enables storage, input, casts,

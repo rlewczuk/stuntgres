@@ -36,6 +36,10 @@ func (b *Binder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, error) {
 		}
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, nil, raw)
 	}
+	if op, circle := sqltype.CircleKind(name); circle && op != sqltype.CircleRadius &&
+		(circleOperand(left) || circleOperand(right)) {
+		return b.finishCircleOperator(raw, operands)
+	}
 	if _, subnet := sqltype.NetworkSubnetKind(name); subnet && (networkSubnetOperand(left) || networkSubnetOperand(right)) {
 		return b.finishNetworkSubnet(raw, operands)
 	}

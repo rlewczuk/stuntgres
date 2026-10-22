@@ -3,14 +3,14 @@
 ## Provenance and status
 
 The companion `pg-operator-pg18-supported.tsv` is an independently constructed
-expected inventory, currently **570 admitted records out of 799 released identities**;
-229 remain identity-only. Of the admitted records, 3552 is executable through
-the bounded exclusion provider rather than general scalar SQL. The inventory
+expected inventory of admitted records from799 released identities. The original
+554-record checkpoint included3552 through the bounded exclusion provider;
+subsequent feature admissions are recorded below. The inventory
 has a header and exactly15 raw catalog columns,
 ordered numerically by OID. Root confirmed the initial531-row metadata against
 pinned PostgreSQL18.0 before production. Subsequent rebases synchronize existing
-TID/INET, ACL-inclusion, RECORD and exclusion providers. The latest complete
-570-row definitions require fresh root-owned proof; source facts are not a pass.
+TID/INET, ACL-inclusion, RECORD and exclusion providers.
+The current completed definitions require fresh root-owned proof; source facts are not a pass.
 No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
@@ -40,6 +40,25 @@ Selected proof must include all consumers of the independent inventory: direct/
 prepared catalog inventory, provider agreement, complete relationships, permissions,
 polymorphic identity, lifecycle and FeatureSmoke, in both native and pinned modes.
 Fresh proof for these additions remains root-owned.
+
+### Circle scalar operator admission
+
+PG18-TYPE-GEOM-CIRCLE admits exactly19 circle×circle signatures:
+1500–1515,1520,2589 and2590. Their complete15-field expected rows are transcribed
+from [REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and defaults, with implementation and estimator OIDs resolved independently from
+[REL_18_6 pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat).
+All have namespace11, owner10, binary kind and false merge/hash flags.
+The result is BOOL16 except distance1520, which returns FLOAT8 701.
+Area ordering and overlap use areasel139/areajoinsel140; position predicates
+use positionsel1300/positionjoinsel1301; containment uses contsel1302/contjoinsel1303.
+Area equality/inequality and sameness retain their released equality estimators.
+Missing commutator/negator/estimator fields remain zero, not inferred from
+geometric symmetry. No native output or production table generated these facts.
+The existing unfiltered inventory, symbolic-reference and real-binder admission
+proofs consume this expansion unchanged. Circle scalar operators do not imply
+default B-tree/hash classes, grouping or sorting. Root must observe both selected
+native and pinned PostgreSQL modes on these completed definitions.
 
 ### JSONB JSONPath operator admission
 

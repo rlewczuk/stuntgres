@@ -71,7 +71,7 @@ func BindGrouping(usage Usage) (Grouping, error) {
 
 // EqualityGrouping binds hash membership to the predicate's retained authority.
 func (p ComparisonPredicate) EqualityGrouping() (Grouping, error) {
-	if p.operator != CompareEqual || p.operands.left != p.operands.right {
+	if p.circle.input != nil || p.operator != CompareEqual || p.operands.left != p.operands.right {
 		return Grouping{}, fmt.Errorf("comparison is not a same-type hash equality")
 	}
 	usage := p.operands.left.Usage()

@@ -70,6 +70,8 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		size = 8
 	case UUID, Interval:
 		size = 16
+	case Circle:
+		size = 24
 	}
 	if size > len(p) {
 		if size == 1 {
@@ -104,6 +106,15 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		v.floating = float64(math.Float32frombits(binary.BigEndian.Uint32(p)))
 	case Float8:
 		v.floating = math.Float64frombits(binary.BigEndian.Uint64(p))
+	case Circle:
+		v.circle = circleDatum{
+			math.Float64frombits(binary.BigEndian.Uint64(p)),
+			math.Float64frombits(binary.BigEndian.Uint64(p[8:])),
+			math.Float64frombits(binary.BigEndian.Uint64(p[16:])),
+		}
+		if v.circle.radius < 0 {
+			err = failure("22P03", "invalid radius in external \"circle\" value")
+		}
 	case UUID:
 		copy(v.uuid[:], p[:16])
 	case Date:
@@ -267,6 +278,10 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return binary32(dst, math.Float32bits(float32(v.floating))), nil
 	case Float8:
 		return binary64(dst, math.Float64bits(v.floating)), nil
+	case Circle:
+		dst = binary64(dst, math.Float64bits(v.circle.x))
+		dst = binary64(dst, math.Float64bits(v.circle.y))
+		return binary64(dst, math.Float64bits(v.circle.radius)), nil
 	case UUID:
 		return append(dst, v.uuid[:]...), nil
 	case Text, VarChar, BPChar, Name, Bytea, JSON:

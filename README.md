@@ -14,6 +14,18 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Circle scalar — change note
+
+Builtin `circle` columns, casts, string/byte binds, typed NULL, metadata and
+binary COPY share a fixed center/radius datum and canonical `<(x,y),r>` output.
+`radius(circle)` and the circle-only geometric predicates/distance retain their
+released scalar signatures. The six ordinary comparisons compare area, not
+center/radius identity; `~=` tests geometric sameness. These operators do not
+enable default sorting, grouping, hashing or B-tree/hash indexes.
+POINT, other geometry and circle arrays remain outside this provider.
+See [value contracts](docs/TYPES.md#circle) and
+[selected proof and smoke](reference/types/README.md#circle-scalar-contract).
+
 ## Citext scalar transport — change note
 
 `CREATE EXTENSION citext` installs the registered 1.8 scalar provider. Columns,

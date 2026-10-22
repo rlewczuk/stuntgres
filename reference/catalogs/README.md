@@ -835,7 +835,7 @@ supplements, never substitutes for, whole-project quickcheck.
 ### pg_operator selected proof
 
 The `TestReferencePGOperator` scenarios use the independent
-[570-row released supported inventory](../../docs/design/pg-operator-pg18-supported.tsv)
+[released supported inventory](../../docs/design/pg-operator-pg18-supported.tsv)
 and [all-family admission/provenance note](../../docs/design/pg-operator-pg18-oracle.md).
 All 15 fields are asserted, including numeric implementation/estimator references;
 native inventory reads are unfiltered so extra records fail. This does not
@@ -851,6 +851,14 @@ proof in both modes; BOX's fuzzy scalar comparisons do not enable default
 ordering, grouping or indexing. `TestReferencePGTypeAdmission` additionally
 checks600/603 and lookup-only companion metadata1017/1020, including raw typelem
 versus SQL-array relationships.
+
+Circle admission adds only the19 released circle×circle signatures
+1500–1515/1520/2589/2590, independently specified from PostgreSQL18.6 catalog
+sources. The same full-field inventory and symbolic-reference scenarios cover
+them; no merge/hash flag or default comparison class is implied.
+`TestReferencePGTypeAdmission` also checks circle718's reciprocal companion719
+metadata in both modes. Companion catalog presence remains independent of
+native array-datum admission, which stays lookup-only.
 
 Root completed pinned PostgreSQL18.0 discovery and observed genuine native
 missing-source failure before production. Temporary discovery filters are gone.

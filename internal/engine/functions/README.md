@@ -19,6 +19,33 @@ interprets it. The only remaining type parameter is the private
 `randomInteger` sampler source, a numeric kernel detail rather than part of the
 expression contract.
 
+## Circle scalar provider
+
+`Circle` retains one fixed operand array and the selected routine authority for
+the circle-only operators and `radius(circle)`. Rebuild, stored validation,
+capture, rendering and group-expression identity preserve operation/syntax and
+catalog ownership. This is not default datum equality/order/grouping authority.
+Its registry admits only actual circle routine signatures; POINT and other
+geometry function identities remain nonexecutable.
+Sameness (`~=`) and vertical predicates (`<<|`, `|>>`, `&<|`, `|&>`)
+select their catalog signatures before provider dispatch, rather than entering
+the generic bitwise spelling fast path.
+The six area comparisons use the shared `plan.ComparisonExpr` contract with a
+dedicated `CirclePlan` predicate payload, preserving IN/subquery/join consumers
+and selected routine authority without supplying a default comparator or hash
+equality. NaN area inequality is evaluated directly, never by negating equality.
+
+### Testing
+
+```sh
+make check RUN='^TestCircleProvider.*$'
+```
+
+Lifecycle units cover both arities, operand/result authority, evaluation order,
+strict NULL, cancellation, reconstruction and replay. Public SQL and selected
+dual-mode smoke belong to
+[`reference/types`](../../../reference/types/README.md#circle-scalar-contract).
+
 ## Callable competition with SQL overloads
 
 The engine's shared selector keeps existing builtin and installed providers in

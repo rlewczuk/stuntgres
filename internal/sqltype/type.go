@@ -39,6 +39,7 @@ const (
 	Float4           ID = 700
 	Float8           ID = 701
 	Unknown          ID = 705
+	Circle           ID = 718
 	Money            ID = 790
 	Macaddr          ID = 829
 	Inet             ID = 869
@@ -133,6 +134,7 @@ type Descriptor struct {
 	networkMasklen                  *Descriptor
 	networkBoolean                  *Descriptor
 	boxPoint                        *Descriptor
+	circleBoolean, circleFloat      *Descriptor
 	lookupOnly                      bool
 	catalogNullOwner                *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
 	namespace                       string
@@ -273,6 +275,7 @@ func Builtins() []*Descriptor {
 		{id: VarChar, name: "varchar", sql: "VARCHAR", database: "VARCHAR", associatedArray: 1015},
 		{id: Float4, name: "float4", sql: "REAL", database: "FLOAT4", associatedArray: 1021},
 		{id: Float8, name: "float8", sql: "DOUBLE PRECISION", database: "FLOAT8", associatedArray: 1022},
+		{id: Circle, name: "circle", sql: "CIRCLE", database: "CIRCLE", associatedArray: 719},
 		{id: Money, name: "money", sql: "MONEY", database: "MONEY", associatedArray: 791},
 		{id: Cidr, name: "cidr", sql: "CIDR", database: "CIDR", associatedArray: 651},
 		{id: Inet, name: "inet", sql: "INET", database: "INET", associatedArray: 1041},
@@ -301,7 +304,7 @@ func Builtins() []*Descriptor {
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
 	}
-	var networkCIDR, networkMasklen, networkBoolean, geometryPoint *Descriptor
+	var networkCIDR, networkMasklen, networkBoolean, geometryPoint, circleFloat *Descriptor
 	for _, d := range types {
 		switch d.id {
 		case Point:
@@ -312,6 +315,8 @@ func Builtins() []*Descriptor {
 			networkMasklen = d
 		case Bool:
 			networkBoolean = d
+		case Float8:
+			circleFloat = d
 		}
 	}
 	for _, d := range types {
@@ -321,6 +326,9 @@ func Builtins() []*Descriptor {
 		if IsNetwork(d.id) {
 			d.networkCIDR, d.networkMasklen = networkCIDR, networkMasklen
 			d.networkBoolean = networkBoolean
+		}
+		if d.id == Circle {
+			d.circleBoolean, d.circleFloat = networkBoolean, circleFloat
 		}
 	}
 	for _, family := range []struct {
@@ -387,6 +395,7 @@ type Value struct {
 	ftsQuery        *fts.Query
 	cube            *cubePayload
 	geometry        *geometryPayload
+	circle          circleDatum
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -831,6 +840,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for type boolean: \"%s\"", text))
 	case Int2, Int4, Int8:
 		return d.integerInput(text)
+	case Circle:
+		return d.circleInput(text)
 	case Float4, Float8:
 		return d.floatInput(text)
 	}
@@ -974,6 +985,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	switch d.id {
 	case Box, Point:
 		return d.geometryOutput(v, env)
+	case Circle:
+		return circleOutput(v.circle, env), nil
 	case TSVector, TSQuery:
 		return d.ftsOutput(v)
 	case Tid:
@@ -1185,6 +1198,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + text + "'", nil
+	case Circle:
+		return "'" + circleOutput(v.circle, OutputEnvironment{}) + "'", nil
 	case TSVector, TSQuery:
 		text, err := d.ftsOutput(v)
 		if err != nil {
@@ -1602,7 +1617,7 @@ func BaselineCastType(id ID) bool {
 // Admission of a type does not add conversion edges to PlanCoercion.
 func StoredScalarCastType(id ID) bool {
 	switch id {
-	case TSVector, TSQuery, Box, Point:
+	case TSVector, TSQuery, Box, Point, Circle:
 		return true
 	case Bool, Int2, Int4, Int8, Oid, Tid, Macaddr, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
@@ -2204,15 +2219,13 @@ func BindOrdering(u Usage) (Comparison, error) {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
 			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Text, VarChar, Time,
 			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8, Tid, Macaddr, PgNodeTree:
-		case Void:
-			message := "could not identify an ordering operator for type void"
+		default:
+			message := "could not identify an ordering operator for type " + u.Type.DiagnosticName()
 			return Comparison{}, &sqlstate.Error{
 				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883",
 				Message: message,
 				Hint:    "Use an explicit ordering operator or modify the query.",
 			}
-		default:
-			return Comparison{}, fmt.Errorf("invalid ordering type")
 		}
 	}
 	class, ok := DefaultIndexClass(u.Type)
@@ -2573,6 +2586,8 @@ type ComparisonPredicate struct {
 	operands Comparison
 	result   *Descriptor
 	operator ComparisonOperator
+	// Circle's scalar area predicates have no default comparator or hash law.
+	circle CirclePlan
 }
 
 func (p ComparisonPredicate) SessionDependent() bool { return p.operands.SessionDependent() }
@@ -2580,7 +2595,7 @@ func (p ComparisonPredicate) SessionDependent() bool { return p.operands.Session
 // EqualityFor proves the owned strict same-type predicate used by hash probes.
 func (p ComparisonPredicate) EqualityFor(u Usage) bool {
 	t := u.Type
-	return t.Concrete() && u.validCollation() && !p.operands.collationIndeterminate && p.operands.inputCollation == u.Collation && p.operator == CompareEqual && p.operands.left == t && p.operands.right == t && p.result.Concrete() && p.result.id == Bool
+	return p.circle.input == nil && t.Concrete() && u.validCollation() && !p.operands.collationIndeterminate && p.operands.inputCollation == u.Collation && p.operator == CompareEqual && p.operands.left == t && p.operands.right == t && p.result.Concrete() && p.result.id == Bool
 }
 
 func (p ComparisonPredicate) InputCollation() (CollationRef, bool) {
@@ -2612,6 +2627,17 @@ func BindComparisonPredicate(operator ComparisonOperator, left, right, result *D
 	if err := CheckComparisonOperator(operator, left, right); err != nil {
 		return ComparisonPredicate{}, err
 	}
+	if left.id == Circle && right.id == Circle {
+		if collation != (CollationRef{}) || indeterminate {
+			return ComparisonPredicate{}, fmt.Errorf("invalid circle comparison collation")
+		}
+		operations := [...]CircleOperator{CircleEqual, CircleNotEqual, CircleLess, CircleLessEqual, CircleGreater, CircleGreaterEqual}
+		provider, err := BindCircle(operations[operator], result.Usage(), left.Usage(), right.Usage())
+		if err != nil {
+			return ComparisonPredicate{}, err
+		}
+		return ComparisonPredicate{operands: Comparison{left: left, right: right}, result: result, operator: operator, circle: provider}, nil
+	}
 	operands, err := BindComparison(left, right, collation, indeterminate)
 	if err != nil {
 		return ComparisonPredicate{}, err
@@ -2635,6 +2661,9 @@ func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value, input Inp
 			return Value{}, err
 		}
 		return Boolean(p.result, truth), nil
+	}
+	if p.circle.input != nil {
+		return p.circle.Evaluate(ctx, [2]Value{a, b})
 	}
 	if p.operator == CompareEqual || p.operator == CompareNotEqual {
 		equal, err := p.operands.EqualValues(ctx, a, b, input)

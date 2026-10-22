@@ -7,6 +7,34 @@ is the SQL authority. This page describes native value ownership, Go transport
 and implementation limits, not a supported-syntax inventory or a claim of full
 PostgreSQL compatibility.
 
+## Circle
+
+Builtin CIRCLE (OID718, lookup-only companion719) stores three inline binary64
+components, not a text or POINT value. Documented `<(x,y),r>`, `((x,y),r)`,
+`(x,y),r` and `x,y,r` forms normalize to `<(x,y),r>`. Released optional radius
+commas and outer closers, ASCII whitespace and strtod-style special/hexadecimal
+prefixes use one scanner. Numeric conversion precedes later delimiter checks.
+Negative radii fail22P02 naming the complete input; -0, NaN and positive
+infinity are accepted. Numeric overflow/true underflow fail22003 naming the
+component token and double precision; nonzero subnormals are retained.
+
+Native non-NULL output and ScanType are string, DatabaseTypeName is CIRCLE;
+string and textual-byte binds use the same codec, including typed nil byte NULL.
+Presentation honors extra_float_digits. SQL literals and native dumps remain
+lossless independently of presentation precision. Binary receive/send use
+exactly24 bytes: center X, Y, radius as big-endian float8; negative binary radius
+fails22P03. Existing transport owns NULL/framing and statement atomicity.
+
+The six scalar comparisons compare `(r*r)*pi` with geometric tolerance1e-6
+and checked float arithmetic, not text or radii. All six return false on NaN
+area, including inequality. `~=` compares center/radius; directional,
+containment, overlap and distance signatures operate only on circles.
+`radius(circle)` returns FLOAT8; every operation is strict.
+Scalar predicates do not confer default equality/order/hash/group/index
+capabilities. Circle arrays, POINT/adjacent geometry, center, transformations
+and additional geometry functions remain unavailable. See
+[circle reference proof](../reference/types/README.md#circle-scalar-contract).
+
 ## Installed citext transport
 
 `CREATE EXTENSION citext` creates a generation-owned, collatable scalar, not a
@@ -136,7 +164,7 @@ use the catalog array name for copied rank-zero declarations.
 | FLOAT4, FLOAT8 | `float64` |
 | NAME, TEXT, BPCHAR, VARCHAR | `string` |
 | Exact NUMERIC, MONEY | `string` |
-| UUID, TID, MACADDR, INET, CIDR, BIT, VARBIT | Canonical `string` |
+| UUID, TID, MACADDR, INET, CIDR, CIRCLE, BIT, VARBIT | Canonical `string` |
 | JSON | Exact source `string` |
 | JSONB, JSONPath | Canonical `string` |
 | TSVECTOR, TSQUERY | Cached canonical `string` |

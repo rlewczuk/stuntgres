@@ -110,9 +110,12 @@ operator-alias/regconfig/regdictionary/CHAR/bit/range arrays lacking concrete
 builtin authority/codecs. This does **not** exclude separately constructible
 arrays of domains or occurrence shapes. BOX and minimal POINT now have real
 scalar value/input providers, but BOX's fuzzy area operators do not grant default
-comparison capabilities; their companion arrays remain lookup-only. Their
-feature-specific witnesses live in reference/types rather than expanding this
-historical finite87-type corpus. Other lookup-only identities (remaining geometry,
+comparison capabilities; their companion arrays remain lookup-only. Circle718
+also has a concrete scalar provider and actual fuzzy area predicates, but no
+default datum equality/order/group/hash capability; its companion719 remains
+lookup-only. These feature-specific witnesses live in reference/types (including
+`circle_*_test.go`) rather than expanding this historical finite87-type
+default-comparator corpus. Other lookup-only identities (remaining geometry,
 XML/LSN/snapshot/vector/handler/internal/refcursor and unpromoted
 information_schema domains) lack actual value/input providers; an OID naming a
 type is not a value of that type. Promoted MACADDR and TSVECTOR/TSQUERY have

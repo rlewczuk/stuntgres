@@ -28,6 +28,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 			{int64(600), int64(701), int64(1017)}, {int64(603), int64(600), int64(1020)},
 			{int64(1017), int64(600), int64(0)}, {int64(1020), int64(603), int64(0)},
 		}))
+		// A released canonical companion is metadata even when native array
+		// datums remain lookup-only. Scalar circle admission must preserve it.
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=718", []string{"oid", "typname", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "NAME", "OID"}, [][]any{{int64(718), "circle", int64(719), int64(719), "_circle", int64(718)}}))
 		if b.PG {
 			return
 		} // PostgreSQL genuinely implements additional families.
@@ -43,6 +46,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// catalog presence does not make the companion an executable array.
 		expected[829], expected[1040] = true, true
 		expected[600], expected[603], expected[1017], expected[1020] = true, true, true, true
+		// Circle's executable scalar metadata exposes its canonical companion;
+		// this catalog identity does not admit circle array values.
+		expected[718], expected[719] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")

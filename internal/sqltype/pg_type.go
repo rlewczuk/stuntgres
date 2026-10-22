@@ -98,6 +98,8 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		f = PGTypeMetadata{Kind: "b", Category: "G", Element: Float8, Subscript: 6180, Input: 117, Output: 118, Receive: 2428, Send: 2429}
 	case Box:
 		f = PGTypeMetadata{Kind: "b", Category: "G", Element: Point, Subscript: 6180, Input: 123, Output: 124, Receive: 2484, Send: 2485}
+	case Circle:
+		f = PGTypeMetadata{Kind: "b", Category: "G", Input: 1450, Output: 1451, Receive: 2490, Send: 2491}
 	case TSVector:
 		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 3610, Output: 3611, Receive: 3639, Send: 3638, Analyze: 3688}
 	case TSQuery:

@@ -18,6 +18,18 @@ own CHECK/NOT NULL, builtin inventory provenance and associated identities while
 recomputing inherited flags. Catalog namespace, ownership, recipes and atomic
 publication remain with the existing catalog/type staging owners.
 
+Circle owns a fixed inline center/radius datum and shared text/binary codecs.
+`CirclePlan` evaluates only actual circle scalar signatures and strict radius;
+it never grants `ComparisonCapabilities`, grouping or default index authority.
+The shared `ComparisonPredicate` retains a dedicated `CirclePlan` for the six
+area operators, including non-negatable NaN inequality. Predicate identity
+includes that payload; hash-equality and grouping demands explicitly reject it.
+Valid concrete types without a default ordering provider report PostgreSQL
+42883 with its ordering hint; scalar operators alone do not establish one.
+Representation identity compares all three IEEE bit patterns independently of
+fuzzy SQL geometry. Area and edge arithmetic reuse checked float operations;
+center distance follows the released scaled hypot order.
+
 `Citext` is a catalog-generation-owned scalar using Value's immutable string,
 with shared encoding validation and collatable Usage. It does not fold case.
 Its preferred BPCHAR/BOOL/INET casts run before string-category scalar I/O;
@@ -123,6 +135,16 @@ comparisons are not blanket mutable.
 
 
 ## Testing
+
+Circle codec, numeric/diagnostic precedence, area/sameness/NULL distinction,
+bit identity, binary framing and selected-plan ownership units:
+
+```sh
+make check RUN='^TestCircle(InputOutput|NumericEdges|Operators|DefaultCapabilities|DatumIdentity|Binary)$'
+```
+
+Public bindings, metadata, capabilities and native replay proof live in
+[`reference/types`](../../reference/types/README.md#circle-scalar-contract).
 
 Citext function-level identity, codecs, supported registered collations, NULL,
 cast-context priority and remap boundaries:
