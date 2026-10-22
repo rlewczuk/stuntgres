@@ -25,6 +25,7 @@ constraints, verification, documentation and report.
 - **Session size:** one sub-step per session.
 - **Linear items:** 25a = 90, 25b = 91, 25c = 92, 25d = 93. Items that wait
   for this step: 29b (108) needs 91, 29c (109) needs 93, 30b (112) needs 91.
+  Fourth round (item 133): 25f = 140.
 - **Tools:** as in [ENGINE-SPLIT-index.md](ENGINE-SPLIT-index.md): `reach`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach -dir . -files '<regexp>' [-cut 'From>To']`),
   `frontier` (`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/frontier/frontier -dir . -files a.go,b.go`),
@@ -519,6 +520,32 @@ Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
 quickcheck; no behavior, error text or error-order change, no aliases.
 
+### 25f — Attach frontier, insert capture and constraint drop (linear item 140)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- `partitionAttachFrontier` (`partition_attach_scan.go`), the proof
+  walk; the `lockChildren` branch becomes a callback that waits with
+  nothing held, as today.
+- The layout and ancestor walk of `capturePartitionInsertLocked`
+  (`partition_insert.go`), with the snapshot captures as callbacks run
+  under the caller's `Engine.mu`.
+- The per-action body of `executePartitionConstraintDropLocked`
+  (`index_partition_drop.go`) over `index.DropStage` and
+  `table.NotNullCandidate`, returning sorted removal roots; the root keeps
+  `stageExpressionDependents`.
+- The duplicate ancestor walk in `partition_drop.go` becomes
+  `partition.Ancestors`.
+
+`partition` then imports `session` directly for `*session.Operation`
+(already a transitive dependency, no cycle).
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for ATTACH/DETACH PARTITION, partitioned INSERT and partitioned constraint drops; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - **Routing.** The same partition is chosen for every row; "no partition of
@@ -741,6 +768,7 @@ too; the root keeps only the orchestration listed above. The checks in
     `repairRemappedHashPartitions` keeps its signature and the install
     loop under `Engine.mu`. New import edge `partition` → `storage`.
   - Tests: none moved or deleted; four root tests changed call shape only.
+- [ ] 25f — Attach frontier, insert capture and constraint drop (linear item 140)
 
 Outstanding aliases: none (25a, 25b and 25d added none).
 
@@ -779,3 +807,4 @@ Outstanding aliases: none (25a, 25b and 25d added none).
 - Catalog 5i: `relationDefiningAuthorityCompatible`
   (`materialized_refresh.go`) is a pure catalog comparison used by
   `partition_locks.go` and `relation_scope.go`; it belongs in `catalog`.
+  Done: it is `catalog.RelationDefiningAuthorityCompatible`.

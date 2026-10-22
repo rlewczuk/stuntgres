@@ -6,31 +6,29 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `c32d28a09` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131 and 132). Steps 8–17 were
+Last verified against `master` at `4c05da8fe` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132 and 133). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
-55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`.
+55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
+fourth round (items 134–151) at `4c05da8fe`.
 
 ## Next ready sub-steps
 
 Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
-as another broad item (§8); none is ready now, and the third round has no
-broad item.
+as another broad item (§8); the fourth round has no broad item. Items in
+different packages may run in parallel on separate branches; items that
+share a prompt file touch different root files unless their "needs" says
+otherwise.
 
-- **Closing review:** 133 (docs only); every item it needs is done.
-- **DML:** none; 132 (dml 29e) is done, so step 29 has no planned
-  sub-step left.
-- **Third round, view:** none; 115, 116, 117 and 118 are done, so
-  step 27 has no planned sub-step left.
-- **Third round, control:** none; 119 (stored 22e), 120 (control 30d),
-  121 (control 30e) and 122 (control 30f) are done, so steps 22 and 30
-  have no planned sub-step left.
-- **Third round, table and index:** none; 123, 124 and 125 (table
-  24e–24g), 126 (index 23e) and 127 (partition 25e) are done, so steps 23,
-  24 and 25 have no planned sub-step left.
-- **Third round, the rest:** none; 128 (regobj 21d), 129 (session 13g),
-  130 (catalog 5k) and 131 (access B7) are done, so steps 21, 13, 5 and
-  `access` have no planned sub-step left.
+- **Fourth round, table family and DML:** 134 (table 24h), 136 (table
+  24j), 137 (dml 29f), 138 (copyfmt 19c), 139 (view 27i), 140 (partition
+  25f), 141 (fdw 26f), 142 (index 23f); 135 (table 24i) waits for 134.
+- **Fourth round, statement and session:** 143 (session 13h), 144 (exec
+  11g), 145 (regobj 21e).
+- **Fourth round, catalog, DDL, types, roles and Restore:** 146 (analyze
+  12g), 147 (typedef 15f), 148 (control 30g), 149 (role 28e), 150 (ddl
+  20e).
+- **Closing review 2:** 151 (docs only) waits for 134–150.
 
 Steps 1–17 and `access` (A1–B7) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -214,6 +212,13 @@ and `PreflightConflictUpdate`; `KeyTargets` and `AlterKeys` left
 `dml.ForeignActionScope` for `table.ForeignKeyCreation` (only CREATE and
 ALTER TABLE write or read them). Step 29 is closed, so the closing review
 (133) is ready.
+Item 133 (closing review, docs only) is done, measured at `4c05da8fe`:
+the root is 379 files and 46.9k lines, 18.7% of the engine, with 3.0k
+clean lines (ENGINE-SPLIT.md §2.9). Three surveys found about 4.2k lines
+of decisions that are clean after one cut and fit an existing package, so
+it planned a fourth round, items 134–150 in Group N (§6 "Fourth round",
+§7 decision 19), and a second closing review, item 151. Every item except
+135 (needs 134) and 151 is ready.
 
 ## Task tree
 
@@ -746,7 +751,7 @@ ALTER TABLE write or read them). Step 29 is closed, so the closing review
 
 - [x] **End-state review** (item 114; [ENGINE-SPLIT.md](ENGINE-SPLIT.md)
   §2.8; the docs commit) — measured before 110b–110f
-- [ ] **Third round** — decisions still mixed into root orchestration,
+- [x] **Third round** — decisions still mixed into root orchestration,
   planned by item 114 ([ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 "Third
   round"); each is a sub-step of an existing prompt file
   - [x] 27e — Query preflight moved ([view](ENGINE-SPLIT-view.md))
@@ -793,7 +798,41 @@ ALTER TABLE write or read them). Step 29 is closed, so the closing review
     ([authorization](ENGINE-SPLIT-authorization.md)) (`6672ab08e`, `5b92522f6`, `bf077f1f4`, `975e47840`, `c0211ddff`, `a19f3cebc`, then the docs commit)
   - [x] 29e — DML preflights moved ([dml](ENGINE-SPLIT-dml.md))
     (`7e2bd45bf`, `5ca904eee`, then the docs commit)
-  - [ ] Closing review (docs only; [ENGINE-SPLIT.md](ENGINE-SPLIT.md))
+  - [x] Closing review (item 133; docs only; [ENGINE-SPLIT.md](ENGINE-SPLIT.md)
+    §2.9; the docs commit) — planned the fourth round
+- [ ] **Fourth round** — decisions clean after one cut, planned by item
+  133 ([ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 "Fourth round"); each is a
+  sub-step of an existing prompt file
+  - [ ] 24h — ALTER row rewrite and scan ([table](ENGINE-SPLIT-table.md))
+  - [ ] 24i — FK provider plans, validation loops and inheritance
+    decisions ([table](ENGINE-SPLIT-table.md))
+  - [ ] 24j — Definition-provider collection and deparse inquiries
+    ([table](ENGINE-SPLIT-table.md))
+  - [ ] 29f — DML prologue decisions and latest-row readers
+    ([dml](ENGINE-SPLIT-dml.md))
+  - [ ] 19c — COPY TO writers ([copyfmt](ENGINE-SPLIT-copyfmt.md))
+  - [ ] 27i — RLS binding checks and query lock walks
+    ([view](ENGINE-SPLIT-view.md))
+  - [ ] 25f — Attach frontier, insert capture and constraint drop
+    ([partition](ENGINE-SPLIT-partition.md))
+  - [ ] 26f — Participant handshake ([fdw](ENGINE-SPLIT-fdw.md))
+  - [ ] 23f — Row publication and hash capture
+    ([index](ENGINE-SPLIT-index.md))
+  - [ ] 13h — Notification registry and small session decisions
+    ([session](ENGINE-SPLIT-session.md))
+  - [ ] 11g — Runtime source values ([exec](ENGINE-SPLIT-exec.md))
+  - [ ] 21e — Output capture, spelling cache and regtype analysis
+    ([regobj](ENGINE-SPLIT-regobj.md))
+  - [ ] 12g — Search path and type-name resolution
+    ([analyze](ENGINE-SPLIT-analyze.md))
+  - [ ] 15f — ALTER type resolvers, domain replay and scalar import
+    ([typedef](ENGINE-SPLIT-typedef.md))
+  - [ ] 30g — Run-free Restore admission and TEMP replacement checks
+    ([control](ENGINE-SPLIT-control.md))
+  - [ ] 28e — ACL and role leftovers ([role](ENGINE-SPLIT-role.md))
+  - [ ] 20e — Tablespace and extension leftovers
+    ([ddl](ENGINE-SPLIT-ddl.md))
+  - [ ] Closing review 2 (docs only; [ENGINE-SPLIT.md](ENGINE-SPLIT.md))
 
 `access` is tracked under Part B above, not under the later waves.
 
@@ -1951,11 +1990,64 @@ branches.
      UPDATE/MERGE/ON CONFLICT/FK selections passed (the MERGE REPEATABLE
      READ `/postgres` drift fails on master too); racecheck/finalcheck
      skipped at user request
-133. [ ] Closing review (docs only): re-measure after 110f and the third
+133. [x] Closing review (docs only): re-measure after 110f and the third
      round, write ENGINE-SPLIT.md §2.9, close the split —
      [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 110f, 115, 116, 117,
      118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131,
-     132
+     132 (the docs commit; measured at `4c05da8fe`) · §2.9: 379 files,
+     46.9k lines, 18.7% of the engine, 3.0k clean; `largeobject` added to
+     §3; three surveys found about 4.2k lines clean after one cut, planned
+     as a fourth round of 17 items in existing packages plus a second
+     closing review (Group N, §6 "Fourth round", §7 decision 19); fifteen
+     prompt files got their sub-step sections · docs only, no checks
+     needed
+
+### Group N — fourth round (no new packages)
+
+Planned by item 133 at `4c05da8fe`. Each item is one session and a lettered
+sub-step of an existing prompt file; none is broad. Items with "needs —"
+may run in parallel with each other, on separate branches. The numbers are
+final; an item that splits gets lettered sub-items (rule 5 below).
+
+134. [ ] Table 24h: ALTER row rewrite and scan —
+     [table](ENGINE-SPLIT-table.md) 24h · needs —
+135. [ ] Table 24i: FK provider plans, validation loops and inheritance
+     decisions — [table](ENGINE-SPLIT-table.md) 24i · needs 134
+136. [ ] Table 24j: definition-provider collection and deparse inquiries —
+     [table](ENGINE-SPLIT-table.md) 24j · needs —
+137. [ ] DML 29f: DML prologue decisions and latest-row readers —
+     [dml](ENGINE-SPLIT-dml.md) 29f · needs —
+138. [ ] Copyfmt 19c: COPY TO writers —
+     [copyfmt](ENGINE-SPLIT-copyfmt.md) 19c · needs —
+139. [ ] View 27i: RLS binding checks and query lock walks —
+     [view](ENGINE-SPLIT-view.md) 27i · needs —
+140. [ ] Partition 25f: attach frontier, insert capture and constraint
+     drop — [partition](ENGINE-SPLIT-partition.md) 25f · needs —
+141. [ ] FDW 26f: participant handshake — [fdw](ENGINE-SPLIT-fdw.md) 26f ·
+     needs —
+142. [ ] Index 23f: row publication and hash capture —
+     [index](ENGINE-SPLIT-index.md) 23f · needs —
+143. [ ] Session 13h: notification registry and small session decisions —
+     [session](ENGINE-SPLIT-session.md) 13h · needs —
+144. [ ] Exec 11g: runtime source values — [exec](ENGINE-SPLIT-exec.md)
+     11g · needs —
+145. [ ] Regobj 21e: output capture, spelling cache and regtype analysis —
+     [regobj](ENGINE-SPLIT-regobj.md) 21e · needs —
+146. [ ] Analyze 12g: search path and type-name resolution —
+     [analyze](ENGINE-SPLIT-analyze.md) 12g · needs —
+147. [ ] Typedef 15f: ALTER type resolvers, domain replay and scalar
+     import — [typedef](ENGINE-SPLIT-typedef.md) 15f · needs —
+148. [ ] Control 30g: run-free Restore admission and TEMP replacement
+     checks —
+     [control](ENGINE-SPLIT-control.md) 30g · needs —
+149. [ ] Role 28e: ACL and role leftovers — [role](ENGINE-SPLIT-role.md)
+     28e · needs —
+150. [ ] DDL 20e: tablespace and extension leftovers —
+     [ddl](ENGINE-SPLIT-ddl.md) 20e · needs —
+151. [ ] Closing review 2 (docs only): re-measure after the fourth round,
+     write ENGINE-SPLIT.md §2.10, close the split —
+     [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 · needs 134, 135, 136, 137,
+     138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150
 
 ## Updating this file
 

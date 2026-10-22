@@ -19,6 +19,7 @@ constraints, verification, documentation and report.
 - **Session size:** one sub-step per session.
 - **Linear items:** 27a = item 99, 27b = item 100 (**broad**), 27c = item
   101, 27d = item 102. Related: 20b = 61, 22c = 69, 24b = 87, 29b = 108.
+  Fourth round (item 133): 27i = 139.
 - **Tools:** run from the worktree root.
   - `reach`: `.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach -dir .
     -files '<regexp on file base names>'` prints each declaration as
@@ -795,6 +796,36 @@ Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
 quickcheck; no behavior, error text or error-order change, no aliases.
 
+### 27i — RLS binding checks and query lock walks (linear item 139)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- `checkRowSecurityBinding` and `checkRowSecurityRuleProgram`
+  (`row_security_setting.go`) take the `row_security` value and an
+  `access.View` instead of the scope, and recurse through
+  `RuleAuthority.Access()` instead of `ruleAuthorizationOf`. Callers:
+  `engine.go`, `execute_bound.go`, `cte_mutation_execute.go` and the rule
+  files.
+- The attribute-bridge loop of `prepareStoredQueryLocked`
+  (`view_query.go`), with the authority and host passed in instead of
+  `borrowQueryAuthority`.
+- The collation check of `prepareViewCreation` (`view.go`).
+- `firstQueryRowModeLocked` and `initializeQueryLocksLocked`
+  (`query_lock_admission.go`) and `currentQuerySourceLocked`
+  (`query_admission.go`), over a `catalog.Read` (instead of
+  `e.privateCatalogLocked`), the domain, the epoch and the storage. They
+  return the lock plan and the visibility demand; the root sets
+  `scope.queryLocks`. Keep thin root wrappers for the tests that call
+  `initializeQueryLocksLocked`.
+- Secondary: `hasPgrowlocksDependency` (`transaction_visibility.go`) goes
+  to `stored`, over the routine dependencies and the leaves.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for row security, views, rules, row locks (FOR UPDATE/SHARE) and `pgrowlocks`; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - **Rule rewrite order.** INSTEAD, ALSO and conditional INSTEAD rules
@@ -907,6 +938,7 @@ in the root. The checks in §8.3 pass.
   (`12af345ea`, `e63ef11e2`, `dd8a270f4`, then the docs commit) · selected
   unit, `RACE=1` and dual-mode proof and quickcheck passed;
   racecheck/finalcheck skipped at user request; see the 27h record below
+- [ ] 27i — RLS binding checks and query lock walks (linear item 139)
 
 Outstanding aliases: none (27b added none).
 

@@ -290,6 +290,33 @@ through `Preparation.ReturnsSet`; the file now holds only
 `foldStrictParameterNull` and `executionKnownNullArgument`, preflight code
 that can move with the family.)
 
+### 11g — Runtime source values (linear item 144)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- The `pgrowlocks` values: `pgrowlocksLogicalTID`, `pgrowlocksPrefix`,
+  `pgrowlocksMode`, `pgrowlocksValues` (`pgrowlocks_values.go`, clean)
+  and `pgrowlocksTable` (`pgrowlocks_capture.go`) over an `access.View`
+  and its environment instead of `AuthorizationView`, as 27f did.
+- `captureIdentityLocked` (`session_identity.go`) as
+  `exec.CaptureIdentity(read, roles, state, database)`, with the
+  identity-kind switch of `IdentityValue` as a method on
+  `exec.IdentitySnapshot`; the current-schema branch and the
+  foreign-action override stay root.
+- Secondary: the row building of `capturePGSequencesLocked`
+  (`pg_sequences.go`) goes to `pgcatalog`, next to `pg_sequence.go`, over
+  a descriptor-visit callback (the overlay walk
+  `engineCatalogRuntime.VisitSequenceDefinitions` already does), a
+  namespace lookup, the session token and the roles; it returns rows and
+  addresses and the root builds the source. `pgcatalog` must not import
+  `session`.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for `pgrowlocks`, session identity functions and `pg_sequences`; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Stays in the engine
 
 `executeStatement`, `executeBoundLocked`, `executeBoundCommandLocked`,
@@ -365,6 +392,7 @@ names no `exec.Context` internals: DML executors open their inputs through
 - [x] 11f — Preflight moved (linear item 76) (`78e557fef`, `f1287c2c4`,
   `013311667`, then the docs commit) *(racecheck/finalcheck skipped at
   user request)*
+- [ ] 11g — Runtime source values (linear item 144)
 
 Outstanding aliases: none. The engine, the root driver and `cmd/stuntgres`
 name the `exec` types directly.

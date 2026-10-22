@@ -17,6 +17,7 @@ constraints, verification, documentation and report.
   routine and type dump statements), for the same reason. 30c: 30b.
 - **Linear items:** 30a = item 111 (needs 57), 30b = item 112 (needs 111,
   70, 83, 87, 91, 95, 100, 65, 80, 81), 30c = item 113 (needs 112).
+  Fourth round (item 133): 30g = 148.
 - **Effort:** high for 30a; xhigh for 30b (docs only) and 30c (broad
   driver move).
 - **Session size:** one sub-step per session.
@@ -498,6 +499,42 @@ Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
 quickcheck; no behavior, error text or error-order change, no aliases.
 
+### 30g — Run-free Restore admission and TEMP replacement checks (linear item 148)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- The `restore_admit.go` entries that never read their `*restoreRun`:
+  `restoreAdmitKind`, `restoreAdmitSchemaObject`, `restoreAdmitOperator`,
+  `restoreRejectForeignDDL`, `restoreStagesTemporary`, the checks for
+  ALTER DOMAIN (with `restoreDomainAlter` from `domain_alter_dump.go`),
+  ALTER VIEW, CREATE VIEW, CREATE TABLE AS, ALTER INDEX, ALTER TABLE OF,
+  ATTACH PARTITION, CREATE SEQUENCE, ALTER TABLE DEFAULT, SELECT, COMMENT
+  and INSERT, and the stored-expression scalar walk of
+  `admitRestoreCreateTable`. They become `control` statement checks with
+  generic adapters (`control.AdmitStatement[R, T]`); the `restoreHooks`
+  table stays root in today's order (pattern 5), so rejection order does
+  not change.
+- `retainTemporaryViewProvidersLocked`,
+  `checkTemporaryRelationSourcesReplacementLocked` and
+  `checkTemporaryRuleSourcesReplacementLocked`
+  (`temporary_preservation.go`; the last two are also called from
+  `replaceCatalog`). They read only the published `catalog.State` and its
+  `catalog.Read` (the retention also writes the candidate state), so they
+  move next to 30f's `TemporarySet` as `…Locked`
+  functions over those values. The root composes the relation check with
+  the typed replacement check (typedef 15f, item 147) instead of
+  `control` calling it. This settles the 30f note.
+
+`control` gains `largeobject` (a leaf). Update the README sentence that
+keeps "every entry and hook body" in the root. `restore_hooks_test.go`
+needs adapting.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for Restore admission, Restore rejection order, Reset/Restore with live TEMP objects and the dump smoke; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - Dump output is byte-identical (event order, owner switches, statement
@@ -853,6 +890,7 @@ stage and the atomic replacement. The checks in §8.3 pass.
     user request.
   - **Status page.** Its tree still showed 30e unticked although item 121
     was ticked; fixed with this record.
+- [ ] 30g — Run-free Restore admission and TEMP replacement checks (linear item 148)
 
 Outstanding aliases: none (30a, 30c, 30d, 30e and 30f added none).
 
@@ -897,7 +935,10 @@ Outstanding aliases: none (30a, 30c, 30d, 30e and 30f added none).
   refresh, the final validation loop, `retainTemporaryViewProvidersLocked`
   and the two source checks (`checkTemporary{Relation,Rule}SourcesReplacementLocked`,
   also called from `replaceCatalog`) could take a `catalog.Read` and move
-  to `control` in a later cleanup; the 30f plan kept them root.
+  to `control` in a later cleanup; the 30f plan kept them root. Item 133
+  planned the view-provider retention and the two source checks as 30g
+  (item 148); the TEMP policy and rule ref refresh and the final
+  validation loop stay with the install loop.
 - 30d: `dump_capture.go` is now only the lock window. Its two remaining
   engine-only steps are `validateTemporaryCollationDump` (needs
   `BeginCatalogStage` for `domainDependencyClosure`) and the

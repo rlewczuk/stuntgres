@@ -368,6 +368,39 @@ are presentation and go to `stored` (22b); `typed_inheritance.go` and
 24); `domain_alter_indexes.go` and `domain_alter_index_outputs.go` go with
 `index` (step 23).
 
+### 15f — ALTER type resolvers, domain replay and scalar import (linear item 147)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- `resolveAlterEnumLocked` (`enum_ddl.go`) and
+  `resolveAlterDomainLocked` (`domain_alter.go`) over the existing
+  `ddl.Host` (`SearchNamespaces`, `AccessView`) and `ddl.Authority`
+  (`ReferencePath`, `ddl.Check`, `ddl.ObjectRef`); the callers already
+  hold `Engine.mu`.
+- The structural walk of `restoreDomainReplayNode` (domain, NULL, array
+  and composite shapes, the scalar `SELECT` text shape) and the
+  cell-to-slot checks of `captureDomainReplay`
+  (`domain_default_restore.go`), next to the `DomainReplay*` codec. The
+  scalar leaf (binder and evaluation under `Engine.mu`) stays a root
+  callback, and the root computes the insert slots with
+  `analyze.BindInsertTargets`.
+- `importScalarTypesLocked` and `refreshScalarImportDestinations`
+  (`scalar_import.go`) and `checkTemporaryTypedReplacementLocked`
+  (`typed_control.go`), over the `*catalog.State` and an enum-member
+  allocator (control 30f's `TemporaryCollisionMapping` shape). Enum member
+  IDs keep their order, so Dump output stays byte-identical.
+- Secondary: `expressionUsesCompositeField`
+  (`composite_field_dependency.go`) goes to `plan`.
+
+Update the control README sentence that says the scalar and domain
+imports need the engine.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for ALTER TYPE/ENUM/DOMAIN, domain defaults in Restore, typed tables and dump round trips; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - Type OIDs, array types, enum sort orders, domain check order and messages,
@@ -655,6 +688,7 @@ Part B: the type DDL handlers live in `typedef`. The checks in §8.3 pass.
     and `TestReferenceCompositeExprCorrelatedReturning/postgres` fail (as in
     15a–15d; every stuntgres subtest passes). No bench: startup is not
     touched. Racecheck and finalcheck skipped at user request.
+- [ ] 15f — ALTER type resolvers, domain replay and scalar import (linear item 147)
 
 Outstanding aliases: none (15b qualified every reference; no type aliases).
 

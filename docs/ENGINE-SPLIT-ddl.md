@@ -14,6 +14,7 @@ constraints, verification, documentation and report.
   root change together); high for 20c (docs only); high for 20d.
 - **Session size:** one sub-step per session.
 - **Linear items:** 20a = 60, 20b = 61, 20c = 62, 20d = 63.
+  Fourth round (item 133): 20e = 150.
 - **Tools:** `reach` (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach
   -dir . -files '<regexp>'`) and `frontier`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/frontier/frontier -dir .
@@ -436,6 +437,27 @@ Follow the 20c refine above: seam, port in place, move into `ddl` with
 `movex`, seed comments, docs. Re-measure first; if the code moved since
 `92d17ca19`, update the refine before editing.
 
+### 20e — Tablespace and extension leftovers (linear item 150)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- The decision of `alterAllTablespaceLocked` (`alter_tablespace.go`) as
+  `ddl.AlterAllTablespace` over `access.View`, its environment and the
+  statement; the deferred `e.mu.Unlock()` stays root.
+- The bodies of `statementHost.TablespaceLocation` and
+  `TablespaceDatabase` (`catalog_inquiry_runtime.go`) over a
+  `catalog.Read`, returning the notice.
+- Secondary: the row building of `statementHost.OpenExtensionPaths`
+  (`statement_host_extension.go`) and `registerExtension`
+  (`extension_install.go`, with the registry map passed in) go to
+  `extension`.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for tablespaces, `pg_tablespace_location` and extension installation; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - Diagnostics (codes, messages, details, hints, notice order) of schema,
@@ -590,6 +612,7 @@ in §8.3 pass.
   Dump and Restore reference selections in both modes, and quickcheck
   passed; no bench (startup untouched); racecheck/finalcheck skipped at user
   request
+- [ ] 20e — Tablespace and extension leftovers (linear item 150)
 
 Outstanding aliases: none.
 

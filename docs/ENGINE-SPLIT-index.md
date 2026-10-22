@@ -28,6 +28,7 @@ constraints, verification, documentation and report.
   85b. Items that wait for this step: 24b (87) needs 83, 24c (88) needs 84,
   24d.1 (89a) needs 85a, 29a (107) needs 82, 29b (108) needs 83, 29c (109)
   needs 85b, 30b (112) needs 83.
+  Fourth round (item 133): 23f = 142.
 - **Tools:** run from the worktree root; never pipe them into `head`.
   - `reach` (which declarations reach `Engine`, `StatementScope` or
     `CatalogStage`):
@@ -856,6 +857,28 @@ Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
 quickcheck; no behavior, error text or error-order change, no aliases.
 
+### 23f — Row publication and hash capture (linear item 142)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- `prepareRowPublication` (`transaction_row_publication.go`, about 100
+  lines): its only engine use is `e.catalog.Domain`, so the domain is
+  passed in. It runs outside the lock, over private roots.
+- `captureHashIndexesLocked` (`query_admission.go`) over the eligibility
+  flag, the live state, the storage relation and index-root maps and the
+  commit sequence; it stays `…Locked`, with the caller holding
+  `Engine.mu`.
+- `exclusionMark` and its helpers (`savepoints.go`, clean).
+
+About eight test call sites use `e.prepareRowPublication` (exclusion,
+unique, hash and prepared-boundary tests); adapt them.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for unique, exclusion and hash indexes, savepoints and two-phase commit; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - **Lock order.** The lock manager stays innermost. Writer waits, snapshot
@@ -970,6 +993,7 @@ listed above. The checks in §8.3 pass.
   plan are `index` functions over inputs the root captures under
   `Engine.mu`; `index.EffectiveRoot` replaces nine copies; the dead and
   test-only wrappers are deleted; no aliases. See the 23e record.
+- [ ] 23f — Row publication and hash capture (linear item 142)
 
 Outstanding aliases: none (23b added none).
 

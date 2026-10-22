@@ -9,6 +9,7 @@ constraints, verification, documentation and report.
   table); §7 decision 12 (the name).
 - **Needs:** 19a: nothing. 19b: 19a. Step 29 (`dml`, item 108) needs 19b.
 - **Linear items:** 19a = item 58 (needs —), 19b = item 59 (needs 58).
+  Fourth round (item 133): 19c = 138.
 - **Effort:** high for both.
 - **Session size:** one sub-step per session.
 - **Tools:** `reach`
@@ -153,6 +154,24 @@ Unit tests that read codec internals: `copy_csv_test.go`,
    `copy_binary_test.go`, `decodeCopyField`/`appendCopyText` cases from
    `copy_admission_test.go`); rewrite the rest to the new names.
 
+### 19c — COPY TO writers (linear item 138)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+`StatementScope.copyOutput` (`copy_text.go`) and `copyBinaryOutput`
+(`copy_binary.go`) move over a two-method row source declared in
+`copyfmt` (`Next(ctx, []sqltype.Value)` and `OutputEnvironment()`), the
+schema, a check-send-providers flag and an `io.Writer` (the root's
+`copyWriter`). The trailing `s.active()` check stays root. `copyfmt`
+gains only standard-library imports (`context`, `encoding/binary`,
+`math`); this fits its "plain Go over a reader or writer" contract.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for COPY TO (text, CSV and binary) and the COPY round trips; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - COPY framing is unchanged: the binary signature and header, the
@@ -286,6 +305,7 @@ not grow.
   binary 20,085–20,086 allocs/op on both. Selected unit/`RACE=1` and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request
+- [ ] 19c — COPY TO writers (linear item 138)
 
 Outstanding aliases: none.
 

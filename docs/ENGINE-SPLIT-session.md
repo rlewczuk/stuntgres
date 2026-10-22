@@ -825,6 +825,43 @@ Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
 quickcheck; no behavior, error text or error-order change, no aliases.
 
+### 13h — Notification registry and small session decisions (linear item 143)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- `sessionNotifications` (`notifications.go`) becomes a `session`
+  registry with `…Locked` methods and no `engine` field; the engine holds
+  it as a field, as it holds `visibility`. A root wrapper implements
+  `EndSession` by taking `e.mu`. The `used` atomic fast path stays.
+- The decision half of `notification_publication.go`:
+  `notificationCapture`, `notificationPublication`,
+  `notificationEffects` (over the scope's action and event slices and a
+  `preparing` flag), the unlocked part of `prepareNotificationPublication`
+  and the bodies of the unchanged and install checks. The `e.mu` capture,
+  install and poll loops, `finishNotificationBoundary` and
+  `executeNotification` stay root.
+- `capturedFTSInput` (`fts_input.go`, clean), the validation loop of
+  `assignModes`, the mode mapping of `applyCurrentCharacteristic`, the
+  body of `transactionAuthority` and the survival predicate of
+  `reconcileSerializableWritesLocked`.
+- Optional, if the session has room: the journal bookkeeping
+  (`privateCatalogLocked`, `catalogChangeLocked`,
+  `defaultACLChangeLocked`, `creationACLChangesLocked`) as
+  `session.Journal` methods over a base `*catalog.State`, with root
+  wrappers for the about 220 call sites; `session.IndexSlot` gains
+  `Forget` (rule 7).
+
+The registry cut makes `payloadOf` clean, and with it the protocol
+helpers that reach the engine only through it. Session code never takes
+`Engine.mu`. `notification_publication_test.go` and three other test
+files need adapting.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for LISTEN/NOTIFY, transaction characteristics, SERIALIZABLE and the session selections; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Stays in the engine
 
 `executeStatement` and the statement-kind dispatch, feature handlers until
@@ -946,6 +983,7 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
 - [x] 13g — Settings and statement classification moved (linear item 129)
   (`a82279626`, `443bf6b00`, `42c1c25e1`, `530c173c9`, then the docs commit) *(selected unit/`RACE=1` and dual-mode proof
   and quickcheck passed; racecheck/finalcheck skipped at user request)*
+- [ ] 13h — Notification registry and small session decisions (linear item 143)
 
 Outstanding aliases: none. 13e removed the 46 aliases of
 `session_aliases.go` (24 type, 22 constant); the driver and `cmd/stuntgres`

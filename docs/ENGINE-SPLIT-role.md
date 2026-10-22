@@ -19,6 +19,7 @@ constraints, verification, documentation and report.
 - **Effort:** high for every sub-step; 28c is docs only.
 - **Session size:** one sub-step per session.
 - **Linear items:** 28a = 103, 28b = 104, 28c = 105, 28d = 106.
+  Fourth round (item 133): 28e = 149.
 - **Tools:** `reach` (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach
   -dir . -files '<regexp>'`) and `frontier`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/frontier/frontier -dir .
@@ -363,6 +364,30 @@ reporting); quickcheck.
 Follow 28c. The root keeps capture, the lock windows, lock waits, the stage
 lifecycle, role and catalog publication and dispatch.
 
+### 28e — ACL and role leftovers (linear item 149)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- The per-kind switch of `Engine.SetObjectACL` (`authorization.go`) as
+  `access.WithObjectACL(d, subID, acl)` next to `access.DescriptorACL`;
+  `Engine.mu`, the ref and epoch check, `ValidateACL`, the revision and
+  sequence stamp and publication stay root.
+- `roleRetirementPreflightLocked` (`transaction_roles.go`), with the
+  referencing-features list passed in.
+- The parameter grant catalog (`parameterProvider`,
+  `canonicalGrantParameter`, `grantParameterDescriptorLocked` over an
+  allocator) from `parameter_catalog.go`; this adds a `role` →
+  `settings` arrow, which points down to L1.
+- The role-comment permission rule and target update of
+  `stageCommentLocked` (`comment.go`), over a revision allocator and the
+  locked ref; stage begin and role publication stay root.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for GRANT/REVOKE on objects and parameters, DROP ROLE, COMMENT ON ROLE; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - Role publication stays atomic with the catalog change it belongs to
@@ -517,6 +542,7 @@ root. The checks in §8.3 pass.
   password and session-identity units, the quick and `REFERENCE=1`
   selections of the 28c proof, and quickcheck; racecheck and finalcheck
   skipped at user request; no bench (no startup path changed).
+- [ ] 28e — ACL and role leftovers (linear item 149)
 
 Outstanding aliases: none (28b added none).
 

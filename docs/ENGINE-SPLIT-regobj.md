@@ -15,6 +15,7 @@ constraints, verification, documentation and report.
 - **Effort:** high for each sub-step.
 - **Session size:** one sub-step per session.
 - **Linear items:** 21a = 64, 21b = 65, 21c = 66, 21d = 128.
+  Fourth round (item 133): 21e = 145.
 - **Tools:** `reach`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach -dir . -files '<regexp>'`)
   and `frontier`
@@ -309,6 +310,36 @@ Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
 quickcheck; no behavior, error text or error-order change, no aliases.
 
+### 21e — Output capture, spelling cache and regtype analysis (linear item 145)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- The capture loops of `captureRegclassOutput` (`regclass_output.go`)
+  and `captureRegObjectRowsValueLocked` (`regobjects_output.go`) as
+  `regobj.CaptureRowsOutput(rows, read, owner, roles, path,
+  collationPath)`; the root keeps the `e.mu` window and the authority
+  capture.
+- The reg* half of `presentationCaches` (`statement_presentation.go`) and
+  the caching bodies of `formatOperator`, `formatRegTS`, `FormatRegproc`
+  and `FormatRegprocedure` as a `regobj.SpellingCache` slot; the
+  `Format*` methods stay root forwarders with the detached fallback.
+- `regtypeAnalysis`, `regtypeAnalysisLocked` and
+  `regtypeAnalysisValidLocked` (`regtype_analysis.go`) over the domain,
+  the database name, an `access.View` with its environment, and callbacks
+  for the sequence environment and the lookup path. Prefer a `samePath`
+  callback to a new `regobj` → `sequence` arrow.
+- The ACL-array decode of `restoreLargeObjectACL`
+  (`largeobject_restore.go`), next to the aclitem I/O.
+
+`StatementDescription.regtypes` changes its type; about six reg* tests
+need adapting.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for reg* output, prepared regtype parameters and large-object Restore; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - Output, input, dump spellings and diagnostics stay byte-identical:
@@ -551,6 +582,7 @@ no aliases remain; the checks in §8.3 pass.
     `regobj` README reference selection in quick mode and with
     `REFERENCE=1`; `make quickcheck` on the rebased branch. `make bench`
     not needed.
+- [ ] 21e — Output capture, spelling cache and regtype analysis (linear item 145)
 
 Outstanding aliases: none (21b, 21c and 21d added none).
 
@@ -574,6 +606,7 @@ Outstanding aliases: none (21b, 21c and 21d added none).
   `RoutineIdentityByOID`).
 - 21d: the clean constraint search of `deparse_function.go` can move to
   `table` (see the 21d decision); the closing review (item 133) should
-  count it.
+  count it. Item 133 planned it, with the `DeparseInquiry` body, as table
+  24j (item 136).
 - `presentationCaches` stays a root scope slot; its maps are keyed by
   `exec` keys and filled through the `regobj` spellings.

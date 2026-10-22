@@ -1125,6 +1125,44 @@ here: `cteStoredViewVolatile`, `viewHasStoredRowMarks` and
 moves; the column-default builders already moved
 (`analyze/column_defaults.go`).
 
+### 12g — Search path and type-name resolution (linear item 146)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- `schema_path.go`: `explicitPathFor`, `effectivePath`,
+  `lookupNamespacesSnapshot`, `lookupPath`, `explicitPath`,
+  `referencePath` and the body of `creationNamespaceDestination` move
+  over one by-value `analyze.PathInput`: `access.View` and
+  `access.Environment` (`TemporaryNamespace`, `CanUse`, `Effective`), a
+  `catalog.DefinitionReader` (the `catalog.Definition*At` helpers), the
+  domain, the `search_path` entries (the root reads them under
+  `settings.Mu` before the call, where `explicitPathFor` reads them
+  today), and the prefix and restriction flags. The root keeps one-line
+  wrappers, because about 35 files call these.
+- The post-lookup core of `resolveAnnotationTypeInput`
+  (`type_resolution.go`): the root does the authorization and the
+  namespace lookup, then passes the `NamespaceSelection`, the catalog and
+  definition reader, the flags and a warning callback (`analyze` never
+  imports `session`).
+- `domain_prepared.go` as `analyze.RetireDomainCasts` and
+  `PublishDomainCasts` over the types map.
+- Secondary: `captureTypeDiagnosticName` (`enum_diagnostic_capture.go`)
+  goes to `catalog`, with the path passed in.
+
+Hot path: `PathInput` must not allocate; run `make bench` before and
+after and report ns/op and allocations. `View.CanUse` can call back into
+`Env.ReferencePath()`, which re-enters `analyze` through the root; keep a
+test for it. Remove the ddl README sentence that keeps namespace lookup
+and search paths in the root. Root tests to adapt: `search_path_test.go`,
+`regts_test.go`, `namespace_temporary_authority_test.go`,
+`foreign_key_review_test.go`.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for search_path, TEMP namespaces, CREATE in a schema, type names and prepared domain casts; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Stays in the engine
 
 Statement dispatch; rule rewriting (`rule_*.go`, which produce and transform
@@ -1268,6 +1306,7 @@ in §8.3 pass.
   PG-only `SerialDefaultProvider` tests), quickcheck and `make deps`
   passed; racecheck and finalcheck skipped at user request. No startup
   path touched, so no bench.
+- [ ] 12g — Search path and type-name resolution (linear item 146)
 
 Outstanding aliases: none. 12e removed the 60 aliases of
 `analyze_aliases.go`; the driver names `analyze.ParameterInfo`.

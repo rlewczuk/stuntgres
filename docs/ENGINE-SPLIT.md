@@ -2,14 +2,17 @@
 
 Status: approved; implementation runs one session per sub-step (§8). Steps
 1–30 are done. The end-state review (linear item 114, §2.8) found that a
-third round is worth doing: it moves about 8.7k more lines into existing
-packages, with no new package (§6 "Third round"); all of it is done except
-the closing review (item 133). Every step is still refined with file-level
-detail at the start of its session.
+third round is worth doing: it moved about 8.7k more lines into existing
+packages, with no new package (§6 "Third round"), and it is done. The
+closing review (linear item 133, §2.9) found about 4.2k more lines of
+decision code that fit existing packages and planned them as a fourth
+round (§6 "Fourth round"), again with no new package. Every step is still
+refined with file-level detail at the start of its session.
 
 The analysis of §2.1–§2.5 is based on the production code at commit
 `a2252c0b1`; §2.6 and steps 8–17 were measured at `75fe0d710`; §2.7 and
-steps 18–30 at `c154e14fb`; §2.8 and the third round at `17e01ca8b`.
+steps 18–30 at `c154e14fb`; §2.8 and the third round at `17e01ca8b`;
+§2.9 and the fourth round at `4c05da8fe`.
 None of it relies on the design notes in
 `docs/design/`. Those notes are background only: where they disagree with a
 clearer split, this document takes precedence. Update them after the step
@@ -76,9 +79,11 @@ After steps 18–30 the root holds 25% of the engine's production code
 (58.5k of 233.9k lines), and almost all of it is orchestration: 35k lines
 are `Engine` and `StatementScope` methods (§2.8). A third round moves the
 decision code that is still mixed into them, about 8.7k lines, into the
-packages that already own their area; the root then keeps about 45k lines
-of dispatch, host adapters, lock waits, `Engine.mu` windows and
-publication.
+packages that already own their area. After it the root holds 18.7% of
+the engine (46.9k of 250.4k lines, §2.9). A fourth round moves about 4.2k
+more lines of decisions that are clean after one cut; the root then keeps
+about 43k lines of dispatch, host adapters, lock waits, `Engine.mu`
+windows and publication.
 
 ## 2. Analysis
 
@@ -466,6 +471,103 @@ created since.
   `extension` imports `typedef` (16d). `sequence` sits below `routine` and
   `typedef`.
 
+### 2.9 The root package after the third round (closing review)
+
+Measured for linear item 133 at `4c05da8fe`, after DML 29d (items
+110b–110f) and the whole third round (items 115–132). Same method as §2.7
+and §2.8: `reach` over every root declaration, "clean" meaning it never
+reaches `Engine`, `StatementScope` or `CatalogStage`, and the §2.8
+file-to-area map extended to the 15 files created since (large objects,
+`pgrowlocks`, the DML and inheritance host files).
+
+- **Size.** 379 production files, 46.9k lines: 18.7% of the engine's
+  production code (25% at `17e01ca8b`). The 35 subpackages hold 203.5k
+  lines; `largeobject` is new, from feature work. The unit tests grew
+  again: 1,155 root test files, 220.1k lines.
+- **Clean code is gone.** 1,769 declarations; 329 clean, but only 3.0k
+  lines (6.2k at `17e01ca8b`), and most of those are small root types,
+  slot accessors and the two stores. 39.1k lines are dirty: 19.8k are
+  `Engine` methods, 9.8k `StatementScope` methods and 0.4k `CatalogStage`
+  methods; 9.1k are free declarations, which reach a god struct first
+  through `statementHost` (1.3k with its `scope` field), `dropProvider`
+  (1.1k), `StatementScope` (0.9k), `Engine` (0.7k), `restoreRun` (0.7k)
+  and `ddlHost` (0.4k).
+- **God structs.** `Engine` (`engine.go:32`): 434 methods in 212 files.
+  `StatementScope` (`transaction.go:207`): 279 methods in 115 files.
+  `CatalogStage` (`catalog.go:74`): 43 methods in 17 files. The root
+  adapters: `statementHost` 133 methods in 32 files, `ddlHost` 83,
+  `dropProvider` 61, `bindingHost` 51, `engineCatalogRuntime` 35,
+  `AuthorizationView` 33 (clean since B7), `extensionHost` 17,
+  `alterHost` 10, `enginePreparation` 9.
+
+  | Area (files) | Lines | Clean | Was (§2.8) | Main content left |
+  |---|---:|---:|---:|---|
+  | Statement dispatch, protocol, cursors, prepared SQL, host adapters (30) | 6.2k | 0.8k | 6.7k | dispatch, `relation_scope.go`, portals, cursors |
+  | Transactions, sessions, TEMP lifetime, notifications (33) | 5.7k | 0.2k | 6.5k | publication, CHAIN/2PC, TEMP, notification registry |
+  | DML, COPY, TRUNCATE, DML host files (19) | 3.2k | 0.1k | 6.2k | host windows, COPY protocol, CTE writes, TRUNCATE |
+  | Tables, with FK runtime (41) | 4.4k | 0 | 5.7k | `alterTableLocked`, FK rows and grants, Restore cores |
+  | Type leftovers (30) | 3.8k | 0.2k | 4.8k | type executors, domain dependents, domain replay |
+  | Catalog orchestration and publication (13) | 2.9k | 0.3k | 3.5k | `publishCatalog`, `replaceCatalog`, overlays |
+  | Schema-level DDL, DROP, object addresses (16) | 2.6k | 0.4k | 3.7k | `dropProvider`, search path |
+  | Views, rules, policies, materialized views (23) | 2.5k | 0.1k | 3.0k | lock waits, refresh, rule execution |
+  | Indexes (27) | 1.9k | 0 | 2.6k | build orchestration, host windows |
+  | Roles and ACL (24) | 1.8k | 0.2k | 2.0k | role executors, `SetObjectACL` |
+  | Dump/Restore root remainder (13) | 1.5k | 0.1k | 2.3k | hook bodies, admission table |
+  | Partitions (16) | 1.5k | 0 | 1.8k | ATTACH/DETACH, lock admission |
+  | Inheritance (14) | 1.4k | 0 | 1.4k | admission, Restore repair |
+  | Function glue, large objects, `pgrowlocks` (16) | 1.3k | 0.2k | 0.8k | `*_runtime.go`, `pgrowlocks` capture |
+  | Sequences and identity (11) | 1.3k | 0.1k | 1.3k | sequence DDL executor |
+  | Foreign data wrappers (12) | 1.0k | 0.1k | 1.3k | participants, ALTER loop |
+  | Routine leftovers (8) | 0.8k | 0.1k | 0.6k | SQL routine invocation |
+  | Query admission (5) | 0.7k | 0.1k | 1.3k | admission and source capture |
+  | System catalog runtime (5) | 0.7k | 0 | 0.6k | `pgcatalog.Runtime` adapter |
+  | Extension handler orchestration (10) | 0.5k | 0 | 0.4k | install, update, drop, `earth` |
+  | `engine.go` (1) | 0.5k | 0.1k | 0.5k | `New`, `describeOperation` |
+  | reg* leftovers (10) | 0.5k | 0 | 0.5k | output capture, spelling caches |
+  | Expression utilities (2) | 0.3k | 0 | 1.0k | `deparse_function.go` |
+
+- **The third round landed as planned.** Every item of Group M moved its
+  set with no aliases; the root lost 11.6k lines since `17e01ca8b`
+  (110b–110f moved about 4.7k, the third round about 8.7k, feature work
+  added about 1.8k). The areas the third round targeted shrank the most
+  (DML, Dump/Restore, query admission, expression utilities); the ones
+  that grew are feature work (large objects, `pgrowlocks`, `earth`).
+- **What stays in the root, and why.** The groups of §2.8 still hold;
+  about 43k lines stay after the fourth round:
+  - *Dispatch and facade* (about 3.3k), *host adapters* (about 3.8k: the
+    `statementHost` files, `bindingHost`, `ddlHost`, `alterHost`,
+    `restoreHost`, `extensionHost`, `engineCatalogRuntime`, the
+    `*_runtime.go` bodies), *admission and lock waits* (about 3.4k),
+    *handler skeletons* (about 3.5k), *binder bodies* (about 0.7k, rule
+    6), *protocol, prepared SQL, cursors, writable CTEs and SQL routines*
+    (about 3.9k), *transaction lifecycle* (about 3.0k), *sessions, TEMP
+    and settings windows* (about 2.6k), *catalog publication* (about
+    2.7k), *type executors* (about 2.2k), *the DROP core* (about 1.3k),
+    *Restore hook bodies* (about 1.1k after 30g), *sequence and identity
+    DDL* (about 0.9k) and *TRUNCATE* (about 0.6k).
+  - Each of them either takes `Engine.mu`, `owner.Mu` or `Session.Mu`,
+    waits in the lock manager, publishes, builds a binder or re-enters
+    dispatch. §3 rules 3, 4 and 6 keep those in the root.
+- **What can still move.** Three surveys (statement and session; catalog,
+  DDL, types, roles and control; table, index, view, partition, fdw and
+  DML) found about 4.2k lines of decision code that is clean after one
+  cut (a value input, a callback or an interface the target already
+  declares) and fits a package that already owns the area: about 1.3k
+  from the table, view and DML survey, about 1.3k from the statement and
+  session survey and about 1.6k from the catalog, DDL, type, role and
+  Restore survey (including the three TEMP replacement checks that the
+  control 30f notes left in the root). Several items take pieces from
+  more than one survey, so the item sizes in §6 add up differently. They
+  are the fourth round (§6). No survey found code that needs a new
+  package. A few hundred lines more were measured and rejected as too
+  thin or spread over too many packages (§6 "Fourth round", "Not
+  planned").
+- **The measured import graph** (§3) matches the dependency rules. New
+  since §2.8: `largeobject`, a leaf over `parser` and `sqlstate` that
+  `catalog`, `pgcatalog` and the root import; `typedef`, `table` and
+  `regobj` import `pgcatalog`, and `index` imports `settings` (all
+  downward). No new feature-to-feature arrow.
+
 ## 3. Target architecture
 
 ```text
@@ -473,6 +575,7 @@ created since.
  L0  parser   sqltype   sqlstate                         (existing leaves)
  L1  engine/ids            identity values and provenance domain
  L1  engine/authorization  role graph and ACL algorithms (existing)
+ L1  engine/largeobject    immutable large-object bytes, replay shapes (imports parser, sqlstate)
  L2  engine/expr           expression contract and node protocol
  L2  engine/lock           heavyweight lock manager            (imports ids)
  L3  engine/functions      builtin functions                   (imports expr, ids)
@@ -485,8 +588,8 @@ created since.
 
 The later waves (§6) refine L6 into these layers. The numbers follow the
 import graph measured at `c154e14fb` (§2.7) and re-measured at `17e01ca8b`
-for the end-state review (§2.8); steps 8–30 have landed except the 29d
-executor moves.
+for the end-state review (§2.8) and at `4c05da8fe` for the closing review
+(§2.9); steps 8–30 and the third round have landed.
 
 ```text
  L1   engine/settings    setting definitions, values, validation (sqltype, sqlstate)           step 8
@@ -582,7 +685,7 @@ Its private immutable payloads contain no session/operation/notice authority.
      concurrent refresh), and `dml` may import all of them. Among the
      lower features `sequence` sits below `routine` and `typedef`, and
      `extension` imports `typedef` (16d: providers stage types). The
-     measured graph (§2.8) has no other feature-to-feature arrow.
+     measured graphs (§2.8, §2.9) have no other feature-to-feature arrow.
 7. **Lower layers never name upper-layer types.** When a lower package must
    carry an upper-layer value (a feature's statement state, a journal fence,
    a CTE's mutation binding), it holds a lower-layer interface or an opaque
@@ -1106,7 +1209,8 @@ in dependency order (steps 8–17); they are done. The second round (linear
 item 54, measured at `c154e14fb`) plans the postponed packages and the
 seams they need (steps 18–30, see "Steps 18–30" below). The end-state
 review (item 114, §2.8) plans a third round of sub-steps in existing
-packages (see "Third round" below). `access` was the
+packages (see "Third round" below), and the closing review (item 133,
+§2.9) a fourth (see "Fourth round" below). `access` was the
 first later wave and is done
 ([README](../internal/engine/access/README.md),
 [prompt file](ENGINE-SPLIT-authorization.md)).
@@ -2252,7 +2356,9 @@ then move with no aliases. None is broad. Sizes are lines at `17e01ca8b`.
   `dml.PreflightUpdate`, `PreflightMerge` and `PreflightConflictUpdate`, and
   `KeyTargets`/`AlterKeys` are `table.ForeignKeyCreation`).
 - **Closing review (item 133, docs only).** Re-measure after 110f and the
-  third round, write §2.9, and close the split.
+  third round, write §2.9, and close the split. Done: §2.9 found about 4.2k
+  more lines that are clean after one cut and planned them as the fourth
+  round (below).
 
 **Not planned.** A host for the whole DROP pipeline (about 1.9k lines,
 about 20 methods around lock waits and `Engine.mu` windows) and a host for
@@ -2269,6 +2375,355 @@ for the reasons in §2.8.
 123 table 24e ──▶ 124 table 24f
 no needs: 117, 118, 126, 127, 128, 129, 130, 131
 all, with 110f ──▶ 133 closing review
+```
+
+### Fourth round — decisions clean after one cut
+
+Planned by the closing review (linear item 133) and measured at
+`4c05da8fe` (§2.9). The third round took everything that was clean or
+clean after an obvious cut. What remains are decisions that reach a god
+struct through one edge. Typical edges:
+- a `*StatementScope` used only for roots or an evaluation template;
+- an `*Engine` used only for the domain or an allocator;
+- an `AuthorizationView` used only for its `access.View` and environment;
+- a `*restoreRun` that is never read.
+
+The fourth round replaces that edge with a value input, a callback, or an
+interface the target package already declares, then moves the decision.
+
+Shape:
+- It creates **no new package and no new host interface** (§7 decision 19).
+- Each item is one session, a lettered sub-step of an existing prompt file.
+  An item may move a few secondary pieces into another package, as 116 and
+  130 did.
+- Each item cuts in place, then moves with no aliases.
+- One-line root wrappers stay where many root callers exist.
+- Root unit tests are adapted or deleted freely; `reference/` is never
+  touched.
+- None is broad. Sizes are lines at `4c05da8fe` and must be re-measured.
+
+Every item keeps behaviour, error text, error order and lock order. Where
+the moved code runs under `Engine.mu`, it stays a `…Locked` function that
+takes no lock; where it waits, the wait stays a root callback.
+
+#### Table family, view, partition, index, fdw and DML
+
+- **Table 24h — ALTER row rewrite and scan (item 134, about 0.23k).**
+  - Moves: `rewriteTypeRows` (`alter_type.go`), `validateAddedConstraintRows`
+    (`alter_constraint_rows.go`) and `planAddedColumns`
+    (`alter_add_column.go`).
+  - Edge: `*StatementScope`, used for the projection roots, `hostOf(scope)`,
+    the input and output environments and `routineAuth.Catalog`.
+  - Cut: the caller passes the write and delete roots and a ready
+    `exec.Context` template. The template keeps the routine authority's
+    catalog for the rewrite and add-column fills, and none for the scan.
+  - Callers: `alter_table.go` and `typed_mutation.go`. Both call with
+    nothing held.
+  - No new import.
+- **Table 24i — FK provider plans, validation loops and small inheritance
+  decisions (item 135, about 0.34k).**
+  - FK moves:
+    - `installedForeignKey`;
+    - the parent-index capture of `acquireAlterForeignKeys`;
+    - `validateAddedForeignKeys` and `validateAlterForeignKeys` (one
+      function);
+    - the target walks of `acquireForeignKeyTypeProviders` and
+      `acquireForeignKeyDefinitionProviders`, with the latter's post-grant
+      check;
+    - the target-path fallback and the validation pass of
+      `bindRestoredForeignKeys`.
+  - FK inputs: a `captureForeignKeyRows` callback (it takes `Engine.mu`;
+    the callers hold nothing), a `catalog.Read`, and an `access.View` with
+    its `access.Environment`.
+  - Stays root: the `foreignKeyGrant` loops and the authority capture.
+  - Inheritance moves:
+    - `dropProvider.inheritanceColumnDropMultiple` (`view_dependencies.go`),
+      over the `table.InheritanceAlterPlan` instead of the provider;
+    - the closure walk and sort of `admitInheritanceDropClosure` (the
+      acquire loop stays root, as in 27h);
+    - the body of `CatalogStage.validateInitialTables`, over a descriptor
+      getter.
+  - Needs 134: both edit `alter_table.go`.
+- **Table 24j — definition-provider collection and deparse inquiries (item
+  136, about 0.42k).**
+  - Moves:
+    - the collection half of `acquireDefinitionProviders`
+      (`definition_providers.go`): the walk over LIKE sources, view leaves,
+      CHECKs, defaults, generations and index keys, the retained map, and
+      the lock mode per ref. It becomes a `table.Stage` method next to
+      `ValidateLikeSources`; the acquire loop and the post-wait checks
+      under `Engine.mu` stay root.
+    - the body of `statementHost.DeparseInquiry` and `deparseRelation`
+      (`deparse_function.go`), and `evalSerialSequence`
+      (`serial_sequence.go`).
+    - `validateSelectedDomainRows` (`domain_alter.go`, clean).
+  - Deparse inputs: a `table.DeparseInputs` value (catalog, path, output,
+    nonstandard strings, temporary namespace, database and a relation
+    resolver), built from `scope.inquiry`. The missing-snapshot check stays
+    root.
+  - It goes to `table`, not `view`: it needs `regobj`
+    (`ClassQualifiedName`), which `view` does not import. This settles the
+    regobj 21d note.
+- **DML 29f — DML prologue decisions and latest-row readers (item 137,
+  about 0.3k).**
+  - Moves:
+    - one default-fold helper for `copy.go` and
+      `statementHost.PlanForeignActionInput`;
+    - `completeCTEMutation`, taking the count and rows instead of the root
+      `Result`;
+    - the disclosure body of `rowDiagnosticDetail` (`update.go`), over an
+      `access.View` and its environment after the root authority window;
+    - the unsupported-form and invoker checks of
+      `executeForeignCommandLocked`;
+    - the body of `truncateGraphFence.currentLocked`
+      (`truncate_storage.go`), over the current read, the journal and the
+      committed sequence map. It runs under `Engine.mu` at publication, so
+      it takes no lock; the fence type stays root (it implements
+      `catalogFence`).
+    - `latestUpdateRowLocked`, `latestDeleteRowLocked` and
+      `latestMergeRowLocked` (`statement_host_latest_row.go`), as pure
+      readers over the store, own writes and deletes, the commit sequence,
+      `stable` and `frontier`. `LatestRow`'s lock and the conflict-update
+      reader stay root.
+  - Secondary: `repeatableConflict` (`transaction_isolation.go`, five
+    callers) goes to `visibility` first.
+- **Copyfmt 19c — COPY TO writers (item 138, about 0.13k).**
+  - Moves: `copyOutput` (`copy_text.go`) and `copyBinaryOutput`
+    (`copy_binary.go`).
+  - Inputs: a two-method row source declared in `copyfmt` (`Next` into a
+    value slice, `OutputEnvironment`) and an `io.Writer`. This fits the
+    package's "plain Go over a reader or writer" contract.
+  - The trailing `s.active()` check stays root.
+  - `copyfmt` gains only standard-library imports.
+- **View 27i — RLS binding checks and query lock walks (item 139, about
+  0.3k).**
+  - Moves:
+    - `checkRowSecurityBinding` and `checkRowSecurityRuleProgram`
+      (`row_security_setting.go`). They take the `row_security` value and an
+      `access.View` instead of the scope, and recurse through
+      `RuleAuthority.Access()` instead of `ruleAuthorizationOf`.
+    - the attribute-bridge loop of `prepareStoredQueryLocked`.
+    - the collation check of `prepareViewCreation`.
+    - `firstQueryRowModeLocked` and `initializeQueryLocksLocked`
+      (`query_lock_admission.go`) and `currentQuerySourceLocked`
+      (`query_admission.go`), over a `catalog.Read`. The root sets
+      `scope.queryLocks` from the result.
+  - Secondary: `hasPgrowlocksDependency` (`transaction_visibility.go`) goes
+    to `stored`, over the routine dependencies and the leaves.
+- **Partition 25f — attach frontier, insert capture and constraint drop
+  (item 140, about 0.16k).**
+  - Moves:
+    - `partitionAttachFrontier` (`partition_attach_scan.go`), with the
+      child-lock wait as a callback that runs with nothing held, as today;
+    - the layout and ancestor walk of `capturePartitionInsertLocked`, with
+      snapshot captures as callbacks under the caller's `Engine.mu`;
+    - the per-action body of `executePartitionConstraintDropLocked`
+      (`index_partition_drop.go`), over `index.DropStage` and
+      `table.NotNullCandidate`.
+  - The duplicate ancestor walk in `partition_drop.go` becomes
+    `partition.Ancestors`.
+  - `partition` may then import `session` directly for `*session.Operation`
+    (already a transitive dependency).
+- **FDW 26f — participant handshake (item 141, about 0.07k).**
+  - Moves:
+    - the provider handshake of `enlistForeign` (capabilities, begin,
+      savepoint replay, rollback on failure) as `fdw.BeginParticipant`;
+    - the end loop of `finishForeignStatements`;
+    - the server grouping of `prepareForeignTruncate`.
+  - The `owner.Mu` validate and enlist windows stay root.
+- **Index 23f — row publication and hash capture (item 142, about 0.17k).**
+  - Moves:
+    - `prepareRowPublication` (`transaction_row_publication.go`), with the
+      domain passed in (it runs outside the lock, over private roots);
+    - `captureHashIndexesLocked` (`query_admission.go`), over the
+      eligibility flag, the live state, the storage and index-root maps and
+      the commit sequence, with the caller holding `Engine.mu`;
+    - `exclusionMark` and its helpers (`savepoints.go`).
+
+#### Statement, session and runtime sources
+
+- **Session 13h — notification registry and small session decisions (item
+  143, about 0.37k).**
+  - Registry: `sessionNotifications` (`notifications.go`) becomes a
+    `session` registry with `…Locked` methods and no `engine` field; the
+    engine holds it as it holds `visibility`. A root wrapper implements
+    `EndSession` by taking `e.mu`.
+  - Publication: the decision half of `notification_publication.go`:
+    - `notificationCapture`, `notificationPublication` and
+      `notificationEffects`, over the scope's action and event slices and a
+      `preparing` flag;
+    - the unlocked part of `prepareNotificationPublication`;
+    - the bodies of the unchanged and install checks.
+  - Stays root: the `e.mu` capture, install and poll loops,
+    `finishNotificationBoundary` and `executeNotification`. The `used`
+    atomic fast path stays as it is.
+  - Small decisions:
+    - `capturedFTSInput`;
+    - the validation loop of `assignModes`;
+    - the mode mapping of `applyCurrentCharacteristic`;
+    - the body of `transactionAuthority`;
+    - the survival predicate of `reconcileSerializableWritesLocked`.
+  - Optional, if the session has room: the journal bookkeeping
+    (`privateCatalogLocked`, `catalogChangeLocked`, `defaultACLChangeLocked`,
+    `creationACLChangesLocked`) as `session.Journal` methods over a base
+    `*catalog.State`, with root wrappers. `session.IndexSlot` gains
+    `Forget` (rule 7).
+  - Side effect: the registry cut makes `payloadOf` and the protocol
+    helpers that reach the engine only through it clean.
+- **Exec 11g — runtime source values (item 144, about 0.23k).**
+  - Moves:
+    - the `pgrowlocks` values (`pgrowlocks_values.go`), and
+      `pgrowlocksTable` over an `access.View` and its environment (as 116
+      did);
+    - `captureIdentityLocked` (`session_identity.go`) as
+      `exec.CaptureIdentity`, with the identity-kind switch of
+      `IdentityValue`. The current-schema branch and the foreign-action
+      override stay root.
+  - Secondary: the row building of `capturePGSequencesLocked`
+    (`pg_sequences.go`) goes to `pgcatalog`, next to `pg_sequence.go`, over
+    a descriptor-visit callback, a namespace lookup, the session token and
+    the roles. `pgcatalog` must not import `session`.
+- **Regobj 21e — output capture, spelling cache and regtype analysis (item
+  145, about 0.24k).**
+  - Moves:
+    - the capture loops of `captureRegclassOutput` and
+      `captureRegObjectRowsValueLocked`, as `regobj.CaptureRowsOutput`; the
+      root keeps the `e.mu` window and the authority capture.
+    - the reg* half of `presentationCaches` and the caching bodies of
+      `formatOperator`, `formatRegTS`, `FormatRegproc` and
+      `FormatRegprocedure`, as a `regobj.SpellingCache` slot; the `Format*`
+      methods stay root forwarders with the detached fallback.
+    - `regtypeAnalysis`, `regtypeAnalysisLocked` and
+      `regtypeAnalysisValidLocked`, over the domain, the database name, an
+      `access.View` with its environment, and callbacks for the sequence
+      environment and the lookup path. A `samePath` callback is preferred
+      to a new `regobj` → `sequence` arrow.
+    - the ACL-array decode of `restoreLargeObjectACL` (aclitem I/O).
+
+#### Catalog, DDL, types, roles and Restore
+
+- **Analyze 12g — search path and type-name resolution (item 146, about
+  0.34k).**
+  - Search path: `schema_path.go` (`explicitPathFor`, `effectivePath`,
+    `lookupNamespacesSnapshot`, `lookupPath`, `explicitPath`,
+    `referencePath`, and the body of `creationNamespaceDestination`) moves
+    over one by-value `analyze.PathInput`:
+    - `access.View` and `access.Environment`;
+    - a `catalog.DefinitionReader`;
+    - the domain;
+    - the `search_path` entries, which the root reads under `settings.Mu`
+      before the call;
+    - the prefix and restriction flags.
+  - The root keeps one-line wrappers, because about 35 files call these.
+  - Type names: the post-lookup core of `resolveAnnotationTypeInput`
+    (`type_resolution.go`), with a warning callback (`analyze` never
+    imports `session`).
+  - Domain casts: `domain_prepared.go` becomes `analyze.RetireDomainCasts`
+    and `PublishDomainCasts`.
+  - Secondary: `captureTypeDiagnosticName` goes to `catalog`, with the path
+    passed in.
+  - Hot path: the input must not allocate. Run `make bench` before and
+    after.
+  - The ddl README sentence that keeps search paths in the root goes away.
+- **Typedef 15f — ALTER type resolvers, domain replay and scalar import
+  (item 147, about 0.33k).**
+  - Resolvers: `resolveAlterEnumLocked` (`enum_ddl.go`) and
+    `resolveAlterDomainLocked` (`domain_alter.go`), over the existing
+    `ddl.Host` (`SearchNamespaces`, `AccessView`) and `ddl.Authority`. The
+    callers already hold `Engine.mu`.
+  - Domain replay:
+    - the structural walk of `restoreDomainReplayNode` and the slot checks
+      of `captureDomainReplay` (`domain_default_restore.go`);
+    - the scalar leaf (binder and evaluation under `Engine.mu`) stays a root
+      callback;
+    - the insert slots come from `analyze.BindInsertTargets` in the root.
+  - Scalar import:
+    - `importScalarTypesLocked` and `refreshScalarImportDestinations`
+      (`scalar_import.go`) and `checkTemporaryTypedReplacementLocked`
+      (`typed_control.go`);
+    - they take an enum-member allocator, the 30f `TemporaryCollisionMapping`
+      shape;
+    - enum member IDs keep their order, so Dump stays byte-identical.
+  - Secondary: `expressionUsesCompositeField` goes to `plan`.
+- **Control 30g — run-free Restore admission checks and TEMP replacement
+  checks (item 148, about 0.3k).**
+  - Moves: the `restore_admit.go` entries that never read their
+    `*restoreRun`:
+    - `restoreAdmitKind`, `restoreAdmitSchemaObject`,
+      `restoreAdmitOperator`, `restoreRejectForeignDDL` and
+      `restoreStagesTemporary`;
+    - the checks for ALTER DOMAIN (with `restoreDomainAlter`), ALTER VIEW,
+      CREATE VIEW, CREATE TABLE AS, ALTER INDEX, ALTER TABLE OF, ATTACH
+      PARTITION, CREATE SEQUENCE, ALTER TABLE DEFAULT, SELECT, COMMENT and
+      INSERT;
+    - the stored-expression scalar walk of `admitRestoreCreateTable`.
+  - Shape: they become `control` statement checks with generic adapters.
+    The `restoreHooks` table stays root and keeps today's order (pattern
+    5), so rejection order does not change.
+  - TEMP replacement checks: `retainTemporaryViewProvidersLocked`,
+    `checkTemporaryRelationSourcesReplacementLocked` and
+    `checkTemporaryRuleSourcesReplacementLocked`
+    (`temporary_preservation.go`; also called from `replaceCatalog`). They
+    read only the published `catalog.State` and its `catalog.Read` (the
+    retention also writes the candidate state), so they move next to 30f's `TemporarySet` as `…Locked` functions over those
+    values. The root composes the relation check with typedef's typed
+    replacement check (147) instead of `control` calling it. This settles
+    the control 30f note.
+  - New import: `control` gains `largeobject` (a leaf).
+- **Role 28e — ACL and role leftovers (item 149, about 0.24k).**
+  - Moves:
+    - the per-kind switch of `Engine.SetObjectACL` (`authorization.go`), as
+      `access.WithObjectACL` next to `access.DescriptorACL`; `Engine.mu`,
+      `ValidateACL`, the revision stamp and publication stay root.
+    - `roleRetirementPreflightLocked` (`transaction_roles.go`), with the
+      referencing-features list passed in.
+    - the parameter grant catalog (`parameterProvider`,
+      `canonicalGrantParameter`, `grantParameterDescriptorLocked` over an
+      allocator) from `parameter_catalog.go`. This adds a `role` →
+      `settings` arrow, which points down to L1.
+    - the role-comment permission rule of `stageCommentLocked`
+      (`comment.go`).
+- **DDL 20e — tablespace and extension leftovers (item 150, about 0.12k).**
+  - Moves:
+    - the decision of `alterAllTablespaceLocked` as
+      `ddl.AlterAllTablespace` over `access.View`, its environment and the
+      statement; the deferred unlock stays root;
+    - the bodies of `TablespaceLocation` and `TablespaceDatabase`
+      (`catalog_inquiry_runtime.go`), over a `catalog.Read`, returning the
+      notice.
+  - Secondary: the row building of `statementHost.OpenExtensionPaths` and
+    `registerExtension` (with the registry map passed in) go to
+    `extension`.
+- **Closing review 2 (item 151, docs only).**
+  - Needs: 134–150.
+  - Re-measure, write §2.10 and close the split. The default is no fifth
+    round.
+
+**Not planned.**
+- *SQL routine helpers* (about 0.1k): `finalizeSQLRoutineQuery`,
+  `validateSQLRoutineTerminal`, `validateSQLRoutineResult` and
+  `routineCommandTag`. They would split over `exec`, `analyze` and
+  `session` for a few lines each.
+- *`catalogDependencyPreflight`* (clean): it is the composition point of
+  the view, table, index, typedef and pgcatalog predicates, and no package
+  owns that.
+- *`replacement_admission.go`* (clean): it is the root's `replacementMu`
+  discipline.
+- *`prepared_sql.go`, `prepared_rebind.go` and the cursors*: they hold
+  `StatementScope` and `StatementDescription`, and no package owns
+  prepared statements.
+- *`renameRelationLocked`*: its decision is about 40 lines tangled with the
+  inheritance branch.
+- *The hubs and stores rejected in §2.8 and the third round*: the DROP
+  core, `restoreRun`, `catalogStore` and `roleStore`, and the protocol
+  facade types.
+- *What §2.9 lists as staying*: handler skeletons, acquire loops, binder
+  bodies, host adapters and publication.
+
+```text
+134 table 24h ──▶ 135 table 24i
+no needs: 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150
+all ──▶ 151 closing review 2
 ```
 
 ## 7. Open decisions
@@ -2430,6 +2885,28 @@ all, with 110f ──▶ 133 closing review
     locators), and moving `catalogStore`/`roleStore` (about 3k field
     sites for 0.2k lines). The closing review (item 133) decides whether
     anything after that is worth a fourth round; the default is no.
+    Settled by item 133: a fourth round is worth doing (decision 19).
+19. **A fourth round, and its shape.** Settled by the closing review
+    (item 133, §2.9). After the third round the root holds 18.7% of the
+    engine and only 3.0k clean lines, but about 4.2k lines of decisions
+    are clean after one cut and fit a package that already owns the
+    area, so they move as Group N (items 134–150, §6 "Fourth round").
+    - Rules:
+      - no new package;
+      - no new host interface (only value inputs, callbacks and interfaces
+        the target already declares);
+      - no aliases;
+      - one-line root wrappers stay where many root callers exist.
+    - Placement:
+      - deparse inquiries go to `table`, not `view`, because they need
+        `regobj`;
+      - search-path resolution goes to `analyze` over a by-value
+        `PathInput`, because the cut removes the only reason the ddl README
+        gave for keeping it;
+      - Restore admission entries that never read the run go to `control`
+        while the hook table stays root (pattern 5).
+    - Rejected: the items under "Not planned" there. The second closing
+      review (item 151) closes the split; the default is no fifth round.
 
 ## 8. Implementation sessions
 
@@ -2450,26 +2927,26 @@ package-specific scope. This section holds the rules every session follows.
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10e): `plan` created, IR, node types and installed extension nodes moved, aliases removed; 10e moved node-tree output and the generation helpers (racecheck/finalcheck skipped by user) |
-| 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request); 11e done (preparation seam, routine admission moved; racecheck/finalcheck skipped at user request); 11f done (expression preflight moved; query preflight stays; racecheck/finalcheck skipped at user request) |
-| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c; 12d: 12c, 11c | done (12a–12e): `binding` split per statement kind, binder fields grouped, host seam, `analyze` created, areas prepared in place and the binder moved (12d.1–12d.6), aliases removed; the driver imports `analyze` for `ParameterInfo`; 12f done (query legality helpers moved) (racecheck/finalcheck skipped at user request) |
-| 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c refined (state moves, the scope and orchestration stay; decisions 7, 10 and 11 settled); 13d.1 done (`session` created, journal moved with aliases), 13d.2 done (statement lease), 13d.3 done (engine edges: `session.Host`, `engineOf`, owner root functions) 13d.4 done (root payloads: session payload, owner extension, savepoint and operation slots; notification polling on `Engine`) 13d.5 done (file splits: 15 moving-only files; 192 members the root reads exported) and 13d.6 done (session state moved into `session` with type and constant aliases; `Host.NewOperation`); 13e done (aliases removed; the driver and `cmd/stuntgres` import `session`, decision 11 applied) (racecheck/finalcheck skipped at user request); 13f done (notification queue records, isolation text and owner handles moved; racecheck/finalcheck skipped at user request); 13g done (settings cores, statement classification and the FDW tag helpers in `session`, write-set merges in `visibility`; no aliases; racecheck/finalcheck skipped at user request) |
+| 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request); 11e done (preparation seam, routine admission moved; racecheck/finalcheck skipped at user request); 11f done (expression preflight moved; query preflight stays; racecheck/finalcheck skipped at user request); 11g planned (item 144, fourth round) |
+| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c; 12d: 12c, 11c | done (12a–12e): `binding` split per statement kind, binder fields grouped, host seam, `analyze` created, areas prepared in place and the binder moved (12d.1–12d.6), aliases removed; the driver imports `analyze` for `ParameterInfo`; 12f done (query legality helpers moved) (racecheck/finalcheck skipped at user request); 12g planned (item 146, fourth round) |
+| 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c refined (state moves, the scope and orchestration stay; decisions 7, 10 and 11 settled); 13d.1 done (`session` created, journal moved with aliases), 13d.2 done (statement lease), 13d.3 done (engine edges: `session.Host`, `engineOf`, owner root functions) 13d.4 done (root payloads: session payload, owner extension, savepoint and operation slots; notification polling on `Engine`) 13d.5 done (file splits: 15 moving-only files; 192 members the root reads exported) and 13d.6 done (session state moved into `session` with type and constant aliases; `Host.NewOperation`); 13e done (aliases removed; the driver and `cmd/stuntgres` import `session`, decision 11 applied) (racecheck/finalcheck skipped at user request); 13f done (notification queue records, isolation text and owner handles moved; racecheck/finalcheck skipped at user request); 13g done (settings cores, statement classification and the FDW tag helpers in `session`, write-set merges in `visibility`; no aliases; racecheck/finalcheck skipped at user request); 13h planned (item 143, fourth round) |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c refined (`DDLHost` on a scope-free root `schemaHost`, authority as an opaque value, dumps wait for a dump seam); 14d done (operator and CREATE FUNCTION staging moved behind `DDLHost`; racecheck/finalcheck skipped at user request); 14e done (operator and SQL routine dumps moved behind `dump.Presenter`/`dump.Resolver`; racecheck/finalcheck skipped at user request) |
-| 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c refined (`typedef.StageHost` on 14c's `schemaHost`, authority as a value; stage handlers move, executors stay); 15d done (stage handlers and the ALTER ENUM/DOMAIN staging cores moved behind `StageHost` on `typedefHost`; racecheck/finalcheck skipped at user request); 15e done (type dump statements moved; `dump.Presenter` renders domain DEFAULT and CHECK text; racecheck/finalcheck skipped at user request) |
+| 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c refined (`typedef.StageHost` on 14c's `schemaHost`, authority as a value; stage handlers move, executors stay); 15d done (stage handlers and the ALTER ENUM/DOMAIN staging cores moved behind `StageHost` on `typedefHost`; racecheck/finalcheck skipped at user request); 15e done (type dump statements moved; `dump.Presenter` renders domain DEFAULT and CHECK text; racecheck/finalcheck skipped at user request); 15f planned (item 147, fourth round) |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c refined (providers own staging behind `extension.Stage`, handler decisions behind `extension.Host`, one root adapter); 16d done: 16d.1 providers stage themselves, 16d.2 handler decisions moved behind `extension.Host` (racecheck/finalcheck skipped at user request) |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c refined (decisions move, orchestration stays; no `sequence.Host`); 17d done (handler, identity, serial, prepared-literal, call and Control decisions and the stage slot moved; orchestration stays in the root) (racecheck/finalcheck skipped at user request) |
 | 18 | [`ENGINE-SPLIT-dump.md`](ENGINE-SPLIT-dump.md) | — | 18a done in place (`dump_graph.go`, `dump_restore_scalar.go`, ACL preflight as a function; racecheck/finalcheck skipped at user request); 18b done (`dump` created: event graph, `Order`, `Statement`, `Group`, Restore scalar validators, `Resolver`/`Presenter` with root adapters; no aliases; racecheck/finalcheck skipped at user request); 18c done (`captureDumpLocked` unlocks once; ordered Collect tables, phase-indexed Emit table and section list; output byte-identical; racecheck/finalcheck skipped at user request) |
-| 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | done (19a cursors split in place; 19b `copyfmt` created and the codec moved: options, FORCE binding, `LineReader`, `BinaryReader`, no aliases; racecheck/finalcheck skipped at user request) |
-| 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b done (one root staging adapter `ddlHost`; racecheck/finalcheck skipped at user request); 20c refined (`ddl.SchemaHost` on `ddlHost`, schema and tablespace decisions move, orchestration stays); 20d done (CREATE/ALTER/DROP SCHEMA and CREATE TABLESPACE decisions in `ddl` behind `ddl.SchemaHost`; seed comments in `catalog`; no aliases; racecheck/finalcheck skipped at user request) |
-| 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | 21a done in place (regclass, literal, namespace-visibility and identity files; `pgIdentifier` is `catalog.Identifier`; racecheck/finalcheck skipped at user request); 21b done (`regobj` created, clean set moved, no aliases; `regtypeAnalysis` stays in the root; racecheck/finalcheck skipped at user request); 21c done (captured input resolvers moved behind `regobj.Authority` and `NoticeHost`; constructors stay in the root; no aliases; racecheck/finalcheck skipped at user request); 21d done (object address, comment and visibility inquiries behind `regobj.AddressLookup`, `IdentifyValues`, `CommentText` and `VisibilityInquiry`; `deparse_function.go` stays, its constraint search noted for `table`; no aliases; racecheck/finalcheck skipped at user request) |
+| 19 | [`ENGINE-SPLIT-copyfmt.md`](ENGINE-SPLIT-copyfmt.md) | — | done (19a cursors split in place; 19b `copyfmt` created and the codec moved: options, FORCE binding, `LineReader`, `BinaryReader`, no aliases; racecheck/finalcheck skipped at user request); 19c planned (item 138, fourth round) |
+| 20 | [`ENGINE-SPLIT-ddl.md`](ENGINE-SPLIT-ddl.md) | — | 20a done (`ddl` created; `routine`, `typedef` and `extension` adopt it; racecheck/finalcheck skipped at user request); 20b done (one root staging adapter `ddlHost`; racecheck/finalcheck skipped at user request); 20c refined (`ddl.SchemaHost` on `ddlHost`, schema and tablespace decisions move, orchestration stays); 20d done (CREATE/ALTER/DROP SCHEMA and CREATE TABLESPACE decisions in `ddl` behind `ddl.SchemaHost`; seed comments in `catalog`; no aliases; racecheck/finalcheck skipped at user request); 20e planned (item 150, fourth round) |
+| 21 | [`ENGINE-SPLIT-regobj.md`](ENGINE-SPLIT-regobj.md) | 21b: 5j | 21a done in place (regclass, literal, namespace-visibility and identity files; `pgIdentifier` is `catalog.Identifier`; racecheck/finalcheck skipped at user request); 21b done (`regobj` created, clean set moved, no aliases; `regtypeAnalysis` stays in the root; racecheck/finalcheck skipped at user request); 21c done (captured input resolvers moved behind `regobj.Authority` and `NoticeHost`; constructors stay in the root; no aliases; racecheck/finalcheck skipped at user request); 21d done (object address, comment and visibility inquiries behind `regobj.AddressLookup`, `IdentifyValues`, `CommentText` and `VisibilityInquiry`; `deparse_function.go` stays, its constraint search noted for `table`; no aliases; racecheck/finalcheck skipped at user request); 21e planned (item 145, fourth round) |
 | 22 | [`ENGINE-SPLIT-stored.md`](ENGINE-SPLIT-stored.md) | 22b: 21b, F6, 18b, 12f; 22c: 5j | 22a done in place (coverage and freeze cuts, `viewDefinition` read accessors, renames, name `stored` settled; racecheck/finalcheck skipped at user request); 22b done (`stored` created, presentation set moved, `View`/`Policy` payload API, runtime forwarders, 12 type aliases; racecheck/finalcheck skipped at user request); 22c done (rule payload with a parts API, rule and policy dumps, rule/policy/partition remaps, `ReownExpressions`; `DeparseInquiry` stays in the root; 15 type aliases; racecheck/finalcheck skipped at user request); 22d done (aliases removed: the root and its tests name `stored.X`; racecheck/finalcheck skipped at user request); 22e done (`TypeProvider`, the domain default and CHECK validators, `ValidateTypeProviders`, `ReownScalarTypes`, `PruneQuoteCaptures`; no aliases; racecheck/finalcheck skipped at user request) |
-| 23 | [`ENGINE-SPLIT-index.md`](ENGINE-SPLIT-index.md) | 23b: 22b, 5i, 10e, 11e; 23c: 20b | 23a done in place (renames, wait and exclusion registries, validator, publication, evolution, stage and transport cuts; racecheck/finalcheck skipped at user request); 23b done (`index` created, clean set moved with the replay chain and journal helpers, no aliases; broad; racecheck/finalcheck skipped at user request); 23c refined (docs only: `index.Host` on `ddlHost`, `index.WriteHost` on `statementHost` with self-locking windows, `table.Host` embeds `index.Host`; 23d split into 23d.1 DDL and 23d.2 write-time decisions); 23d.1 done (CREATE INDEX, ALTER/DROP INDEX, REINDEX, key binding, constraint-index and partitioned-index staging in `index` behind `index.Host` on `ddlHost`; `ddl.GeneratedRelationName`; no aliases; racecheck/finalcheck skipped at user request); 23d.2 done (write-time decisions: `index.WriteHost` on `*statementHost` with the probe and claim windows and waits; unique binding, root lower bound, existing output, exclusion visit, projection edits and ALTER shape entries in `index`; the probe loops stay root until `dml`; no aliases; racecheck/finalcheck skipped at user request); 23e done (pure index algorithms over captured inputs: snapshot capture, storage reminting, private expression validation, layout capture, SET CONSTRAINTS name selection, the maintenance grant plan and `index.EffectiveRoot`; dead and test-only wrappers deleted; no aliases; racecheck/finalcheck skipped at user request) |
-| 24 | [`ENGINE-SPLIT-table.md`](ENGINE-SPLIT-table.md) | 24a: 5i; 24b: 23b, 18b, B6; 24c: 23c; 24d.1: 23d.1 | 24a done in place (renames, LIKE source slot, statement token, inheritance plan record, FK authority and drop dependency reader cuts; racecheck/finalcheck skipped at user request); 24b done (`table` created, clean set moved with the dump record and inheritance; definition-delta and prepared-holder cuts; no aliases; broad; racecheck/finalcheck skipped at user request); 24c refined (docs only: `table.Host` on `ddlHost`, `table.AlterHost` on a scope-bound `alterHost`, no `ddl` removal interface; a 24b regression fixed; 24d split into 24d.1 CREATE, 24d.2 ALTER and 24d.3 Restore cores); 24d.1 done (CREATE TABLE, inheritance, LIKE, identity, serial and FK staging, DROP TABLE targets, SET SCHEMA and CREATE TABLE AS cores in `table` behind `table.Host` on `ddlHost`; `catalog.RelationDiagnosticKind`, `catalog.AdvanceRevisionFrontier`; no aliases; racecheck/finalcheck skipped at user request); 24d.3 done (the Restore and dump cores in `table`: captures, high water and remap, `ValidateForeignKeyData`, shape and decision cores and stage candidates; receipts as `table` records; `table.RestoreResolver`; hook bodies and the shared stage tail stay root; no aliases; racecheck/finalcheck skipped at user request); 24d.2 done (ALTER candidates, post-loop rebuilds, constraint rename, inheritance recursion and rename cores, constraint-index, owned-sequence and DROP IDENTITY decisions in `table` behind `table.AlterHost` on a scope-bound root `alterHost`, `table.Host` and an extended `table.DropDependencyReader`; `ddl.AlterTablespaceKind`, `ddl.CheckAlterTablespaceCreate`; no aliases; racecheck/finalcheck skipped at user request); step 24 done; 24e–24g planned (relation validation, CREATE/ALTER decisions, inheritance prepare side; items 123–125); 24e done (`table.RelationProvider` with root-filled `RelationValidators` slots, `table.RecomputeRemappedGenerations` with a capture callback, the tablespace-only helpers; no aliases; racecheck/finalcheck skipped at user request); 24f done (`table.BindChecks` behind `Host.BindCheckExpression`, the ALTER TABLE OF, CREATE TABLE shape and ALTER scan decisions, the target-admission registration table with entries in `view`, `table` and `dml`, `analyze.RelationNamespace`; no aliases; racecheck/finalcheck skipped at user request); 24g done (`table.PrepareInheritanceNode` behind `table.PrepareHost`, prepared drops as `table.PreparedDrop`, `table.InheritanceQueryLeaves` and `table.InheritancePendingGrants`; test-only wrappers deleted; no aliases; racecheck/finalcheck skipped at user request) |
-| 25 | [`ENGINE-SPLIT-partition.md`](ENGINE-SPLIT-partition.md) | 25b: 24b; 25c: 24c; 25d: 24d.1, 24d.2 | 25a done in place (context cut, `partitionRecipeHost`, storage-read fence and file renames; racecheck/finalcheck skipped at user request); 25b done (`partition` created: bounds and routing helpers, `InsertGroup`, key recipes with `RecipeHost` and the `Scope` slot, attach/detach helpers, proofs, retained checks, dump SQL and events, constraint and Restore replay records; dump code takes a `dump.Resolver`; `partitionInsertState` stays in the root; no aliases; racecheck/finalcheck skipped at user request); 25c refined (docs only: `partition.Host` on `ddlHost` = `table.Host` + `BindKeyExpression`, self-locking `BoundBinder`; `finish`, ATTACH and DETACH decisions move as host-less functions; frontier, capture, fences and trust checks stay); 25d done (CREATE ... PARTITION OF/BY staging, key binding, bound, overlap and default-row checks, ATTACH row validation and descriptors, index children, DETACH and EXCLUDE staging and the Restore replay cores in `partition` behind `partition.Host` on `ddlHost` and the root `partitionBoundBinder`; no aliases; racecheck/finalcheck skipped at user request); step 25 done; 25e done (`ConsumerBoundary` with the four Restore trust checks as one root callback, `CaptureCatalog`, `Ancestors` and the `RepairRemappedHash` core in `partition`; the root keeps the lock waits and the storage install loop; no aliases; racecheck/finalcheck skipped at user request) |
-| 26 | [`ENGINE-SPLIT-fdw.md`](ENGINE-SPLIT-fdw.md) | 26c: 20b; 26e: 24d.1, 24d.2 | 26a done in place (`fdw_` files, `foreignRegistry`, authority cuts, participant methods, scan request, write runtime; racecheck/finalcheck skipped at user request); 26b done (`fdw` created: definition types, registry, options, identity set, write protocol, participants and DDL helpers; the driver imports `fdw`; no aliases; racecheck/finalcheck skipped at user request); 26c refined (docs only: `fdw.Host` on `ddlHost` with one new method, `StageForeignTable`; GRANT a pure plan with no host; `grantWarning` to `authorization`); 26d done (WRAPPER, SERVER, USER MAPPING, IMPORT and GRANT decisions in `fdw`: `StageDDL`, `PlanImport`, `PlanGrant` behind `fdw.Host`; no aliases; racecheck/finalcheck skipped at user request); 26e done (foreign-table decisions in `fdw`: `StageTable` and the ALTER admission and option decisions; `fdw.Host` embeds `table.Host`; the ALTER loop stays in the root; no aliases; racecheck/finalcheck skipped at user request) |
-| 27 | [`ENGINE-SPLIT-view.md`](ENGINE-SPLIT-view.md) | 27b: 22c, 24b; 27c: 20b | 27a done in place (dead code, drop diagnostics split, `dropCascadeNames`, view-write lowering and rule expansion off `Engine`, opaque rule authority, access helpers over `access.View`, RLS and rule-action value groups; racecheck/finalcheck skipped at user request); 27b done (`view` created: rule rewriting and programs, view-write lowering and binding slots, stored-projection demand, view options, policy and RLS helpers, concurrent refresh and the snapshot codec; no aliases; broad; racecheck/finalcheck skipped at user request); 27c refined (docs only: `view.Host` and `view.StageHost` on `ddlHost`; handler decisions move as plans the root stages, the skeletons, waits and publication stay; RLS selection to `view.RowSecurity`; `creationError` to `ddl`); 27d done (CREATE OR REPLACE VIEW, ALTER VIEW, DROP VIEW targets, RULE and POLICY plans as a `RelationChange`, the freezers, `view.RowSecurity` with its selection, the REFRESH replacement and dependents cores in `view` behind `view.Host`/`view.StageHost` on `ddlHost`; `ddl.CreationError`; no aliases; racecheck/finalcheck skipped at user request); 27e done (query preflight and join legality in `view`: `PreflightQuery`, `PrepareStoredExecutionRoot`, the `Validate*Join*` checks; the row-mark readers in `stored`; no aliases; racecheck/finalcheck skipped at user request); 27f done (privilege walkers and query table refs in `view` over `access.View`: `CheckWrite`, `AuthorizeSource`, `CheckRowMarks`, `QueryTableRefs`; `dml.CheckTruncate`; `access.CheckTemporaryStorageAccess`; no aliases; racecheck/finalcheck skipped at user request); 27g done (the DROP read side in `view` behind `view.DropReader` on `dropProvider`: `DropClosure`, `RestrictError`, the view, rule and policy dependents, `TypeChangeError` and the drop diagnostics; `catalog.ForeignLabel`, `catalog.PartitionKeyDependsOn`, `stored.DependencyObject`, `role.DependencyDescription`; no aliases; racecheck/finalcheck skipped at user request); 27h done (lock walks and materialized checks in `view`: `SourceWalk.Closure` with `SourceClosure`, `DefinitionReferences`, `NormalizeRuleCTEsLocked`, `ParseMaterializedSnapshot`, `MaterializedSnapshotInsert`, `CheckMaterializedRows`, `MaterializedIndexCount`; the acquire loops stay root; no aliases; racecheck/finalcheck skipped at user request) |
-| 28 | [`ENGINE-SPLIT-role.md`](ENGINE-SPLIT-role.md) | 28b: 21b, B6; 28c: 20b | 28a done in place (renames, `access.View` cuts, ownership stage interfaces, grant, default-privilege and owned plans split; racecheck/finalcheck skipped at user request); 28b done (`role` created: grant, default-privilege and owned plans, ownership and DROP OWNED staging over `OwnerStage`/`OwnedCleanupStage`, role diagnostics; `GrantWarning` to `authorization`; `PlanOwned` takes a describer; no aliases; racecheck/finalcheck skipped at user request); 28c refined (`role.Host` for stage-less lookups and `role.StageHost` for owned staging, both on `ddlHost`; foreign ownership eligibility to `access`, the tablespace lookup to `ddl`; decisions move, orchestration stays); 28d done (GRANT targets, database GRANT, SET ROLE/SESSION AUTHORIZATION targets, DROP ROLE, ALTER OWNER checks and REASSIGN/DROP OWNED staging in `role` behind `role.Host`/`role.StageHost` on `ddlHost`; `access.ForeignOwnershipEligibility`, `ddl.TablespaceRef`; no aliases; racecheck/finalcheck skipped at user request) |
-| 29 | [`ENGINE-SPLIT-dml.md`](ENGINE-SPLIT-dml.md) | 29a: 23a, 24a; 29b: Part A of 19, 23–27; 29c: Part B of 23–27 | 29a done in place (`executeInsertLocked` in `insert.go`, misplaced helpers to their owners' files, executors as functions over the scope, `statementMutation` value groups; racecheck/finalcheck skipped at user request); 29b done (`dml` created: ON CONFLICT state and predicate proofs, write overlay, RETURNING outputs, MERGE/UPDATE/DELETE records, inheritance target helpers, TRUNCATE and FK action records, COPY insertion batching; the record-running functions, COPY cursors, truncate fence and `statementMutation` groups stay in the root; no aliases; racecheck/finalcheck skipped at user request); 29c refined (docs only: `dml.Host` = `exec.Host` + `index.WriteHost` + `fdw.WriteRuntime` + `Statement`, `Stage`, `RowLocks`, `Presentation`; `dml.FinishHost` adds `ForeignKeys`; TRUNCATE, preflight and the COPY protocol stay root); 29d planned as 110a–110f; 29d.1 done (`dml.Host` on `statementHost`, `dml.Command`, `lock.UniqueJournal`, probe authority as `access.View`, `partition.InsertState` routing, the default, row-constraint, view-source and foreign-planning lower moves; the FK seam moves to 29d.6; racecheck/finalcheck skipped at user request); 29d.2 done (unique and exclusion probing, index candidate validation, the write overlay probe, ON CONFLICT DO NOTHING admission and the `ApplyValidated`/`ReplaceRows` staging loops in `dml` over `dml.Host`; racecheck/finalcheck skipped at user request); 29d.3 done (the INSERT, RETURNING, ON CONFLICT DO UPDATE, partition routing and COPY FROM executors in `dml` over `dml.Host`; `executeInsertLocked` keeps the locked prologue and the COPY protocol stays root; racecheck/finalcheck skipped at user request); 29d.4 done (the UPDATE and DELETE executors and row validation in `dml` over `dml.Host`; thin root wrappers stay; racecheck/finalcheck skipped at user request); 29d.5 done (the MERGE and foreign DML executors in `dml` over `dml.Host`; racecheck/finalcheck skipped at user request); 29d.6 done (`dml.FinishHost` and `dml.Authority`; FK enforcement and actions in `dml`; the FK row, grant and admission bodies stay root; racecheck/finalcheck skipped at user request); 29e done (the UPDATE, MERGE and ON CONFLICT preflights in `dml`; `KeyTargets`/`AlterKeys` in `table.ForeignKeyCreation`; no aliases; racecheck/finalcheck skipped at user request) |
-| 30 | [`ENGINE-SPLIT-control.md`](ENGINE-SPLIT-control.md) | 30a: 18c; 30b: 22d, 21b, 14e, 15e, Part A of 23–27 | 30a done in place (`restoreRun` run state; ordered `restoreHooks` table with decode, before, admit, prepare, after and finish entries; switch #3 is one admit entry per statement kind; racecheck/finalcheck skipped at user request); 30b refined (docs only: `control.Dump` over a handed-over `control.Capture`, no Dump host; `control.Restore` over a five-method `control.Host` on a root `restoreHost` and the root-composed `[]control.Hook[*restoreRun]`; resolver and presenter to `control`, two graph helpers to `table` and `typedef`; `restoreRun` and every hook body stay root); 30c done (`control` created: `control.Dump` over the handed-over `control.Capture` with the script, sections and Emit table; `Resolver`, `ColumnPredecessors`, `Presenter`; `control.Restore[R]` over `control.Host` on the root `restoreHost` with `Hook`, `Admission`, `Outcome` and the walkers; `table.PhysicalNotNullDumpDependencies`, `regobj.DomainInvalidDumpEvents`; no aliases; racecheck/finalcheck skipped at user request); 30d done (the Collect tables, the builtin-schema preamble, `CheckPortable` and `PreflightACLItems` in `control`: `control.Collect` over a root-filled `control.Source` inside the `Engine.mu` window; no aliases; racecheck/finalcheck skipped at user request); 30e done (`control.RemapDefinitionOIDs` and `control.RemapViewRuleOIDs` over a `catalog.Read` and the engine's allocator; no aliases; racecheck/finalcheck skipped at user request); 30f done (`control.PersistentReplacementCatalog`, `TemporarySet`, `CheckTemporaryDependencies`, `RetainTemporaryBuiltinTypes`, `TemporaryCollisionMapping` and `RemapReplacementIdentities`; `preserveTemporaryLocked` stays the root orchestrator under `Engine.mu`; no aliases; racecheck/finalcheck skipped at user request) |
+| 23 | [`ENGINE-SPLIT-index.md`](ENGINE-SPLIT-index.md) | 23b: 22b, 5i, 10e, 11e; 23c: 20b | 23a done in place (renames, wait and exclusion registries, validator, publication, evolution, stage and transport cuts; racecheck/finalcheck skipped at user request); 23b done (`index` created, clean set moved with the replay chain and journal helpers, no aliases; broad; racecheck/finalcheck skipped at user request); 23c refined (docs only: `index.Host` on `ddlHost`, `index.WriteHost` on `statementHost` with self-locking windows, `table.Host` embeds `index.Host`; 23d split into 23d.1 DDL and 23d.2 write-time decisions); 23d.1 done (CREATE INDEX, ALTER/DROP INDEX, REINDEX, key binding, constraint-index and partitioned-index staging in `index` behind `index.Host` on `ddlHost`; `ddl.GeneratedRelationName`; no aliases; racecheck/finalcheck skipped at user request); 23d.2 done (write-time decisions: `index.WriteHost` on `*statementHost` with the probe and claim windows and waits; unique binding, root lower bound, existing output, exclusion visit, projection edits and ALTER shape entries in `index`; the probe loops stay root until `dml`; no aliases; racecheck/finalcheck skipped at user request); 23e done (pure index algorithms over captured inputs: snapshot capture, storage reminting, private expression validation, layout capture, SET CONSTRAINTS name selection, the maintenance grant plan and `index.EffectiveRoot`; dead and test-only wrappers deleted; no aliases; racecheck/finalcheck skipped at user request); 23f planned (item 142, fourth round) |
+| 24 | [`ENGINE-SPLIT-table.md`](ENGINE-SPLIT-table.md) | 24a: 5i; 24b: 23b, 18b, B6; 24c: 23c; 24d.1: 23d.1 | 24a done in place (renames, LIKE source slot, statement token, inheritance plan record, FK authority and drop dependency reader cuts; racecheck/finalcheck skipped at user request); 24b done (`table` created, clean set moved with the dump record and inheritance; definition-delta and prepared-holder cuts; no aliases; broad; racecheck/finalcheck skipped at user request); 24c refined (docs only: `table.Host` on `ddlHost`, `table.AlterHost` on a scope-bound `alterHost`, no `ddl` removal interface; a 24b regression fixed; 24d split into 24d.1 CREATE, 24d.2 ALTER and 24d.3 Restore cores); 24d.1 done (CREATE TABLE, inheritance, LIKE, identity, serial and FK staging, DROP TABLE targets, SET SCHEMA and CREATE TABLE AS cores in `table` behind `table.Host` on `ddlHost`; `catalog.RelationDiagnosticKind`, `catalog.AdvanceRevisionFrontier`; no aliases; racecheck/finalcheck skipped at user request); 24d.3 done (the Restore and dump cores in `table`: captures, high water and remap, `ValidateForeignKeyData`, shape and decision cores and stage candidates; receipts as `table` records; `table.RestoreResolver`; hook bodies and the shared stage tail stay root; no aliases; racecheck/finalcheck skipped at user request); 24d.2 done (ALTER candidates, post-loop rebuilds, constraint rename, inheritance recursion and rename cores, constraint-index, owned-sequence and DROP IDENTITY decisions in `table` behind `table.AlterHost` on a scope-bound root `alterHost`, `table.Host` and an extended `table.DropDependencyReader`; `ddl.AlterTablespaceKind`, `ddl.CheckAlterTablespaceCreate`; no aliases; racecheck/finalcheck skipped at user request); step 24 done; 24e–24g planned (relation validation, CREATE/ALTER decisions, inheritance prepare side; items 123–125); 24e done (`table.RelationProvider` with root-filled `RelationValidators` slots, `table.RecomputeRemappedGenerations` with a capture callback, the tablespace-only helpers; no aliases; racecheck/finalcheck skipped at user request); 24f done (`table.BindChecks` behind `Host.BindCheckExpression`, the ALTER TABLE OF, CREATE TABLE shape and ALTER scan decisions, the target-admission registration table with entries in `view`, `table` and `dml`, `analyze.RelationNamespace`; no aliases; racecheck/finalcheck skipped at user request); 24g done (`table.PrepareInheritanceNode` behind `table.PrepareHost`, prepared drops as `table.PreparedDrop`, `table.InheritanceQueryLeaves` and `table.InheritancePendingGrants`; test-only wrappers deleted; no aliases; racecheck/finalcheck skipped at user request); 24h, 24i and 24j planned (items 134–136, fourth round) |
+| 25 | [`ENGINE-SPLIT-partition.md`](ENGINE-SPLIT-partition.md) | 25b: 24b; 25c: 24c; 25d: 24d.1, 24d.2 | 25a done in place (context cut, `partitionRecipeHost`, storage-read fence and file renames; racecheck/finalcheck skipped at user request); 25b done (`partition` created: bounds and routing helpers, `InsertGroup`, key recipes with `RecipeHost` and the `Scope` slot, attach/detach helpers, proofs, retained checks, dump SQL and events, constraint and Restore replay records; dump code takes a `dump.Resolver`; `partitionInsertState` stays in the root; no aliases; racecheck/finalcheck skipped at user request); 25c refined (docs only: `partition.Host` on `ddlHost` = `table.Host` + `BindKeyExpression`, self-locking `BoundBinder`; `finish`, ATTACH and DETACH decisions move as host-less functions; frontier, capture, fences and trust checks stay); 25d done (CREATE ... PARTITION OF/BY staging, key binding, bound, overlap and default-row checks, ATTACH row validation and descriptors, index children, DETACH and EXCLUDE staging and the Restore replay cores in `partition` behind `partition.Host` on `ddlHost` and the root `partitionBoundBinder`; no aliases; racecheck/finalcheck skipped at user request); step 25 done; 25e done (`ConsumerBoundary` with the four Restore trust checks as one root callback, `CaptureCatalog`, `Ancestors` and the `RepairRemappedHash` core in `partition`; the root keeps the lock waits and the storage install loop; no aliases; racecheck/finalcheck skipped at user request); 25f planned (item 140, fourth round) |
+| 26 | [`ENGINE-SPLIT-fdw.md`](ENGINE-SPLIT-fdw.md) | 26c: 20b; 26e: 24d.1, 24d.2 | 26a done in place (`fdw_` files, `foreignRegistry`, authority cuts, participant methods, scan request, write runtime; racecheck/finalcheck skipped at user request); 26b done (`fdw` created: definition types, registry, options, identity set, write protocol, participants and DDL helpers; the driver imports `fdw`; no aliases; racecheck/finalcheck skipped at user request); 26c refined (docs only: `fdw.Host` on `ddlHost` with one new method, `StageForeignTable`; GRANT a pure plan with no host; `grantWarning` to `authorization`); 26d done (WRAPPER, SERVER, USER MAPPING, IMPORT and GRANT decisions in `fdw`: `StageDDL`, `PlanImport`, `PlanGrant` behind `fdw.Host`; no aliases; racecheck/finalcheck skipped at user request); 26e done (foreign-table decisions in `fdw`: `StageTable` and the ALTER admission and option decisions; `fdw.Host` embeds `table.Host`; the ALTER loop stays in the root; no aliases; racecheck/finalcheck skipped at user request); 26f planned (item 141, fourth round) |
+| 27 | [`ENGINE-SPLIT-view.md`](ENGINE-SPLIT-view.md) | 27b: 22c, 24b; 27c: 20b | 27a done in place (dead code, drop diagnostics split, `dropCascadeNames`, view-write lowering and rule expansion off `Engine`, opaque rule authority, access helpers over `access.View`, RLS and rule-action value groups; racecheck/finalcheck skipped at user request); 27b done (`view` created: rule rewriting and programs, view-write lowering and binding slots, stored-projection demand, view options, policy and RLS helpers, concurrent refresh and the snapshot codec; no aliases; broad; racecheck/finalcheck skipped at user request); 27c refined (docs only: `view.Host` and `view.StageHost` on `ddlHost`; handler decisions move as plans the root stages, the skeletons, waits and publication stay; RLS selection to `view.RowSecurity`; `creationError` to `ddl`); 27d done (CREATE OR REPLACE VIEW, ALTER VIEW, DROP VIEW targets, RULE and POLICY plans as a `RelationChange`, the freezers, `view.RowSecurity` with its selection, the REFRESH replacement and dependents cores in `view` behind `view.Host`/`view.StageHost` on `ddlHost`; `ddl.CreationError`; no aliases; racecheck/finalcheck skipped at user request); 27e done (query preflight and join legality in `view`: `PreflightQuery`, `PrepareStoredExecutionRoot`, the `Validate*Join*` checks; the row-mark readers in `stored`; no aliases; racecheck/finalcheck skipped at user request); 27f done (privilege walkers and query table refs in `view` over `access.View`: `CheckWrite`, `AuthorizeSource`, `CheckRowMarks`, `QueryTableRefs`; `dml.CheckTruncate`; `access.CheckTemporaryStorageAccess`; no aliases; racecheck/finalcheck skipped at user request); 27g done (the DROP read side in `view` behind `view.DropReader` on `dropProvider`: `DropClosure`, `RestrictError`, the view, rule and policy dependents, `TypeChangeError` and the drop diagnostics; `catalog.ForeignLabel`, `catalog.PartitionKeyDependsOn`, `stored.DependencyObject`, `role.DependencyDescription`; no aliases; racecheck/finalcheck skipped at user request); 27h done (lock walks and materialized checks in `view`: `SourceWalk.Closure` with `SourceClosure`, `DefinitionReferences`, `NormalizeRuleCTEsLocked`, `ParseMaterializedSnapshot`, `MaterializedSnapshotInsert`, `CheckMaterializedRows`, `MaterializedIndexCount`; the acquire loops stay root; no aliases; racecheck/finalcheck skipped at user request); 27i planned (item 139, fourth round) |
+| 28 | [`ENGINE-SPLIT-role.md`](ENGINE-SPLIT-role.md) | 28b: 21b, B6; 28c: 20b | 28a done in place (renames, `access.View` cuts, ownership stage interfaces, grant, default-privilege and owned plans split; racecheck/finalcheck skipped at user request); 28b done (`role` created: grant, default-privilege and owned plans, ownership and DROP OWNED staging over `OwnerStage`/`OwnedCleanupStage`, role diagnostics; `GrantWarning` to `authorization`; `PlanOwned` takes a describer; no aliases; racecheck/finalcheck skipped at user request); 28c refined (`role.Host` for stage-less lookups and `role.StageHost` for owned staging, both on `ddlHost`; foreign ownership eligibility to `access`, the tablespace lookup to `ddl`; decisions move, orchestration stays); 28d done (GRANT targets, database GRANT, SET ROLE/SESSION AUTHORIZATION targets, DROP ROLE, ALTER OWNER checks and REASSIGN/DROP OWNED staging in `role` behind `role.Host`/`role.StageHost` on `ddlHost`; `access.ForeignOwnershipEligibility`, `ddl.TablespaceRef`; no aliases; racecheck/finalcheck skipped at user request); 28e planned (item 149, fourth round) |
+| 29 | [`ENGINE-SPLIT-dml.md`](ENGINE-SPLIT-dml.md) | 29a: 23a, 24a; 29b: Part A of 19, 23–27; 29c: Part B of 23–27 | 29a done in place (`executeInsertLocked` in `insert.go`, misplaced helpers to their owners' files, executors as functions over the scope, `statementMutation` value groups; racecheck/finalcheck skipped at user request); 29b done (`dml` created: ON CONFLICT state and predicate proofs, write overlay, RETURNING outputs, MERGE/UPDATE/DELETE records, inheritance target helpers, TRUNCATE and FK action records, COPY insertion batching; the record-running functions, COPY cursors, truncate fence and `statementMutation` groups stay in the root; no aliases; racecheck/finalcheck skipped at user request); 29c refined (docs only: `dml.Host` = `exec.Host` + `index.WriteHost` + `fdw.WriteRuntime` + `Statement`, `Stage`, `RowLocks`, `Presentation`; `dml.FinishHost` adds `ForeignKeys`; TRUNCATE, preflight and the COPY protocol stay root); 29d planned as 110a–110f; 29d.1 done (`dml.Host` on `statementHost`, `dml.Command`, `lock.UniqueJournal`, probe authority as `access.View`, `partition.InsertState` routing, the default, row-constraint, view-source and foreign-planning lower moves; the FK seam moves to 29d.6; racecheck/finalcheck skipped at user request); 29d.2 done (unique and exclusion probing, index candidate validation, the write overlay probe, ON CONFLICT DO NOTHING admission and the `ApplyValidated`/`ReplaceRows` staging loops in `dml` over `dml.Host`; racecheck/finalcheck skipped at user request); 29d.3 done (the INSERT, RETURNING, ON CONFLICT DO UPDATE, partition routing and COPY FROM executors in `dml` over `dml.Host`; `executeInsertLocked` keeps the locked prologue and the COPY protocol stays root; racecheck/finalcheck skipped at user request); 29d.4 done (the UPDATE and DELETE executors and row validation in `dml` over `dml.Host`; thin root wrappers stay; racecheck/finalcheck skipped at user request); 29d.5 done (the MERGE and foreign DML executors in `dml` over `dml.Host`; racecheck/finalcheck skipped at user request); 29d.6 done (`dml.FinishHost` and `dml.Authority`; FK enforcement and actions in `dml`; the FK row, grant and admission bodies stay root; racecheck/finalcheck skipped at user request); 29e done (the UPDATE, MERGE and ON CONFLICT preflights in `dml`; `KeyTargets`/`AlterKeys` in `table.ForeignKeyCreation`; no aliases; racecheck/finalcheck skipped at user request); 29f planned (item 137, fourth round) |
+| 30 | [`ENGINE-SPLIT-control.md`](ENGINE-SPLIT-control.md) | 30a: 18c; 30b: 22d, 21b, 14e, 15e, Part A of 23–27 | 30a done in place (`restoreRun` run state; ordered `restoreHooks` table with decode, before, admit, prepare, after and finish entries; switch #3 is one admit entry per statement kind; racecheck/finalcheck skipped at user request); 30b refined (docs only: `control.Dump` over a handed-over `control.Capture`, no Dump host; `control.Restore` over a five-method `control.Host` on a root `restoreHost` and the root-composed `[]control.Hook[*restoreRun]`; resolver and presenter to `control`, two graph helpers to `table` and `typedef`; `restoreRun` and every hook body stay root); 30c done (`control` created: `control.Dump` over the handed-over `control.Capture` with the script, sections and Emit table; `Resolver`, `ColumnPredecessors`, `Presenter`; `control.Restore[R]` over `control.Host` on the root `restoreHost` with `Hook`, `Admission`, `Outcome` and the walkers; `table.PhysicalNotNullDumpDependencies`, `regobj.DomainInvalidDumpEvents`; no aliases; racecheck/finalcheck skipped at user request); 30d done (the Collect tables, the builtin-schema preamble, `CheckPortable` and `PreflightACLItems` in `control`: `control.Collect` over a root-filled `control.Source` inside the `Engine.mu` window; no aliases; racecheck/finalcheck skipped at user request); 30e done (`control.RemapDefinitionOIDs` and `control.RemapViewRuleOIDs` over a `catalog.Read` and the engine's allocator; no aliases; racecheck/finalcheck skipped at user request); 30f done (`control.PersistentReplacementCatalog`, `TemporarySet`, `CheckTemporaryDependencies`, `RetainTemporaryBuiltinTypes`, `TemporaryCollisionMapping` and `RemapReplacementIdentities`; `preserveTemporaryLocked` stays the root orchestrator under `Engine.mu`; no aliases; racecheck/finalcheck skipped at user request); 30g planned (item 148, fourth round) |
 
 The follow-ups of §6 (F6, 5i, 5j, 10e, 11e, 11f, 12f, 13f, B6, 14e, 15e)
 and the third round (5k, 13g, 21d, 22e, 23e, 24e–24g, 25e, 27e–27h, 29e,

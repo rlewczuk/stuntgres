@@ -23,6 +23,7 @@ constraints, verification, documentation and report.
 - **Session size:** one sub-step per session; 29d may split into one
   session per statement kind if 29c says so (add lettered items then).
 - **Linear items:** 29a = 107, 29b = 108, 29c = 109, 29d = 110.
+  Fourth round (item 133): 29f = 137.
 - **Tools:** `reach` (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach
   -dir . -files '<regexp>'`) and `frontier`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/frontier/frontier -dir .
@@ -712,6 +713,41 @@ Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
 quickcheck; no behavior, error text or error-order change, no aliases.
 
+### 29f — DML prologue decisions and latest-row readers (linear item 137)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- One default-fold helper for the loop in `copy.go` (COPY FROM
+  defaults) and the one in `statementHost.PlanForeignActionInput`
+  (`statement_host_foreign_key.go`), over `exec.Context`, the binding,
+  the targets and the catalog.
+- `completeCTEMutation` (`cte_mutation_execute.go`), taking the count and
+  rows instead of the root `Result`.
+- The disclosure body of `rowDiagnosticDetail` (`update.go`), over an
+  `access.View` and its environment after the root authority window.
+- The unsupported-form, operation and invoker checks of
+  `executeForeignCommandLocked` (`fdw_execute.go`).
+- The body of `truncateGraphFence.currentLocked` (`truncate_storage.go`)
+  over the current read, the journal and the committed sequence map. It
+  runs under `Engine.mu` at publication, so it takes no lock; the fence
+  type stays root because it implements `catalogFence`.
+- `latestUpdateRowLocked`, `latestDeleteRowLocked` and
+  `latestMergeRowLocked` (`statement_host_latest_row.go`) as pure readers
+  over the store, own writes and deletes, the commit sequence, `stable`
+  and `frontier`. `LatestRow`'s lock, `validateLockedRelation` and the
+  conflict-update reader (authority and binding) stay root.
+- First, `repeatableConflict` (`transaction_isolation.go`, five callers)
+  goes to `visibility` as a function of `stable` and `frontier`.
+
+Update the README "What stays in the engine" list (COPY defaults, CTE
+completion, foreign prologue, truncate fence).
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for COPY FROM, writable CTEs, UPDATE/DELETE/MERGE row locking, foreign DML and TRUNCATE; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - **Locks.** Executors run after `Engine.mu` is released; the `latest*Row`
@@ -818,6 +854,7 @@ and the COPY protocol stay in the root. The checks in §8.3 pass. 29e
     commit; see the 29d.6 record)
 - [x] 29e — DML preflights moved (linear item 132) (`7e2bd45bf`, `5ca904eee`, then
   the docs commit; see the 29e record)
+- [ ] 29f — DML prologue decisions and latest-row readers (linear item 137)
 
 Outstanding aliases: none (29b added none).
 

@@ -19,6 +19,7 @@ constraints, verification, documentation and report.
 - **Linear items:** 26a = item 94, 26b = item 95, 26c = item 96, 26d =
   item 97, 26e = item 98. Related: 20b = 61, 24d.1 = 89a, 24d.2 = 89b,
   29b = 108.
+  Fourth round (item 133): 26f = 141.
 - **Tools:** run from the worktree root.
   - `reach`: `.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach -dir .
     -files '<regexp on file base names>'` prints each declaration as
@@ -525,6 +526,25 @@ failing (`TestFDWStageTable` replaces `TestFDWHostStageForeignTable`);
 small, so it was written into `fdw` directly rather than ported in place
 and moved with `movex`; string literals were checked as a multiset.
 
+### 26f — Participant handshake (linear item 141)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- The provider handshake of `enlistForeign` (`fdw_transaction.go`):
+  capabilities, begin, savepoint replay and rollback on failure, as
+  `fdw.BeginParticipant`.
+- The end loop of `finishForeignStatements`.
+- The server grouping of `prepareForeignTruncate` (`fdw_truncate.go`).
+
+The `owner.Mu` validate and enlist windows stay root. `fdw` already
+imports `exec`, `session` and `sqlstate`.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for foreign tables in transactions, savepoints and TRUNCATE; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - **Callbacks never run under `Engine.mu` or `replacementMu`.** Scan,
@@ -687,6 +707,7 @@ pass.
   `^TestReferenceDumpRoundTrip$` in quick and `REFERENCE=1` mode, and
   quickcheck; racecheck/finalcheck skipped at user request; bench not run
   (no startup or hot-path change).
+- [ ] 26f — Participant handshake (linear item 141)
 
 Outstanding aliases: none yet.
 

@@ -21,6 +21,7 @@ constraints, verification, documentation and report.
   do the renames and slots first (commit), then the cuts.
 - **Linear items:** 24a = 86, 24b = 87 (broad), 24c = 88, 24d.1 = 89a,
   24d.2 = 89b, 24d.3 = 89c.
+  Fourth round (item 133): 24h = 134, 24i = 135, 24j = 136.
 - **Tools:** `reach`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/reach/reach -dir . -files
   '<regexp>' [-cut 'From>To,...']`) and `frontier`
@@ -876,6 +877,98 @@ Verify with `make build`, the targeted tests below plus the unit tests of
 the touched files, the quick and `REFERENCE=1` selections for the area, and
 quickcheck; no behavior, error text or error-order change, no aliases.
 
+### 24h — ALTER row rewrite and scan (linear item 134)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+`rewriteTypeRows` (`alter_type.go`, about 160 lines),
+`validateAddedConstraintRows` (`alter_constraint_rows.go`) and
+`planAddedColumns` (`alter_add_column.go`) reach the engine only through
+`*StatementScope`: the projection roots (`columnProjectionRoots`),
+`hostOf(scope)`, the input and output environments and
+`routineAuth.Catalog`. Cut: the caller passes the write and delete roots
+and a ready `exec.Context` template (the routine authority's catalog for
+the rewrite and the add-column fills, none for the scan, exactly as
+today). The callers are `alter_table.go` and `typed_mutation.go`; both
+call with nothing held, and expressions may still reach host methods that
+take `Engine.mu`, as today. `table` already imports `exec`, `expr`,
+`storage`, `visibility`, `index` and `catalog`. Remove the README sentence
+that keeps the row rewrites in the root. `alter_add_column_candidate_test.go`
+and `alter_generation_test.go` call `rewriteTypeRows`; adapt them.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for ALTER TABLE type changes, added columns and constraints, typed tables; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
+### 24i — FK provider plans, validation loops and inheritance decisions (linear item 135)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs 134 (both edit `alter_table.go`).
+
+FK decisions:
+- `installedForeignKey` (reads only `stage.Base`), the parent-index
+  capture of `acquireAlterForeignKeys` and `validateAddedForeignKeys`
+  (`alter_foreign_key.go`), with `validateAlterForeignKeys`
+  (`foreign_key_lifecycle.go`) merged into one validation function;
+- the target walks of `acquireForeignKeyTypeProviders` and
+  `acquireForeignKeyDefinitionProviders` (with the latter's post-grant
+  check);
+- the target-path fallback and the post-stage validation pass of
+  `bindRestoredForeignKeys` (`foreign_key_restore.go`).
+
+Inputs: a `captureForeignKeyRows` callback (it takes `Engine.mu`; the
+callers hold nothing), a `catalog.Read`, and an `access.View` with its
+`access.Environment`. The `foreignKeyGrant` loops and the authority
+capture windows stay root.
+
+Inheritance decisions:
+- `dropProvider.inheritanceColumnDropMultiple` (`view_dependencies.go`)
+  over the `table.InheritanceAlterPlan` and the base `catalog.Read`
+  instead of the provider;
+- the closure walk and sort of `admitInheritanceDropClosure`
+  (`inheritance_drop.go`); the acquire loop stays root, as in 27h;
+- the body of `CatalogStage.validateInitialTables`
+  (`query_table_create.go`) over a descriptor getter.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for foreign keys (ALTER, CREATE, Restore), inheritance DROP and CREATE TABLE AS; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
+### 24j — Definition-provider collection and deparse inquiries (linear item 136)
+
+Planned by the closing review (linear item 133, ENGINE-SPLIT.md §2.9 and
+§6 "Fourth round"), measured at `4c05da8fe`. Needs —.
+
+- The collection half of `StatementScope.acquireDefinitionProviders`
+  (`definition_providers.go`): the walk over LIKE sources, view leaves
+  and dependencies, CHECKs, defaults, generations and index keys, the
+  retained map, the sort and the lock mode per ref (inheritance parents
+  differ). It becomes a `table.Stage` method next to
+  `ValidateLikeSources`, over `stage.Base`, a `ddl.Stage`, the staged
+  descriptors and the domain, returning `{Ref, Mode}` requests and the
+  retained map. The acquire loop, the post-wait checks under `Engine.mu`
+  and the final `validateLikeSources` stay root.
+- The body of `statementHost.DeparseInquiry` and `deparseRelation`
+  (`deparse_function.go`) and `evalSerialSequence` (`serial_sequence.go`)
+  over a `table.DeparseInputs` value (catalog, path, output, nonstandard
+  strings, temporary namespace, database and a relation resolver), built
+  by the root from `scope.inquiry`; the missing-snapshot check stays
+  root. It goes to `table`, not `view`, because it needs
+  `regobj.ClassQualifiedName` and `view` does not import `regobj`. This
+  settles the regobj 21d note.
+- `validateSelectedDomainRows` (`domain_alter.go`, clean).
+
+`table` already imports `stored`, `lock`, `ddl`, `exec`, `functions`,
+`index`, `plan` and `regobj`.
+
+Verify with `make build`, the unit tests of the touched root files and
+the target package, quickcheck, and the quick and `REFERENCE=1` selections
+for LIKE, CREATE TABLE providers, `pg_get_*def`, `pg_get_expr`, `pg_get_serial_sequence` and ALTER DOMAIN; no behavior, error text, error-order or lock-order change, no
+aliases. Re-run `reach` on the moved set first: sizes are approximate.
+
 ## Invariants
 
 - ALTER TABLE keeps its nine-pass order (`alterActionPhase`), the
@@ -1033,6 +1126,9 @@ decisions live there too, behind `table.Host`. The checks of §8.3 pass.
   `319ad1289`, `35e3d98ae`, then the docs commit) · selected unit (also `RACE=1`) and
   dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
   user request; see the 24g record below
+- [ ] 24h — ALTER row rewrite and scan (linear item 134)
+- [ ] 24i — FK provider plans, validation loops and inheritance decisions (linear item 135)
+- [ ] 24j — Definition-provider collection and deparse inquiries (linear item 136)
 
 Outstanding aliases: none (24a and 24b added none).
 

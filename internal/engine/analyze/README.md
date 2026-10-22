@@ -259,13 +259,13 @@ CONFLICT execution state `InsertConflictState`, built per command over the
 binding's clause, and `MergeHasVirtualReads` and `SelectMergeArm`, see
 [`dml`](../dml/README.md); `view` has `PhysicalBinding`,
 `BindingDefaultOrigin` and `EvalBindingDefault`; `stored` has
-`ValidateCompositeOccurrence` and `RemapLikeExpression`). The executor-side legality walks stay too
-(`validateQueryJoinExecution`, `validateMutationJoinExecution`,
-`validateExpressionJoinExecution`, `validateMarkedQueryJoin`,
-`admitQueryGroupings` in `query_join_legality.go`), with the row-mark readers
-of stored views (`viewRowLockLegality`, `viewLeafRowMark`,
-`viewHasStoredRowMarks`, `checkViewRowMarks*`, `query_lock_admission.go`),
-which read `stored.View`. Since 12e the engine names these types directly
+`ValidateCompositeOccurrence` and `RemapLikeExpression`). The executor-side legality walks are
+not here either: they import `stored`, `table` and `view`, so view 27e
+moved them to `view` (`ValidateQueryJoinExecution`,
+`ValidateMutationJoinExecution`, `ValidateExpressionJoinExecution`,
+`ValidateMarkedQueryJoin`), and the row-mark readers of stored views to
+`stored` (`ViewHasRowMarks`, `ViewRowLockLegality`, `ViewLeafRowMark`;
+`view.CheckRowMarks` checks them). Since 12e the engine names these types directly
 (`analyze.Binding`, `analyze.Binder`, ...); no aliases remain.
 
 ## Testing
