@@ -175,3 +175,19 @@ func ReownScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*stor
 	}
 	return nil
 }
+
+// ReownVersions points private writes and retained owner snapshots at the
+// current type generations of next. Engine.mu and statement admission are
+// held. Reuse the catalog's established copy-on-change datum remapper.
+// Logical row identities, end roots and commit frontiers are not rewritten.
+func ReownVersions(next *catalog.State, versions []storage.RowVersion) ([]storage.RowVersion, error) {
+	if len(versions) == 0 {
+		return versions, nil
+	}
+	address := ids.ObjectAddress{}
+	stores := map[ids.ObjectAddress]*storage.Relation{address: {Versions: versions}}
+	if err := ReownScalarTypes(next, stores, nil); err != nil {
+		return nil, err
+	}
+	return stores[address].Versions, nil
+}

@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -275,7 +276,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 							objectACLUnitEntry(auth.State.CurrentUser, auth.State.CurrentUser, authorization.UsagePrivilege, 0),
 							{Grantor: auth.State.CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 						}}
-						if len(members) != 2 || members[0].Label != "first" || members[1].Label != "second" || members[0].ID == members[1].ID || enum.ObjectNamespace != ns || enum.Owner != auth.State.CurrentUser || !enumJournalOf(candidate.Enum).CreatedTypes()[enum.Address()] || array.ObjectNamespace != ns || array.Owner != enum.Owner || !array.SQLType.IsArray() || array.SQLType.Element().ID() != enum.SQLType.ID() || !reflect.DeepEqual(enum.ACL, wantTypeACL) || !reflect.DeepEqual(array.ACL, wantTypeACL) {
+						if len(members) != 2 || members[0].Label != "first" || members[1].Label != "second" || members[0].ID == members[1].ID || enum.ObjectNamespace != ns || enum.Owner != auth.State.CurrentUser || !typedef.EnumJournalOf(candidate.Enum).CreatedTypes()[enum.Address()] || array.ObjectNamespace != ns || array.Owner != enum.Owner || !array.SQLType.IsArray() || array.SQLType.Element().ID() != enum.SQLType.ID() || !reflect.DeepEqual(enum.ACL, wantTypeACL) || !reflect.DeepEqual(array.ACL, wantTypeACL) {
 							t.Fatal("CREATE ENUM lost actual members/array linkage/ACL/safety bookkeeping")
 						}
 					}

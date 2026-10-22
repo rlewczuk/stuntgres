@@ -6,25 +6,9 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 )
-
-// Engine.mu and statement admission are held. Reuse the catalog's established
-// copy-on-change datum remapper for private writes and retained owner snapshots.
-// Logical row identities, end roots and commit frontiers are not rewritten.
-func enumReownVersions(next *catalog.State, versions []storage.RowVersion) ([]storage.RowVersion, error) {
-	if len(versions) == 0 {
-		return versions, nil
-	}
-	address := ids.ObjectAddress{}
-	stores := map[ids.ObjectAddress]*storage.Relation{address: {Versions: versions}}
-	if err := stored.ReownScalarTypes(next, stores, nil); err != nil {
-		return nil, err
-	}
-	return stores[address].Versions, nil
-}
 
 func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *session.Journal, stage *CatalogStage) error {
 	next := e.stageRead(stage).State()
@@ -75,14 +59,14 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *sess
 			}
 			if shape.HasSnapshot {
 				var err error
-				shape.Snapshot, err = enumReownVersions(next, versions)
+				shape.Snapshot, err = stored.ReownVersions(next, versions)
 				if err != nil {
 					return err
 				}
 			}
 		}
 		writes, deletes := scope.columnProjectionRoots(a)
-		writes, err := enumReownVersions(next, writes)
+		writes, err := stored.ReownVersions(next, writes)
 		if err != nil {
 			return err
 		}

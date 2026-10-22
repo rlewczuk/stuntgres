@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"testing"
 	"time"
 )
@@ -42,7 +43,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			step("ALTER DOMAIN public.d ADD CONSTRAINT counted CHECK(nextval('public.calls')>0) NOT VALID")
 			step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
 			changes := s.Transactions.Catalog
-			if len(domainJournalOf(changes.Domain).ValidationFences()) != 1 || len(domainJournalOf(changes.Clone().Domain).ValidationFences()) != 1 || domainJournalOf(changes.Clone().Domain).ValidationFences()[0] != domainJournalOf(changes.Domain).ValidationFences()[0] {
+			if len(typedef.DomainJournalOf(changes.Domain).ValidationFences()) != 1 || len(typedef.DomainJournalOf(changes.Clone().Domain).ValidationFences()) != 1 || typedef.DomainJournalOf(changes.Clone().Domain).ValidationFences()[0] != typedef.DomainJournalOf(changes.Domain).ValidationFences()[0] {
 				t.Fatal("immutable validation observation lost during clone")
 			}
 			view := e.privateCatalogLocked(changes)
@@ -60,10 +61,10 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			}
 			expectedTruth := int64(2)
 			if kind == "multiple_validations" {
-				first := domainJournalOf(changes.Domain).ValidationFences()[0]
+				first := typedef.DomainJournalOf(changes.Domain).ValidationFences()[0]
 				step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
 				latest := s.Transactions.Catalog
-				if len(domainJournalOf(latest.Domain).ValidationFences()) != 2 || domainJournalOf(latest.Domain).ValidationFences()[0] != first || len(domainJournalOf(changes.Domain).ValidationFences()) != 1 {
+				if len(typedef.DomainJournalOf(latest.Domain).ValidationFences()) != 2 || typedef.DomainJournalOf(latest.Domain).ValidationFences()[0] != first || len(typedef.DomainJournalOf(changes.Domain).ValidationFences()) != 1 {
 					t.Fatal("repeated validation replaced earliest or sibling fence")
 				}
 				expectedTruth = 4

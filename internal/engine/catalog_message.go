@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 )
 
@@ -71,12 +72,12 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *stora
 	return e.storage.Relations[a]
 }
 func (e *Engine) catalogReadPreflightLocked(c *session.Journal) error {
-	for _, fence := range domainJournalOf(c.Domain).ValidationFences() {
+	for _, fence := range typedef.DomainJournalOf(c.Domain).ValidationFences() {
 		if !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			return catalog.Conflict{}
 		}
 	}
-	for address, root := range domainJournalOf(c.Domain).CommittedIndexRoots() {
+	for address, root := range typedef.DomainJournalOf(c.Domain).CommittedIndexRoots() {
 		if e.storage.IndexRoots[address] != root {
 			return catalog.Conflict{}
 		}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 )
 
@@ -39,11 +40,11 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 			use.Versions = use.Storage.Versions[:len(use.Storage.Versions):len(use.Storage.Versions)]
 			use.Ends, use.Generation = use.Storage.Ends, use.Storage.Generation
 		}
-		journal := domainWritable(changes)
+		journal := typedef.DomainWritable(changes)
 		journal.Validations = append(journal.Validations, committed)
 	}
 	if len(stage.domainAlter.AlteredIndexRoots()) != 0 {
-		journal := domainWritable(changes)
+		journal := typedef.DomainWritable(changes)
 		journal.IndexRoots = maps.Clone(journal.IndexRoots)
 		if journal.IndexRoots == nil {
 			journal.IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
@@ -76,7 +77,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 	e.mu.Unlock()
 	for address, rowShape := range stage.rowShapes {
 		writes, deletes := scope.columnProjectionRoots(address)
-		mapped, err := enumReownVersions(next, writes)
+		mapped, err := stored.ReownVersions(next, writes)
 		if err != nil {
 			return err
 		}
@@ -106,7 +107,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			}
 		}
 		if shape.HasSnapshot {
-			shape.Snapshot, err = enumReownVersions(next, shape.Snapshot)
+			shape.Snapshot, err = stored.ReownVersions(next, shape.Snapshot)
 			if err != nil {
 				return err
 			}

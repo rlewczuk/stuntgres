@@ -88,3 +88,56 @@ func (j *EnumJournal) UnsafeMembers() map[int64]bool {
 	}
 	return j.Unsafe
 }
+
+// The domain and enum slots of the catalog journal. A nil slot is an empty
+// one. Journals copied by value share slots, so a slot is never written in
+// place: DomainWritable and EnumWritable first replace it with a private
+// copy (the maps and slices inside keep their old sharing rules).
+
+// DomainWritable gives c a private domain slot and returns it.
+func DomainWritable(c *session.Journal) *DomainJournal {
+	next := new(DomainJournal)
+	if c.Domain != nil {
+		*next = *DomainJournalOf(c.Domain)
+	}
+	c.Domain = domainSlotOf(next)
+	return next
+}
+
+// EnumWritable gives c a private enum slot and returns it.
+func EnumWritable(c *session.Journal) *EnumJournal {
+	next := new(EnumJournal)
+	if c.Enum != nil {
+		*next = *EnumJournalOf(c.Enum)
+	}
+	c.Enum = EnumSlotOf(next)
+	return next
+}
+
+// EnumJournalOf returns the enum journal in s, or nil.
+func EnumJournalOf(s session.EnumSlot) *EnumJournal {
+	j, _ := s.(*EnumJournal)
+	return j
+}
+
+// EnumSlotOf stores j; a nil journal stays a nil slot.
+func EnumSlotOf(j *EnumJournal) session.EnumSlot {
+	if j == nil {
+		return nil
+	}
+	return j
+}
+
+// DomainJournalOf returns the domain journal in s, or nil.
+func DomainJournalOf(s session.DomainSlot) *DomainJournal {
+	d, _ := s.(*DomainJournal)
+	return d
+}
+
+// domainSlotOf stores d; a nil journal stays a nil slot.
+func domainSlotOf(d *DomainJournal) session.DomainSlot {
+	if d == nil {
+		return nil
+	}
+	return d
+}

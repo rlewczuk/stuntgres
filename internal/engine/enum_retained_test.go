@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -46,7 +47,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	members := mood.EnumMembers()
 	e.mu.Lock()
 	scope.owner.Catalog = session.NewJournal()
-	enumWritable(scope.owner.Catalog).Unsafe = map[int64]bool{members[1].ID: true}
+	typedef.EnumWritable(scope.owner.Catalog).Unsafe = map[int64]bool{members[1].ID: true}
 	auth, err := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {
@@ -124,7 +125,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	root := session.NewJournal()
-	enumWritable(root).Unsafe = map[int64]bool{members[1].ID: true}
+	typedef.EnumWritable(root).Unsafe = map[int64]bool{members[1].ID: true}
 	scope.owner.Catalog = root
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -157,7 +158,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	}
 	mark := session.SavepointMark{Catalog: root}
 	candidate := root.Clone()
-	enumJournalOf(candidate.Enum).UnsafeMembers()[members[0].ID] = true
+	typedef.EnumJournalOf(candidate.Enum).UnsafeMembers()[members[0].ID] = true
 	scope.owner.Catalog = candidate
 	b.Input = sqltype.InputEnvironment{TypeDiagnosticName: original.TypeDiagnosticName}
 	captureEnumOperationSafety(op, &b.Input)
@@ -165,7 +166,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := b.Input.EnumMemberSafe
-	if enumJournalOf(root.Enum).UnsafeMembers()[members[0].ID] || !original.EnumMemberSafe(mood.ID(), members[0].ID) || child(mood.ID(), members[0].ID) {
+	if typedef.EnumJournalOf(root.Enum).UnsafeMembers()[members[0].ID] || !original.EnumMemberSafe(mood.ID(), members[0].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("candidate mutation changed borrowed root or fresh capture missed it")
 	}
 	scope.owner.Catalog = mark.Catalog

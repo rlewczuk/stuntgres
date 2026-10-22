@@ -100,7 +100,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 		if len(scope.owner.Savepoints) == 0 {
-			journal := enumWritable(changes)
+			journal := typedef.EnumWritable(changes)
 			if journal.Created == nil {
 				journal.Created = make(map[ids.ObjectAddress]bool)
 			}
@@ -127,8 +127,8 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if edit.Skipped {
 			return Result{}, nil
 		}
-		if edit.Added && (!enumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.owner.Savepoints) != 0) {
-			journal := enumWritable(changes)
+		if edit.Added && (!typedef.EnumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.owner.Savepoints) != 0) {
+			journal := typedef.EnumWritable(changes)
 			if journal.Unsafe == nil {
 				journal.Unsafe = make(map[int64]bool)
 			}

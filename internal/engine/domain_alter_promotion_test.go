@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/typedef"
 )
 
 func domainAlterMessagePromotion(t *testing.T) {
@@ -31,14 +32,14 @@ func domainAlterMessagePromotion(t *testing.T) {
 					t.Fatal(q, err)
 				}
 			}
-			if s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || s.Transactions.State != session.TxActive || len(domainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()) != 1 {
+			if s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || s.Transactions.State != session.TxActive || len(typedef.DomainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()) != 1 {
 				t.Fatal("promotion lost original ownership/observation")
 			}
-			observation := domainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()[0]
+			observation := typedef.DomainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()[0]
 			clone := s.Transactions.Catalog.Clone()
-			journal := domainWritable(clone)
+			journal := typedef.DomainWritable(clone)
 			journal.Validations = append(journal.Validations, observation)
-			if len(domainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()) != 1 {
+			if len(typedef.DomainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()) != 1 {
 				t.Fatal("clone mutated sibling observation slice")
 			}
 			_, failure := message.step(statement(t, "SELECT missing"))
@@ -46,7 +47,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 				t.Fatal("promoted primary/recovery disposition", failure)
 			}
 			sessionSQL(t, s, "ROLLBACK TO keep_prefix")
-			if len(domainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()) != 1 || domainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()[0] != observation {
+			if len(typedef.DomainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()) != 1 || typedef.DomainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()[0] != observation {
 				t.Fatal("savepoint recovery lost passive observation")
 			}
 			sessionSQL(t, s, "INSERT INTO public.stored VALUES(3)")
