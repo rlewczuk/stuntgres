@@ -724,32 +724,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if err != nil {
 		return Result{}, err
 	}
-	scanChecks := addedChecks
-	if !rewrite {
-		scanChecks = append(typeChecks, addedChecks...)
-	}
-	virtualNotNullScan := false
-	if !rewrite {
-		for _, attribute := range replacements {
-			if next.ColumnMeta.Generations[attribute].Kind == catalog.GenerationVirtual && slices.Contains(validator.NotNull, next.IndexForAttribute(attribute)) {
-				virtualNotNullScan = true
-				break
-			}
-		}
-	}
-	if physicalRows && (len(scanChecks) != 0 || !rewrite && (table.NeedsNotNullScan(old, next) || virtualNotNullScan)) {
-		scanValidator := table.NewAlterRowValidator(next, schema)
-		if rewrite {
-			scanValidator.NotNull = nil
-		}
-		if len(scanChecks) != 0 {
-			traversal := *next
-			traversal.Constraints.Check = scanChecks
-			scanValidator.Checks = &traversal
+	if scanValidator, scan := table.PlanAlterScan(old, next, schema, rewrite, physicalRows, typeChecks, addedChecks, replacements, validator.NotNull); scan {
+		if scanValidator.Checks != nil {
 			e.mu.Lock()
-			err = e.captureCheckCommentSnapshotLocked(scope, &traversal)
+			err = e.captureCheckCommentSnapshotLocked(scope, scanValidator.Checks)
 			if err == nil {
-				err = e.captureCheckVisibilitySnapshotLocked(scope, &traversal)
+				err = e.captureCheckVisibilitySnapshotLocked(scope, scanValidator.Checks)
 			}
 			e.mu.Unlock()
 			if err != nil {

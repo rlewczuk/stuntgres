@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -53,40 +52,20 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 		return Result{}, ddl.CreationError(err, s.Name)
 	}
 	temporary := persistence == "temporary"
-	if temporary && (s.PartitionBy != nil || s.PartitionOf != nil) {
-		e.mu.Unlock()
-		pos := s.PartitionBy
-		if s.PartitionOf != nil {
-			return Result{}, expr.ErrorAt("0A000", "temporary partition definitions are unsupported", s.PartitionOf.Pos)
-		}
-		return Result{}, expr.ErrorAt("0A000", "temporary partition definitions are unsupported", pos.Pos)
-	}
 	if !temporary {
 		// Permanent CREATE does not need the TEMP namespace overlay. Preserve
 		// its admitted catalog identity for the existing importer/publication fences.
 		auth.Catalog = originalCatalog
 		auth.Recapture(auth.Catalog)
 	}
-	if !temporary && s.OnCommit != parser.OnCommitUnspecified {
-		e.mu.Unlock()
-		return Result{}, sqlError("42P16", "ON COMMIT can only be used on temporary tables")
-	}
-	if !temporary && scope.owner.State == session.TxActive {
-		e.mu.Unlock()
-		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
-	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
-	if _, exists := auth.Catalog.LookupName(key); exists {
+	_, exists := auth.Catalog.LookupName(key)
+	if existing, err := table.CheckCreateShape(s, temporary, scope.owner.State == session.TxActive, exists); existing || err != nil {
 		e.mu.Unlock()
-		if s.IfNotExists {
+		if existing {
 			op.ExistingRelationNotice(key.Name)
-			return Result{}, nil
 		}
-		return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
-	}
-	if s.PartitionBy != nil && len(s.Parents) != 0 {
-		e.mu.Unlock()
-		return Result{}, sqlError("42P17", "cannot create partitioned table as inheritance child")
+		return Result{}, err
 	}
 	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
