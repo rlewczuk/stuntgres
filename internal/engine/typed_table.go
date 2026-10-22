@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -10,7 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -38,45 +37,10 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation
 	if !ok {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if err := analyze.TableKindError(old, "OF"); err != nil {
+	next, err := table.AlterTableOf(ddlHost{e: e, op: op}, auth, old, s)
+	if err != nil {
 		return fail(err)
 	}
-	next := *old
-	if s.Type == nil {
-		if old.OfType == (ids.ObjectAddress{}) {
-			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a typed table`, old.Name())))
-		}
-		next.OfType = ids.ObjectAddress{}
-	} else {
-		typ, err := e.namedType(auth, *s.Type)
-		if err != nil {
-			return fail(err)
-		}
-		path, err := e.referencePath(auth)
-		if err != nil {
-			return fail(err)
-		}
-		source, err := typedef.StandaloneComposite(auth.Catalog, typ, path)
-		if err == nil {
-			// Like CREATE OF, attachment needs source USAGE (PostgreSQL 18.6,
-			// CVE-2026-6470), checked before inheritance and shape.
-			err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address()))
-		}
-		if err != nil {
-			return fail(err)
-		}
-		if old.Inheritance != nil && len(old.Inheritance.Parents) != 0 {
-			return fail(sqlError("42809", "typed tables cannot inherit"))
-		}
-		if err := typedef.TypedShape(old, source); err != nil {
-			return fail(err)
-		}
-		next.OfType = typ.Address()
-	}
-	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
-		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
-	}
-	next.ObjectRevision++
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	if next.OfType != (ids.ObjectAddress{}) {
@@ -84,7 +48,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.Replace(&next); err != nil {
+	if err := stage.Replace(next); err != nil {
 		return Result{}, err
 	}
 	if s.Type != nil {
@@ -112,40 +76,10 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation
 }
 
 func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool) error {
-	var sources map[ids.ObjectAddress]bool
-	if drop {
-		if len(stage.domainTargets) != 0 {
-			sources = make(map[ids.ObjectAddress]bool, len(stage.domainTargets))
-		}
-		for _, source := range stage.domainTargets {
-			sources[source] = true
-		}
-	} else {
-		for _, descriptor := range stage.Descriptors() {
-			if table, ok := descriptor.(*catalog.Relation); ok && table.OfType != (ids.ObjectAddress{}) {
-				if sources == nil {
-					sources = make(map[ids.ObjectAddress]bool)
-				}
-				sources[table.OfType] = true
-			}
-		}
-	}
-	if len(sources) == 0 {
+	addresses := table.TypedSources(drop, stage.domainTargets, stage.Descriptors())
+	if len(addresses) == 0 {
 		return nil
 	}
-	addresses := make([]ids.ObjectAddress, 0, len(sources))
-	for source := range sources {
-		addresses = append(addresses, source)
-	}
-	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
-		if a.ObjectID < b.ObjectID {
-			return -1
-		}
-		if a.ObjectID > b.ObjectID {
-			return 1
-		}
-		return 0
-	})
 	mode := lock.AccessShare
 	if drop {
 		mode = lock.AccessExclusive

@@ -18,7 +18,6 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -453,18 +452,10 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	var typedSourceRef ids.ObjectRef
 	if attachment, ok := stmt.(*parser.AlterTableOf); ok && attachment.Type != nil && err == nil {
-		var typ *catalog.Type
-		typ, err = e.namedType(auth, *attachment.Type)
+		var source *catalog.Relation
+		_, source, err = table.ResolveTypedSource(ddlHost{e: e, op: s.op}, auth, *attachment.Type)
 		if err == nil {
-			var source *catalog.Relation
-			var path []ids.ObjectAddress
-			path, err = e.referencePath(auth)
-			if err == nil {
-				source, err = typedef.StandaloneComposite(auth.Catalog, typ, path)
-			}
-			if err == nil {
-				typedSourceRef = e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
-			}
+			typedSourceRef = e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
 		}
 	}
 	if raw, ok := stmt.(*parser.AlterTable); ok && err == nil {
