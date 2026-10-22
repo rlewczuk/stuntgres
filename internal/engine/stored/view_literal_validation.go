@@ -188,11 +188,15 @@ func (v *View) ValidateLiterals(catalog catalog.Read) error {
 			}
 			return nil
 		}
+		fromRoot, err := v.fromRoot(project)
+		if err != nil {
+			return err
+		}
 		if s.Values != nil {
-			if err := from(s.Values, analyze.ViewFromRoot(project)); err != nil {
+			if err := from(s.Values, fromRoot); err != nil {
 				return err
 			}
-		} else if err := from(s.From, analyze.ViewFromRoot(project)); err != nil {
+		} else if err := from(s.From, fromRoot); err != nil {
 			return err
 		}
 	}
@@ -357,6 +361,11 @@ func (v *View) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path a
 			return err
 		}
 		return fmt.Errorf("stuntgres: missing view literal occurrence")
+	case parser.ParameterExpr:
+		if r.Number <= 0 || r.Number > len(v.routineInputs) || !ValidExpressionUsage(catalog, v.routineInputs[r.Number-1]) {
+			return fmt.Errorf("stuntgres: invalid frozen routine parameter")
+		}
+		return nil
 	case parser.ColumnExpr:
 		if captured, whole := v.composites[path]; whole {
 			if captured.Kind != analyze.CompositeWholeRow {

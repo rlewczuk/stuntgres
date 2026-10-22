@@ -373,6 +373,9 @@ func modifyingTag(stmt parser.Statement) string {
 	case *parser.DropConversion:
 		return "DROP CONVERSION"
 	case *parser.CreateFunction:
+		if stmt.(*parser.CreateFunction).Procedure {
+			return "CREATE PROCEDURE"
+		}
 		return "CREATE FUNCTION"
 	case *parser.DropRoutine:
 		return routineDropCommandTag(stmt.(*parser.DropRoutine).Kind)

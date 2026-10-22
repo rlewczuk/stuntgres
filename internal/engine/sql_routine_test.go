@@ -140,7 +140,10 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 	sqlRoutineUnitInteger(t, execute("SELECT routine_unit_read()"), 4)
 	var retained *preparedAnalysis
 	for _, entry := range payloadOf(op.Session).sqlRoutines {
-		retained = entry.description.analysis
+		if len(entry.descriptions) != 1 {
+			t.Fatal("single-command retention shape", len(entry.descriptions))
+		}
+		retained = entry.descriptions[0].analysis
 	}
 	if retained == nil {
 		t.Fatal("body bypassed shared prepared analysis owner")
@@ -148,7 +151,7 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 	execute("UPDATE routine_unit_data SET x=9")
 	sqlRoutineUnitInteger(t, execute("SELECT routine_unit_read()"), 9)
 	for _, entry := range payloadOf(op.Session).sqlRoutines {
-		if entry.description.analysis != retained {
+		if len(entry.descriptions) != 1 || entry.descriptions[0].analysis != retained {
 			t.Fatal("unchanged body identity reanalyzed")
 		}
 	}

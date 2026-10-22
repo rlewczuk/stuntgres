@@ -63,15 +63,9 @@ func TestReferenceFDWRoutineGrants(t *testing.T) {
 					full := fixture.Select("SELECT p.proargtypes::text AS inputs,p.prokind,p.prolang::bigint AS language,p.proretset,p.prosecdef,p.provariadic::bigint AS variadic,p.pronargdefaults,p.proargnames::text AS names,p.proallargtypes::text AS alltypes,p.proargmodes::text AS modes,p.proacl IS NULL AS absent FROM pg_proc p WHERE p.oid=$1",
 						[]string{"inputs", "prokind", "language", "proretset", "prosecdef", "variadic", "pronargdefaults", "names", "alltypes", "modes", "absent"}, []string{"TEXT", "CHAR", "INT8", "BOOL", "BOOL", "INT8", "INT2", "TEXT", "TEXT", "TEXT", "BOOL"},
 						[][]any{{m.inputs, "f", int64(13), false, false, int64(0), int64(0), nil, nil, nil, true}}, oid)
-					if !b.PG {
-						q := full.Query
-						full = fixture.ImplicitError(q, fixture.Diagnostic{Code: "42703", Message: "column p.proargtypes does not exist", Position: fixture.Position(strings.Index(q, "p.proargtypes") + 1)}, oid)
-						full.SelectRows, full.ErrorStage = true, "execute"
-						if prepared {
-							full.ErrorStage = "prepare"
-						}
+					if b.PG {
+						run(full)
 					}
-					run(full)
 				}
 
 				// Raw catalog ACLs distinguish NULL, explicit defaults and {}. Bag

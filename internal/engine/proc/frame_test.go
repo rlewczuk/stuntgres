@@ -49,7 +49,7 @@ func TestSQLRoutineFrameIsolation(t *testing.T) {
 		t.Fatal("closed frame admitted argument")
 	}
 	first.Close()
-	if definition.Query == nil || len(definition.Inputs) != 1 || definition.Source != "SELECT $1+1" {
+	if len(definition.Statements) != 1 || len(definition.Inputs) != 1 || definition.Source != "SELECT $1+1" {
 		t.Fatal("frame changed immutable declaration")
 	}
 }

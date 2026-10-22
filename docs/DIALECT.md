@@ -205,13 +205,17 @@ not assignment history or execution scratch. See [selected contracts](../referen
 
 ## Scalar SQL routines
 
-`CREATE FUNCTION [schema.]name(type, ...) RETURNS type LANGUAGE SQL AS 'body'`
-accepts anonymous positional arguments and one SELECT statement. AS and LANGUAGE
-may appear in either supported order; ordinary and dollar-quoted bodies are
-accepted. Parameters are `$1`, `$2`, etc. Input and result types must be concrete
-supported scalar types, not set, composite or polymorphic declarations.
-Body parameters are bounded by that declared list, including zero arguments;
-references outside it fail with 42P02 without publishing the declaration.
+SQL-language `CREATE FUNCTION` accepts ordinary named or anonymous typed IN
+inputs and supported scalar or VOID results. `CREATE PROCEDURE` shares
+declarations/body validation without a RETURNS clause; procedures are catalog
+objects, not scalar functions, and CALL execution remains separate.
+Quoted bodies use complete semicolon-separated SQL scripts, including normal
+comments/quoting. Standard bodies use `RETURN expression` or
+`BEGIN ATOMIC statement; ... END`, defaulting to LANGUAGE SQL when omitted.
+Named, `routine.argument` and `$n` references use the same private typed slots.
+Columns win over unqualified/qualified formal fallback, and real column
+ambiguity is not hidden by a formal. Positional formals are closed even with
+zero inputs; overflow fails with 42P02.
 
 Namespace visibility, signature masking, exact/implicit/unknown argument
 selection and EXECUTE checks use the existing callable authorities. Aggregate-
@@ -220,32 +224,30 @@ signature determines scalar versus aggregate execution. Exact typed calls preced
 the existing type-name cast shortcut; unknown literals and external parameters
 retain their distinct resolution rules. Standard CAST syntax is unchanged.
 
-CREATE checks one output column and assignment conversion to the declared result
-without executing the body. Invocation evaluates actual arguments once into a
-private frame, applies implicit input conversion and runs the existing SELECT
-executor. Supported FROM, joins, subqueries, aggregates, sorting and CTEs retain
-their normal semantics. Modifying CTE effects and completion obligations belong
-to the caller's single statement/transaction owner, including failure rollback.
-First-row demand is selected before opening producers; required sort/aggregate
-work is not skipped. No row returns NULL of the declared type.
-On dependency reanalysis, the actual bound terminal SELECT must still satisfy
-the declared width and assignment conversion before any body producer opens,
-even for empty input. Compatible assignment changes retain the caller's declared
-result type. Direct and mutual recursion share a native safety bound of 128 active
-SQL bodies; excess calls fail with 54001 `stack depth limit exceeded` and unwind
-without ending the session. This is not a native `max_stack_depth` setting.
+CREATE validates quoted bodies by default, without effects; standard bodies
+are analyzed immediately and retain genuine checked object/overload captures
+and hard dependencies. Invocation prepares each reached quoted command in
+sequence, refreshing own-write/delete visibility. Standard invocation refreshes
+checked recipes with current admission/ACLs without reparsing SQL names.
+The actual nonvoid final command must be SELECT or supported
+INSERT/UPDATE/DELETE/MERGE RETURNING, with one Assignment-compatible column.
+Eligible final SELECT uses first-row demand; every DML and every nonterminal or
+VOID SELECT completes its required evaluation/effects. No rows yield typed
+NULL. SQL VOID yields NULL and discards all body outputs.
+
+All commands borrow the caller's one statement/transaction; a later error or
+cancellation rolls back transactional prefix writes. Standard ATOMIC creates no
+new transaction and RETURN is not procedural early exit. Transaction control
+is rejected when reached in quoted functions; standard utilities are rejected
+at definition. Unsupported utility/provider paths retain their native boundary,
+not successful no-ops. Direct/mutual recursion shares the native 128-active-body
+safety bound (54001), not PostgreSQL's byte-valued `max_stack_depth` setting.
 
 Calls are VOLATILE, nonstrict, invoker-authorized and parallel-unsafe, with fresh
 data and permissions and existing prepared-analysis invalidation. Scalar results
 use assignment conversion, distinct from implicit argument conversion. Existing
 DEFAULT/stored-expression consumers retain symbolic checked routine identities;
 CREATE/default validation does not evaluate bodies.
-
-Named/mode/default/variadic argument declarations, OR REPLACE, procedure/CALL,
-PL/pgSQL, security/other attributes and set/composite returns are not supported.
-CREATE retains the existing native read-only and autocommit-only schema-DDL
-boundaries. This is not a general language runtime, external ABI or full
-`pg_proc`/`pg_language` projection.
 
 `DROP FUNCTION`, `DROP PROCEDURE` and `DROP ROUTINE` support qualified names,
 overload input identity, omitted versus empty signatures, grouped targets,
@@ -264,8 +266,14 @@ Native replay retains those unresolved bodies only for a structured terminal
 missing callable; other errors still abort replacement, and deferred semantic
 checks run at invocation once resolution succeeds. Closed formals always validate.
 DROP retains read-only-first admission and the native autocommit-only schema-DDL
-boundary. This adds no CREATE PROCEDURE/CALL, OUT declarations, trigger provider,
-SQL-standard parsed body, aggregate creator or external language execution.
+boundary. CALL, OUT declarations, trigger providers, aggregate creators and
+external language execution remain separate capabilities.
+OUT/INOUT/default/variadic declarations, OR REPLACE, CALL, ALTER routine lifecycle
+DDL, PL/pgSQL, security/other attributes and set/composite returns remain
+unsupported. Declaration DDL retains existing read-only/autocommit boundaries.
+This is not an external ABI, general procedural runtime or complete
+`pg_proc`/`pg_language` projection. Supported pg_proc columns include genuine
+routine kind and SQL formal names.
 See [logical replay](FIXTURES.md#sql-routine-declarations-and-callers) and
 [selected evidence and smoke](../reference/query_core/README.md#scalar-sql-routine-contract).
 

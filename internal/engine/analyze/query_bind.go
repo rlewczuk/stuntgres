@@ -47,7 +47,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 	restore := b.EnterQuery(disallowParent)
 	defer restore()
 	defer func() {
-		if failure == nil && query != nil && (b.Params.NoParameters || b.Consumer.materializedDefinition) {
+		if failure == nil && query != nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 			b.NormalizeStoredQuerySyntax(s)
 		}
 	}()
@@ -175,7 +175,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 				}
 				columns = frozenColumns
 			}
-			if b.Params.NoParameters || b.Consumer.materializedDefinition {
+			if b.Params.NoParameters || b.Consumer.frozenDefinition {
 				if b.Capture.Stars == nil {
 					b.Capture.Stars = make(map[ViewLiteralPath][]ViewColumn)
 				}
@@ -193,7 +193,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 				}
 				projection = append(projection, expr)
 				targetNames = append(targetNames, c.Descriptor.Name)
-				if b.Params.NoParameters || b.Consumer.materializedDefinition {
+				if b.Params.NoParameters || b.Consumer.frozenDefinition {
 					b.Capture.Stars[starPath] = append(b.Capture.Stars[starPath], ViewColumn{Frame: frame, Slot: c.Slot})
 					literalTargets = append(literalTargets, -1)
 				}
@@ -205,7 +205,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 			}
 			projection = append(projection, expansion.Fields...)
 			targetNames = append(targetNames, expansion.Names...)
-			if b.Params.NoParameters || b.Consumer.materializedDefinition {
+			if b.Params.NoParameters || b.Consumer.frozenDefinition {
 				path := ViewLiteralPath{Query: b.FrameID(), Clause: ViewTargetLiteral, Target: target}
 				ordinal := 0
 				if err := b.captureCompositeExpansion(field, expansion, path, &ordinal); err != nil {
@@ -221,7 +221,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 				return nil, err
 			}
 			projection = append(projection, expr)
-			if b.Params.NoParameters || b.Consumer.materializedDefinition {
+			if b.Params.NoParameters || b.Consumer.frozenDefinition {
 				literalTargets = append(literalTargets, target)
 			}
 			name, _ := expressionName(raw, expr.ResultUsage(), expr)
@@ -238,12 +238,12 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 		if err != nil {
 			return nil, err
 		}
-		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+		if b.Params.NoParameters || b.Consumer.frozenDefinition {
 			if err := b.CaptureViewLiterals(s.Where, filter, ViewWhereLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
-		if !contextual && !b.Params.NoParameters && !b.Consumer.materializedDefinition && len(s.Locking) == 0 {
+		if !contextual && !b.Params.NoParameters && !b.Consumer.frozenDefinition && len(s.Locking) == 0 {
 			if source, ok := root.(*plan.SourceNode); ok && len(b.Query.Sources) == 1 && b.Query.Sources[0].Mark.Mode == 0 {
 				b.Query.Sources[0].PartialCandidate = b.Query.PartialIndexCandidate(source.Ref, filter)
 			}
@@ -264,7 +264,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 		if err != nil {
 			return nil, err
 		}
-		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+		if b.Params.NoParameters || b.Consumer.frozenDefinition {
 			if err := b.CaptureViewLiterals(s.Having, having, ViewHavingLiteral, 0); err != nil {
 				return nil, err
 			}
@@ -313,7 +313,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 	if err := b.resolveWindows(); err != nil {
 		return nil, err
 	}
-	if (b.Params.NoParameters || b.Consumer.materializedDefinition) && s.Order != nil {
+	if (b.Params.NoParameters || b.Consumer.frozenDefinition) && s.Order != nil {
 		frozen := *s.Order
 		frozen.Keys = append([]parser.OrderKey(nil), s.Order.Keys...)
 		for i, key := range frozen.Keys {
@@ -329,7 +329,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 		}
 		s.Order = &frozen
 	}
-	if (b.Params.NoParameters || b.Consumer.materializedDefinition) && len(on) != 0 {
+	if (b.Params.NoParameters || b.Consumer.frozenDefinition) && len(on) != 0 {
 		frozen := *s.Distinct
 		frozen.On = append([]parser.Expr(nil), s.Distinct.On...)
 		for i, raw := range frozen.On {
@@ -356,7 +356,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 			}
 			projection[i] = expression
 		}
-		if (b.Params.NoParameters || b.Consumer.materializedDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
+		if (b.Params.NoParameters || b.Consumer.frozenDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
 			target := literalTargets[i]
 			if err := b.CaptureViewLiterals(s.Targets[target], expression, ViewTargetLiteral, target); err != nil {
 				return nil, err
@@ -427,7 +427,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 	}
 	grouped := s.GroupBy != nil || b.Grouping.active || len(b.Grouping.Aggregates) > 0 || having != nil
 	var stringAnalysis []expr.Expr
-	if b.Params.NoParameters || b.Consumer.materializedDefinition {
+	if b.Params.NoParameters || b.Consumer.frozenDefinition {
 		stringAnalysis = append(stringAnalysis, projection...)
 		stringAnalysis = append(stringAnalysis, keys...)
 	}
@@ -622,7 +622,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 			analysis = append(analysis, call.Spec.Frame.End.Offset)
 		}
 	}
-	if (b.Params.NoParameters || b.Consumer.materializedDefinition) && len(on) != 0 {
+	if (b.Params.NoParameters || b.Consumer.frozenDefinition) && len(on) != 0 {
 		// Raw captured occurrences can own independently analyzed subquery
 		// frames even when SQL99 resolution shares their physical datum.
 		for _, key := range order {

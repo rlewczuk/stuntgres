@@ -51,6 +51,7 @@ type lexer struct {
 	typeInputResult    TypeName
 	typeInputNotice    func(sqlstate.Error)
 	options            Options
+	routineBodyDepth   int // SQL-standard body input syntax; never changes outer prewalk policy.
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool

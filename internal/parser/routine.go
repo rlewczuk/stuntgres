@@ -1,7 +1,7 @@
 package parser
 
-// CreateFunction is the bounded SQL text-body declaration. Body parameters are
-// private routine inputs, never parameters of the enclosing CREATE statement.
+// CreateFunction is the shared SQL function/procedure declaration. Body inputs
+// are private routine parameters, never parameters of the enclosing command.
 type CreateFunction struct {
 	Name      ObjectName
 	Arguments []GrantRoutineArgument
@@ -9,6 +9,8 @@ type CreateFunction struct {
 	Language  Identifier
 	Body      string
 	BodyPos   Position
+	Procedure bool
+	Standard  []Statement // Non-nil for a definition-analyzed SQL-standard body.
 	Pos       Position
 }
 

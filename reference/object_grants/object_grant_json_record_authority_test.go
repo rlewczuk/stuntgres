@@ -38,14 +38,9 @@ func TestReferenceObjectGrantJSONRecordAuthority(t *testing.T) {
 				// OID or an invented OUT-expanded signature.
 				metadata := "SELECT p.oid::text AS oid,p.proargtypes::text AS args,p.prorettype::text AS result FROM pg_proc p WHERE p.oid=" + family.oid
 				identity := fixture.Select(metadata, []string{"oid", "args", "result"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{family.oid, family.formals, family.result}})
-				if !b.PG {
-					identity = fixture.ImplicitError(metadata, fixture.Diagnostic{Code: "42703", Message: "column p.proargtypes does not exist", Position: fixture.Position(strings.Index(metadata, "p.proargtypes") + 1)})
-					identity.SelectRows, identity.ErrorStage = true, "execute"
-					if prepared {
-						identity.ErrorStage = "prepare"
-					}
+				if b.PG {
+					run(identity)
 				}
-				run(identity)
 				run(fixture.Select("SELECT oid::regprocedure::text AS identity,pronargs,proisstrict,provolatile,proparallel FROM pg_proc WHERE oid="+family.oid,
 					[]string{"identity", "pronargs", "proisstrict", "provolatile", "proparallel"}, []string{"TEXT", "INT2", "BOOL", "CHAR", "CHAR"},
 					[][]any{{strings.TrimPrefix(family.target, "pg_catalog."), map[bool]int64{true: 3, false: 1}[family.populate], family.strict, "s", "s"}}))

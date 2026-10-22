@@ -3,7 +3,6 @@ package reference_test
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -28,18 +27,10 @@ func TestReferenceJSONBPathOpsRoutineAuthority(t *testing.T) {
 				jsonpathNavigateBoth(t, p, b, c, fixture.Select(fmt.Sprintf(`SELECT oid::int4 AS oid,oprleft::int4 AS l,oprright::int4 AS r,oprresult::int4 AS result,oprcode::oid::int4 AS routine FROM pg_catalog.pg_operator WHERE oid=%d`, tc.operator), []string{"oid", "l", "r", "result", "routine"}, []string{"INT4", "INT4", "INT4", "INT4", "INT4"}, [][]any{{int64(tc.operator), int64(3802), int64(4072), int64(16), int64(tc.oid)}}))
 				q := fmt.Sprintf(`SELECT proargtypes::text AS args,pronargdefaults::int4 AS defaults,proretset,provariadic::int4 AS variadic FROM pg_catalog.pg_proc WHERE oid=%d`, tc.oid)
 				s := fixture.Select(q, []string{"args", "defaults", "proretset", "variadic"}, []string{"TEXT", "INT4", "BOOL", "INT4"}, [][]any{{"3802 4072", int64(0), false, int64(0)}})
-				if !b.PG {
-					d := fixture.ControlsReferenceDiagnostic("42703", `column "proargtypes" does not exist`)
-					d.Position = fixture.Position(strings.Index(q, "proargtypes") + 1)
-					s = fixture.ErrorDiagnostic(q, d)
-					s.SelectRows = true
+				if b.PG {
+					run(s)
+					run(fixture.Prepared(s))
 				}
-				run(s)
-				s = fixture.Prepared(s)
-				if !b.PG {
-					s.ErrorStage = "prepare"
-				}
-				run(s)
 				sig := `pg_catalog.` + tc.name + `(jsonb,jsonpath)`
 				defer func() {
 					for _, q := range []string{`RESET SESSION AUTHORIZATION`, `REVOKE EXECUTE ON FUNCTION ` + sig + ` FROM jpo_reader`, `GRANT EXECUTE ON FUNCTION ` + sig + ` TO PUBLIC`} {

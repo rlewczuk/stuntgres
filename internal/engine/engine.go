@@ -420,7 +420,13 @@ func describeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statem
 }
 
 func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (analyze.Binding, error) {
-	return analyze.Describe(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, scope.sqlRoutine.scalar, scope.initialParameters)
+	if scope.sqlRoutine.binding != nil {
+		return *scope.sqlRoutine.binding, nil
+	}
+	if scope.sqlRoutine.definition != nil {
+		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition)
+	}
+	return analyze.Describe(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, false, scope.initialParameters)
 }
 
 // Resolution helpers run under e.mu, using the supplied coherent view.

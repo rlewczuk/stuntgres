@@ -62,7 +62,7 @@ func (b *Binder) regtypeArrayConstant(text string, u sqltype.Usage, pos parser.P
 }
 
 func (b *Binder) foldRegtypeConstant(child expr.Expr, coercionPlan sqltype.CoercionPlan, info expr.Info) (expr.Expr, bool, error) {
-	if (info.Usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRoutineAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegObjectAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegTS(info.Usage.Type.BaseType().ID())) || !(b.Consumer.DefaultConsumer || b.Consumer.CheckConsumer || b.Consumer.IndexConsumer || b.Target.GeneratedOwner != nil || b.Params.NoParameters || b.Consumer.materializedDefinition) {
+	if (info.Usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRoutineAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegObjectAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegTS(info.Usage.Type.BaseType().ID())) || !(b.Consumer.DefaultConsumer || b.Consumer.CheckConsumer || b.Consumer.IndexConsumer || b.Target.GeneratedOwner != nil || b.Params.NoParameters || b.Consumer.frozenDefinition) {
 		return nil, false, nil
 	}
 	p := child.Properties()

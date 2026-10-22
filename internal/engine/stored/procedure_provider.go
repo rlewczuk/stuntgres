@@ -70,12 +70,24 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 
 func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	invalid := extension.InvalidProviderDescriptor
-	if !d.SQL.Result.Valid() || d.SQL.Query == nil {
+	if !d.SQL.Result.Valid() || d.SQL.Standard != (d.SQLBody != nil) || len(d.SQL.Names) != len(d.SQL.Inputs) {
 		return invalid()
 	}
 	result, ok := v.LookupType(d.SQL.Result.Type.ID())
 	if !ok || !result.Concrete() {
 		return invalid()
+	}
+	if d.SQLBody != nil {
+		program, err := RoutineProgramOf(d)
+		if err != nil {
+			return invalid()
+		}
+		if err := program.ValidateDefinition(d); err != nil {
+			return err
+		}
+		if err := d.SQLBody.Validate(v); err != nil {
+			return err
+		}
 	}
 	var signature strings.Builder
 	for i, input := range d.SQL.Inputs {
@@ -94,7 +106,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if string(d.Signature) != signature.String() {
 		return invalid()
 	}
-	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine || d.Strict || d.Volatility != expr.Volatile || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
+	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.RoutineKind == catalog.ProcedureRoutine && !d.SQL.Void() || d.Strict || d.Volatility != expr.Volatile || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
 		return invalid()
 	}
 	return nil

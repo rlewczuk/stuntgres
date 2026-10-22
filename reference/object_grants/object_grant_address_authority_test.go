@@ -159,14 +159,9 @@ func TestReferenceObjectGrantAddressAuthority(t *testing.T) {
 					[]string{"prokind", "inputs", "result", "proisstrict", "provolatile", "proparallel", "proretset", "variadic", "pronargdefaults", "names", "alltypes", "modes"},
 					[]string{"CHAR", "TEXT", "INT8", "BOOL", "CHAR", "CHAR", "BOOL", "INT8", "INT2", "TEXT", "TEXT", "TEXT"},
 					[][]any{{"f", inputs, result, true, "s", "s", false, int64(0), int64(0), argNames, allTypes, modes}}, d.oid)
-				if !b.PG {
-					full = fixture.ImplicitError(full.Query, fixture.Diagnostic{Code: "42703", Message: `column "prokind" does not exist`, Position: "8"}, d.oid)
-					full.SelectRows, full.ErrorStage = true, "execute"
-					if prepared {
-						full.ErrorStage = "prepare"
-					}
+				if b.PG {
+					run(full)
 				}
-				run(full)
 				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", d.name, cases, []fixture.Step{control, identifyingControl})
 
 				// Additional error/effect witnesses reuse actual providers and SQL

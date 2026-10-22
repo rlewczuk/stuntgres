@@ -2,9 +2,11 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -137,4 +139,7 @@ type sqlRoutineDemand struct {
 	scalar     bool // Internal single-row SELECT demand, never public finalization.
 	result     sqltype.Usage
 	resultPlan sqltype.CoercionPlan
+	definition *proc.Definition
+	terminal   bool
+	binding    *analyze.Binding
 }

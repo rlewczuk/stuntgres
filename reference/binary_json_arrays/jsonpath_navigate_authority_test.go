@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -14,20 +13,9 @@ func TestReferenceJSONPathNavigateRoutineAuthority(t *testing.T) {
 		jsonpathNavigateBoth(t, p, b, c, fixture.Select(`SELECT oid::int4 AS oid,pronamespace::int4 AS ns,pronargs::int4 AS nargs,prorettype::int4 AS result,proisstrict,provolatile AS volatility,proparallel AS parallel FROM pg_catalog.pg_proc WHERE oid=4007`, []string{"oid", "ns", "nargs", "result", "proisstrict", "volatility", "parallel"}, []string{"INT4", "INT4", "INT4", "INT4", "BOOL", "CHAR", "CHAR"}, [][]any{{int64(4007), int64(11), int64(4), int64(3802), true, "i", "s"}}))
 		qCatalog := `SELECT oid::int4 AS oid,pronamespace::int4 AS ns,proargtypes::text AS args,prorettype::int4 AS result,proisstrict,provolatile::text AS volatility,proparallel::text AS parallel,proretset,pronargdefaults::int4 AS defaults FROM pg_catalog.pg_proc WHERE oid=4007`
 		catalog := fixture.Select(qCatalog, []string{"oid", "ns", "args", "result", "proisstrict", "volatility", "parallel", "proretset", "defaults"}, []string{"INT4", "INT4", "TEXT", "INT4", "BOOL", "TEXT", "TEXT", "BOOL", "INT4"}, [][]any{{int64(4007), int64(11), `3802 4072 3802 16`, int64(3802), true, "i", "s", false, int64(2)}})
-		if !b.PG {
-			// Native pg_proc has a bounded projection. Its complete declaration
-			// is checked privately; do not broaden catalog scope for this witness.
-			d := fixture.ControlsReferenceDiagnostic("42703", `column "proargtypes" does not exist`)
-			d.Position = fixture.Position(strings.Index(qCatalog, "proargtypes") + 1)
-			catalog = fixture.ErrorDiagnostic(qCatalog, d)
-			catalog.SelectRows, catalog.ErrorStage = true, "execute"
+		if b.PG {
+			jsonpathNavigateBoth(t, p, b, c, catalog)
 		}
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, catalog)
-		catalog = fixture.Prepared(catalog)
-		if !b.PG {
-			catalog.ErrorStage = "prepare"
-		}
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, catalog)
 		run(fixture.Exec(`CREATE USER jpn_reader`, 0))
 		run(fixture.Exec(`CREATE TABLE jpn_acl(doc jsonb)`, 0))
 		run(fixture.Exec(`INSERT INTO jpn_acl VALUES('[1,2]')`, 1))

@@ -45,22 +45,25 @@ See [selected public control proof](../reference/object_grants/README.md#transac
 
 ## SQL routine declarations and callers
 
-Native Dump emits genuine scalar SQL `CREATE FUNCTION` declarations with current
-qualified identities, canonical input/result types, real owners and original
-body text. It stores neither invocation frames nor evaluated results, executable
-plans, source data snapshots or authorization decisions. Supported view/default
-callers replay checked symbolic routine identities, including implicit argument
-conversions and schema renames, not a later lookup of the original written name.
+Native Dump emits genuine SQL `CREATE FUNCTION` and `CREATE PROCEDURE`
+declarations, with named inputs, canonical types, current owners and actual
+quoted/standard body forms. Quoted declarations retain original body text.
+Standard declarations emit checked BEGIN ATOMIC commands using current captured
+object names and selected implicit argument usages; they are never converted
+into unchecked strings. Frames, evaluated results, opened executors, data views
+and authorization decisions are not serialized.
 
-Signature/result type dependencies precede each declaration; routine providers
-precede their stored callers. Text-body names are runtime analysis facts, not
-hard CREATE-time graph edges. A routine body may therefore read a table whose
-default calls that routine without inventing a dump dependency cycle.
+Signature types precede both forms. Standard body relation/type/callee edges
+also precede standard declarations; consumers follow their routines. Incidental
+quoted-body analysis does not create hard graph edges, preserving the existing
+text-body/table-default cycle and later rebinding to recreated objects.
 
 A dump containing SQL routines includes `SET check_function_bodies = false;`.
 This is PostgreSQL-compatible replay SQL. Native Restore recognizes only its
 exact private replay form, stages declarations/data through existing owners,
-then binds imported bodies before atomic replacement. A structured terminal
+then binds imported quoted bodies before atomic replacement. Standard body
+capture/dependency installation remains immediate; checked capture/type remapping
+is validated before replacement. For quoted bodies, a structured terminal
 missing callable alone may defer binding: legal callee deletion must not prevent
 replaying the surviving quoted caller. Complete parsing and closed formal bounds
 still validate. Width/result and other semantic checks prevented by the missing
@@ -86,6 +89,8 @@ PostgreSQL18.6 and independently checks its values:
 ```sh
 make check RUN='^TestReferenceRoutineCorePersistence$'
 make check REFERENCE=1 RUN='^TestReferenceRoutineCorePersistence$'
+make check RUN='^TestReferenceRoutineSQLBodiesPersistence$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineSQLBodiesPersistence$'
 ```
 
 Use an external 900-second deadline for each command. See the

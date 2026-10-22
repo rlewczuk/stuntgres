@@ -36,6 +36,12 @@ func RemapExpressionWithQuery(node expr.Expr, ref func(ids.ObjectRef) ids.Object
 // callers map both roles, whereas LIKE and partition inheritance supply a
 // distinct owner-row mapper.
 func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(plan.Node) (plan.Node, error)) (expr.Expr, error) {
+	return remapScalar(node, ref, rowRef, slots, queryMapper, 0, nil)
+}
+
+// Only immutable routine presentations supply a closed formal namespace.
+// Ordinary persisted expressions must continue to reject runtime parameters.
+func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(plan.Node) (plan.Node, error), routineFormals int, addressMapper func(ids.ObjectAddress) ids.ObjectAddress) (expr.Expr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -45,7 +51,7 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			return old
 		}
 		var next expr.Expr
-		next, err = RemapScalar(old, ref, rowRef, slots, queryMapper)
+		next, err = remapScalar(old, ref, rowRef, slots, queryMapper, routineFormals, addressMapper)
 		return next
 	}
 	args := func(old []expr.Expr) []expr.Expr {
@@ -57,6 +63,12 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 	}
 	var next expr.Expr
 	switch n := node.(type) {
+	case plan.ParameterExpr:
+		if n.Number <= 0 || n.Number > routineFormals || n.Usage.Type == nil || !n.Usage.Valid() {
+			return nil, fmt.Errorf("stuntgres: unpersistable scalar expression %T", node)
+		}
+		// Retagging belongs to the routine recipe's existing type mapper.
+		next = n
 	case plan.SQLRoutineExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
@@ -143,7 +155,7 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		if n.Usage.Type.ContainsRegclass() && !n.Value.IsNull() {
 			var failure error
 			n.Value, failure = regobj.RemapClassDatum(n.Value, func(id ids.OID) ids.OID {
-				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}}).Address.ObjectID
+				return remapAddress(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ref, addressMapper).ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -152,7 +164,7 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		if (n.Usage.Type.ContainsRegtype() || n.Usage.Type.ContainsRegObject()) && !n.Value.IsNull() {
 			var failure error
 			n.Value, failure = regobj.RemapAliasDatum(n.Value, func(address ids.ObjectAddress) ids.ObjectAddress {
-				return ref(ids.ObjectRef{Address: address}).Address
+				return remapAddress(address, ref, addressMapper)
 			})
 			if failure != nil {
 				return nil, failure
@@ -161,7 +173,7 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		if n.Usage.Type.ContainsRegproc() && !n.Value.IsNull() {
 			var failure error
 			n.Value, failure = regobj.RemapRoutineDatum(n.Value, func(id ids.OID) ids.OID {
-				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}}).Address.ObjectID
+				return remapAddress(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}, ref, addressMapper).ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -170,7 +182,7 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		if n.Usage.Type.ContainsOperatorAlias() && !n.Value.IsNull() {
 			var failure error
 			n.Value, failure = regobj.RemapOperatorDatum(n.Value, func(id ids.OID) ids.OID {
-				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}}).Address.ObjectID
+				return remapAddress(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ref, addressMapper).ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -179,7 +191,7 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		if n.Usage.Type.ContainsRegTS() && !n.Value.IsNull() {
 			var failure error
 			n.Value, failure = regobj.RemapTextSearchDatum(n.Value, func(address ids.ObjectAddress) ids.ObjectAddress {
-				return ref(ids.ObjectRef{Address: address}).Address
+				return remapAddress(address, ref, addressMapper)
 			})
 			if failure != nil {
 				return nil, failure
@@ -386,7 +398,7 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		// Last, so the explicit engine wrappers above keep precedence. Remap
 		// copies the whole tree, so every child counts as replaced.
 		next, _, err = expr.Map(n, func(old expr.Expr) (expr.Expr, bool, error) {
-			next, failure := RemapScalar(old, ref, rowRef, slots, queryMapper)
+			next, failure := remapScalar(old, ref, rowRef, slots, queryMapper, routineFormals, addressMapper)
 			return next, true, failure
 		})
 		if err == nil && ref != nil {
@@ -396,6 +408,16 @@ func RemapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		return nil, fmt.Errorf("stuntgres: unpersistable scalar expression %T", node)
 	}
 	return next, err
+}
+
+// Schema origins and alias datums contain projected addresses, not retained
+// ObjectRef authority. Routine replacement supplies their distinct mapper so
+// actual captures still pass the checked provenance boundary.
+func remapAddress(address ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, addressMapper func(ids.ObjectAddress) ids.ObjectAddress) ids.ObjectAddress {
+	if addressMapper != nil {
+		return addressMapper(address)
+	}
+	return ref(ids.ObjectRef{Address: address}).Address
 }
 
 func RemapViewQuery(view catalog.Read, node plan.Node, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (plan.Node, error) {
@@ -424,6 +446,8 @@ type ViewQueryRemapper struct {
 	referencesOnly bool
 	ctes           map[*plan.CTEDefinition]*plan.CTEDefinition
 	Mutation       func(*plan.CTEDefinition) (analyze.Binding, error)
+	routineFormals int // Private provenance from a frozen routine presentation.
+	addressMapper  func(ids.ObjectAddress) ids.ObjectAddress
 }
 
 func (m *ViewQueryRemapper) Nested(node plan.Node) (plan.Node, error) {
@@ -463,8 +487,8 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			schema[i].Usage.Collation = capability
 		}
 		if schema[i].OriginTable != 0 {
-			origin := ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(schema[i].OriginTable)}})
-			schema[i].OriginTable = uint32(origin.Address.ObjectID)
+			origin := remapAddress(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(schema[i].OriginTable)}, ref, m.addressMapper)
+			schema[i].OriginTable = uint32(origin.ObjectID)
 		}
 	}
 	var err error
@@ -480,12 +504,14 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 		if err != nil {
 			return old
 		}
-		next, failure := RemapExpressionWithQuery(old, ref, nil, m.Nested, nil)
+		next, failure := remapScalar(old, ref, ref, nil, m.Nested, m.routineFormals, m.addressMapper)
 		if failure != nil {
 			err = failure
 			return old
 		}
 		if !m.referencesOnly {
+			// Nested owns both reference and type replacement. Its output is
+			// opaque to this scalar-only type pass, even for routine formals.
 			next, _, failure = RetagTypesWithQuery(m.Catalog, next, typ, nil, m.Collation)
 			if failure != nil {
 				err = failure
@@ -957,7 +983,7 @@ func (m *ViewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, err
 		return nil, ids.ErrCatalogReplaced
 	}
 	expression := func(old expr.Expr) (expr.Expr, error) {
-		next, err := RemapExpressionWithQuery(old, m.Ref, nil, m.Nested, nil)
+		next, err := remapScalar(old, m.Ref, m.Ref, nil, m.Nested, m.routineFormals, m.addressMapper)
 		if err != nil {
 			return nil, err
 		}

@@ -203,6 +203,7 @@ package parser
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN TYPE
 %token <tok> FUNCTION PROCEDURE ROUTINE OUT_ARG INOUT_ARG
+%token <tok> RETURN_BODY ATOMIC_BODY
 %token <tok> PARAMETER
 %token <tok> LANGUAGE LARGE OBJECT DATA WRAPPER
 %token <tok> COPY
@@ -332,6 +333,9 @@ package parser
 /* RECURSIVE likewise retains KW_U's contextual identifier/type-tail precedence. */
 /* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
 %nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
+/* These words previously used KW_U. Preserve its type-tail and COPY-WITH
+ * decisions rather than adding implicit zero-precedence conflicts. */
+%nonassoc RETURN_BODY ATOMIC_BODY
 %nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -430,6 +434,10 @@ package parser
 %type <stmt> create_function drop_routine
 %type <tok> returns_word
 %type <grantRoutineArguments> function_arguments function_declaration_argument_list
+%type <statements> standard_routine_body routine_body_list
+%type <stmt> routine_body_statement
+%type <stmt> nontransaction_statement transaction_common
+%type <tok> routine_return_head routine_atomic_head
 %type <alterConversion> conversion_alter_head
 %type <stmt> create_operator alter_operator drop_operator
 %type <objectName> operator_name
@@ -752,7 +760,8 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: nontransaction_statement | transaction_control ;
+nontransaction_statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment
  | with_mutation
  | truncate_table
  | alter_default_privileges
@@ -1010,11 +1019,11 @@ comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
 comment_excluded_word: IDENT | KW_U | KW_T | KW_R | UNIQUE | VIEW | INDEX | TYPE | DATABASE | EXTENSION ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
-transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
+transaction_control: transaction_common | commit_word opt_transaction opt_chain { $$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos} } ;
+transaction_common: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
  | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
  | SET TRANSACTION transaction_modes { $$=&TransactionCharacteristics{Pos:$1.pos,Modes:$3} }
  | SET SESSION characteristics_word AS TRANSACTION transaction_modes { $$=&TransactionCharacteristics{Session:true,Pos:$1.pos,Modes:$6} }
- | commit_word opt_transaction opt_chain { $$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos} }
  | rollback_start opt_chain { $$=&TransactionControl{Kind:KindRollback,Chain:$2,Pos:$1.pos} }
  | ABORT opt_transaction opt_chain { $$=&TransactionControl{Kind:KindRollback,Chain:$3,Pos:$1.pos} }
  | SAVEPOINT name { $$=&SavepointControl{Kind:CreateSavepoint,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
@@ -1416,8 +1425,25 @@ drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Na
  | DROP DEFAULT {sqllex.(*lexer).syntax($2);return 1} ;
 create_function: CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$12.text,BodyPos:$12.pos,Pos:$1.pos}}
  | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:$12.text,Pos:$12.pos},Body:$10.text,BodyPos:$10.pos,Pos:$1.pos}}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:"sql"},Standard:$9,Pos:$1.pos}}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:$10.text,Pos:$10.pos},Standard:$11,Pos:$1.pos}}
+ | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Body:$10.text,BodyPos:$10.pos,Pos:$1.pos}}
+ | CREATE PROCEDURE relation_name '(' function_arguments ')' AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$7.text,BodyPos:$7.pos,Pos:$1.pos}}
+ | CREATE PROCEDURE relation_name '(' function_arguments ')' standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:"sql"},Standard:$7,Pos:$1.pos}}
+ | CREATE PROCEDURE relation_name '(' function_arguments ')' LANGUAGE name standard_routine_body {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Language:Identifier{Text:$8.text,Pos:$8.pos},Standard:$9,Pos:$1.pos}}
  | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type LANGUAGE name name {sqllex.(*lexer).failAt("0A000","SQL function attributes are unsupported",$11.pos.Offset);return 1}
  | CREATE OR replace_word FUNCTION {sqllex.(*lexer).failAt("0A000","CREATE OR REPLACE FUNCTION is unsupported",$1.pos.Offset);return 1} ;
+routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
+routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
+standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=[]Statement{&Select{Targets:[]Expr{$2},Pos:$1.pos}}}
+ | routine_atomic_head routine_body_list END {sqllex.(*lexer).routineBodyDepth--;$$=$2} ;
+routine_body_list: /* empty */ {$$=make([]Statement,0)}
+ | routine_body_list ';' {$$=$1}
+ | routine_body_list routine_body_statement ';' {$$=append($1,$2)} ;
+routine_body_statement: nontransaction_statement {$$=$1}
+ | transaction_common {$$=$1}
+ | COMMIT opt_transaction opt_chain {$$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos}}
+ | routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=&Select{Targets:[]Expr{$2},Pos:$1.pos}} ;
 function_arguments: /* empty */ {$$=nil} | function_declaration_argument_list {$$=$1} ;
 function_declaration_argument_list: grant_routine_argument {$$=[]GrantRoutineArgument{$1}}
  | function_declaration_argument_list ',' grant_routine_argument {$$=append($1,$3)}
@@ -2959,7 +2985,7 @@ grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
  | LARGE OBJECT grant_large_objects { $$=&ObjectGrant{Kind:"large object",Relations:$3} }
  | ALL name IN SCHEMA grant_schema_list { if $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};kind:="";switch $2.text {case "tables":case "sequences":kind="sequence";case "functions":kind="function";case "procedures":kind="procedure";case "routines":kind="routine";default:sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Kind:kind,Schemas:$5} } ;
 grant_routine_kind: FUNCTION | PROCEDURE | ROUTINE ;
-routine_name_word: FUNCTION | PROCEDURE | ROUTINE | PARAMETER ;
+routine_name_word: FUNCTION | PROCEDURE | ROUTINE | PARAMETER | RETURN_BODY | ATOMIC_BODY ;
 grant_external_name_word: LANGUAGE | LARGE | OBJECT | DATA | WRAPPER ;
 grant_routines: grant_routine { $$=[]GrantRoutineTarget{$1} }
  | grant_routines ',' grant_routine { $$=append($1,$3) } ;

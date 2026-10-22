@@ -855,6 +855,11 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			return strconv.FormatInt(e.Value.Integer, 10), nil
 		}
 		return "", fmt.Errorf("stuntgres: missing analyzed view literal")
+	case parser.ParameterExpr:
+		if e.Number <= 0 || e.Number > len(v.routineInputs) {
+			return "", fmt.Errorf("stuntgres: invalid frozen routine parameter")
+		}
+		return "$" + strconv.Itoa(e.Number), nil
 	case parser.ColumnExpr:
 		if captured, whole := v.composites[path]; whole {
 			if captured.Kind != analyze.CompositeWholeRow {

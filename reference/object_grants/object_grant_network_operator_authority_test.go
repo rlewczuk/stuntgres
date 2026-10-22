@@ -35,23 +35,17 @@ func TestReferenceObjectGrantNetworkOperatorAuthority(t *testing.T) {
 					[]string{"identity", "proname", "namespace", "pronargs", "result", "proisstrict", "provolatile", "proparallel"},
 					[]string{"TEXT", "NAME", "INT8", "INT2", "INT8", "BOOL", "CHAR", "CHAR"},
 					[][]any{{tc.name + "(" + tc.signature + ")", tc.name, int64(11), tc.arity, tc.resultOID, true, "i", "s"}}, tc.oid))
-				// Native intentionally projects only its existing nine columns.
-				// Query the complete released declaration independently on PG, and
-				// assert the same query's existing native capability boundary.
+				// Full PostgreSQL metadata complements the shared identity and
+				// authority checks without asserting incidental native diagnostics.
 				full := "SELECT p.proargtypes::TEXT AS inputs,p.prokind,p.prolang::BIGINT AS language,p.proretset,p.pronargdefaults,p.provariadic::BIGINT AS variadic,p.proargnames IS NULL AS unnamed FROM pg_proc p WHERE p.oid=$1"
 				language := int64(12)
 				if tc.oid == 2631 {
 					language = 14
 				}
 				metadata := fixture.Select(full, []string{"inputs", "prokind", "language", "proretset", "pronargdefaults", "variadic", "unnamed"}, []string{"TEXT", "CHAR", "INT8", "BOOL", "INT2", "INT8", "BOOL"}, [][]any{{tc.inputs, "f", language, false, int64(0), int64(0), true}}, tc.oid)
-				if !b.PG {
-					metadata = fixture.ImplicitError(full, fixture.Diagnostic{Code: "42703", Message: "column p.proargtypes does not exist", Position: fixture.Position(strings.Index(full, "p.proargtypes") + 1)}, tc.oid)
-					metadata.SelectRows, metadata.ErrorStage = true, "execute"
-					if prepared {
-						metadata.ErrorStage = "prepare"
-					}
+				if b.PG {
+					run(metadata)
 				}
-				run(metadata)
 				run(fixture.Exec("CREATE SCHEMA og_net_authority AUTHORIZATION og_object_other", 0))
 				fixture.RoleGrantActor(run, "og_object_other", func() {
 					run(fixture.Exec("CREATE TABLE og_net_authority.source(id INTEGER,ip INET,mask INET,peer INET,network CIDR,n BIGINT,ni INET,nn BIGINT)", 0))

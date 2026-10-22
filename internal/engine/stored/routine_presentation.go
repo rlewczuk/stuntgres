@@ -2,6 +2,7 @@ package stored
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -44,7 +45,10 @@ func (v *QueryRenderer) sqlRoutineRecipeName(read catalog.Read, path analyze.Vie
 }
 
 func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
-	if current.SQL == nil || captured.SQL == nil || current.SQL.Source != captured.SQL.Source || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
+	if current.SQL == nil || captured.SQL == nil || current.SQL.Standard != captured.SQL.Standard || current.SQL.Source != captured.SQL.Source || !slices.Equal(current.SQL.Names, captured.SQL.Names) || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
+		return false
+	}
+	if captured.SQL.Standard && !slices.Equal(current.SQL.Statements, captured.SQL.Statements) {
 		return false
 	}
 	result := typ(captured.SQL.Result.Type)

@@ -1,38 +1,30 @@
-// Package proc owns SQL routine declarations and private invocation values.
-// Name resolution, execution, authorization and transactions belong to engine.
+// Package proc owns immutable SQL routine syntax and private invocation values.
+// Resolution, catalog captures, execution and transactions belong above proc.
 package proc
 
 import (
 	"fmt"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// Definition is immutable after publication. Query is parsed syntax only: no
-// executable query, session state or permission decision survives CREATE.
+// Definition contains syntax, not executable resources or permission decisions.
+// Standard bodies additionally require a checked catalog-owned frozen program.
 type Definition struct {
-	Source   string
-	Position parser.Position
-	Query    *parser.Select
-	Inputs   []sqltype.Usage
-	Result   sqltype.Usage
+	Source     string
+	Position   parser.Position
+	Statements []parser.Statement
+	Standard   bool
+	Name       string
+	Names      []string
+	Inputs     []sqltype.Usage
+	Result     sqltype.Usage
 }
 
 func New(source string, position parser.Position, inputs []sqltype.Usage, result sqltype.Usage) (*Definition, error) {
 	statements, err := parser.ParseWithOptions(source, parser.Options{StandardConformingStrings: true, ClosedRoutineFormals: true, FormalCount: len(inputs)})
 	if err != nil {
 		return nil, err
-	}
-	if len(statements) != 1 {
-		return nil, &sqlstate.Error{Code: "0A000", Message: "SQL function body must contain exactly one SELECT"}
-	}
-	query, ok := statements[0].(*parser.Select)
-	if !ok {
-		return nil, &sqlstate.Error{Code: "0A000", Message: "SQL function body must contain exactly one SELECT"}
-	}
-	if parser.LeftmostSelect(query).Into != nil {
-		return nil, &sqlstate.Error{Code: "0A000", Message: "SELECT INTO is unsupported in SQL function bodies"}
 	}
 	if !result.Valid() || !result.Type.Concrete() {
 		return nil, fmt.Errorf("invalid SQL routine result usage")
@@ -42,5 +34,7 @@ func New(source string, position parser.Position, inputs []sqltype.Usage, result
 			return nil, fmt.Errorf("invalid SQL routine input usage")
 		}
 	}
-	return &Definition{Source: source, Position: position, Query: query, Inputs: inputs, Result: result}, nil
+	return &Definition{Source: source, Position: position, Statements: statements, Inputs: inputs, Result: result}, nil
 }
+
+func (d *Definition) Void() bool { return d.Result.Type.ID() == sqltype.Void }

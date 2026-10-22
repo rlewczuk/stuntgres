@@ -43,6 +43,8 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 			var from plan.Node
 			if action.binding.Update != nil {
 				from = action.binding.Update.From
+			} else if action.binding.Merge != nil {
+				from = action.binding.Merge.Source
 			} else {
 				from = action.binding.Delete.Using
 			}
@@ -267,6 +269,8 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action 
 			names[i] = catalog.QuoteIdentifier(column.Name)
 		}
 		return text + " AS " + catalog.QuoteIdentifier("_rule_function_"+strconv.Itoa(n.ViewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
+	case *plan.ProjectNode, *plan.SortNode, *plan.LimitNode, *plan.EvaluationNode:
+		return ruleValuesFromSQL(ctx, view, root, action)
 	case *plan.ValuesNode:
 		var rows []string
 		for _, row := range n.Rows {
@@ -490,6 +494,12 @@ func RuleActionSQL(ctx context.Context, view catalog.Read, action RuleAction) (s
 			}
 			sql.WriteString(" WHERE " + text)
 		}
+	case *parser.Merge:
+		text, err := mergeActionSQL(ctx, view, action)
+		if err != nil {
+			return "", err
+		}
+		sql.WriteString(text)
 	}
 	if b.Returning != nil {
 		parts := make([]string, len(b.Returning.Expressions))

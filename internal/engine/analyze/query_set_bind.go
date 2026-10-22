@@ -37,7 +37,7 @@ func (b *Binder) finalizeSetOperand(arm *plan.ProjectNode, slot int, target sqlt
 	if unknown, ok := original.(plan.UnknownOutput); ok {
 		arm.Expressions[slot] = node
 		arm.QuerySchema[slot].Usage = node.ResultUsage()
-		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+		if b.Params.NoParameters || b.Consumer.frozenDefinition {
 			for i, raw := range arm.Syntax.Targets {
 				if raw == unknown.Raw {
 					if err := b.CaptureViewLiterals(raw, node, ViewTargetLiteral, i); err != nil {
@@ -209,7 +209,7 @@ func (b *Binder) bindSetOrder(order *parser.Order, projection []expr.Expr, names
 				return nil, d
 			}
 		}
-		if (b.Params.NoParameters || b.Consumer.materializedDefinition) && !ordinal {
+		if (b.Params.NoParameters || b.Consumer.frozenDefinition) && !ordinal {
 			if err := b.CaptureViewLiterals(raw.Expr, projection[slot], ViewOrderLiteral, i); err != nil {
 				return nil, err
 			}

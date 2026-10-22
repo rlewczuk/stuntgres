@@ -4,23 +4,29 @@
 value/type facilities, never engine or catalog. It does not interpret expressions
 or own name lookup, permissions, query execution, transactions or prepared caches.
 
-`Definition` retains original body text/source position, exactly one parsed SELECT
-and concrete declared input/result usages. Published definitions and their syntax
-are immutable. CREATE validation belongs to engine's ordinary query binder and
-never opens producers or evaluates providers. Text-body object names are runtime
-analysis facts, not permanent CREATE-time dependencies.
+`Definition` retains body form, original quoted text/source position, ordered
+statement syntax, input names/usages and result policy. Published syntax is
+immutable. Standard RETURN is a SELECT expression; BEGIN ATOMIC is an ordered
+SQL program, not a transaction or procedural early-return construct. Checked
+standard recipes and catalog dependencies live in `stored`, above this package.
 
-Complete body parsing and the shared binder treat declared formals as a closed
-namespace, including zero inputs: out-of-range `$n` fails even after an unresolved
-call that would stop semantic binding. Quoted strings/comments are not formals.
-Unused declared slots remain valid. Private Restore may defer only a structured
-terminal missing callable, preserving original syntax. Other errors abort;
-semantic checks blocked by that missing call run at invocation once resolvable.
-Runtime binding checks
-the current terminal SELECT width and Assignment result plan before producers
-or modifying CTEs open, including empty input and dependency reanalysis. Internal
-body output changes may remain valid through assignment conversion without
-changing the caller's declared scalar result contract.
+Complete parsing closes positional formals even after an unresolved call stops
+semantic binding. Private Restore may defer only a structured terminal missing
+call in a quoted body; blocked semantic checks run once invocation can resolve it.
+Quoted strings/comments are not formals, and unused declared inputs are valid.
+
+The shared binder closes positional formals even with zero inputs. Named,
+routine-qualified and `$n` references use the same typed slots; real columns
+and genuine column ambiguities take precedence over formal fallback. CREATE
+checks all commands without producers. Quoted bodies are prepared sequentially
+at invocation, so an earlier command can run before a later reanalysis error.
+Standard commands refresh checked recipes by identity, never render/reparse or
+reselect source names/overloads at invocation.
+
+Only the actual nonvoid terminal SELECT or DML RETURNING supplies the scalar
+result. Width and Assignment conversion are checked before that command's
+producers, including empty inputs. VOID discards every output and yields typed
+SQL NULL; it does not reuse an earlier SELECT result.
 
 Each invocation owns a `Frame`. Actual expressions are evaluated once by engine,
 coerced using implicit input plans, then placed in private slots. Nested/repeated
@@ -30,12 +36,13 @@ closure without an unnecessary payload copy. Driver mutable-byte export remains
 with its existing type/driver owner. Closing a frame clears slots and result and
 is idempotent; no closed frame admits a new value.
 
-Engine holds checked catalog identities, shares existing prepared analysis, checks
-live EXECUTE/invoker authority, opens current query sources and selects scalar
-first-row demand before producer opening. Required sort/aggregate/auxiliary work
-remains with the query/DML owners. No row yields NULL of the declared result type.
-Persistence stores symbolic declarations and original SQL, never frames, actual
-values, executable plans, data views or authorization decisions.
+Engine shares existing per-command prepared-analysis retention for quoted
+bodies and checks live EXECUTE/invoker authority and data. Eligible terminal
+SELECT uses first-row demand; nonterminal/VOID SELECT and every DML command run
+fully. Required sort/aggregate/auxiliary work remains query/DML-owned. No row
+yields typed NULL. Persistence writes quoted declarations or actual standard
+bodies with checked current identities/implicit usages, never invocation values,
+opened executors, data snapshots or permission decisions.
 
 Invocation borrows the same admitted engine statement scope. A balanced lexical
 activation guard saves/restores query, parameter, view and protocol scratch;
@@ -67,6 +74,8 @@ make check REFERENCE=1 RUN='^TestReferenceRoutineCore(CreationAndCalls|Resolutio
 make check RUN='^TestReferenceRoutineReview(ClosedFormals|ReturnReanalysis|Recursion|MutualRecursion)$'
 make check REFERENCE=1 RUN='^TestReferenceRoutineReview(ClosedFormals|ReturnReanalysis|Recursion|MutualRecursion)$'
 make check RACE=1 RUN='^TestSQLRoutine(ClosedFormalBoundary|ReturnContract|DepthUnwind|ResultScratchUnwind)$'
+make check RUN='^TestReferenceRoutineSQLBodies(Statements|Arguments|Standard|Void|Validation|Restrictions|Atomicity|Dependencies|Persistence|ProcedureDeclarations|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineSQLBodies(Statements|Arguments|Standard|Void|Validation|Restrictions|Atomicity|Dependencies|Persistence|ProcedureDeclarations|FeatureSmoke)$'
 ```
 
 The permanent selected feature smoke is

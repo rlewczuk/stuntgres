@@ -63,17 +63,22 @@ func routineAuthority(t *testing.T) {
 func routineExcludedDeclarations(t *testing.T) {
 	t.Helper()
 	routineScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		for _, tc := range []struct{ create, call string }{
+			{"CREATE FUNCTION routine_named(a integer) RETURNS integer LANGUAGE SQL AS $$SELECT a$$", "SELECT routine_named(4) AS v"},
+			{"CREATE FUNCTION routine_mode(IN integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_mode(4) AS v"},
+			{"CREATE FUNCTION routine_multi() RETURNS integer LANGUAGE SQL AS $$SELECT 1; SELECT 4$$", "SELECT routine_multi() AS v"},
+		} {
+			routineExec(t, p, b, c, tc.create)
+			routineValue(t, p, b, c, tc.call, "v", "INT4", int64(4))
+		}
 		for _, tc := range []struct {
 			create, call string
 			value        int64
 		}{
-			{"CREATE FUNCTION routine_named(a integer) RETURNS integer LANGUAGE SQL AS $$SELECT a$$", "SELECT routine_named(4) AS v", 4},
-			{"CREATE FUNCTION routine_mode(IN integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_mode(4) AS v", 4},
 			{"CREATE FUNCTION routine_default(integer DEFAULT 4) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_default() AS v", 4},
 			{"CREATE OR REPLACE FUNCTION routine_replace(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$", "SELECT routine_replace(4) AS v", 4},
 			{"CREATE FUNCTION routine_strict(integer) RETURNS integer LANGUAGE SQL STRICT AS $$SELECT $1$$", "SELECT routine_strict(4) AS v", 4},
 			{"CREATE FUNCTION routine_security(integer) RETURNS integer LANGUAGE SQL SECURITY DEFINER AS $$SELECT $1$$", "SELECT routine_security(4) AS v", 4},
-			{"CREATE FUNCTION routine_multi() RETURNS integer LANGUAGE SQL AS $$SELECT 1; SELECT 4$$", "SELECT routine_multi() AS v", 4},
 		} {
 			if b.PG {
 				routineExec(t, p, b, c, tc.create)

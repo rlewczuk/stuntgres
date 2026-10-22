@@ -172,7 +172,7 @@ func (b *Binder) BindValues(source *parser.ValuesQuery, identityDiscard bool) (*
 	nodes := make([][]expr.Expr, len(source.Rows))
 	rawRows := make([][]parser.Expr, len(source.Rows))
 	var lists []expandedExpressionList
-	if b.Params.NoParameters || b.Consumer.materializedDefinition {
+	if b.Params.NoParameters || b.Consumer.frozenDefinition {
 		lists = make([]expandedExpressionList, len(source.Rows))
 	}
 	for i, written := range source.Rows {
@@ -273,7 +273,7 @@ func (b *Binder) BindValues(source *parser.ValuesQuery, identityDiscard bool) (*
 	if err != nil {
 		return nil, err
 	}
-	if b.Params.NoParameters || b.Consumer.materializedDefinition {
+	if b.Params.NoParameters || b.Consumer.frozenDefinition {
 		if source.Order != nil {
 			for i, key := range source.Order.Keys {
 				if err := b.captureValuesViewLiteral(key.Expr, order[i].Expression, ViewValuesOrderLiteral, occurrence, 0, i); err != nil {

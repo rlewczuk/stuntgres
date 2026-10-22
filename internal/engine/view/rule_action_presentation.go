@@ -38,28 +38,33 @@ func freezeRuleActionPresentation(catalogView catalog.Read, owner ids.SessionTok
 	case *parser.Delete:
 		query.From = syntax.Using
 	}
-	var expressions []expr.Expr
-	for _, row := range b.Expressions {
-		expressions = append(expressions, row...)
+	if syntax, ok := action.(*parser.Merge); ok {
+		query.From = syntax.Source
 	}
+	var expressions []expr.Expr
+	stored.VisitRuleActionExpressions(b, func(node expr.Expr) { expressions = append(expressions, node) })
 	var from plan.Node
 	if b.Update != nil {
 		from = b.Update.From
-		expressions = append(expressions, b.Update.Assignments...)
-		if b.Update.Predicate != nil {
-			expressions = append(expressions, b.Update.Predicate)
-		}
 	}
 	if b.Delete.Using != nil {
 		from = b.Delete.Using
 	}
-	if b.Predicate != nil {
-		expressions = append(expressions, b.Predicate)
+	if b.Merge != nil {
+		from = b.Merge.Source
 	}
-	if b.Returning != nil {
-		expressions = append(expressions, b.Returning.Expressions...)
-	}
-	if from == nil {
+	// Correlated mutation subqueries see the installed target row followed
+	// by FROM/USING slots. Keep that lexical row in the presentation too;
+	// it is not a second source occurrence or an executable join.
+	if b.Relation != nil {
+		target := &plan.SingletonNode{QuerySchema: b.Relation.Columns}
+		if from == nil {
+			from = target
+		} else {
+			schema := append(append(plan.QuerySchema(nil), target.Schema()...), from.Schema()...)
+			from = &plan.JoinNode{QuerySchema: schema, Left: target, Right: from, LeftWidth: len(target.Schema()), RightWidth: len(from.Schema())}
+		}
+	} else if from == nil {
 		from = &plan.SingletonNode{}
 	}
 	metadata.Query = &plan.Query{Root: &plan.ProjectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
@@ -68,7 +73,10 @@ func freezeRuleActionPresentation(catalogView catalog.Read, owner ids.SessionTok
 	if err != nil {
 		return nil, err
 	}
-	return presentation.With(func(p *stored.ViewParts) { p.Frames[1] = metadata.Query.Root.(*plan.ProjectNode) }), nil
+	return presentation.With(func(p *stored.ViewParts) {
+		p.Frames[1] = metadata.Query.Root.(*plan.ProjectNode)
+		p.MutationFrame = b.Relation != nil
+	}), nil
 }
 
 // freezeRuleModifierPresentations freezes the presentation of every

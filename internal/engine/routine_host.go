@@ -45,7 +45,7 @@ func (h ddlHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, 
 // BindSQLRoutine binds d's body with the stage's definitions in place of the
 // operation's. Restore defers SQL body validation until the import ends.
 func (h ddlHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
-	if operationReplayOrZero(h.op).sqlBodies {
+	if operationReplayOrZero(h.op).sqlBodies && !d.SQL.Standard {
 		return nil
 	}
 	previous := h.op.Definition

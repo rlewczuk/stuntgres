@@ -37,7 +37,7 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 	}
 	if raw != nil {
 		switch raw.(type) {
-		case parser.InListExpr, parser.CastExpr, parser.AggregateExpr, parser.FunctionExpr:
+		case parser.InListExpr, parser.CastExpr, parser.AggregateExpr, parser.FunctionExpr, parser.ColumnExpr:
 			if lowered, ok := b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}]; ok {
 				raw, changed = lowered, true
 			}

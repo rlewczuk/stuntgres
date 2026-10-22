@@ -120,6 +120,33 @@ func RefreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalo
 	if err != nil {
 		return b, err
 	}
+	if b.Merge != nil {
+		mapper := NewRuleTreeMapper(catalog, nil, 0, nil, RuleTreeMapping{Leaf: leaf})
+		mapped, mapErr := MapRuleBindingRecipes(analyze.Binding{Merge: b.Merge}, mapper)
+		if mapErr != nil {
+			return b, mapErr
+		}
+		merge := *mapped.Merge
+		merge.InsertTargets, err = slots(merge.InsertTargets)
+		if err != nil {
+			return b, err
+		}
+		merge.UpdateTargets, err = slots(merge.UpdateTargets)
+		if err != nil {
+			return b, err
+		}
+		merge.TargetWidth = len(current.Columns)
+		for i := range merge.Arms {
+			if merge.Arms[i].Input.Relation == nil {
+				continue
+			}
+			merge.Arms[i].Input, err = RefreshRuleBinding(catalog, merge.Arms[i].Input, current)
+			if err != nil {
+				return b, err
+			}
+		}
+		b.Merge = &merge
+	}
 	b.Relation = current
 	return b, nil
 }

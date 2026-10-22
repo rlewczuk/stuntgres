@@ -99,8 +99,8 @@ use real SQL routine identities, not kernel aliases.
 
 Owner/schema-owner checks, EXECUTE-only denial, seeded/extension protection,
 read-only-first admission and the native explicit-transaction boundary are
-independently asserted. Procedure/trigger creation and SQL-standard parsed bodies
-remain outside native scope; descriptor selector units cover incumbent kinds.
+independently asserted. Procedure declarations and SQL-standard bodies are covered
+by the ordered-body scenarios below; CALL/trigger creation remains separate.
 Quoted callers survive callee deletion without invented body edges. Native
 Dump/Reset/Restore and exact emitted PostgreSQL replay preserve unresolved callers;
 callee recreation restores14/INT4. Missing operator/table/type, ambiguity,
@@ -157,6 +157,74 @@ make check RUN='^TestReferenceRoutineDropFeatureSmoke$' REFERENCE=1
 Expect RESTRICT2BP01, precise CASCADE, missing NOTICE00000, procedure wrong-kind
 42809, surviving held104/INT8, dangling-caller replay and recreation14/INT4.
 These are proof requirements, not a claim that an author ran them.
+
+### Ordered SQL routine bodies
+
+`TestReferenceRoutineSQLBodies*` extends the scalar contract with shared
+function/procedure declarations, named/qualified/positional IN formals, VOID,
+quoted ordered scripts and checked SQL-standard RETURN/BEGIN ATOMIC bodies.
+CALL and ALTER routine lifecycle DDL remain separate unsupported capabilities;
+procedures cannot execute as scalar expressions.
+
+The independent witnesses assert:
+
+- Held DML→SELECT calls see their own writes and return 15 then 20/INT4.
+  Final INSERT/UPDATE/DELETE/MERGE RETURNING completes every required write,
+  including rejection/rollback of a later invalid row.
+- Columns and real aliases precede formal fallback, including genuine ambiguous
+  columns. Nested/CTE formals retain the same closed typed slot boundary.
+- Standard RETURN defaults LANGUAGE SQL; nonterminal RETURN does not terminate
+  an ATOMIC body. Empty VOID bodies are accepted. SQL VOID has a NULL cell,
+  unknown nullable/length/decimal flags, oracle ScanType `interface {}` and native
+  ScanType `string` (the existing native VOID codec); both return a NULL cell.
+  full discarded nextval output advances three times.
+- Default CREATE validation never executes effects. After a quoted body source
+  changes from integer to text, the first nextval runs before terminal recheck
+  fails with 42P13 statement 2, even on empty input.
+- COMMIT/SAVEPOINT fail at reached quoted execution; standard utilities fail at
+  declaration. Full primary/detail/position/context and prepare/execute stages
+  are specified independently, not copied from native output.
+- Prefix writes roll back on late/outer errors and active cancellation; explicit
+  transactions remain private and rollback cleanly on the same physical owner.
+- Checked table/view captures survive existing rename/shadow routes; hard DROP
+  dependencies and selected bigint overload1001 differ from a fresh integer
+  overload2001. Quoted source names remain soft and can rebind after DROP.
+- Named function/procedure/body forms and dependencies survive two native
+  Dump/Reset/Restore rounds. Real mode replays actual native bytes unchanged on
+  pinned PostgreSQL; invalid/canceled replacement preserves live state.
+- Review regressions `FrozenAuthority`, `MergeCaptures`, and `NestedPersistence`
+  specify current invoker privileges for held standard callers, captured MERGE
+  ON/WHEN/action/RETURNING and unexecuted arms, source/target rename and overload
+  retention, independently expected dependency edges, and nested formal queries
+  in SELECT and mutation recipes across both replacement rounds and emitted SQL.
+  Their oracle discovery and native-red evidence precede the production remedy.
+  `FrozenAuthority` expects1008,42501,1008 across each revoke/restore and a
+  fresh integer-overload result2008. `NestedPersistence` expects SELECT5,
+  mutation result9/stored5, a column1-only normal dependency and soft-source
+  rebinding23→29 after each round. `MergeCaptures` expects scalar1001 and sorted
+  target `(1,15),(2,20),(3,17),(5,50)`. Its dormant callee appears only in an
+  unreachable UPDATE action; a separate exact-key MERGE supplies BY SOURCE
+  DELETE/DO NOTHING without requiring new full-join predicate support.
+  RESTRICT/pg_depend are checked per replacement; destructive dormant CASCADE
+  follows the final native round and each independent emitted PostgreSQL replay.
+
+Root-run selected proof, external 900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceRoutineSQLBodies(Statements|Arguments|Standard|Void|Validation|Restrictions|Atomicity|Dependencies|Persistence|ProcedureDeclarations|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineSQLBodies(Statements|Arguments|Standard|Void|Validation|Restrictions|Atomicity|Dependencies|Persistence|ProcedureDeclarations|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineSQLBodies(FrozenAuthority|MergeCaptures|NestedPersistence)$'
+make check RUN='^TestReferenceRoutineSQLBodies(FrozenAuthority|MergeCaptures|NestedPersistence)$'
+make check RUN='^TestRoutine(FormalRemapBoundary|NestedRemapExactlyOnce|AddressProjectionRemapBoundary|ProgramCaptureValidation|MergeCaptureValidation|ActionValidationBoundary)$' RACE=1
+make check RUN='^TestViewPartsRoundTrip$'
+make check RUN='^TestReferenceRoutineCoreDiagnostics$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineCoreDiagnostics$'
+```
+
+The feature smoke suffix checks held results15/20, RETURN5, and a VOID update
+leaving balance21. Initial bounded oracle discovery was run before production
+edits and its PG-only filter removed before observed native-red. Selectors
+describe required proof, not a claim that the completed candidate passed.
 
 
 ### Internal char conditional equality

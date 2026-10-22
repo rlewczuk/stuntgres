@@ -45,7 +45,7 @@ func (b *Binder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
 					left[i] = ComparisonOperand{Node: field}
 				}
 				leftExpansions = constructor.Expansions
-				if b.Params.NoParameters || b.Consumer.materializedDefinition {
+				if b.Params.NoParameters || b.Consumer.frozenDefinition {
 					erasedLeftType = constructor.Usage.Type.ID()
 					leftConstructor, err = b.normalizeQuantifiedConstructor(raw.Left, constructor)
 					if err != nil {

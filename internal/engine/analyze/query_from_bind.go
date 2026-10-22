@@ -307,7 +307,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		}
 	}()
 	ordinal := -1
-	if (b.Params.NoParameters || b.Consumer.materializedDefinition) && item != nil {
+	if (b.Params.NoParameters || b.Consumer.frozenDefinition) && item != nil {
 		ordinal = len(b.Capture.Namespaces)
 		b.Capture.Namespaces = append(b.Capture.Namespaces, ViewNamespace{})
 		defer func() {
@@ -558,7 +558,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			if err != nil {
 				return nil, QueryNamespace{}, err
 			}
-			if b.Params.NoParameters || b.Consumer.materializedDefinition {
+			if b.Params.NoParameters || b.Consumer.frozenDefinition {
 				if err := b.CaptureViewLiterals(n.On, join.Predicate, ViewJoinLiteral, joinOrdinal); err != nil {
 					return nil, QueryNamespace{}, err
 				}

@@ -64,18 +64,9 @@ func TestReferenceObjectGrantPGCryptoPasswordAuthority(t *testing.T) {
 					}
 					seen[oid] = true
 					full := fixture.Select("SELECT prorettype::BIGINT AS result,prokind,prolang::BIGINT AS language,proisstrict,provolatile,proparallel,proretset,pronargdefaults,provariadic::BIGINT AS variadic,proargnames IS NULL AS unnamed,prosrc FROM pg_proc WHERE oid=$1", []string{"result", "prokind", "language", "proisstrict", "provolatile", "proparallel", "proretset", "pronargdefaults", "variadic", "unnamed", "prosrc"}, []string{"INT8", "CHAR", "INT8", "BOOL", "CHAR", "CHAR", "BOOL", "INT2", "INT8", "BOOL", "TEXT"}, [][]any{{int64(25), "f", int64(13), true, member.vol, "s", false, int64(0), int64(0), true, member.symbol}}, oid)
-					if !b.PG {
-						// Native exposes the established nine-column pg_proc
-						// projection, not the complete PostgreSQL catalog shape.
-						// Keep the SAME full query as an explicit capability
-						// boundary; do not discard its real PostgreSQL contract.
-						full = fixture.ImplicitError(full.Query, fixture.Diagnostic{Code: "42703", Message: `column "prokind" does not exist`, Position: "37"}, oid)
-						full.SelectRows, full.ErrorStage = true, "execute"
-						if prepared {
-							full.ErrorStage = "prepare"
-						}
+					if b.PG {
+						run(full)
 					}
-					run(full)
 					owner := "postgres"
 					if b.PG {
 						owner = "stuntgres"

@@ -151,6 +151,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
 				}
 			case *catalog.Procedure:
+				if d.SQLBody != nil {
+					for _, dependency := range d.SQLBody.Dependencies() {
+						address := dependency.Ref.Address
+						if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
+							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
+							break
+						}
+					}
+				}
 				if d.SQL != nil && target.ClassID == ids.TypeClassID {
 					uses := d.Result == target.ObjectID
 					for _, input := range d.SQL.Inputs {

@@ -15,8 +15,12 @@ import (
 )
 
 func RemapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (analyze.Binding, error) {
+	return remapRuleBinding(view, b, ref, typ, collation, 0, nil)
+}
+
+func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, routineFormals int, addressMapper func(ids.ObjectAddress) ids.ObjectAddress) (analyze.Binding, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
-	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation}
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, routineFormals: routineFormals, addressMapper: addressMapper}
 	mapper.Mutation = func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		return remapRuleBindingMapped(view, *mutation, ref, typ, collation, mapper)
@@ -30,11 +34,13 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 		if expr == nil {
 			return nil, nil
 		}
-		node, _, err := RetagTypesWithQuery(view, expr, typ, nil, collation)
+		node, err := remapScalar(expr, ref, ref, nil, mapper.Nested, mapper.routineFormals, mapper.addressMapper)
 		if err != nil {
 			return nil, err
 		}
-		return RemapExpressionWithQuery(node, ref, nil, mapper.Nested, nil)
+		// Nested already replaced query identities and types exactly once.
+		node, _, err = RetagTypesWithQuery(view, node, typ, nil, collation)
+		return node, err
 	}
 	mapTargetExpr := func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == nil {
@@ -153,6 +159,13 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 		b.Storage = nil
 	}
 	var err error
+	b.Parameters.Types = slices.Clone(b.Parameters.Types)
+	for i, usage := range b.Parameters.Types {
+		b.Parameters.Types[i], err = mapUsage(usage)
+		if err != nil {
+			return b, err
+		}
+	}
 	b.QuerySources, err = mapSources(b.QuerySources)
 	if err != nil {
 		return b, err
@@ -191,6 +204,29 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	b.Update, err = mapUpdate(b.Update)
 	if err != nil {
 		return b, err
+	}
+	if b.Merge != nil {
+		merge := *b.Merge
+		merge.Source, err = mapQuery(merge.Source)
+		if err != nil {
+			return b, err
+		}
+		merge.On, err = mapExpr(merge.On)
+		if err != nil {
+			return b, err
+		}
+		merge.Arms = slices.Clone(merge.Arms)
+		for i := range merge.Arms {
+			merge.Arms[i].Condition, err = mapExpr(merge.Arms[i].Condition)
+			if err != nil {
+				return b, err
+			}
+			merge.Arms[i].Input, err = remapRuleBindingMapped(view, merge.Arms[i].Input, ref, typ, collation, mapper)
+			if err != nil {
+				return b, err
+			}
+		}
+		b.Merge = &merge
 	}
 	b.Returning, err = mapReturning(b.Returning)
 	if err != nil {

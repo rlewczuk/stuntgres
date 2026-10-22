@@ -32,7 +32,8 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	inputs := make([]sqltype.Usage, len(s.Arguments))
 	signature := make([]string, len(inputs))
-	resolve := func(raw parser.TypeName) (sqltype.Usage, error) {
+	names := make([]string, len(inputs))
+	resolve := func(raw parser.TypeName, result bool) (sqltype.Usage, error) {
 		if raw.Setof {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "set-returning SQL functions are unsupported", raw.Pos)
 		}
@@ -47,27 +48,40 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		if !ok || !typ.Concrete() || typ.BaseType().IsComposite() {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete scalar types", raw.Pos)
 		}
-		if facts, known := typ.PGTypeMetadata(); known && facts.Kind == "p" {
+		if facts, known := typ.PGTypeMetadata(); known && facts.Kind == "p" && !(result && typ.ID() == sqltype.Void) {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL function pseudo-types are unsupported", raw.Pos)
 		}
 		return typ.Usage(), nil
 	}
 	for i, arg := range s.Arguments {
-		if arg.Name.Text != "" || arg.Mode != "" {
-			return expr.ErrorAt("0A000", "named and mode function arguments are unsupported", arg.Pos)
+		if arg.Mode != "" && arg.Mode != "in" {
+			return expr.ErrorAt("0A000", "OUT and INOUT function arguments are unsupported", arg.Pos)
 		}
-		inputs[i], err = resolve(arg.Type)
+		names[i] = arg.Name.Text
+		for _, earlier := range names[:i] {
+			if earlier != "" && earlier == names[i] {
+				return expr.ErrorAt("42P13", fmt.Sprintf("parameter name %q used more than once", names[i]), arg.Pos)
+			}
+		}
+		inputs[i], err = resolve(arg.Type, false)
 		if err != nil {
 			return err
 		}
 		signature[i] = strconv.FormatUint(uint64(inputs[i].Type.ID()), 10)
 	}
-	result, err := resolve(s.Result)
+	resultSyntax := s.Result
+	if s.Procedure {
+		resultSyntax = parser.TypeName{Name: "void"}
+	}
+	result, err := resolve(resultSyntax, true)
 	if err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}
+	if s.Procedure {
+		d.RoutineKind = catalog.ProcedureRoutine
+	}
 	if h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
 		return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", name))
 	}
@@ -86,6 +100,10 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		return err
 	}
 	d.SQL = definition
+	definition.Name, definition.Names = name, names
+	if s.Standard != nil {
+		definition.Standard, definition.Statements = true, s.Standard
+	}
 	oid, err := h.AllocateOID()
 	if err != nil {
 		return err
@@ -101,7 +119,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	err = h.BindSQLRoutine(auth, d, input)
 	var diagnostic *sqlstate.Error
-	if errors.As(err, &diagnostic) && diagnostic.Code == "42P02" {
+	if errors.As(err, &diagnostic) && diagnostic.Code == "42P02" && !d.SQL.Standard {
 		copy := *diagnostic
 		if n, parseErr := strconv.Atoi(copy.Position); parseErr == nil {
 			copy.Position = strconv.Itoa(s.BodyPos.Character + 1 + n)

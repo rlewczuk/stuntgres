@@ -183,6 +183,22 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 	binder.Consumer.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot || b.VisibilitySnapshot
 	b.SubqueryDemand = binder.Query.subqueryDemand
 	b.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot
+	if binder.Consumer.frozenDefinition {
+		// Capture and presentation must share the same normalized syntax:
+		// named routine formals are typed parameters, never missing columns.
+		switch syntax := statement.(type) {
+		case *parser.Merge:
+			syntax.Source = binder.normalizeInListFrom(syntax.Source)
+		case *parser.Update:
+			syntax.From = binder.normalizeInListFrom(syntax.From)
+		case *parser.Delete:
+			syntax.Using = binder.normalizeInListFrom(syntax.Using)
+		case *parser.Insert:
+			if syntax.Source != nil && syntax.Source.Values != nil {
+				syntax.Source.Values = binder.normalizeInListValues(syntax.Source.Values)
+			}
+		}
+	}
 	return b, nil
 }
 

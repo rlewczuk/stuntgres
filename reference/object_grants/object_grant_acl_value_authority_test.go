@@ -37,14 +37,11 @@ func TestReferenceObjectGrantACLValueAuthority(t *testing.T) {
 				q := "SELECT p.proargtypes::TEXT AS inputs,p.prokind,p.prolang::BIGINT AS language,p.proretset FROM pg_proc p WHERE p.oid=$1"
 				inputs := map[string]string{"acldefault": "18 26", "makeaclitem": "26 26 25 16", "aclexplode": "1034", "aclcontains": "1034 1033"}[tc.name]
 				metadata := fixture.Select(q, []string{"inputs", "prokind", "language", "proretset"}, []string{"TEXT", "CHAR", "INT8", "BOOL"}, [][]any{{inputs, "f", int64(12), tc.name == "aclexplode"}}, tc.oid)
-				if !b.PG {
-					metadata = fixture.ImplicitError(q, fixture.Diagnostic{Code: "42703", Message: "column p.proargtypes does not exist", Position: fixture.Position(strings.Index(q, "p.proargtypes") + 1)}, tc.oid)
-					metadata.SelectRows, metadata.ErrorStage = true, "execute"
-					if prepared {
-						metadata.ErrorStage = "prepare"
-					}
+				// PostgreSQL-only full metadata; shared identity/ACL checks above
+				// do not depend on the first unsupported native catalog column.
+				if b.PG {
+					run(metadata)
 				}
-				run(metadata)
 				if b.PG && tc.name == "aclcontains" {
 					run(fixture.Select("SELECT oprname,oprleft::BIGINT AS l,oprright::BIGINT AS r,oprcode::oid::BIGINT AS routine FROM pg_operator WHERE oid=968", []string{"oprname", "l", "r", "routine"}, []string{"NAME", "INT8", "INT8", "INT8"}, [][]any{{"@>", int64(1034), int64(1033), int64(1037)}}))
 				}

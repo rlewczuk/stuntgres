@@ -130,7 +130,7 @@ func (b *Binder) BindGroupClause(raw *parser.GroupClause, projection []expr.Expr
 		if err != nil {
 			return out, err
 		}
-		if (b.Params.NoParameters || b.Consumer.materializedDefinition) && !isOrdinal {
+		if (b.Params.NoParameters || b.Consumer.frozenDefinition) && !isOrdinal {
 			if err := b.CaptureViewLiterals(item.Expr, key, ViewGroupLiteral, leaf); err != nil {
 				return out, err
 			}

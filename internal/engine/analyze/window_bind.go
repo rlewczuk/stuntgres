@@ -332,7 +332,7 @@ func (b *Binder) resolveWindowDefinitions() error {
 			return err
 		}
 		spec.Definition = definitionIndex + 1
-		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+		if b.Params.NoParameters || b.Consumer.frozenDefinition {
 			ordinal := 0
 			path := ViewLiteralPath{Query: b.FrameID(), Clause: ViewWindowLiteral, Target: definitionIndex}
 			for i, key := range definition.Spec.Partition {

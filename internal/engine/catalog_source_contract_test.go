@@ -403,7 +403,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	stableAttributes := map[ids.OID][]int32{
-		1255: {1, 2, 3, 4, 17, 19, 15, 13, 16},
+		1255: {1, 2, 3, 4, 17, 19, 15, 13, 16, 12, 23},
 		2610: {1, 2, 5, 7, 11, 13, 14, 6},
 	}
 	for _, descriptor := range view.Descriptors() {

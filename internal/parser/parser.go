@@ -117,7 +117,7 @@ func (l *lexer) validateInsertValues(values *ValuesQuery) bool {
 		return true
 	}
 	replay := &lexer{input: l.input, offset: values.Pos.Offset + len("values"), options: l.options,
-		backslashEscapes: l.backslashEscapes, insertScalarEntry: true, insertScalarEnd: values.rowEnd}
+		backslashEscapes: l.backslashEscapes, insertScalarEntry: true, insertScalarEnd: values.rowEnd, routineBodyDepth: l.routineBodyDepth}
 	if parseLexer(replay) != 0 || replay.err != nil {
 		l.err = replay.err
 		return false
@@ -537,7 +537,7 @@ func insertConflictKeys(keys []IndexKey) []IndexKey {
 func (l *lexer) scalarInput(expr Expr) bool {
 	// Raw qualification errors precede scalar consumer checks, including a
 	// later invalid cast beneath an otherwise unsupported conditional child.
-	if token, _ := nonqueryQualification(expr, false); token != nil {
+	if token, _ := nonqueryQualification(expr, false); token != nil && !l.options.ClosedRoutineFormals && l.routineBodyDepth == 0 {
 		l.syntax(*token)
 		return false
 	}
@@ -710,6 +710,9 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 		}
 		return true
 	case ColumnExpr:
+		if l.options.ClosedRoutineFormals || l.routineBodyDepth != 0 {
+			return true
+		}
 		l.failAt("0A000", "column references are unsupported in scalar inputs", r.Pos.Offset)
 		return false
 	default:

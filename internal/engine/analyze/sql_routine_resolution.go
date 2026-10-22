@@ -2,6 +2,8 @@ package analyze
 
 import (
 	"fmt"
+	"strings"
+	"stuntgres/internal/sqlstate"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -66,7 +68,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	hasSQL := false
 	for i := range path.Count() {
 		for d := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), name) {
-			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || seen[d.Signature] {
+			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || seen[d.Signature] {
 				continue
 			}
 			seen[d.Signature] = true
@@ -343,6 +345,16 @@ func SelectSQLCallables(candidates []SQLCallable, operands []ComparisonOperand, 
 func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallableSelection, original parser.Expr, policy ExpressionPolicy) (expr.Expr, error) {
 	d := selected.Procedure
 	if d != nil && d.SQL != nil {
+		if d.RoutineKind == catalog.ProcedureRoutine {
+			diagnostic := expr.ErrorAt("42809", catalog.ObjectNameText(raw.Name)+"("+string(d.Signature)+") is a procedure", raw.Pos).(*sqlstate.Error)
+			types := make([]string, len(d.SQL.Inputs))
+			for i, input := range d.SQL.Inputs {
+				types[i] = input.Type.DiagnosticName()
+			}
+			diagnostic.Message = catalog.ObjectNameText(raw.Name) + "(" + strings.Join(types, ", ") + ") is a procedure"
+			diagnostic.Hint = "To call a procedure, use CALL."
+			return nil, diagnostic
+		}
 		modifier := ""
 		if raw.Distinct {
 			modifier = "DISTINCT"
@@ -363,7 +375,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		result, _ := b.authorityType(selected.auth, sqltype.ID(d.Result))
 		info := b.Info(result.Usage(), raw.Pos, selected.properties)
 		info.RoutineReference = d
-		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+		if b.Params.NoParameters || b.Consumer.frozenDefinition {
 			namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
 			if !ok {
 				return nil, fmt.Errorf("missing SQL routine namespace")

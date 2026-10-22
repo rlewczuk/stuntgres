@@ -190,7 +190,32 @@ func (b *Binder) FinalizeProjection(node expr.Expr) (expr.Expr, error) {
 	}
 	return b.CoerceParameter(p, b.Type(sqltype.Text).Usage())
 }
-func (b *Binder) Column(raw parser.ColumnExpr) (expr.Expr, error) {
+func (b *Binder) Column(raw parser.ColumnExpr) (node expr.Expr, err error) {
+	defer func() {
+		if err == nil || !b.Params.ClosedRoutineFormals {
+			return
+		}
+		diagnostic, ok := err.(*sqlstate.Error)
+		if !ok || diagnostic.Code != "42703" && diagnostic.Code != "42P01" {
+			return
+		}
+		parts := raw.Name.Parts
+		if len(parts) != 1 && (len(parts) != 2 || parts[0].Text != b.Params.RoutineName) {
+			return
+		}
+		for i, name := range b.Params.RoutineNames {
+			if name != "" && name == parts[len(parts)-1].Text {
+				node, err = b.Bind(parser.ParameterExpr{Number: i + 1, Pos: raw.Pos}, ExpressionPolicy{})
+				if err == nil && b.Consumer.frozenDefinition {
+					if b.Stored.Syntax == nil {
+						b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+					}
+					b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: raw.SourcePosition()}] = parser.ParameterExpr{Number: i + 1, Pos: raw.Pos}
+				}
+				return
+			}
+		}
+	}()
 	if b.Clause.DomainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
 		return plan.DomainValueExpr{Info: b.Info(*b.Clause.DomainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
 	}
@@ -631,7 +656,7 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			if b.Consumer.DefaultConsumer {
 				return nil, expr.ErrorAt("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
 			}
-			if policy.Context == AssignmentContext {
+			if policy.Context == AssignmentContext && !b.Params.ClosedRoutineFormals {
 				return nil, expr.ErrorAt("0A000", "column references outside SELECT are unsupported", r.Pos)
 			}
 			var err error

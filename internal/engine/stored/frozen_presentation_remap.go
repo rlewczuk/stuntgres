@@ -1,6 +1,7 @@
 package stored
 
 import (
+	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -10,8 +11,24 @@ import (
 )
 
 func RemapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*View, error) {
+	return remapView(view, original, mapping, ref, typ, collation, nil)
+}
+
+func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, addressMapper func(ids.ObjectAddress) ids.ObjectAddress) (*View, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
 	definition := *original
+	definition.routineInputs = slices.Clone(original.routineInputs)
+	for i, usage := range definition.routineInputs {
+		usage.Type = typ(usage.Type)
+		if collation != nil {
+			var err error
+			usage.Collation, err = collation(usage.Collation)
+			if err != nil {
+				return nil, err
+			}
+		}
+		definition.routineInputs[i] = usage
+	}
 	if len(original.columns) != 0 {
 		definition.columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(original.columns))
 		for path, column := range original.columns {
@@ -53,7 +70,7 @@ func RemapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 			if err != nil {
 				return nil, err
 			}
-			node, err = RemapExpression(node, ref, nil)
+			node, err = remapScalar(node, ref, ref, nil, nil, 0, addressMapper)
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +120,14 @@ func RemapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 			definition.dependencies[i].Revision = procedure.Revision()
 		}
 	}
-	root, err := RemapViewQuery(view, original.query.Root, ref, typ, collation)
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, routineFormals: len(original.routineInputs), addressMapper: addressMapper}
+	var root plan.Node
+	var err error
+	if _, project := original.query.Root.(*plan.ProjectNode); project {
+		root, err = mapper.Nested(original.query.Root)
+	} else {
+		root, err = mapper.Query(original.query.Root)
+	}
 	if err != nil {
 		return nil, err
 	}

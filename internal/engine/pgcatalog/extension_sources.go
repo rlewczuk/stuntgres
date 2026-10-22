@@ -95,6 +95,19 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 				}
 			}
 			text(8, parallel)
+			text(9, string(d.RoutineKind))
+			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
+			if d.SQL != nil {
+				named := false
+				elements := make([]sqltype.Value, len(d.SQL.Names))
+				for i, name := range d.SQL.Names {
+					named = named || name != ""
+					elements[i] = sqltype.String(source.Columns[10].Usage.Type.Element(), name)
+				}
+				if named {
+					row[10], valueErr = sqltype.OwnedArrayValue(source.Columns[10].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
+				}
+			}
 		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())

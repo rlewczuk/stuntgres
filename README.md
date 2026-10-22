@@ -195,26 +195,30 @@ and [selected checks and smoke](reference/tables/README.md#list-partition-defini
 
 ## Scalar SQL routines — change note
 
-Basic `CREATE FUNCTION` accepts anonymous positional typed arguments, a concrete
-scalar result and one SQL SELECT body:
+`CREATE FUNCTION` accepts anonymous or named scalar IN arguments, scalar/VOID
+results, quoted multi-command SQL and definition-analyzed RETURN/BEGIN ATOMIC:
 
 ```sql
 CREATE FUNCTION add1(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+1$$;
 SELECT add1(4); -- 5, INT4
 ```
 
-Direct and prepared calls use ordinary namespace/signature resolution, implicit
-argument conversion and live EXECUTE/invoker permissions. Bodies retain existing
-SELECT capabilities, including modifying CTEs under the caller's atomic statement
-owner. The first result row is assignment-converted to the declared type; no row
-returns typed NULL. CREATE validates without executing the body.
+Direct/prepared calls use ordinary signature resolution and live invoker/EXECUTE
+checks. Named, routine-qualified and positional formals share private typed
+slots, after real column lookup. Commands execute sequentially under the caller's
+one atomic statement owner. Only the actual final SELECT or DML RETURNING supplies
+a nonvoid result; terminal DML completes every write before returning the first
+row. VOID completes all required output evaluation and yields SQL NULL.
+CREATE validates without effects. Quoted bodies prepare reached commands at
+invocation; standard bodies retain checked identities, selected overloads and
+hard dependencies through existing relation/view renames and native replay.
 
 `DROP FUNCTION`, `DROP PROCEDURE` and generic `DROP ROUTINE` select exact catalog
 input signatures (or an unambiguous bare name), with grouped atomic deletion,
 `IF EXISTS` notices and default `RESTRICT` / explicit `CASCADE`. Dependency
 removal preserves unrelated overloads, rows and containing tables while removing
 dependent views, defaults and constraints. DROP authority is routine or schema
-ownership, not EXECUTE. Procedure creation/CALL remain excluded.
+ownership, not EXECUTE. Procedure declarations are supported; CALL remains separate.
 
 Quoted-body callers do not acquire hard dependencies on callees: dropping a
 callee leaves the caller installed but unresolved until recreation. Dump/Restore
@@ -222,11 +226,12 @@ preserves that state; private replay defers only a structured terminal missing
 call, never arbitrary SQLSTATE 42883. Parsing and closed formal bounds still
 validate; checks prevented by the missing call run when invocation can bind it.
 
-Native Dump/Restore preserves declarations, nested calls, views, defaults and
-ordinary data, including text-body/table-default cycles. Actual emitted SQL also
-replays on pinned PostgreSQL18.6. Named/mode/default/variadic declarations,
-OR REPLACE, procedures/CALL, PL/pgSQL, attributes/security clauses and set/composite
-returns remain excluded. This does not expand the bounded `pg_language` inventory.
+SQL procedure declarations share validation/catalog/persistence but cannot be
+called as expressions; CALL execution remains separate. Native Dump/Restore
+preserves body form, names, dependencies, callers and data, including text-body
+default cycles. OUT/INOUT/default/variadic declarations, OR REPLACE, ALTER routine
+lifecycle DDL, PL/pgSQL, attributes/security clauses and set/composite returns
+remain excluded. The bounded `pg_language` inventory is unchanged.
 See [native boundaries](docs/DIALECT.md#scalar-sql-routines),
 [fixture replay](docs/FIXTURES.md#sql-routine-declarations-and-callers), and
 [selected proof and smoke](reference/query_core/README.md#scalar-sql-routine-contract).

@@ -120,7 +120,7 @@ func (b *Binder) bindStringTable(raw *parser.FunctionTable) (plan.Node, QueryNam
 		}
 		calls[i] = bound
 		schema[i] = catalog.Column{Name: "string_to_table", Usage: bound.ResultUsage()}
-		if b.Params.NoParameters || b.Consumer.materializedDefinition {
+		if b.Params.NoParameters || b.Consumer.frozenDefinition {
 			if err := b.CaptureViewLiterals(call, bound, ViewFunctionLiteral, ordinal+i); err != nil {
 				return nil, QueryNamespace{}, err
 			}

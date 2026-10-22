@@ -19,11 +19,13 @@ type View struct {
 	query             *plan.Query
 	syntax            *parser.Select
 	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
+	mutationFrame     bool        // Synthetic frame 1 includes a mutation target row.
 	sources           []ViewLeaf
 	dependencies      []catalog.ExpressionDependency
 	sequenceRefs      map[int]ids.ObjectRef
 	literals          map[analyze.ViewLiteralPath]plan.LiteralExpr
 	castUsages        map[analyze.ViewLiteralPath]sqltype.Usage
+	routineInputs     []sqltype.Usage // Non-nil only for a routine command presentation.
 	routineRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
 	operatorRefs      map[analyze.ViewLiteralPath]ids.ObjectRef
 	composites        map[analyze.ViewLiteralPath]analyze.TypeOccurrence
@@ -54,6 +56,26 @@ type ViewLeaf struct {
 	Reads        []int32
 	AnalysisOnly bool
 	Mark         plan.RowMark
+}
+
+// fromRoot pairs retained FROM syntax with its checked source graph. Mutation
+// frame 1 also owns target slots, which are lexical input, not FROM syntax.
+func (v *View) fromRoot(project *plan.ProjectNode) (plan.Node, error) {
+	if project == nil || project.Syntax == nil {
+		return nil, fmt.Errorf("stuntgres: missing stored source frame")
+	}
+	root := analyze.ViewFromRoot(project)
+	if !v.mutationFrame || project.Frame != 1 || project.Syntax.From == nil {
+		return root, nil
+	}
+	join, ok := root.(*plan.JoinNode)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: missing mutation source frame")
+	}
+	if _, ok := join.Left.(*plan.SingletonNode); !ok {
+		return nil, fmt.Errorf("stuntgres: invalid mutation target frame")
+	}
+	return join.Right, nil
 }
 
 func ViewOptions(options []parser.ViewOption) (barrier, invoker bool, mode CheckMode, err error) {

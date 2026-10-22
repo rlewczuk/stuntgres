@@ -79,16 +79,9 @@ func TestReferenceObjectGrantPGCryptoCipherAuthority(t *testing.T) {
 					}
 					seen[oid] = true
 					full := fixture.Select("SELECT prorettype::BIGINT AS result,prokind,prolang::BIGINT AS language,proisstrict,provolatile,proparallel,proretset,pronargdefaults,provariadic::BIGINT AS variadic,proargnames IS NULL AS unnamed,prosrc FROM pg_proc WHERE oid=$1", []string{"result", "prokind", "language", "proisstrict", "provolatile", "proparallel", "proretset", "pronargdefaults", "variadic", "unnamed", "prosrc"}, []string{"INT8", "CHAR", "INT8", "BOOL", "CHAR", "CHAR", "BOOL", "INT2", "INT8", "BOOL", "TEXT"}, [][]any{{int64(17), "f", int64(13), true, "i", "s", false, int64(0), int64(0), true, member.symbol}}, oid)
-					if !b.PG {
-						// Same full query as password authority: native does not expose
-						// prokind. Root must capture the position for this actual query.
-						full = fixture.ImplicitError(full.Query, fixture.Diagnostic{Code: "42703", Message: `column "prokind" does not exist`, Position: "37"}, oid)
-						full.SelectRows, full.ErrorStage = true, "execute"
-						if prepared {
-							full.ErrorStage = "prepare"
-						}
+					if b.PG {
+						run(full)
 					}
-					run(full)
 					run(fixture.Select("SELECT p.oid::regprocedure::TEXT AS identity,p.pronargs,p.prorettype::BIGINT AS result,p.provolatile,p.proisstrict,p.proparallel,n.nspname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.oid=$1", []string{"identity", "pronargs", "result", "provolatile", "proisstrict", "proparallel", "nspname"}, []string{"TEXT", "INT2", "INT8", "CHAR", "BOOL", "CHAR", "NAME"}, [][]any{{identity, int64(len(member.columns)), int64(17), "i", true, "s", "og_cipher"}}, oid))
 					run(fixture.Select("SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid JOIN pg_namespace n ON n.oid=e.extnamespace WHERE d.classid=1255 AND d.objid=$1 AND d.objsubid=0 AND d.refclassid=3079 AND d.refobjsubid=0 AND d.deptype='e' AND e.extname='pgcrypto' AND e.extversion='1.4' AND e.extrelocatable AND n.nspname='og_cipher'", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}, oid))
 				}

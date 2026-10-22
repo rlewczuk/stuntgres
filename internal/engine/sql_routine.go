@@ -13,12 +13,16 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type sqlRoutineAnalysis struct {
-	definition  *proc.Definition
-	description StatementDescription
+	definition   *proc.Definition
+	descriptions []StatementDescription
+	statements   []parser.Statement // Immutable invocation syntax shares retained occurrence keys.
 }
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
@@ -29,24 +33,12 @@ func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires
 // a driver connection, starts a root command, calls Finish or ends the operation.
 func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage) (value sqltype.Value, err error) {
-	if err := parent.enterSQLRoutine(); err != nil {
+	if err = parent.enterSQLRoutine(); err != nil {
 		return value, err
 	}
 	defer parent.leaveSQLRoutine()
 	e := parent.engine()
-	// VOLATILE body queries start a fresh READ view of the command-visible
-	// catalog. The effect journal stays root-owned; only this immutable query
-	// capture joins lexical scratch and is restored on every unwind.
 	e.mu.Lock()
-	changes := parent.catalog
-	if changes == nil {
-		changes = parent.owner.Catalog
-	}
-	read := e.privateCatalogLocked(changes)
-	restore := parent.activateSQLRoutine(d.SQL.Inputs, read)
-	defer func() { err = restore(err) }()
-	parent.sqlRoutine.result = resultUsage
-	child := parent
 	auth, err := e.authorizationLocked(parent.op)
 	if err == nil {
 		_, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
@@ -54,64 +46,190 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege})
 		}
 	}
-	if err != nil {
-		e.mu.Unlock()
-		return value, err
+	changes := parent.catalog
+	if changes == nil {
+		changes = parent.owner.Catalog
 	}
-	if retained, ok := payloadOf(parent.op.Session).sqlRoutines[d.Address()]; ok && retained.definition == d.SQL {
-		description := retained.description
-		child.Expected = &description
-	}
+	read := e.privateCatalogLocked(changes)
+	retained := payloadOf(parent.op.Session).sqlRoutines[d.Address()]
 	e.mu.Unlock()
-	if err = child.selectPreparedAnalysis(d.SQL.Query); err != nil {
-		return value, err
-	}
-	if err = child.acquireRelation(d.SQL.Query, true); err != nil {
-		return value, err
-	}
-	if child.Expected == nil {
-		description, describeErr := e.describeOperation(child, d.SQL.Query)
-		if describeErr != nil {
-			return value, describeErr
-		}
-		child.Expected = &description
-	}
-	result, err := e.executeStatement(child, d.SQL.Query, len(frame.Parameters), func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
-		copy(dst, frame.Parameters)
-		return nil
-	})
 	if err != nil {
-		return value, err
+		return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
 	}
-	if result.Rows == nil {
-		return value, fmt.Errorf("SQL routine SELECT has no row relation")
-	}
-	defer func() {
-		closeErr := result.Rows.Close()
-		if err == nil {
-			err = closeErr
-		}
-	}()
-	row := []sqltype.Value{{}}
-	present, err := result.Rows.Next(parent.op.Context(), row)
-	if err != nil {
-		return value, err
-	}
-	if !present {
-		value = sqltype.Null(resultUsage.Type)
-	} else {
-		value, err = child.sqlRoutine.resultPlan.Apply(parent.op.Context(), row[0], child.input, child.output)
+	statements := d.SQL.Statements
+	var program *stored.RoutineProgram
+	if d.SQL.Standard {
+		program, err = stored.RoutineProgramOf(d)
 		if err != nil {
 			return value, err
+		}
+	} else if retained.definition == d.SQL {
+		statements = retained.statements
+	} else {
+		// Parse once for this invocation-analysis owner. Reusing immutable syntax
+		// preserves the pointer-keyed source/target occurrence manifest; command
+		// analysis still happens only as each command is reached.
+		statements, err = parser.ParseWithOptions(d.SQL.Source, parser.Options{StandardConformingStrings: true, ClosedRoutineFormals: true, FormalCount: len(d.SQL.Inputs)})
+		if err != nil {
+			return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
+		}
+	}
+	if retained.definition != d.SQL || len(retained.descriptions) != len(statements) {
+		retained = sqlRoutineAnalysis{definition: d.SQL, statements: statements, descriptions: make([]StatementDescription, len(statements))}
+	}
+	value = sqltype.Null(resultUsage.Type)
+	for i, statement := range statements {
+		terminal := i == len(statements)-1 && !d.SQL.Void()
+		value, err = parent.executeSQLRoutineCommand(d, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage)
+		if err != nil {
+			return value, exec.SQLRoutineStatementContext(err, d.Name(), i+1)
 		}
 	}
 	e.mu.Lock()
 	if payloadOf(parent.op.Session).sqlRoutines == nil {
 		payloadOf(parent.op.Session).sqlRoutines = make(map[ids.ObjectAddress]sqlRoutineAnalysis)
 	}
-	payloadOf(parent.op.Session).sqlRoutines[d.Address()] = sqlRoutineAnalysis{d.SQL, *child.Expected}
+	payloadOf(parent.op.Session).sqlRoutines[d.Address()] = retained
 	e.mu.Unlock()
 	return value, nil
+}
+
+func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *StatementDescription, resultUsage sqltype.Usage) (value sqltype.Value, err error) {
+	restore := s.activateSQLRoutine(d.SQL.Inputs, read)
+	defer func() { err = restore(err) }()
+	s.sqlRoutine.definition, s.sqlRoutine.terminal = d.SQL, terminal
+	_, selecting := statement.(*parser.Select)
+	s.sqlRoutine.scalar, s.sqlRoutine.result = terminal && selecting, resultUsage
+	e := s.engine()
+	if _, transaction := statement.(*parser.TransactionControl); transaction {
+		return value, sqlError("0A000", routineCommandTag(statement)+" is not allowed in an SQL function")
+	}
+	if _, savepoint := statement.(*parser.SavepointControl); savepoint {
+		return value, sqlError("0A000", routineCommandTag(statement)+" is not allowed in an SQL function")
+	}
+	if program != nil {
+		if err = s.admitSQLRoutineCommand(d, program, index); err != nil {
+			return value, err
+		}
+	} else {
+		if retained.analysis != nil {
+			description := *retained
+			s.Expected = &description
+		}
+		if err = s.selectPreparedAnalysis(statement); err != nil {
+			return value, err
+		}
+		if err = s.acquireRelation(statement, true); err != nil {
+			return value, err
+		}
+		if s.Expected == nil {
+			description, describeErr := e.describeOperation(s, statement)
+			if describeErr != nil {
+				return value, describeErr
+			}
+			s.Expected = &description
+		}
+	}
+	result, err := e.executeStatement(s, statement, len(frame.Parameters), func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
+		copy(dst, frame.Parameters)
+		return nil
+	})
+	if err != nil {
+		return value, err
+	}
+	value = sqltype.Null(resultUsage.Type)
+	if result.Rows != nil {
+		defer func() {
+			closeErr := result.Rows.Close()
+			if err == nil {
+				err = closeErr
+			}
+		}()
+		if terminal {
+			row := make([]sqltype.Value, len(result.Rows.Schema()))
+			present, nextErr := result.Rows.Next(s.op.Context(), row)
+			if nextErr != nil {
+				return value, nextErr
+			}
+			if present {
+				value, err = s.sqlRoutine.resultPlan.Apply(s.op.Context(), row[0], s.input, s.output)
+			}
+		}
+	}
+	for _, rows := range result.RowSets {
+		if closeErr := rows.Close(); err == nil {
+			err = closeErr
+		}
+	}
+	if s.Expected != nil {
+		*retained = *s.Expected
+	}
+	return value, err
+}
+
+// Frozen commands enter the incumbent checked-command admission path. No SQL
+// rendering, parsing or name/overload selection occurs during invocation.
+func (s *StatementScope) admitSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, index int) error {
+	e := s.engine()
+	e.mu.Lock()
+	if index < 0 || index >= program.Len() || index >= len(d.SQL.Statements) || program.Action(index).Syntax() != d.SQL.Statements[index] {
+		e.mu.Unlock()
+		return fmt.Errorf("stuntgres: mismatched SQL-standard command capture")
+	}
+	auth, err := e.statementAuthorizationLocked(s.op, program.Action(index).Syntax())
+	if err != nil {
+		e.mu.Unlock()
+		return err
+	}
+	if err = program.ValidateAction(auth.Catalog, index); err != nil {
+		e.mu.Unlock()
+		return err
+	}
+	action := program.Action(index)
+	b := action.Binding()
+	if b.Relation != nil {
+		current, ok := auth.Catalog.Relation(b.Ref.Address)
+		if !ok {
+			e.mu.Unlock()
+			return ids.ErrCatalogReplaced
+		}
+		b, err = stored.RefreshRuleBinding(auth.Catalog, b, current)
+		if err != nil {
+			e.mu.Unlock()
+			return err
+		}
+		b.Storage = auth.StorageLocked(b.Ref.Address)
+	}
+	b, err = stored.RefreshRoutineCalls(auth.Catalog, b)
+	if err != nil {
+		e.mu.Unlock()
+		return err
+	}
+	b, err = view.RefreshRuleSources(auth, b)
+	if err == nil {
+		b, err = view.RefreshRuleActionCTEs(auth, b)
+	}
+	if err != nil {
+		e.mu.Unlock()
+		return err
+	}
+	commands := view.RuleProgram{Commands: []view.RuleCommand{{Syntax: action.Syntax(), Binding: b, Auth: auth}}}
+	refs, err := e.admitRuleCommandsLocked(s, action.Syntax(), &commands)
+	if err != nil {
+		return err
+	}
+	if len(refs) != 0 {
+		if _, err = s.acquireDataViewsLocked(e, refs); err != nil {
+			e.mu.Unlock()
+			return err
+		}
+	}
+	b = commands.Commands[0].Binding
+	physical := view.PhysicalBinding(b)
+	s.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: action.Syntax()}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: view.ViewWriteOf(b.ViewWrite), sources: b.QuerySources})
+	s.sqlRoutine.binding = &b
+	e.mu.Unlock()
+	return nil
 }
 
 // Query demand is selected before opening producers. Sort/aggregate semantics

@@ -31,11 +31,13 @@ type ViewParts struct {
 	Query             *plan.Query
 	Syntax            *parser.Select
 	ExpressionSyntax  parser.Expr
+	MutationFrame     bool
 	Sources           []ViewLeaf
 	Dependencies      []catalog.ExpressionDependency
 	SequenceRefs      map[int]ids.ObjectRef
 	Literals          map[analyze.ViewLiteralPath]plan.LiteralExpr
 	CastUsages        map[analyze.ViewLiteralPath]sqltype.Usage
+	RoutineInputs     []sqltype.Usage
 	RoutineRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
 	OperatorRefs      map[analyze.ViewLiteralPath]ids.ObjectRef
 	Composites        map[analyze.ViewLiteralPath]analyze.TypeOccurrence
@@ -64,11 +66,13 @@ func NewView(p ViewParts) *View {
 		query:             p.Query,
 		syntax:            p.Syntax,
 		expressionSyntax:  p.ExpressionSyntax,
+		mutationFrame:     p.MutationFrame,
 		sources:           p.Sources,
 		dependencies:      p.Dependencies,
 		sequenceRefs:      p.SequenceRefs,
 		literals:          p.Literals,
 		castUsages:        p.CastUsages,
+		routineInputs:     p.RoutineInputs,
 		routineRefs:       p.RoutineRefs,
 		operatorRefs:      p.OperatorRefs,
 		composites:        p.Composites,
@@ -98,11 +102,13 @@ func (v *View) Parts() ViewParts {
 		Query:             v.query,
 		Syntax:            v.syntax,
 		ExpressionSyntax:  v.expressionSyntax,
+		MutationFrame:     v.mutationFrame,
 		Sources:           v.sources,
 		Dependencies:      v.dependencies,
 		SequenceRefs:      v.sequenceRefs,
 		Literals:          v.literals,
 		CastUsages:        v.castUsages,
+		RoutineInputs:     v.routineInputs,
 		RoutineRefs:       v.routineRefs,
 		OperatorRefs:      v.operatorRefs,
 		Composites:        v.composites,

@@ -30,7 +30,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	ctx := op.Context()
 	switch stmt.(type) {
 	case *parser.CreateFunction:
-		return e.executeCreateFunction(scope, stmt.(*parser.CreateFunction), count)
+		return e.executeSQLRoutineDDL(scope, stmt, count)
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return scope.executeNotification(stmt, count)
 	case *parser.ForeignDDL:
@@ -314,8 +314,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if scope.sqlRoutine.scalar {
-		scope.sqlRoutine.resultPlan, err = validateSQLRoutineResult(b.Query.Root.Schema(), scope.sqlRoutine.result)
+	if scope.sqlRoutine.terminal {
+		scope.sqlRoutine.resultPlan, err = validateSQLRoutineTerminal(stmt, b, scope.sqlRoutine.result)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -406,7 +406,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if b.Returning != nil {
 			results = b.Returning.Schema
 		}
-		if scope.sqlRoutine.scalar {
+		if scope.sqlRoutine.definition != nil {
 			// The caller freezes the declared scalar output. A SQL body's raw
 			// output may change through a valid assignment conversion on reanalysis.
 			results = scope.Expected.Results
@@ -551,6 +551,9 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	op := scope.op
 	ctx := op.Context()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
+	if scope.sqlRoutine.binding != nil {
+		evaluation.PlanStaticOperators, evaluation.SpecializeRuleParameters = true, true
+	}
 	var err error
 	var creationStage *CatalogStage
 	var creationDescriptor *catalog.Relation

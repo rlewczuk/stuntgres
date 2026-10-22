@@ -1,6 +1,7 @@
 package routine
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -29,6 +30,22 @@ func SQLRoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalo
 				events[key] = append(events[key], dump.Event{OID: predecessor})
 			}
 		}
+		if d.SQLBody != nil {
+			for _, dependency := range d.SQLBody.Dependencies() {
+				address := dependency.Ref.Address
+				address.SubID = 0
+				if address == d.Address() {
+					continue
+				}
+				predecessor, err := r.Predecessor(view, address, d.Address())
+				if err != nil {
+					return err
+				}
+				if predecessor != 0 {
+					events[key] = append(events[key], dump.Event{OID: predecessor})
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -48,10 +65,17 @@ func SQLRoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authoriz
 		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 	}
 	var sql strings.Builder
-	sql.WriteString("CREATE FUNCTION " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(d.Name()) + "(")
+	kind := "FUNCTION"
+	if d.RoutineKind == catalog.ProcedureRoutine {
+		kind = "PROCEDURE"
+	}
+	sql.WriteString("CREATE " + kind + " " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(d.Name()) + "(")
 	for i, input := range d.SQL.Inputs {
 		if i != 0 {
 			sql.WriteString(", ")
+		}
+		if d.SQL.Names[i] != "" {
+			sql.WriteString(catalog.QuoteIdentifier(d.SQL.Names[i]) + " ")
 		}
 		name, err := p.ColumnDeclaration(view, catalog.Column{Usage: input})
 		if err != nil {
@@ -59,10 +83,36 @@ func SQLRoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authoriz
 		}
 		sql.WriteString(name)
 	}
-	result, err := p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
-	if err != nil {
-		return dump.Statement{}, err
+	sql.WriteString(")")
+	if d.RoutineKind != catalog.ProcedureRoutine {
+		result, err := p.ColumnDeclaration(view, catalog.Column{Usage: d.SQL.Result})
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		sql.WriteString(" RETURNS " + result)
 	}
-	sql.WriteString(") RETURNS " + result + " LANGUAGE SQL AS " + dump.CommentLiteral(d.SQL.Source) + ";\n")
+	sql.WriteString(" LANGUAGE SQL ")
+	if d.SQL.Standard {
+		if d.SQLBody == nil {
+			return dump.Statement{}, fmt.Errorf("missing checked SQL-standard routine body")
+		}
+		if err := d.SQLBody.ValidateDefinition(d); err != nil {
+			return dump.Statement{}, err
+		}
+		if err := d.SQLBody.Validate(view); err != nil {
+			return dump.Statement{}, err
+		}
+		sql.WriteString("BEGIN ATOMIC\n")
+		for i := range d.SQLBody.Len() {
+			statement, err := d.SQLBody.StatementSQL(context.Background(), view, i)
+			if err != nil {
+				return dump.Statement{}, err
+			}
+			sql.WriteString(statement + ";\n")
+		}
+		sql.WriteString("END;\n")
+	} else {
+		sql.WriteString("AS " + dump.CommentLiteral(d.SQL.Source) + ";\n")
+	}
 	return dump.Statement{Owner: owner.Name, SQL: sql.String()}, nil
 }

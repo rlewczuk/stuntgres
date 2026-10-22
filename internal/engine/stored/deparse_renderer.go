@@ -405,6 +405,13 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 	switch n := node.(type) {
 	case plan.LiteralExpr:
 		return r.Literal(ctx, n)
+	case plan.ParameterExpr:
+		if n.Number <= 0 {
+			return "", fmt.Errorf("stuntgres: invalid parameter number")
+		}
+		return "$" + strconv.Itoa(n.Number), nil
+	case plan.MergeActionExpr:
+		return "merge_action()", nil
 	case plan.DomainValueExpr:
 		return "VALUE", nil
 	case plan.ColumnExpr:

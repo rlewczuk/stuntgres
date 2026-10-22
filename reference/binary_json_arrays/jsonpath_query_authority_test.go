@@ -3,7 +3,6 @@ package reference_test
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -27,18 +26,9 @@ func TestReferenceJSONPathQueryRoutineAuthority(t *testing.T) {
 			jsonpathNavigateBoth(t, p, b, c, fixture.Select(fmt.Sprintf(`SELECT oid::int4 AS oid,pronamespace::int4 AS ns,pronargs::int4 AS nargs,prorettype::int4 AS result,proisstrict,provolatile AS volatility,proparallel AS parallel FROM pg_catalog.pg_proc WHERE oid=%d`, tc.oid), []string{"oid", "ns", "nargs", "result", "proisstrict", "volatility", "parallel"}, []string{"INT4", "INT4", "INT4", "INT4", "BOOL", "CHAR", "CHAR"}, [][]any{{int64(tc.oid), int64(11), int64(4), int64(tc.result), true, "i", "s"}}))
 			q := fmt.Sprintf(`SELECT proargtypes::text AS args,pronargdefaults::int4 AS defaults,proretset FROM pg_catalog.pg_proc WHERE oid=%d`, tc.oid)
 			s := fixture.Select(q, []string{"args", "defaults", "proretset"}, []string{"TEXT", "INT4", "BOOL"}, [][]any{{`3802 4072 3802 16`, int64(2), tc.set}})
-			if !b.PG {
-				d := fixture.ControlsReferenceDiagnostic("42703", `column "proargtypes" does not exist`)
-				d.Position = fixture.Position(strings.Index(q, "proargtypes") + 1)
-				s = fixture.ErrorDiagnostic(q, d)
-				s.SelectRows = true
+			if b.PG {
+				jsonpathNavigateBoth(t, p, b, c, s)
 			}
-			run(s)
-			s = fixture.Prepared(s)
-			if !b.PG {
-				s.ErrorStage = "prepare"
-			}
-			run(s)
 			func() {
 				sig := `pg_catalog.` + tc.name + `(jsonb,jsonpath,jsonb,boolean)`
 				defer func() {

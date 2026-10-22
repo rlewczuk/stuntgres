@@ -49,17 +49,20 @@ or the engine. Step 14 of the split moves it here; see
   `StageDropOperator`; commutator/negator resolution, forward shells and
   reciprocal staging; argument, utility-operator, implementation and
   estimator lookup.
-- **CREATE FUNCTION** (`function_ddl.go`): `StageCreateFunction` for
-  LANGUAGE SQL functions. `function_restore.go` holds the pure Restore
-  helpers `RestoreDirective`, `ReplayDirective` and `RebindSQLDefinitions`.
 - **Routine deletion** (`drop.go`): exact descriptor signatures through the
   catalog name index, kind-before-masking for bare names, owner/schema-owner
   authorization and system/extension fences. All roots are recorded before the
   engine's shared dependency closure and single publication; no second registry
   or call-coercion selector exists. Quoted SQL bodies do not create hard edges.
+- **SQL routine declarations** (`function_ddl.go`): `StageCreateFunction`
+  shares function/procedure declarations, named/positional IN inputs, VOID and
+  quoted/standard body policies. Procedures remain non-expression-callable;
+  CALL execution and ALTER routine lifecycle DDL are separate capabilities.
+  `function_restore.go` holds `RestoreDirective`, `ReplayDirective` and
+  `RebindSQLDefinitions`; standard captures are never deferred as quoted text.
 - **Dumps** (`operator_dump.go`, `function_dump.go`): what native Dump
-  writes for user operators and SQL functions. `OperatorDumped` is the
-  operator Collect decision; `OperatorDumpDependencies`, `OperatorDumpEvents`
+  writes for user operators and SQL routines, including standard-body graph edges.
+  `OperatorDumped` is the operator Collect decision; `OperatorDumpDependencies`, `OperatorDumpEvents`
   and `NormalizeOperatorDumpPredecessors` add the declaration and deferred
   link events to the `dump.Graph`; `OperatorDumpStatements` (one
   `OperatorDumpDeclaration` per operator, orphan shells through a temporary
@@ -120,7 +123,7 @@ adapter, `ddlHost`, built once per DDL statement (the routine methods are in
 
 The `ddlHost` adapter and the schema statement dispatch (`ddl_host.go`,
 `routine_host.go`, `schema.go`), SQL routine binding (`sql_routine_binding.go`:
-`executeCreateFunction`, `bindSQLRoutineLocked`,
+`executeSQLRoutineDDL`, `bindSQLRoutineLocked`,
 `validateSQLRoutineResult`), the Restore validation of SQL routine bodies
 (`sql_routine_restore.go`) and SQL routine invocation (`sql_routine.go`,
 `sql_routine_scope.go`), the catalog writes that install the seed

@@ -71,6 +71,11 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				for _, input := range d.SQL.Inputs {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(input.Type.ID())}, 'n')
 				}
+				if d.SQLBody != nil {
+					for _, dependency := range d.SQLBody.Dependencies() {
+						add(d.Address(), dependency.Ref.Address, 'n')
+					}
+				}
 			}
 			if runtime.TypeProviderProcedure(d) {
 				if d.Name() == "bqarr_in" || d.Name() == "cube_in" {

@@ -44,6 +44,8 @@ type parameterState struct {
 	Parameters            map[int]sqltype.Usage
 	formalParameters      []sqltype.Usage
 	ClosedRoutineFormals  bool // SQL body slots are declarations, not inferred public parameters.
+	RoutineName           string
+	RoutineNames          []string
 	ExecuteParameters     bool
 	UpdateParameters      bool
 	updateInputParameters map[int]sqltype.Usage
@@ -70,7 +72,7 @@ type ConsumerContext struct {
 	CatalogSnapshot         bool // Demanded inquiry nodes after STRICT folding.
 	// Materialized definitions need frozen renderer metadata while retaining
 	// their distinct, post-analysis bound-parameter diagnostic.
-	materializedDefinition bool
+	frozenDefinition bool // Shared immutable presentation capture (view, materialized view, routine).
 }
 
 // StoredSyntaxState keeps stored SQL stable across reparsing: the literal

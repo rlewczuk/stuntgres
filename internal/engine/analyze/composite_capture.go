@@ -72,7 +72,7 @@ func (b *Binder) bindDotBuiltin(raw parser.FieldExpr, key PreparedTypeKey) (expr
 }
 
 func (b *Binder) frozenWholeRowSource(qualifier QueryQualifier, frame uint32) (plan.WholeRowSource, error) {
-	if !b.Params.NoParameters && !b.Consumer.materializedDefinition {
+	if !b.Params.NoParameters && !b.Consumer.frozenDefinition {
 		return plan.WholeRowSource{}, nil
 	}
 	var source plan.WholeRowSource

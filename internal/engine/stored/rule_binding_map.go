@@ -100,6 +100,29 @@ func MapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Bi
 			b.Update = &update
 		}
 	}
+	if b.Merge != nil {
+		merge := *b.Merge
+		merge.Source, err = mapper.Query(merge.Source)
+		if err != nil {
+			return b, err
+		}
+		merge.On, err = expression(merge.On)
+		if err != nil {
+			return b, err
+		}
+		merge.Arms = slices.Clone(merge.Arms)
+		for i := range merge.Arms {
+			merge.Arms[i].Condition, err = expression(merge.Arms[i].Condition)
+			if err != nil {
+				return b, err
+			}
+			merge.Arms[i].Input, err = MapRuleBindingRecipes(merge.Arms[i].Input, mapper)
+			if err != nil {
+				return b, err
+			}
+		}
+		b.Merge = &merge
+	}
 	if b.Returning != nil {
 		values, changed, err := list(b.Returning.Expressions)
 		if err != nil {

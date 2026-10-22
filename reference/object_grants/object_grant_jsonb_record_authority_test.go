@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -36,8 +35,8 @@ func TestReferenceObjectGrantJSONBRecordAuthority(t *testing.T) {
 				run(fixture.Exec("GRANT SELECT ON og_jbr_input,og_jbr_sink TO og_object_reader,og_object_other", 0))
 				run(fixture.Exec("GRANT INSERT ON og_jbr_sink TO og_object_reader", 0))
 
-				// Full released pg_proc contract is independent of the supported native
-				// projection. Do not add catalog columns to make this boundary pass.
+				// Full PostgreSQL metadata is independent of native's supported
+				// catalog projection; identity and authority checks remain shared.
 				full := "SELECT p.oid::text AS oid,p.proargtypes::text AS args,p.prorettype::text AS result,p.proname,p.prokind::text AS kind,p.pronargs,p.prolang::text AS lang,p.proisstrict,p.proretset,p.provolatile::text AS volatility,p.proparallel::text AS parallel,p.provariadic::text AS variadic,p.pronargdefaults,p.proargnames::text AS names,pg_get_expr(p.proargdefaults,0) AS defaults,p.prosrc FROM pg_proc p WHERE p.oid IN (3209,3475,3490,3491,6338) ORDER BY p.oid"
 				metadata := fixture.Select(full,
 					[]string{"oid", "args", "result", "proname", "kind", "pronargs", "lang", "proisstrict", "proretset", "volatility", "parallel", "variadic", "pronargdefaults", "names", "defaults", "prosrc"},
@@ -49,14 +48,9 @@ func TestReferenceObjectGrantJSONBRecordAuthority(t *testing.T) {
 						{"3491", "3802", "2249", "jsonb_to_recordset", "f", int64(1), "12", false, true, "s", "s", "0", int64(0), nil, nil, "jsonb_to_recordset"},
 						{"6338", "2283 3802", "16", "jsonb_populate_record_valid", "f", int64(2), "12", false, false, "s", "s", "0", int64(0), nil, nil, "jsonb_populate_record_valid"},
 					})
-				if !b.PG {
-					metadata = fixture.ImplicitError(full, fixture.Diagnostic{Code: "42703", Message: "column p.proargtypes does not exist", Position: fixture.Position(strings.Index(full, "p.proargtypes") + 1)})
-					metadata.SelectRows, metadata.ErrorStage = true, "execute"
-					if prepared {
-						metadata.ErrorStage = "prepare"
-					}
+				if b.PG {
+					run(metadata)
 				}
-				run(metadata)
 				run(fixture.Select("SELECT oid::text AS oid,proname,pronamespace::text AS namespace,proowner>0 AS owned,pronargs,prorettype::text AS result,provolatile,proisstrict,proparallel,oid::regprocedure::text AS identity FROM pg_proc WHERE oid IN (3209,3475,3490,3491,6338) ORDER BY oid",
 					[]string{"oid", "proname", "namespace", "owned", "pronargs", "result", "provolatile", "proisstrict", "proparallel", "identity"},
 					[]string{"TEXT", "NAME", "TEXT", "BOOL", "INT2", "TEXT", "CHAR", "BOOL", "CHAR", "TEXT"},

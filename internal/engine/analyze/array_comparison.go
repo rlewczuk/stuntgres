@@ -263,7 +263,7 @@ func (b *Binder) bindInList(raw parser.InListExpr) (expr.Expr, error) {
 	operator, _ := ComparisonOperator(name)
 	op := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}, Pos: raw.Pos}
 	var result expr.Expr
-	capture := b.Params.NoParameters || b.Consumer.materializedDefinition
+	capture := b.Params.NoParameters || b.Consumer.frozenDefinition
 	var syntax parser.Expr
 	batched := false
 	if len(nonvar) > 2 {

@@ -71,5 +71,19 @@ func RebindSQLDefinitions(view catalog.Read, state *catalog.State, mapping map[i
 		state.SetDescriptor(address, &next)
 		state.BindName(catalog.DescriptorNameKey(&next), address)
 	}
+	// All declaration/type handles must be stable before mapping cross-routine
+	// captures. These descriptor copies are private to this replacement state;
+	// attaching payloads in place preserves the already-remapped call handles.
+	for _, descriptor := range state.Descriptors() {
+		d, ok := descriptor.(*catalog.Procedure)
+		if !ok || d.SQL == nil || d.SQLBody == nil {
+			continue
+		}
+		program, err := d.SQLBody.Rebind(view, mapping)
+		if err != nil {
+			return err
+		}
+		d.SQLBody = program
+	}
 	return nil
 }

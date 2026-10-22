@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -33,21 +32,15 @@ func TestReferenceObjectGrantTIDAuthority(t *testing.T) {
 					[]string{"identity", "proname", "namespace", "pronargs", "result", "proisstrict", "provolatile", "proparallel"},
 					[]string{"TEXT", "NAME", "INT8", "INT2", "INT8", "BOOL", "CHAR", "CHAR"},
 					[][]any{{tc.name + "(tid,tid)", tc.name, int64(11), int64(2), int64(16), true, "i", "s"}}, tc.oid))
-				// Keep native's existing projection boundary, rather than adding
-				// pg_proc columns just to expose released declaration metadata.
+				// Full PostgreSQL metadata complements shared identity/ACL checks.
 				full := "SELECT p.proargtypes::TEXT AS inputs,p.prokind,p.prolang::BIGINT AS language,p.proretset,p.pronargdefaults,p.provariadic::BIGINT AS variadic,p.proargnames IS NULL AS unnamed FROM pg_proc p WHERE p.oid=$1"
 				metadata := fixture.Select(full,
 					[]string{"inputs", "prokind", "language", "proretset", "pronargdefaults", "variadic", "unnamed"},
 					[]string{"TEXT", "CHAR", "INT8", "BOOL", "INT2", "INT8", "BOOL"},
 					[][]any{{"27 27", "f", int64(12), false, int64(0), int64(0), true}}, tc.oid)
-				if !b.PG {
-					metadata = fixture.ImplicitError(full, fixture.Diagnostic{Code: "42703", Message: "column p.proargtypes does not exist", Position: fixture.Position(strings.Index(full, "p.proargtypes") + 1)}, tc.oid)
-					metadata.SelectRows, metadata.ErrorStage = true, "execute"
-					if prepared {
-						metadata.ErrorStage = "prepare"
-					}
+				if b.PG {
+					run(metadata)
 				}
-				run(metadata)
 				if b.PG {
 					run(fixture.Select("SELECT oprname,oprleft::BIGINT AS l,oprright::BIGINT AS r,oprresult::BIGINT AS result,oprcode::oid::BIGINT AS routine FROM pg_operator WHERE oid=$1",
 						[]string{"oprname", "l", "r", "result", "routine"}, []string{"NAME", "INT8", "INT8", "INT8", "INT8"},

@@ -65,12 +65,22 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 	}
 	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage)
 	if err != nil {
-		return value, SQLRoutineContext(err, n.Procedure.Name(), true)
+		return value, err // The body owner annotates its actual command ordinal.
 	}
 	return frame.Result(value, n.Usage)
 }
 
 func SQLRoutineContext(err error, name string, runtime bool) error {
+	statement := 0
+	if runtime {
+		statement = 1
+	}
+	return SQLRoutineStatementContext(err, name, statement)
+}
+
+// SQLRoutineStatementContext preserves leaf diagnostics and nesting order.
+// Zero identifies producer-free definition validation.
+func SQLRoutineStatementContext(err error, name string, statement int) error {
 	if err == nil {
 		return nil
 	}
@@ -80,8 +90,8 @@ func SQLRoutineContext(err error, name string, runtime bool) error {
 	}
 	copy := *diagnostic
 	context := "SQL function " + strconv.Quote(name)
-	if runtime {
-		context += " statement 1"
+	if statement != 0 {
+		context += " statement " + strconv.Itoa(statement)
 	}
 	if copy.Context != "" {
 		copy.Context += "\n"
