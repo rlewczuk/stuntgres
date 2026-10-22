@@ -25,86 +25,40 @@ func (h *statementHost) LatestRow(r dml.RowRequest) (dml.LatestRow, error) {
 	}
 	switch r.Kind {
 	case dml.RowUpdate:
-		return s.latestUpdateRowLocked(e, r)
+		if !s.latestEpochsCurrentLocked(e, r) {
+			return dml.LatestRow{}, ids.ErrCatalogReplaced
+		}
+		return dml.LatestUpdateRow(s.latestRowSourceLocked(e, r.Ref.Address), r)
 	case dml.RowDelete:
-		return s.latestDeleteRowLocked(e, r)
+		return dml.LatestDeleteRow(s.latestRowSourceLocked(e, r.Ref.Address), r)
 	case dml.RowMerge:
-		return s.latestMergeRowLocked(e, r)
+		if !s.latestEpochsCurrentLocked(e, r) {
+			return dml.LatestRow{}, ids.ErrCatalogReplaced
+		}
+		return dml.LatestMergeRow(s.latestRowSourceLocked(e, r.Ref.Address), r)
 	case dml.RowConflictUpdate:
 		return s.latestConflictUpdateRowLocked(e, r)
 	}
 	return dml.LatestRow{}, errors.New("stuntgres: invalid latest row kind")
 }
 
-// An UPDATE predecessor needs both epochs current and conflicts under a
-// retained snapshot.
-func (s *StatementScope) latestUpdateRowLocked(e *Engine, r dml.RowRequest) (dml.LatestRow, error) {
-	if r.Ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
-		return dml.LatestRow{}, ids.ErrCatalogReplaced
+// latestRowSourceLocked captures the latest-row inputs of address for the
+// dml readers. Caller holds Engine.mu.
+func (s *StatementScope) latestRowSourceLocked(e *Engine, address ids.ObjectAddress) dml.LatestRowSource {
+	return dml.LatestRowSource{
+		Store:      e.privateStorageLocked(s.owner.Catalog, address),
+		OwnWrites:  s.ownWrites[address],
+		OwnDeletes: s.ownDeletes[address],
+		CommitSeq:  e.visibility.CommitSeq(),
+		Stable:     s.owner.Isolation.Stable(),
+		Frontier:   s.owner.Frontier,
 	}
-	store := e.privateStorageLocked(s.owner.Catalog, r.Ref.Address)
-	if store == nil {
-		return dml.LatestRow{}, ids.ErrCatalogReplaced
-	}
-	current := store.Versions
-	if r.Own {
-		current = s.ownWrites[r.Ref.Address]
-	}
-	row, _, found := storage.RowByID(current, r.Row, r.Hint)
-	if !found {
-		return dml.LatestRow{}, errors.New("stuntgres: invalid update predecessor")
-	}
-	if err := visibility.RepeatableConflict(s.owner.Isolation.Stable(), s.owner.Frontier, row, store.Ends); err != nil {
-		return dml.LatestRow{}, err
-	}
-	return dml.LatestRow{Version: row, Live: visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[r.Ref.Address])}, nil
 }
 
-// Row arbitration freezes identity, not a stale ordinal or pre-wait predicate.
-func (s *StatementScope) latestDeleteRowLocked(e *Engine, r dml.RowRequest) (dml.LatestRow, error) {
-	store := e.privateStorageLocked(s.owner.Catalog, r.Ref.Address)
-	if store == nil || store != r.Storage {
-		return dml.LatestRow{}, ids.ErrCatalogReplaced
-	}
-	rows := store.Versions
-	if r.Own {
-		rows = s.ownWrites[r.Ref.Address]
-	}
-	row, _, found := storage.RowByID(rows, r.Row, r.Hint)
-	if !found {
-		return dml.LatestRow{}, errors.New("stuntgres: invalid deletion predecessor")
-	}
-	if err := visibility.RepeatableConflict(s.owner.Isolation.Stable(), s.owner.Frontier, row, store.Ends); err != nil {
-		return dml.LatestRow{}, err
-	}
-	return dml.LatestRow{Version: row, Live: visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[r.Ref.Address])}, nil
-}
-
-// MERGE follows a committed update even with a retained RR frontier. Deletion
-// still conflicts; query visibility, not this fetch, owns old+own occurrences.
-func (s *StatementScope) latestMergeRowLocked(e *Engine, r dml.RowRequest) (dml.LatestRow, error) {
-	if r.Ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
-		return dml.LatestRow{}, ids.ErrCatalogReplaced
-	}
-	store := e.privateStorageLocked(s.owner.Catalog, r.Ref.Address)
-	if store == nil {
-		return dml.LatestRow{}, ids.ErrCatalogReplaced
-	}
-	current, hint := store.Versions, r.Hint
-	if own, _, found := storage.RowByID(s.ownWrites[r.Ref.Address], r.Row, -1); found {
-		return dml.LatestRow{Version: own, Live: visibility.LiveVersion(own, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[r.Ref.Address])}, nil
-	}
-	row, _, found := storage.RowByID(current, r.Row, hint)
-	if !found {
-		return dml.LatestRow{}, errors.New("stuntgres: invalid MERGE predecessor")
-	}
-	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[r.Ref.Address])
-	if !live && s.owner.Isolation.Stable() && store.Ends != nil {
-		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.Frontier {
-			return dml.LatestRow{}, sqlError("40001", "could not serialize access due to concurrent delete")
-		}
-	}
-	return dml.LatestRow{Version: row, Live: live}, nil
+// latestEpochsCurrentLocked reports whether both the request's and the
+// transaction's catalog epochs are current, as UPDATE and MERGE need.
+func (s *StatementScope) latestEpochsCurrentLocked(e *Engine, r dml.RowRequest) bool {
+	return r.Ref.Epoch == e.catalog.state.Epoch() && s.txRef.Epoch() == e.catalog.state.Epoch()
 }
 
 // Committed hits retain their provider's exact physical hint. Private overlays
