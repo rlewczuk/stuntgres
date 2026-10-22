@@ -13,6 +13,22 @@ make finalcheck # after merge: startup benchmark, socket-free native race suite,
 make deps       # list non-standard production dependencies
 make refcheck   # human-only complete real PostgreSQL reference suite; NEVER run as an agent
 ```
+
+`scripts/code_stats [repository-root]` reports tracked working-tree source files,
+physical lines (including blanks/comments), and nonblank code lines with comments
+removed, split into production, tests and overall totals. Requires Python 3 and
+Git; runs read-only with no generated reports, caches or temporary files.
+It uses NUL-delimited Git paths and reads one source file at a time, avoiding
+command-line argument limits. Untracked files, `.cswd`, `.omp`, symlinks,
+submodules, documentation and data are excluded; tracked generated/vendor sources
+are included. Source types: `.go`, `.c`, `.h`, `.y`, `.py`, `.sh`, `Makefile`,
+and `scripts/code_stats`. Tests include `*_test.go`, Python `test_*.py`/`*_test.py`,
+and source beneath `reference/`, `smoke/` or any `tests/` directory.
+Counting is lexical: string literals and Python docstrings count as code,
+preprocessor-disabled code is included, and shell/Makefile comments use ordinary
+quoted-string/hash rules (not full heredoc or Make expansion parsing).
+Missing tracked sources fail visibly rather than silently understating totals.
+
 Binary conversion is grounded in PostgreSQL **REL_18_0**, not local20devel:
 the latter adds formats and changes legacy conversion source layout.
 `internal/sqltype/pgencoding18/` contains release mapping inputs, attribution and
