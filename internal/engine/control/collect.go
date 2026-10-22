@@ -1,4 +1,4 @@
-package engine
+package control
 
 import (
 	"context"
@@ -8,14 +8,81 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 )
+
+// Source is what the Collect tables read: the capture's catalog and role
+// reads, the generation recipe plan, and locked engine state. The root fills
+// it under Engine.mu and calls Collect inside that window; it never outlives
+// the window.
+type Source struct {
+	// CatalogView, OriginalCatalog, the two role reads, ConstraintReplay and
+	// ACLOutput become the Capture's fields of the same names.
+	CatalogView, OriginalCatalog catalog.Read
+	OriginalRoles, DomainRoles   authorization.Read
+	ConstraintReplay             *partition.ConstraintReplay
+	ACLOutput                    regobj.ACLItemOutput
+	// RecipePlan is the captured generation replay plan, by table.
+	RecipePlan map[ids.ObjectAddress]*table.DumpRelation
+
+	State     *catalog.State
+	Relations map[ids.ObjectAddress]*storage.Relation
+	Sequences map[ids.ObjectAddress]*storage.SequenceGenerator
+	Frontier  ids.CommitSeq
+	Bootstrap authorization.PrincipalRef
+	Foreign   fdw.Registry
+}
+
+// dumpCollection is one Collect pass: the capture the collectors fill and
+// the source they read. It never outlives Engine.mu.
+type dumpCollection struct {
+	*Capture
+	source Source
+}
+
+// Collect builds the builtin-schema preamble, then hands every descriptor of
+// source.State to the Collect tables and returns the filled capture. ctx
+// carries the ACL output context the renderers read.
+func Collect(ctx context.Context, source Source) (*Capture, error) {
+	preamble, err := dumpBuiltinSchemaPreamble(source.State, source.DomainRoles)
+	if err != nil {
+		return nil, err
+	}
+	c := &dumpCollection{
+		Capture: &Capture{
+			CatalogView:      source.CatalogView,
+			OriginalCatalog:  source.OriginalCatalog,
+			OriginalRoles:    source.OriginalRoles,
+			DomainRoles:      source.DomainRoles,
+			ConstraintReplay: source.ConstraintReplay,
+			ACLOutput:        source.ACLOutput,
+			Preamble:         preamble,
+			Tables:           make([]table.DumpRelation, 0),
+			ViewIndices:      make(map[ids.OID]int),
+			TableIndices:     make(map[ids.OID]int),
+			IndexIndices:     make(map[ids.OID]int),
+			Composites:       make(map[ids.OID]*catalog.Relation),
+			Graph:            make(dump.Graph),
+		},
+		source: source,
+	}
+	for a, d := range source.State.Descriptors() {
+		if err := c.collect(ctx, a, d); err != nil {
+			return nil, err
+		}
+	}
+	return c.Capture, nil
+}
 
 // dumpCollector is one entry of Dump's Collect table. The first entry whose
 // matches accepts a descriptor collects it; later entries never see it.
@@ -46,7 +113,7 @@ var dumpCollectors = [...]dumpCollector{
 // collect hands one descriptor to the first matching Collect entry.
 // Objects in temporary namespaces are never dumped.
 func (c *dumpCollection) collect(ctx context.Context, a ids.ObjectAddress, d catalog.Descriptor) error {
-	if ns, ok := c.source.state.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
+	if ns, ok := c.source.State.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 		return nil
 	}
 	for _, collector := range dumpCollectors {
@@ -147,7 +214,7 @@ func collectTablespaceDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 	if err := (catalog.TablespaceProvider{}).Validate(c.CatalogView, t); err != nil {
 		return err
 	}
-	if t.Owner != c.source.bootstrap || t.ACL.Explicit {
+	if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
 		return fmt.Errorf("stuntgres: dump cannot serialize altered tablespace authority")
 	}
 	return nil
@@ -177,7 +244,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		if t.ACL.Explicit || t.Owner != c.source.bootstrap {
+		if t.ACL.Explicit || t.Owner != c.source.Bootstrap {
 			return fmt.Errorf("stuntgres: dump cannot serialize altered native foreign capability authority")
 		}
 		return nil
@@ -186,7 +253,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		if t.Owner != c.source.bootstrap || t.ACL.Explicit {
+		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
 			return fmt.Errorf("stuntgres: dump cannot serialize altered builtin routine authority")
 		}
 		return nil
@@ -195,7 +262,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		if err := (stored.ProcedureProvider{}).Validate(c.CatalogView, t); err != nil {
 			return err
 		}
-		if t.Owner != c.source.bootstrap || t.ACL.Explicit {
+		if t.Owner != c.source.Bootstrap || t.ACL.Explicit {
 			return fmt.Errorf("stuntgres: dump cannot serialize altered builtin conversion routine authority")
 		}
 		return nil
@@ -236,7 +303,7 @@ func collectExtensionDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 	text := "CREATE EXTENSION " + catalog.QuoteIdentifier(t.Name()) + " WITH SCHEMA " + catalog.QuoteIdentifier(ns.Name()) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
 	c.Graph[dump.Event{OID: t.Address().ObjectID}] = nil
 	c.ViewIndices[t.Address().ObjectID] = len(c.Views)
-	c.Views = append(c.Views, control.OwnedStatement{principal.Name, text})
+	c.Views = append(c.Views, OwnedStatement{principal.Name, text})
 	return nil
 }
 
@@ -296,10 +363,10 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 		return nil
 	}
 	if valid && ns.Comment != catalog.NamespaceCommentBaseline(a.ObjectID) {
-		c.SchemaComments = append(c.SchemaComments, control.SchemaComment{ns.Name(), ns.Comment})
+		c.SchemaComments = append(c.SchemaComments, SchemaComment{ns.Name(), ns.Comment})
 	}
 	if valid && (a.ObjectID == ids.PublicNamespaceOID || a.ObjectID == ids.PGCatalogNamespaceOID || a.ObjectID == ids.PGToastNamespaceOID || a.ObjectID == 13229) &&
-		!bootstrapNamespaceDumpable(ns) {
+		!BootstrapNamespaceDumpable(ns) {
 		return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace ACL")
 	}
 	if valid && a.ObjectID != ids.PublicNamespaceOID && a.ObjectID != ids.PGCatalogNamespaceOID && a.ObjectID != ids.PGToastNamespaceOID && a.ObjectID != 13229 {
@@ -310,15 +377,17 @@ func collectNamespaceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddr
 		if err != nil {
 			return err
 		}
-		_, configured := c.source.foreign.NamespaceName(a)
-		c.Schemas = append(c.Schemas, control.Schema{Name: ns.Name(), Owner: role.Name, Configured: configured})
+		_, configured := c.source.Foreign.NamespaceName(a)
+		c.Schemas = append(c.Schemas, Schema{Name: ns.Name(), Owner: role.Name, Configured: configured})
 	}
 	return nil
 }
 
-// Namespace ACL entry order and split entries do not affect reproducibility.
-// Principal/grantor references do: losing them would change DROP dependencies.
-func bootstrapNamespaceDumpable(d *catalog.Namespace) bool {
+// BootstrapNamespaceDumpable reports whether a builtin namespace keeps an ACL
+// Restore reproduces. Namespace ACL entry order and split entries do not
+// affect reproducibility. Principal/grantor references do: losing them would
+// change DROP dependencies.
+func BootstrapNamespaceDumpable(d *catalog.Namespace) bool {
 	if d.Address().ObjectID == ids.PGToastNamespaceOID {
 		return !d.ACL.Explicit && len(d.ACL.Entries) == 0
 	}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -187,18 +188,18 @@ func TestPredefinedRoleControls(t *testing.T) {
 	if strings.Contains(dump.String(), "CREATE ROLE") || strings.Contains(dump.String(), "GRANT pg_") || strings.Contains(dump.String(), "OWNER TO postgres") {
 		t.Fatal("dump invented shared authority or wrong public baseline", dump.String())
 	}
-	for _, control := range []func() error{
+	for _, run := range []func() error{
 		func() error { return e.Reset(context.Background()) },
 		func() error { return e.Restore(context.Background(), bytes.NewReader(dump.Bytes())) },
 	} {
-		if err := control(); err != nil {
+		if err := run(); err != nil {
 			t.Fatal(err)
 		}
 		if e.roles.published != roles || len(e.Roles().Memberships()) != 2 {
 			t.Fatal("control reseeded shared graph")
 		}
 		public := e.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-		if public.Owner != (e.roles.domain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
+		if public.Owner != (e.roles.domain.Principal(6171)) || !control.BootstrapNamespaceDumpable(public) {
 			t.Fatal("public owner or ACL baseline", public)
 		}
 		for _, entry := range public.ACL.Entries {

@@ -1,4 +1,4 @@
-package engine
+package control
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -51,7 +50,7 @@ func collectRelationDump(ctx context.Context, c *dumpCollection, a ids.ObjectAdd
 	if r.RelationKind == catalog.CatalogRelation {
 		return nil
 	}
-	ns, ok := c.source.state.Namespace(r.Namespace())
+	ns, ok := c.source.State.Namespace(r.Namespace())
 	if !ok {
 		return fmt.Errorf("stuntgres: relation namespace is missing")
 	}
@@ -124,7 +123,7 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 			continue
 		}
 		for _, dependency := range key.Derived.Dependencies {
-			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, dependency.Address, r.SQLIndex.Parent)
+			predecessor, err := Resolver{}.Predecessor(c.CatalogView, dependency.Address, r.SQLIndex.Parent)
 			if err != nil {
 				return err
 			}
@@ -135,7 +134,7 @@ func collectIndexDump(ctx context.Context, c *dumpCollection, _ ids.ObjectAddres
 		}
 	}
 	c.IndexIndices[oid] = len(c.Indexes)
-	c.Indexes = append(c.Indexes, control.OwnedStatement{place.owner, sql})
+	c.Indexes = append(c.Indexes, OwnedStatement{place.owner, sql})
 	return nil
 }
 
@@ -175,18 +174,18 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		options + " AS " + body + ";\n"
 	if r.RelationKind == catalog.MaterializedViewRelation {
 		sql = "CREATE MATERIALIZED VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
-		stored := c.source.relations[a]
+		stored := c.source.Relations[a]
 		if stored == nil {
 			return fmt.Errorf("stuntgres: materialized view storage is missing")
 		}
-		c.Materialized = append(c.Materialized, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: stored.Versions, Ends: stored.Ends, Frontier: c.source.frontier, Descriptor: r})
+		c.Materialized = append(c.Materialized, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: stored.Versions, Ends: stored.Ends, Frontier: c.source.Frontier, Descriptor: r})
 	}
 	// Capture every source occurrence and expression dependency from the
 	// same immutable catalog used to render the definition. Attribute
 	// references depend on their parent relation, not its column OID.
 	predecessors := make(map[ids.OID]bool)
 	addPredecessor := func(address ids.ObjectAddress) error {
-		predecessor, err := control.Resolver{}.Predecessor(c.OriginalCatalog, address, r.Address())
+		predecessor, err := Resolver{}.Predecessor(c.OriginalCatalog, address, r.Address())
 		if err != nil {
 			return err
 		}
@@ -196,7 +195,7 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		return nil
 	}
 	for _, address := range r.AutoExtensions {
-		extension, ok := c.source.state.Extension(address)
+		extension, ok := c.source.State.Extension(address)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing materialized extension dump provider")
 		}
@@ -227,12 +226,12 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		c.Graph[event] = append(c.Graph[event], dump.Event{OID: predecessor})
 	}
 	c.ViewIndices[oid] = len(c.Views)
-	c.Views = append(c.Views, control.OwnedStatement{place.owner, sql})
+	c.Views = append(c.Views, OwnedStatement{place.owner, sql})
 	return nil
 }
 
 func collectSequenceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddress, r *catalog.Relation, place relationDumpContext) error {
-	g := c.source.sequences[a]
+	g := c.source.Sequences[a]
 	if g == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
 	}
@@ -240,11 +239,11 @@ func collectSequenceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddre
 	if owned := r.Sequence.Owned; owned != (ids.ObjectAddress{}) {
 		tableAddress := owned
 		tableAddress.SubID = 0
-		table, ok := c.source.state.Relation(tableAddress)
+		table, ok := c.source.State.Relation(tableAddress)
 		if !ok {
 			return fmt.Errorf("stuntgres: sequence ownership target missing")
 		}
-		tableSchema := c.source.state.Get(table.Namespace()).Name()
+		tableSchema := c.source.State.Get(table.Namespace()).Name()
 		entry.OwnedTable = catalog.QuoteIdentifier(tableSchema) + "." + catalog.QuoteIdentifier(table.Name())
 		for i, sub := range table.Attributes {
 			if sub == owned.SubID {
@@ -261,7 +260,7 @@ func collectSequenceDump(_ context.Context, c *dumpCollection, a ids.ObjectAddre
 
 func collectTableDump(_ context.Context, c *dumpCollection, a ids.ObjectAddress, r *catalog.Relation, place relationDumpContext) error {
 	ns := place.namespace
-	stored := c.source.relations[a]
+	stored := c.source.Relations[a]
 	if stored == nil && r.Partition == nil {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
@@ -288,16 +287,16 @@ func collectTableDump(_ context.Context, c *dumpCollection, a ids.ObjectAddress,
 	c.TableIndices[oid] = len(c.Tables)
 	linked := make(map[ids.ObjectAddress]sequence.Dump, len(r.ColumnMeta.Identities))
 	for _, identity := range r.ColumnMeta.Identities {
-		relation := c.source.state.MustRelation(identity.Sequence)
-		linked[identity.Sequence] = sequence.Dump{Owner: place.owner, Schema: ns.Name(), Name: relation.Name(), Options: *relation.Sequence, State: *c.source.sequences[identity.Sequence], Comment: relation.Comment}
+		relation := c.source.State.MustRelation(identity.Sequence)
+		linked[identity.Sequence] = sequence.Dump{Owner: place.owner, Schema: ns.Name(), Name: relation.Name(), Options: *relation.Sequence, State: *c.source.Sequences[identity.Sequence], Comment: relation.Comment}
 	}
 	var versions []storage.RowVersion
 	var ends *storage.DeletionRoot
 	if stored != nil {
 		versions, ends = stored.Versions, stored.Ends
 	}
-	c.Tables = append(c.Tables, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: versions, Ends: ends, Frontier: c.source.frontier, Comment: r.Comment, ColumnComments: r.ColumnMeta.Comments, NotNullConstraints: r.Constraints.NotNull, Defaults: r.ColumnMeta.Defaults, DeferredDefinitions: edges.deferredDefinitions, Descriptor: r, Identities: r.ColumnMeta.Identities, IdentitySequences: linked})
-	if selected := c.recipePlan[r.Address()]; selected != nil {
+	c.Tables = append(c.Tables, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: versions, Ends: ends, Frontier: c.source.Frontier, Comment: r.Comment, ColumnComments: r.ColumnMeta.Comments, NotNullConstraints: r.Constraints.NotNull, Defaults: r.ColumnMeta.Defaults, DeferredDefinitions: edges.deferredDefinitions, Descriptor: r, Identities: r.ColumnMeta.Identities, IdentitySequences: linked})
+	if selected := c.source.RecipePlan[r.Address()]; selected != nil {
 		c.Tables[len(c.Tables)-1].RecipePlaceholders = true
 		c.Tables[len(c.Tables)-1].RecipeComponent = selected.RecipeComponent
 		c.Tables[len(c.Tables)-1].DeferredChecks = selected.DeferredChecks
@@ -320,23 +319,23 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 	if r.Inheritance != nil {
 		for _, edge := range r.Inheritance.Parents {
 			parent := edge.Relation
-			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, parent, r.Address())
+			predecessor, err := Resolver{}.Predecessor(c.CatalogView, parent, r.Address())
 			if err != nil {
 				return tableDumpEdges{}, err
 			}
 			predecessors = append(predecessors, predecessor)
 		}
 	}
-	predecessors, err := partition.DumpPredecessors(control.Resolver{}, c.CatalogView, r, predecessors)
+	predecessors, err := partition.DumpPredecessors(Resolver{}, c.CatalogView, r, predecessors)
 	if err != nil {
 		return tableDumpEdges{}, err
 	}
 	for _, check := range r.Constraints.Check {
-		if check.NotValid || c.recipePlan[r.Address()] != nil && c.recipePlan[r.Address()].DeferredChecks[check.Name] {
+		if check.NotValid || c.source.RecipePlan[r.Address()] != nil && c.source.RecipePlan[r.Address()].DeferredChecks[check.Name] {
 			continue
 		}
 		add := func(address ids.ObjectAddress) error {
-			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, address, r.Address())
+			predecessor, err := Resolver{}.Predecessor(c.CatalogView, address, r.Address())
 			if err != nil {
 				return err
 			}
@@ -370,7 +369,7 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 			if eligible {
 				owner = ids.ObjectAddress{}
 			}
-			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, address, owner)
+			predecessor, err := Resolver{}.Predecessor(c.CatalogView, address, owner)
 			if err != nil {
 				return err
 			}
@@ -395,11 +394,11 @@ func (c *dumpCollection) tableDumpPredecessors(r *catalog.Relation) (tableDumpEd
 		}
 	}
 	for _, definition := range r.ColumnMeta.Generations {
-		if c.recipePlan[r.Address()] != nil {
+		if c.source.RecipePlan[r.Address()] != nil {
 			continue
 		}
 		for _, dependency := range definition.Dependencies {
-			predecessor, err := control.Resolver{}.Predecessor(c.CatalogView, dependency.Address, r.Address())
+			predecessor, err := Resolver{}.Predecessor(c.CatalogView, dependency.Address, r.Address())
 			if err != nil {
 				return tableDumpEdges{}, err
 			}
