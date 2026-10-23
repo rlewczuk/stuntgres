@@ -236,6 +236,9 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 	if r.cur.physicalConstructor != nil || access.RowSecurityActions(s.Actions) {
 		return nil
 	}
+	if len(s.Actions) == 1 && s.Actions[0].Action == parser.SetRelationOptions && !s.IfExists && !s.Only && len(s.Name.Parts) == 2 {
+		return nil // Execution uses the ordinary bounded validator and private stage.
+	}
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {
 		return r.stage.restoreCheck(op, s, r.generationRepairs)
 	}

@@ -2,6 +2,26 @@
 
 [README](../README.md) · [Native compatibility limits](DIALECT.md)
 
+## Relation storage options
+
+Dump emits final explicit options after table and accepted materialized-view
+declarations as a qualified owner-context ALTER TABLE SET, preserving base order
+and spelling, then retained TOAST order and spelling.
+Materialized-view option SQL is captured from its descriptor and qualified names
+alongside its owned declaration, including after renames. Declaration event keys
+are not relation lookup keys: the same stream also contains extensions.
+Absent options emit no statement. Restore admits the generated unconditional
+qualified option-only SET shape and uses ordinary validation in its private
+catalog; a late invalid value or cancellation preserves the entire destination.
+Dump remains committed-only and never exposes an open transaction's candidate.
+Native round trips retain logical TOAST intent without creating physical TOAST
+relations. PostgreSQL replay cannot retain that catalog fact on a table with no
+physical TOAST relation; see the [boundary](DIALECT.md#relation-storage-options).
+Materialized-view native snapshots retain contents and population alongside
+options through byte-stable replay. Their emitted schema declaration remains
+`WITH NO DATA`; replaying actual emitted SQL on PostgreSQL preserves metadata,
+but native snapshot comments do not populate PostgreSQL materialized views.
+
 ## Raw BOX snapshots
 
 BOX component writes can retain inverted corner pairs. Dump emits those pairs

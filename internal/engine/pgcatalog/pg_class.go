@@ -127,6 +127,13 @@ func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
 		}
 		options = checked(sqltype.OwnedArrayValue(options.Type(), []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements))
 	}
+	if len(relation.StorageOptions.Base) != 0 {
+		elements := make([]sqltype.Value, len(relation.StorageOptions.Base))
+		for i, option := range relation.StorageOptions.Base {
+			elements[i] = sqltype.String(options.Type().Element(), option.Name+"="+option.Text)
+		}
+		options = checked(sqltype.OwnedArrayValue(options.Type(), []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements))
+	}
 	bound := sqltype.Null(source.Columns[33].Usage.Type)
 	if relation.Membership != nil {
 		parent, ok := view.Relation(relation.Membership.Parent)

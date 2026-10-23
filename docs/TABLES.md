@@ -7,6 +7,55 @@ semantics. This page describes native catalog/storage implementation contracts
 and compatibility limits, not a supported-syntax inventory or a claim of complete
 PostgreSQL compatibility.
 
+## Relation storage options
+
+Table storage parameters follow the [PostgreSQL 18 inventory and bounds](https://www.postgresql.org/docs/18/sql-createtable.html#SQL-CREATETABLE-STORAGE-PARAMETERS):
+24 base names and their 18 documented `toast.` counterparts. Explicit values
+are validated into Boolean, integer, real or enum logical values; units are not
+accepted. Unset values remain absent rather than materializing defaults.
+The immutable descriptor separately retains explicit text: quoted `OFF` and
+`0.250` survive validation, catalog reads and native replay.
+Bounds are checked using parsed numbers (integers round to even), but primary
+diagnostics retain extracted explicit text: `fillfactor='9.4'` reports
+`value 9.4 out of bounds for option "fillfactor"`, with Detail
+`Valid values are between "10" and "100".` Real bounds likewise retain
+`101.000`, with six-decimal bounds in Detail.
+
+SET structurally transforms the base pass before validating base values:
+namespace validity is checked in source order, then names containing `=` are
+rejected only in the selected namespace. Base values and duplicates are checked
+before TOAST-local names and values. Thus `bogus."a=b"` reports
+`unrecognized parameter namespace "bogus"`; invalid fillfactor beats
+`toast."a=b"` in either textual order, but a base `"a=b"` beats invalid
+fillfactor. Failed passes publish no successful prefix.
+
+SET removes replaced entries and appends new entries in request order, keeping
+unaffected entries in their old order. RESET accepts unknown/repeated names,
+rejects value-bearing items, and removes explicit values. The base
+`pg_class.reloptions` is an ordered TEXT array, or SQL NULL when absent. TOAST
+intent is private metadata, never prefixed entries in the base array.
+
+Only the named relation changes, including default/ONLY/star inheritance
+targets. Mixed recursive shape changes retain descendant-specific options.
+Ordinary options require SHARE UPDATE EXCLUSIVE; any `user_catalog_table`
+mention requires ACCESS EXCLUSIVE, and mixed actions take the strongest grant.
+Execution checks current owner authority, read-only state and identity after
+lock waits. Prepare has no metadata effects. Options run in the miscellaneous
+phase after shape preparation but before delayed row conversion/validation.
+All companions share one private catalog candidate: failure or cancellation
+before publication discards the entire statement. Transactions and savepoints
+retain their ordinary overlay and rollback behavior.
+
+Option-only publication preserves the heap, row type, attributes, object
+identity, owner, ACL, comments, indexes and constraints. Definition revisions
+use existing prepared-consumer invalidation. Existing materialized-view heap
+descriptors also accept option-only ALTER TABLE SET/RESET; this adds no ALTER
+MATERIALIZED VIEW syntax or ordinary-view storage options. Native dumps emit
+one qualified ALTER TABLE SET after each table or accepted materialized-view
+declaration in its owner context, base entries followed by retained TOAST
+entries. Isolated Restore validates the same options before replacing destination
+state. See [physical and replay limits](DIALECT.md#relation-storage-options).
+
 ## Tablespace assignment boundary
 
 Named default-space assignment retains existing relation/provider identities and

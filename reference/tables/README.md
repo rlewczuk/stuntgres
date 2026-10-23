@@ -6,6 +6,65 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Relation storage options
+
+The shared direct/prepared scenarios cover all 24 base and 18 documented TOAST
+names, numeric/Boolean/enum validation, exact diagnostics, lexical spelling and
+catalog order/NULL, mixed-phase atomicity, transaction/savepoint visibility,
+owner/read-only admission, inheritance/partition/typed/TEMP behavior, real lock
+waits/cancellation, held prepared consumers and actual native replay.
+The pinned PostgreSQL18.6 oracle supplies independent expected outcomes.
+Native-only controls and integer-only TOAST validation are explicit physical
+boundaries, not skipped portable assertions.
+
+Exact native dump definitions use the existing writer's `E'...'` value literals,
+including retained TOAST intent, and require byte-identical replay/redump.
+The review regressions cover accepted materialized-view SET/RESET, options
+retained across a rename with an existing ordinary-view dependent, and exact
+owner-context option SQL. Native replay retains captured contents/population;
+actual emitted schema replay on PostgreSQL stays WITH NO DATA and proves
+unpopulated-query errors before ordinary REFRESH. Numeric diagnostic witnesses
+retain `9.4`, `0x09`, `9e0`, ` 9 ` and `101.000` rather than normalized numbers.
+Namespace admission precedes selected-name checks, base structural errors precede
+base values, and base values precede TOAST-local names, in both textual orders.
+All failures retain options, rows and native dump bytes.
+The `identity_after_wait` lock witness commits a transactional rename on PostgreSQL
+and requires the queued SET to fail with42P01. Native explicitly asserts the existing
+transactional RENAME0A000 boundary, rolls back the holder and requires the queued
+SET to succeed on the unchanged relation identity, shape and rows. It does not claim
+to exercise a native queued rename. `TestRelationOptionsMetadataPublication`
+separately proves the actual native stale-descriptor identity and epoch fences.
+Authority-after-wait, active cancellation, lock strengths and timeout assertions
+remain shared and unchanged.
+
+Run each group in both modes with external900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceRelationOptions(Inventory|Parsing|CatalogOrder|ToastBoundary)$'
+make check RUN='^TestReferenceRelationOptions(Inventory|Parsing|CatalogOrder|ToastBoundary)$' REFERENCE=1
+make check RUN='^TestReferenceRelationOptions(Atomicity|Transactions|Authority|Hierarchy)$'
+make check RUN='^TestReferenceRelationOptions(Atomicity|Transactions|Authority|Hierarchy)$' REFERENCE=1
+make check RUN='^TestReferenceRelationOptions(LocksCancellation|Prepared|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceRelationOptions(LocksCancellation|Prepared|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceRelationOptionsReview(Materialized|Diagnostics|Precedence)$'
+make check RUN='^TestReferenceRelationOptionsReview(Materialized|Diagnostics|Precedence)$' REFERENCE=1
+make check RUN='^TestRelationOptions(Registry|ImmutableCandidate|PhasesAndLocks|ValidationOrder|BoundsText|TransformationOrder|ResetTransformation)$'
+make check RUN='^TestRelationOptionsMetadataPublication$'
+make check RUN='^TestReferenceRelationOptions(LocksCancellation|Transactions|Prepared)$' RACE=1
+```
+
+Feature smoke: `make check RUN='^TestReferenceRelationOptionsFeatureSmoke$'`
+and the identical command with `REFERENCE=1`. Expect ordered base arrays,
+unchanged INT4/TEXT rows, a failed mixed ALTER retaining shape/options, rollback,
+RESET-to-NULL and retained TOAST intent; native controls perform byte-stable
+Dump/Reset/Restore. Whole-project Docker-free verification remains quickcheck.
+Additional replay smoke:
+`make check RUN='^TestReferenceRelationOptionsReviewMaterialized$'` and the same
+command with `REFERENCE=1`. Expect ordered base and physical-TOAST metadata on
+PostgreSQL, exact emitted option statements, and byte-identical native redump
+with preserved snapshot contents/population; PostgreSQL schema replay must
+instead retain `relispopulated=false` until REFRESH.
+
 ### Partition pruning and constraint exclusion
 
 `TestReferencePartitionPruningRange`, `List`, `Hash`, `Nested`, `Expressions`,

@@ -938,6 +938,8 @@ const (
 	SetTablespace
 	InheritTable
 	NoInheritTable
+	SetRelationOptions
+	ResetRelationOptions
 )
 
 type AlterTableAction struct {
@@ -961,6 +963,7 @@ type AlterTableAction struct {
 	Check       *CheckConstraint
 	Unique      *UniqueConstraint
 	ForeignKey  *ForeignKeyConstraint
+	Options     []IndexOption
 	// NOT NULL uses the flat attachment; CHECK/FK retain validity in their AST.
 	NotValid    bool
 	NoInherit   bool

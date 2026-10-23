@@ -28,7 +28,7 @@ func AlterActionPhase(action parser.AlterTableActionKind) int {
 		return 7
 	case parser.SetIdentity:
 		return 8
-	case parser.InheritTable, parser.NoInheritTable:
+	case parser.InheritTable, parser.NoInheritTable, parser.SetRelationOptions, parser.ResetRelationOptions:
 		return 9
 	}
 	return -1

@@ -67,7 +67,7 @@ func ConsumerBoundary(statement parser.Statement, d *catalog.Relation, replayAll
 		if table.RelationshipOnly(s.Actions) {
 			return nil // Detach rejects actual partitions at its misc action.
 		}
-		if access.RowSecurityActions(s.Actions) || table.TablespaceOnlyActions(s.Actions) {
+		if access.RowSecurityActions(s.Actions) || table.TablespaceOnlyActions(s.Actions) || table.RelationOptionsOnly(s.Actions) {
 			return nil
 		}
 		if ExclusionAddActions(s) {
@@ -80,6 +80,11 @@ func ConsumerBoundary(statement parser.Statement, d *catalog.Relation, replayAll
 			return nil
 		}
 		if table.PartitionConstraintActions(d, s.Actions) {
+			return nil
+		}
+		if table.HasRelationOptions(s.Actions) {
+			// Prepare private candidates, then retain the executor's unsupported
+			// shape guard before any journal transfer. This is not propagation.
 			return nil
 		}
 		for _, action := range s.Actions {

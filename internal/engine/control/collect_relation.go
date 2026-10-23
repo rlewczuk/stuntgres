@@ -229,6 +229,12 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 			return err
 		}
 	}
+	if r.RelationKind == catalog.MaterializedViewRelation {
+		// ViewIndices also contains non-relation declarations. Capture options
+		// with the actual descriptor and names, not a later event-OID lookup.
+		qualified := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name())
+		sql += dumpRelationOptionsSQL(qualified, r.StorageOptions)
+	}
 	oid := r.Address().ObjectID
 	event := dump.Event{OID: oid}
 	c.Graph[event] = make([]dump.Event, 0, len(predecessors))

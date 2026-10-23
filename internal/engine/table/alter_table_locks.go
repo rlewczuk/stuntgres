@@ -6,13 +6,22 @@ import (
 )
 
 func AlterTableLockMode(raw *parser.AlterTable) lock.Mode {
-	for _, action := range raw.Actions {
-		if action.Action != parser.AddForeignKey {
-			return lock.AccessExclusive
-		}
-	}
 	if len(raw.Actions) == 0 {
 		return lock.AccessExclusive
 	}
-	return lock.ShareRowExclusive
+	mode := lock.ShareUpdateExclusive
+	for _, action := range raw.Actions {
+		if RelationOptionsAction(action.Action) {
+			for _, option := range action.Options {
+				if option.Name.Text == "user_catalog_table" {
+					return lock.AccessExclusive
+				}
+			}
+		} else if action.Action == parser.AddForeignKey {
+			mode = lock.ShareRowExclusive
+		} else {
+			return lock.AccessExclusive
+		}
+	}
+	return mode
 }

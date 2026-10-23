@@ -159,6 +159,9 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 			return err
 		}
 	}
+	if err := w.emit(dumpRelationOptionsSQL(qualified, t.Descriptor.StorageOptions)); err != nil {
+		return err
+	}
 	if err := t.EmitInheritedDefaults(ctx, s.OriginalCatalog, s.DeferDefaults, w.emit); err != nil {
 		return err
 	}
@@ -201,6 +204,37 @@ func emitDumpTable(ctx context.Context, s *dumpScript, w *dumpWriter, t table.Du
 		}
 	}
 	return nil
+}
+
+// dumpRelationOptionsSQL renders captured explicit intent with base entries
+// followed by retained TOAST entries. Callers retain the declaration's owner.
+func dumpRelationOptionsSQL(qualified string, options catalog.RelationOptions) string {
+	if len(options.Base)+len(options.Toast) == 0 {
+		return ""
+	}
+	var line strings.Builder
+	line.WriteString("ALTER TABLE ")
+	line.WriteString(qualified)
+	line.WriteString(" SET (")
+	for i, option := range options.Base {
+		if i != 0 {
+			line.WriteString(", ")
+		}
+		line.WriteString(catalog.QuoteIdentifier(option.Name))
+		line.WriteString(" = ")
+		line.WriteString(dump.CommentLiteral(option.Text))
+	}
+	for i, option := range options.Toast {
+		if len(options.Base) != 0 || i != 0 {
+			line.WriteString(", ")
+		}
+		line.WriteString(`"toast".`)
+		line.WriteString(catalog.QuoteIdentifier(option.Name))
+		line.WriteString(" = ")
+		line.WriteString(dump.CommentLiteral(option.Text))
+	}
+	line.WriteString(");\n")
+	return line.String()
 }
 
 // dumpTableCreateSQL renders a table's CREATE TABLE (or partition child)

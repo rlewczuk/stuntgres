@@ -111,7 +111,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		command.Actions = work
 		s = &command
 	}
-	if scope.inheritance.alter == nil && !access.RowSecurityActions(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
+	if scope.inheritance.alter == nil && !access.RowSecurityActions(s.Actions) && !table.RelationOptionsOnly(s.Actions) && (catalog.InheritanceParticipant(auth.Catalog, old) || table.HasRelationshipActions(s.Actions) || catalog.HierarchyRelation(old) && table.PartitionConstraintActions(old, s.Actions)) {
 		return e.alterInheritanceLocked(scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.inheritance.alter == nil || !scope.inheritance.alter.Descendant {
@@ -127,6 +127,19 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			return fail(err)
 		}
 		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, access.RowSecurityFlags(old, s.Actions))
+	}
+	if table.RelationOptionsOnly(s.Actions) {
+		next := old
+		for _, action := range s.Actions {
+			next, err = table.RelationOptionsCandidate(next, action)
+			if err != nil {
+				return fail(err)
+			}
+		}
+		if err := table.ValidateAlterTablespaceMove(destination); err != nil {
+			return fail(err)
+		}
+		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, next)
 	}
 	changes := scope.owner.Catalog.Clone()
 	if scope.inheritance.alter != nil {
@@ -223,6 +236,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				if err == nil && cachedAdded.Column != nil {
 					additions = append(additions, cachedAdded)
 				}
+			} else if table.RelationOptionsAction(action.Action) {
+				next, err = table.RelationOptionsCandidate(next, action)
 			} else if table.RelationshipAction(action.Action) {
 				next, err = scope.inheritanceRelationshipCandidate(stage, next, actionIndex, action)
 			} else if action.Action == parser.AddIdentity || action.Action == parser.DropIdentity || action.Action == parser.SetIdentity {
@@ -420,6 +435,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		if err != nil {
 			return Result{}, err
 		}
+	}
+	if catalog.HierarchyRelation(old) && table.HasRelationOptions(s.Actions) && !table.PartitionConstraintActions(old, s.Actions) {
+		return Result{}, sqlError("0A000", "altering partition hierarchies is unsupported")
 	}
 	op.Definition = originalDefinition
 	auth.definition = nil

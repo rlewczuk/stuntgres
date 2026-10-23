@@ -91,7 +91,7 @@ func InheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog
 
 func InheritanceRecursiveAction(root *catalog.Relation, a parser.AlterTableAction, only bool) bool {
 	switch a.Action {
-	case parser.SetTablespace:
+	case parser.SetTablespace, parser.SetRelationOptions, parser.ResetRelationOptions:
 		return false // Assignment is always root-only, independent of ONLY/star.
 	case parser.AddColumn, parser.DropColumn, parser.AlterColumnType:
 		return true

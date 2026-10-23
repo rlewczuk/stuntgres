@@ -85,6 +85,11 @@ func AlterTableActionKind(original *catalog.Relation, action parser.AlterTableAc
 		label = "NO INHERIT"
 	case parser.SetTablespace:
 		return ddl.AlterTablespaceKind(original)
+	case parser.SetRelationOptions, parser.ResetRelationOptions:
+		if original.RelationKind == catalog.MaterializedViewRelation {
+			return nil
+		}
+		label = "SET"
 	case parser.DropNotNull:
 		label = "ALTER COLUMN ... DROP NOT NULL"
 	case parser.AddNotNull, parser.AddCheck, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AddUsingIndex:

@@ -8,6 +8,36 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## Relation storage options
+
+SET/RESET table storage parameters perform real logical validation and catalog
+publication, not physical maintenance. Page packing/HOT behavior, TOAST
+compression or movement, disk truncation, WAL/durability, autovacuum scheduling,
+cost sleeps, freeze scans and worker creation are external mechanisms. Storing
+an option does not claim any such operation ran.
+
+Native descriptors retain validated documented `toast.*` intent on the owning
+table. Only base options appear in its `pg_class.reloptions`; `reltoastrelid`
+remains zero. No synthetic TOAST relation, OID, dependencies or statistics are
+created. Native validation also checks retained TOAST intent on integer-only
+tables. PostgreSQL skips that validation when no physical TOAST relation exists;
+this is an explicit logical/physical boundary, not backend parity.
+
+Native Dump/Reset/Restore preserves retained intent and explicit spelling for
+tables and accepted materialized views, including the latter's captured contents
+and population state through existing native snapshots. Emitted materialized-view
+schema SQL remains `WITH NO DATA`: PostgreSQL ignores native snapshot comments,
+so actual schema replay there preserves options and owner but leaves views
+unpopulated until REFRESH. It does not replay native captured rows.
+SQL replay on PostgreSQL preserves TOAST catalog facts only when a real TOAST
+relation exists (for example on TEXT-bearing tables or materialized views).
+Retained intent on an integer-only native relation cannot become a PostgreSQL
+TOAST catalog fact.
+Partition parents reject nonempty base options and retain the existing
+unsupported partition-shape propagation boundary; options do not authorize
+otherwise unsupported mixed shape changes. Leaf and typed/TEMP options preserve
+the existing relation-kind and lifetime rules.
+
 ## Ordinary VACUUM
 
 Ordinary `VACUUM` accepts the released legacy form and parenthesized option

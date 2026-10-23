@@ -14,6 +14,18 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Relation storage parameters — change note
+
+`ALTER TABLE ... SET (...)` and `RESET (...)` retain validated logical storage
+options, explicit spelling and PostgreSQL catalog order. Owner checks, relation
+locks, transactions/savepoints, mixed-action atomicity and native Dump/Restore
+use the existing catalog publication path. Accepted materialized-view options
+also retain exact ordered intent through native replay. Numeric bounds errors
+preserve explicit input text and validation follows base/TOAST pass order.
+Option-only changes do not copy or scan rows. See the [logical contract](docs/TABLES.md#relation-storage-options),
+[physical boundary](docs/DIALECT.md#relation-storage-options) and
+[selected proof](reference/tables/README.md#relation-storage-options).
+
 ## User-defined ordinary aggregates — change note
 
 `CREATE AGGREGATE` now supports fixed zero/N-input ordinary aggregates with
