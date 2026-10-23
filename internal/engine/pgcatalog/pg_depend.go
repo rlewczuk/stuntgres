@@ -72,6 +72,7 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 			}
 		case *catalog.Operator:
+			add(d.Address(), d.Extension, 'e')
 			if !runtime.OperatorSeeded(d) {
 				for _, address := range runtime.OperatorDependencies(view, d) {
 					add(d.Address(), address, 'n')

@@ -80,6 +80,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		r.Add(n.Ref.Address)
 	case plan.InstalledCryptoExpr:
 		r.Add(n.Ref.Address)
+	case plan.InstalledCubeSpatialExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledTextExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledPgrowlocksExpr:

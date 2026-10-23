@@ -32,7 +32,9 @@ func (b *Binder) ScheduleQueryProjection(root plan.Node, projection []expr.Expr,
 			slot := ordered.CacheWidth
 			ordered.Outputs = append(ordered.Outputs, bound)
 			ordered.CacheWidth++
-			projection[i] = plan.CachedOrderExpr{Info: expr.InfoOf(bound), Slot: slot}
+			info := expr.InfoOf(bound)
+			info.RoutineReference, info.RoutineRecipeReference = nil, nil
+			projection[i] = plan.CachedOrderExpr{Info: info, Slot: slot}
 		} else if bounded {
 			late = append(late, bound)
 			lateSlots = append(lateSlots, i)
@@ -46,7 +48,9 @@ func (b *Binder) ScheduleQueryProjection(root plan.Node, projection []expr.Expr,
 	}
 	for j, i := range lateSlots {
 		bound := projection[i]
-		projection[i] = plan.CachedOrderExpr{Info: expr.InfoOf(bound), Slot: base + j}
+		info := expr.InfoOf(bound)
+		info.RoutineReference, info.RoutineRecipeReference = nil, nil
+		projection[i] = plan.CachedOrderExpr{Info: info, Slot: base + j}
 	}
 	return &plan.EvaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: late, Base: base}
 }

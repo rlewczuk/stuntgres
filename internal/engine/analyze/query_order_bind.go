@@ -212,6 +212,8 @@ func (b *Binder) FinishOrder(root plan.Node, keys []plan.SortKey, projection []e
 			properties.StageDependent = true
 			info := expr.InfoOf(output)
 			info.Property = properties
+			// The producer owns callable admission; this node only reads its slot.
+			info.RoutineReference, info.RoutineRecipeReference = nil, nil
 			projection[j] = plan.CachedOrderExpr{Info: info, Slot: key.Cache}
 		}
 	}

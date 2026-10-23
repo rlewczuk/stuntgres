@@ -136,6 +136,23 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 			return d
 		}
 		return &n
+	case *catalog.Operator:
+		n := *d
+		n.ObjectAddress = address(n.ObjectAddress)
+		n.ObjectNamespace = address(n.ObjectNamespace)
+		n.Extension = address(n.Extension)
+		n.Left = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Left}).ObjectID
+		n.Right = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Right}).ObjectID
+		n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
+		n.Function = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: n.Function}).ObjectID
+		n.Commutator = address(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: n.Commutator}).ObjectID
+		n.Negator = address(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: n.Negator}).ObjectID
+		n.Restriction = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: n.Restriction}).ObjectID
+		n.Join = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: n.Join}).ObjectID
+		if n == *d {
+			return d
+		}
+		return &n
 	case *catalog.TSTemplate:
 		n := *d
 		n.ObjectAddress = address(n.Address())

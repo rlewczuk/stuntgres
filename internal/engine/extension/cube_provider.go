@@ -50,6 +50,12 @@ var cubeRoutines = [...]cubeRoutineSpec{
 	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool},
 }
 
+const (
+	cubeSpatialProcedureStart = 1 + len(cubeRoutines)
+	cubeSpatialOperatorStart  = cubeSpatialProcedureStart + len(cubeSpatialMembers)
+	cubeMemberCount           = cubeSpatialOperatorStart + len(cubeSpatialMembers)
+)
+
 func (s cubeRoutineSpec) signature(cube sqltype.ID) catalog.ProcedureSignature {
 	var parts [3]string
 	for i := range s.nargs {
@@ -83,7 +89,7 @@ func (s cubeRoutineSpec) resultOID(cube sqltype.ID) ids.OID {
 
 func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid cube manifest") }
-	if p != StockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != 1+len(cubeRoutines) {
+	if p != StockCube || ext.Name() != "cube" || ext.Version != p.control.Version || len(ext.Members) != cubeMemberCount {
 		return invalid()
 	}
 	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {
@@ -100,7 +106,7 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
-	for i, address := range ext.Members[1:] {
+	for i, address := range ext.Members[1:cubeSpatialProcedureStart] {
 		proc, ok := v.Procedure(address)
 		if !ok || proc.Address() != address || CubeProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
 			return invalid()
@@ -117,7 +123,7 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 			return invalid()
 		}
 	}
-	return nil
+	return p.validateSpatial(v, ext, base)
 }
 
 func (p *CubeProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {

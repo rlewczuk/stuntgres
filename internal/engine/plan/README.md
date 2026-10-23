@@ -37,10 +37,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   set-returning `UnnestExpr`, `SeriesExpr` and `SubscriptsExpr` with their source
   protocol and cursors.
 - **Installed extension nodes** (`expression_installed.go`,
-  `expression_cube.go`, `expression_extension_paths.go`): `InstalledTextExpr` (unaccent,
-  `daitch_mokotoff`), `InstalledCryptoExpr`, `InstalledUUIDOsspExpr`,
-  `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
-  `InstalledCubeExpr`, `InstalledPgrowlocksExpr` and `InstalledSoundexExpr` wrap a `functions` kernel with the captured
+  `expression_cube.go`, `expression_cube_spatial.go`, `expression_extension_paths.go`):
+  `InstalledTextExpr` (unaccent, `daitch_mokotoff`), `InstalledCryptoExpr`,
+  `InstalledUUIDOsspExpr`, `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
+  `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledPgrowlocksExpr` and
+  `InstalledSoundexExpr` wrap a `functions` kernel with the captured
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
   against the extension providers.
@@ -93,10 +94,12 @@ evaluation needs beyond it. `*exec.Context` is its only implementation.
   `EvalMergeAction`, `EvalCachedOrder`, `EvalWindow`, `EvalDomainValue`,
   `EvalUpdateOutput`, `EvalSubquery`, `EvalSQLRoutine`) holds that node's
   evaluation body in `exec`.
-- `EvalInstalledText` runs the prologue, checks the captured provider and
-  evaluates the kernel; `OpenExtensionPaths` lists the named extension's version
-  pairs from the live catalog. The provider check and the catalog read stay in
-  the engine, behind `exec`'s preparation value and host.
+- `EvalInstalledText` and `EvalInstalledCubeSpatial` run the prologue, validate
+  captured provider authority and evaluate the kernel, including strict NULL
+  calls. `InstalledCubeSpatialExpr` retains Procedure/Ref through reconstruction;
+  stored remap/retag rebuilds its checked plan against the destination type.
+  `OpenExtensionPaths` reads version pairs from the live catalog. Provider
+  checks and catalog reads stay in the engine behind `exec`'s runtime seam.
 
 Statement-only nodes run the prologue and then read `FunctionContext()`,
 `FunctionInput()` and `FunctionOutput()`; frame and executor nodes delegate their

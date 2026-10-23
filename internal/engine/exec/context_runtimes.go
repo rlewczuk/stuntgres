@@ -279,6 +279,8 @@ func PlannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return merge(n.Procedure.Volatility, children(n.Args...))
 	case plan.InstalledCryptoExpr:
 		return merge(n.Procedure.Volatility, children(n.Args...))
+	case plan.InstalledCubeSpatialExpr:
+		return merge(n.Procedure.Volatility, children(n.Args[:]...))
 	case plan.InstalledTextExpr:
 		return merge(n.Procedure.Volatility, children(n.Arg))
 	case plan.CaseExpr:

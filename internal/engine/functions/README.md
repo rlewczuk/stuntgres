@@ -251,6 +251,12 @@ publication and lock-manager tickets stay in the engine.
 
 ## Family notes
 
+- **Cube spatial** (`cube_spatial.go`, `cube_spatial_bind.go`): `CubeSpatial`
+  owns two coerced operands and a checked `sqltype.CubeSpatialPlan`.
+  `InstalledCubeRoutine.CubeType` exposes the selected installation's descriptor
+  to the shared binder; discovery preserves namespace/signature precedence.
+  The `plan` wrapper, not the kernel, owns installed callable admission.
+
 - **ACL**: aclitem algorithms keep their own copy of the `acldefault` masks
   (this package cannot import `authorization`).
 - **Regexp**: `RegexpCall` binds a `sqltype.RegexpPlan` and shares the

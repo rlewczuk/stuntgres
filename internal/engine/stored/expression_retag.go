@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 
 	"stuntgres/internal/engine/catalog"
@@ -94,6 +95,8 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 				address = installed.Ref.Address
 			case plan.InstalledCryptoExpr:
 				address = installed.Ref.Address
+			case plan.InstalledCubeSpatialExpr:
+				address = installed.Ref.Address
 			case plan.InstalledUUIDOsspExpr:
 				address = installed.Ref.Address
 			case plan.InstalledMetaphoneExpr:
@@ -117,6 +120,9 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 			}
 			if cube, cubeCall := node.(plan.InstalledCubeExpr); cubeCall {
 				sameSignature = ok && sameMappedCubeSignature(cube, current, retainedType)
+			} else if installed, spatialCall := node.(plan.InstalledCubeSpatialExpr); spatialCall {
+				mapped := retainedType(installed.Args[0].ResultUsage().Type)
+				sameSignature = ok && extension.CubeProviderOf(current) == extension.StockCube && extension.CubeProviderOf(captured) == extension.StockCube && mapped != nil && mapped.IsCube() && current.Signature == extension.CubeBinarySignature(mapped.ID())
 			}
 			if !ok || current.Name() != captured.Name() || !sameSignature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
@@ -321,6 +327,23 @@ func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, nod
 		n.Pgcrypto, err = n.Reconstruct(info, n.Args)
 		if err == nil {
 			err = ValidateInstalledCrypto(n, view)
+		}
+		rebound = n
+	case plan.InstalledCubeSpatialExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if err != nil {
+			return node, false, err
+		}
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
+		proc, ok := descriptor.(*catalog.Procedure)
+		if !ok || extension.CubeProviderOf(proc) != extension.StockCube {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped cube spatial function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
+		n.CubeSpatial, err = functions.NewCubeSpatial(info, n.Plan.Operation(), n.Args)
+		if err == nil {
+			err = extension.ValidateCubeSpatialCall(view, proc, n.CubeSpatial)
 		}
 		rebound = n
 	case plan.InstalledTextExpr:

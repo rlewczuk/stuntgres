@@ -350,6 +350,14 @@ func ValidateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		return args(n.Args)
 	case plan.InstalledCryptoExpr:
 		return args(n.Args)
+	case plan.InstalledCubeSpatialExpr:
+		if !stored.ReferenceEpochValid(view, d, n.Ref) {
+			return fmt.Errorf("stuntgres: invalid generated cube spatial reference")
+		}
+		if err := stored.ValidateInstalledCubeSpatial(n, view); err != nil {
+			return err
+		}
+		return args(n.Args[:])
 	case plan.InstalledTextExpr:
 		return args([]expr.Expr{n.Arg})
 	case expr.Composite:

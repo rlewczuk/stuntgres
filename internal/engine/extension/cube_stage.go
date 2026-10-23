@@ -12,7 +12,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Stage installs the scalar, associated array and selected routines atomically.
+// Stage installs the scalar, associated array, constructors/inquiries and
+// spatial procedures/operators atomically with genuine catalog identities.
 func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "cube")
 	if err != nil {
@@ -21,11 +22,13 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "cube") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: CubeTypeContext}
 	}
-	ext.Members = make([]ids.ObjectAddress, 1+len(cubeRoutines))
+	ext.Members = make([]ids.ObjectAddress, cubeMemberCount)
 	for i := range ext.Members {
 		class := ids.ProcedureClassID
 		if i == 0 {
 			class = ids.TypeClassID
+		} else if i >= cubeSpatialOperatorStart {
+			class = ids.OperatorClassID
 		}
 		oid, err := stage.AllocateOID()
 		if err != nil {
@@ -74,5 +77,5 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 			return err
 		}
 	}
-	return nil
+	return p.stageSpatial(stage, ext, owner, typ)
 }

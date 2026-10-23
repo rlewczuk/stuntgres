@@ -141,24 +141,6 @@ func remapReplacementDescriptor(current catalog.Read, mapping map[ids.ObjectAddr
 		d = catalog.RemapOperatorClass(r, mapping)
 	case *catalog.OperatorFamily, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		d = catalog.RemapOperatorFamily(r, mapping)
-	case *catalog.Operator:
-		n := *r
-		n.ObjectAddress = target
-		move := func(class, id ids.OID) ids.OID {
-			if mapped, ok := mapping[ids.ObjectAddress{ClassID: class, ObjectID: id}]; ok {
-				return mapped.ObjectID
-			}
-			return id
-		}
-		if mapped, ok := mapping[n.Namespace()]; ok {
-			n.ObjectNamespace = mapped
-		}
-		n.Left, n.Right, n.Result = move(ids.TypeClassID, n.Left), move(ids.TypeClassID, n.Right), move(ids.TypeClassID, n.Result)
-		n.Function, n.Restriction, n.Join = move(ids.ProcedureClassID, n.Function), move(ids.ProcedureClassID, n.Restriction), move(ids.ProcedureClassID, n.Join)
-		n.Commutator, n.Negator = move(ids.OperatorClassID, n.Commutator), move(ids.OperatorClassID, n.Negator)
-		if n != *r {
-			d = &n
-		}
 	case *catalog.Relation:
 		return remapReplacementRelation(current, mapping, a, target, r)
 	}

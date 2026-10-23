@@ -76,6 +76,12 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 				member.Signature = "citext"
 			}
 			principal = d.Owner
+		case *catalog.Operator:
+			if ext.Name() != "cube" || !cubeSpatialOwnerName(d.Name(), true) || d.Extension != ext.Address() {
+				return "", fmt.Errorf("stuntgres: invalid extension operator owner")
+			}
+			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: "cube,cube"}
+			principal = d.Owner
 		case *catalog.TSDictionary:
 			member = MemberOwner{Kind: "dictionary", Name: d.Name()}
 			principal = d.Owner
@@ -178,7 +184,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	case record.Name == "intarray" && record.Version == "1.5":
 		expectedMembers = 3
 	case record.Name == "cube" && record.Version == "1.5":
-		expectedMembers = 1 + len(cubeRoutines)
+		expectedMembers = cubeMemberCount
 	case record.Name == "citext" && record.Version == "1.8":
 		expectedMembers = 3
 	case record.Name == "earthdistance" && record.Version == "1.2":
@@ -228,6 +234,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			case "intarray":
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
 			case "cube":
+				valid = cubeSpatialOwnerName(member.Name, false) && member.Signature == "cube,cube"
 				for _, spec := range cubeRoutines {
 					if member.Name == spec.name && member.Signature == spec.ownerSignature() {
 						valid = true
@@ -255,6 +262,10 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				valid = fuzzystrmatchResult(member.Name, catalog.ProcedureSignature(member.Signature)) != 0 && (record.Version != "1.1" || member.Name != "daitch_mokotoff")
 			}
 			if !valid {
+				return invalid()
+			}
+		case "operator":
+			if record.Name != "cube" || member.Signature != "cube,cube" || !cubeSpatialOwnerName(member.Name, true) {
 				return invalid()
 			}
 		case "dictionary":

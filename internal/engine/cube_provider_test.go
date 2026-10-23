@@ -53,7 +53,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.5" || len(ext.Members) != 11 || base.Extension != ext.Address() || !base.SQLType.IsCube() || base.Owner != ext.Owner {
+	if ext.Version != "1.5" || len(ext.Members) != 23 || base.Extension != ext.Address() || !base.SQLType.IsCube() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
@@ -80,7 +80,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			if err := (stored.TypeProvider{}).Validate(view, member); err != nil {
 				t.Fatal(err)
 			}
-		} else if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
+		} else if err := (extension.CatalogProvider{address.ClassID}).Validate(view, member); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -118,7 +118,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 11 || !arrayInternal {
+	if len(members) != 23 || !arrayInternal {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -147,7 +147,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := records[0]
-	if record.Name != "cube" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 11 {
+	if record.Name != "cube" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 23 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
@@ -160,6 +160,9 @@ func TestCubeProviderIdentity(t *testing.T) {
 		"cube(701)": true, "cube(701,701)": true, "cube(1022)": true, "cube(1022,1022)": true,
 		"cube(cube,701)": true, "cube(cube,701,701)": true,
 		"cube_dim(cube)": true, "cube_is_point(cube)": true,
+		"cube_overlap(cube,cube)": true, "cube_contains(cube,cube)": true, "cube_contained(cube,cube)": true,
+		"cube_distance(cube,cube)": true, "distance_taxicab(cube,cube)": true, "distance_chebyshev(cube,cube)": true,
+		"&&": true, "@>": true, "<@": true, "<->": true, "<#>": true, "<=>": true,
 	}
 	for _, member := range record.Members {
 		key := member.Name
@@ -362,6 +365,9 @@ func TestCubeProviderConflicts(t *testing.T) {
 	t.Run("selected_signature_validation", func(t *testing.T) {
 		e, ext, _ := cubeUnitInstalled(t)
 		for _, address := range ext.Members[3:] {
+			if address.ClassID != ids.ProcedureClassID {
+				continue
+			}
 			for _, corrupt := range []func(*catalog.Procedure){
 				func(p *catalog.Procedure) { p.Signature += ",701" },
 				func(p *catalog.Procedure) { p.Result = 25 },
@@ -406,6 +412,9 @@ func TestCubeProviderControls(t *testing.T) {
 		}
 		sourceExt := source.catalog.state.MustExtension(source.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
 		for i, oldAddress := range sourceExt.Members[1:] {
+			if oldAddress.ClassID != ids.ProcedureClassID {
+				continue
+			}
 			old := source.catalog.state.MustProcedure(oldAddress)
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{base.Address(): imported.Address(), oldAddress: ext.Members[i+1]}
 			mapped := extension.RemapDescriptor(old, mapping).(*catalog.Procedure)

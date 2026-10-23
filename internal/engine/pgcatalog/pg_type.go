@@ -72,11 +72,7 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 	}
 	if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() {
 		ext, ok := catalog.Extension(d.Extension)
-		members := 3
-		if d.SQLType.IsCube() {
-			members = 11
-		}
-		if !ok || len(ext.Members) != members {
+		if !ok || len(ext.Members) < 3 || !d.SQLType.IsCube() && len(ext.Members) != 3 {
 			return f, fmt.Errorf("stuntgres: missing installed type routines")
 		}
 		if d.SQLType.IsCube() {

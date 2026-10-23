@@ -152,6 +152,16 @@ smoke exercises held scalar/array calls, retained readers, same/fresh-driver
 replacement, failed staged replacement and deterministic redump.
 See the [fixture ownership contract](reference/types/README.md#cube-constructor-fixtures).
 
+## Cube predicates and distances
+
+Installed cube now provides `&&`, `@>`, `<@`, `cube_distance`, `<->`, `<#>` and
+`<=>` through genuine binary cube procedures and operators. Direct/prepared
+calls and stored views/defaults use the installation's actual type and callable
+identities; native logical snapshots remap them coherently. See the
+[PostgreSQL cube documentation](https://www.postgresql.org/docs/18/cube.html),
+[provider ownership](internal/engine/extension/README.md) and
+[reference tests](reference/types/README.md#testing).
+
 <!-- moved from README.md -->
 
 ## External routine languages — change note

@@ -76,6 +76,9 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		if routine.OperatorSeeded(operator) {
 			return 0, nil
 		}
+		if operator.Extension != (ids.ObjectAddress{}) {
+			return predecessor(view, operator.Extension, consumer)
+		}
 		if operator.Function != 0 {
 			return operator.Address().ObjectID, nil
 		}

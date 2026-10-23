@@ -24,8 +24,8 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   and, except unaccent, `ValidateProcedure`. The stock instances are
   `StockCitext` … `StockUUIDOssp`. The script contexts (`CitextTypeContext`,
   `CubeTypeContext`, `IntarrayInputContext`, `UnaccentTemplateContext`, …),
-  signatures (`CubeSignature`, `QueryIntSignature`) and member tables
-  (`FuzzystrmatchMembers`, `IntaggMembers`) are what staging needs.
+  signatures (`CubeSignature`, `CubeBinarySignature`, `QueryIntSignature`) and
+  member tables (`FuzzystrmatchMembers`, `IntaggMembers`) are what staging needs.
 - **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.
@@ -36,6 +36,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `catalog.ExtensionMembership`. `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the catalog
   owner.
+- **Cube spatial members** (`cube_spatial.go`, `cube_spatial_call.go`): cube owns
+  its scalar type, two codecs, six constructors, two inquiries, six binary spatial
+  procedures and six operators as one validated 23-member manifest. Existing
+  routine order is retained before spatial procedure/operator tails; offsets and
+  member count derive from the routine tables. Operators carry real Extension
+  membership. Owner signatures replace every cube formal with symbolic `cube`,
+  preserving mixed constructor signatures and spatial `cube,cube` signatures.
+  `ImportOwners` enforces the same table-derived member count as staging and
+  owner-record decoding.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
   `ValidateIntaggIdentity`, `IntaggRecipeFunction`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
@@ -94,6 +103,9 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `MemberConflict`, `NameConflict` and `VersionError` (`extension_errors.go`),
   `AuthorityObservation` (its `Current` is the publication fence check) and
   `RemovalRoots`.
+  `RemapDescriptor` is the sole operator-descriptor remap owner, including
+  membership and all type/procedure links. Each source maps once; a destination
+  that is also a source does not trigger another mapping step.
 
 ## Invariants
 
@@ -148,7 +160,14 @@ DDL and catalogs), [reference/types](../../../reference/types/README.md#testing)
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
 
+Identity-remap units retain genuine physical TEMP owners and derive collision
+targets from actual imported identities. The earth control fixture allocates
+namespace pairs until an observed identity collides, failing if allocation
+passes the target. Replacement must remint the imported domain while preserving
+the retained TEMP descriptor; incidental prerequisite-member counts are not
+collision evidence.
+
 ```sh
-make check RUN='^Test(Extension|CitextProvider|EarthProvider|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
+make check RUN='^Test(Extension|CitextProvider|CubeProvider|CubeSpatialProvider|EarthProvider|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```

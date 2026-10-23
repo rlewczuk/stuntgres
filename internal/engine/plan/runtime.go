@@ -54,6 +54,7 @@ type Runtime interface {
 	// Installed extension nodes: each checks its captured identity against the
 	// engine's extension providers or catalog.
 	EvalInstalledText(InstalledTextExpr) (sqltype.Value, error)
+	EvalInstalledCubeSpatial(InstalledCubeSpatialExpr) (sqltype.Value, error)
 	OpenExtensionPaths(ExtensionPathsExpr) ([]sqltype.Value, error)
 }
 

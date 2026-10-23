@@ -110,6 +110,13 @@ Rules:
   inventories in reference/catalogs: rerun `^TestReferencePGType`,
   `^TestReferencePGOperator`, `^TestReferencePGOpclass` and, for extension types,
   `^TestReferenceAvailableExtensionsFiltering$`.
+- Cube spatial helpers assert raw BOOL/FLOAT8 values, metadata and complete
+  diagnostics before parity. Native controls retain actual TEMP identities to
+  force remapping and replay the emitted SQL on PostgreSQL. Excluded Restore
+  INSERT producers fail with ordinary control errors, not SQL codec diagnostics.
+- `earthIdentityChecks` is shared by Earth Metadata, Controls and
+  PrerequisiteRemoval; rerun all three after changing it. Its function inventory
+  includes `cube_distance` from the installed cube prerequisite.
 
 Path measurement scenarios cover all eight `isclosed/isopen/pclose/popen(path)`,
 `length(path/lseg)` and `npoints(path/polygon)` signatures. Closing/reopening a
@@ -167,7 +174,7 @@ COPY test in reference/dml.
 - `multirange(anyrange)`, `unnest(anymultirange)`: `RUN='^TestReferenceRangeMore'`
 - Text search types: `RUN='^TestReferenceFTSTypes'`
 - Text search operators: `RUN='^TestReferenceFTSOps'`
-- `cube`: `RUN='^TestReferenceCube'`
+- `cube` (scalar/codecs and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth`: `RUN='^TestReferenceEarth'`
 - <a id="citext-storage-and-value-round-trips"></a>`citext`: `RUN='^TestReferenceCitext'`
 - `query_int`: `RUN='^TestReferenceQueryInt'`

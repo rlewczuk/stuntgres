@@ -11,6 +11,7 @@ type Operator struct {
 	ObjectAddress, ObjectNamespace                           ids.ObjectAddress
 	ObjectRevision                                           ids.DefinitionRevision
 	ObjectName                                               string
+	Extension                                                ids.ObjectAddress
 	Left, Right                                              ids.OID
 	Owner                                                    authorization.PrincipalRef
 	Result, Function, Commutator, Negator, Restriction, Join ids.OID

@@ -394,6 +394,15 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Pgcrypto, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
+	case plan.InstalledCubeSpatialExpr:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		if err == nil {
+			n.CubeSpatial, err = functions.NewCubeSpatial(n.Info, n.Plan.Operation(), n.Args)
+		}
+		next = n
 	case plan.InstalledTextExpr:
 		n.Arg = child(n.Arg)
 		if ref != nil {

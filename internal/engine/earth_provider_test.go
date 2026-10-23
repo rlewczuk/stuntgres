@@ -178,23 +178,38 @@ func TestEarthProviderControls(t *testing.T) {
 	target := New()
 	owner, closeOwner := extensionTemporaryOperation(t, target, "postgres")
 	defer closeOwner()
-	// Retain a real TEMP object at the source earth type's OID. Do not rely
-	// on the number of members allocated by the prerequisite extensions.
-	target.mu.Lock()
-	target.catalog.nextOID = d.Address().ObjectID
-	target.mu.Unlock()
 	namespace := intarrayUnitTemporaryNamespace(t, target, owner)
-	if namespace.Address().ObjectID != d.Address().ObjectID {
-		t.Fatal("missing explicit retained TEMP collision")
-	}
 	installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 	extensionUnitPublish(t, target, installer, cubeUnitStage(t, target, installer, "unaccent", namespace.Name()))
 	closeInstaller()
+	// The prerequisite's member count must not decide whether earth collides.
+	// Keep genuine physical TEMP owners alive until an allocated namespace
+	// identity equals the actual source domain ID. Collision reservation is
+	// numeric across these descriptor classes, not just within pg_type.
+	var collision *catalog.Namespace
+	for collision == nil {
+		temporaryOwner, _ := extensionTemporaryOperation(t, target, "postgres")
+		temporary := intarrayUnitTemporaryNamespace(t, target, temporaryOwner)
+		var maximum ids.OID
+		for address, descriptor := range target.catalog.state.Descriptors() {
+			retained, ok := descriptor.(*catalog.Namespace)
+			if !ok || retained.Temporary != temporary.Temporary {
+				continue
+			}
+			maximum = max(maximum, address.ObjectID)
+			if address.ObjectID == d.Address().ObjectID {
+				collision = retained
+			}
+		}
+		if maximum == 0 || collision == nil && maximum >= d.Address().ObjectID {
+			t.Fatalf("TEMP allocation passed source earth identity %v without a retained collision", d.Address())
+		}
+	}
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if target.catalog.state.Get(namespace.Address()) != namespace {
-		t.Fatal("retained TEMP namespace was reminted")
+	if target.catalog.state.Get(namespace.Address()) != namespace || target.catalog.state.Get(collision.Address()) != collision {
+		t.Fatal("replacement changed retained TEMP namespace authority")
 	}
 	ext := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "earthdistance"}))
 	imported := target.catalog.state.MustType(ext.Members[0])

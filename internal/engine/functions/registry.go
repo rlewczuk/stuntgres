@@ -98,6 +98,7 @@ var definitions = [...]Definition{
 	{Names: []string{"int_array_aggregate", "int_array_enum"}, Bind: bindIntagg},
 	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
 	{Names: pgcryptoNames[:], Bind: bindPgcrypto},
+	{Names: cubeSpatialNames[:], Bind: bindCubeSpatial},
 	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},
 	{Names: []string{"cube", "cube_dim", "cube_is_point"}, Bind: bindCube},
 	{Names: []string{"unaccent", "daitch_mokotoff"}, Bind: bindInstalledText},

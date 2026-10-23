@@ -58,6 +58,11 @@ library, and never the root engine or `session`. The engine, the root driver
   defaults, generated columns, index, partition and policy expressions), plan
   walks, coercion properties, collation derivation (`CollatedInfo`) and error
   positions. They read only their arguments.
+- **Cached query outputs** (`query_order_bind.go`, `query_distinct_on_bind.go`,
+  `query_producer_bind.go`): cached-slot constructors preserve value, diagnostic,
+  collation and stage metadata, but clear routine and defining-recipe references.
+  Sort keys, sort outputs and evaluation producers retain executable callable
+  identity and admission/remap ownership; `CachedOrderExpr` only reads a slot.
 - **Default evaluation** (`default_eval.go`): `ApplyDefaultOrigin` and
   `EvalDefault` over an `exec.Context`.
 

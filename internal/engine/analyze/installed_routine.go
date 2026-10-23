@@ -27,6 +27,26 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		return nil, err
 	}
 	text := name.Parts[len(name.Parts)-1].Text
+	if family == functions.CubeExtension && signature == "" {
+		if _, selected := sqltype.CubeSpatialKind(text); !selected {
+			return nil, nil
+		}
+		// Discover only an authentic binary cube signature, then apply the
+		// ordinary path/signature winner so a preceding shadow is never skipped.
+		for i := range path.Count() {
+			for candidate := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.Host.DefinitionOf(auth), path.At(i), text) {
+				if extension.CubeProviderOf(candidate) != extension.StockCube {
+					continue
+				}
+				if selected := ProcedureInNamespaces(auth.ReadCatalog(), path, text, candidate.Signature); selected != candidate {
+					return nil, nil
+				}
+				routine := installedExtensionRoutine{binder: b, catalog: auth.ReadCatalog(), procedure: candidate}
+				return routine, nil
+			}
+		}
+		return nil, nil
+	}
 	var proc *catalog.Procedure
 	if family == functions.PgcryptoExtension {
 		for i := range path.Count() {
@@ -146,6 +166,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledCryptoExpr{Pgcrypto: c, Procedure: p, Ref: ref}, nil
+	case functions.CubeSpatial:
+		if extension.CubeProviderOf(p) != extension.StockCube {
+			break
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledCubeSpatialExpr{CubeSpatial: c, Procedure: p, Ref: ref}, nil
 	case functions.Levenshtein:
 		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
@@ -205,4 +232,9 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 		return nil, fmt.Errorf("stuntgres: invalid installed function binding")
 	}
 	return node, nil
+}
+
+func (r installedExtensionRoutine) CubeType() *sqltype.Descriptor {
+	ext := r.catalog.MustExtension(r.procedure.Extension)
+	return r.catalog.MustType(ext.Members[0]).SQLType
 }

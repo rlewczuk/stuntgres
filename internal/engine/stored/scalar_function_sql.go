@@ -110,6 +110,19 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
+	case plan.InstalledCubeSpatialExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
+			return "", fmt.Errorf("stuntgres: invalid stored cube spatial reference")
+		}
+		if err := ValidateInstalledCubeSpatial(n, view); err != nil {
+			return "", err
+		}
+		namespace, ok := r.descriptor(view, n.Procedure.Namespace()).(*catalog.Namespace)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored cube spatial namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args[:])
 	case plan.InstalledTextExpr:
 		proc, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
 		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !analyze.ValidInstalledText(n) || proc.Name() != n.Procedure.Name() || proc.Signature != n.Procedure.Signature || proc.RoutineKind != n.Procedure.RoutineKind || proc.Result != n.Procedure.Result || proc.Strict != n.Procedure.Strict || proc.Volatility != n.Procedure.Volatility || extension.UnaccentProviderOf(proc) != extension.UnaccentProviderOf(n.Procedure) || extension.IntarrayProviderOf(proc) != extension.IntarrayProviderOf(n.Procedure) || extension.PgcryptoProviderOf(proc) != extension.PgcryptoProviderOf(n.Procedure) || extension.FuzzystrmatchProviderOf(proc) != extension.FuzzystrmatchProviderOf(n.Procedure) || proc.Dictionary != n.Procedure.Dictionary || proc.Extension != n.Procedure.Extension || proc.Namespace() != n.Procedure.Namespace() {

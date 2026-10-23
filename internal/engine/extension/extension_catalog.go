@@ -72,6 +72,15 @@ func (p CatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if ext, err = validateInstalledProcedure(v, d); err != nil {
 			return err
 		}
+	case *catalog.Operator:
+		proc, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Function})
+		if !ok || CubeProviderOf(proc) != StockCube || proc.Extension != d.Extension {
+			return invalid()
+		}
+		ext = d.Extension
+		if err := StockCube.ValidateProcedure(v, proc); err != nil {
+			return err
+		}
 	case *catalog.TSTemplate:
 		if d.Name() != "unaccent" || UnaccentTemplateProviderOf(d) != StockUnaccent {
 			return invalid()

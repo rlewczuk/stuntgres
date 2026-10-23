@@ -100,6 +100,11 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   not an optimization opportunity; long kernel loops check cancellation.
 - No geometric type gains default ordering/hash/index authority from its
   scalar operators.
+- `CubeSpatialPlan` reads private entered endpoints without text conversion,
+  normalized copies or padded coordinate allocations. Operand/result usages and
+  descriptor identity are checked at binding. Ordered comparisons and sequential
+  binary64 accumulation are retained; nonfinite arithmetic is not converted to
+  checked SQL scalar arithmetic.
 - One path walker serves JSONPath, SQL/JSON query plans and `JSONTableRows`.
   Numeric path arithmetic borrows exact decimal operands into private typed
   NUMERIC headers and reuses the numeric kernels; no provider identity escapes
@@ -218,7 +223,7 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 Selectors (add `RACE=1` for cancellation and concurrency units; several also
 match engine tests of the same mechanism):
 
-- Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryRelation|GeometryConversion|GeometryMeasure|EarthCubeChecks|NetworkSubnet)'`
+- Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryRelation|GeometryConversion|GeometryMeasure|CubeSpatial|EarthCubeChecks|NetworkSubnet)'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`

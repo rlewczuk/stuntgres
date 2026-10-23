@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -91,6 +92,9 @@ func (OperatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 				return fmt.Errorf("stuntgres: invalid operator negator")
 			}
 		}
+	}
+	if d.Extension != (ids.ObjectAddress{}) {
+		return (extension.CatalogProvider{Class: ids.OperatorClassID}).Validate(v, d)
 	}
 	return nil
 }

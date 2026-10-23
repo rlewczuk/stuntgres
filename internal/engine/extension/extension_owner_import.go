@@ -45,7 +45,7 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 			}
 		}
 		if record.Name == "cube" {
-			if len(ext.Members) != len(cubeRoutines)+1 {
+			if len(ext.Members) != cubeMemberCount {
 				return false, fmt.Errorf("stuntgres: invalid cube ownership manifest")
 			}
 		}
@@ -61,6 +61,9 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 			if member.Kind == "type" {
 				class = ids.TypeClassID
 			}
+			if member.Kind == "operator" {
+				class = ids.OperatorClassID
+			}
 			signature := member.Signature
 			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "citext" && member.Name == "citextout") {
 				base, ok := candidate.Type(ext.Members[0])
@@ -69,7 +72,7 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 				}
 				signature = string(QueryIntSignature(base.SQLType.ID()))
 			}
-			if member.Kind == "procedure" && record.Name == "cube" {
+			if record.Name == "cube" && (member.Kind == "procedure" || member.Kind == "operator") {
 				base, ok := candidate.Type(ext.Members[0])
 				if !ok || !base.SQLType.IsCube() {
 					return false, fmt.Errorf("stuntgres: missing cube ownership type")
@@ -81,11 +84,13 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 					}
 				}
 				signature = strings.Join(parts, ",")
-				valid := false
-				for _, spec := range cubeRoutines {
-					if spec.name == member.Name && member.Signature == spec.ownerSignature() && string(spec.signature(base.SQLType.ID())) == signature {
-						valid = true
-						break
+				valid := member.Signature == "cube,cube" && cubeSpatialOwnerName(member.Name, member.Kind == "operator")
+				if member.Kind == "procedure" {
+					for _, spec := range cubeRoutines {
+						if spec.name == member.Name && member.Signature == spec.ownerSignature() && string(spec.signature(base.SQLType.ID())) == signature {
+							valid = true
+							break
+						}
 					}
 				}
 				if !valid {
@@ -127,6 +132,13 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, roles authoriza
 					ownersChanged = true
 				}
 			case *catalog.Procedure:
+				if d.Owner != owner.Ref {
+					n := *d
+					n.Owner = owner.Ref
+					candidate.SetDescriptor(a, &n)
+					ownersChanged = true
+				}
+			case *catalog.Operator:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref

@@ -243,5 +243,6 @@ func (b *Binder) FinishDistinctOn(root plan.Node, order, on []plan.SortKey, fami
 func distinctOnCached(expression expr.Expr, slot int) plan.CachedOrderExpr {
 	info := expr.InfoOf(expression)
 	info.Property.StageDependent = true
+	info.RoutineReference, info.RoutineRecipeReference = nil, nil
 	return plan.CachedOrderExpr{Info: info, Slot: slot}
 }

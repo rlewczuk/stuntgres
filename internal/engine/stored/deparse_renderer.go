@@ -798,6 +798,15 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args, true)
+	case plan.InstalledCubeSpatialExpr:
+		if err := extension.ValidateCubeSpatialCall(r.View, n.Procedure, n.CubeSpatial); err != nil {
+			return "", err
+		}
+		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing cube spatial function namespace")
+		}
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(n.Procedure.Name()), n.Args[:], true)
 	case plan.InstalledTextExpr:
 		namespace, ok := r.View.Namespace(n.Procedure.Namespace())
 		if !ok {
