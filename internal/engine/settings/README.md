@@ -29,7 +29,7 @@ import this package directly.
   `Definition.Parse`/`Format` and base-unit `Raw`, PostgreSQL-compatible number
   scanning (`ParseNumber`, also used for storage options) and memory/time units.
 - **Search path** (`search_path.go`): the pure list parser. Namespace and ACL
-  resolution stay in the engine (`schema_path.go`).
+  resolution are in `analyze` (`search_path.go`).
 - **Registry** (`registry.go`): `NewRegistry(registered,
   trackCommitTimestamps)` captures builtin boot values (the engine passes its
   commit-timestamp tracking flag), adds validated registered definitions and

@@ -180,6 +180,31 @@ Private seam proof: `make check RUN='^TestSQLJSONDefaultShape$'`.
 - **Lookup vocabulary** (`lookup.go`): `LookupKind`, the provider family a
   search-path lookup serves, and `NamespaceSelection`, the namespaces a name
   lookup searches.
+- **Search path** (`search_path.go`): `ExplicitPath` (the configured path:
+  prefix, `$user`, `pg_temp` and pending creation, deduplication, USAGE
+  omission; only VACUUM keeps peer TEMP namespaces), `LookupPath` and
+  `EffectivePath` (pg_catalog and the own TEMP namespace implied per
+  `LookupKind`), `LookupNamespaces` (qualified and unqualified name lookup,
+  with its missing-schema and foreign-TEMP diagnostics) and
+  `CreationNamespace` (a CREATE destination, reporting a deferred TEMP
+  namespace). They read one by-value `PathInput[E]`: the `access.View`, the
+  definition reader, the engine domain that mints namespace references, the
+  `search_path` entries, the path prefix, the `$user` principal, the staged
+  TEMP namespace and the materialized-population flag. `Env` is the root's
+  view as a type parameter constrained by `access.Environment`, so building
+  the input boxes nothing; it answers the own TEMP namespace when a decision
+  needs it, and its `ReferencePath` (read by a type denial inside
+  `View.Check`) resolves `LookupPath` again through the root.
+- **Type names** (`type_name_resolution.go`): `ResolveTypeName`, the
+  resolution of a type declaration in the namespaces the root's lookup
+  selected: first match, admission flags (`TypeNameInput`), typmods and
+  array bounds. `TypeNameOperation` carries the operation's context (called
+  only for a typmod given as text) and a warning callback, because `analyze`
+  never imports `session`; it is a parameter of its own so the callers'
+  closures stay on their stack.
+- **Prepared domain casts** (`domain_casts.go`): `RetireDomainCasts` and
+  `PublishDomainCasts` swap the domain and type-name cast group of a held
+  description's prepared types map without mutating a shared map.
 - **Captured input retargeting** (`captured_inputs.go`): `IdentifierTarget`
   and the `RegtypeRetarget`, `OperatorRetarget`, `RoutineRetarget` and
   `RegTSRetarget` interfaces, which point the engine's captured resolvers in
@@ -305,6 +330,16 @@ Private seam proof: `make check RUN='^TestSQLJSONDefaultShape$'`.
   keeps the resolver's sink.
 
 ## What stays in the engine
+
+The search path wrappers in `schema_path.go` (about 35 files call them) and
+`pathInput`, which reads the `search_path` entries under the session
+settings mutex only for unqualified resolution, so qualified lookups take
+no settings lock; the catalog view validation before lookup and creation,
+and the creation reference, minted with the catalog domain;
+`temporaryNamespace` (session TEMP ownership); the authorization, name
+canonicalization and namespace lookup of `resolveAnnotationTypeInput`; and
+`retireAnalysisTypeCasts`, which makes the cast retirement sticky through
+the description's reanalysis flag.
 
 The binder's construction point `newExpressionBinder`, the host
 implementation (`bindingHost`, `Engine.analysisHost`, `analysis_host.go`) and
@@ -474,7 +509,8 @@ make check RUN='^TestReferencePGOperator(ResolverAgreement|Diagnostics)$' REFERE
 `TestCheckBindingDeleteChecksDeleteBeforeReads` the binding privilege walkers
 (per-source principals, validation and check order), and
 `TestQueryOuterJoinsComparisonNegators` the FULL JOIN comparison negators,
-and `TestRelationNamespaceShape` the relation namespace.
+`TestRelationNamespaceShape` the relation namespace, and
+`TestDomainIdentityCaptureRetirement` the prepared domain cast swaps.
 The binder needs an engine host, so its unit tests stay in the engine and
 name `analyze.Binder` and its exported members. The seams have engine unit tests: slots, binding
 authorities, held inputs, captured input retargeting and the host's rule
@@ -482,7 +518,23 @@ check, expression and query mapping, stored-view reads and the view read
 graph:
 
 ```sh
-make check RUN='^(TestRelationNamespaceShape|TestQueryOuterJoinsComparisonNegators|TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestCheckQuerySourcesChecksEachSourceAsItsPrincipal|TestCheckBindingDeleteChecksDeleteBeforeReads|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
+make check RUN='^(TestRelationNamespaceShape|TestQueryOuterJoinsComparisonNegators|TestDomainIdentityCaptureRetirement|TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestCheckQuerySourcesChecksEachSourceAsItsPrincipal|TestCheckBindingDeleteChecksDeleteBeforeReads|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
+```
+
+The search path and type-name decisions need engine-built views, so their
+units stay in the engine: path kinds, ACL omission and TEMP placement
+(`TestSearchPath*`), qualified TEMP authority
+(`TestPGNamespaceTemporarySuperuserAuthority`), the trusted-replay `$user`
+principal (`TestForeignKeyTrustedReplayNamespacePrincipal`), installed-function
+and visibility paths (`TestExtensionTemporaryLookup`,
+`TestVisibilityInquiryAuthorizationAndPathKinds`), the text-search path
+(`TestRegTSProviderResolution`), the type denial that re-enters the live
+search path (`TestAccessViewTypeDenialFollowsLiveSearchPath`) and the
+prepared domain identities (`TestDomainIdentity*`):
+
+```sh
+make check RUN='^(TestSearchPath|TestPGNamespaceTemporarySuperuserAuthority|TestForeignKeyTrustedReplayNamespacePrincipal|TestExtensionTemporaryLookup|TestVisibilityInquiryAuthorizationAndPathKinds|TestRegTSProviderResolution|TestAccessViewTypeDenial|TestDomainIdentity)'
+make check RUN='^TestReference(SearchPath|SchemaSearchPath|SchemaPathsPrepared|NamespaceIdentityPendingTemp|TemporaryTableNamespace|MaterializedViewRestrictedSearchPath|VacuumF7ForeignTempSearchPath|RegtypeNames|TableCoreQuotedTypeNamesAndBoundaries|DomainPreparedLifecycle|DomainIdentityPrepared)'
 ```
 
 ON CONFLICT execution state over the clause: `TestRuleConflictInstantiation`,

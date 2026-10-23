@@ -157,7 +157,7 @@ their lower-case names.
 - The inquiry host adapters (`object_address.go`, `comment_inquiry.go`,
   `visibility_inquiry.go`): the snapshot checks, `admitInquiryBody`, the
   `addressLookup` builder (its `Namespace` is
-  `Engine.lookupNamespacesSnapshot` over the deparse authority, which reads
+  `lookupNamespacesSnapshot` (`analyze.LookupNamespaces`) over the deparse authority, which reads
   the engine's TEMP ownership and domain), the `Engine.mu`
   `pg_import_system_collations` branch and `captureVisibilitySnapshotLocked`.
 - `deparse_function.go`: only the missing-snapshot check and the

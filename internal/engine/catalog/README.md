@@ -171,7 +171,9 @@ imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser`,
   `DependencyIdentifier` quotes like PostgreSQL 18
   `quote_identifier` (every keyword except unreserved ones, independent of
   the parser's smaller grammar); `TypeDiagnosticNameAt` names a type bare
-  when the search path finds it first and schema-qualified otherwise;
+  when the search path finds it first and schema-qualified otherwise, and
+  `TypeDiagnosticNamer` freezes that naming over a catalog read and a
+  reference path for input environments;
   `ObjectNameText` (`object_names.go`) joins a parsed name's parts. The
   engine and `access` share them.
 - **Definition reader** (`definition_reader.go`). `DefinitionReader` is the

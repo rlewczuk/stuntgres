@@ -7,8 +7,9 @@ registry live in [`settings`](settings/README.md). `Engine.settings` holds one
 `settings.Registry` by value, constructed before provider registration and
 publication with the visibility tracking flag; parameter providers borrow a
 pointer to it, and descriptor validation and grant-name canonicalization use
-the same registry. ACL catalogs remain sparse. Search-path resolution stays in
-`schema_path.go`. Runtime notice levels, threshold captures and emission,
+the same registry. ACL catalogs remain sparse. Search-path decisions are in
+[`analyze`](analyze/README.md); `schema_path.go` keeps the wrappers that read
+`search_path` under the session settings mutex. Runtime notice levels, threshold captures and emission,
 physical-session values, the journal, timeout publication and their locks
 live in [`session`](session/README.md). The engine, the root driver and
 `cmd/stuntgres` name `settings.` and `session.` types directly; no aliases
@@ -96,9 +97,9 @@ same-identity rename/TRUNCATE before admission is not a stale-selection fence.
 Final detached publication retains the existing strict shape/store/root/index/
 authority/epoch/gate checks. Sequence/nonheap inherited ownership is real role
 closure authority, not an assumption that every kind has a MAINTAIN ACL bit.
-The VACUUM-only peer-TEMP resolver uses paired namespace/object ACLs. The private
-explicitPathForPolicy body is shared with ordinary explicitPathFor(false);
-only VACUUM opts in(true) using RelationLookup. Existing effectivePath and shared
+The VACUUM-only peer-TEMP resolver uses paired namespace/object ACLs. The
+`analyze.ExplicitPath` body is shared with ordinary lookups (false); only
+VACUUM opts in (true) using RelationLookup. `analyze.EffectivePath` and shared
 object lookup/diagnostics/own-TEMP admission retain one implementation. Generic
 namespace/searchpath/SELECT/DML boundaries are not relaxed, and there is no
 InstalledFunctionLookup shortcut or second configured-path resolver.

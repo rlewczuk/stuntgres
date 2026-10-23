@@ -544,7 +544,7 @@ and the 10d `keylit`).
   `ViewLiteralPath`, `ViewLiteralClause` and the three slots (the plan's
   `LiteralPath`/`LiteralClause` kept their `View` prefix to match the
   `View*Literal` constants). 32 aliases in `analyze_aliases.go`; the 32
-  constants and `NewResolverInputs` are qualified in 61 engine files; two
+  constants and `NewResolverInputs` are qualified in 61 engine files; three
   positional literals keyed (`keylit`). The test local `analyze` in
   `insert_conflict_update_test.go` became `analyzeConflict`, so `analyze`
   always means the package. `analyze` imports `plan`, `exec`, `catalog`,
@@ -1306,7 +1306,72 @@ in §8.3 pass.
   PG-only `SerialDefaultProvider` tests), quickcheck and `make deps`
   passed; racecheck and finalcheck skipped at user request. No startup
   path touched, so no bench.
-- [ ] 12g — Search path and type-name resolution (linear item 146)
+- [x] 12g — Search path and type-name resolution moved (linear item 146;
+  `3bff76829`, `4e4f635f9`, `d89bd926f`, `588dcdfe7`, `ab8c06fa4`, then the
+  docs commit). The `schema_path.go` decisions are `analyze.ExplicitPath`,
+  `LookupPath`, `EffectivePath`, `LookupNamespaces` and `CreationNamespace`
+  (`analyze/search_path.go`) over the by-value `analyze.PathInput[E
+  access.Environment]`: the view, `Env`, the definition reader, the engine
+  domain, the `search_path` entries, the prefix, the `$user` principal, the
+  staged TEMP namespace and the restriction flag. The root keeps one-line
+  wrappers and `pathInput`, which reads the entries under `settings.Mu` only
+  for unqualified resolution (qualified lookups still take no settings
+  lock); catalog view validation and the creation reference (catalog
+  domain) stay root. `explicitPathFor` and `explicitPathForPolicy` are gone;
+  VACUUM calls `analyze.ExplicitPath` with peer TEMP allowed. The post-lookup
+  core of `resolveAnnotationTypeInput` is `analyze.ResolveTypeName`
+  (`type_name_resolution.go`) over `TypeNameInput` and `TypeNameOperation`
+  (`Context`, called only for a typmod given as text because
+  `Operation.Context` may take `Session.Mu`, and `Warn`).
+  `analyze.RetireDomainCasts` and `PublishDomainCasts` (`domain_casts.go`)
+  swap the cast group; the root keeps `retireAnalysisTypeCasts` for the
+  sticky reanalysis flag, and `publishAnalysisTypeCasts` is gone.
+  `catalog.TypeDiagnosticNamer` holds the naming closure; the root
+  `captureTypeDiagnosticName` (ten files) resolves the path first. Sizes:
+  267, 151 and 52 lines added to `analyze`; `schema_path.go` 260 → 96 lines,
+  `type_resolution.go` 212 → 117. No aliases.
+  - Deviations from the plan: `Env` is a type parameter, not an interface
+    field. An interface field boxes the view once per call (a scratch
+    measurement: one allocation even when no check runs, where qualified
+    CREATE allocates nothing today); with the type parameter the view is
+    converted only where `View.CanUse`/`Effective` take an environment, as
+    before. Cut and move landed in one commit per piece (as in 144). The
+    name canonicalization and the lookup name stay in the root: building
+    the name in `analyze` and returning it cost one allocation per type
+    name. `reach` was not re-run; every moved body was read in full.
+  - Tests: new `TestAccessViewTypeDenialFollowsLiveSearchPath` (a live
+    view's type denial qualifies by the session search path, before and
+    after `SET search_path`), pinning the `View.Check` → `ReferencePath` →
+    `analyze.LookupPath` re-entry. Moved: `TestDomainIdentityCaptureRetirement`
+    to `analyze/domain_casts_test.go`, same assertions over the three
+    functions plus one that retiring without casts reports nothing; the
+    sticky flag stays covered by `TestDomainIdentityPreparedCapture`. The
+    root tests the plan named (`search_path_test.go`, `regts_test.go`,
+    `namespace_temporary_authority_test.go`, `foreign_key_review_test.go`)
+    call the kept wrappers and needed no change. No test deleted.
+  - Verification: targeted engine and `analyze` units (the path, TEMP
+    and domain ones also with `RACE=1`); the quick selections for search
+    path, schemas, TEMP namespaces, VACUUM, type names, typmods and their
+    warnings, enum and type diagnostics and prepared domain casts; four
+    quickchecks (the last on `b0d9b77b5`; the third hit the
+    `TestReferenceJSONBPrettyCancellation/memory` load flake, 3/3 alone;
+    the final rebase over one unrelated `pgcatalog` commit, `847e5705d`, got
+    a build and the targeted selections); `make deps`
+    (module paths only); and the `REFERENCE=1` selection
+    `^TestReference(SearchPath|SchemaSearchPath|SchemaPathsPrepared|SchemaUserExpansion|SchemaNestedConditionalTables|NamespaceIdentityPendingTemp|TemporaryTableNamespace|TemporaryTableCreation|RangePartitionCreateSchemaBoundary|RegtypeNames|TableCoreQuotedTypeNamesAndBoundaries|PGTypeDiagnostics|DomainPreparedLifecycle|DomainIdentityPrepared|MaterializedViewRestrictedSearchPath|VacuumF7ForeignTempSearchPath|SQLCursorRegtypeWarnings)`
+    passed. In that run `reference/type_resolution` failed before any test,
+    at container start (testcontainers reaper timeout, load average about
+    200); its rerun with `^TestReference(RegtypeNames|RegProcSearchPath|RegtypeDiagnostics)`
+    passed. racecheck/finalcheck skipped at user request. An uncommitted
+    `AllocsPerRun` probe of 20 cases (`lookupPath`, qualified and
+    unqualified `lookupNamespacesSnapshot`, `effectivePath`, qualified and
+    unqualified `creationNamespace`, `resolveAnnotationType` with and
+    without a typmod and `captureTypeDiagnosticName`, each under the
+    default and a three-schema search path) showed identical allocations
+    before and after. Startup bench on the same base (`d3e92b66b`, load
+    average 45–60): master 2.61–2.88 ms/op and 5,352–5,377 allocs/op,
+    branch 2.30–2.33 ms/op and 5,349–5,369 allocs/op; both above the 1 ms
+    target only because of the machine load (no startup path changed).
 
 Outstanding aliases: none. 12e removed the 60 aliases of
 `analyze_aliases.go`; the driver names `analyze.ParameterInfo`.
@@ -1392,6 +1457,13 @@ result):
   which moves to `analyze`, and its per-execution state (arbiters, catalog
   checkpoints, `insertWriteOverlay`), which stays in the engine; then
   `InsertConflictSlot` can shrink to the runtime half.
+- 12g (done): `PathInput` carries the view twice (`View` and inside `Env`),
+  because a generic `Env` cannot expose its view; the copy is on the stack.
+  The binder host's `LookupNamespacesSnapshot`, `LookupPath` and
+  `ReferencePath` still convert their `analyze.Authority` back to the root
+  view (`h.view`) before building the input. `temporaryNamespace` stays root
+  (it reads `session.Session`); its descriptor scan for a transaction
+  without a TEMP namespace runs on each call, as before.
 - 12f (done): the executor walks (`validate*JoinExecution`,
   `validateMarkedQueryJoin`, `admitQueryGroupings`) stay in the root; they
   reach `viewOf`, `prepareStoredExecutionRoot`, `preflightQuery` and

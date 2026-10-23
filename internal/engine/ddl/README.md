@@ -97,10 +97,8 @@ and none waits on the lock manager. The package adds no mutex.
 
 ## What stays in the engine
 
-`Engine.mu`, authority capture, stage begin and publication, namespace
-lookup and search paths (they read `AuthorizationView` internals: the
-settings lock, the path prefix, staged TEMP namespaces), and the schema statement
-dispatch (`schema.go`): `executeSchema` (partition 0A000 pre-checks, locks,
+`Engine.mu`, authority capture, stage begin and publication, and the schema
+statement dispatch (`schema.go`): `executeSchema` (partition 0A000 pre-checks, locks,
 publication and the cascade notice), `stageSchemaLocked` (capture, the early
 actor read that gates every staged statement, one call per statement),
 `schemaTableLocked` (a forwarder to `table.StageCreateTable`, step 24),

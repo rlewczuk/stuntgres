@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `d3e92b66b` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 147 and 148). Steps 8–17 were
+Last verified against `master` at `847e5705d` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 146, 147 and 148). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -21,8 +21,8 @@ share a prompt file touch different root files unless their "needs" says
 otherwise.
 
 - **Fourth round, statement and session:** 145 (regobj 21e).
-- **Fourth round, catalog, DDL, types, roles and Restore:** 146 (analyze
-  12g), 149 (role 28e), 150 (ddl 20e).
+- **Fourth round, catalog, DDL, types, roles and Restore:** 149 (role
+  28e), 150 (ddl 20e).
 - **Closing review 2:** 151 (docs only) waits for 134–150.
 
 Steps 1–17 and `access` (A1–B7) are done, and so is item 54, the second
@@ -845,10 +845,12 @@ planned sub-step left; only 151 needs it.
     (`ea13f92d6`, `97abd0c6f`, `ab8a2d1b4`, then the docs commit)
   - [ ] 21e — Output capture, spelling cache and regtype analysis
     ([regobj](ENGINE-SPLIT-regobj.md))
-  - [ ] 12g — Search path and type-name resolution
-    ([analyze](ENGINE-SPLIT-analyze.md))
-  - [ ] 15f — ALTER type resolvers, domain replay and scalar import
-    ([typedef](ENGINE-SPLIT-typedef.md))
+  - [x] 12g — Search path and type-name resolution
+    ([analyze](ENGINE-SPLIT-analyze.md)) (`3bff76829`, `4e4f635f9`,
+    `d89bd926f`, `588dcdfe7`, `ab8c06fa4`, then the docs commit)
+  - [x] 15f — ALTER type resolvers, domain replay and scalar import
+    ([typedef](ENGINE-SPLIT-typedef.md)) (`dc235f1af`, `22252f20c`,
+    `a30da2ad0`, `f7d1bfb50`, then the docs commit)
   - [x] 30g — Run-free Restore admission and TEMP replacement checks
     ([control](ENGINE-SPLIT-control.md)) (`32741a734`, `4d0d0a332`, then
     the docs commit)
@@ -2149,8 +2151,21 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      passed; racecheck/finalcheck skipped at user request
 145. [ ] Regobj 21e: output capture, spelling cache and regtype analysis —
      [regobj](ENGINE-SPLIT-regobj.md) 21e · needs —
-146. [ ] Analyze 12g: search path and type-name resolution —
-     [analyze](ENGINE-SPLIT-analyze.md) 12g · needs —
+146. [x] Analyze 12g: search path and type-name resolution —
+     [analyze](ENGINE-SPLIT-analyze.md) 12g · needs — (`3bff76829`,
+     `4e4f635f9`, `d89bd926f`, `588dcdfe7`, `ab8c06fa4`, then the docs
+     commit) · `analyze.ExplicitPath`, `LookupPath`, `EffectivePath`,
+     `LookupNamespaces` and `CreationNamespace` over the by-value
+     `analyze.PathInput[E access.Environment]`, with the root wrappers and
+     `pathInput` reading `search_path` under `settings.Mu` only for
+     unqualified names; `analyze.ResolveTypeName` over `TypeNameInput` and
+     `TypeNameOperation`; `analyze.RetireDomainCasts` and
+     `PublishDomainCasts`; `catalog.TypeDiagnosticNamer`; no aliases ·
+     targeted units (also `RACE=1`), quickcheck and the quick and
+     `REFERENCE=1` search path, schema, TEMP namespace, type-name and
+     prepared domain cast selections passed (one container-start timeout
+     under load, rerun passed); identical allocations in a 20-case probe;
+     racecheck/finalcheck skipped at user request
 147. [x] Typedef 15f: ALTER type resolvers, domain replay and scalar
      import — [typedef](ENGINE-SPLIT-typedef.md) 15f · needs —
      (`dc235f1af`, `22252f20c`, `a30da2ad0`, `f7d1bfb50`, then the docs
