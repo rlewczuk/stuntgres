@@ -1,338 +1,158 @@
 # reference/fixture
 
-## Testing
+Shared, importable fixture for the dual-mode reference packages: oracle container
+lifecycle, scenario pairs, step runner, diagnostics, notice/COPY connections,
+lock and cancellation observers, and helpers shared by several packages. The
+common policy and basic helpers are in [docs/TESTING.md](../../docs/TESTING.md);
+this file covers the rest. The fixture is exempt from the 750-line file limit,
+not from the package byte cap.
 
-Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
-fixture usage, and oracle-first workflow. Run the commands below from the
-repository root.
+## PostgreSQL oracle policy and provenance
 
-`LockWaitBehind` normally requires the exact waiter/holder/relation/mode queue
-witness. Its optional actual-operation completion channel is only for self-timing
-SQL: return then means either that exact wait was observed or that the operation
-completed before observation. Callers must still join and independently validate
-the real outcome, including errors, result ownership and side effects. Query
-errors and observer-context expiration remain failures unless that completion
-signal is already closed. External user-cancellation admission barriers omit the
-channel and retain mandatory queue observation.
-
-### PostgreSQL oracle policy and provenance
-
-The current external oracle is PostgreSQL18.6, pinned to the verified OCI index:
+The oracle is PostgreSQL 18.6, pinned by OCI index digest in
+`fixture.go` (`referenceImage`):
 
 ```text
 postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
 ```
 
-The index is multi-platform, not a platform-specific manifest. The verified
-linux/amd64 child is
+The digest, not the tag, selects the image; the verified linux/amd64 child is
 `sha256:9551dd5bf356409a21b31248f49b33bba9bb1877365f3a7e933aecd9af3cf52d`.
-Acquisition and runtime smoke observed
-`18.6 (Debian 18.6-1.pgdg12+2)`, numeric version180006, UTF8 encoding and
-C database collation/ctype. See the [18.6 release notes](https://www.postgresql.org/docs/release/18.6/),
-[official image definitions](https://github.com/docker-library/official-images/blob/master/library/postgres)
-and [registry tag metadata](https://hub.docker.com/v2/repositories/library/postgres/tags/18.6-bookworm).
-The digest, rather than the mutable tag, determines the image used.
 
-Startup queries the actual server and requires release18.6 (allowing its vendor
-suffix), numeric180006, UTF8, `datcollate=C`, `datctype=C`, `lc_messages=C`,
-prepared capacity100 and the requested commit-timestamp tracking mode. After
-bootstrap-owner setup succeeds, one stderr provenance record includes container
-ID, full pinned image/index digest and all actual version/encoding/locale fields.
-It does not synthesize a server version or require Docker manifest inspection.
-Startup/image/network/configuration failures remain visible errors, never skips.
+- Startup queries the real server and requires release 18.6 (vendor suffix
+  allowed), `server_version_num` 180006, UTF8, `datcollate=C`, `datctype=C`,
+  `lc_messages=C`, `max_prepared_transactions=100` and the requested
+  commit-timestamp mode. It logs one stderr provenance record and never
+  synthesizes a version. Startup, image, network and configuration failures are
+  errors, never skips.
+- The fixture provisions `postgres` as a NOLOGIN superuser (the native bootstrap
+  owner) for the container lifetime; PostgreSQL callers authenticate as
+  `stuntgres`. Dump replay keeps owner directives, so owners are not remapped.
+- Known upstream oracle defects and how tests record them are in
+  [docs/POSTGRES_REGRESSION.md](../../docs/POSTGRES_REGRESSION.md). Native version
+  reporting is independent of the oracle release.
 
-Each package retains one serialized, bounded-lifecycle container and shared admin
-pool, with fresh scenario pools and wrapped/native controls. Startup is bounded
-by three minutes, scenarios by30 seconds, resets by15 seconds and termination
-by45 seconds. Borrowers, rows and workers must finish before cleanup; resets
-retain standalone ROLLBACK then DISCARD ALL then public-schema reconstruction.
-Native wire/runtime version reporting is unchanged; native is not PostgreSQL18.6.
-Historical PostgreSQL18.0 observations and feature goldens remain18.0 evidence:
-this oracle alignment neither relabels them nor gates unchanged behavior.
+## Lifecycle and reset
 
-`TestReferenceFixtureOracleProvenance` independently asserts direct/prepared
-`SELECT 6*7 AS answer` returns one INT4 column `answer` and one row42 on each
-available backend, plus an unwrapped native control read. Only actual PostgreSQL
-is queried for18.6/180006 and UTF8/C/C/C metadata. Existing
-`TestReferenceRoleGrantDiagnostics` and `TestReferenceRoleGrantAtomicity` retain
-independent SQLSTATE42601 with exact English `unrecognized privilege type "bogus"`
-and `syntax error at or near ")"`, and42501 `permission denied for table t`,
-including their direct/prepared stages and syntax-prefix rollback assertions.
-No backend-parity result substitutes for these expectations.
+- Each package process owns one serialized container and one admin pool, torn down
+  before exit; packages never share a container. Bounds: startup 3 min,
+  scenario 30 s, reset 15 s, termination 45 s.
+- Every pair owns a dedicated native `Driver`; its wrapped and control pools share
+  the fixture DSN, so reopening a pool keeps the engine.
+- Before and after each case, the reset borrows the admin pool's one idle session
+  and runs standalone `ROLLBACK`, then standalone `DISCARD ALL` (it cannot run in a
+  transaction block), then `DROP SCHEMA public CASCADE; CREATE SCHEMA public`, on
+  the same connection. All borrowers, Rows and workers must be returned, closed or
+  joined first.
+- Public-schema owners differ by design: native `public` is owned by 6171
+  (`pg_database_owner`), the oracle's rebuilt `public` by its bootstrap role 10.
+  Never invent a common owner.
+- Prepared-transaction scenarios clean their own GIDs before schema teardown.
 
-Feature smoke and selected proof (external900-second deadline per command):
+## Startup options
 
-```sh
-make check RUN='^TestReferenceFixtureOracleProvenance$' REFERENCE=1
-make check RUN='^TestReferenceFixtureOracleProvenance$'
-make check RUN='^TestReferenceFixture(NativeIsolation|ResetIsolation|SessionAuthorizationReset)$' REFERENCE=1
-make check RUN='^TestReferenceFixture(NativeIsolation|ResetIsolation|SessionAuthorizationReset)$'
-make check RUN='^TestReference(DirectAndPreparedParameters|RoleGrantDiagnostics|RoleGrantAtomicity)$' REFERENCE=1
-make check RUN='^TestReference(DirectAndPreparedParameters|RoleGrantDiagnostics|RoleGrantAtomicity)$'
-```
+`fixture.Main(m, opts...)` applies options before eager startup; native scenario
+engines inherit the same mode.
 
-Expected: all pass with independent SQL/diagnostic and ownership assertions
-unchanged; real mode validates the pinned runtime, while quick mode needs no
-Docker and makes no PostgreSQL-release claim. Successful-package stderr may be
-suppressed by Go's quiet runner; the real-backend metadata assertions still run.
-These checks do not replace whole-project Docker-free quickcheck or post-merge
-finalcheck.
+- `WithCommitTimestampTracking()` enables commit timestamps on the package's single
+  oracle (used by `locking_transactions`; other packages stay default-off). It is
+  not a session SET toggle and never a second container.
 
 ### Test-only legacy crypto oracle
 
-Catalog `TestMain` opts into `WithLegacyCryptoProvider()` through `Main`.
-The existing single pinned container receives a reader-backed OpenSSL
-configuration before startup and `OPENSSL_CONF=/tmp/stuntgres-openssl.cnf`;
-both `default` and `legacy` providers are explicitly activated. Other reference
-packages remain default-off. No host temporary file, second container, native
-configuration or production OpenSSL dependency is introduced.
+`WithLegacyCryptoProvider()` (used only by `catalogs`) feeds an OpenSSL
+configuration into the same container (`OPENSSL_CONF=/tmp/stuntgres-openssl.cnf`)
+activating both `default` and `legacy` providers, so BF/DES/CAST are available to
+the oracle. Legacy activation changes the oracle's DES/CAST initialization
+outcomes; native behavior is unchanged. No host file, second container or
+production dependency is involved.
 
-Actual BF known-answer SQL plus unchanged AES fixtures prove this setup, not a
-configuration-path or option-wiring unit test. Legacy activation also changes
-the catalog oracle's DES/CAST initialization outcomes; native exclusions remain
-unchanged. BF oracle-first selectors and discovery status are documented in
-[catalog testing](../catalogs/README.md#raw-bf-oracle-first-proof).
+## Helpers
 
+- **Scenarios.** `NewScenarioWithDriverConfig(t, configure)` runs
+  `configure(*stuntgres.Driver)` before the first connector, for embedding
+  registries such as foreign handlers and validators; it does not touch PostgreSQL
+  or fixture ownership. Foreign sources use a separate in-process SQL database,
+  never fixture internals. Legacy `NewPair(t)` always starts Docker; its notice
+  helpers keep caller-specific `reference/` + `t.Name()` DSNs on the pair's Driver.
+- **Plain-method routes.** `Step.NonContext=true` runs proven DB/Tx plain calls
+  (Exec/Query/Prepare and the returned Stmt methods) with full assertions; keep a
+  separate Context companion and never fabricate its recorder key. `*sql.Conn` has
+  only Context methods. `HeldStatement` also serves plain DB/Tx consumers: the
+  matched query uses the held statement, others use the underlying plain DB/Tx.
+  Consumers such as `DeleteReferenceConsume` skip step metadata/Scan callbacks, so
+  keep those checks at the callsite.
+- **Lock observation.** `LockWaitBehind(t, ctx, waiter, holder, relation, mode,
+  completed...)` requires the exact waiter/holder/relation/mode queue witness. The
+  optional completion channel is only for self-timing SQL (return then means
+  observed *or* already completed); callers still join and validate the outcome.
+  External cancellation barriers omit the channel.
+- **Active cancellation.** `BinaryConversionActiveCancel` and `SleepActiveCancel`
+  cancel only after real admission: natively, the exact provider and fixture worker
+  frames in one complete live goroutine stack (creation metadata does not count);
+  on PostgreSQL, the actual query and wait event. Admission deadline 15 s; every
+  exit cancels and joins before statements and connections close. Sampling stops
+  the world, so after a miss it waits 1 ms on a reusable timer. Native admission
+  matches function names, so **update the probes when renaming or moving a
+  provider or worker**; a stale name makes the observer wait on a runaway query.
+  - `SleepActiveCancelWithContext` also accepts an independently observed
+    PostgreSQL diagnostic Context; the other helpers require it empty. Native
+    cancellation returns `context.Canceled`.
+  - `BinaryConversionActiveCancelAfter` runs a progress callback after admission
+    and before cancellation, on the supplied context and a different connection;
+    consumers assert a real progress transition, not a timer.
+  - `SQLCursorCancelDemand(t, p, conn, query)` cancels an admitted oracle query and
+    checks the complete diagnostic (cursor FETCH, HOLD COMMIT, SQL-prepared writes).
+- **Schema and role scopes.** `WithPublicSchemaOwner(t, pair, backend, owner,
+  body)` transfers `public` to `owner` on a separate bootstrap connection and
+  restores the prior owner on return or panic; PostgreSQL setup grants PUBLIC
+  USAGE, never CREATE. Never provision the namespace whose denial is under test,
+  take atomicity snapshots after provisioning, and do not wrap role-drop/Dump
+  assertions or a whole fixture lifetime. Schema SQL GRANT/REVOKE tests use real
+  ACL authority: establish reader USAGE with grants, never by transferring
+  ownership, and never assume private schemas grant USAGE by default.
+  `RegtypeDisplacementScenario` registers `SchemaReferenceCleanup` before its
+  scenario; teardown runs after handles close under its own 15 s context.
+  `UniqueReferencePublicNamespace` returns the actual `public` namespace OID (2200
+  natively; the oracle's generated OID).
+- **Role grants** (`role_grant_columns.go`, shared by `roles` and `object_grants`):
+  `RoleGrantActor` (SET SESSION AUTHORIZATION, body, RESET),
+  `RoleGrantPermissionDenied` (complete permission diagnostics and stages; distinct
+  from the `RoleGrantDenied` step constructor), `RoleGrantError`,
+  `RoleGrantSyntax`, `RoleGrantEnvironment`, and `RoleGrantNoticeExec` (quiet
+  Prepare, close, execute, ordered notices).
+- **Operator aliases.** `regoperator.go` owns `RegOperatorRows`, `Metadata`,
+  `DiagnosticRoutes`, `Error`, `Literal` and `Context`, shared by `operators` and
+  `type_resolution`.
+- **COPY.** Native COPY uses the public pinned-connection `CopyFrom`/`CopyTo`;
+  PostgreSQL uses `Pair.CopyPostgres`, a pgx stdlib stream on the same oracle.
+  `CopyNoticeConnection(t, pair, postgres, &records, handler)` returns a pinned
+  borrower whose notices arrive through native `WithNoticeHandler` or pgx
+  `OnNotice`, and owns its cleanup. Never pass wrapped pq connections to pgx Raw,
+  and never re-enter the Raw-owning `*sql.Conn` from the handler. Inspect records
+  after the command; notice timing may differ by backend.
+- **MERGE.** `MergeRun(t, p, backend, prepared)` runs MERGE steps with the
+  backend's affected count (lib/pq reports 0; native reports real counts), so
+  persisted rows must prove the effects.
+- **Sessions and settings.** `SettingsPhysical` compares the public physical
+  driver object; `BatchSet`, `BatchReadSet` and `BatchSets` assert multi-result
+  direct-message batches; `NoticeWitnesses` and `NoticesInternalDebug` keep SQL
+  notices exact while treating PostgreSQL DEBUG tracing as incidental.
+- **Server.** `NewServerFixture(t)` builds and launches a real `cmd/stuntgres`
+  subprocess (temporary userfile, dumps, logs and PID file; reduced-KDF build tag)
+  for `reference/sessions` wire tests. Embedded scenarios never start a server.
 
-### Shared grant scenario helpers
+## Testing
 
-`role_grant_columns.go` owns the common helpers used by both
-[role proofs](../roles/README.md#testing) and
-[non-table object-grant proofs](../object_grants/README.md#testing):
-
-- `RoleGrantActor` retains SET SESSION AUTHORIZATION, the supplied body and RESET.
-- `RoleGrantPermissionDenied` asserts complete permission diagnostics, including
-  schema positions and direct/prepared error stages. The existing
-  `RoleGrantDenied` table-error step constructor remains a separate API.
-- `RoleGrantError` and `RoleGrantSyntax` retain exact diagnostics and error stages.
-- `RoleGrantEnvironment` obtains and validates current user/database identities.
-- `RoleGrantNoticeExec` requires quiet Prepare, closes that description, then
-  executes the requested direct/prepared route and checks ordered full notices.
-
-These are single shared implementations, not compatibility wrappers. Migrated
-callers retain their SQL, held consumers, native controls and independent
-expectations; run every affected definition in both modes before review.
-
-### Fixture reset isolation coverage
-
-`TestReferenceFixtureResetIsolation` and
-`TestReferenceFixtureSessionAuthorizationReset` independently cover this boundary:
+Fixture self-tests (`fixture_*_test.go`) cover oracle provenance, native isolation,
+reset isolation, session-authorization reset, notice and byte ownership:
 
 ```sh
 make check RUN='^TestReferenceFixture'
 make check REFERENCE=1 RUN='^TestReferenceFixture'
 ```
 
-Schema-owner introspection uses actual `pg_namespace`/`pg_roles` identities.
-Fresh native public has owner6171 (`pg_database_owner`); the ordinary PostgreSQL
-fixture's reconstructed public belongs to its actual bootstrap role10. Neither
-baseline is replaced with an invented common owner. Native reset isolation also
-asserts bootstrap principals, fresh settings, an empty public Dump and same-name
-empty-table recreation. Its native-only public Reset removes actual data/catalog
-state while preserving bootstrap principals and initialized namespace metadata.
-
-### Scoped public schema ownership
-
-`WithPublicSchemaOwner(t, pair, backend, owner, body)` supplies real, bounded
-schema ownership for intended positive CREATE or successor-owner eligibility.
-It captures public's actual prior owner, transfers ownership through supported
-SQL on a separate bootstrap connection, invokes the body without changing its
-actor handle, and restores the exact prior owner before returning or unwinding.
-PostgreSQL setup grants PUBLIC USAGE, never CREATE. No new ACL API, membership,
-superuser capability or permissive global reset is involved; table owners and
-ACL effects remain genuine. Never provision the namespace whose USAGE/CREATE
-denial is under test. A bounded positive public destination prerequisite may
-surround a statement expected to fail an independently denied source/type/table
-or ownership check. Capture exact atomicity snapshots after provisioning and
-immediately before the tested statement. Do not wrap role-drop/Dump assertions
-or an entire fixture lifetime in this scope.
-
-The public regression is part of `TestReferencePGNamespaceVisibility`: actual
-direct/prepared creates, namespace/actor/object identities, post-scope denial
-and panic unwinding with prior-owner restoration are independently asserted.
-
-```sh
-make check RUN='^TestReferencePGNamespaceVisibility$'
-make check REFERENCE=1 RUN='^TestReferencePGNamespaceVisibility$'
-```
-
-Use external900-second deadlines and the migration owner's additional exact
-changed-definition selectors for every helper consumer.
-
-### Held plain-method consumers
-
-The shared fixture.HeldStatement retains its three-field layout and adds actual
-plain DB/Tx Prepare/Exec/Query consumers alongside existing Context consumers.
-Its matched query uses the genuinely held statement; unmatched queries use the
-underlying plain DB/Tx, never a Context stand-in. This central fixture change also
-requires supplemental identical all-reference risk selection (each900 seconds):
-
-```sh
-make check RUN='^TestReference'
-make check REFERENCE=1 RUN='^TestReference'
-```
-
-### Session authorization reset coverage
-
-`TestReferenceFixtureSessionAuthorizationReset` retains its schema-owner and
-empty-public assertions and now deliberately contaminates authorization, SET
-ROLE, settings, TEMP, named PREPARE, advisory state and an aborted transaction
-before both reset boundaries. The same definition runs without Docker, proving
-fresh wrapped/native control settings, identities, prepared consumers and case
-catalogs; admin-only sanitation checks run in pinned mode. It does not assert
-incidental backend PIDs, reconnection counts or timing. Focused gates, each with
-a 900-second deadline:
-`make check RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`
-and
-`make check REFERENCE=1 RUN='^TestReferenceFixture(SessionAuthorizationReset|NativeIsolation)'`.
-
-### Fixture ownership regressions
-
-Fixture ownership regressions live beside the common exported helpers in
-`reference/fixture/fixture_native_isolation_test.go` and
-`reference/fixture/fixture_notice_ownership_test.go`. These identical definitions
-run in both modes (900 seconds per invocation):
-
-```sh
-make check RUN='^TestReferenceFixture(NativeIsolation|LegacyNoticeOwnership|ByteOwnership|ResetIsolation|SessionAuthorizationReset)$'
-make check REFERENCE=1 RUN='^TestReferenceFixture(NativeIsolation|LegacyNoticeOwnership|ByteOwnership|ResetIsolation|SessionAuthorizationReset)$'
-```
-
-These selectors do not replace whole-project Docker-free `make quickcheck`
-verification or post-merge `make finalcheck`. Use `RACE=1` on a selected
-`make check` command for bounded race proof, and `REFERENCE=1 RACE=1` for the
-same definitions against pinned PostgreSQL. Reduced engine retention is an
-ownership correction, not evidence of a measured performance improvement.
-
-### Regtype displacement schema teardown
-
-`RegtypeDisplacementScenario` registers `SchemaReferenceCleanup` before creating
-its scenario. PostgreSQL schema teardown runs after borrowed handles and pools
-close, under the existing independent 15-second cleanup context. Native catalogs
-are fixture-isolated and need no cross-case SQL teardown. Cleanup never borrows
-the scenario's 30-second work context, including after foreign replay.
-
-Run each affected selector in quick mode and with `REFERENCE=1`, using an
-external 900-second deadline:
-
-```sh
-make check RUN='^TestReferenceRegtypeArrayDisplacement(Collisions|Atomicity)?$'
-make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|Executable)$'
-make check RUN='^TestReferenceRegtypeArrayDisplacement(MixedReplay|NamedDomainReplay)$'
-make check RUN='^TestReferencePartialIndexTypeGeneration$'
-```
-
-Selected proof does not replace `make quickcheck` or post-merge `make finalcheck`.
-
-### Active provider cancellation observation
-
-`BinaryConversionActiveCancel` and `SleepActiveCancel` require real admission
-before cancellation, not merely a sufficiently large query or a precanceled
-context. Native admission requires the exact provider and fixture worker in the
-same complete live goroutine stack; creation metadata is not a live frame.
-PostgreSQL independently observes its actual query and optional wait event.
-The existing admission deadline remains15 seconds, and every exit cancels and
-joins the worker before held statements or physical connections close.
-
-`SleepActiveCancelWithContext` uses that same admission/cancellation/join path,
-but additionally accepts an independently observed PostgreSQL diagnostic Context.
-The complete other diagnostic fields remain exact. Existing `SleepActiveCancel`
-and binary/relation cancellation consumers continue to require empty PostgreSQL
-Context; native cancellation remains the ordinary `context.Canceled` contract.
-
-`BinaryConversionActiveCancelAfter` uses the same observer, deadline, cancellation
-and worker-join implementation, with an additional progress callback after real
-provider/server admission and before cancellation. The callback uses the supplied
-bounded context and a different connection, never the busy physical connection.
-Consumers must assert a real independently specified progress transition, not
-delay cancellation by a timer or weaken provider admission. The password multirow
-witness observes nontransactional sequence progress into the later cost31 row
-after an earlier literal-hash row.
-
-Native complete-stack sampling stops the world. The first sample is immediate;
-after an unsuccessful complete sample, a reusable timer waits1 millisecond with
-context/completion-aware selection before sampling again. The delay begins
-after sampling, not on a ticker that can accumulate ticks. This bounds observer
-pressure without substituting fake admission, changing workloads or deadlines,
-or accepting a completed query as successful cancellation. Actual cancellation,
-no published cursor/result, stored-state checks and held-statement recovery
-remain required.
-
-Every direct or indirect consumer requires selected native and real proof:
-
-```sh
-make check RUN='^TestReference(OrderedSetAggregateActiveCancellation|BinaryConversionActiveCancellation|JSONArrayLengthCancellation|ConversionCancellation)$'
-make check REFERENCE=1 RUN='^TestReference(OrderedSetAggregateActiveCancellation|BinaryConversionActiveCancellation|JSONArrayLengthCancellation|ConversionCancellation)$'
-make check RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneActiveCancellation)$'
-make check REFERENCE=1 RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneActiveCancellation)$'
-make check RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
-make check REFERENCE=1 RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
-make check RUN='^TestReferencePgcryptoPasswordCancellation$'
-make check REFERENCE=1 RUN='^TestReferencePgcryptoPasswordCancellation$'
-make check RACE=1 RUN='^TestReference(OrderedSetAggregateActiveCancellation|BinaryConversionActiveCancellation|JSONArrayLengthCancellation|ConversionCancellation)$'
-make check RACE=1 RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneActiveCancellation)$'
-make check RACE=1 RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
-make check RACE=1 RUN='^TestReferencePgcryptoPasswordCancellation$'
-```
-
-Each invocation has an external900-second deadline. These selected proofs do
-not replace whole-project Docker-free quickcheck or post-merge finalcheck.
-
-### Pre-engine embedding configuration
-
-`NewScenarioWithDriverConfig(t, configure)` runs `configure(*stuntgres.Driver)`
-before the native fixture opens its first connector. It permits real embedding
-capabilities such as foreign handlers and validators to use the ordinary frozen
-Driver registry. It does not replace SQL execution, alter pinned PostgreSQL,
-or change fixture reset, session, notice, pool or cleanup ownership.
-`NewScenario(t)` retains the same behavior with no configuration callback.
-
-The public foreign-source consumers use a separate in-process SQL database,
-not fixture-internal engine objects. Run the changed consumer definitions in
-both modes, with external 900-second deadlines:
-
-```sh
-make check RUN='^TestReferenceFDW'
-make check REFERENCE=1 RUN='^TestReferenceFDW'
-```
-
-### Shared operator-alias assertions
-
-`regoperator.go` owns the existing `RegOperatorRows`, `RegOperatorMetadata`,
-`RegOperatorDiagnosticRoutes`, `RegOperatorError`, `RegOperatorLiteral` and
-`RegOperatorContext` contracts shared by
-[operator definition proofs](../operators/README.md#testing) and
-[operator OID alias proofs](../type_resolution/README.md#operator-oid-aliases).
-They preserve raw alias/OID transport, full metadata and all literal,
-direct/held inferred-parameter and direct/prepared runtime-text diagnostic routes.
-No scenario body or backend implementation is duplicated.
-
-Root selectively runs all callers in both modes after helper migration
-(external 900-second deadline per invocation):
-
-```sh
-make check RUN='^TestReferenceRegOperator(ValuesMetadata|Signatures|Diagnostics|ParserEdges|NamespaceAuthorization|Inventory)$' REFERENCE=1
-make check RUN='^TestReferenceRegOperator(ValuesMetadata|Signatures|Diagnostics|ParserEdges|NamespaceAuthorization|Inventory)$'
-make check RUN='^TestReferenceRegOperator(ExternalBoundary|PreparedLifetime|PreparedAnalysis|Persistence|FeatureSmoke)$' REFERENCE=1
-make check RUN='^TestReferenceRegOperator(ExternalBoundary|PreparedLifetime|PreparedAnalysis|Persistence|FeatureSmoke)$'
-```
-
-### Genuine COPY notice connections
-
-`CopyNoticeConnection(t, pair, postgres, &records, handler)` configures the
-existing unwrapped stream connector with a case-scoped handler: public native
-`WithNoticeHandler` on the pair-owned connector, or pgx `OnNotice` on the same
-pinned oracle/DSN. It returns a pinned borrower and owns borrower/pool cleanup
-before the pair reset. It never passes wrapped pq connections to pgx Raw.
-Records contain complete owned `Diagnostic` values, including absent fields;
-inspect them after command completion. A custom handler must not reenter its
-Raw-owning `*sql.Conn`; independent peer SQL is permitted. PostgreSQL synchronous
-network delivery and native post-operation delivery need not have equal timing.
-
-Existing `CopyFrom`, `Pair.CopyPostgres` and wrapped ordinary SQL pools retain
-their APIs and ownership. The new helper's callsites are the COPY filter
-scenarios and the native notice-handler peer witness. Selected proof is the
-small COPY filter groups documented in [dml testing](../dml/README.md#copy-filtering-and-conversion-error-policy),
-each in native and real pinned modes; no existing COPY definition is migrated
-to a new transport.
-
+A change to central fixture code (step runner, `HeldStatement`, reset, pool
+ownership) affects every package: run `make check RUN='^TestReference'` and the
+same selector with `REFERENCE=1`. After changing a shared helper, run every
+consumer's selector in both modes.
