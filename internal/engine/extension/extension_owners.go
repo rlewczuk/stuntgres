@@ -77,7 +77,7 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			}
 			principal = d.Owner
 		case *catalog.Operator:
-			known := cubeSpatialOwnerName(d.Name(), true)
+			known := cubeSpatialOwnerName(d.Name(), true) || cubeCoordinateOwnerName(d.Name())
 			for _, name := range cubeOperatorNames {
 				known = known || d.Name() == name
 			}
@@ -85,6 +85,9 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 				return "", fmt.Errorf("stuntgres: invalid extension operator owner")
 			}
 			member = MemberOwner{Kind: "operator", Name: d.Name(), Signature: "cube,cube"}
+			if cubeCoordinateOwnerName(d.Name()) {
+				member.Signature = "cube,23"
+			}
 			principal = d.Owner
 		case *catalog.OperatorClass:
 			if d.Method != 403 {
@@ -286,7 +289,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			for _, name := range cubeOperatorNames {
 				valid = valid || member.Name == name
 			}
-			if record.Name != "cube" || !valid || member.Signature != "cube,cube" {
+			valid = valid && member.Signature == "cube,cube" || cubeCoordinateOwnerName(member.Name) && member.Signature == "cube,23"
+			if record.Name != "cube" || !valid {
 				return invalid()
 			}
 		case "operator_class", "operator_family":

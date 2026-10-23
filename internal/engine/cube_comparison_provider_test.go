@@ -159,7 +159,7 @@ func cubeComparisonProviderRemap(t *testing.T) {
 	for _, member := range record.Members {
 		kinds[member.Kind]++
 	}
-	for kind, want := range map[string]int{"type": 1, "procedure": 23, "operator": 12, "operator_class": 1, "operator_family": 1} {
+	for kind, want := range map[string]int{"type": 1, "procedure": 27, "operator": 14, "operator_class": 1, "operator_family": 1} {
 		if kinds[kind] != want {
 			t.Fatal("complete symbolic owner kinds", kind, kinds)
 		}

@@ -10,13 +10,13 @@ import (
 )
 
 func CubeFunctionName(name string) bool {
-	return name == "cube" || name == "cube_dim" || name == "cube_is_point"
+	return name == "cube" || name == "cube_dim" || name == "cube_is_point" || name == "cube_ll_coord" || name == "cube_ur_coord" || name == "cube_coord" || name == "cube_coord_llur"
 }
 
 // CubeFormals is the complete selected family, in release-documentation order.
 // Cube is the actual installed descriptor; builtin formals come from the same
 // binding catalog, never a process-global descriptor generation.
-func CubeFormals(operation sqltype.CubeOperation, cube, floating, array *sqltype.Descriptor) ([3]*sqltype.Descriptor, int) {
+func CubeFormals(operation sqltype.CubeOperation, cube, floating, array, integer *sqltype.Descriptor) ([3]*sqltype.Descriptor, int) {
 	switch operation {
 	case sqltype.CubeScalar:
 		return [3]*sqltype.Descriptor{floating}, 1
@@ -32,6 +32,8 @@ func CubeFormals(operation sqltype.CubeOperation, cube, floating, array *sqltype
 		return [3]*sqltype.Descriptor{cube, floating, floating}, 3
 	case sqltype.CubeDimension, sqltype.CubeIsPoint:
 		return [3]*sqltype.Descriptor{cube}, 1
+	case sqltype.CubeLowerCoordinate, sqltype.CubeUpperCoordinate, sqltype.CubeRawCoordinate, sqltype.CubeSignedCoordinate:
+		return [3]*sqltype.Descriptor{cube, integer}, 2
 	}
 	return [3]*sqltype.Descriptor{}, 0
 }
@@ -45,11 +47,19 @@ type Cube struct {
 }
 
 func (e Cube) Name() string {
-	if e.Operation == sqltype.CubeDimension {
+	switch e.Operation {
+	case sqltype.CubeDimension:
 		return "cube_dim"
-	}
-	if e.Operation == sqltype.CubeIsPoint {
+	case sqltype.CubeIsPoint:
 		return "cube_is_point"
+	case sqltype.CubeLowerCoordinate:
+		return "cube_ll_coord"
+	case sqltype.CubeUpperCoordinate:
+		return "cube_ur_coord"
+	case sqltype.CubeRawCoordinate:
+		return "cube_coord"
+	case sqltype.CubeSignedCoordinate:
+		return "cube_coord_llur"
 	}
 	return "cube"
 }
@@ -72,9 +82,11 @@ func (e Cube) Validate() error {
 		return fmt.Errorf("stuntgres: invalid cube call")
 	}
 	result := e.CubeType
-	if e.Operation == sqltype.CubeDimension || e.Operation == sqltype.CubeIsPoint {
-		id := sqltype.Int4
-		if e.Operation == sqltype.CubeIsPoint {
+	if e.Operation >= sqltype.CubeDimension {
+		id := sqltype.Float8
+		if e.Operation == sqltype.CubeDimension {
+			id = sqltype.Int4
+		} else if e.Operation == sqltype.CubeIsPoint {
 			id = sqltype.Bool
 		}
 		if e.Usage.Type.ID() != id {
@@ -83,7 +95,7 @@ func (e Cube) Validate() error {
 	} else if e.Usage.Type != result {
 		return fmt.Errorf("stuntgres: foreign cube result generation")
 	}
-	formals, n := CubeFormals(e.Operation, e.CubeType, nil, nil)
+	formals, n := CubeFormals(e.Operation, e.CubeType, nil, nil, nil)
 	if n == 0 || n != len(e.Args) {
 		return fmt.Errorf("stuntgres: invalid cube call arity")
 	}
@@ -99,6 +111,10 @@ func (e Cube) Validate() error {
 			if e.Operation == sqltype.CubeArray || e.Operation == sqltype.CubeArrays {
 				if !t.IsArray() || t.Element().ID() != sqltype.Float8 {
 					return fmt.Errorf("stuntgres: invalid cube array formal")
+				}
+			} else if e.Operation >= sqltype.CubeLowerCoordinate {
+				if t.ID() != sqltype.Int4 {
+					return fmt.Errorf("stuntgres: invalid cube integer formal")
 				}
 			} else if t.ID() != sqltype.Float8 {
 				return fmt.Errorf("stuntgres: invalid cube float formal")
@@ -150,6 +166,17 @@ func (e Cube) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	if e.Operation < sqltype.CubeDimension {
 		return sqltype.ConstructCube(ctx, e.CubeType, e.Operation, args[:len(e.Args)])
+	}
+	if e.Operation >= sqltype.CubeLowerCoordinate {
+		index, err := args[1].Integer()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		coordinate, err := sqltype.CubeCoordinate(ctx, e.CubeType, args[0], e.Operation, int32(index))
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.Float(e.Usage.Type, coordinate)
 	}
 	dimension, point, err := sqltype.CubeInfo(e.CubeType, args[0])
 	if err != nil {

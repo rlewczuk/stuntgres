@@ -213,7 +213,7 @@ Family selector: `RUN='^TestReferenceTypeLifecycle'`.
 - Text search types: `RUN='^TestReferenceFTSTypes'`
 - Text search operators: `RUN='^TestReferenceFTSOps'`
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
-- `cube` (scalar/codecs and spatial predicates/distances): `RUN='^TestReferenceCube'`
+- `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth`: `RUN='^TestReferenceEarth'`
 - <a id="citext-storage-and-value-round-trips"></a>`citext`: `RUN='^TestReferenceCitext'`
 - `query_int`: `RUN='^TestReferenceQueryInt'`
@@ -239,6 +239,18 @@ closes one connection per backend. `cubeConstructorSelect` checks cube raw cells
 and metadata without replacing the ordinary scalar-column assertions.
 Expected array and point text is specified independently of native formatting.
 
+`cube_coordinate_helpers_test.go` checks FLOAT8 metadata and exact extraction
+bits before parity, including signed zero and NaN classification. Coordinate
+scenarios retain shared direct/prepared/held execution and real native control
+reminting; stored consumers execute after replay rather than merely preserving
+previously extracted floats.
+Independent coordinate member owners use the public named-owner Dump/Restore
+metadata seam natively and ordinary member-owner SQL on PostgreSQL. Match all
+four procedure and two operator signatures exactly, preserve other member owners,
+and provision the named role before independent-destination replay. PostgreSQL
+ignores native ownership comments, so assert transferred member owners after
+replaying the actual emitted SQL on a pinned, authorization-cleaned connection.
+
 Stored-expression fixtures retain actual procedure/type identity rather than
 spelling or allocated-OID goldens. Import authority belongs only to private
 migration candidates; remapped expressions must validate against the published
@@ -256,7 +268,8 @@ The comparison graph has 18 direct extension members: the scalar, nine
 strict immutable procedures (text input/output, six comparisons and `cube_cmp`),
 six comparison operators, and the default B-tree `cube_ops` class and family.
 The complete installed manifest also includes eight constructor/dimension/point
-routines and six spatial routine/operator pairs, for 38 direct members. The
+routines, four coordinate routines, two coordinate operators and six spatial
+routine/operator pairs, for 44 direct members. The
 associated `_cube` catalog identity remains lookup-only and internally dependent,
 not array storage. Equality is merge-capable, not HASHES; there is no cube
 hash-index class. Native receive/send metadata stays zero. Constructor and spatial

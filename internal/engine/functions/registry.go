@@ -103,7 +103,7 @@ var definitions = [...]Definition{
 	{Names: pgcryptoNames[:], Bind: bindPgcrypto},
 	{Names: cubeSpatialNames[:], Bind: bindCubeSpatial},
 	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},
-	{Names: []string{"cube", "cube_dim", "cube_is_point"}, Bind: bindCube},
+	{Names: []string{"cube", "cube_dim", "cube_is_point", "cube_ll_coord", "cube_ur_coord", "cube_coord", "cube_coord_llur"}, Bind: bindCube},
 	{Names: []string{"unaccent", "daitch_mokotoff"}, Bind: bindInstalledText},
 	{Names: []string{"acldefault", "makeaclitem", "aclexplode"}, Bind: bindACLValue, NamedCall: namedACLValue},
 	{Names: []string{"pg_get_acl"}, Bind: bindObjectACL, NamedCall: namedObjectACL},

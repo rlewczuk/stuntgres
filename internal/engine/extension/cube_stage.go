@@ -28,7 +28,7 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 		switch {
 		case i == 0:
 			class = ids.TypeClassID
-		case i >= 10 && i < 16 || i >= cubeSpatialOperatorStart:
+		case i >= 10 && i < 16 || i >= cubeCoordinateOperatorStart && i < cubeSpatialProcedureStart || i >= cubeSpatialOperatorStart:
 			class = ids.OperatorClassID
 		case i == 16:
 			class = ids.OperatorFamilyClassID
@@ -83,6 +83,9 @@ func (p *CubeProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriz
 		}
 	}
 	if err := p.stageComparisons(stage, ext, owner, typ); err != nil {
+		return err
+	}
+	if err := p.stageCoordinates(stage, ext, owner, typ); err != nil {
 		return err
 	}
 	return p.stageSpatial(stage, ext, owner, typ)

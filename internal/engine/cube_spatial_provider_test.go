@@ -113,7 +113,7 @@ func TestCubeSpatialProviderIdentity(t *testing.T) {
 	seen := map[string]bool{}
 	for _, member := range record.Members {
 		_, spatial := sqltype.CubeSpatialKind(member.Name)
-		if member.Kind == "operator" || member.Kind == "procedure" && spatial {
+		if member.Kind == "operator" && member.Name != "->" && member.Name != "~>" || member.Kind == "procedure" && spatial {
 			if member.Signature != "cube,cube" {
 				t.Fatal("allocator identity leaked", member)
 			}

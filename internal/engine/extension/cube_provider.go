@@ -75,15 +75,20 @@ var cubeRoutines = [...]cubeRoutineSpec{
 	{"cube", [3]sqltype.ID{0, sqltype.Float8, sqltype.Float8}, 3, 0},
 	{"cube_dim", [3]sqltype.ID{0}, 1, sqltype.Int4},
 	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool},
+	{"cube_ll_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8},
+	{"cube_ur_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8},
+	{"cube_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8},
+	{"cube_coord_llur", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8},
 }
 
 // The selected comparison graph keeps its stable prefix. Other installed
 // routines follow it; each existing registry retains its feature authority.
 const (
-	CubeComparisonMemberCount = 18
-	cubeSpatialProcedureStart = CubeComparisonMemberCount + len(cubeRoutines) - 2 - len(CubeComparisonNames)
-	cubeSpatialOperatorStart  = cubeSpatialProcedureStart + len(cubeSpatialMembers)
-	CubeMemberCount           = cubeSpatialOperatorStart + len(cubeSpatialMembers)
+	CubeComparisonMemberCount   = 18
+	cubeCoordinateOperatorStart = CubeComparisonMemberCount + len(cubeRoutines) - 2 - len(CubeComparisonNames)
+	cubeSpatialProcedureStart   = cubeCoordinateOperatorStart + len(cubeCoordinateOperators)
+	cubeSpatialOperatorStart    = cubeSpatialProcedureStart + len(cubeSpatialMembers)
+	CubeMemberCount             = cubeSpatialOperatorStart + len(cubeSpatialMembers)
 )
 
 func cubeRoutineMember(index int) int {
@@ -183,6 +188,9 @@ func (p *CubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	support, ok := v.FamilySupport(class.Family, class.InputType, class.InputType, 1)
 	if !ok || support.Family != class.Family || support.Left != class.InputType || support.Right != class.InputType || support.Number != 1 || support.Function != ext.Members[9].ObjectID || support.OwningClass != class.Address().ObjectID || support.Revision() == 0 {
 		return invalid()
+	}
+	if err := p.validateCoordinates(v, ext, base); err != nil {
+		return err
 	}
 	return p.validateSpatial(v, ext, base)
 }

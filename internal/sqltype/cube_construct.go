@@ -19,6 +19,10 @@ const (
 	CubeExtendPair
 	CubeDimension
 	CubeIsPoint
+	CubeLowerCoordinate
+	CubeUpperCoordinate
+	CubeRawCoordinate
+	CubeSignedCoordinate
 )
 
 func cubeConstructionLimit(message string) error {

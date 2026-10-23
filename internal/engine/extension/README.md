@@ -35,15 +35,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `catalog.ExtensionMembership`. `extension_type_validation.go` validates an
   installed codec's array through the type provider registered in the catalog
   owner.
-- **Cube members** (`cube_provider.go`, `cube_spatial.go`, `cube_spatial_call.go`):
-  one atomic installation validates all 38 direct members. The selected comparison
-  graph keeps its 18-member prefix, constructors/inquiries follow, then the
-  existing spatial procedure/operator tails. Starts and the complete
-  `CubeMemberCount` derive from the routine tables; each table retains its feature
-  authority. Operators carry real Extension membership. Owner signatures replace
-  every cube formal with symbolic `cube`, preserving mixed constructor and binary
-  signatures. Import, staging, provider validation and owner decoding share the
-  complete manifest authority.
+- **Cube members** (`cube_provider.go`, `cube_coordinates.go`, `cube_spatial.go`,
+  `cube_spatial_call.go`): one atomic installation validates all 44 direct members.
+  The comparison graph keeps its 18-member prefix; constructor/inquiry/coordinate
+  procedures and two coordinate operators precede the spatial procedure/operator
+  tails. Starts and `CubeMemberCount` derive from the routine tables; each table
+  retains its feature authority. Operators carry real extension membership and
+  exact backing-procedure links. Symbolic owner signatures preserve every builtin
+  formal, including `cube,23` coordinate operators. Import resolves the expected
+  destination member, not an arbitrary same-name object.
   `RemapDescriptor` delegates class, family and class-owned row relocation to the
   catalog remappers, preserving immutable source descriptors.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
@@ -182,6 +182,6 @@ the retained TEMP descriptor; incidental prerequisite-member counts are not
 collision evidence.
 
 ```sh
-make check RUN='^Test(Extension|CitextProvider|CubeProvider|CubeSpatialProvider|EarthProvider|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
+make check RUN='^Test(Extension|CitextProvider|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```

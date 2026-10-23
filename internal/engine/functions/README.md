@@ -305,10 +305,12 @@ publication and lock-manager tickets stay in the engine.
   and [public proof](../../../reference/types/README.md#mac-address-operations).
 - **cube**: `bindCube` consumes selected/coerced operands from the shared
   analyzer callable selector; exact/preferred/unknown ranking and type-name
-  coercion remain shared. A fixed eight-operation table chooses kernel/formals.
+  coercion remain shared. Explicit operation/formal selection includes int4
+  coordinate indices and FLOAT8 extraction results.
   `CubeRoutine` exposes the resolved installation's cube descriptor without a
-  type-name lookup in `Binder`. `Cube` invokes sqltype's immutable constructor/
-  inquiry kernels; `plan.InstalledCubeExpr` preserves procedure authority through
+  type-name lookup in `Binder`. `Cube` invokes sqltype's immutable constructor,
+  inquiry and coordinate kernels; strict evaluation finishes all children first.
+  `plan.InstalledCubeExpr` preserves procedure authority through
   rebuild, retag, substitution, grouping and stored rendering.
 - **unaccent**: `unaccent.rules` (PostgreSQL REL_18_0) is embedded and compiled
   once into `StockUnaccent`, used by `extension.UnaccentProvider`.

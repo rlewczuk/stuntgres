@@ -17,6 +17,11 @@ import (
 )
 
 func TestCubeConstructorIdentity(t *testing.T) {
+	cubeCallableIdentity(t, sqltype.CubeScalar, sqltype.CubeIsPoint)
+}
+
+func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
+	t.Helper()
 	source, ext, base := cubeUnitInstalled(t)
 	before := source.CatalogRead()
 	floating, _ := before.LookupType(sqltype.Float8)
@@ -81,8 +86,8 @@ func TestCubeConstructorIdentity(t *testing.T) {
 		}
 		return next
 	}
-	for operation := sqltype.CubeScalar; operation <= sqltype.CubeIsPoint; operation++ {
-		formals, count := functions.CubeFormals(operation, base.SQLType, floating, array)
+	for operation := first; operation <= last; operation++ {
+		formals, count := functions.CubeFormals(operation, base.SQLType, floating, array, integer)
 		args := make([]expr.Expr, count)
 		for i := range args {
 			switch formals[i] {
@@ -90,6 +95,8 @@ func TestCubeConstructorIdentity(t *testing.T) {
 				args[i] = value(base.SQLType, "(1),(2)")
 			case array:
 				args[i] = value(array, "{1,2}")
+			case integer:
+				args[i] = value(integer, "1")
 			default:
 				args[i] = value(floating, "3")
 			}
@@ -100,6 +107,9 @@ func TestCubeConstructorIdentity(t *testing.T) {
 		}
 		if operation == sqltype.CubeIsPoint {
 			result = boolean
+		}
+		if operation >= sqltype.CubeLowerCoordinate {
+			result = floating
 		}
 		identity := functions.Cube{Operation: operation, Args: args}
 		procedure := before.State().MustProcedure(before.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: identity.Name(), Signature: identity.Signature()}))

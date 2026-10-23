@@ -109,6 +109,14 @@ func ImportOwners(ctx context.Context, candidate *catalog.State, view catalog.Re
 						}
 					}
 				}
+				if member.Kind == "operator" && member.Signature == "cube,23" {
+					for i, name := range cubeCoordinateOperators {
+						if member.Name == name {
+							valid = true
+							expectedCubeMember = ext.Members[cubeCoordinateOperatorStart+i]
+						}
+					}
+				}
 				if member.Signature == "cube,cube" {
 					for i, spatial := range cubeSpatialMembers {
 						if member.Kind == "procedure" && member.Name == spatial.operation.Routine() {
