@@ -58,20 +58,8 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
 	view := e.CatalogRead()
 	seen := map[ids.ObjectAddress]bool{}
-	registry := &Engine{}
-	if err := registry.registerExtension("unaccent", extension.StockUnaccent); err != nil {
-		t.Fatal(err)
-	}
-	if err := registry.registerExtension("unaccent", extension.StockUnaccent); err == nil {
-		t.Fatal("duplicate registration accepted")
-	}
-	if err := registry.registerExtension("other", nil); err == nil {
-		t.Fatal("nil implementation accepted")
-	}
-	if err := registry.registerExtension("other", &extension.UnaccentProvider{}); err == nil {
-		t.Fatal("implementation without a version accepted")
-	}
-	if err := e.registerExtension("unaccent", extension.StockUnaccent); err == nil {
+	// extension.TestRegisterAddsOnlyValidImplementations covers the checks.
+	if err := e.registerExtension("other", extension.StockUnaccent); err == nil {
 		t.Fatal("initialized registry mutated")
 	}
 	for i, signature := range []catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature} {

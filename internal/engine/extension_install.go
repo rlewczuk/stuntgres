@@ -8,28 +8,17 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Registration is initialization-only and duplicate checked, like catalog
-// provider registration. It does not execute scripts or load external packages.
+// Registration is initialization-only: the registry closes when New seeds the
+// catalog. extension.Register holds the checks.
 func (e *Engine) registerExtension(name string, implementation extension.Installer) error {
 	if e.catalog.state != nil {
 		return fmt.Errorf("stuntgres: extension registry is closed")
 	}
-	if name == "" || implementation == nil || implementation.Control().Version == "" {
-		return fmt.Errorf("stuntgres: invalid extension registration")
-	}
-	if catalog.ExtensionNameDetail(name, false) != "" {
-		return fmt.Errorf("stuntgres: invalid extension registration name")
-	}
-	if err := extension.ValidateActions(implementation); err != nil {
+	registry, err := extension.Register(e.catalog.Extensions, name, implementation)
+	if err != nil {
 		return err
 	}
-	if e.catalog.Extensions == nil {
-		e.catalog.Extensions = make(map[string]catalog.ExtensionImplementation)
-	}
-	if _, exists := e.catalog.Extensions[name]; exists {
-		return fmt.Errorf("stuntgres: duplicate extension registration %q", name)
-	}
-	e.catalog.Extensions[name] = implementation
+	e.catalog.Extensions = registry
 	return nil
 }
 
