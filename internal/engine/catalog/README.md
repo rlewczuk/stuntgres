@@ -142,8 +142,8 @@ private frames, not catalog authority.
 ## What stays in the engine
 
 DDL commands, `CatalogStage` and publication, the `catalogStore` allocators,
-seeding, the transaction catalog journal, parameter validation, the registration
-of providers that live in their own packages (`table.RelationProvider`,
+seeding, the transaction catalog journal, the registration of providers that
+live in their own packages (`role.ParameterProvider`, `table.RelationProvider`,
 `stored.TypeProvider`, `stored.ProcedureProvider`, `extension.CatalogProvider`,
 `routine.OperatorProvider`), definition-OID assignment (the Restore remap is
 `control.RemapDefinitionOIDs`) and the `DefinitionReader` implementations.

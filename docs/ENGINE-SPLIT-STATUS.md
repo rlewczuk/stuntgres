@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `e50976422` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148 and 150). Steps 8–17 were
+Last verified against `master` at `7a98644fa` (items 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85a, 85b, 86, 87, 88, 89a, 89b, 89c, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110a, 110b, 110c, 110d, 110e, 110f, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149 and 150). Steps 8–17 were
 planned at `75fe0d710`; steps 18–30 and the second-round follow-ups (items
 55–114) at `c154e14fb`; the third round (items 115–133) at `17e01ca8b`; the
 fourth round (items 134–151) at `4c05da8fe`.
@@ -20,9 +20,7 @@ different packages may run in parallel on separate branches; items that
 share a prompt file touch different root files unless their "needs" says
 otherwise.
 
-- **Fourth round, catalog, DDL, types, roles and Restore:** 149 (role
-  28e).
-- **Closing review 2:** 151 (docs only) waits for 149.
+- **Closing review 2:** 151 (docs only); every prerequisite is ticked.
 
 Steps 1–17 and `access` (A1–B7) are done, and so is item 54, the second
 planning round: steps 18–30 and the follow-ups have prompt files. Items 55
@@ -854,7 +852,8 @@ planned sub-step left; only 151 needs it.
   - [x] 30g — Run-free Restore admission and TEMP replacement checks
     ([control](ENGINE-SPLIT-control.md)) (`32741a734`, `4d0d0a332`, then
     the docs commit)
-  - [ ] 28e — ACL and role leftovers ([role](ENGINE-SPLIT-role.md))
+  - [x] 28e — ACL and role leftovers ([role](ENGINE-SPLIT-role.md))
+    (`ea1bb6984`, `97e7a49f5`, `2e153fc53`, `bb73c00c6`, then the docs commit)
   - [x] 20e — Tablespace and extension leftovers
     ([ddl](ENGINE-SPLIT-ddl.md)) (`9bb67d97f`, `ac3e010f5`, `740a0cd44`,
     then the docs commit)
@@ -2203,8 +2202,18 @@ final; an item that splits gets lettered sub-items (rule 5 below).
      no aliases · targeted units, quickcheck and the quick and
      `REFERENCE=1` Restore, Control, dump round-trip and TEMP retention
      selections passed; racecheck/finalcheck skipped at user request
-149. [ ] Role 28e: ACL and role leftovers — [role](ENGINE-SPLIT-role.md)
-     28e · needs —
+149. [x] Role 28e: ACL and role leftovers — [role](ENGINE-SPLIT-role.md) 28e ·
+     needs — (`ea1bb6984`, `97e7a49f5`, `2e153fc53`, `bb73c00c6`, then the
+     docs commit) · `access.WithObjectACL` (the per-kind switch of
+     `SetObjectACL`); `role.RetirementPreflightLocked` with the registered
+     features as a callback; `role.ParameterProvider`,
+     `CanonicalGrantParameter` and `GrantParameterDescriptorLocked` over the
+     engine's allocators (`parameter_catalog.go` deleted; `role` imports
+     `settings`); `role.PlanRoleComment` and `PlanObjectComment` over the
+     locked ref and a revision allocator; no aliases · targeted units (also
+     `RACE=1`), quickcheck and the quick and `REFERENCE=1` GRANT/REVOKE,
+     parameter ACL, role, default privilege, DROP/REASSIGN OWNED and COMMENT
+     selections passed; racecheck/finalcheck skipped at user request
 150. [x] DDL 20e: tablespace and extension leftovers —
      [ddl](ENGINE-SPLIT-ddl.md) 20e · needs — (`9bb67d97f`, `ac3e010f5`,
      `740a0cd44`, then the docs commit) · `ddl.AlterAllTablespace` over

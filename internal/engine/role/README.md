@@ -3,8 +3,9 @@
 Role and ACL DDL decisions: GRANT/REVOKE targets, request and plan,
 database GRANT, the SET ROLE and SESSION AUTHORIZATION targets, DROP ROLE,
 the ALTER DEFAULT PRIVILEGES plan, the ALTER ... OWNER checks, the REASSIGN
-OWNED and DROP OWNED plan and staging, and the role diagnostics. The handler
-decisions reach the engine through `Host` and `StageHost`. The role graph and
+OWNED and DROP OWNED plan and staging, the parameter grant catalog, the
+COMMENT decisions, the role retirement preflight and the role diagnostics. The
+handler decisions reach the engine through `Host` and `StageHost`. The role graph and
 ACL algorithms are in [`authorization`](../authorization/README.md); the
 checks over a captured view are in [`access`](../access/README.md).
 
@@ -12,8 +13,8 @@ The package is an upper feature at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): it
 imports `access`, `analyze` (types and pure functions), `authorization`,
 `catalog`, `ddl`, `extension`, `ids`, `regobj`, `routine`, `sequence`,
-`session`, `stored`, `parser`, `sqlstate` and the standard library, and
-never the engine, `analyze`'s binder or another upper feature. See
+`session`, `settings`, `stored`, `parser`, `sqlstate` and the standard
+library, and never the engine, `analyze`'s binder or another upper feature. See
 [ENGINE-SPLIT-role.md](../../../docs/ENGINE-SPLIT-role.md).
 
 ## What it owns
@@ -60,6 +61,21 @@ never the engine, `analyze`'s binder or another upper feature. See
   OWNED's eligibility checks, owners and provider expressions, or DROP
   OWNED's removals, over `StageHost`; `OwnedDependentsError` rewords DROP
   OWNED's 2BP01.
+- **Parameter grant catalog** (`parameters.go`): `ParameterProvider`
+  validates parameter ACL identities against the borrowed setting registry;
+  `CanonicalGrantParameter` accepts registered and custom dotted names
+  (42704 otherwise); `GrantParameterDescriptorLocked` returns the existing
+  identity or a baseline one owned by the bootstrap superuser, with an OID
+  and revision from the engine's allocators. `ddlHost`'s `CanonicalParameter`
+  and `GrantParameter` call them.
+- **COMMENT** (`comment.go`): `PlanRoleComment` checks COMMENT ON ROLE
+  (42704, the superuser rule) and returns the next role record;
+  `PlanObjectComment` resolves a schema, table, foreign table or column (the
+  relation through the engine's locked ref), checks kind, schema USAGE and
+  ownership and returns the commented descriptor with a new revision.
+- **Role retirement** (`retirement.go`): `RetirementPreflightLocked`, the
+  final-publication check that no default ACL, descriptor, membership edge
+  or registered feature (a callback) still references a retired role.
 - **Stage interfaces** (`stage.go`): `OwnerStage` (`ddl.Stage` plus the base
   catalog and cascade revisions) and `OwnedCleanupStage` (removals, default
   ACL records and the role candidate). The engine's `*CatalogStage`
@@ -93,9 +109,12 @@ never the engine, `analyze`'s binder or another upper feature. See
 
 `Engine.mu` and its unlock/relock windows, lock waits, `AuthorizationView`
 capture, `roleStore` publication and `installOperationRolesLocked`,
-`SetObjectACL`/`SetRoleReferences`, the host adapter (`role_host.go`) and
-the `*CatalogStage` adapters (`owned_stage.go`), the parameter targets
-(`parameter_catalog.go`), and the orchestration: `initialRole`,
+`SetObjectACL` (its per-kind switch is `access.WithObjectACL`) and
+`SetRoleReferences`, the host adapter (`role_host.go`) and the
+`*CatalogStage` adapters (`owned_stage.go`), the `ParameterProvider`
+registration, the `roleRetirementPreflightLocked` adapter, and the
+orchestration: `stageCommentLocked` (the locked-relation check, capture, the
+role record publication and the stage), `initialRole`,
 `executeRole` (dispatch, the SET LOCAL warning, session mutation,
 `publishDroppedRolesLocked`),
 `executeRoleAttributes`, `membershipLocked`, `objectGrantLocked`,
@@ -108,18 +127,23 @@ notice).
 
 ## Testing
 
-The package has no unit tests of its own: tests of its plans and staging need
-an `Engine` fixture and live in `internal/engine` (`role_*_test.go`,
-`ownership*_test.go`, `owned_roles_cleanup_test.go`, `object_acl_*_test.go`).
+`TestCanonicalGrantParameterTargets` (`parameters_test.go`) is the package's
+only unit test: tests of its other plans and staging need an `Engine` fixture
+and live in `internal/engine` (`role_*_test.go`, `ownership*_test.go`,
+`owned_roles_cleanup_test.go`, `object_acl_*_test.go`, `comment_test.go`,
+`parameter_tablespace_grant_test.go`; `default_privileges_catalog_test.go`
+for the retirement preflight).
 `TestRoleHostStageless` (`role_host_test.go`) pins the host seam: a
 stage-less `ddlHost` as `Host`. Add `RACE=1` for the connection-limit and role
 switch tests.
 
 ```sh
-make check RUN='^Test(Role|ObjectGrant|ObjectRevoke|DefaultPrivileges|DropOwned|ReassignOwned|Membership|ObjectACL|DatabaseACL|Ownership|ParameterTablespaceGrant)'
+make check RUN='^Test(Role|ObjectGrant|ObjectRevoke|DefaultPrivileges|DropOwned|ReassignOwned|Membership|ObjectACL|DatabaseACL|Ownership|ParameterTablespaceGrant|Comment|CanonicalGrantParameter)'
 ```
 
 Public behavior is in [reference/roles](../../../reference/roles/README.md#testing)
 and [reference/object_grants](../../../reference/object_grants/README.md#testing)
 (`^TestReference(Role|ObjectGrant|DefaultPrivilege|Reassign|DropOwned)`), plus
-`^TestReferenceDumpRoundTrip$` for owner and ACL replay.
+`^TestReferenceDumpRoundTrip$` for owner and ACL replay and
+`^TestReference(Comment|PGShDescription|PGParameterACL)` for COMMENT ON ROLE
+and parameter ACLs.

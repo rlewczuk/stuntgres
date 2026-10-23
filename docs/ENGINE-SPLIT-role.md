@@ -542,12 +542,62 @@ root. The checks in §8.3 pass.
   password and session-identity units, the quick and `REFERENCE=1`
   selections of the 28c proof, and quickcheck; racecheck and finalcheck
   skipped at user request; no bench (no startup path changed).
-- [ ] 28e — ACL and role leftovers (linear item 149)
+- [x] 28e — ACL and role leftovers (linear item 149) (`ea1bb6984`,
+  `97e7a49f5`, `2e153fc53`, `bb73c00c6`, then the docs commit). Re-measured
+  with `reach` at `a6de829b2`: the four sites matched the plan (about 0.27k
+  lines). The prompt's "and target update" was followed, so both COMMENT
+  decisions moved (ENGINE-SPLIT.md §6 names only the role rule). Moved:
+  - `access.WithObjectACL(d, subID, acl)` next to `DescriptorACL` (`view.go`):
+    the per-kind switch of `Engine.SetObjectACL`, with the same errors; the
+    root keeps `Engine.mu`, the ref and epoch check, the absent-ACL check and
+    entries copy, `ValidateACL`, the revision checks, the sequence stamp and
+    publication;
+  - `role.RetirementPreflightLocked(c, owner, principals, state, referencing)`
+    (`retirement.go`); the root `roleRetirementPreflightLocked` is a one-line
+    adapter passing `roleStore.referencingFeatures` (the method value does not
+    escape);
+  - `role.ParameterProvider` (field `Settings`), `CanonicalGrantParameter` and
+    `GrantParameterDescriptorLocked` (registry, catalog read, principal
+    domain, OID and revision allocators; same order) in `parameters.go`; root
+    `parameter_catalog.go` and `Engine.canonicalGrantParameter` deleted;
+    `role.Host` keeps `CanonicalParameter` and `GrantParameter`, which
+    `ddlHost` serves with the moved functions; new arrow `role` → `settings`
+    (L1);
+  - `role.PlanRoleComment(view, name, text)` (the next role record) and
+    `role.PlanObjectComment(view, env, domain, s, locked, text, revision)`
+    (`comment.go`); the engine's catalog domain mints the references, not
+    `View.Ref`; `stageCommentLocked` keeps the locked-relation check, capture,
+    the session-mutex role publication and the stage.
+  String literals are unchanged (multiset diff over the root, `access` and
+  `role`). Tests: new `TestWithObjectACLCopiesDescriptor`,
+  `TestWithObjectACLColumns` and `TestWithObjectACLRejectsTargets`
+  (`access/object_acl_test.go`, observed failing first);
+  `TestObjectGrantParameterCanonicalTargets` moved to `role` as
+  `TestCanonicalGrantParameterTargets` over `settings.NewRegistry(nil,
+  false)`; `parameter_tablespace_grant_test.go` uses `role.ParameterProvider`.
+  None deleted. Verified with the targeted units (ACL, authorization, grant,
+  parameter, role, default privilege, owned and comment), `RACE=1` over the
+  retirement and authorization units, quickcheck (one known load flake,
+  `TestReferenceJSONBElementsCancellation`, passed alone), and the quick and
+  `REFERENCE=1`
+  `^TestReference(ObjectGrant|Role|Comment|PGShDescription|PGParameterACL|DefaultPrivilege|DropOwned|Reassign)`
+  selection; racecheck and finalcheck skipped at user request.
+  `BenchmarkOpenDatabase` (only the provider's type changed on the startup
+  path): 5,419–5,423 allocs/op on both master and the branch in interleaved
+  `-benchtime=200x` runs; ns/op not comparable under the machine's load (about
+  9.5 ms on both).
 
 Outstanding aliases: none (28b added none).
 
 ### Notes for later steps
 
+- 28e, for later steps:
+  - `parameter_catalog.go` no longer stays in the root (the 28c note below is
+    superseded): the parameter grant catalog is `role/parameters.go`; the root
+    only registers `role.ParameterProvider`.
+  - The root role remainder for closing review 2 (item 151) adds
+    `SetObjectACL`, `roleRetirementPreflightLocked` and `stageCommentLocked`
+    as orchestration and adapters.
 - 28d, for later steps:
   - `role.Host` is served by a stage-less `ddlHost{e, op}`; a later role
     host method must not read `h.stage`.
